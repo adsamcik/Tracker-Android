@@ -12,7 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -106,8 +105,6 @@ fun GlassTier.tintColor(): Color {
     return MaterialTheme.colorScheme.surfaceContainer.copy(alpha = alpha)
 }
 
-// --- SEMANTIC COLOR LOCALS ---
-
 data class RidgelineSemanticColors(
     val success: Color,
     val onSuccess: Color,
@@ -118,19 +115,6 @@ data class RidgelineSemanticColors(
     val warningContainer: Color,
     val onWarningContainer: Color,
 )
-
-val LocalSemanticColors = staticCompositionLocalOf {
-    RidgelineSemanticColors(
-        success = SuccessLight,
-        onSuccess = OnSuccessLight,
-        successContainer = SuccessContainerLight,
-        onSuccessContainer = OnSuccessContainerLight,
-        warning = WarningLight,
-        onWarning = OnWarningLight,
-        warningContainer = WarningContainerLight,
-        onWarningContainer = OnWarningContainerLight,
-    )
-}
 
 // --- ACTIVITY COLORS (Okabe-Ito, independent of brand seed) ---
 

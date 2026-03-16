@@ -40,6 +40,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 private const val SCROLL_THRESHOLD = 30
 private const val LABEL_PADDING_PX = 4f
@@ -79,16 +80,22 @@ internal fun SpeedSparkline(
 	}
 
 	// Pulsing dot for current speed
-	val pulseTransition = rememberInfiniteTransition(label = "speed_pulse")
-	val pulseRadius by pulseTransition.animateFloat(
-		initialValue = 4f,
-		targetValue = 7f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(MotionTokens.AMBIENT_MS),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "pulse_radius",
-	)
+	val reducedMotion = LocalReducedMotion.current
+	val pulseRadius = if (reducedMotion) {
+		4f
+	} else {
+		val pulseTransition = rememberInfiniteTransition(label = "speed_pulse")
+		val animatedPulseRadius by pulseTransition.animateFloat(
+			initialValue = 4f,
+			targetValue = 7f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(MotionTokens.AMBIENT_MS),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "pulse_radius",
+		)
+		animatedPulseRadius
+	}
 
 	val computedMax = maxSpeed ?: speedHistory.max()
 	val effectiveMax = computedMax.coerceAtLeast(0.1f)

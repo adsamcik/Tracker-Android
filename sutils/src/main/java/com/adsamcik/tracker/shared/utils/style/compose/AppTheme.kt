@@ -16,25 +16,18 @@ import androidx.compose.ui.platform.LocalContext
 val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
- * Reduced transparency preference. True when glass should render opaque.
- * GlassSurface checks this automatically.
- */
-val LocalReduceTransparency = staticCompositionLocalOf { false }
-
-/**
  * Unified Ridgeline app theme.
  *
  * - Android 12+ (S): system dynamic colors (Monet) when [useDynamicColor] is true.
  * - Pre-Android 12: Ridgeline Canopy Green palette.
  *
- * Provides [LocalReducedMotion], [LocalReduceTransparency], and [LocalSemanticColors].
+ * Provides [LocalReducedMotion].
  */
 @Composable
 fun AppTheme(
     useDynamicColor: Boolean = true,
     darkTheme: Boolean = isSystemInDarkTheme(),
     reducedMotion: Boolean = false,
-    reduceTransparency: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -52,36 +45,8 @@ fun AppTheme(
         }
     }
 
-    val semanticColors = remember(darkTheme) {
-        if (darkTheme) {
-            RidgelineSemanticColors(
-                success = SuccessDark,
-                onSuccess = OnSuccessDark,
-                successContainer = SuccessContainerDark,
-                onSuccessContainer = OnSuccessContainerDark,
-                warning = WarningDark,
-                onWarning = OnWarningDark,
-                warningContainer = WarningContainerDark,
-                onWarningContainer = OnWarningContainerDark,
-            )
-        } else {
-            RidgelineSemanticColors(
-                success = SuccessLight,
-                onSuccess = OnSuccessLight,
-                successContainer = SuccessContainerLight,
-                onSuccessContainer = OnSuccessContainerLight,
-                warning = WarningLight,
-                onWarning = OnWarningLight,
-                warningContainer = WarningContainerLight,
-                onWarningContainer = OnWarningContainerLight,
-            )
-        }
-    }
-
     CompositionLocalProvider(
         LocalReducedMotion provides reducedMotion,
-        LocalReduceTransparency provides reduceTransparency,
-        LocalSemanticColors provides semanticColors,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

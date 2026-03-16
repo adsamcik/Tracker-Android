@@ -75,7 +75,10 @@ fun TrackingPresetSelector(
             contentPadding = PaddingValues(end = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(presets) { preset ->
+            items(
+                items = presets,
+                key = { it.name },
+            ) { preset ->
                 val selected = preset == selectedPreset
                 Card(
                     onClick = { onPresetSelected(preset) },

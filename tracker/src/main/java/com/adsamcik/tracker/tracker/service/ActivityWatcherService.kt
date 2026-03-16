@@ -15,8 +15,6 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import com.adsamcik.tracker.tracker.controller.LockManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -25,27 +23,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Hilt EntryPoint for accessing dependencies from static context (companion object methods)
- */
-@dagger.hilt.EntryPoint
-@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-interface ActivityWatcherEntryPoint {
-	fun trackerServiceController(): TrackerServiceController
-	fun lockManager(): LockManager
-}
-
-/**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
 @AndroidEntryPoint
 class ActivityWatcherService : CoreService() {
 	private var activityInfo: ActivityInfo = ActivityRequestManager.lastActivity
-
-	@Inject
-	lateinit var trackerServiceController: TrackerServiceController
-	
-	@Inject
-	lateinit var lockManager: LockManager
 
 	@Inject
 	lateinit var activityWatcherController: ActivityWatcherServiceController

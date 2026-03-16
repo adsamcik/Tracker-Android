@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
+
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -23,9 +24,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.data.DashboardWidget
+import com.adsamcik.tracker.dashboard.data.ResolvedWidget
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.dashboard.ui.compose.cards.IdleContent
+import com.adsamcik.tracker.dashboard.ui.compose.components.CustomizeDashboardSheet
 import com.adsamcik.tracker.dashboard.ui.compose.components.DashboardTopBar
 import com.adsamcik.tracker.dashboard.ui.compose.components.EmptyStateCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.EmptyStateStartHintCard
@@ -33,7 +40,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.components.GettingStartedCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.MilestoneHapticEffect
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingPill
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
-import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 
@@ -52,6 +58,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLay
 @Composable
 internal fun DashboardScreen(
 	state: DashboardUiState,
+	visibleWidgets: List<DashboardWidget> = emptyList(),
+	resolvedWidgetsForSheet: List<ResolvedWidget> = emptyList(),
+	showCustomizeSheet: Boolean = false,
 	onSettingsClick: () -> Unit,
 	onMapClick: () -> Unit,
 	onToggleTracking: (Boolean) -> Unit,
@@ -59,9 +68,14 @@ internal fun DashboardScreen(
 	onGameClick: (() -> Unit)?,
 	onChallengesClick: (() -> Unit)? = onGameClick,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onCustomizeClick: () -> Unit = {},
+	onReorderWidgets: (List<String>) -> Unit = {},
+	onToggleWidgetVisibility: (String) -> Unit = {},
+	onResetLayout: () -> Unit = {},
+	onDismissCustomize: () -> Unit = {},
 	snackbarHostState: SnackbarHostState,
 	modifier: Modifier = Modifier,
-) {
+){
 	val haptics = LocalHapticFeedback.current
 	val configuration = LocalConfiguration.current
 	val navigationLayout = rememberMainNavigationLayout()
@@ -105,13 +119,19 @@ internal fun DashboardScreen(
 
 	// Scroll state for idle content — drives pill visibility
 	val idleListState = rememberLazyListState()
-	val showPill by remember {
+	val showPill by remember(state.dashboardMode, visibleWidgets, configuration.orientation) {
 		derivedStateOf {
+			val todayProgressVisible = visibleWidgets.any { it == DashboardWidget.TodayProgress }
 			// Show pill when the TodayProgressCard (index 1, after motivational at 0)
-			// is no longer the first visible item — i.e., it has scrolled off-screen.
-			// Also show in TRACKING and EMPTY modes since there's no inline ring.
+			// is scrolled off-screen, or when the inline card is hidden entirely.
 			when (state.dashboardMode) {
-				DashboardMode.IDLE -> idleListState.firstVisibleItemIndex > 1
+				DashboardMode.IDLE -> when {
+					!todayProgressVisible -> true
+					configuration.orientation == Configuration.ORIENTATION_LANDSCAPE -> true
+					else -> idleListState.layoutInfo.visibleItemsInfo.none {
+						it.key == DashboardWidget.TodayProgress.id
+					}
+				}
 				DashboardMode.TRACKING -> true
 				DashboardMode.EMPTY -> true
 			}
@@ -128,6 +148,7 @@ internal fun DashboardScreen(
 				pointsToday = state.pointsToday,
 				onSettingsClick = onSettingsClick,
 				onGameClick = onGameClick,
+				onCustomizeClick = if (state.dashboardMode == DashboardMode.IDLE) onCustomizeClick else null,
 			)
 		},
 		snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -147,6 +168,7 @@ internal fun DashboardScreen(
 				)
 				DashboardMode.IDLE -> IdleContent(
 					state = state,
+					widgets = visibleWidgets,
 					listState = idleListState,
 					bottomClearance = bottomClearance,
 					onMapClick = onMapClick,
@@ -177,6 +199,17 @@ internal fun DashboardScreen(
 			)
 		}
 	}
+
+	// Customize dashboard bottom sheet
+	if (showCustomizeSheet) {
+		CustomizeDashboardSheet(
+			resolvedWidgets = resolvedWidgetsForSheet,
+			onReorder = onReorderWidgets,
+			onToggleVisibility = onToggleWidgetVisibility,
+			onResetToDefault = onResetLayout,
+			onDismiss = onDismissCustomize,
+		)
+	}
 }
 
 @Composable
@@ -197,6 +230,43 @@ private fun EmptyStateContent(
 		item { EmptyStateCard() }
 		item { GettingStartedCard() }
 		item { EmptyStateStartHintCard() }
+	}
+}
+
+// ─── Previews ────────────────────────────────────────────────────────
+
+@Preview(name = "Idle – Light", showBackground = true)
+@Preview(name = "Idle – Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun DashboardScreenIdlePreview() {
+	AppTheme {
+		DashboardScreen(
+			state = DashboardUiState.previewIdle(),
+			snackbarHostState = remember { SnackbarHostState() },
+			onSettingsClick = {},
+			onMapClick = {},
+			onToggleTracking = {},
+			onRequestPermission = {},
+			onGameClick = {},
+			onSessionDetailClick = {},
+		)
+	}
+}
+
+@Preview(name = "Tracking – Light", showBackground = true)
+@Composable
+private fun DashboardScreenTrackingPreview() {
+	AppTheme {
+		DashboardScreen(
+			state = DashboardUiState.previewTracking(),
+			snackbarHostState = remember { SnackbarHostState() },
+			onSettingsClick = {},
+			onMapClick = {},
+			onToggleTracking = {},
+			onRequestPermission = {},
+			onGameClick = {},
+			onSessionDetailClick = {},
+		)
 	}
 }
 

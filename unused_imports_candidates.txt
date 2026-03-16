@@ -1,0 +1,409 @@
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\java\com\adsamcik\tracker\activity\ui\SessionActivityActivityCompose.kt
+  51: androidx.compose.runtime.setValue
+  52: androidx.compose.runtime.getValue
+  55: androidx.compose.ui.graphics.Color
+  65: com.adsamcik.tracker.shared.utils.style.compose.AppColors
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\activity\debug\CrashExportActivity.kt
+  3: android.content.Intent
+  16: androidx.compose.runtime.getValue
+  20: androidx.compose.runtime.setValue
+  21: androidx.compose.ui.Modifier
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\activity\debug\CrashManagerActivity.kt
+  3: android.content.Intent
+  31: androidx.compose.runtime.getValue
+  35: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\activity\debug\CrashViewerActivity.kt
+  16: androidx.compose.runtime.getValue
+  19: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\activity\licenses\ThirdPartyLicensesActivity.kt
+  25: androidx.compose.runtime.getValue
+  28: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\debug\DebugRoute.kt
+  35: androidx.compose.runtime.getValue
+  39: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\onboarding\permission\OnboardingPermissionManager.kt
+  4: android.content.Context
+  11: androidx.lifecycle.lifecycleScope
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\onboarding\ui\OnboardingActivity.kt
+  17: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\onboarding\ui\StreamlinedOnboardingScreen.kt
+  6: androidx.compose.animation.core.tween
+  38: androidx.compose.material3.TextButton
+  42: androidx.compose.runtime.getValue
+  45: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\onboarding\ui\components\LocationPrecisionSelector.kt
+  3: androidx.compose.foundation.BorderStroke
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\DataSettingsViewModel.kt
+  14: kotlinx.coroutines.flow.map
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\SettingsRoute.kt
+  20: androidx.compose.runtime.getValue
+  23: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\TrackingSettingsViewModel.kt
+  11: com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\components\DialogListPreference.kt
+  3: androidx.compose.foundation.clickable
+  4: androidx.compose.foundation.layout.Column
+  16: androidx.compose.runtime.getValue
+  21: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\components\ExpandableSection.kt
+  21: androidx.compose.runtime.getValue
+  24: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\components\SettingsItemWithHelp.kt
+  24: androidx.compose.runtime.getValue
+  27: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\data\DataSettingsScreen.kt
+  3: android.content.Intent
+  23: androidx.compose.runtime.getValue
+  27: androidx.compose.runtime.setValue
+  39: com.adsamcik.tracker.app.settings.components.ExportFormat
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\debug\DebugSettingsScreen.kt
+  11: androidx.compose.material.icons.filled.Science
+  14: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\game\GameSettingsScreen.kt
+  11: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\map\MapSettingsScreen.kt
+  23: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\root\RootSettingsScreen.kt
+  30: androidx.compose.runtime.getValue
+  33: androidx.compose.runtime.setValue
+  43: com.adsamcik.tracker.app.settings.components.SectionHeader
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\statistics\StatisticsSettingsScreen.kt
+  8: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\tracking\TrackingSettingsScreen.kt
+  21: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\ui\TrackingPolicySelector.kt
+  26: androidx.compose.runtime.getValue
+  29: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\settings\ui\TrackingPresetSelector.kt
+  21: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\ui\FloatingNavigationBar.kt
+  32: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\ui\MainRoot.kt
+  3: androidx.compose.animation.core.Spring
+  4: androidx.compose.animation.core.animateDpAsState
+  5: androidx.compose.animation.core.spring
+  13: androidx.compose.material3.Scaffold
+  14: androidx.compose.material3.Surface
+  17: androidx.compose.runtime.getValue
+  20: androidx.compose.runtime.setValue
+  34: androidx.compose.ui.semantics.selected
+  35: androidx.compose.ui.semantics.semantics
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\ui\PrecisionUpgradeOverlay.kt
+  6: androidx.compose.runtime.getValue
+  9: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\app\widget\glance\ActiveSessionWidget.kt
+  29: androidx.glance.layout.width
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\app\src\main\java\com\adsamcik\tracker\preference\component\DialogListPreference.kt
+  15: androidx.compose.runtime.getValue
+  19: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\DashboardRoute.kt
+  12: androidx.compose.runtime.getValue
+  16: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\DashboardScreen.kt
+  20: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\cards\ChallengeCards.kt
+  18: androidx.compose.material.icons.automirrored.filled.ArrowForward
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\cards\ExplorationCard.kt
+  5: androidx.compose.foundation.layout.Box
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\cards\RecentTripsCard.kt
+  9: androidx.compose.foundation.layout.Spacer
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\CustomizeDashboardSheet.kt
+  30: androidx.compose.runtime.getValue
+  34: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\DashboardTopBar.kt
+  24: androidx.compose.material.icons.outlined.Lock
+  40: androidx.compose.runtime.collectAsState
+  41: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\EmptyStateCard.kt
+  17: androidx.compose.foundation.layout.fillMaxSize
+  39: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\MilestoneHapticEffect.kt
+  5: androidx.compose.runtime.getValue
+  8: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\SensorDetailsCard.kt
+  31: androidx.compose.runtime.getValue
+  34: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\TrackingActionRing.kt
+  30: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\components\TrackingFAB.kt
+  32: androidx.compose.runtime.getValue
+  48: com.adsamcik.tracker.tracker.R
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\tracking\LiveChallengeProgress.kt
+  9: androidx.compose.foundation.layout.padding
+  14: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\tracking\MilestoneCelebration.kt
+  21: androidx.compose.runtime.getValue
+  25: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\tracking\TrackingContent.kt
+  32: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\tracking\TrackingStatsGrid.kt
+  45: com.adsamcik.tracker.shared.base.extension.formatAsDuration
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\visualization\AltitudeSparkline.kt
+  18: androidx.compose.ui.geometry.Rect
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\visualization\GoalProgressRings.kt
+  14: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\src\main\java\com\adsamcik\tracker\dashboard\ui\compose\visualization\SpeedSparkline.kt
+  15: androidx.compose.foundation.layout.padding
+  18: androidx.compose.material3.Text
+  21: androidx.compose.runtime.getValue
+  23: androidx.compose.ui.Alignment
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\challenge\processor\ExplorerChallengeProcessor.kt
+  10: com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\challenge\progression\UnlockRepository.kt
+  4: com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\leaderboard\WeeklyLeaderboardCard.kt
+  25: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\minigame\MiniGame.kt
+  3: androidx.annotation.DrawableRes
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\AchievementCard.kt
+  13: androidx.compose.foundation.layout.width
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\ActiveChallengesRow.kt
+  27: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\ExplorationCard.kt
+  14: androidx.compose.foundation.shape.RoundedCornerShape
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\GameRoute.kt
+  6: androidx.compose.runtime.getValue
+  10: androidx.compose.runtime.setValue
+  13: androidx.compose.ui.res.stringResource
+  16: com.adsamcik.tracker.game.R
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\GameScreen.kt
+  12: androidx.compose.foundation.layout.Spacer
+  24: androidx.compose.foundation.layout.windowInsetsPadding
+  26: androidx.compose.foundation.lazy.items
+  57: androidx.compose.ui.text.style.TextAlign
+  66: com.adsamcik.tracker.shared.utils.style.compose.AppColors
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\HeroLevelCard.kt
+  27: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\TrophyCaseRoute.kt
+  4: androidx.compose.runtime.getValue
+  7: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\TrophyCaseScreen.kt
+  22: androidx.compose.foundation.shape.RoundedCornerShape
+  35: androidx.compose.ui.draw.clip
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\java\com\adsamcik\tracker\game\ui\compose\UnlockAnnouncementBanner.kt
+  20: androidx.compose.runtime.getValue
+  23: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\impexp\src\main\java\com\adsamcik\tracker\impexp\exporter\activity\ImportExportComposeActivity.kt
+  18: androidx.compose.foundation.layout.fillMaxSize
+  20: androidx.compose.foundation.layout.height
+  73: com.adsamcik.tracker.shared.utils.style.compose.AppColors
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\logger\src\main\java\com\adsamcik\tracker\logger\LogDatabase.kt
+  4: androidx.room.Room
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\logger\src\main\java\com\adsamcik\tracker\logger\Logger.kt
+  4: android.os.Debug
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\map\src\main\java\com\adsamcik\tracker\map\data\GeoRepository.kt
+  3: com.adsamcik.tracker.shared.base.database.AppDatabase
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\map\src\main\java\com\adsamcik\tracker\map\presentation\sensors\LocationAndSensorsManager.kt
+  9: androidx.annotation.RequiresPermission
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\map\src\main\java\com\adsamcik\tracker\map\ui\MapRoute.kt
+  10: androidx.compose.runtime.getValue
+  13: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\map\src\main\java\com\adsamcik\tracker\map\ui\MapScreen.kt
+  21: androidx.compose.runtime.getValue
+  25: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\map\src\main\java\com\adsamcik\tracker\map\ui\MapSheet.kt
+  75: androidx.compose.runtime.getValue
+  79: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\sbase\src\main\java\com\adsamcik\tracker\shared\base\assist\DisplayAssist.kt
+  3: android.app.Activity
+  8: android.util.TypedValue
+  11: android.view.View
+  16: androidx.core.view.doOnAttach
+  18: com.adsamcik.tracker.shared.base.BuildConfig
+  19: com.adsamcik.tracker.shared.base.extension.dp
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\sbase\src\main\java\com\adsamcik\tracker\shared\base\data\CellInfo.kt
+  4: android.telephony.CellIdentity
+  9: android.telephony.CellSignalStrength
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\detail\ui\ActivitySelectionDialog.kt
+  4: androidx.compose.foundation.layout.Box
+  5: androidx.compose.foundation.layout.Column
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\dialog\StatisticSummaryDialog.kt
+  18: androidx.compose.runtime.getValue
+  21: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\export\GpxShareHelper.kt
+  10: com.adsamcik.tracker.shared.base.database.data.LocationSample
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\fragment\StatsRoute.kt
+  9: androidx.compose.runtime.getValue
+  12: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\fragment\StatsScreen.kt
+  46: androidx.compose.material.icons.filled.ArrowDropDown
+  49: androidx.compose.material.icons.filled.Flight
+  51: androidx.compose.material.icons.filled.Sailing
+  68: androidx.compose.runtime.getValue
+  71: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\presenter\StatsPresenter.kt
+  3: arrow.core.Either
+  4: com.adsamcik.tracker.stats.api.error.StatsError
+  12: kotlinx.coroutines.flow.flow
+  13: kotlinx.coroutines.flow.map
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\presenter\TripDetailPresenter.kt
+  10: kotlinx.coroutines.flow.map
+  11: kotlinx.coroutines.flow.onStart
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\presenter\TripDetailPresenterViewModel.kt
+  16: com.adsamcik.tracker.stats.api.repository.TripRepository
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\ui\HistoryRoute.kt
+  19: androidx.compose.runtime.getValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\ui\TripDetailRoute.kt
+  46: androidx.compose.runtime.getValue
+  49: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\ui\compose\WifiStatsDialog.kt
+  15: androidx.compose.runtime.getValue
+  18: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\ui\ski\SkiSessionDetailSection.kt
+  11: androidx.compose.material3.HorizontalDivider
+  12: androidx.compose.material3.Icon
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\statistics\src\main\java\com\adsamcik\tracker\statistics\wifi\WifiBrowseActivityCompose.kt
+  34: androidx.compose.runtime.getValue
+  39: androidx.compose.runtime.setValue
+  49: com.adsamcik.tracker.shared.utils.style.compose.AppColors
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\sutils\src\main\java\com\adsamcik\tracker\shared\utils\activity\ComposeDetailActivity.kt
+  22: androidx.compose.runtime.getValue
+  24: androidx.compose.runtime.setValue
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\sutils\src\main\java\com\adsamcik\tracker\shared\utils\permission\PermissionManager.kt
+  11: androidx.lifecycle.lifecycleScope
+  13: kotlinx.coroutines.suspendCancellableCoroutine
+  14: kotlin.coroutines.resume
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\sutils\src\main\java\com\adsamcik\tracker\shared\utils\style\compose\DesignSystem.kt
+  3: android.os.Build
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\component\TrackerDataProducerComponent.kt
+  8: com.adsamcik.tracker.shared.preferences.Preferences
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\component\consumer\pre\PolicyAwareLocationPreTrackerComponent.kt
+  11: com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\component\producer\CellDataProducer.kt
+  14: androidx.annotation.RequiresApi
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\component\trigger\AndroidLocationCollectionTrigger.kt
+  8: android.os.Bundle
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\component\trigger\HandlerCollectionTrigger.kt
+  10: com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\notification\NotificationManagementActivity.kt
+  36: androidx.compose.ui.semantics.semantics
+  37: androidx.compose.ui.semantics.testTag
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\pipeline\SignalAdapter.kt
+  3: com.adsamcik.tracker.stats.api.DetectedActivityType
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\pipeline\persistence\PersistenceProcessor.kt
+  27: com.adsamcik.tracker.stats.api.signal.CellSignal
+  29: com.adsamcik.tracker.stats.api.signal.PressureSignal
+  30: com.adsamcik.tracker.stats.api.signal.StepSignal
+  32: com.adsamcik.tracker.stats.api.signal.WifiSignal
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\service\ActivityWatcherService.kt
+  8: android.os.Build
+  9: android.util.Log
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\service\TrackingOrchestrator.kt
+  12: com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+  34: com.adsamcik.tracker.tracker.pipeline.SignalAdapter
+  35: com.adsamcik.tracker.tracker.pipeline.StageResult
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\ui\compose\TrackerComponents.kt
+  26: androidx.compose.runtime.getValue
+  36: com.adsamcik.tracker.shared.utils.style.compose.AppColors
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\ui\compose\TrackerDashboard.kt
+  84: androidx.compose.material3.LargeFloatingActionButton
+  95: androidx.compose.runtime.getValue
+  99: androidx.compose.runtime.setValue
+  130: kotlinx.coroutines.Dispatchers
+  139: androidx.compose.ui.unit.sp
+  142: androidx.compose.ui.geometry.CornerRadius
+  144: androidx.compose.ui.geometry.Size
+  160: com.adsamcik.tracker.shared.preferences.Preferences
+--
+C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\tracker\src\main\java\com\adsamcik\tracker\tracker\ui\compose\TrackerRoute.kt
+  21: com.adsamcik.tracker.stats.api.PolicyTier
+--

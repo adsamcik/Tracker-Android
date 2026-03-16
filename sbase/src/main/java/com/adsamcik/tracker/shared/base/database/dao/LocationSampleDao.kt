@@ -18,6 +18,33 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<LocationSample>
 
 	/**
+	 * Get the next ordered chunk of location samples within a time range.
+	 * Uses (time_ms, id) as a stable cursor to avoid duplicates or gaps.
+	 */
+	@Query(
+		"""
+		SELECT *
+		FROM location_sample
+		WHERE time_ms >= :fromMs
+			AND time_ms <= :toMs
+			AND (
+				:afterTimeMs IS NULL
+				OR time_ms > :afterTimeMs
+				OR (time_ms = :afterTimeMs AND id > COALESCE(:afterId, 0))
+			)
+		ORDER BY time_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getChunkBetweenOrdered(
+		fromMs: Long,
+		toMs: Long,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		limit: Int,
+	): List<LocationSample>
+
+	/**
 	 * Get location samples within time range as Flow.
 	 */
 	@Query("SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")

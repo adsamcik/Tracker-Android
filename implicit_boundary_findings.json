@@ -1,0 +1,1535 @@
+{
+  "implicit": [
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.activity.ActivityChangeRequestCallback",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.activity.ActivityChangeRequestData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.activity.ActivityRequestData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.activity.ActivityTransitionData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.activity.ActivityTransitionRequestData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 11,
+      "text": "import com.adsamcik.tracker.activity.ActivityTransitionType",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.activity.api.ActivityRequestManager",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\post\\SkiTrackingComponent.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\ActivityDataProducer.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.activity.ActivityChangeRequestData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\ActivityDataProducer.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.activity.ActivityRequestData",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\ActivityDataProducer.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.activity.api.ActivityRequestManager",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\ActivityWatcherService.kt",
+      "line": 11,
+      "text": "import com.adsamcik.tracker.activity.R",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "tracker",
+      "dep": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\ActivityWatcherService.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.activity.api.ActivityRequestManager",
+      "reason": "tracker should not reference UI modules"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\SafetyExtensions.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.logging.ReporterFacade",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\StringExtensions.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.Time",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\StringExtensions.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.constant.LengthConstants",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\WorkExtensions.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.logging.ReporterFacade",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\WorkExtensions.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.extension.tryGetLong",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\module\\TrackerSessionChannel.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.data.TrackerSession",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\module\\TrackerUpdateReceiver.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.data.CollectionData",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\module\\TrackerUpdateReceiver.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.data.TrackerSession",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\permission\\PermissionResult.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.logging.ReporterFacade",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\SunSetRise.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.Time",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\SunSetRise.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.data.BaseLocation",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\SunSetRise.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.data.LengthUnit",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\SunSetRise.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.data.Location",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\color\\ColorFunctions.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.constant.LabConstants",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "sutils",
+      "dep": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\color\\palette\\PaletteGeneratorKMeans.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.extension.remove",
+      "reason": "sutils should not reference sbase"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashData.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.Time",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashDataDao.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashExporter.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashExporter.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.extension.formatAsDateTime",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\DebugCrashLogExporter.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\GenericLogDao.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\LogData.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.Time",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\LogDatabase.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Logger.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.preferences.Preferences",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Logger.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.logger.BuildConfig",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.isEmulator",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.logging.ErrorReporter",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.logging.ReporterFacade",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "logger",
+      "dep": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows",
+      "reason": "logger should not reference other project modules"
+    },
+    {
+      "module": "stats-data",
+      "dep": "stats-engine",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\StatsDataModule.kt",
+      "line": 17,
+      "text": "import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator",
+      "reason": "stats-data should not reference stats-engine"
+    },
+    {
+      "module": "stats-data",
+      "dep": "stats-engine",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\worker\\AchievementWorker.kt",
+      "line": 11,
+      "text": "import com.adsamcik.tracker.stats.engine.achievement.AchievementCatalog",
+      "reason": "stats-data should not reference stats-engine"
+    },
+    {
+      "module": "stats-data",
+      "dep": "stats-engine",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\worker\\AchievementWorker.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator",
+      "reason": "stats-data should not reference stats-engine"
+    }
+  ],
+  "dao": [
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\AppGraphModule.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\AppGraphModule.kt",
+      "line": 13,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\AppGraphModule.kt",
+      "line": 14,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ActivityDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 11,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 13,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 14,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 15,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 16,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 17,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 18,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.GeneralDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 19,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 20,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 21,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 22,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 23,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 24,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 25,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 26,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 27,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 28,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 29,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 30,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 31,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 32,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripLegDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 33,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt",
+      "line": 34,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DatabaseMaintenanceWorker.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt",
+      "line": 16,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt",
+      "line": 17,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt",
+      "line": 18,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao"
+    },
+    {
+      "module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt",
+      "line": 19,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\SessionTrackerComponent.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\di\\DefaultDailySummaryProvider.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\di\\DefaultDailySummaryProvider.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\di\\DefaultDailySummaryProvider.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\DurableSignalBuffer.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao"
+    },
+    {
+      "module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\pipeline\\persistence\\PersistenceProcessor.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao"
+    },
+    {
+      "module": "logger",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashDataDao.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "logger",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\GenericLogDao.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementMetricsProvider.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementMetricsProvider.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementMetricsProvider.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementMetricsProvider.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementMetricsProvider.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAchievementRepository.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultDailySummaryRepository.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultDomainEventRepository.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultExplorationRepository.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultLiveStatsRepository.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultTripRepository.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "stats-data",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\worker\\AchievementWorker.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao"
+    },
+    {
+      "module": "map",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\data\\GeoRepository.kt",
+      "line": 4,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao"
+    },
+    {
+      "module": "map",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\layers\\registry\\DefaultLayerRegistry.kt",
+      "line": 20,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\data\\DefaultStatsRepository.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\database\\dao\\StatsCacheDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\export\\GpxShareHelper.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\HistoryPresenterViewModel.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\StatsPresenterViewModel.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\TripDetailPresenterViewModel.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\TripDetailPresenterViewModel.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao"
+    },
+    {
+      "module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\TripDetailPresenterViewModel.kt",
+      "line": 10,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.TripDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ActiveTimeChallengeDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeEntryDao.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengePersonalRecordDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeStreakDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ExplorerChallengeDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\PlayerProfileDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\SessionChallengeDataDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\StepChallengeDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\WalkDistanceChallengeDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\XpLedgerDao.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\processor\\ExplorerChallengeProcessor.kt",
+      "line": 12,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\event\\ExplorationDomainEventConsumer.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\event\\ExplorationDomainEventConsumer.kt",
+      "line": 9,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\event\\ExplorationStreakTracker.kt",
+      "line": 3,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\leaderboard\\GhostLeaderboardProvider.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\minigame\\database\\MiniGameScoreDao.kt",
+      "line": 5,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\viewmodel\\ExplorationViewModel.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\viewmodel\\ExplorationViewModel.kt",
+      "line": 7,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao"
+    },
+    {
+      "module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\viewmodel\\ExplorationViewModel.kt",
+      "line": 8,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao"
+    },
+    {
+      "module": "points",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\points\\src\\main\\java\\com\\adsamcik\\tracker\\points\\database\\PointsAwardedDao.kt",
+      "line": 6,
+      "text": "import com.adsamcik.tracker.shared.base.database.dao.BaseDao"
+    }
+  ],
+  "shared_state": [
+    {
+      "object": "Loading",
+      "def_module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\licenses\\ThirdPartyLicensesActivity.kt",
+      "cross_refs": [
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\compose\\Motion.kt"
+        },
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\ui\\MapScreen.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\fragment\\StatsRoute.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\fragment\\StatsScreen.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\HistoryPresenter.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\HistoryPresenterViewModel.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\StatsPresenter.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\StatsPresenterViewModel.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\TripDetailPresenter.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\TripDetailPresenterViewModel.kt"
+        }
+      ]
+    },
+    {
+      "object": "approach",
+      "def_module": "app",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionScheduler.kt",
+      "cross_refs": [
+        {
+          "module": "logger",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Logger.kt"
+        },
+        {
+          "module": "activity",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\recognizer\\SkiActivityRecognizer.kt"
+        },
+        {
+          "module": "impexp",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\impexp\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\importer\\file\\DatabaseImport.kt"
+        }
+      ]
+    },
+    {
+      "object": "static",
+      "def_module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\controller\\DefaultTrackerServiceController.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\widget\\glance\\WidgetActions.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionScheduler.kt"
+        },
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\data\\ActivityInfo.kt"
+        },
+        {
+          "module": "spreferences",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\spreferences\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\preferences\\PreferencesAssist.kt"
+        },
+        {
+          "module": "spreferences",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\spreferences\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\preferences\\settings\\TrackerSettingsAccess.kt"
+        }
+      ]
+    },
+    {
+      "object": "methods",
+      "def_module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\ActivityWatcherService.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\widget\\glance\\WidgetActions.kt"
+        },
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\assist\\DisplayAssist.kt"
+        },
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabase.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\color\\ColorGenerator.kt"
+        },
+        {
+          "module": "logger",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashHandler.kt"
+        },
+        {
+          "module": "statistics",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\data\\source\\abstraction\\BaseStatDataSource.kt"
+        },
+        {
+          "module": "testing-common",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\testing-common\\src\\main\\kotlin\\com\\adsamcik\\tracker\\testing\\fake\\FakeLocationSource.kt"
+        },
+        {
+          "module": "testing-common",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\testing-common\\src\\main\\kotlin\\com\\adsamcik\\tracker\\testing\\fake\\FakeLockManager.kt"
+        },
+        {
+          "module": "testing-common",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\testing-common\\src\\main\\kotlin\\com\\adsamcik\\tracker\\testing\\fake\\FakeTrackerServiceController.kt"
+        },
+        {
+          "module": "points",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\points\\src\\main\\java\\com\\adsamcik\\tracker\\points\\scoring\\PointsScorer.kt"
+        }
+      ]
+    },
+    {
+      "object": "Shortcuts",
+      "def_module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\shortcut\\Shortcuts.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\Application.kt"
+        }
+      ]
+    },
+    {
+      "object": "Location",
+      "def_module": "tracker",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\ui\\compose\\TrackerDashboard.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\data\\OnboardingState.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\permission\\OnboardingPermissionManager.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\OnboardingActivity.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\StreamlinedOnboardingScreen.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\components\\LocationPrecisionSelector.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\settings\\data\\TrackingPolicyPreset.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\widget\\glance\\ActiveSessionWidget.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\widget\\glance\\WidgetFormatters.kt"
+        },
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\data\\CollectionData.kt"
+        },
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\data\\Location.kt"
+        }
+      ]
+    },
+    {
+      "object": "Assist",
+      "def_module": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\assist\\Assist.kt",
+      "cross_refs": [
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\CellDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\trigger\\AmbientCollectionTrigger.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\trigger\\HandlerCollectionTrigger.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\notification\\component\\LatitudeNotificationComponent.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\notification\\component\\LongitudeNotificationComponent.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\ui\\compose\\TrackerDashboard.kt"
+        },
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\presentation\\sensors\\LocationAndSensorsManager.kt"
+        },
+        {
+          "module": "activity",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\api\\backend\\GmsActivityRecognitionBackend.kt"
+        }
+      ]
+    },
+    {
+      "object": "ReporterFacade",
+      "def_module": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\logging\\ReporterFacade.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\maintenance\\RetentionPipelineWorker.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\post\\SkiSegmentWriter.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\post\\SkiTrackingComponent.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\SafetyExtensions.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\extension\\WorkExtensions.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\permission\\PermissionResult.kt"
+        },
+        {
+          "module": "logger",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt"
+        }
+      ]
+    },
+    {
+      "object": "Filter",
+      "def_module": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\misc\\Filter.kt",
+      "cross_refs": [
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\processor\\ExplorerChallengeProcessor.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\ui\\compose\\TrophyCaseScreen.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\ui\\compose\\TrophyCaseViewModel.kt"
+        }
+      ]
+    },
+    {
+      "object": "SystemClock",
+      "def_module": "sbase",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\time\\Clock.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\di\\InfrastructureModule.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\CellDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\WifiDataProducer.kt"
+        }
+      ]
+    },
+    {
+      "object": "PermissionManager",
+      "def_module": "sutils",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\permission\\PermissionManager.kt",
+      "cross_refs": [
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\TrackerTimerManager.kt"
+        }
+      ]
+    },
+    {
+      "object": "ColorGenerator",
+      "def_module": "sutils",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\color\\ColorGenerator.kt",
+      "cross_refs": [
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\layers\\registry\\DefaultLayerRegistry.kt"
+        }
+      ]
+    },
+    {
+      "object": "Logger",
+      "def_module": "logger",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Logger.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\Application.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\event\\PrecisionUpgradeDomainEventConsumer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\receiver\\TrackerListenerRegistrationReceiver.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\GameLog.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\event\\ExplorationDomainEventConsumer.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\event\\GameDomainEventConsumer.kt"
+        },
+        {
+          "module": "game",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\goals\\GoalTracker.kt"
+        },
+        {
+          "module": "activity",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\ActivityLog.kt"
+        },
+        {
+          "module": "points",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\points\\src\\main\\java\\com\\adsamcik\\tracker\\points\\event\\PointsDomainEventConsumer.kt"
+        },
+        {
+          "module": "points",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\points\\src\\main\\java\\com\\adsamcik\\tracker\\points\\work\\PointsWorker.kt"
+        }
+      ]
+    },
+    {
+      "object": "Reporter",
+      "def_module": "logger",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\Reporter.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\Application.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\onboarding\\ui\\OnboardingViewModel.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionScheduler.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\maintenance\\DataRetentionWorker.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\TrackerTimerManager.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\consumer\\post\\SkiTrackingComponent.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\CellDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\StepDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\WifiDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\trigger\\FusedLocationCollectionTrigger.kt"
+        }
+      ]
+    },
+    {
+      "object": "SkiLiftProximityScorer",
+      "def_module": "stats-engine",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-engine\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\engine\\ski\\SkiLiftProximityScorer.kt",
+      "cross_refs": [
+        {
+          "module": "activity",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\recognizer\\SkiActivityRecognizer.kt"
+        }
+      ]
+    },
+    {
+      "object": "SkiRunExtractor",
+      "def_module": "stats-engine",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-engine\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\engine\\ski\\SkiRunExtractor.kt",
+      "cross_refs": [
+        {
+          "module": "activity",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\recognizer\\SkiActivityRecognizer.kt"
+        }
+      ]
+    },
+    {
+      "object": "MapLibreInitializer",
+      "def_module": "map",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\MapLibreInitializer.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\Application.kt"
+        }
+      ]
+    },
+    {
+      "object": "Sum",
+      "def_module": "map",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\data\\GeoRepository.kt",
+      "cross_refs": [
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DailySummaryDao.kt"
+        }
+      ]
+    },
+    {
+      "object": "Loading",
+      "def_module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\fragment\\StatsScreen.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\debug\\CrashManagerActivity.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\debug\\CrashViewerActivity.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\licenses\\ThirdPartyLicensesActivity.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\compose\\Motion.kt"
+        },
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\ui\\MapScreen.kt"
+        }
+      ]
+    },
+    {
+      "object": "Loading",
+      "def_module": "statistics",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\ui\\compose\\WifiStatsDialog.kt",
+      "cross_refs": [
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\debug\\CrashManagerActivity.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\debug\\CrashViewerActivity.kt"
+        },
+        {
+          "module": "app",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\activity\\licenses\\ThirdPartyLicensesActivity.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\compose\\Motion.kt"
+        },
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\ui\\MapScreen.kt"
+        }
+      ]
+    },
+    {
+      "object": "GoalTracker",
+      "def_module": "game",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\goals\\GoalTracker.kt",
+      "cross_refs": [
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\module\\TrackerSessionChannel.kt"
+        }
+      ]
+    },
+    {
+      "object": "ActivityRequestManager",
+      "def_module": "activity",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\api\\ActivityRequestManager.kt",
+      "cross_refs": [
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\api\\BackgroundTrackingApi.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\component\\producer\\ActivityDataProducer.kt"
+        },
+        {
+          "module": "tracker",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\service\\ActivityWatcherService.kt"
+        },
+        {
+          "module": "testing-common",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\testing-common\\src\\main\\kotlin\\com\\adsamcik\\tracker\\testing\\fake\\FakeActivityRecognitionBackend.kt"
+        }
+      ]
+    },
+    {
+      "object": "Generic",
+      "def_module": "impexp",
+      "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\impexp\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\exporter\\automation\\ExportAutomationController.kt",
+      "cross_refs": [
+        {
+          "module": "sbase",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\data\\NativeSessionActivity.kt"
+        },
+        {
+          "module": "sutils",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sutils\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\utils\\style\\compose\\Motion.kt"
+        },
+        {
+          "module": "logger",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\LogData.kt"
+        },
+        {
+          "module": "logger",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\LogDatabase.kt"
+        },
+        {
+          "module": "map",
+          "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\shared\\layers\\LayerDescriptor.kt"
+        }
+      ]
+    }
+  ]
+}

@@ -36,8 +36,12 @@ class DefaultDomainEventRepository @Inject constructor(
 		}
 	}
 
-	override suspend fun getUnconsumed(consumerId: String): List<DomainEvent> {
-		return dao.getUnconsumedFor(consumerId).mapNotNull { it.toDomain() }
+	override suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent> {
+		require(limit > 0) { "limit must be greater than zero" }
+		return dao.getUnconsumedBatchFor(
+			consumerId = consumerId,
+			boundaryOffset = limit - 1,
+		).mapNotNull { it.toDomain() }
 	}
 
 	override suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs) {

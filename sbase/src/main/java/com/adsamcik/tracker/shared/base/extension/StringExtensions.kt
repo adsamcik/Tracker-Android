@@ -5,7 +5,7 @@ import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 
 /**
  * Formats double to more readable string format.

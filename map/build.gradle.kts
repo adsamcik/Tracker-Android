@@ -117,6 +117,7 @@ dependencies {
 	testRuntimeOnly(libs.junit5.jupiter.engine)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.turbine)

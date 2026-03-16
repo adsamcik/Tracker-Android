@@ -10,6 +10,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.adsamcik.tracker.BuildConfig
+import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
+import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
 import android.util.Log
@@ -17,18 +19,12 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
-import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.map.MapLibreInitializer
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
-import com.adsamcik.tracker.activity.ActivityModuleInitializer
-import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
-import com.adsamcik.tracker.game.GameModuleInitializer
 import android.app.Application as AndroidApplication
-import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -38,13 +34,12 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
-import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Provider
 
 
 /**
@@ -76,6 +71,30 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Inject
 	lateinit var activityWatcherController: ActivityWatcherServiceController
 
+	@Inject
+	lateinit var moduleInitializerCoordinator: ModuleInitializerCoordinator
+
+	@Inject
+	lateinit var trackerServiceControllerProvider: Provider<TrackerServiceController>
+
+	@Inject
+	lateinit var lockManagerProvider: Provider<LockManager>
+
+	@Inject
+	lateinit var dailySummaryProvider: Provider<DailySummaryProvider>
+
+	@Inject
+	lateinit var dailyPointsProvider: Provider<DailyPointsProvider>
+
+	@Inject
+	lateinit var goalProgressProvider: Provider<GoalProgressProvider>
+
+	@Inject
+	lateinit var activeChallengesProvider: Provider<ActiveChallengesProvider>
+
+	@Inject
+	lateinit var precisionUpgradeConsumerProvider: Provider<PrecisionUpgradeDomainEventConsumer>
+
 	@Volatile
 	var isStartupReady: Boolean = false
 		private set
@@ -85,33 +104,11 @@ class Application : AndroidApplication(), Configuration.Provider {
 			.setWorkerFactory(workerFactory)
 			.build()
 
-	/**
-	 * Entry point for eagerly resolving Hilt singletons during background startup.
-	 * Preserves two-phase warm-up: lightweight singletons first, DB-touching providers second.
-	 */
-	@EntryPoint
-	@InstallIn(SingletonComponent::class)
-	interface WarmUpEntryPoint {
-		fun trackerServiceController(): TrackerServiceController
-		fun lockManager(): LockManager
-		fun dailySummaryProvider(): DailySummaryProvider
-		fun dailyPointsProvider(): DailyPointsProvider
-		fun goalProgressProvider(): GoalProgressProvider
-		fun activeChallengesProvider(): ActiveChallengesProvider
-		fun exportAutomationController(): ExportAutomationController
-	}
-
 	companion object
 
 	@WorkerThread
 	private fun initializeModules() {
-		// Static modules: directly initialize known initializers instead of reflection
-		val initializers: List<ModuleInitializer> = listOf(
-			ActivityModuleInitializer(),
-			TrackerModuleInitializer(),
-			GameModuleInitializer(),
-		)
-		initializers.forEach { it.initialize(this) }
+		moduleInitializerCoordinator.initializeAll()
 	}
 
 	@WorkerThread
@@ -179,9 +176,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 	 */
 	@WorkerThread
 	private fun warmUp() {
-		val ep = EntryPointAccessors.fromApplication(this, WarmUpEntryPoint::class.java)
-		ep.trackerServiceController()
-		ep.lockManager()
+		trackerServiceControllerProvider.get()
+		lockManagerProvider.get()
 	}
 
 	/**
@@ -189,11 +185,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 	 */
 	@WorkerThread
 	private fun warmUpDeferred() {
-		val ep = EntryPointAccessors.fromApplication(this, WarmUpEntryPoint::class.java)
-		ep.dailySummaryProvider()
-		ep.dailyPointsProvider()
-		ep.goalProgressProvider()
-		ep.activeChallengesProvider()
+		dailySummaryProvider.get()
+		dailyPointsProvider.get()
+		goalProgressProvider.get()
+		activeChallengesProvider.get()
 	}
 
 	private fun startBackgroundStartup() {
@@ -204,7 +199,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 				CrashHandler(this@Application).initialize()
 
 				coroutineScope {
-					// NativeLibraryInitializer handles System.loadLibrary("maplibre") via App Startup.
+					// NativeLibraryInitializer preloads the native library via App Startup.
+					// We still warm up the MapLibre SDK here so FileSource initialization
+					// happens off the main thread before the user opens the map screen.
 					launch { MapLibreInitializer.initialize(this@Application) }
 					launch { initializeWorkManager() }
 					launch { warmUp() }
@@ -231,9 +228,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@WorkerThread
 	private suspend fun initializeFeatures() {
-		// Points
-		PointsInitializer().initialize(this)
-
 		// Activities
 		activityWatcherController.poke()
 		
@@ -247,17 +241,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	 */
 	@WorkerThread
 	private suspend fun initializePrecisionUpgradeConsumer() {
-		val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
-			this,
-			PrecisionUpgradeEntryPoint::class.java,
-		)
-		entryPoint.precisionUpgradeConsumer().processUnconsumed()
-	}
-
-	@dagger.hilt.EntryPoint
-	@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-	interface PrecisionUpgradeEntryPoint {
-		fun precisionUpgradeConsumer(): com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
+		precisionUpgradeConsumerProvider.get().processUnconsumed()
 	}
 
 	private fun enableStrictMode() {

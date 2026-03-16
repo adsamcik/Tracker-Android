@@ -2,37 +2,30 @@ package com.adsamcik.tracker.activity
 
 import android.content.Context
 import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
-import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface ActivityConsumerEntryPoint {
-	fun activityDomainEventConsumer(): ActivityDomainEventConsumer
-}
+import javax.inject.Inject
 
 /**
  * Activity module initializer.
  * Activity recognition is now triggered by [ActivityDomainEventConsumer] via domain events.
  */
-@Suppress("unused")
-class ActivityModuleInitializer : ModuleInitializer {
-	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
-	private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
+class ActivityModuleInitializer @Inject constructor(
+	@ApplicationContext private val context: Context,
+	@ApplicationScope private val appScope: CoroutineScope,
+	private val dispatchers: DispatchersProvider,
+	private val activityDao: ActivityDao,
+	private val consumer: ActivityDomainEventConsumer,
+) : ModuleInitializer {
+	override val priority: Int = 10
 
-	private suspend fun initializeDatabase(context: Context) {
-		val activityDao = AppDatabase.database(context).activityDao()
-
+	private suspend fun initializeDatabase() {
 		val sessionActivity = NativeSessionActivity.entries.map {
 			it.getSessionActivity(context)
 		}
@@ -43,17 +36,8 @@ class ActivityModuleInitializer : ModuleInitializer {
 	/**
 	 * Initializes activity module.
 	 */
-	override fun initialize(context: Context) {
-		scope.launch { initializeDatabase(context) }
-		initializeDomainEventConsumer(context)
-	}
-
-	private fun initializeDomainEventConsumer(context: Context) {
-		val entryPoint = EntryPointAccessors.fromApplication(
-			context,
-			ActivityConsumerEntryPoint::class.java,
-		)
-		val consumer = entryPoint.activityDomainEventConsumer()
-		scope.launch { consumer.processUnconsumed() }
+	override fun initialize() {
+		appScope.launch(dispatchers.io) { initializeDatabase() }
+		appScope.launch(dispatchers.io) { consumer.processUnconsumed() }
 	}
 }

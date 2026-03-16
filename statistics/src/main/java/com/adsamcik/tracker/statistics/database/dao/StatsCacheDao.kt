@@ -42,5 +42,5 @@ interface StatsCacheDao : BaseDao<CacheStatData> {
 	 * @param sessionId Id of session for which cache data will be returned
 	 */
 	@Query("select * from statCache where session_id = :sessionId")
-	fun getAllForSession(sessionId: Long): List<CacheStatData>
+	suspend fun getAllForSession(sessionId: Long): List<CacheStatData>
 }

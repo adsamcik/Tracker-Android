@@ -97,13 +97,11 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
 
     // Load activities on first composition
     LaunchedEffect(Unit) {
-        scope.launch(defaultDispatchers.default) {
-            val activities = SessionActivity.getAll(context)
-            withContext(defaultDispatchers.main) {
-                items.clear()
-                items.addAll(activities)
-            }
+        val activities = withContext(defaultDispatchers.default) {
+            SessionActivity.getAll(context)
         }
+        items.clear()
+        items.addAll(activities)
     }
 
     SessionActivityScreen(

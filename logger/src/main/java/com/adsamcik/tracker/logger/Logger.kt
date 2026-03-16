@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.logger
 
 import android.content.Context
-import android.os.Debug
 import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.StringRes

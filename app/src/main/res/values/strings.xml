@@ -328,6 +328,7 @@
 
     <!-- Data retention setting (also used by onboarding toggle) -->
     <string name="settings_auto_cleanup_old_data_key" translatable="false">autoCleanupOldData</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
     <string name="settings_auto_cleanup_old_data_summary">Automatically remove data older than 1 year</string>
     <string name="settings_auto_cleanup_old_data_default" translatable="false">false</string>
@@ -703,9 +704,12 @@
     <string name="widget_tier_precision">Precision</string>
 
     <!-- Smart Goal Notifications (Task D) -->
-    <string name="goal_notification_title">Almost there!</string>
-    <string name="goal_notification_body_75">You\'re 75%% to your daily step goal — keep moving!</string>
-    <string name="goal_notification_body_90">Just a few more steps to hit your daily goal!</string>
+    <string name="goal_notification_title_progress">Great progress!</string>
+    <string name="goal_notification_title_almost">Almost there!</string>
+    <string name="goal_notification_title_complete">🎉 Daily goal complete!</string>
+    <string name="goal_notification_body_75">%1$d steps left to hit your daily goal</string>
+    <string name="goal_notification_body_90">Just %1$d steps to go!</string>
+    <string name="goal_notification_body_complete">You reached %1$d steps today!</string>
     <string name="settings_smart_goal_notifications_title">Smart goal notifications</string>
     <string name="settings_smart_goal_notifications_summary">Get notified when you\'re close to your daily step goal</string>
 

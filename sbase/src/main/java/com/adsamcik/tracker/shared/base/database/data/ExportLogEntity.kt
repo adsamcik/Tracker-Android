@@ -14,7 +14,10 @@ import androidx.room.PrimaryKey
  */
 @Entity(
 	tableName = "export_log",
-	indices = [Index(value = ["completed_at"])]
+	indices = [
+		Index(value = ["completed_at"]),
+		Index(value = ["started_at"]),
+	]
 )
 data class ExportLogEntity(
 	@PrimaryKey(autoGenerate = true)

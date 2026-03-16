@@ -203,6 +203,13 @@
     <string name="tracker_signal_strength_value">%1$d dBm peak</string>
 
     <string name="tracker_path_preview_title">Path Preview</string>
+    <string name="insight_distance_value_km">%1$.1f km</string>
+    <string name="insight_duration_title">Time well spent</string>
+    <string name="insight_duration_desc">%1$d minutes of tracking</string>
+    <string name="insight_exploration_title">Explorer!</string>
+    <string name="insight_exploration_desc">You discovered %1$d new areas</string>
+    <string name="insight_comparison_title">Above average</string>
+    <string name="insight_comparison_desc">This session was %1$d%% longer than your recent average</string>
 
     <string name="vertical_accuracy_title">Vertical accuracy</string>
 

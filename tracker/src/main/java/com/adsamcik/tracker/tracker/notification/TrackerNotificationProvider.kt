@@ -47,7 +47,7 @@ object TrackerNotificationProvider {
 	val activeComponentList: List<BaseTrackerNotificationComponent> get() = internalActiveList
 
 	@WorkerThread
-	fun updatePreferences(context: Context) {
+	suspend fun updatePreferences(context: Context) {
 		val dao = PreferenceDatabase.database(context).getNotificationDao()
 		val preferences = dao.getAll()
 

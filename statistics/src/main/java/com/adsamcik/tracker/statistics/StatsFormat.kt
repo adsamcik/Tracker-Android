@@ -5,12 +5,13 @@ import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.extension.dayOfYear
 import com.adsamcik.tracker.shared.base.extension.toDate
 import com.adsamcik.tracker.shared.base.extension.year
-import com.adsamcik.tracker.shared.utils.style.SunSetRise
+import com.adsamcik.tracker.statistics.util.SunSetRise
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.*
+import java.util.Calendar
+import java.util.Locale
 
 
 /**

@@ -72,6 +72,7 @@ class ShadowValidationTest {
 	private lateinit var pressureDao: PressureSampleDao
 	private lateinit var stepDao: StepIntervalDao
 	private lateinit var activityDao: ActivitySnapshotDao
+	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
 
@@ -83,6 +84,7 @@ class ShadowValidationTest {
 		pressureDao = mockk(relaxed = true)
 		stepDao = mockk(relaxed = true)
 		activityDao = mockk(relaxed = true)
+		durableBuffer = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
@@ -91,6 +93,7 @@ class ShadowValidationTest {
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
+		coEvery { durableBuffer.hasPendingEntries() } returns false
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -99,6 +102,7 @@ class ShadowValidationTest {
 			pressureSampleDao = pressureDao,
 			stepIntervalDao = stepDao,
 			activitySnapshotDao = activityDao,
+			durableBuffer = durableBuffer,
 			errorCollector = errorCollector,
 		)
 	}

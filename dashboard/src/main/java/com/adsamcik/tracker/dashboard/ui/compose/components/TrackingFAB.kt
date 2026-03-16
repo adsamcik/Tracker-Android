@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R as DashboardR
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.tracker.R
 
 /**
@@ -64,7 +65,7 @@ internal fun TrackingFAB(
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val infiniteTransition = rememberInfiniteTransition(label = "tracking_button")
+	val reducedMotion = LocalReducedMotion.current
 
 	val cornerRadius by animateFloatAsState(
 		targetValue = if (isTracking) 50f else 28f,
@@ -72,25 +73,37 @@ internal fun TrackingFAB(
 		label = "corner_radius",
 	)
 
-	val pulseScale by infiniteTransition.animateFloat(
-		initialValue = 1f,
-		targetValue = if (isTracking) 1.04f else 1f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(1200, easing = FastOutSlowInEasing),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "pulse",
-	)
+	val pulseScale = if (reducedMotion) {
+		1f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "tracking_button_pulse")
+		val animatedPulseScale by infiniteTransition.animateFloat(
+			initialValue = 1f,
+			targetValue = if (isTracking) 1.04f else 1f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(1200, easing = FastOutSlowInEasing),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "pulse",
+		)
+		animatedPulseScale
+	}
 
-	val glowRotation by infiniteTransition.animateFloat(
-		initialValue = 0f,
-		targetValue = 360f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(3000, easing = LinearEasing),
-			repeatMode = RepeatMode.Restart,
-		),
-		label = "glow_rotation",
-	)
+	val glowRotation = if (reducedMotion) {
+		0f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "tracking_button_glow")
+		val animatedGlowRotation by infiniteTransition.animateFloat(
+			initialValue = 0f,
+			targetValue = 360f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(3000, easing = LinearEasing),
+				repeatMode = RepeatMode.Restart,
+			),
+			label = "glow_rotation",
+		)
+		animatedGlowRotation
+	}
 
 	val glowAlpha by animateFloatAsState(
 		targetValue = if (isTracking) 0.6f else 0f,

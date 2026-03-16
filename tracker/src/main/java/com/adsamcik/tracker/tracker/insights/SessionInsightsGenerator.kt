@@ -1,143 +1,121 @@
 package com.adsamcik.tracker.tracker.insights
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.di.DailySummary
-import com.adsamcik.tracker.shared.base.di.GoalProgress
-import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.tracker.R
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import javax.inject.Inject
+import kotlin.math.max
+import kotlin.math.roundToInt
 
-/**
- * Lightweight generator that produces [SessionInsight] items from
- * already-available post-session data. Avoids expensive raw-location queries.
- */
-object SessionInsightsGenerator {
+class SessionInsightsGenerator @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val dailySummaryDao: DailySummaryDao,
+    private val explorationCellDao: ExplorationCellDao,
+    private val dispatchers: DispatchersProvider,
+) {
 
-    private const val QUICK_SESSION_MIN = 5L
-    private const val SOLID_SESSION_MIN = 20L
-    private const val EXTENDED_SESSION_MIN = 60L
-
-    /**
-     * Generate insights from the completed session and optional daily/goal context.
-     *
-     * @param context Android context for string resources
-     * @param session The session that just ended
-     * @param dailySummary Today's aggregate (null if unavailable)
-     * @param goalProgress Current goal state (null if gamification disabled)
-     */
-    fun generate(
-        context: Context,
-        session: TrackerSession,
-        dailySummary: DailySummary?,
-        goalProgress: GoalProgress?,
-    ): List<SessionInsight> = buildList {
-        addDurationInsight(context, session)
-        addDistanceInsight(context, session)
-        addStepsInsight(context, session)
-        addMultiSessionInsight(context, dailySummary)
-        addGoalInsight(context, goalProgress)
+    suspend fun generate(session: TrackerSession): List<SessionInsight> = withContext(dispatchers.default) {
+        val insights = mutableListOf<SessionInsight>()
+        insights.addAchievementInsight(session)
+        insights.addFunFactInsight(session)
+        insights.addExplorationInsight(session)
+        insights.addComparisonInsight(session)
+        insights.take(MAX_INSIGHTS)
     }
 
-    private fun MutableList<SessionInsight>.addDurationInsight(
-        context: Context,
-        session: TrackerSession,
-    ) {
-        val durationMin = (session.end - session.start) / 60_000L
-        val (titleRes, descRes) = when {
-            durationMin >= EXTENDED_SESSION_MIN -> R.string.insight_extended_session_title to R.string.insight_extended_session_desc
-            durationMin >= SOLID_SESSION_MIN -> R.string.insight_solid_session_title to R.string.insight_solid_session_desc
-            durationMin >= QUICK_SESSION_MIN -> R.string.insight_quick_session_title to R.string.insight_quick_session_desc
-            else -> return // Too short for insight
-        }
-        add(
-            SessionInsight(
-                category = InsightCategory.DURATION,
-                title = context.getString(titleRes),
-                description = context.getString(descRes, durationMin.toInt()),
-                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_access_time_24px,
-            ),
-        )
-    }
-
-    private fun MutableList<SessionInsight>.addDistanceInsight(
-        context: Context,
-        session: TrackerSession,
-    ) {
-        val distM = session.distanceInM
-        if (distM <= 0f) return
-        val formatted = when {
-            distM >= 1_000f -> String.format("%.1f km", distM / 1_000f)
-            else -> String.format("%.0f m", distM)
-        }
-        add(
-            SessionInsight(
-                category = InsightCategory.DISTANCE,
-                title = context.getString(R.string.insight_distance_title),
-                description = context.getString(R.string.insight_distance_desc, formatted),
-                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_ruler,
-            ),
-        )
-    }
-
-    private fun MutableList<SessionInsight>.addStepsInsight(
-        context: Context,
-        session: TrackerSession,
-    ) {
-        if (session.steps <= 0) return
-        add(
-            SessionInsight(
-                category = InsightCategory.STEPS,
-                title = context.getString(R.string.insight_steps_title),
-                description = context.getString(
-                    R.string.insight_steps_desc,
-                    session.steps.formatReadable(),
-                ),
-                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
-            ),
-        )
-    }
-
-    private fun MutableList<SessionInsight>.addMultiSessionInsight(
-        context: Context,
-        dailySummary: DailySummary?,
-    ) {
-        val count = dailySummary?.sessionCount ?: return
-        if (count < 2) return
-        add(
-            SessionInsight(
-                category = InsightCategory.ACTIVITY,
-                title = context.getString(R.string.insight_multi_session_title),
-                description = context.getString(R.string.insight_multi_session_desc, count),
-                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
-            ),
-        )
-    }
-
-    private fun MutableList<SessionInsight>.addGoalInsight(
-        context: Context,
-        goalProgress: GoalProgress?,
-    ) {
-        if (goalProgress == null || !goalProgress.gamificationEnabled) return
-        if (goalProgress.goalSteps <= 0) return
-
-        val pct = (goalProgress.progress * 100).toInt()
+    private suspend fun MutableList<SessionInsight>.addAchievementInsight(session: TrackerSession) {
         when {
-            pct >= 100 -> add(
+            session.steps >= BIG_STEP_SESSION_THRESHOLD -> add(
                 SessionInsight(
-                    category = InsightCategory.GOAL,
-                    title = context.getString(R.string.insight_goal_reached_title),
-                    description = context.getString(R.string.insight_goal_reached_desc),
-                    iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_games_24dp,
+                    iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
+                    title = context.getString(R.string.insight_steps_title),
+                    description = context.getString(R.string.insight_steps_desc, session.steps.toString()),
+                    category = InsightCategory.ACHIEVEMENT,
                 ),
             )
-            pct >= 50 -> add(
+            session.distanceInM >= LONG_DISTANCE_THRESHOLD_M -> add(
                 SessionInsight(
-                    category = InsightCategory.GOAL,
-                    title = context.getString(R.string.insight_goal_close_title),
-                    description = context.getString(R.string.insight_goal_close_desc, pct),
-                    iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_games_24dp,
+                    iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_ruler,
+                    title = context.getString(R.string.insight_distance_title),
+                    description = context.getString(
+                        R.string.insight_distance_desc,
+                        context.getString(R.string.insight_distance_value_km, session.distanceInM / 1_000f),
+                    ),
+                    category = InsightCategory.ACHIEVEMENT,
                 ),
             )
         }
+    }
+
+    private fun MutableList<SessionInsight>.addFunFactInsight(session: TrackerSession) {
+        val durationMinutes = ((session.end - session.start).coerceAtLeast(0L) / 60_000L).toInt()
+        if (durationMinutes <= 0) return
+        add(
+            SessionInsight(
+                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_access_time_24px,
+                title = context.getString(R.string.insight_duration_title),
+                description = context.getString(R.string.insight_duration_desc, durationMinutes),
+                category = InsightCategory.FUN_FACT,
+            ),
+        )
+    }
+
+    private suspend fun MutableList<SessionInsight>.addExplorationInsight(session: TrackerSession) {
+        val newCells = withContext(dispatchers.io) {
+            explorationCellDao.countDiscoveredSince(session.start, EXPLORATION_LEVEL)
+        }
+        if (newCells <= 0) return
+        add(
+            SessionInsight(
+                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
+                title = context.getString(R.string.insight_exploration_title),
+                description = context.getString(R.string.insight_exploration_desc, newCells),
+                category = InsightCategory.EXPLORATION,
+            ),
+        )
+    }
+
+    private suspend fun MutableList<SessionInsight>.addComparisonInsight(session: TrackerSession) {
+        val sessionDay = Instant.ofEpochMilli(session.end)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .toEpochDay()
+        val fromDay = max(0L, sessionDay - LOOKBACK_DAYS)
+        val dailySummaries = withContext(dispatchers.io) {
+            dailySummaryDao.getBetween(fromDay, sessionDay - 1)
+        }
+        val totalTrips = dailySummaries.sumOf { it.tripCount }
+        if (totalTrips <= 0) return
+        val averageDistanceM = dailySummaries.sumOf { it.totalDistanceM.toDouble() } / totalTrips
+        if (averageDistanceM <= 0.0 || session.distanceInM < averageDistanceM * ABOVE_AVERAGE_MULTIPLIER) return
+
+        val percentLonger = ((session.distanceInM / averageDistanceM) - 1.0) * 100.0
+        add(
+            SessionInsight(
+                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_ruler,
+                title = context.getString(R.string.insight_comparison_title),
+                description = context.getString(
+                    R.string.insight_comparison_desc,
+                    percentLonger.roundToInt(),
+                ),
+                category = InsightCategory.COMPARISON,
+            ),
+        )
+    }
+
+    private companion object {
+        private const val EXPLORATION_LEVEL = 14
+        private const val LOOKBACK_DAYS = 7L
+        private const val MAX_INSIGHTS = 4
+        private const val BIG_STEP_SESSION_THRESHOLD = 4_000
+        private const val LONG_DISTANCE_THRESHOLD_M = 4_000f
+        private const val ABOVE_AVERAGE_MULTIPLIER = 1.2
     }
 }

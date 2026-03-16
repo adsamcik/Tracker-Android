@@ -21,5 +21,5 @@ object DebugDatabaseModule {
             context,
             DebugDatabase::class.java,
             "debug_database",
-        ).build()
+        ).addMigrations(DebugDatabase.MIGRATION_1_2).build()
 }

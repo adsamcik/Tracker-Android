@@ -12,16 +12,16 @@ interface ChallengeHistoryDao : BaseDao<ChallengeHistoryEntity> {
 	fun observeAll(): Flow<List<ChallengeHistoryEntity>>
 
 	@Query("SELECT * FROM challenge_history ORDER BY COALESCE(completed_at, end_time) DESC")
-	fun getAll(): List<ChallengeHistoryEntity>
+	suspend fun getAll(): List<ChallengeHistoryEntity>
 
 	@Query("SELECT * FROM challenge_history WHERE id = :id")
-	fun get(id: Long): ChallengeHistoryEntity?
+	suspend fun get(id: Long): ChallengeHistoryEntity?
 
 	@Query("SELECT * FROM challenge_history WHERE outcome = 'COMPLETED' ORDER BY completed_at DESC")
-	fun getCompleted(): List<ChallengeHistoryEntity>
+	suspend fun getCompleted(): List<ChallengeHistoryEntity>
 
 	@Query("SELECT * FROM challenge_history WHERE medal = :medal ORDER BY completed_at DESC")
-	fun getByMedal(medal: String): List<ChallengeHistoryEntity>
+	suspend fun getByMedal(medal: String): List<ChallengeHistoryEntity>
 
 	@Query("SELECT COUNT(*) FROM challenge_history WHERE outcome = 'COMPLETED'")
 	fun getCompletedCount(): Int

@@ -8,8 +8,8 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 @Dao
 interface StepChallengeDao : BaseDao<StepChallengeEntity> {
 	@Query("SELECT * FROM challenge_step WHERE id == :id")
-	fun get(id: Long): StepChallengeEntity
+	suspend fun get(id: Long): StepChallengeEntity
 
 	@Query("SELECT * FROM challenge_step WHERE entry_id == :entryId")
-	fun getByEntry(entryId: Long): StepChallengeEntity
+	suspend fun getByEntry(entryId: Long): StepChallengeEntity
 }

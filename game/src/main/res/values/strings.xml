@@ -193,4 +193,28 @@
 
     <!-- Level Up -->
     <string name="game_level_up">Level Up!</string>
+
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Weekly Leaderboard</string>
+    <string name="leaderboard_metric_distance">Distance</string>
+    <string name="leaderboard_metric_steps">Steps</string>
+    <string name="leaderboard_metric_active_time">Active</string>
+    <string name="leaderboard_metric_sessions">Sessions</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">steps</string>
+    <string name="leaderboard_unit_hours">hrs</string>
+    <string name="leaderboard_unit_sessions">trips</string>
+    <string name="leaderboard_ghost_best_week">Best Week</string>
+    <string name="leaderboard_ghost_last_4_weeks">Last 4 Weeks Avg</string>
+    <string name="leaderboard_ghost_same_week_last_year">Same Week Last Year</string>
+    <string name="leaderboard_ghost_average_week">Average Week</string>
+    <string name="leaderboard_rank">#%1$d of %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s of %3$s goal</string>
+    <string name="leaderboard_progress_description">%1$s of %2$s</string>
+    <string name="leaderboard_week_progress">Week progress</string>
+    <string name="leaderboard_monday">Mon</string>
+    <string name="leaderboard_sunday">Sun</string>
+    <string name="leaderboard_no_data">Not enough data yet</string>
+    <string name="leaderboard_you">You</string>
+    <string name="leaderboard_current_week">This Week</string>
 </resources>

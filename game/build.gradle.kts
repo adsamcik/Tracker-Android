@@ -64,7 +64,6 @@ dependencies {
 
 	// Stats architecture
 	implementation(project(":stats-api"))
-	implementation(project(":stats-data"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)

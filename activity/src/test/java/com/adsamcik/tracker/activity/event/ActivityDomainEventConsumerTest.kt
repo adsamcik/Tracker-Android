@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
@@ -47,13 +48,19 @@ class ActivityDomainEventConsumerTest {
 		@Test
 		fun `does nothing when no events`() = runTest {
 			coEvery {
-				domainEventRepository.getUnconsumed(ActivityDomainEventConsumer.CONSUMER_ID)
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
 			} returns emptyList()
 
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.getUnconsumed(ActivityDomainEventConsumer.CONSUMER_ID)
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
 			}
 			confirmVerified(domainEventRepository)
 		}
@@ -72,8 +79,11 @@ class ActivityDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(ActivityDomainEventConsumer.CONSUMER_ID)
-			} returns listOf(event)
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
 
 			consumer.processUnconsumed()
 
@@ -100,8 +110,11 @@ class ActivityDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(ActivityDomainEventConsumer.CONSUMER_ID)
-			} returns listOf(event)
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
 
 			consumer.processUnconsumed()
 
@@ -140,8 +153,11 @@ class ActivityDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(ActivityDomainEventConsumer.CONSUMER_ID)
-			} returns events
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(events, emptyList())
 
 			consumer.processUnconsumed()
 
@@ -150,6 +166,49 @@ class ActivityDomainEventConsumerTest {
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					lateTimestamp,
 				)
+			}
+		}
+
+		@Test
+		fun `drains multiple batches and marks each batch separately`() = runTest {
+			stubWorkManager()
+			val firstTimestamp = EpochMs(1_700_000_000_000L)
+			val secondTimestamp = EpochMs(1_700_000_005_000L)
+			val firstBatch = listOf(
+				DomainEvent.SessionEnded(
+					timestampMs = firstTimestamp,
+					processorId = "test-processor",
+					sessionId = 11L,
+					totalDistance = DistanceM(500f),
+					totalSteps = StepCount(1000),
+					duration = DurationMs(300_000L),
+				),
+			)
+			val secondBatch = listOf(
+				DomainEvent.CellDiscovered(
+					timestampMs = secondTimestamp,
+					processorId = "test-processor",
+					cellToken = "cell-2",
+					level = 3,
+					centerLatE7 = 0,
+					centerLonE7 = 0,
+					quality = 0,
+					seasonBit = 1,
+				),
+			)
+
+			coEvery {
+				domainEventRepository.getUnconsumedBatch(
+					ActivityDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(firstBatch, secondBatch, emptyList())
+
+			consumer.processUnconsumed()
+
+			coVerifyOrder {
+				domainEventRepository.markConsumed(ActivityDomainEventConsumer.CONSUMER_ID, firstTimestamp)
+				domainEventRepository.markConsumed(ActivityDomainEventConsumer.CONSUMER_ID, secondTimestamp)
 			}
 		}
 	}

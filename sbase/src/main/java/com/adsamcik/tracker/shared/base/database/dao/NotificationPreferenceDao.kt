@@ -14,7 +14,7 @@ interface NotificationPreferenceDao : BaseDao<NotificationPreference> {
 	 * Finds all notification preferences
 	 */
 	@Query("SELECT * FROM notification")
-	fun getAll(): List<NotificationPreference>
+	suspend fun getAll(): List<NotificationPreference>
 
 	/**
 	 * Ensures a notification preference is set to provided value.

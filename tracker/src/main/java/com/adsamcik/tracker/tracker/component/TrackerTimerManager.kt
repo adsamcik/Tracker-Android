@@ -105,7 +105,7 @@ object TrackerTimerManager {
 		} else {
 			PermissionManager.checkPermissionsWithRationaleDialog(
 				PermissionRequest
-					.with(context)
+					.newInstance(context)
 					.permissions(requiredPermissions)
 					.onResult(callback)
 					.build()

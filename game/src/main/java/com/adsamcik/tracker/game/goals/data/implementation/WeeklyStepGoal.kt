@@ -11,7 +11,7 @@ import java.time.ZonedDateTime
 import java.time.temporal.ChronoField
 import java.time.temporal.IsoFields
 import java.time.temporal.WeekFields
-import java.util.*
+import java.util.Locale
 
 /**
  * Weekly step goal

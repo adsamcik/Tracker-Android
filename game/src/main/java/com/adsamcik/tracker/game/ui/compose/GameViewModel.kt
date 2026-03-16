@@ -2,13 +2,18 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.game.leaderboard.GhostLeaderboardProvider
+import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
+import com.adsamcik.tracker.game.leaderboard.LeaderboardState
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class MiniGameEntry(
@@ -24,6 +29,7 @@ data class MiniGameEntry(
 class GameViewModel @Inject constructor(
     private val gameRepository: GameRepository,
     private val miniGameRegistry: MiniGameRegistry,
+    private val ghostLeaderboardProvider: GhostLeaderboardProvider,
 ) : ViewModel() {
 
     val pointsToday: StateFlow<Int?> = gameRepository.getPointsToday()
@@ -90,5 +96,29 @@ class GameViewModel @Inject constructor(
 
     private companion object {
         const val STATE_STOP_TIMEOUT_MS = 5_000L
+    }
+
+    // --- Weekly Ghost Leaderboard ---
+
+    private val _leaderboardState = MutableStateFlow<LeaderboardState?>(null)
+    val leaderboardState: StateFlow<LeaderboardState?> = _leaderboardState
+
+    private var currentMetric: LeaderboardMetric = LeaderboardMetric.STEPS
+
+    init {
+        loadLeaderboard()
+    }
+
+    fun selectLeaderboardMetric(metric: LeaderboardMetric) {
+        if (metric == currentMetric) return
+        currentMetric = metric
+        loadLeaderboard()
+    }
+
+    private fun loadLeaderboard() {
+        viewModelScope.launch {
+            val state = ghostLeaderboardProvider.getLeaderboard(currentMetric)
+            _leaderboardState.value = state
+        }
     }
 }

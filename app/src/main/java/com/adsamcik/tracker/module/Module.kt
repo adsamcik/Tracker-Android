@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.module
 
-import android.content.Context
 import com.adsamcik.tracker.R
 
 enum class Module {
@@ -31,40 +30,5 @@ enum class Module {
 
 	companion object {
 		private const val BASE_PATH = "com.adsamcik.tracker"
-
-		/**
-		 * Returns information about all active modules.
-		 */
-		fun getActiveModuleInfo(context: Context): List<ModuleInfo> {
-			return values()
-					.asSequence()
-					.filter { it.enabled }
-					.map { ModuleInfo(it, shouldBeInstalled = true, isInstalled = true) }
-					.toList()
-		}
-
-		/**
-		 * Returns information about all active modules.
-		 * Kept for legacy API compatibility when a dynamic features manager used to be passed.
-		 */
-		fun getActiveModuleInfo(@Suppress("UNUSED_PARAMETER") manager: Any? = null): List<ModuleInfo> {
-			return values()
-				.asSequence()
-				.filter { it.enabled }
-				.map { ModuleInfo(it, shouldBeInstalled = true, isInstalled = true) }
-				.toList()
-		}
-
-		/**
-		 * Returns info for a specific module.
-		 */
-		fun getModuleInfo(@Suppress("UNUSED_PARAMETER") context: Context?, module: Module): ModuleInfo =
-			ModuleInfo(module, shouldBeInstalled = true, isInstalled = true)
-
-		/**
-		 * Returns info for a specific module.
-		 */
-		fun getModuleInfo(@Suppress("UNUSED_PARAMETER") manager: Any?, module: Module): ModuleInfo =
-			ModuleInfo(module, shouldBeInstalled = true, isInstalled = true)
 	}
 }

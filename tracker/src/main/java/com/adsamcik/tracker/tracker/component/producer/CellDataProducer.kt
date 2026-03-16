@@ -28,7 +28,7 @@ import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
-import java.util.*
+import java.util.ArrayList
 
 internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
     TrackerDataProducerComponent(changeReceiver) {
@@ -228,4 +228,3 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		private const val CELL_SCAN_CACHE_TTL_MS = 60_000L
 	}
 }
-

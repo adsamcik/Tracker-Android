@@ -72,7 +72,6 @@ dependencies {
 	implementation(libs.google.play.services.location)
 
 	// 1st/3rd party
-	implementation(libs.suncalc)
 
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)

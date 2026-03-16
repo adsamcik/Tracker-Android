@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.ui.compose
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,12 +57,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
+import com.adsamcik.tracker.game.leaderboard.LeaderboardState
+import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardCard
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -97,6 +103,7 @@ fun GameScreen(
     achievementState: AchievementSummaryState? = null,
     heroLevelState: HeroLevelUiState? = null,
     trophySummary: TrophySummaryUi? = null,
+    leaderboardState: LeaderboardState? = null,
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false,
     onViewAllAchievements: () -> Unit = {},
@@ -105,6 +112,7 @@ fun GameScreen(
     onChallengeClick: (ChallengeUi) -> Unit = {},
     onStartStreakClick: () -> Unit = {},
     onNavigateToTracker: () -> Unit = {},
+    onLeaderboardMetricSelected: (LeaderboardMetric) -> Unit = {},
 ) {
 	val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
@@ -185,6 +193,14 @@ fun GameScreen(
                     LoadingGameCard()
                 } else {
                     StepsCard(steps)
+                }
+            }
+            item {
+                if (leaderboardState != null) {
+                    WeeklyLeaderboardCard(
+                        state = leaderboardState,
+                        onMetricSelected = onLeaderboardMetricSelected,
+                    )
                 }
             }
             item {
@@ -674,4 +690,33 @@ private fun ChallengeCard(ch: ChallengeUi) {
             )
         }
     }
+}
+
+// ─── Previews ────────────────────────────────────────────────────────
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun GameScreenPreview() {
+	AppTheme {
+		GameScreen(
+			pointsToday = 142,
+			steps = StepsSummaryUi(
+				stepsToday = 6500,
+				stepsWeek = 35000,
+				goalDay = 10000,
+				goalWeek = 70000,
+			),
+			challenges = listOf(
+				ChallengeUi(
+					id = 1L,
+					title = "Walk 5km",
+					description = "Complete a 5km walk in one session",
+					progress = 0.65f,
+					difficulty = "Medium",
+					timeRemainingMs = 86400000L,
+				),
+			),
+		)
+	}
 }

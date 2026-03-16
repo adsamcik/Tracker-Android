@@ -8,13 +8,13 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 @Dao
 interface ChallengeDao : BaseDao<ChallengeEntity> {
 	@Query("SELECT * FROM challenge WHERE end_time > :now AND is_completed = 0")
-	fun getActive(now: Long): List<ChallengeEntity>
+	suspend fun getActive(now: Long): List<ChallengeEntity>
 
 	@Query("SELECT * FROM challenge WHERE id = :id")
-	fun get(id: Long): ChallengeEntity?
+	suspend fun get(id: Long): ChallengeEntity?
 
 	@Query("SELECT * FROM challenge")
-	fun getAll(): List<ChallengeEntity>
+	suspend fun getAll(): List<ChallengeEntity>
 
 	@Query("DELETE FROM challenge WHERE id = :id")
 	fun deleteById(id: Long)

@@ -13,7 +13,6 @@ import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
@@ -38,7 +37,7 @@ import kotlin.random.Random
 class ChallengeManager @Inject constructor(
 	private val registry: ChallengeTypeRegistry,
 	private val progressionRepository: ProgressionRepository,
-	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val dispatchers: DispatchersProvider,
 ) {
 	private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 
@@ -55,7 +54,7 @@ class ChallengeManager @Inject constructor(
 	val activeChallenges: StateFlow<List<ChallengeInstanceNew>> get() = _activeChallenges.asStateFlow()
 
 	@WorkerThread
-	private fun loadFromDb(context: Context): List<ChallengeInstanceNew> {
+	private suspend fun loadFromDb(context: Context): List<ChallengeInstanceNew> {
 		val dao = ChallengeDatabase.database(context).challengeDao()
 		val now = Time.nowMillis
 		return dao.getActive(now).mapNotNull { entity ->
@@ -233,7 +232,7 @@ class ChallengeManager @Inject constructor(
 	 * High success rate → harder challenges; low success rate → easier ones.
 	 * Falls back to MEDIUM when no history is available.
 	 */
-	private fun calculateDifficulty(context: Context): ChallengeDifficulty {
+	private suspend fun calculateDifficulty(context: Context): ChallengeDifficulty {
 		val history = ChallengeDatabase.database(context).challengeHistoryDao().getAll()
 		return difficultyFromCompletionRate(history.map { it.outcome })
 	}

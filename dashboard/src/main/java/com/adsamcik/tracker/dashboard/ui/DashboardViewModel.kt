@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.dashboard.data.DashboardLayout
+import com.adsamcik.tracker.dashboard.data.DashboardLayoutRepository
+import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
@@ -21,6 +24,8 @@ import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.tracker.insights.SessionInsight
+import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,9 +48,13 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-	@ApplicationContext private val appContext: Context,
+	@ApplicationContext
+	private val appContext: Context,
 	private val dispatchers: DispatchersProvider,
 	private val appDatabase: AppDatabase,
+	private val layoutRepository: DashboardLayoutRepository,
+	private val sessionInsightsGenerator: SessionInsightsGenerator,
+	val widgetRegistry: DashboardWidgetRegistry,
 	val trackerController: TrackerServiceController,
 	val lockManager: LockManager,
 	private val dailySummaryProvider: DailySummaryProvider,
@@ -53,6 +62,9 @@ class DashboardViewModel @Inject constructor(
 	val goalProgressProvider: GoalProgressProvider,
 	val activeChallengesProvider: ActiveChallengesProvider,
 ) : ViewModel() {
+
+	val dashboardLayout: StateFlow<DashboardLayout> = layoutRepository.layout
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardLayout())
 
 	val isTracking: StateFlow<Boolean> = trackerController.isServiceRunningFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -73,6 +85,9 @@ class DashboardViewModel @Inject constructor(
 
 	private val _streakState = MutableStateFlow(StreakState())
 	val streakState: StateFlow<StreakState> = _streakState.asStateFlow()
+
+	private val _sessionInsights = MutableStateFlow<List<SessionInsight>>(emptyList())
+	val sessionInsights: StateFlow<List<SessionInsight>> = _sessionInsights.asStateFlow()
 
 	private val _hasLocationPermission = MutableStateFlow(checkLocationPermission(appContext))
 	val hasLocationPermission: StateFlow<Boolean> = _hasLocationPermission.asStateFlow()
@@ -122,6 +137,22 @@ class DashboardViewModel @Inject constructor(
 		}
 	}
 
+	fun refreshSessionInsights(isTracking: Boolean, session: TrackerSession?) {
+		if (isTracking || session == null) {
+			_sessionInsights.value = emptyList()
+			return
+		}
+
+		viewModelScope.launch {
+			_sessionInsights.value = runCatching {
+				sessionInsightsGenerator.generate(session)
+			}.getOrElse {
+				Reporter.report(it)
+				emptyList()
+			}
+		}
+	}
+
 	private suspend fun loadExplorationData(db: AppDatabase) {
 		val cellDao = db.explorationCellDao()
 		val totalCells = cellDao.countAtLevel(14)
@@ -145,7 +176,7 @@ class DashboardViewModel @Inject constructor(
 	}
 
 	private suspend fun loadStreakData(db: AppDatabase) {
-		val streak = db.explorationStreakDao().getByType("DAILY_DISCOVERY")
+		val streak = db.explorationStreakDao().getByType(DOMAIN_DAILY_DISCOVERY)
 		val weeklyDistances = mutableListOf<Float>()
 		val cal = Calendar.getInstance().apply {
 			set(Calendar.HOUR_OF_DAY, 0)
@@ -181,7 +212,7 @@ class DashboardViewModel @Inject constructor(
 				title = info.title,
 				description = info.description,
 				progress = info.progress,
-				iconResName = "",
+				iconResName = DEFAULT_CHALLENGE_ICON_RES_NAME,
 				difficulty = info.difficulty,
 				timeRemainingMs = info.timeRemainingMs,
 				rewardPoints = 0,
@@ -212,7 +243,30 @@ class DashboardViewModel @Inject constructor(
 		_hasLocationPermission.value = checkLocationPermission(context)
 	}
 
+	// ─── Dashboard layout management ─────────────────────────────────
+
+	fun reorderWidgets(widgetIds: List<String>) {
+		viewModelScope.launch {
+			layoutRepository.reorder(widgetIds)
+		}
+	}
+
+	fun toggleWidgetVisibility(widgetId: String) {
+		viewModelScope.launch {
+			layoutRepository.toggleVisibility(widgetId)
+		}
+	}
+
+	fun resetLayout() {
+		viewModelScope.launch {
+			layoutRepository.resetToDefault()
+		}
+	}
+
 	companion object {
+		private const val DOMAIN_DAILY_DISCOVERY = "DAILY_DISCOVERY"
+		private const val DEFAULT_CHALLENGE_ICON_RES_NAME = "ic_challenge_icon"
+
 		private fun checkLocationPermission(context: Context): Boolean {
 			return ContextCompat.checkSelfPermission(
 				context,

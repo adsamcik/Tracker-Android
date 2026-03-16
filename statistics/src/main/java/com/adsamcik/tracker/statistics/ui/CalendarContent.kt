@@ -34,8 +34,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import android.content.res.Configuration
 import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
@@ -334,4 +337,29 @@ private fun formatCalendarTripTitle(trip: Trip): String {
 		.toLocalTime()
 		.format(formatter)
 	return "$mode at $time"
+}
+
+// ─── Previews ────────────────────────────────────────────────────────
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun CalendarContentPreview() {
+	val today = LocalDate.now()
+	val month = YearMonth.from(today)
+	val sampleDayData = (1..today.dayOfMonth).associate { day ->
+		val date = month.atDay(day)
+		date to CalendarDayData(date = date, intensity = (day % 5) * 0.25f, tripCount = day % 3)
+	}
+	AppTheme {
+		CalendarContent(
+			state = CalendarState(
+				currentMonth = month,
+				dayData = sampleDayData,
+				selectedDay = today,
+			),
+			onDayClick = {},
+			onNavigateToTripDetail = {},
+		)
+	}
 }

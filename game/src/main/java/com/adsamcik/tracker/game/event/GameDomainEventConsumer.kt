@@ -21,7 +21,7 @@ import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
-import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,22 +34,25 @@ import javax.inject.Singleton
 @Singleton
 class GameDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
+	private val achievementEvaluationScheduler: AchievementEvaluationScheduler,
 	@ApplicationContext private val context: Context,
 	private val preferences: Preferences,
 ) {
 	/** Process any unconsumed events for the game module. */
 	suspend fun processUnconsumed() {
-		val events = domainEventRepository.getUnconsumed(CONSUMER_ID)
-		if (events.isEmpty()) return
+		while (true) {
+			val events = domainEventRepository.getUnconsumedBatch(
+				consumerId = CONSUMER_ID,
+				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+			if (events.isEmpty()) return
 
-		var latestTimestamp = EpochMs(0L)
-		for (event in events) {
-			handleEvent(event)
-			if (event.timestampMs.raw > latestTimestamp.raw) {
-				latestTimestamp = event.timestampMs
+			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
+			events.forEach { event ->
+				handleEvent(event)
 			}
+			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 		}
-		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 	}
 
 	private suspend fun handleEvent(event: DomainEvent) {
@@ -65,7 +68,7 @@ class GameDomainEventConsumer @Inject constructor(
 	/**
 	 * Replaces ChallengeSessionReceiver.onReceive().
 	 * Enqueues ChallengeWorker if challenges are enabled.
-	 * Always enqueues AchievementWorker for post-session evaluation.
+	 * Always schedules achievement evaluation for post-session processing.
 	 */
 	private fun onSessionEnded(event: DomainEvent.SessionEnded) {
 		val sessionId = event.sessionId
@@ -195,25 +198,11 @@ class GameDomainEventConsumer @Inject constructor(
 	private fun enqueueAchievementWorker() {
 		Logger.log(
 			LogData(
-				message = "SessionEnded event → scheduling AchievementWorker",
+				message = "SessionEnded event → scheduling achievement evaluation",
 				source = GAME_LOG_SOURCE,
 			),
 		)
-
-		val workManager = WorkManager.getInstance(context)
-		val workRequest = OneTimeWorkRequestBuilder<com.adsamcik.tracker.stats.data.worker.AchievementWorker>()
-			.addTag(ACHIEVEMENT_WORK_TAG)
-			.setConstraints(
-				Constraints.Builder()
-					.setRequiresBatteryNotLow(true)
-					.build(),
-			)
-			.build()
-		workManager.enqueueUniqueWork(
-			com.adsamcik.tracker.stats.data.worker.AchievementWorker.UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.REPLACE,
-			workRequest,
-		)
+		achievementEvaluationScheduler.scheduleEvaluation()
 	}
 
 	companion object {

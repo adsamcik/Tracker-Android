@@ -12,6 +12,7 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
@@ -50,13 +51,19 @@ class PointsDomainEventConsumerTest {
 		@Test
 		fun `does nothing when no events`() = runTest {
 			coEvery {
-				domainEventRepository.getUnconsumed(PointsDomainEventConsumer.CONSUMER_ID)
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
 			} returns emptyList()
 
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.getUnconsumed(PointsDomainEventConsumer.CONSUMER_ID)
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
 			}
 			confirmVerified(domainEventRepository)
 		}
@@ -75,8 +82,11 @@ class PointsDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(PointsDomainEventConsumer.CONSUMER_ID)
-			} returns listOf(event)
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
 
 			consumer.processUnconsumed()
 
@@ -101,8 +111,11 @@ class PointsDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(PointsDomainEventConsumer.CONSUMER_ID)
-			} returns listOf(event)
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
 
 			// sessionId <= 0 causes early return in onSessionEnded (no WorkManager call),
 			// but markConsumed is still called after event loop completes
@@ -131,8 +144,11 @@ class PointsDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumed(PointsDomainEventConsumer.CONSUMER_ID)
-			} returns listOf(event)
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
 
 			consumer.processUnconsumed()
 
@@ -141,6 +157,49 @@ class PointsDomainEventConsumerTest {
 					PointsDomainEventConsumer.CONSUMER_ID,
 					timestamp,
 				)
+			}
+		}
+
+		@Test
+		fun `drains multiple batches and marks each batch separately`() = runTest {
+			stubWorkManager()
+			val firstTimestamp = EpochMs(1_700_000_000_000L)
+			val secondTimestamp = EpochMs(1_700_000_005_000L)
+			val firstBatch = listOf(
+				DomainEvent.SessionEnded(
+					timestampMs = firstTimestamp,
+					processorId = "test-processor",
+					sessionId = 11L,
+					totalDistance = DistanceM(500f),
+					totalSteps = StepCount(1000),
+					duration = DurationMs(300_000L),
+				),
+			)
+			val secondBatch = listOf(
+				DomainEvent.CellDiscovered(
+					timestampMs = secondTimestamp,
+					processorId = "test-processor",
+					cellToken = "cell-2",
+					level = 3,
+					centerLatE7 = 0,
+					centerLonE7 = 0,
+					quality = 0,
+					seasonBit = 1,
+				),
+			)
+
+			coEvery {
+				domainEventRepository.getUnconsumedBatch(
+					PointsDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(firstBatch, secondBatch, emptyList())
+
+			consumer.processUnconsumed()
+
+			coVerifyOrder {
+				domainEventRepository.markConsumed(PointsDomainEventConsumer.CONSUMER_ID, firstTimestamp)
+				domainEventRepository.markConsumed(PointsDomainEventConsumer.CONSUMER_ID, secondTimestamp)
 			}
 		}
 	}

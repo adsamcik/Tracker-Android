@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
-import java.util.*
+import java.util.Locale
 
 internal class ActivityNotificationComponent : TrackerNotificationComponent() {
 	override val defaultPreference: NotificationPreference

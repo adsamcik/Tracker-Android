@@ -64,7 +64,10 @@ fun StatisticSummaryDialog(
 						.fillMaxWidth()
 						.heightIn(max = 400.dp),
 				) {
-					items(stats) { stat ->
+					items(
+						items = stats,
+						key = { it.nameRes },
+					) { stat ->
 						Row(
 							modifier = Modifier
 								.fillMaxWidth()

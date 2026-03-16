@@ -62,7 +62,6 @@ interface BaseDao<T> {
 }
 
 
-@Suppress("unused")
 interface BaseUpsertDao<T> : BaseDao<T> {
 	@Transaction
 	suspend fun upsert(obj: T) {

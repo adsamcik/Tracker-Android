@@ -1,0 +1,22 @@
+[
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\dashboard\\src\\main\\java\\com\\adsamcik\\tracker\\dashboard\\ui\\DashboardViewModel.kt",
+    "class": "DashboardViewModel",
+    "state_flows": 14
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\StatsPresenterViewModel.kt",
+    "class": "StatsPresenterViewModel",
+    "state_flows": 8
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\presenter\\HistoryPresenterViewModel.kt",
+    "class": "HistoryPresenterViewModel",
+    "state_flows": 7
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\ui\\compose\\GameViewModel.kt",
+    "class": "GameViewModel",
+    "state_flows": 6
+  }
+]

@@ -6,8 +6,7 @@ import androidx.core.content.FileProvider
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -20,7 +19,7 @@ import javax.inject.Inject
  * logic is not duplicated.
  */
 class GpxShareHelper @Inject constructor(
-	private val locationSampleDao: LocationSampleDao,
+	private val locationSampleRepository: LocationSampleRepository,
 	private val dispatchersProvider: DispatchersProvider,
 ) {
 	/**
@@ -39,23 +38,46 @@ class GpxShareHelper @Inject constructor(
 		startTimeMs: Long,
 		endTimeMs: Long,
 	): ExportResult = withContext(dispatchersProvider.io) {
-		val samples = locationSampleDao.getAllBetween(startTimeMs, endTimeMs)
-		val locations = samples.filter { it.latE7 != null && it.lonE7 != null }
-		if (locations.isEmpty()) {
-			return@withContext ExportResult.Success
-		}
-
 		val exporter = GpxExporter()
 		val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
 		val file = File(shareableDir, "trip_$tripId.gpx")
+		var exportedPointCount = 0
 
 		val result = file.outputStream().use { outputStream ->
 			exporter.export(
 				context = context,
-				locationData = locations.asSequence(),
 				outputStream = outputStream,
 				dateRange = startTimeMs..endTimeMs,
-			)
+			) { emit ->
+				var afterTimeMs: Long? = null
+				var afterId: Long? = null
+
+				while (true) {
+					val chunk = locationSampleRepository.getOrderedChunkBetween(
+						fromMs = startTimeMs,
+						toMs = endTimeMs,
+						afterTimeMs = afterTimeMs,
+						afterId = afterId,
+						limit = LOCATION_EXPORT_CHUNK_SIZE,
+					)
+					if (chunk.isEmpty()) break
+
+					chunk.forEach { sample ->
+						afterTimeMs = sample.timeMs
+						afterId = sample.id
+
+						if (sample.latE7 != null && sample.lonE7 != null) {
+							emit(sample)
+							exportedPointCount++
+						}
+					}
+				}
+			}
+		}
+
+		if (exportedPointCount == 0) {
+			file.delete()
+			return@withContext ExportResult.Success
 		}
 
 		if (result is ExportResult.Success) {
@@ -80,5 +102,6 @@ class GpxShareHelper @Inject constructor(
 	companion object {
 		private const val SHARABLE_DIR = "sharable"
 		private const val MIME_TYPE_GPX = "application/gpx+xml"
+		private const val LOCATION_EXPORT_CHUNK_SIZE = 500
 	}
 }

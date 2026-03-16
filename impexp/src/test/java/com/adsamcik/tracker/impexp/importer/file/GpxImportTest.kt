@@ -16,7 +16,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -248,7 +247,7 @@ class GpxImportTest {
 
 		@Test
 		fun `creates new activity from track type`() = runTest {
-			every { mockActivityDao.find("running") } returns null
+			coEvery { mockActivityDao.find("running") } returns null
 			coEvery { mockActivityDao.insert(any<SessionActivity>()) } returns 42L
 
 			val gpx = """
@@ -268,14 +267,14 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			verify { mockActivityDao.find("running") }
+			coVerify { mockActivityDao.find("running") }
 			coVerify { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 
 		@Test
 		fun `reuses existing activity from database`() = runTest {
 			val existingActivity = SessionActivity(id = 7, name = "cycling")
-			every { mockActivityDao.find("cycling") } returns existingActivity
+			coEvery { mockActivityDao.find("cycling") } returns existingActivity
 
 			val gpx = """
 				<?xml version="1.0" encoding="UTF-8"?>
@@ -294,7 +293,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			verify { mockActivityDao.find("cycling") }
+			coVerify { mockActivityDao.find("cycling") }
 			coVerify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 
@@ -316,7 +315,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			verify(exactly = 0) { mockActivityDao.find(any()) }
+			coVerify(exactly = 0) { mockActivityDao.find(any()) }
 			coVerify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 	}

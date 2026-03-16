@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_19_20
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_20_21
 import com.adsamcik.tracker.shared.base.database.MIGRATION_21_22
+import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
 import com.adsamcik.tracker.shared.base.database.MIGRATION_5_6
@@ -1359,6 +1360,31 @@ class MigrationTest {
 				assertFalse(moveToNext())
 			}
 			dataCursor.close()
+		}
+	}
+
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate25To26_addsQueryIndices() {
+		val db = helper.createDatabase(TEST_DB, 25)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 26, true, MIGRATION_25_26).apply {
+			fun indexNames(table: String): Set<String> {
+				val cursor = query("PRAGMA index_list('" + table + "')")
+				return cursor.use { c ->
+					buildSet {
+						while (c.moveToNext()) {
+							add(c.getString(c.getColumnIndexOrThrow("name")))
+						}
+					}
+				}
+			}
+
+			assertTrue(indexNames("domain_event").contains("index_domain_event_event_type_processor_id"))
+			assertTrue(indexNames("export_log").contains("index_export_log_started_at"))
+			assertTrue(indexNames("inferred_trip").contains("index_inferred_trip_segment_id"))
 		}
 	}
 

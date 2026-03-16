@@ -5,8 +5,8 @@ import com.adsamcik.tracker.shared.base.data.CellType
 
 class CellTypeConverter {
 	@TypeConverter
-	fun fromCellType(value: CellType): Int = value.ordinal
+	fun fromCellType(value: CellType): String = value.name
 
 	@TypeConverter
-	fun toCellType(ordinal: Int): CellType = CellType.values()[ordinal]
+	fun toCellType(name: String): CellType = CellType.valueOf(name)
 }

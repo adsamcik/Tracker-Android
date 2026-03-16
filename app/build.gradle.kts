@@ -121,7 +121,7 @@ dependencies {
 	implementation(project(":game"))
 	implementation(project(":dashboard"))
 
-	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
+	debugImplementation(libs.leakcanary)
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -151,6 +151,9 @@ dependencies {
 	// Glance App Widgets
 	implementation(libs.androidx.glance.appwidget)
 	implementation(libs.androidx.glance.material3)
+
+	// App Startup
+	implementation(libs.androidx.startup.runtime)
 
 	// Compose
 	implementation(platform(libs.compose.bom))

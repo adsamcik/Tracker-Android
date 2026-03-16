@@ -229,6 +229,32 @@ class GpxExporterTest {
         }
 
         @Test
+        fun `supports chunked emission without materializing the full list`() = runTest {
+            val firstChunk = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
+                createTestLocation(time = 1700001000000L, latitude = 50.1, longitude = 14.1, altitude = 210.0),
+            )
+            val secondChunk = listOf(
+                createTestLocation(time = 1700002000000L, latitude = 50.2, longitude = 14.2, altitude = 220.0),
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(
+                context = mockContext,
+                outputStream = outputStream,
+                dateRange = 1700000000000L..1700002000000L,
+            ) { emit ->
+                firstChunk.forEach(emit)
+                secondChunk.forEach(emit)
+            }
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+            val trkptCount = "<trkpt".toRegex().findAll(output).count()
+            trkptCount shouldBe 3
+        }
+
+        @Test
         fun `handles large number of waypoints`() = runTest {
             val locations = (0 until 1000).map { i ->
                 createTestLocation(
@@ -335,6 +361,27 @@ class GpxExporterTest {
 
             output shouldContain "-430.5"
             output shouldContain "<ele>"
+        }
+
+        @Test
+        fun `keeps clean float altitude formatting`() = runTest {
+            val locations = listOf(
+                createTestLocation(
+                    time = 1700000000000L,
+                    latitude = 50.0,
+                    longitude = 14.0,
+                    altitude = 200.7,
+                )
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldContain "<ele>200.7</ele>"
+            output shouldNotContain "200.699996"
         }
 
         @Test

@@ -61,7 +61,7 @@ class ProgressionRepository @Inject constructor(
 			sourceId = entity.id,
 			earnedAt = now,
 		)
-		database.xpLedgerDao().insert(xpEntry)
+		val awardedXp = awardXp(database, xpEntry)
 
 		// 4. Record in history
 		val historyEntry = ChallengeHistoryEntity(
@@ -74,7 +74,7 @@ class ProgressionRepository @Inject constructor(
 			progressValue = entity.currentValue,
 			targetValue = entity.requiredValue,
 			medal = medal.name,
-			xpAwarded = xpAward.amount,
+			xpAwarded = awardedXp,
 			originalChallengeId = entity.id,
 		)
 		val historyId = database.challengeHistoryDao().insert(historyEntry)
@@ -87,7 +87,7 @@ class ProgressionRepository @Inject constructor(
 
 		return CompletionResult(
 			medal = medal,
-			xpAwarded = xpAward.amount,
+			xpAwarded = awardedXp,
 			streakCount = streak.currentCount,
 			newRecords = newRecords,
 			leveledUp = updatedProfile.second,
@@ -163,8 +163,9 @@ class ProgressionRepository @Inject constructor(
 			sourceId = session.id,
 			earnedAt = Time.nowMillis,
 		)
-		database.xpLedgerDao().insert(xpEntry)
-		updatePlayerProfile(database)
+		if (awardXp(database, xpEntry) > 0) {
+			updatePlayerProfile(database)
+		}
 	}
 
 	private suspend fun checkPersonalRecords(
@@ -236,6 +237,11 @@ class ProgressionRepository @Inject constructor(
 		)
 		profileDao.update(updated)
 		return updated to didLevelUp
+	}
+
+	private suspend fun awardXp(database: ChallengeDatabase, entry: XpLedgerEntity): Int {
+		val insertId = database.xpLedgerDao().insertOrIgnore(entry)
+		return if (insertId == -1L) 0 else entry.amount
 	}
 }
 

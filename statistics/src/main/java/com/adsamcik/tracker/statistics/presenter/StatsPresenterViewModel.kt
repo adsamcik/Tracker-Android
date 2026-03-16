@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
+import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import com.adsamcik.tracker.statistics.repository.SessionStatsResult
@@ -28,13 +28,13 @@ import javax.inject.Inject
  * Hilt-compatible ViewModel that bridges the new repository layer with
  * the paging and dialog patterns the statistics UI expects.
  *
- * - Uses [TripDao] for paging (no KMP paging support yet).
+ * - Uses [TripPresentationRepository] for trip list paging and deletion.
  * - Uses [DailySummaryRepository] for weekly bar chart data.
  * - Uses [SessionRepository] summary adapter for summary/weekly dialog stats.
  */
 @HiltViewModel
 class StatsPresenterViewModel @Inject constructor(
-	private val tripDao: TripDao,
+	private val tripPresentationRepository: TripPresentationRepository,
 	private val sessionRepository: SessionRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
 	private val gpxShareHelper: GpxShareHelper,
@@ -60,9 +60,12 @@ class StatsPresenterViewModel @Inject constructor(
 				),
 			) {
 				if (dateFilter == null) {
-					tripDao.getAllPaged()
+					tripPresentationRepository.getPagedTrips()
 				} else {
-					tripDao.getPagedOverlapping(dateFilter.startMs, dateFilter.endMs)
+					tripPresentationRepository.getPagedTripsOverlapping(
+						dateFilter.startMs,
+						dateFilter.endMs,
+					)
 				}
 			}.flow
 		}
@@ -77,8 +80,12 @@ class StatsPresenterViewModel @Inject constructor(
 	private val _weeklyBars = MutableStateFlow<List<DayBar>>(emptyList())
 	val weeklyBars: StateFlow<List<DayBar>> = _weeklyBars.asStateFlow()
 
+	private val _heatmapData = MutableStateFlow<Map<LocalDate, Float>>(emptyMap())
+	val heatmapData: StateFlow<Map<LocalDate, Float>> = _heatmapData.asStateFlow()
+
 	init {
 		loadWeeklyBars()
+		loadHeatmapData()
 	}
 
 	private fun loadWeeklyBars() {
@@ -101,6 +108,27 @@ class StatsPresenterViewModel @Inject constructor(
 						)
 					}
 					_weeklyBars.value = bars
+				},
+			)
+		}
+	}
+
+	private fun loadHeatmapData() {
+		viewModelScope.launch {
+			val todayEpochDay = LocalDate.now().toEpochDay()
+			val fromDay = todayEpochDay - HEATMAP_DAYS + 1
+			dailySummaryRepository.getBetween(fromDay, todayEpochDay).fold(
+				ifLeft = { _heatmapData.value = emptyMap() },
+				ifRight = { summaries ->
+					if (summaries.isEmpty()) {
+						_heatmapData.value = emptyMap()
+						return@fold
+					}
+					val maxDistance = summaries.maxOf { it.totalDistance.raw }.coerceAtLeast(1f)
+					_heatmapData.value = summaries.associate { summary ->
+						LocalDate.ofEpochDay(summary.dayEpoch) to
+							(summary.totalDistance.raw / maxDistance).coerceIn(0f, 1f)
+					}
 				},
 			)
 		}
@@ -158,7 +186,7 @@ class StatsPresenterViewModel @Inject constructor(
 
 	fun deleteTrip(tripId: Long) {
 		viewModelScope.launch {
-			tripDao.deleteById(tripId)
+			tripPresentationRepository.deleteTrip(tripId)
 		}
 	}
 
@@ -168,5 +196,10 @@ class StatsPresenterViewModel @Inject constructor(
 
 	fun clearDateRange() {
 		_activeDateFilter.value = null
+	}
+
+	companion object {
+		/** ~26 weeks of heatmap history. */
+		private const val HEATMAP_DAYS = 182L
 	}
 }

@@ -110,7 +110,7 @@ class DefaultSessionRepositoryTest {
         val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Should have stat entries", stats.isNotEmpty())
         
-        // Note: Exact value assertions depend on formatting logic in SummaryGenerator
+        // Note: Exact value assertions depend on formatting logic in SessionStatsAdapter
         // We verify structure and presence of key metrics
         val statNames = stats.map { it.nameRes }
         assertTrue(statNames.isNotEmpty())

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.ui
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,12 +23,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
+import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.presenter.HistoryPresenterViewModel
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.launch
 
 /**
@@ -129,6 +138,59 @@ private fun HistoryTabRow(
 					},
 				)
 			}
+		}
+	}
+}
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun HistoryRoutePreview() {
+	val today = LocalDate.now()
+	val month = YearMonth.from(today)
+	val sampleState = CalendarState(
+		currentMonth = month,
+		dayData = (1..minOf(month.lengthOfMonth(), 14)).associate { day ->
+			val date = month.atDay(day)
+			date to CalendarDayData(
+				date = date,
+				intensity = (day % 5) * 0.2f,
+				tripCount = day % 3,
+			)
+		},
+		selectedDay = today,
+		selectedDayDetail = CalendarState.DayDetail(
+			totalDistanceM = 5420f,
+			totalSteps = 7812,
+			tripCount = 2,
+			trips = listOf(
+				Trip(
+					id = 1L,
+					startTimeMs = System.currentTimeMillis() - 3_600_000L,
+					endTimeMs = System.currentTimeMillis() - 1_800_000L,
+					distanceM = 3200f,
+					steps = 4200,
+					primaryActivity = 7,
+					activityConfidence = 90,
+					sampleCount = 48,
+					source = SegmentSource.USER_CREATED,
+					createdAt = System.currentTimeMillis() - 3_600_000L,
+				),
+			),
+		),
+	)
+
+	AppTheme {
+		Column(modifier = Modifier.fillMaxSize()) {
+			HistoryTabRow(
+				selectedTab = HistoryTab.CALENDAR,
+				onTabSelected = {},
+			)
+			CalendarContent(
+				state = sampleState,
+				onDayClick = {},
+				onNavigateToTripDetail = {},
+			)
 		}
 	}
 }

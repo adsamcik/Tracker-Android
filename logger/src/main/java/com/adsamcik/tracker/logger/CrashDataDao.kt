@@ -13,19 +13,19 @@ interface CrashDataDao : BaseDao<CrashData> {
      * Get all crash data from database
      */
     @Query("SELECT * from crash_data")
-    fun getAll(): List<CrashData>
+    suspend fun getAll(): List<CrashData>
 
     /**
      * Get all crash data ordered by id from database
      */
     @Query("SELECT * from crash_data ORDER BY id DESC")
-    fun getAllOrderedDesc(): List<CrashData>
+    suspend fun getAllOrderedDesc(): List<CrashData>
 
     /**
      * Get limited number of crash data ordered by descending order with id.
      */
     @Query("SELECT * from crash_data ORDER BY id DESC LIMIT :count")
-    fun getLastOrderedDesc(count: Int): List<CrashData>
+    suspend fun getLastOrderedDesc(count: Int): List<CrashData>
 
     /**
      * Get crash count

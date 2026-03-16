@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.activity.debug
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,7 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import com.adsamcik.tracker.logger.CrashExporter
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import kotlinx.coroutines.launch

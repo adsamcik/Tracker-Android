@@ -104,8 +104,10 @@ object InfrastructureModule {
     @Provides
     @Singleton
     @ApplicationScope
-    fun provideAppScope(): CoroutineScope = 
-        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun provideAppScope(
+        @DefaultDispatcher defaultDispatcher: CoroutineDispatcher
+    ): CoroutineScope =
+        CoroutineScope(SupervisorJob() + defaultDispatcher)
 
     /**
      * Provides the Room database instance.

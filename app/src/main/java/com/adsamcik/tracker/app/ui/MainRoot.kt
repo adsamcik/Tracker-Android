@@ -6,7 +6,15 @@ import androidx.compose.animation.core.spring
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,12 +44,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.toRoute
+import com.adsamcik.tracker.app.ui.navigation.dashboardGraph
+import com.adsamcik.tracker.app.ui.navigation.gameGraph
+import com.adsamcik.tracker.app.ui.navigation.mapGraph
+import com.adsamcik.tracker.app.ui.navigation.settingsGraph
+import com.adsamcik.tracker.app.ui.navigation.statsGraph
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
@@ -332,157 +343,28 @@ fun MainRoot(
                     .hazeSource(state = hazeState)
                     .padding(bottom = bottomPadding)
             ) {
-                composable<Dashboard> {
-                    val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                    com.adsamcik.tracker.dashboard.ui.compose.DashboardRoute(
-                        onOpenSettings = {
-                            openSettings(Dashboard)
-                        },
-                        onOpenMap = {
-                            navController.navigate(Map) {
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        onOpenGame = {
-                            navController.navigate(Game) {
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        onOpenChallenges = {
-                            gameChallengePickerRequest += 1L
-                            navController.navigate(Game) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onSessionDetailClick = { sessionId ->
-                            tripDetailFallbackRoute = Dashboard
-                            navController.navigate(TripDetail(sessionId)) {
-                                launchSingleTop = true
-                            }
-                        },
-                        contentPadding = if (useSideRail) {
-                            PaddingValues()
-                        } else {
-                            PaddingValues(bottom = 96.dp + navBarPad)
-                        }
-                    )
-                }
-                composable<Map> {
-                    val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                    com.adsamcik.tracker.map.ui.MapRoute(
-                        contentPadding = if (useSideRail) {
-                            PaddingValues()
-                        } else {
-                            PaddingValues(bottom = 96.dp + navBarPad)
-                        }
-                    )
-                }
-                composable<Stats> {
-                    com.adsamcik.tracker.statistics.fragment.StatsRoute(
-                        onTripClick = { tripId ->
-                            tripDetailFallbackRoute = Stats
-                            navController.navigate(TripDetail(tripId)) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onTripViewOnMap = {
-                            navController.navigate(Map) {
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        onNavigateToHistory = {
-                            navController.navigate(History) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToTracker = {
-                            navController.navigate(Dashboard) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
-                }
-                composable<Game> {
-                    com.adsamcik.tracker.game.ui.compose.GameRoute(
-                        openChallengePickerRequest = gameChallengePickerRequest,
-                        onOpenSettings = {
-                            openSettings(Game)
-                        },
-                        onNavigateToTrophyCase = {
-                            navController.navigate(TrophyCase) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToTracker = {
-                            navController.navigate(Dashboard) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
-                }
-                composable<TrophyCase> {
-                    com.adsamcik.tracker.game.ui.compose.TrophyCaseRoute(
-                        onBack = { navController.popBackStack() },
-                    )
-                }
-                composable<History> {
-                    com.adsamcik.tracker.statistics.ui.HistoryRoute(
-                        onNavigateToTripDetail = { tripId ->
-                            tripDetailFallbackRoute = Stats
-                            navController.navigate(TripDetail(tripId)) {
-                                launchSingleTop = true
-                            }
-                        },
-                    )
-                }
-                composable<TripDetail> { backStackEntry ->
-                    val route = backStackEntry.toRoute<TripDetail>()
-                    com.adsamcik.tracker.statistics.ui.TripDetailRoute(
-                        tripId = route.tripId,
-                        onBack = {
-                            if (!navController.popBackStack()) {
-                                navController.navigate(tripDetailFallbackRoute) {
-                                    popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
-                        }
-                    )
-                }
-                composable<Debug> {
-                    com.adsamcik.tracker.app.debug.DebugRoute(
-                        onNavigateBack = { navController.popBackStack() }
-                    )
-                }
-                composable<Settings> { backStackEntry ->
-                    val settingsRoute = backStackEntry.toRoute<Settings>()
-                    com.adsamcik.tracker.app.settings.SettingsRoute(
-                        onNavigateBack = {
-                            if (!navController.popBackStack()) {
-                                navController.navigate(settingsRoute.origin.toAppRoute()) {
-                                    popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
-                        },
-                        onNavigateToDebug = { navController.navigate(Debug) },
-                        onNavigateToActivities = {
-                            navController.navigate(ActivitySettings) { launchSingleTop = true }
-                        }
-                    )
-                }
-                composable<ActivitySettings> {
-                    com.adsamcik.tracker.activity.ui.SessionActivityRoute(
-                        onNavigateBack = { navController.popBackStack() }
-                    )
-                }
+                dashboardGraph(
+                    navController = navController,
+                    useSideRail = useSideRail,
+                    onOpenSettings = { openSettings(Dashboard) },
+                    onSetTripDetailFallback = { tripDetailFallbackRoute = it },
+                    onOpenChallenges = {
+                        gameChallengePickerRequest += 1L
+                        navController.navigate(Game) { launchSingleTop = true }
+                    },
+                )
+                mapGraph(useSideRail = useSideRail)
+                statsGraph(
+                    navController = navController,
+                    getTripDetailFallbackRoute = { tripDetailFallbackRoute },
+                    onSetTripDetailFallback = { tripDetailFallbackRoute = it },
+                )
+                gameGraph(
+                    navController = navController,
+                    openChallengePickerRequest = gameChallengePickerRequest,
+                    onOpenSettings = { openSettings(Game) },
+                )
+                settingsGraph(navController = navController)
             }
 
         // Global settings affordance for top-level tabs that do not render their own in-content entry point.

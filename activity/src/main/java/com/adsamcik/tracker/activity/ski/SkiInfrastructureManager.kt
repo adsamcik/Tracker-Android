@@ -3,7 +3,6 @@ package com.adsamcik.tracker.activity.ski
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.engine.ski.SkiLift
@@ -21,7 +20,7 @@ import javax.inject.Inject
  */
 class SkiInfrastructureManager @Inject constructor(
 	@ApplicationContext private val context: Context,
-	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val dispatchers: DispatchersProvider,
 ) {
 
 	private val dataDir = File(context.filesDir, "ski-data")

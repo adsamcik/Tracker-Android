@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.points.work
 
+import com.adsamcik.tracker.points.scoring.PointsScorer
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 
 class PointsWorkerCalculateSlopeTest {
+
+	private val scorer = PointsScorer()
 
 	private fun createLocation(
 		time: Long,
@@ -48,7 +51,7 @@ class PointsWorkerCalculateSlopeTest {
 			)
 
 			assertDoesNotThrow {
-				PointsWorker.calculateSlope(locations)
+				scorer.calculateSlope(locations)
 			}
 		}
 
@@ -60,7 +63,7 @@ class PointsWorkerCalculateSlopeTest {
 			)
 
 			assertDoesNotThrow {
-				PointsWorker.calculateSlope(locations)
+				scorer.calculateSlope(locations)
 			}
 		}
 
@@ -73,7 +76,7 @@ class PointsWorkerCalculateSlopeTest {
 			)
 
 			assertDoesNotThrow {
-				PointsWorker.calculateSlope(locations)
+				scorer.calculateSlope(locations)
 			}
 		}
 	}
@@ -87,7 +90,7 @@ class PointsWorkerCalculateSlopeTest {
 				createDatabaseLocation(2_000_000L, 50.001, 14.001, 220.0)
 			)
 
-			val result = PointsWorker.calculateSlope(locations)
+			val result = scorer.calculateSlope(locations)
 
 			// First entry is the initial zero-value entry, second is the computed one
 			result shouldHaveSize 2

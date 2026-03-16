@@ -36,7 +36,11 @@ class JsonExporter : Exporter {
 		val db = AppDatabase.database(context)
 
 		val sessions = try {
-			val trips = withContext(DefaultDispatchersProvider.io) { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
+			val trips = withContext(DefaultDispatchersProvider.io) {
+				val fromMs = dateRange?.first ?: 0L
+				val toMs = dateRange?.last ?: Long.MAX_VALUE
+				db.tripDao().getBetween(fromMs, toMs)
+			}
 			trips.map { t ->
 				SessionSnapshot(
 					id = t.id,

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.service
 import android.content.Context
 import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -62,6 +63,7 @@ internal class TrackingOrchestrator(
 	private val trackerListenerManager: TrackerListenerManager,
 	private val signalProcessors: Set<SignalProcessor>,
 	private val domainEventRepository: DomainEventRepository,
+	private val dispatchers: DispatchersProvider,
 	appDatabase: AppDatabase,
 	trackingParamsRepository: TrackingParamsRepository,
 	trackerSettingsRepository: TrackerSettingsRepository,
@@ -85,7 +87,12 @@ internal class TrackingOrchestrator(
 	private var currentTier: PolicyTier = PolicyTier.PRECISION
 
 	private val componentFactory by lazy {
-		TrackerComponentFactory(appDatabase, trackingParamsRepository, trackerSettingsRepository)
+		TrackerComponentFactory(
+			appDatabase = appDatabase,
+			trackingParamsRepository = trackingParamsRepository,
+			trackerSettingsRepository = trackerSettingsRepository,
+			dispatchers = dispatchers,
+		)
 	}
 	private val policyFeeder = TrackerPolicyFeeder()
 	private lateinit var tierEscalationHandler: TrackerTierEscalationHandler
@@ -129,8 +136,6 @@ internal class TrackingOrchestrator(
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 
-		// DispatchersProvider injection from AppGraph intentionally avoided to keep tracker module
-		// independent of app module. DataProducerManager falls back to its internal default provider.
 		dataProducerManager = DataProducerManager(context, initialTier).apply { onEnable() }
 
 		// Initialize the new 4-tier escalation engine

@@ -13,7 +13,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import java.util.*
+import java.util.ArrayList
 
 /**
  * Hilt EntryPoint for accessing TrackerServiceController from Shortcuts singleton
@@ -138,4 +138,3 @@ object Shortcuts {
 		STOP_COLLECTION
 	}
 }
-

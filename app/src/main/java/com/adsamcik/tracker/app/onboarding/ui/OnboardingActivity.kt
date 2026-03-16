@@ -27,7 +27,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 // import removed: legacy MainActivity no longer used
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import com.adsamcik.tracker.app.onboarding.data.*
+import com.adsamcik.tracker.app.onboarding.data.OnboardingEvent
+import com.adsamcik.tracker.app.onboarding.data.OnboardingStep
+import com.adsamcik.tracker.app.onboarding.data.Permission
+import com.adsamcik.tracker.app.onboarding.data.UserPreferences
 import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManager
 import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult

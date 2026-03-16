@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Legacy preference layouts (scheduled for Compose migration) -->
-    <dimen name="activity_horizontal_margin">16dp</dimen>
-</resources>

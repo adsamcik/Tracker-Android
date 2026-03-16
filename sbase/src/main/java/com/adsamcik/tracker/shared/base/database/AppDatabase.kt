@@ -69,11 +69,11 @@ import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 25 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 26 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 25,
+		version = 26,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -298,7 +298,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_21_22,
 				MIGRATION_22_23,
 				MIGRATION_23_24,
-				MIGRATION_24_25
+				MIGRATION_24_25,
+				MIGRATION_25_26
 				)
 		}
 

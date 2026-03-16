@@ -207,4 +207,25 @@ class DailySummaryDaoTest {
 		assertNull(dao.getByDay(19000L))
 		assertNotNull(dao.getByDay(19005L))
 	}
+
+	@Test
+	fun getAllBeforeReturnsDaysBefore() = runBlocking {
+		dao.insert(createSummary(19000L))
+		dao.insert(createSummary(19001L))
+		dao.insert(createSummary(19002L))
+		dao.insert(createSummary(19005L))
+
+		val results = dao.getAllBefore(19002L)
+		assertEquals(2, results.size)
+		assertEquals(19000L, results[0].dateEpochDay)
+		assertEquals(19001L, results[1].dateEpochDay)
+	}
+
+	@Test
+	fun getAllBeforeReturnsEmptyWhenNoneMatch() = runBlocking {
+		dao.insert(createSummary(19005L))
+
+		val results = dao.getAllBefore(19000L)
+		assertEquals(0, results.size)
+	}
 }

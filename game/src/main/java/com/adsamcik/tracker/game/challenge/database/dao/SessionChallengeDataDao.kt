@@ -8,7 +8,7 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 @Dao
 interface SessionChallengeDataDao : BaseDao<ChallengeSessionData> {
 	@Query("SELECT * FROM challenge_session_data WHERE id = :id")
-	fun get(id: Long): ChallengeSessionData?
+	suspend fun get(id: Long): ChallengeSessionData?
 
 	@Query("DELETE FROM challenge_session_data")
 	fun deleteAll()

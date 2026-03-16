@@ -41,9 +41,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
@@ -60,6 +60,7 @@ class PersistenceProcessorTest {
 	private lateinit var pressureDao: PressureSampleDao
 	private lateinit var stepDao: StepIntervalDao
 	private lateinit var activityDao: ActivitySnapshotDao
+	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
 
@@ -71,6 +72,7 @@ class PersistenceProcessorTest {
 		pressureDao = mockk(relaxed = true)
 		stepDao = mockk(relaxed = true)
 		activityDao = mockk(relaxed = true)
+		durableBuffer = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
@@ -79,6 +81,7 @@ class PersistenceProcessorTest {
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
+		coEvery { durableBuffer.hasPendingEntries() } returns false
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -87,6 +90,7 @@ class PersistenceProcessorTest {
 			pressureSampleDao = pressureDao,
 			stepIntervalDao = stepDao,
 			activitySnapshotDao = activityDao,
+			durableBuffer = durableBuffer,
 			errorCollector = errorCollector,
 		)
 	}
@@ -159,6 +163,28 @@ class PersistenceProcessorTest {
 	)
 
 	private val emptySignal = TrackingSignal(timestampMs = EpochMs(1_000_000L))
+
+	@Nested
+	@DisplayName("startup recovery")
+	inner class StartupRecovery {
+
+		@Test
+		fun `onStart replays pending durable buffer entries through normal persistence`() = runTest {
+			coEvery { durableBuffer.hasPendingEntries() } returnsMany listOf(true, false)
+			coEvery {
+				durableBuffer.drainBatch(DurableSignalBuffer.DRAIN_BATCH_SIZE)
+			} returns listOf(
+				signalWithLocation(timestampMs = 1_000_000L),
+				signalWithPressure(timestampMs = 1_000_500L),
+			)
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 42L))
+
+			verify(exactly = 1) { durableBuffer.setSessionId(42L) }
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
+		}
+	}
 
 	@Nested
 	@DisplayName("onSignal buffering")

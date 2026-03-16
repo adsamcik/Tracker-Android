@@ -1,15 +1,18 @@
 package com.adsamcik.tracker.statistics.export
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -21,7 +24,7 @@ import org.junit.jupiter.api.Test
  */
 class GpxShareHelperTest {
 
-	private val locationSampleDao: LocationSampleDao = mockk()
+	private val locationSampleRepository: LocationSampleRepository = mockk()
 	private val testDispatcher = StandardTestDispatcher()
 	private val dispatchersProvider = object : DispatchersProvider {
 		override val io: CoroutineDispatcher get() = testDispatcher
@@ -29,14 +32,27 @@ class GpxShareHelperTest {
 		override val main: CoroutineDispatcher get() = testDispatcher
 		override val unconfined: CoroutineDispatcher get() = testDispatcher
 	}
-	private val helper = GpxShareHelper(locationSampleDao, dispatchersProvider)
+	private val helper = GpxShareHelper(locationSampleRepository, dispatchersProvider)
 
-	private fun buildSample(time: Long, lat: Double, lon: Double): LocationSample {
+	private fun mockExportContext(): Context {
+		val appInfo = ApplicationInfo().apply {
+			labelRes = 0
+			nonLocalizedLabel = "TrackerApp"
+		}
+		return mockk(relaxed = true) {
+			every { filesDir } returns kotlin.io.path.createTempDirectory().toFile()
+			every { packageName } returns "com.adsamcik.tracker.test"
+			every { applicationInfo } returns appInfo
+			every { getString(any(), any(), any()) } returns "GPX export"
+		}
+	}
+
+	private fun buildSample(time: Long, lat: Double?, lon: Double?): LocationSample {
 		return LocationSample(
 			timeMs = time,
 			elapsedRealtimeNanos = 0L,
-			latE7 = (lat * 1e7).toInt(),
-			lonE7 = (lon * 1e7).toInt(),
+			latE7 = lat?.let { (it * 1e7).toInt() },
+			lonE7 = lon?.let { (it * 1e7).toInt() },
 			altitudeM = 100f,
 			rawGpsAltitudeM = 100f,
 			hAccM = 5f,
@@ -54,64 +70,87 @@ class GpxShareHelperTest {
 
 	@Test
 	fun `returns Success when no locations found`() = runTest(testDispatcher) {
-		coEvery { locationSampleDao.getAllBetween(1000L, 5000L) } returns emptyList()
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 5000L, null, null, 500)
+		} returns emptyList()
 
 		val result = helper.exportAndShare(
-			context = mockk(),
+			context = mockExportContext(),
 			tripId = 1L,
 			startTimeMs = 1000L,
 			endTimeMs = 5000L,
 		)
 
 		result.shouldBeInstanceOf<ExportResult.Success>()
-		coVerify(exactly = 1) { locationSampleDao.getAllBetween(1000L, 5000L) }
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 5000L, null, null, 500)
+		}
 	}
 
 	@Test
 	fun `queries DAO with correct time range`() = runTest(testDispatcher) {
-		coEvery { locationSampleDao.getAllBetween(2000L, 8000L) } returns emptyList()
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(2000L, 8000L, null, null, 500)
+		} returns emptyList()
 
 		helper.exportAndShare(
-			context = mockk(),
+			context = mockExportContext(),
 			tripId = 42L,
 			startTimeMs = 2000L,
 			endTimeMs = 8000L,
 		)
 
-		coVerify(exactly = 1) { locationSampleDao.getAllBetween(2000L, 8000L) }
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(2000L, 8000L, null, null, 500)
+		}
 	}
 
 	@Test
-	fun `fetches locations for given time range with multiple points`() = runTest(testDispatcher) {
-		val samples = listOf(
-			buildSample(time = 1000L, lat = 50.08, lon = 14.42),
-			buildSample(time = 2000L, lat = 50.09, lon = 14.43),
-			buildSample(time = 3000L, lat = 50.10, lon = 14.44),
+	fun `fetches locations across multiple chunks`() = runTest(testDispatcher) {
+		val firstChunk = listOf(
+			buildSample(time = 1000L, lat = null, lon = null),
+			buildSample(time = 2000L, lat = null, lon = null),
 		)
-		coEvery { locationSampleDao.getAllBetween(1000L, 3000L) } returns samples
+		val secondChunk = listOf(
+			buildSample(time = 3000L, lat = null, lon = null),
+		)
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, null, null, 500)
+		} returns firstChunk
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, 2000L, 0L, 500)
+		} returns secondChunk
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, 3000L, 0L, 500)
+		} returns emptyList()
 
-		// GpxExporter needs a real filesystem and context for file I/O.
-		// We verify the DAO interaction happens before the export step fails.
-		try {
-			helper.exportAndShare(
-				context = mockk(relaxed = true),
-				tripId = 99L,
-				startTimeMs = 1000L,
-				endTimeMs = 3000L,
-			)
-		} catch (_: Exception) {
-			// Expected: GpxExporter or FileProvider fails in unit test environment
+		val result = helper.exportAndShare(
+			context = mockExportContext(),
+			tripId = 99L,
+			startTimeMs = 1000L,
+			endTimeMs = 3000L,
+		)
+
+		result shouldBe ExportResult.Success
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, null, null, 500)
 		}
-
-		coVerify(exactly = 1) { locationSampleDao.getAllBetween(1000L, 3000L) }
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, 2000L, 0L, 500)
+		}
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, 3000L, 0L, 500)
+		}
 	}
 
 	@Test
 	fun `returns Success for idempotent empty-data calls`() = runTest(testDispatcher) {
-		coEvery { locationSampleDao.getAllBetween(any(), any()) } returns emptyList()
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		} returns emptyList()
 
-		val result1 = helper.exportAndShare(mockk(), 1L, 0L, 100L)
-		val result2 = helper.exportAndShare(mockk(), 1L, 0L, 100L)
+		val result1 = helper.exportAndShare(mockExportContext(), 1L, 0L, 100L)
+		val result2 = helper.exportAndShare(mockExportContext(), 1L, 0L, 100L)
 
 		result1 shouldBe ExportResult.Success
 		result2 shouldBe ExportResult.Success

@@ -103,21 +103,21 @@ private fun SessionInsightsCardPreview() {
         SessionInsightsCard(
             insights = listOf(
                 SessionInsight(
-                    category = InsightCategory.DURATION,
-                    title = "Solid session",
-                    description = "Great session — over 25 minutes of tracking.",
+                    category = InsightCategory.ACHIEVEMENT,
+                    title = "Step streak",
+                    description = "4,200 steps in one session",
                     iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_access_time_24px,
                 ),
                 SessionInsight(
-                    category = InsightCategory.STEPS,
-                    title = "Steps recorded",
-                    description = "3,421 steps this session — keep it up!",
+                    category = InsightCategory.EXPLORATION,
+                    title = "Explorer!",
+                    description = "You discovered 3 new areas",
                     iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
                 ),
                 SessionInsight(
-                    category = InsightCategory.GOAL,
-                    title = "Goal in sight",
-                    description = "You're at 78% of your daily step goal.",
+                    category = InsightCategory.COMPARISON,
+                    title = "Above average",
+                    description = "This session was 28% longer than your recent average",
                     iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_games_24dp,
                 ),
             ),

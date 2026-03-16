@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.SettingsScreen
@@ -44,8 +45,13 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
+import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
 import java.util.Locale
+import android.content.res.Configuration
 
 @Composable
 fun RootSettingsScreen(
@@ -61,6 +67,31 @@ fun RootSettingsScreen(
         .observeDeveloperMode(context)
         .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
     val showDebug = com.adsamcik.tracker.BuildConfig.DEBUG || developerModeEnabled
+
+    RootSettingsContent(
+        state = state,
+        showDebug = showDebug,
+        developerModeEnabled = developerModeEnabled,
+        onNavigate = onNavigate,
+        onNavigateToActivities = onNavigateToActivities,
+        onAutoUnitSwitchChanged = viewModel::setAutoUnitSwitch,
+        onLengthSystemSelected = viewModel::setLengthSystem,
+        onSpeedFormatSelected = viewModel::setSpeedFormat,
+    )
+}
+
+@Composable
+private fun RootSettingsContent(
+    state: TrackerSettingsState,
+    showDebug: Boolean,
+    developerModeEnabled: Boolean,
+    onNavigate: (SettingsScreen) -> Unit,
+    onNavigateToActivities: () -> Unit,
+    onAutoUnitSwitchChanged: (Boolean) -> Unit,
+    onLengthSystemSelected: (String) -> Unit,
+    onSpeedFormatSelected: (String) -> Unit,
+) {
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -105,7 +136,7 @@ fun RootSettingsScreen(
                     entries = lengthNames,
                     entryValues = lengthValues,
                     onValueChange = { selectedIndex ->
-                        viewModel.setLengthSystem(lengthValues[selectedIndex])
+                        onLengthSystemSelected(lengthValues[selectedIndex])
                     }
                 )
 
@@ -114,7 +145,7 @@ fun RootSettingsScreen(
                     title = stringResource(R.string.settings_auto_unit_switch_title),
                     subtitle = stringResource(if (state.autoUnitSwitch) R.string.settings_units_auto_summary_on else R.string.settings_units_auto_summary_off),
                     checked = state.autoUnitSwitch,
-                    onCheckedChange = { viewModel.setAutoUnitSwitch(it) }
+                    onCheckedChange = onAutoUnitSwitchChanged
                 )
 
                 // Speed format
@@ -126,7 +157,7 @@ fun RootSettingsScreen(
                     entries = speedNames,
                     entryValues = speedValues,
                     onValueChange = { selectedIndex ->
-                        viewModel.setSpeedFormat(speedValues[selectedIndex])
+                        onSpeedFormatSelected(speedValues[selectedIndex])
                     }
                 )
 
@@ -261,5 +292,27 @@ fun RootSettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun RootSettingsScreenPreview() {
+    AppTheme {
+        RootSettingsContent(
+            state = TrackerSettingsState(
+                autoUnitSwitch = true,
+                lengthSystem = LengthSystem.Metric,
+                speedFormat = SpeedFormat.Hour,
+            ),
+            showDebug = true,
+            developerModeEnabled = true,
+            onNavigate = {},
+            onNavigateToActivities = {},
+            onAutoUnitSwitchChanged = {},
+            onLengthSystemSelected = {},
+            onSpeedFormatSelected = {},
+        )
     }
 }

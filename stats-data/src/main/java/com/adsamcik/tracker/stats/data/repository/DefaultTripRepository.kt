@@ -5,6 +5,7 @@ import arrow.core.left
 import arrow.core.right
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.stats.api.TransportMode
+import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
@@ -19,7 +20,7 @@ import javax.inject.Inject
 
 class DefaultTripRepository @Inject constructor(
 	private val tripDao: TripDao,
-) : TripRepository {
+) : TripRepository, TripPresentationRepository {
 
 	override fun observeTrips(): Flow<List<TripSummary>> =
 		tripDao.getRecentTripsFlow(100).map { trips -> trips.map { it.toSummary() } }
@@ -40,6 +41,19 @@ class DefaultTripRepository @Inject constructor(
 		} catch (e: Exception) {
 			StatsError.DatabaseError("Failed to load trip: ${e.message}", e).left()
 		}
+	}
+
+	override fun getPagedTrips() = tripDao.getAllPaged()
+
+	override fun getPagedTripsOverlapping(fromMs: Long, toMs: Long) =
+		tripDao.getPagedOverlapping(fromMs, toMs)
+
+	override suspend fun getTripsBetween(fromMs: Long, toMs: Long) = tripDao.getBetween(fromMs, toMs)
+
+	override suspend fun getTripProjection(id: Long) = tripDao.getById(id)
+
+	override suspend fun deleteTrip(id: Long) {
+		tripDao.deleteById(id)
 	}
 
 	private fun com.adsamcik.tracker.shared.base.database.data.Trip.toSummary(): TripSummary {

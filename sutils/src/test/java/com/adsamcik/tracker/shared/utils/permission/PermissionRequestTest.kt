@@ -154,8 +154,8 @@ class PermissionRequestTest {
 		}
 
 		@Test
-		fun `with creates builder`() {
-			val request = PermissionRequest.with(context)
+		fun `newInstance creates builder`() {
+			val request = PermissionRequest.newInstance(context)
 				.permission(PermissionData("android.permission.CAMERA"))
 				.onResult { }
 				.build()
@@ -164,14 +164,15 @@ class PermissionRequestTest {
 		}
 
 		@Test
-		fun `from copies permissions from existing request`() {
+		fun `builder can copy permissions from existing request`() {
 			val original = PermissionRequest.newInstance(context)
 				.permission(PermissionData("android.permission.CAMERA"))
 				.permission(PermissionData("android.permission.RECORD_AUDIO"))
 				.onResult { }
 				.build()
 
-			val copy = PermissionRequest.from(original)
+			val copy = PermissionRequest.Builder(original.context)
+				.permissions(original.permissionList)
 				.onResult { }
 				.build()
 
@@ -183,14 +184,16 @@ class PermissionRequestTest {
 		}
 
 		@Test
-		fun `from preserves rationale callback`() {
+		fun `builder can preserve rationale callback from existing request`() {
 			val original = PermissionRequest.newInstance(context)
 				.permission(PermissionData("android.permission.CAMERA"))
 				.onResult { }
 				.onRationale { _, _ -> }
 				.build()
 
-			val copy = PermissionRequest.from(original)
+			val copy = PermissionRequest.Builder(original.context)
+				.permissions(original.permissionList)
+				.onRationale(requireNotNull(original.rationaleCallback))
 				.onResult { }
 				.build()
 

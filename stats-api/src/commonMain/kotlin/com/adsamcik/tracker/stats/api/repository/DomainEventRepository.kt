@@ -7,6 +7,10 @@ import kotlinx.coroutines.flow.Flow
 interface DomainEventRepository {
 	suspend fun persist(events: List<DomainEvent>)
 	fun observeEvents(since: EpochMs): Flow<List<DomainEvent>>
-	suspend fun getUnconsumed(consumerId: String): List<DomainEvent>
+	suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent>
 	suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs)
+
+	companion object {
+		const val DEFAULT_UNCONSUMED_BATCH_SIZE: Int = 100
+	}
 }

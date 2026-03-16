@@ -50,6 +50,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R as TrackerR
@@ -342,16 +343,22 @@ private fun PrimaryMetricRow(
  */
 @Composable
 private fun RecordingDot(modifier: Modifier = Modifier) {
-	val infiniteTransition = rememberInfiniteTransition(label = "recording_dot")
-	val alpha by infiniteTransition.animateFloat(
-		initialValue = 1f,
-		targetValue = 0.2f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(1000),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "recording_alpha",
-	)
+	val reducedMotion = LocalReducedMotion.current
+	val alpha = if (reducedMotion) {
+		1f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "recording_dot")
+		val animatedAlpha by infiniteTransition.animateFloat(
+			initialValue = 1f,
+			targetValue = 0.2f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(1000),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "recording_alpha",
+		)
+		animatedAlpha
+	}
 
 	Box(
 		modifier = modifier

@@ -33,7 +33,7 @@ class DefaultGameRepository @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
     private val sessionChannel: TrackerSessionChannel,
     private val dispatchers: DispatchersProvider,
-    private val challengeManager: ChallengeManager? = null
+    private val challengeManager: ChallengeManager,
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
@@ -42,7 +42,7 @@ class DefaultGameRepository @Inject constructor(
     init {
         // Initialize game managers (idempotent)
         GoalTracker.initialize(application, sessionChannel)
-        challengeManager?.let { runCatching { it.initialize(application) } }
+        runCatching { challengeManager.initialize(application) }
     }
     
     private fun startOfDay(now: Long): Long {
@@ -73,9 +73,7 @@ class DefaultGameRepository @Inject constructor(
     }
     
     override fun getActiveChallenges(): StateFlow<List<ChallengeData>> {
-        val source = challengeManager?.activeChallenges
-            ?: return kotlinx.coroutines.flow.MutableStateFlow(emptyList<ChallengeData>())
-        return source
+        return challengeManager.activeChallenges
             .map { list ->
                 list.map { inst ->
                     ChallengeData(

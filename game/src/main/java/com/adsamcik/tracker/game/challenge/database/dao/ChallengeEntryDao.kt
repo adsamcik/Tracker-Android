@@ -15,19 +15,19 @@ interface ChallengeEntryDao : BaseDao<ChallengeEntry> {
 	 * Returns list containing all challenge entries.
 	 */
 	@Query("SELECT * FROM entry")
-	fun getAll(): List<ChallengeEntry>
+	suspend fun getAll(): List<ChallengeEntry>
 
 	/**
 	 * Returns list of all active challenge entries.
 	 */
 	@Query("SELECT * FROM entry WHERE start_time <= :time AND end_time >= :time")
-	fun getActiveEntry(time: Long): List<ChallengeEntry>
+	suspend fun getActiveEntry(time: Long): List<ChallengeEntry>
 
 	/**
 	 * Returns a specific challenge entry.
 	 */
 	@Query("SELECT * FROM entry WHERE id = :id")
-	fun get(id: Long): ChallengeEntry
+	suspend fun get(id: Long): ChallengeEntry
 
 	/**
 	 * Removes all challenge entries from the database.

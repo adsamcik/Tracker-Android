@@ -1011,3 +1011,20 @@ val MIGRATION_24_25: Migration = object : Migration(24, 25) {
 		}
 	}
 }
+
+/**
+ * Version 25 → 26: Add missing query indices for recent analytics and export lookups.
+ */
+val MIGRATION_25_26: Migration = object : Migration(25, 26) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_event_type_processor_id ON domain_event(event_type, processor_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_export_log_started_at ON export_log(started_at)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_segment_id ON inferred_trip(segment_id)")
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 25->26: Added analytics and export query indices",
+			)
+		}
+	}
+}

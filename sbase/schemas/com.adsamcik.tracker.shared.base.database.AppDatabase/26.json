@@ -1,0 +1,2087 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 26,
+    "identityHash": "8faffc6ade32aa8653030b1eee1a21c3",
+    "entities": [
+      {
+        "tableName": "activity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iconName",
+            "columnName": "iconName",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_activity_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activity_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "network_operator",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `name` TEXT, PRIMARY KEY(`mcc`, `mnc`))",
+        "fields": [
+          {
+            "fieldPath": "mcc",
+            "columnName": "mcc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mnc",
+            "columnName": "mnc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mcc",
+            "mnc"
+          ]
+        }
+      },
+      {
+        "tableName": "location_sample",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latE7",
+            "columnName": "lat_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lonE7",
+            "columnName": "lon_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "altitudeM",
+            "columnName": "alt_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rawGpsAltitudeM",
+            "columnName": "raw_gps_alt_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "hAccM",
+            "columnName": "h_acc_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "vAccM",
+            "columnName": "v_acc_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "speedMps",
+            "columnName": "speed_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "speedAccuracyMps",
+            "columnName": "speed_accuracy_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "provider",
+            "columnName": "provider",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quality",
+            "columnName": "quality",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "motionState",
+            "columnName": "motion_state",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "policy",
+            "columnName": "policy",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bucketId",
+            "columnName": "bucket_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_location_sample_time",
+            "unique": false,
+            "columnNames": [
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_time` ON `${TABLE_NAME}` (`time_ms`)"
+          },
+          {
+            "name": "idx_location_sample_coords",
+            "unique": false,
+            "columnNames": [
+              "lat_e7",
+              "lon_e7"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_coords` ON `${TABLE_NAME}` (`lat_e7`, `lon_e7`)"
+          },
+          {
+            "name": "idx_location_sample_bucket",
+            "unique": false,
+            "columnNames": [
+              "bucket_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_bucket` ON `${TABLE_NAME}` (`bucket_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "step_interval",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `step_count` INTEGER NOT NULL, `sensor_value_start` INTEGER NOT NULL, `sensor_value_end` INTEGER NOT NULL, `sensor_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepCount",
+            "columnName": "step_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sensorValueStart",
+            "columnName": "sensor_value_start",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sensorValueEnd",
+            "columnName": "sensor_value_end",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sensorReset",
+            "columnName": "sensor_reset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_step_interval_time_range",
+            "unique": false,
+            "columnNames": [
+              "start_time_ms",
+              "end_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_interval_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "activity_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `activity_type` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `is_transition` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityType",
+            "columnName": "activity_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isTransition",
+            "columnName": "is_transition",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_activity_snapshot_time",
+            "unique": false,
+            "columnNames": [
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_activity_snapshot_time` ON `${TABLE_NAME}` (`time_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "cell_sample",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cellId",
+            "columnName": "cell_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lac",
+            "columnName": "lac",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mcc",
+            "columnName": "mcc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mnc",
+            "columnName": "mnc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "networkType",
+            "columnName": "network_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signalStrength",
+            "columnName": "signal_strength",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latE7",
+            "columnName": "lat_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lonE7",
+            "columnName": "lon_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "provenance",
+            "columnName": "provenance",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_cell_sample_time",
+            "unique": false,
+            "columnNames": [
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_cell_sample_time` ON `${TABLE_NAME}` (`time_ms`)"
+          },
+          {
+            "name": "idx_cell_sample_cell_id",
+            "unique": false,
+            "columnNames": [
+              "cell_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_cell_sample_cell_id` ON `${TABLE_NAME}` (`cell_id`)"
+          },
+          {
+            "name": "idx_cell_sample_coords",
+            "unique": false,
+            "columnNames": [
+              "lat_e7",
+              "lon_e7"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_cell_sample_coords` ON `${TABLE_NAME}` (`lat_e7`, `lon_e7`)"
+          }
+        ]
+      },
+      {
+        "tableName": "wifi_observation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bssid",
+            "columnName": "bssid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ssid",
+            "columnName": "ssid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capabilities",
+            "columnName": "capabilities",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequency",
+            "columnName": "frequency",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latE7",
+            "columnName": "lat_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lonE7",
+            "columnName": "lon_e7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "provenance",
+            "columnName": "provenance",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_wifi_obs_time",
+            "unique": false,
+            "columnNames": [
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_wifi_obs_time` ON `${TABLE_NAME}` (`time_ms`)"
+          },
+          {
+            "name": "idx_wifi_obs_bssid",
+            "unique": false,
+            "columnNames": [
+              "bssid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_wifi_obs_bssid` ON `${TABLE_NAME}` (`bssid`)"
+          },
+          {
+            "name": "idx_wifi_obs_coords",
+            "unique": false,
+            "columnNames": [
+              "lat_e7",
+              "lon_e7"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_wifi_obs_coords` ON `${TABLE_NAME}` (`lat_e7`, `lon_e7`)"
+          }
+        ]
+      },
+      {
+        "tableName": "tracker_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER, `policy` TEXT NOT NULL, `policy_params` TEXT, `user_initiated` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "policy",
+            "columnName": "policy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policyParams",
+            "columnName": "policy_params",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userInitiated",
+            "columnName": "user_initiated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_tracker_run_time_range",
+            "unique": false,
+            "columnNames": [
+              "start_time_ms",
+              "end_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_tracker_run_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "session_segment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `activity_confidence` INTEGER, `sample_count` INTEGER NOT NULL, `source` TEXT NOT NULL, `inference_version` TEXT, `created_at` INTEGER NOT NULL, `has_distance_anomaly` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "primaryActivity",
+            "columnName": "primary_activity",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "activityConfidence",
+            "columnName": "activity_confidence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sampleCount",
+            "columnName": "sample_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inferenceVersion",
+            "columnName": "inference_version",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasDistanceAnomaly",
+            "columnName": "has_distance_anomaly",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_session_segment_time_range",
+            "unique": false,
+            "columnNames": [
+              "start_time_ms",
+              "end_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          },
+          {
+            "name": "idx_session_segment_source",
+            "unique": false,
+            "columnNames": [
+              "source"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_source` ON `${TABLE_NAME}` (`source`)"
+          }
+        ]
+      },
+      {
+        "tableName": "daily_summary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date_epoch_day` INTEGER NOT NULL, `total_distance_m` REAL NOT NULL, `total_steps` INTEGER NOT NULL, `total_duration_ms` INTEGER NOT NULL, `trip_count` INTEGER NOT NULL, `active_tracking_ms` INTEGER NOT NULL, `last_updated_ms` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, PRIMARY KEY(`date_epoch_day`))",
+        "fields": [
+          {
+            "fieldPath": "dateEpochDay",
+            "columnName": "date_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDistanceM",
+            "columnName": "total_distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalSteps",
+            "columnName": "total_steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationMs",
+            "columnName": "total_duration_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripCount",
+            "columnName": "trip_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeTrackingMs",
+            "columnName": "active_tracking_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedMs",
+            "columnName": "last_updated_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date_epoch_day"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_summary_date_epoch_day",
+            "unique": true,
+            "columnNames": [
+              "date_epoch_day"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_summary_date_epoch_day` ON `${TABLE_NAME}` (`date_epoch_day`)"
+          }
+        ]
+      },
+      {
+        "tableName": "live_stats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `date_epoch_day` INTEGER NOT NULL, `session_distance_m` REAL NOT NULL, `session_steps` INTEGER NOT NULL, `session_duration_ms` INTEGER NOT NULL, `day_total_distance_m` REAL NOT NULL, `day_total_steps` INTEGER NOT NULL, `day_total_duration_ms` INTEGER NOT NULL, `last_updated_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateEpochDay",
+            "columnName": "date_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionDistanceM",
+            "columnName": "session_distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionSteps",
+            "columnName": "session_steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionDurationMs",
+            "columnName": "session_duration_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayTotalDistanceM",
+            "columnName": "day_total_distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayTotalSteps",
+            "columnName": "day_total_steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayTotalDurationMs",
+            "columnName": "day_total_duration_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedMs",
+            "columnName": "last_updated_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "frequent_place",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `center_lat_e7` INTEGER NOT NULL, `center_lon_e7` INTEGER NOT NULL, `radius_m` REAL NOT NULL, `visit_count` INTEGER NOT NULL, `first_visit_ms` INTEGER NOT NULL, `last_visit_ms` INTEGER NOT NULL, `auto_category` TEXT, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centerLatE7",
+            "columnName": "center_lat_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centerLonE7",
+            "columnName": "center_lon_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "radiusM",
+            "columnName": "radius_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "visitCount",
+            "columnName": "visit_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstVisitMs",
+            "columnName": "first_visit_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastVisitMs",
+            "columnName": "last_visit_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoCategory",
+            "columnName": "auto_category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_frequent_place_coords",
+            "unique": false,
+            "columnNames": [
+              "center_lat_e7",
+              "center_lon_e7"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_frequent_place_coords` ON `${TABLE_NAME}` (`center_lat_e7`, `center_lon_e7`)"
+          },
+          {
+            "name": "index_frequent_place_last_visit_ms",
+            "unique": false,
+            "columnNames": [
+              "last_visit_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_frequent_place_last_visit_ms` ON `${TABLE_NAME}` (`last_visit_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "inferred_trip",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `segment_id` INTEGER NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `transport_mode` TEXT NOT NULL, `departure_place_id` INTEGER, `arrival_place_id` INTEGER, `source` TEXT NOT NULL, `inference_version` TEXT, `leg_count` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, FOREIGN KEY(`departure_place_id`) REFERENCES `frequent_place`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`arrival_place_id`) REFERENCES `frequent_place`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentId",
+            "columnName": "segment_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "primaryActivity",
+            "columnName": "primary_activity",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "transportMode",
+            "columnName": "transport_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "departurePlaceId",
+            "columnName": "departure_place_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "arrivalPlaceId",
+            "columnName": "arrival_place_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inferenceVersion",
+            "columnName": "inference_version",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "legCount",
+            "columnName": "leg_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_inferred_trip_time_range",
+            "unique": false,
+            "columnNames": [
+              "start_time_ms",
+              "end_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inferred_trip_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          },
+          {
+            "name": "idx_inferred_trip_departure",
+            "unique": false,
+            "columnNames": [
+              "departure_place_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inferred_trip_departure` ON `${TABLE_NAME}` (`departure_place_id`)"
+          },
+          {
+            "name": "idx_inferred_trip_arrival",
+            "unique": false,
+            "columnNames": [
+              "arrival_place_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inferred_trip_arrival` ON `${TABLE_NAME}` (`arrival_place_id`)"
+          },
+          {
+            "name": "index_inferred_trip_segment_id",
+            "unique": false,
+            "columnNames": [
+              "segment_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inferred_trip_segment_id` ON `${TABLE_NAME}` (`segment_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "frequent_place",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "departure_place_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "frequent_place",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "arrival_place_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "trip_leg",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trip_id` INTEGER NOT NULL, `sequence_index` INTEGER NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `transport_mode` TEXT NOT NULL, `created_at` INTEGER NOT NULL, FOREIGN KEY(`trip_id`) REFERENCES `inferred_trip`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripId",
+            "columnName": "trip_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequenceIndex",
+            "columnName": "sequence_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "transportMode",
+            "columnName": "transport_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_trip_leg_trip_seq",
+            "unique": true,
+            "columnNames": [
+              "trip_id",
+              "sequence_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_trip_leg_trip_seq` ON `${TABLE_NAME}` (`trip_id`, `sequence_index`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "inferred_trip",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trip_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "exploration_cell",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `cell_token` TEXT NOT NULL, `level` INTEGER NOT NULL, `quality` INTEGER NOT NULL, `first_discovered_at` INTEGER NOT NULL, `last_visited_at` INTEGER NOT NULL, `visit_count` INTEGER NOT NULL DEFAULT 1, `season_bitmask` INTEGER NOT NULL DEFAULT 0, `center_lat_e7` INTEGER NOT NULL, `center_lon_e7` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cellToken",
+            "columnName": "cell_token",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quality",
+            "columnName": "quality",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstDiscoveredAt",
+            "columnName": "first_discovered_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastVisitedAt",
+            "columnName": "last_visited_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "visitCount",
+            "columnName": "visit_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "seasonBitmask",
+            "columnName": "season_bitmask",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "centerLatE7",
+            "columnName": "center_lat_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centerLonE7",
+            "columnName": "center_lon_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_exploration_cell_cell_token",
+            "unique": true,
+            "columnNames": [
+              "cell_token"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_exploration_cell_cell_token` ON `${TABLE_NAME}` (`cell_token`)"
+          },
+          {
+            "name": "index_exploration_cell_level",
+            "unique": false,
+            "columnNames": [
+              "level"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exploration_cell_level` ON `${TABLE_NAME}` (`level`)"
+          },
+          {
+            "name": "index_exploration_cell_first_discovered_at",
+            "unique": false,
+            "columnNames": [
+              "first_discovered_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exploration_cell_first_discovered_at` ON `${TABLE_NAME}` (`first_discovered_at`)"
+          },
+          {
+            "name": "index_exploration_cell_level_first_discovered_at",
+            "unique": false,
+            "columnNames": [
+              "level",
+              "first_discovered_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exploration_cell_level_first_discovered_at` ON `${TABLE_NAME}` (`level`, `first_discovered_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "exploration_streak",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`type` TEXT NOT NULL, `current_count` INTEGER NOT NULL DEFAULT 0, `best_count` INTEGER NOT NULL DEFAULT 0, `last_increment_day` INTEGER NOT NULL DEFAULT 0, `updated_at` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`type`))",
+        "fields": [
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentCount",
+            "columnName": "current_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "bestCount",
+            "columnName": "best_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "lastIncrementDay",
+            "columnName": "last_increment_day",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "type"
+          ]
+        }
+      },
+      {
+        "tableName": "achievement_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `achievement_id` TEXT NOT NULL, `current_value` INTEGER NOT NULL, `target_value` INTEGER NOT NULL, `tier` INTEGER, `unlocked_at` INTEGER, `updated_at` INTEGER NOT NULL, `notified_at` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "achievementId",
+            "columnName": "achievement_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentValue",
+            "columnName": "current_value",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetValue",
+            "columnName": "target_value",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tier",
+            "columnName": "tier",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "unlockedAt",
+            "columnName": "unlocked_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notifiedAt",
+            "columnName": "notified_at",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_achievement_progress_achievement_id",
+            "unique": true,
+            "columnNames": [
+              "achievement_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_achievement_progress_achievement_id` ON `${TABLE_NAME}` (`achievement_id`)"
+          },
+          {
+            "name": "index_achievement_progress_updated_at",
+            "unique": false,
+            "columnNames": [
+              "updated_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_achievement_progress_updated_at` ON `${TABLE_NAME}` (`updated_at`)"
+          },
+          {
+            "name": "index_achievement_progress_unlocked_at",
+            "unique": false,
+            "columnNames": [
+              "unlocked_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_achievement_progress_unlocked_at` ON `${TABLE_NAME}` (`unlocked_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "personal_record",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `metric` TEXT NOT NULL, `value` REAL NOT NULL, `achieved_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metric",
+            "columnName": "metric",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "achievedAt",
+            "columnName": "achieved_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_personal_record_metric",
+            "unique": true,
+            "columnNames": [
+              "metric"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_personal_record_metric` ON `${TABLE_NAME}` (`metric`)"
+          }
+        ]
+      },
+      {
+        "tableName": "route_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER, `segment_id` INTEGER, `encoded_polyline` TEXT NOT NULL, `point_count` INTEGER NOT NULL, `simplified_count` INTEGER NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `distance_meters` REAL NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "segmentId",
+            "columnName": "segment_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "encodedPolyline",
+            "columnName": "encoded_polyline",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pointCount",
+            "columnName": "point_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "simplifiedCount",
+            "columnName": "simplified_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "start_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "end_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distance_meters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_route_cache_session_id",
+            "unique": false,
+            "columnNames": [
+              "session_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_route_cache_session_id` ON `${TABLE_NAME}` (`session_id`)"
+          },
+          {
+            "name": "index_route_cache_segment_id",
+            "unique": false,
+            "columnNames": [
+              "segment_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_route_cache_segment_id` ON `${TABLE_NAME}` (`segment_id`)"
+          },
+          {
+            "name": "index_route_cache_start_time",
+            "unique": false,
+            "columnNames": [
+              "start_time"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_route_cache_start_time` ON `${TABLE_NAME}` (`start_time`)"
+          }
+        ]
+      },
+      {
+        "tableName": "export_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `format` TEXT NOT NULL, `scope` TEXT NOT NULL, `file_name` TEXT NOT NULL, `file_size_bytes` INTEGER NOT NULL, `record_count` INTEGER NOT NULL, `started_at` INTEGER NOT NULL, `completed_at` INTEGER NOT NULL, `status` TEXT NOT NULL, `error_message` TEXT, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "format",
+            "columnName": "format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileName",
+            "columnName": "file_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSizeBytes",
+            "columnName": "file_size_bytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordCount",
+            "columnName": "record_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errorMessage",
+            "columnName": "error_message",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_export_log_completed_at",
+            "unique": false,
+            "columnNames": [
+              "completed_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_export_log_completed_at` ON `${TABLE_NAME}` (`completed_at`)"
+          },
+          {
+            "name": "index_export_log_started_at",
+            "unique": false,
+            "columnNames": [
+              "started_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_export_log_started_at` ON `${TABLE_NAME}` (`started_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "storage_size_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `epoch_day` INTEGER NOT NULL, `database_size_bytes` INTEGER NOT NULL, `location_count` INTEGER NOT NULL, `session_count` INTEGER NOT NULL, `wifi_count` INTEGER NOT NULL, `cell_count` INTEGER NOT NULL, `exploration_cell_count` INTEGER NOT NULL, `route_cache_count` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epochDay",
+            "columnName": "epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseSizeBytes",
+            "columnName": "database_size_bytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationCount",
+            "columnName": "location_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionCount",
+            "columnName": "session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wifiCount",
+            "columnName": "wifi_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cellCount",
+            "columnName": "cell_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "explorationCellCount",
+            "columnName": "exploration_cell_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeCacheCount",
+            "columnName": "route_cache_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_storage_size_snapshot_epoch_day",
+            "unique": true,
+            "columnNames": [
+              "epoch_day"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_storage_size_snapshot_epoch_day` ON `${TABLE_NAME}` (`epoch_day`)"
+          }
+        ]
+      },
+      {
+        "tableName": "domain_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_type` TEXT NOT NULL, `processor_id` TEXT NOT NULL, `timestamp_ms` INTEGER NOT NULL, `payload` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "event_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processorId",
+            "columnName": "processor_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestamp_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_domain_event_timestamp_ms",
+            "unique": false,
+            "columnNames": [
+              "timestamp_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_domain_event_timestamp_ms` ON `${TABLE_NAME}` (`timestamp_ms`)"
+          },
+          {
+            "name": "index_domain_event_event_type_processor_id",
+            "unique": false,
+            "columnNames": [
+              "event_type",
+              "processor_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_domain_event_event_type_processor_id` ON `${TABLE_NAME}` (`event_type`, `processor_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "domain_event_cursor",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`consumer_id` TEXT NOT NULL, `last_processed_ms` INTEGER NOT NULL, PRIMARY KEY(`consumer_id`))",
+        "fields": [
+          {
+            "fieldPath": "consumerId",
+            "columnName": "consumer_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastProcessedMs",
+            "columnName": "last_processed_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "consumer_id"
+          ]
+        }
+      },
+      {
+        "tableName": "pressure_sample",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `pressure_hpa` REAL NOT NULL, `altitude_m` REAL NOT NULL, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pressureHpa",
+            "columnName": "pressure_hpa",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "altitudeM",
+            "columnName": "altitude_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bucketId",
+            "columnName": "bucket_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_pressure_sample_time",
+            "unique": false,
+            "columnNames": [
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_sample_time` ON `${TABLE_NAME}` (`time_ms`)"
+          },
+          {
+            "name": "idx_pressure_sample_bucket",
+            "unique": false,
+            "columnNames": [
+              "bucket_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_sample_bucket` ON `${TABLE_NAME}` (`bucket_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "ski_run_segment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `run_index` INTEGER NOT NULL, `segment_type` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `vertical_m` REAL NOT NULL, `distance_m` REAL NOT NULL, `max_speed_mps` REAL NOT NULL, `avg_speed_mps` REAL NOT NULL, `lift_type` TEXT, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runIndex",
+            "columnName": "run_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentType",
+            "columnName": "segment_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verticalM",
+            "columnName": "vertical_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxSpeedMps",
+            "columnName": "max_speed_mps",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avgSpeedMps",
+            "columnName": "avg_speed_mps",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "liftType",
+            "columnName": "lift_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_ski_run_segment_session",
+            "unique": false,
+            "columnNames": [
+              "session_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_ski_run_segment_session` ON `${TABLE_NAME}` (`session_id`)"
+          },
+          {
+            "name": "idx_ski_run_segment_start_time",
+            "unique": false,
+            "columnNames": [
+              "start_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_ski_run_segment_start_time` ON `${TABLE_NAME}` (`start_time_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "pending_signal",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signalJson",
+            "columnName": "signal_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_pending_signal_session_time",
+            "unique": false,
+            "columnNames": [
+              "session_id",
+              "created_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pending_signal_session_time` ON `${TABLE_NAME}` (`session_id`, `created_at`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8faffc6ade32aa8653030b1eee1a21c3')"
+    ]
+  }
+}

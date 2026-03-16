@@ -1,0 +1,1000 @@
+[
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ActiveTimeChallengeDao.kt",
+    "line": 12,
+    "signature": "fun get(id: Long): ActiveTimeChallengeEntity",
+    "query": "SELECT * FROM challenge_active_time WHERE id == :id",
+    "returnType": "ActiveTimeChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ActiveTimeChallengeDao.kt",
+    "line": 15,
+    "signature": "fun getByEntry(entryId: Long): ActiveTimeChallengeEntity",
+    "query": "SELECT * FROM challenge_active_time WHERE entry_id == :entryId",
+    "returnType": "ActiveTimeChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeDao.kt",
+    "line": 11,
+    "signature": "fun getActive(now: Long): List<ChallengeEntity>",
+    "query": "SELECT * FROM challenge WHERE end_time > :now AND is_completed = 0",
+    "returnType": "List<ChallengeEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeDao.kt",
+    "line": 14,
+    "signature": "fun get(id: Long): ChallengeEntity?",
+    "query": "SELECT * FROM challenge WHERE id = :id",
+    "returnType": "ChallengeEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeDao.kt",
+    "line": 17,
+    "signature": "fun getAll(): List<ChallengeEntity>",
+    "query": "SELECT * FROM challenge",
+    "returnType": "List<ChallengeEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeEntryDao.kt",
+    "line": 18,
+    "signature": "fun getAll(): List<ChallengeEntry>",
+    "query": "SELECT * FROM entry",
+    "returnType": "List<ChallengeEntry>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeEntryDao.kt",
+    "line": 24,
+    "signature": "fun getActiveEntry(time: Long): List<ChallengeEntry>",
+    "query": "SELECT * FROM entry WHERE start_time <= :time AND end_time >= :time",
+    "returnType": "List<ChallengeEntry>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeEntryDao.kt",
+    "line": 30,
+    "signature": "fun get(id: Long): ChallengeEntry",
+    "query": "SELECT * FROM entry WHERE id = :id",
+    "returnType": "ChallengeEntry",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+    "line": 12,
+    "signature": "fun observeAll(): Flow<List<ChallengeHistoryEntity>>",
+    "query": "SELECT * FROM challenge_history ORDER BY COALESCE(completed_at, end_time) DESC",
+    "returnType": "Flow<List<ChallengeHistoryEntity>>",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+    "line": 15,
+    "signature": "fun getAll(): List<ChallengeHistoryEntity>",
+    "query": "SELECT * FROM challenge_history ORDER BY COALESCE(completed_at, end_time) DESC",
+    "returnType": "List<ChallengeHistoryEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+    "line": 18,
+    "signature": "fun get(id: Long): ChallengeHistoryEntity?",
+    "query": "SELECT * FROM challenge_history WHERE id = :id",
+    "returnType": "ChallengeHistoryEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+    "line": 21,
+    "signature": "fun getCompleted(): List<ChallengeHistoryEntity>",
+    "query": "SELECT * FROM challenge_history WHERE outcome = 'COMPLETED' ORDER BY completed_at DESC",
+    "returnType": "List<ChallengeHistoryEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeHistoryDao.kt",
+    "line": 24,
+    "signature": "fun getByMedal(medal: String): List<ChallengeHistoryEntity>",
+    "query": "SELECT * FROM challenge_history WHERE medal = :medal ORDER BY completed_at DESC",
+    "returnType": "List<ChallengeHistoryEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengePersonalRecordDao.kt",
+    "line": 12,
+    "signature": "fun get(type: String, metric: String): ChallengePersonalRecordEntity?",
+    "query": "SELECT * FROM challenge_personal_record WHERE challenge_type = :type AND metric = :metric",
+    "returnType": "ChallengePersonalRecordEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengePersonalRecordDao.kt",
+    "line": 15,
+    "signature": "fun observeAll(): Flow<List<ChallengePersonalRecordEntity>>",
+    "query": "SELECT * FROM challenge_personal_record ORDER BY achieved_at DESC",
+    "returnType": "Flow<List<ChallengePersonalRecordEntity>>",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengePersonalRecordDao.kt",
+    "line": 18,
+    "signature": "fun getByType(type: String): List<ChallengePersonalRecordEntity>",
+    "query": "SELECT * FROM challenge_personal_record WHERE challenge_type = :type",
+    "returnType": "List<ChallengePersonalRecordEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ChallengeStreakDao.kt",
+    "line": 12,
+    "signature": "fun get(): ChallengeStreakEntity?",
+    "query": "SELECT * FROM challenge_streak WHERE id = 1",
+    "returnType": "ChallengeStreakEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ExplorerChallengeDao.kt",
+    "line": 12,
+    "signature": "fun get(id: Long): ExplorerChallengeEntity",
+    "query": "SELECT * FROM challenge_explorer WHERE id == :id",
+    "returnType": "ExplorerChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\ExplorerChallengeDao.kt",
+    "line": 15,
+    "signature": "fun getByEntry(entryId: Long): ExplorerChallengeEntity",
+    "query": "SELECT * FROM challenge_explorer WHERE entry_id == :entryId",
+    "returnType": "ExplorerChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\PlayerProfileDao.kt",
+    "line": 12,
+    "signature": "fun get(): PlayerProfileEntity?",
+    "query": "SELECT * FROM player_profile WHERE id = 1",
+    "returnType": "PlayerProfileEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\SessionChallengeDataDao.kt",
+    "line": 11,
+    "signature": "fun get(id: Long): ChallengeSessionData?",
+    "query": "SELECT * FROM challenge_session_data WHERE id = :id",
+    "returnType": "ChallengeSessionData?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\StepChallengeDao.kt",
+    "line": 11,
+    "signature": "fun get(id: Long): StepChallengeEntity",
+    "query": "SELECT * FROM challenge_step WHERE id == :id",
+    "returnType": "StepChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\StepChallengeDao.kt",
+    "line": 14,
+    "signature": "fun getByEntry(entryId: Long): StepChallengeEntity",
+    "query": "SELECT * FROM challenge_step WHERE entry_id == :entryId",
+    "returnType": "StepChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\WalkDistanceChallengeDao.kt",
+    "line": 11,
+    "signature": "fun get(id: Long): WalkDistanceChallengeEntity",
+    "query": "SELECT * FROM challenge_walk_distance WHERE id == :id",
+    "returnType": "WalkDistanceChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\WalkDistanceChallengeDao.kt",
+    "line": 14,
+    "signature": "fun getByEntry(entryId: Long): WalkDistanceChallengeEntity",
+    "query": "SELECT * FROM challenge_walk_distance WHERE entry_id == :entryId",
+    "returnType": "WalkDistanceChallengeEntity",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\challenge\\database\\dao\\XpLedgerDao.kt",
+    "line": 29,
+    "signature": "fun getRecent(limit: Int): List<XpLedgerEntity>",
+    "query": "SELECT * FROM xp_ledger ORDER BY earned_at DESC LIMIT :limit",
+    "returnType": "List<XpLedgerEntity>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\minigame\\database\\MiniGameScoreDao.kt",
+    "line": 11,
+    "signature": "fun getScoresByGame(gameId: String): Flow<List<MiniGameScoreEntity>>",
+    "query": "SELECT * FROM minigame_score WHERE game_id = :gameId ORDER BY score DESC",
+    "returnType": "Flow<List<MiniGameScoreEntity>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\minigame\\database\\MiniGameScoreDao.kt",
+    "line": 17,
+    "signature": "fun getRecent(limit: Int = 20): Flow<List<MiniGameScoreEntity>>",
+    "query": "SELECT * FROM minigame_score ORDER BY played_at DESC LIMIT :limit",
+    "returnType": "Flow<List<MiniGameScoreEntity>>",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashDataDao.kt",
+    "line": 16,
+    "signature": "fun getAll(): List<CrashData>",
+    "query": "SELECT * from crash_data",
+    "returnType": "List<CrashData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashDataDao.kt",
+    "line": 22,
+    "signature": "fun getAllOrderedDesc(): List<CrashData>",
+    "query": "SELECT * from crash_data ORDER BY id DESC",
+    "returnType": "List<CrashData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\CrashDataDao.kt",
+    "line": 28,
+    "signature": "fun getLastOrderedDesc(count: Int): List<CrashData>",
+    "query": "SELECT * from crash_data ORDER BY id DESC LIMIT :count",
+    "returnType": "List<CrashData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\GenericLogDao.kt",
+    "line": 16,
+    "signature": "fun getAll(): List<LogData>",
+    "query": "SELECT * from log_data",
+    "returnType": "List<LogData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\GenericLogDao.kt",
+    "line": 22,
+    "signature": "fun getAllOrderedDesc(): List<LogData>",
+    "query": "SELECT * from log_data ORDER BY id DESC",
+    "returnType": "List<LogData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\logger\\src\\main\\java\\com\\adsamcik\\tracker\\logger\\GenericLogDao.kt",
+    "line": 28,
+    "signature": "fun getLastOrderedDesc(count: Int): List<LogData>",
+    "query": "SELECT * from log_data ORDER BY id DESC LIMIT :count",
+    "returnType": "List<LogData>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\AchievementProgressDao.kt",
+    "line": 16,
+    "signature": "suspend fun getAll(): List<AchievementProgressEntity>",
+    "query": "SELECT * FROM achievement_progress ORDER BY updated_at DESC",
+    "returnType": "List<AchievementProgressEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\AchievementProgressDao.kt",
+    "line": 19,
+    "signature": "fun getAllFlow(): Flow<List<AchievementProgressEntity>>",
+    "query": "SELECT * FROM achievement_progress ORDER BY updated_at DESC",
+    "returnType": "Flow<List<AchievementProgressEntity>>",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\AchievementProgressDao.kt",
+    "line": 22,
+    "signature": "suspend fun getUnlocked(): List<AchievementProgressEntity>",
+    "query": "SELECT * FROM achievement_progress WHERE unlocked_at IS NOT NULL ORDER BY unlocked_at DESC",
+    "returnType": "List<AchievementProgressEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityDao.kt",
+    "line": 21,
+    "signature": "fun getAll(): List<SessionActivity>",
+    "query": "SELECT * FROM activity",
+    "returnType": "List<SessionActivity>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityDao.kt",
+    "line": 28,
+    "signature": "fun getAllUser(): List<SessionActivity>",
+    "query": "SELECT * FROM activity WHERE id >= 0",
+    "returnType": "List<SessionActivity>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityDao.kt",
+    "line": 35,
+    "signature": "fun get(id: Long): SessionActivity?",
+    "query": "SELECT * FROM activity WHERE id = :id",
+    "returnType": "SessionActivity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityDao.kt",
+    "line": 56,
+    "signature": "fun find(name: String): SessionActivity?",
+    "query": "SELECT * FROM activity WHERE name = :name",
+    "returnType": "SessionActivity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityDebugDao.kt",
+    "line": 16,
+    "signature": "fun getAll(): List<DatabaseDebugActivity>",
+    "query": "SELECT * FROM debug_activity",
+    "returnType": "List<DatabaseDebugActivity>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivitySnapshotDao.kt",
+    "line": 18,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot>",
+    "query": "SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "List<ActivitySnapshot>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivitySnapshotDao.kt",
+    "line": 24,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<ActivitySnapshot>>",
+    "query": "SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "Flow<List<ActivitySnapshot>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivitySnapshotDao.kt",
+    "line": 30,
+    "signature": "suspend fun getTransitionsBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot>",
+    "query": "SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs AND is_transition = 1 ORDER BY time_ms",
+    "returnType": "List<ActivitySnapshot>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivitySnapshotDao.kt",
+    "line": 36,
+    "signature": "suspend fun getLatest(): ActivitySnapshot?",
+    "query": "SELECT * FROM activity_snapshot ORDER BY time_ms DESC LIMIT 1",
+    "returnType": "ActivitySnapshot?",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CellSampleDao.kt",
+    "line": 19,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<CellSample>",
+    "query": "SELECT * FROM cell_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "List<CellSample>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CellSampleDao.kt",
+    "line": 25,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<CellSample>>",
+    "query": "SELECT * FROM cell_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "Flow<List<CellSample>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\CellSampleDao.kt",
+    "line": 31,
+    "signature": "suspend fun getSamplesWithoutCoordinates(limit: Int): List<CellSample>",
+    "query": "SELECT * FROM cell_sample WHERE lat_e7 IS NULL OR lon_e7 IS NULL ORDER BY time_ms LIMIT :limit",
+    "returnType": "List<CellSample>",
+    "flags": [
+      "returns List",
+      "suspend List"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DailySummaryDao.kt",
+    "line": 18,
+    "signature": "suspend fun getByDay(dateEpochDay: Long): DailySummaryEntity?",
+    "query": "SELECT * FROM daily_summary WHERE date_epoch_day = :dateEpochDay",
+    "returnType": "DailySummaryEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DailySummaryDao.kt",
+    "line": 30,
+    "signature": "suspend fun getBetween(fromDay: Long, toDay: Long): List<DailySummaryEntity>",
+    "query": "SELECT * FROM daily_summary WHERE date_epoch_day >= :fromDay AND date_epoch_day <= :toDay ORDER BY date_epoch_day",
+    "returnType": "List<DailySummaryEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DailySummaryDao.kt",
+    "line": 36,
+    "signature": "fun getBetweenFlow(fromDay: Long, toDay: Long): Flow<List<DailySummaryEntity>>",
+    "query": "SELECT * FROM daily_summary WHERE date_epoch_day >= :fromDay AND date_epoch_day <= :toDay ORDER BY date_epoch_day",
+    "returnType": "Flow<List<DailySummaryEntity>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DailySummaryDao.kt",
+    "line": 62,
+    "signature": "suspend fun getAllBefore(beforeDay: Long): List<DailySummaryEntity>",
+    "query": "SELECT * FROM daily_summary WHERE date_epoch_day < :beforeDay ORDER BY date_epoch_day",
+    "returnType": "List<DailySummaryEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\DomainEventDao.kt",
+    "line": 35,
+    "signature": "fun observeSince(sinceMs: Long): Flow<List<DomainEventEntity>>",
+    "query": "SELECT * FROM domain_event WHERE timestamp_ms >= :sinceMs ORDER BY timestamp_ms ASC",
+    "returnType": "Flow<List<DomainEventEntity>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExplorationCellDao.kt",
+    "line": 16,
+    "signature": "suspend fun getByToken(token: String): ExplorationCellEntity?",
+    "query": "SELECT * FROM exploration_cell WHERE cell_token = :token",
+    "returnType": "ExplorationCellEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExplorationCellDao.kt",
+    "line": 19,
+    "signature": "suspend fun getAllTokensAtLevel(level: Int): List<String>",
+    "query": "SELECT cell_token FROM exploration_cell WHERE level = :level",
+    "returnType": "List<String>",
+    "flags": [
+      "returns List",
+      "suspend List"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExplorationCellDao.kt",
+    "line": 62,
+    "signature": "suspend fun getDistinctSeasonBitmasks(level: Int): List<Int>",
+    "query": "SELECT DISTINCT season_bitmask FROM exploration_cell WHERE level = :level",
+    "returnType": "List<Int>",
+    "flags": [
+      "returns List",
+      "suspend List"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExplorationStreakDao.kt",
+    "line": 16,
+    "signature": "suspend fun getByType(type: String): ExplorationStreakEntity?",
+    "query": "SELECT * FROM exploration_streak WHERE type = :type",
+    "returnType": "ExplorationStreakEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExplorationStreakDao.kt",
+    "line": 22,
+    "signature": "suspend fun getAll(): List<ExplorationStreakEntity>",
+    "query": "SELECT * FROM exploration_streak",
+    "returnType": "List<ExplorationStreakEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ExportLogDao.kt",
+    "line": 25,
+    "signature": "suspend fun getRecent(limit: Int): List<ExportLogEntity>",
+    "query": "SELECT * FROM export_log ORDER BY completed_at DESC LIMIT :limit",
+    "returnType": "List<ExportLogEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\FrequentPlaceDao.kt",
+    "line": 11,
+    "signature": "suspend fun getAll(limit: Int = 500): List<FrequentPlaceEntity>",
+    "query": "SELECT * FROM frequent_place ORDER BY last_visit_ms DESC LIMIT :limit",
+    "returnType": "List<FrequentPlaceEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\InferredTripDao.kt",
+    "line": 15,
+    "signature": "suspend fun getAllBetween(startMs: Long, endMs: Long): List<InferredTripEntity>",
+    "query": "SELECT * FROM inferred_trip WHERE start_time_ms >= :startMs AND end_time_ms <= :endMs ORDER BY start_time_ms",
+    "returnType": "List<InferredTripEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\InferredTripDao.kt",
+    "line": 18,
+    "signature": "fun getAllFlow(): Flow<List<InferredTripEntity>>",
+    "query": "SELECT * FROM inferred_trip ORDER BY start_time_ms DESC LIMIT 500",
+    "returnType": "Flow<List<InferredTripEntity>>",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\InferredTripDao.kt",
+    "line": 21,
+    "signature": "suspend fun getById(id: Long): InferredTripEntity?",
+    "query": "SELECT * FROM inferred_trip WHERE id = :id",
+    "returnType": "InferredTripEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LiveStatsDao.kt",
+    "line": 18,
+    "signature": "suspend fun get(): LiveStatsEntity?",
+    "query": "SELECT * FROM live_stats WHERE id = 0",
+    "returnType": "LiveStatsEntity?",
+    "flags": [
+      "raw entity without LIMIT"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationSampleDao.kt",
+    "line": 18,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<LocationSample>",
+    "query": "SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "List<LocationSample>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\LocationSampleDao.kt",
+    "line": 24,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<LocationSample>>",
+    "query": "SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "Flow<List<LocationSample>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\NotificationPreferenceDao.kt",
+    "line": 17,
+    "signature": "fun getAll(): List<NotificationPreference>",
+    "query": "SELECT * FROM notification",
+    "returnType": "List<NotificationPreference>",
+    "flags": [
+      "returns List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PersonalRecordDao.kt",
+    "line": 15,
+    "signature": "suspend fun getAll(): List<PersonalRecordEntity>",
+    "query": "SELECT * FROM personal_record ORDER BY updated_at DESC",
+    "returnType": "List<PersonalRecordEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureSampleDao.kt",
+    "line": 16,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<PressureSample>",
+    "query": "SELECT * FROM pressure_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "List<PressureSample>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\PressureSampleDao.kt",
+    "line": 20,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<PressureSample>>",
+    "query": "SELECT * FROM pressure_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "Flow<List<PressureSample>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\RouteCacheDao.kt",
+    "line": 25,
+    "signature": "suspend fun getBySessionId(sessionId: Long): List<RouteCacheEntity>",
+    "query": "SELECT * FROM route_cache WHERE session_id = :sessionId ORDER BY start_time",
+    "returnType": "List<RouteCacheEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\RouteCacheDao.kt",
+    "line": 37,
+    "signature": "suspend fun getBetween(startMs: Long, endMs: Long): List<RouteCacheEntity>",
+    "query": "SELECT * FROM route_cache WHERE start_time >= :startMs AND end_time <= :endMs ORDER BY start_time",
+    "returnType": "List<RouteCacheEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SessionSegmentDao.kt",
+    "line": 19,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<SessionSegment>",
+    "query": "SELECT * FROM session_segment WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms",
+    "returnType": "List<SessionSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SessionSegmentDao.kt",
+    "line": 25,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<SessionSegment>>",
+    "query": "SELECT * FROM session_segment WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms",
+    "returnType": "Flow<List<SessionSegment>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SessionSegmentDao.kt",
+    "line": 31,
+    "signature": "suspend fun getBySource(source: SegmentSource, fromMs: Long, toMs: Long): List<SessionSegment>",
+    "query": "SELECT * FROM session_segment WHERE source = :source AND start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms",
+    "returnType": "List<SessionSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SkiRunSegmentDao.kt",
+    "line": 16,
+    "signature": "suspend fun getBySession(sessionId: Long): List<SkiRunSegment>",
+    "query": "SELECT * FROM ski_run_segment WHERE session_id = :sessionId ORDER BY run_index",
+    "returnType": "List<SkiRunSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SkiRunSegmentDao.kt",
+    "line": 20,
+    "signature": "fun getBySessionFlow(sessionId: Long): Flow<List<SkiRunSegment>>",
+    "query": "SELECT * FROM ski_run_segment WHERE session_id = :sessionId ORDER BY run_index",
+    "returnType": "Flow<List<SkiRunSegment>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SkiRunSegmentDao.kt",
+    "line": 24,
+    "signature": "suspend fun getDownhillRunsBySession(sessionId: Long): List<SkiRunSegment>",
+    "query": "SELECT * FROM ski_run_segment WHERE session_id = :sessionId AND segment_type = 'DOWNHILL_RUN' ORDER BY run_index",
+    "returnType": "List<SkiRunSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SkiRunSegmentDao.kt",
+    "line": 28,
+    "signature": "suspend fun getLiftSegmentsBySession(sessionId: Long): List<SkiRunSegment>",
+    "query": "SELECT * FROM ski_run_segment WHERE session_id = :sessionId AND segment_type = 'LIFT_UP' ORDER BY run_index",
+    "returnType": "List<SkiRunSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SkiRunSegmentDao.kt",
+    "line": 36,
+    "signature": "suspend fun getByTimeRange(startMs: Long, endMs: Long): List<SkiRunSegment>",
+    "query": "SELECT * FROM ski_run_segment WHERE start_time_ms < :endMs AND end_time_ms > :startMs ORDER BY run_index",
+    "returnType": "List<SkiRunSegment>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\StepIntervalDao.kt",
+    "line": 18,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<StepInterval>",
+    "query": "SELECT * FROM step_interval WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms",
+    "returnType": "List<StepInterval>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\StepIntervalDao.kt",
+    "line": 24,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<StepInterval>>",
+    "query": "SELECT * FROM step_interval WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms",
+    "returnType": "Flow<List<StepInterval>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\StepIntervalDao.kt",
+    "line": 36,
+    "signature": "suspend fun getLatest(): StepInterval?",
+    "query": "SELECT * FROM step_interval ORDER BY end_time_ms DESC LIMIT 1",
+    "returnType": "StepInterval?",
+    "flags": [
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\StorageSizeSnapshotDao.kt",
+    "line": 27,
+    "signature": "suspend fun getRecent(limit: Int): List<StorageSizeSnapshotEntity>",
+    "query": "SELECT * FROM storage_size_snapshot ORDER BY epoch_day DESC LIMIT :limit",
+    "returnType": "List<StorageSizeSnapshotEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * without WHERE"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\TrackerRunDao.kt",
+    "line": 18,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<TrackerRun>",
+    "query": "SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND IFNULL(end_time_ms, :toMs) <= :toMs ORDER BY start_time_ms",
+    "returnType": "List<TrackerRun>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\TrackerRunDao.kt",
+    "line": 24,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<TrackerRun>>",
+    "query": "SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND IFNULL(end_time_ms, :toMs) <= :toMs ORDER BY start_time_ms",
+    "returnType": "Flow<List<TrackerRun>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\TripLegDao.kt",
+    "line": 14,
+    "signature": "suspend fun getByTripId(tripId: Long): List<TripLegEntity>",
+    "query": "SELECT * FROM trip_leg WHERE trip_id = :tripId ORDER BY sequence_index",
+    "returnType": "List<TripLegEntity>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\WifiObservationDao.kt",
+    "line": 19,
+    "signature": "suspend fun getAllBetween(fromMs: Long, toMs: Long): List<WifiObservation>",
+    "query": "SELECT * FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "List<WifiObservation>",
+    "flags": [
+      "returns List",
+      "suspend List",
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\WifiObservationDao.kt",
+    "line": 25,
+    "signature": "fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<WifiObservation>>",
+    "query": "SELECT * FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms",
+    "returnType": "Flow<List<WifiObservation>>",
+    "flags": [
+      "SELECT * potentially large"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\WifiObservationDao.kt",
+    "line": 31,
+    "signature": "suspend fun getObservationsWithoutCoordinates(limit: Int): List<WifiObservation>",
+    "query": "SELECT * FROM wifi_observation WHERE lat_e7 IS NULL OR lon_e7 IS NULL ORDER BY time_ms LIMIT :limit",
+    "returnType": "List<WifiObservation>",
+    "flags": [
+      "returns List",
+      "suspend List"
+    ]
+  },
+  {
+    "path": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\database\\dao\\StatsCacheDao.kt",
+    "line": 45,
+    "signature": "fun getAllForSession(sessionId: Long): List<CacheStatData>",
+    "query": "select * from statCache where session_id = :sessionId",
+    "returnType": "List<CacheStatData>",
+    "flags": [
+      "returns List",
+      "SELECT * potentially large"
+    ]
+  }
+]

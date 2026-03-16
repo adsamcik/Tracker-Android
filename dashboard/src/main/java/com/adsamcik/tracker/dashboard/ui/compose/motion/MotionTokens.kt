@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.dashboard.ui.compose.motion
 
-import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -8,10 +7,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 
 /**
  * Motion token system for the Dashboard.
@@ -19,8 +14,7 @@ import androidx.compose.ui.platform.LocalContext
  * Defines 6 named spring configurations and 7 duration tokens that create
  * a consistent motion vocabulary across all dashboard animations.
  *
- * All animations respect [LocalReducedMotion] — when true, springs are replaced
- * with snap() and durations are set to 0.
+ * All animations respect the app-level reduced motion preference.
  */
 object MotionTokens {
 
@@ -98,29 +92,4 @@ object MotionTokens {
 	fun <T> tweenEmphasized(): AnimationSpec<T> = tween(EMPHASIZED_MS, easing = FastOutSlowInEasing)
 	fun <T> tweenExpressive(): AnimationSpec<T> = tween(EXPRESSIVE_MS, easing = FastOutSlowInEasing)
 	fun <T> tweenAmbient(): AnimationSpec<T> = tween(AMBIENT_MS, easing = LinearEasing)
-}
-
-/**
- * CompositionLocal indicating whether the user has enabled reduced motion.
- *
- * When true, all spring animations should be replaced with immediate snaps,
- * all infinite loops should be disabled, and all celebrations should be static.
- */
-val LocalReducedMotion = compositionLocalOf { false }
-
-/**
- * Reads the system animator duration scale to detect reduced motion preference.
- * Returns true when animations are disabled (scale == 0).
- */
-@Composable
-fun rememberReducedMotion(): Boolean {
-	val context = LocalContext.current
-	return remember {
-		val scale = Settings.Global.getFloat(
-			context.contentResolver,
-			Settings.Global.ANIMATOR_DURATION_SCALE,
-			1f,
-		)
-		scale == 0f
-	}
 }

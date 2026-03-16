@@ -6,10 +6,10 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
+import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.ExplorationStats
@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -41,14 +40,13 @@ import javax.inject.Inject
 /**
  * Hilt-compatible ViewModel for the History screen using the repository layer.
  * Replaces direct DAO access in [com.adsamcik.tracker.statistics.viewmodel.HistoryViewModel]
- * with [DailySummaryRepository] and [ExplorationRepository].
- * Retains [TripDao] for Paging 3 support (no KMP paging in TripRepository).
+ * with stats-layer repository contracts.
  *
  * Outputs: [selectedTab], [timelineState], [calendarState], [pagedTrips], [explorationStats].
  */
 @HiltViewModel
 class HistoryPresenterViewModel @Inject constructor(
-	private val tripDao: TripDao,
+	private val tripPresentationRepository: TripPresentationRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
 	private val explorationRepository: ExplorationRepository,
 ) : ViewModel() {
@@ -72,7 +70,7 @@ class HistoryPresenterViewModel @Inject constructor(
 
 	val pagedTrips: Flow<PagingData<Trip>> = Pager(
 		config = PagingConfig(pageSize = PAGE_SIZE),
-		pagingSourceFactory = { tripDao.getAllPaged() },
+		pagingSourceFactory = { tripPresentationRepository.getPagedTrips() },
 	).flow.cachedIn(viewModelScope)
 
 	init {
@@ -101,7 +99,7 @@ class HistoryPresenterViewModel @Inject constructor(
 			val startOfDay = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 			val endOfDay = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
 				.toEpochMilli()
-			val trips = tripDao.getBetween(startOfDay, endOfDay)
+			val trips = tripPresentationRepository.getTripsBetween(startOfDay, endOfDay)
 			val epochDay = date.toEpochDay()
 			val summary = dailySummaryRepository.getBetween(epochDay, epochDay)
 				.getOrNull()
@@ -122,7 +120,7 @@ class HistoryPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val now = System.currentTimeMillis()
 			val thirtyDaysAgo = now - THIRTY_DAYS_MS
-			val trips = tripDao.getBetween(thirtyDaysAgo, now)
+			val trips = tripPresentationRepository.getTripsBetween(thirtyDaysAgo, now)
 
 			if (trips.isEmpty()) {
 				_timelineState.value = TimelineState.Empty
@@ -231,7 +229,7 @@ class HistoryPresenterViewModel @Inject constructor(
 	fun confirmDeleteTrip(tripId: Long) {
 		_pendingDeletes.value = _pendingDeletes.value - tripId
 		viewModelScope.launch {
-			tripDao.deleteById(tripId)
+			tripPresentationRepository.deleteTrip(tripId)
 		}
 	}
 

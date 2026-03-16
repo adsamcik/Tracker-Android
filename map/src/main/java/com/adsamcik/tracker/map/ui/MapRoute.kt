@@ -102,3 +102,7 @@ fun MapRoute(
         )
     }
 }
+
+// Preview note: MapRoute depends on MapLibre native rendering which cannot
+// be previewed in Android Studio. Use the emulator or device for visual
+// testing of the map screen.

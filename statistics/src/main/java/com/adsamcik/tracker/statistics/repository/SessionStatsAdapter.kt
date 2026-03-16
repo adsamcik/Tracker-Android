@@ -18,7 +18,7 @@ import java.util.Locale
 
 /**
  * Adapter that materializes legacy summary dialog [Stat] rows from Room-backed repositories.
- * This replaces direct UI usage of [com.adsamcik.tracker.statistics.summary.SummaryGenerator].
+ * This is the summary API used by repository and UI call sites.
  */
 object SessionStatsAdapter {
 	private const val SUMMARY_DECIMAL_PLACES = 1

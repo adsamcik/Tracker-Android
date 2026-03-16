@@ -24,14 +24,12 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
-import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
-import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -90,6 +88,7 @@ fun DashboardRoute(
 	val recentTrips by viewModel.recentTrips.collectAsState()
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
+	val sessionInsights by viewModel.sessionInsights.collectAsState()
 
 	// Dashboard layout and customize sheet state
 	val dashboardLayout by viewModel.dashboardLayout.collectAsState()
@@ -176,22 +175,8 @@ fun DashboardRoute(
 		viewModel.mapChallenges(activeChallengeInfos)
 	}
 
-	// Generate session insights when not tracking and session data is available
-	val sessionInsights = remember(displaySession, unifiedTodaySummary, goalProgress, isTracking) {
-		if (isTracking || displaySession == null) {
-			emptyList()
-		} else {
-			SessionInsightsGenerator.generate(
-				context = context,
-				session = displaySession,
-				dailySummary = unifiedTodaySummary,
-				goalProgress = GoalProgress(
-					stepsToday = goalProgress.stepsToday,
-					goalSteps = goalProgress.goalSteps,
-					gamificationEnabled = goalProgress.gamificationEnabled,
-				),
-			)
-		}
+	LaunchedEffect(isTracking, displaySession?.id, displaySession?.end) {
+		viewModel.refreshSessionInsights(isTracking, displaySession)
 	}
 
 	val dashboardState = DashboardUiState(

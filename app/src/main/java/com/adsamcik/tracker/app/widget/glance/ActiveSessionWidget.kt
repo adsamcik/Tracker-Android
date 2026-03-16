@@ -31,6 +31,9 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyTier
 import dagger.hilt.android.EntryPointAccessors
@@ -50,6 +53,8 @@ class ActiveSessionWidget : GlanceAppWidget() {
         val isRunning: Boolean
         val session: TrackerSession?
         val policyTier: PolicyTier
+        val collectionData: CollectionData?
+        val pathPoints: List<Location>
 
         try {
             val entryPoint = EntryPointAccessors.fromApplication(
@@ -60,6 +65,8 @@ class ActiveSessionWidget : GlanceAppWidget() {
             isRunning = controller.isServiceRunning
             session = controller.sessionFlow.value
             policyTier = controller.policyTierFlow.value
+            collectionData = controller.collectionDataFlow.value
+            pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
         } catch (_: Exception) {
             // Hilt not initialized - show idle state.
             provideContent {
@@ -68,6 +75,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                         isRunning = false,
                         session = null,
                         policyTier = PolicyTier.OFF,
+                        snapshot = ActiveSessionSnapshot.empty(context),
                         context = context,
                     )
                 }
@@ -75,12 +83,14 @@ class ActiveSessionWidget : GlanceAppWidget() {
             return
         }
 
+        val snapshot = buildSnapshot(context, collectionData, pathPoints)
         provideContent {
             GlanceTheme {
                 ActiveSessionContent(
                     isRunning = isRunning,
                     session = session,
                     policyTier = policyTier,
+                    snapshot = snapshot,
                     context = context,
                 )
             }
@@ -93,6 +103,7 @@ private fun ActiveSessionContent(
     isRunning: Boolean,
     session: TrackerSession?,
     policyTier: PolicyTier,
+    snapshot: ActiveSessionSnapshot,
     context: Context,
 ) {
     Column(
@@ -105,7 +116,12 @@ private fun ActiveSessionContent(
         if (!isRunning || session == null) {
             IdleContent(context)
         } else {
-            TrackingContent(session, policyTier, context)
+            TrackingContent(
+                session = session,
+                policyTier = policyTier,
+                snapshot = snapshot,
+                context = context,
+            )
         }
     }
 }
@@ -149,9 +165,9 @@ private fun IdleContent(context: Context) {
 private fun TrackingContent(
     session: TrackerSession,
     policyTier: PolicyTier,
+    snapshot: ActiveSessionSnapshot,
     context: Context,
 ) {
-    // Header with status
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -166,7 +182,7 @@ private fun TrackingContent(
                 ),
             )
             Text(
-                text = formatPolicyTier(policyTier, context),
+                text = "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}",
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
                     fontSize = 11.sp,
@@ -192,18 +208,16 @@ private fun TrackingContent(
 
     Spacer(modifier = GlanceModifier.height(12.dp))
 
-    // Duration hero
-    val elapsed = System.currentTimeMillis() - session.start
     Text(
-        text = WidgetFormatters.formatDuration(elapsed),
+        text = snapshot.speedText,
         style = TextStyle(
-            color = GlanceTheme.colors.onSurface,
+            color = GlanceTheme.colors.primary,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
         ),
     )
     Text(
-        text = context.getString(R.string.widget_session_duration),
+        text = context.getString(R.string.widget_current_speed),
         style = TextStyle(
             color = GlanceTheme.colors.onSurfaceVariant,
             fontSize = 11.sp,
@@ -222,29 +236,46 @@ private fun TrackingContent(
             modifier = GlanceModifier.defaultWeight(),
         )
         SessionStatItem(
-            label = context.getString(R.string.widget_session_steps),
-            value = WidgetFormatters.formatSteps(session.steps),
+            label = context.getString(R.string.widget_session_duration),
+            value = WidgetFormatters.formatDuration(System.currentTimeMillis() - session.start),
             modifier = GlanceModifier.defaultWeight(),
         )
     }
 
     Spacer(modifier = GlanceModifier.height(8.dp))
 
-    // Collections count
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
     ) {
+        SessionStatItem(
+            label = context.getString(R.string.widget_session_steps),
+            value = WidgetFormatters.formatSteps(session.steps),
+            modifier = GlanceModifier.defaultWeight(),
+        )
         SessionStatItem(
             label = context.getString(R.string.widget_collections),
             value = session.collections.toString(),
             modifier = GlanceModifier.defaultWeight(),
         )
-        SessionStatItem(
-            label = context.getString(R.string.widget_distance_on_foot),
-            value = WidgetFormatters.formatDistance(context, session.distanceOnFootInM),
-            modifier = GlanceModifier.defaultWeight(),
-        )
     }
+
+    Spacer(modifier = GlanceModifier.height(8.dp))
+
+    Text(
+        text = context.getString(R.string.widget_path_preview),
+        style = TextStyle(
+            color = GlanceTheme.colors.onSurfaceVariant,
+            fontSize = 10.sp,
+        ),
+    )
+    Text(
+        text = snapshot.pathPreview,
+        style = TextStyle(
+            color = GlanceTheme.colors.onSurface,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+        ),
+    )
 }
 
 @Composable
@@ -278,6 +309,45 @@ private fun formatPolicyTier(tier: PolicyTier, context: Context): String {
         PolicyTier.AMBIENT -> context.getString(R.string.widget_tier_ambient)
         PolicyTier.ACTIVE -> context.getString(R.string.widget_tier_active)
         PolicyTier.PRECISION -> context.getString(R.string.widget_tier_precision)
+    }
+}
+
+private fun buildSnapshot(
+    context: Context,
+    collectionData: CollectionData?,
+    pathPoints: List<Location>,
+): ActiveSessionSnapshot {
+    val activity = collectionData?.activity?.activity
+    return ActiveSessionSnapshot(
+        speedText = WidgetFormatters.formatSpeed(context, collectionData?.location?.speed),
+        activityIcon = activity.activityIcon(),
+        activityLabel = activity?.let { context.getString(it.nameRes) }
+            ?: context.getString(R.string.widget_activity_unknown),
+        pathPreview = WidgetFormatters.formatPathPreview(pathPoints),
+    )
+}
+
+private fun DetectedActivity?.activityIcon(): String = when (this) {
+    DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> "👣"
+    DetectedActivity.RUNNING -> "🏃"
+    DetectedActivity.ON_BICYCLE -> "🚴"
+    DetectedActivity.IN_VEHICLE -> "🚗"
+    else -> "◎"
+}
+
+private data class ActiveSessionSnapshot(
+    val speedText: String,
+    val activityIcon: String,
+    val activityLabel: String,
+    val pathPreview: String,
+) {
+    companion object {
+        fun empty(context: Context) = ActiveSessionSnapshot(
+            speedText = context.getString(R.string.widget_speed_unknown),
+            activityIcon = "◎",
+            activityLabel = context.getString(R.string.widget_activity_unknown),
+            pathPreview = "•",
+        )
     }
 }
 

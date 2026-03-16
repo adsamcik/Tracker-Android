@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.activity.debug
 
-import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts

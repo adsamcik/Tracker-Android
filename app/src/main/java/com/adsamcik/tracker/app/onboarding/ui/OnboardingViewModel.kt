@@ -8,7 +8,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.adsamcik.tracker.app.onboarding.data.*
+import com.adsamcik.tracker.app.onboarding.data.OnboardingEvent
+import com.adsamcik.tracker.app.onboarding.data.OnboardingState
+import com.adsamcik.tracker.app.onboarding.data.OnboardingStep
+import com.adsamcik.tracker.app.onboarding.data.Permission
+import com.adsamcik.tracker.app.onboarding.data.SkipReason
+import com.adsamcik.tracker.app.onboarding.data.TrackingFrequency
+import com.adsamcik.tracker.app.onboarding.data.UserPreferences
 import com.adsamcik.tracker.logger.Reporter
 
 /**

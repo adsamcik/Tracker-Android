@@ -118,4 +118,84 @@ class ExportPlanStore(
         val proto = dataStore.data.first()
         proto.plansList.firstOrNull { it.id == planId.value }?.toDomain()
     }
+
+    /**
+     * Update the watermark for a plan after a successful incremental export.
+     * Only modifies watermark fields; does not touch [ExportBackupPlan.updatedAtMillis].
+     */
+    suspend fun updateWatermark(
+        planId: ExportPlanId,
+        watermarkMs: Long,
+        completedAt: Long,
+        recordCount: Int,
+    ) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            val index = builder.plansList.indexOfFirst { it.id == planId.value }
+            if (index < 0) return@updateData current
+            val plan = builder.getPlans(index).toDomain().copy(
+                lastWatermarkMs = watermarkMs,
+                lastCompletedAt = completedAt,
+                lastRecordCount = recordCount,
+            )
+            builder.setPlans(index, plan.toProto())
+            builder.build()
+        }
+    }
+
+    /** Reset watermark for a single plan so the next export performs a full scan. */
+    suspend fun resetWatermark(planId: ExportPlanId) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            val index = builder.plansList.indexOfFirst { it.id == planId.value }
+            if (index < 0) return@updateData current
+            val plan = builder.getPlans(index).toDomain().copy(
+                lastWatermarkMs = 0L,
+                lastCompletedAt = 0L,
+                lastRecordCount = 0,
+            )
+            builder.setPlans(index, plan.toProto())
+            builder.build()
+        }
+    }
+
+    /** Reset watermarks for all plans (e.g., after data purge). */
+    suspend fun resetAllWatermarks() = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            for (i in 0 until builder.plansCount) {
+                val plan = builder.getPlans(i).toDomain().copy(
+                    lastWatermarkMs = 0L,
+                    lastCompletedAt = 0L,
+                    lastRecordCount = 0,
+                )
+                builder.setPlans(i, plan.toProto())
+            }
+            builder.build()
+        }
+    }
+
+    /** Set [ExportBackupPlan.incrementalEnabled] for a single plan. */
+    suspend fun setIncrementalEnabled(planId: ExportPlanId, enabled: Boolean) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            val index = builder.plansList.indexOfFirst { it.id == planId.value }
+            if (index < 0) return@updateData current
+            val plan = builder.getPlans(index).toDomain().copy(incrementalEnabled = enabled)
+            builder.setPlans(index, plan.toProto())
+            builder.build()
+        }
+    }
+
+    /** Set [ExportBackupPlan.incrementalEnabled] for all existing plans. */
+    suspend fun setAllIncrementalEnabled(enabled: Boolean) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            for (i in 0 until builder.plansCount) {
+                val plan = builder.getPlans(i).toDomain().copy(incrementalEnabled = enabled)
+                builder.setPlans(i, plan.toProto())
+            }
+            builder.build()
+        }
+    }
 }

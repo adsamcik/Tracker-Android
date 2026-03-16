@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 /**
  * Durable write-ahead buffer for [TrackingSignal]s.
@@ -21,7 +22,7 @@ import kotlinx.coroutines.withContext
  * - [drainBatch], [hasPendingEntries], and [clear] are pure DAO
  *   calls and do not touch the staging list.
  */
-internal class DurableSignalBuffer(
+class DurableSignalBuffer @Inject constructor(
 	private val pendingSignalDao: PendingSignalDao,
 	private val dispatchers: DispatchersProvider,
 ) {

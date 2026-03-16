@@ -89,6 +89,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.ui.compose.CalendarHeatmap
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 
 /**
@@ -127,6 +128,7 @@ fun StatsScreen(
     onOpenWifi: () -> Unit,
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
+    heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
     onTripViewOnMap: (Long) -> Unit = {},
     onTripDelete: (Long) -> Unit = {},
@@ -134,7 +136,7 @@ fun StatsScreen(
     activeDateFilterLabel: String? = null,
     // Optional paging trips supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<Trip>? = null,
-) {
+){
     val navigationLayout = rememberMainNavigationLayout()
     val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) 24.dp else AppDimensions.FloatingNavBarClearance
     Column(
@@ -162,6 +164,7 @@ fun StatsScreen(
                     onOpenWifi = onOpenWifi,
                     selectedHeaderAction = selectedHeaderAction,
                     weeklyBars = weeklyBars,
+                    heatmapData = heatmapData,
                     onTripClick = onTripClick,
                     onTripViewOnMap = onTripViewOnMap,
                     onTripDelete = onTripDelete,
@@ -243,13 +246,14 @@ private fun ContentState(
     onOpenWifi: () -> Unit,
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
+    heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
     onTripViewOnMap: (Long) -> Unit = {},
     onTripDelete: (Long) -> Unit = {},
     onExportGpx: (Trip) -> Unit = {},
     activeDateFilterLabel: String? = null,
     pagingItems: LazyPagingItems<Trip>? = null,
-) {
+){
     val sessionCount = pagingItems?.itemCount ?: 5
     val showSparseSummary = pagingItems != null && sessionCount in 1..2
 
@@ -270,6 +274,31 @@ private fun ContentState(
                 onOpenWifi = onOpenWifi,
                 selectedAction = selectedHeaderAction,
             )
+        }
+
+        if (heatmapData.isNotEmpty()) {
+            item(key = "calendar_heatmap") {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("stats_calendar_heatmap"),
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(R.string.stats_heatmap_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        CalendarHeatmap(
+                            data = heatmapData,
+                            weeks = 26,
+                        )
+                    }
+                }
+            }
         }
 
         if (!activeDateFilterLabel.isNullOrBlank()) {

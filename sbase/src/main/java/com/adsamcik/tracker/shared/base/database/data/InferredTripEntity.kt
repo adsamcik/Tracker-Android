@@ -32,7 +32,8 @@ import androidx.room.PrimaryKey
 			name = "idx_inferred_trip_time_range"
 		),
 		Index(value = ["departure_place_id"], name = "idx_inferred_trip_departure"),
-		Index(value = ["arrival_place_id"], name = "idx_inferred_trip_arrival")
+		Index(value = ["arrival_place_id"], name = "idx_inferred_trip_arrival"),
+		Index(value = ["segment_id"])
 	]
 )
 data class InferredTripEntity(

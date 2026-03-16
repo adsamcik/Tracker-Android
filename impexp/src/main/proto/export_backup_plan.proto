@@ -20,6 +20,12 @@ message ExportBackupPlanProto {
   bool enabled = 7;
   uint64 created_at_epoch_millis = 8;
   uint64 updated_at_epoch_millis = 9;
+
+  // Incremental (watermark) export fields
+  int64 last_export_watermark_ms = 10;
+  int64 last_export_completed_at = 11;
+  int32 last_export_record_count = 12;
+  optional bool incremental_enabled = 13;
 }
 
 enum ExportFormatProto {

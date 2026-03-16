@@ -104,6 +104,35 @@ class LocationSampleDaoTest {
 	} }
 
 	@Test
+	fun `getChunkBetweenOrdered returns stable ordered windows`() { runTest {
+		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_000, lonE7 = 140_000_000))
+		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_001, lonE7 = 140_000_001))
+		dao.insert(createSample(timeMs = 2000L, latE7 = 500_000_002, lonE7 = 140_000_002))
+
+		val firstChunk = dao.getChunkBetweenOrdered(
+			fromMs = 0L,
+			toMs = 5000L,
+			afterTimeMs = null,
+			afterId = null,
+			limit = 2,
+		)
+		firstChunk shouldHaveSize 2
+		firstChunk[0].timeMs shouldBe 1000L
+		firstChunk[1].timeMs shouldBe 1000L
+
+		val lastFromFirstChunk = firstChunk.last()
+		val secondChunk = dao.getChunkBetweenOrdered(
+			fromMs = 0L,
+			toMs = 5000L,
+			afterTimeMs = lastFromFirstChunk.timeMs,
+			afterId = lastFromFirstChunk.id,
+			limit = 2,
+		)
+		secondChunk shouldHaveSize 1
+		secondChunk.single().timeMs shouldBe 2000L
+	} }
+
+	@Test
 	fun `getAllBetweenFlow emits matching samples`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))

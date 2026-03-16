@@ -67,9 +67,9 @@ class HistoryPresenterDeleteTest {
 	}
 
 	@Test
-	fun `confirmDeleteTrip removes from pending and calls DAO delete`() = runTest {
-		val tripDao = createMockTripDao()
-		val vm = createViewModel(tripDao = tripDao)
+	fun `confirmDeleteTrip removes from pending and calls repository delete`() = runTest {
+		val tripPresentationRepository = createMockTripPresentationRepository()
+		val vm = createViewModel(tripPresentationRepository = tripPresentationRepository)
 
 		vm.requestDeleteTrip(42L)
 		vm.pendingDeletes.value.shouldContainExactly(42L)
@@ -78,7 +78,7 @@ class HistoryPresenterDeleteTest {
 		vm.pendingDeletes.value.shouldBeEmpty()
 
 		advanceUntilIdle()
-		coVerify(exactly = 1) { tripDao.deleteById(42L) }
+		coVerify(exactly = 1) { tripPresentationRepository.deleteTrip(42L) }
 	}
 
 	@Test
@@ -94,16 +94,17 @@ class HistoryPresenterDeleteTest {
 		vm.pendingDeletes.value shouldBe setOf(1L, 3L)
 	}
 
-	private fun createMockTripDao(): com.adsamcik.tracker.shared.base.database.dao.TripDao {
+	private fun createMockTripPresentationRepository(): com.adsamcik.tracker.stats.api.repository.TripPresentationRepository {
 		return mockk(relaxed = true) {
-			every { getAllPaged() } returns mockk()
-			coEvery { deleteById(any()) } returns Unit
-			coEvery { getBetween(any(), any()) } returns emptyList()
+			every { getPagedTrips() } returns mockk()
+			coEvery { deleteTrip(any()) } returns Unit
+			coEvery { getTripsBetween(any(), any()) } returns emptyList()
 		}
 	}
 
 	private fun createViewModel(
-		tripDao: com.adsamcik.tracker.shared.base.database.dao.TripDao = createMockTripDao(),
+		tripPresentationRepository: com.adsamcik.tracker.stats.api.repository.TripPresentationRepository =
+			createMockTripPresentationRepository(),
 	): HistoryPresenterViewModel {
 		val dailySummaryRepository: com.adsamcik.tracker.stats.api.repository.DailySummaryRepository =
 			mockk(relaxed = true) {
@@ -114,7 +115,7 @@ class HistoryPresenterDeleteTest {
 				every { observeCellCount(any()) } returns kotlinx.coroutines.flow.flowOf(0)
 			}
 		return HistoryPresenterViewModel(
-			tripDao = tripDao,
+			tripPresentationRepository = tripPresentationRepository,
 			dailySummaryRepository = dailySummaryRepository,
 			explorationRepository = explorationRepository,
 		)

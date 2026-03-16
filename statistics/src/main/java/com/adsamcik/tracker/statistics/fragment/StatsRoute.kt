@@ -20,6 +20,7 @@ import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
 import com.adsamcik.tracker.statistics.ui.compose.WifiStatsDialog
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -46,6 +47,7 @@ fun StatsRoute(
     // Collect statistics state from ViewModel
     val summaryStatsState by vm.summaryStatsState.collectAsState()
     val weeklyBars by vm.weeklyBars.collectAsState()
+    val heatmapData by vm.heatmapData.collectAsState()
     val activeDateFilter by vm.activeDateFilter.collectAsState()
     val selectedDateRange = activeDateFilter?.let { formatDateRange(it.startMs, it.endMs) }
     val selectedHeaderAction = when {
@@ -79,6 +81,7 @@ fun StatsRoute(
         onOpenWifi = { showWifiDialog = true },
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
+        heatmapData = heatmapData,
         onTripClick = onTripClick,
         onTripViewOnMap = onTripViewOnMap,
         onTripDelete = vm::deleteTrip,

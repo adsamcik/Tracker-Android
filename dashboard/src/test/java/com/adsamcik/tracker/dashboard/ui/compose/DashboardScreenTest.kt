@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import com.adsamcik.tracker.dashboard.data.DashboardWidget
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -63,6 +64,11 @@ class DashboardScreenTest {
 			AppTheme(useDynamicColor = false) {
 				DashboardScreen(
 					state = state,
+					visibleWidgets = listOf(
+						DashboardWidget.TodayProgress,
+						DashboardWidget.Streak,
+						DashboardWidget.RecentTrips,
+					),
 					onSettingsClick = {},
 					onMapClick = {},
 					onToggleTracking = {},

@@ -12,7 +12,7 @@ import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
-import java.util.*
+import java.util.ArrayDeque
 import kotlin.math.roundToInt
 
 /**

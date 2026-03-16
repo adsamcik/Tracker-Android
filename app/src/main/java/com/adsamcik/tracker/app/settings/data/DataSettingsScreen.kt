@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings.data
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -83,6 +85,31 @@ fun DataSettingsScreen() {
             )
         }
 
+        item {
+            SwitchSettingsItem(
+                title = stringResource(R.string.settings_incremental_backups_title),
+                subtitle = stringResource(R.string.settings_incremental_backups_summary),
+                checked = uiState.incrementalBackupsEnabled,
+                onCheckedChange = { dataVm.setIncrementalBackupsEnabled(it) }
+            )
+        }
+
+        item {
+            SettingsItem(
+                title = stringResource(R.string.settings_reset_export_watermarks_title),
+                subtitle = stringResource(R.string.settings_reset_export_watermarks_summary),
+                icon = Icons.Default.Refresh,
+                onClick = {
+                    dataVm.resetExportWatermarks()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_reset_export_watermarks_done),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        }
+
         // Import section
         item {
             SettingsItem(
@@ -111,6 +138,15 @@ fun DataSettingsScreen() {
                 subtitle = stringResource(R.string.settings_auto_cleanup_old_data_summary),
                 checked = uiState.autoCleanupEnabled,
                 onCheckedChange = { dataVm.setAutoCleanupEnabled(it) }
+            )
+        }
+
+        item {
+            SwitchSettingsItem(
+                title = stringResource(R.string.settings_smart_goal_notifications_title),
+                subtitle = stringResource(R.string.settings_smart_goal_notifications_summary),
+                checked = uiState.smartGoalNotificationsEnabled,
+                onCheckedChange = { dataVm.setSmartGoalNotificationsEnabled(it) }
             )
         }
 
@@ -160,6 +196,7 @@ fun DataSettingsScreen() {
                         coroutineScope.launch(defaultDispatchers.io) {
                             com.adsamcik.tracker.shared.base.database.AppDatabase.deleteAllCollectedData(context)
                         }
+                        dataVm.resetExportWatermarks()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {

@@ -13,6 +13,7 @@ import androidx.room.PrimaryKey
 	tableName = "domain_event",
 	indices = [
 		Index(value = ["timestamp_ms"]),
+		Index(value = ["event_type", "processor_id"]),
 	],
 )
 data class DomainEventEntity(

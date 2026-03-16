@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
@@ -37,7 +38,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * No required data: operates on whatever sensors are available.
  * If barometer data is missing, the component silently does nothing.
  */
-internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
+internal class SkiTrackingComponent(
+	private val dispatchers: DispatchersProvider,
+) : PostTrackerComponent, SkiStateListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private val detector = RealTimeSkiDetector(SkiDetectionConfig())
@@ -89,7 +92,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		lastCollectionTimeMs = 0L
 		proximityChecked = false
 		infrastructureManager = try {
-			val mgr = SkiInfrastructureManager(context)
+			val mgr = SkiInfrastructureManager(context, dispatchers)
 			if (mgr.isAvailable()) mgr else null
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			null

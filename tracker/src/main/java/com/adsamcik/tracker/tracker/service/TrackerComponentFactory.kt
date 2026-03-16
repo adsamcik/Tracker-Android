@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -48,6 +49,7 @@ internal class TrackerComponentFactory(
 	private val appDatabase: AppDatabase,
 	private val trackingParamsRepository: TrackingParamsRepository,
 	private val trackerSettingsRepository: TrackerSettingsRepository,
+	private val dispatchers: DispatchersProvider,
 ) {
 
 	/**
@@ -158,7 +160,7 @@ internal class TrackerComponentFactory(
 		if (!skiEnabled) return null to null
 
 		val segmentWriter = SkiSegmentWriter()
-		val skiComponent = SkiTrackingComponent().also {
+		val skiComponent = SkiTrackingComponent(dispatchers).also {
 			it.setEscalationEngine(escalationEngine)
 			it.setSecondaryListener(segmentWriter)
 			scope.launch {

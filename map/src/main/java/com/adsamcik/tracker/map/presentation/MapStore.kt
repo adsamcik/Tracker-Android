@@ -5,7 +5,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.data.cameraToBounds
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
@@ -43,7 +42,7 @@ import kotlin.math.abs
 class MapStore @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     val trackerController: TrackerServiceController,
-    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+    private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
     private enum class CoordinateAxis { Latitude, Longitude }

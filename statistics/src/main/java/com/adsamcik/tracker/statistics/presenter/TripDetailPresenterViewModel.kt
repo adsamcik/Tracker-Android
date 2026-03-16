@@ -5,14 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
+import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
+import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
+import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,9 +38,9 @@ import kotlin.math.abs
 @HiltViewModel
 class TripDetailPresenterViewModel @Inject constructor(
 	presenter: TripDetailPresenter,
-	private val tripDao: TripDao,
-	private val skiRunSegmentDao: SkiRunSegmentDao,
-	private val locationSampleDao: LocationSampleDao,
+	private val tripPresentationRepository: TripPresentationRepository,
+	private val skiRunSegmentRepository: SkiRunSegmentRepository,
+	private val locationSampleRepository: LocationSampleRepository,
 	private val gpxShareHelper: GpxShareHelper,
 	private val dispatchers: DispatchersProvider,
 	savedStateHandle: SavedStateHandle,
@@ -81,13 +80,13 @@ class TripDetailPresenterViewModel @Inject constructor(
 		val tripStart = trip.startTimeMs.raw
 		val tripEnd = trip.endTimeMs.raw
 		val projection = withContext(dispatchers.io) {
-			tripDao.getById(tripId)
+			tripPresentationRepository.getTripProjection(tripId)
 		}
 		val samples = withContext(dispatchers.io) {
-			locationSampleDao.getAllBetween(tripStart, tripEnd)
+			locationSampleRepository.getSamplesBetween(tripStart, tripEnd)
 		}
 		val segments = withContext(dispatchers.io) {
-			skiRunSegmentDao.getByTimeRange(tripStart, tripEnd)
+			skiRunSegmentRepository.getSegmentsByTimeRange(tripStart, tripEnd)
 		}
 
 		_skiSegments.value = segments
@@ -129,7 +128,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	 */
 	fun deleteTrip(onDeleted: () -> Unit) {
 		viewModelScope.launch {
-			tripDao.deleteById(tripId)
+			tripPresentationRepository.deleteTrip(tripId)
 			onDeleted()
 		}
 	}
@@ -148,7 +147,7 @@ data class TripDetailInsights(
 
 private fun buildInsights(
 	trip: TripSummary,
-	projection: Trip?,
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
 	samples: List<LocationSample>,
 ): TripDetailInsights {
 	val altitudePoints = samples.mapNotNull { it.altitudeM?.toDouble() }
@@ -182,7 +181,10 @@ private fun buildInsights(
 	)
 }
 
-private fun resolveActivityType(projection: Trip?, trip: TripSummary): String {
+private fun resolveActivityType(
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	trip: TripSummary,
+): String {
 	projection?.primaryActivity?.let { return activityLabel(it) }
 	return trip.primaryMode.name
 		.replace('_', ' ')
@@ -192,7 +194,10 @@ private fun resolveActivityType(projection: Trip?, trip: TripSummary): String {
 		?: "Trip"
 }
 
-private fun resolveSourceLabel(samples: List<LocationSample>, projection: Trip?): String {
+private fun resolveSourceLabel(
+	samples: List<LocationSample>,
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+): String {
 	val provider = samples
 		.groupingBy { normalizeProviderLabel(it.provider) }
 		.eachCount()

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose.visualization
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -22,7 +23,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import kotlinx.coroutines.delay
 
@@ -126,5 +129,20 @@ internal fun WeeklyTrendBars(
 				)
 			}
 		}
+	}
+}
+
+// ─── Previews ────────────────────────────────────────────────────────
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun WeeklyTrendBarsPreview() {
+	AppTheme {
+		WeeklyTrendBars(
+			dailyValues = listOf(0.2f, 0.5f, 0.8f, 0.6f, 0.3f, 0.9f, 0.0f),
+			labels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+			highlightIndex = 5,
+		)
 	}
 }

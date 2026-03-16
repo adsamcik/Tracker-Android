@@ -163,7 +163,10 @@ private fun ContentState(stats: List<Stat>) {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(stats) { stat ->
+        items(
+            items = stats,
+            key = { it.nameRes },
+        ) { stat ->
             StatRow(stat = stat)
         }
     }

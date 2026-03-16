@@ -10,7 +10,6 @@ import java.time.ZonedDateTime
  * Centralized access to time.
  * This ensures that time is taken from a single source and is therefore comparable.
  */
-@Suppress("MemberVisibilityCanBePrivate")
 object Time {
 	/**
 	 * Current date time in milliseconds since epoch
@@ -60,26 +59,19 @@ object Time {
 	/**
 	 * Round date time in milliseconds to date in milliseconds
 	 */
-	fun roundToDate(time: Long): ZonedDateTime {
+	private fun roundToDate(time: Long): ZonedDateTime {
 		return roundToDate(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()))
 	}
 
 	/**
 	 * Round date time in milliseconds to date in milliseconds
 	 */
-	fun roundToDate(time: ZonedDateTime): ZonedDateTime {
+	private fun roundToDate(time: ZonedDateTime): ZonedDateTime {
 		return time
 				.withNano(0)
 				.withSecond(0)
 				.withMinute(0)
 				.withHour(0)
-	}
-
-	/**
-	 * Returns zoned date time from milliseconds since epoch.
-	 */
-	fun ofEpochMilli(epochMilli: Long): ZonedDateTime {
-		return Instant.ofEpochMilli(epochMilli).atZone(ZoneId.systemDefault())
 	}
 
 	const val DAY_IN_HOURS: Long = 24L
@@ -101,4 +93,3 @@ object Time {
 	const val QUARTER_DAY_IN_HOURS: Long = 6L
 	const val HALF_DAY_IN_HOURS: Long = 12L
 }
-

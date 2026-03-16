@@ -18,14 +18,41 @@ interface DomainEventDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun insertAll(events: List<DomainEventEntity>)
 
-	/** Get events not yet processed by the given consumer (based on cursor offset). */
+	/**
+	 * Get the next bounded batch of events not yet processed by the given consumer.
+	 *
+	 * The boundary is chosen using the timestamp of the Nth event, then expanded to include
+	 * all events sharing that timestamp so timestamp-based cursors remain safe across batches.
+	 */
 	@Query(
-		"SELECT * FROM domain_event WHERE timestamp_ms > " +
-			"COALESCE((SELECT last_processed_ms FROM domain_event_cursor " +
-			"WHERE consumer_id = :consumerId), 0) " +
-			"ORDER BY timestamp_ms ASC"
+		"""
+		WITH cursor_value AS (
+			SELECT COALESCE(
+				(SELECT last_processed_ms FROM domain_event_cursor WHERE consumer_id = :consumerId),
+				0
+			) AS last_processed_ms
+		),
+		batch_boundary AS (
+			SELECT timestamp_ms
+			FROM domain_event
+			WHERE timestamp_ms > (SELECT last_processed_ms FROM cursor_value)
+			ORDER BY timestamp_ms ASC, id ASC
+			LIMIT 1 OFFSET :boundaryOffset
+		)
+		SELECT *
+		FROM domain_event
+		WHERE timestamp_ms > (SELECT last_processed_ms FROM cursor_value)
+			AND (
+				(SELECT timestamp_ms FROM batch_boundary) IS NULL
+				OR timestamp_ms <= (SELECT timestamp_ms FROM batch_boundary)
+			)
+		ORDER BY timestamp_ms ASC, id ASC
+		"""
 	)
-	suspend fun getUnconsumedFor(consumerId: String): List<DomainEventEntity>
+	suspend fun getUnconsumedBatchFor(
+		consumerId: String,
+		boundaryOffset: Int,
+	): List<DomainEventEntity>
 
 	/** Update or insert the consumer cursor to mark events as processed. */
 	@Insert(onConflict = OnConflictStrategy.REPLACE)

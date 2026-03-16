@@ -294,9 +294,13 @@ naming:
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
     enumEntryPattern: '^[A-Z][_a-zA-Z0-9]*'
   ForbiddenClassName:
-    active: false
+    active: true
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
-    forbiddenName: ''
+    forbiddenName:
+      - 'Util'
+      - 'Utils'
+      - 'Helper'
+      - 'Helpers'
   FunctionMaxLength:
     active: false
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
@@ -431,7 +435,14 @@ style:
     values: 'TODO:,FIXME:,STOPSHIP:,todo'
   ForbiddenImport:
     active: true
-    imports: ''
+    imports:
+      # Direct Dispatchers usage is banned — inject DispatchersProvider instead.
+      # GlobalScope is banned — use a structured CoroutineScope from DI.
+      - 'kotlinx.coroutines.GlobalScope'
+      - 'kotlinx.coroutines.Dispatchers.IO'
+      - 'kotlinx.coroutines.Dispatchers.Main'
+      - 'kotlinx.coroutines.Dispatchers.Default'
+    excludes: "**/InfrastructureModule.kt,**/DefaultDispatchersProvider.kt"
   ForbiddenVoid:
     active: false
     ignoreOverridden: false

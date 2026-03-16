@@ -11,7 +11,7 @@ import androidx.navigation.toRoute
  */
 internal fun NavGraphBuilder.statsGraph(
     navController: NavHostController,
-    tripDetailFallbackRoute: AppRoute,
+    getTripDetailFallbackRoute: () -> AppRoute,
     onSetTripDetailFallback: (AppRoute) -> Unit,
 ) {
     composable<Stats> {
@@ -60,7 +60,7 @@ internal fun NavGraphBuilder.statsGraph(
             tripId = route.tripId,
             onBack = {
                 if (!navController.popBackStack()) {
-                    navController.navigate(tripDetailFallbackRoute) {
+                    navController.navigate(getTripDetailFallbackRoute()) {
                         popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                         launchSingleTop = true
                     }

@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.app.settings
 
+import android.content.Context
+import com.adsamcik.tracker.R
 import app.cash.turbine.test
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import io.kotest.matchers.shouldBe
@@ -28,6 +31,9 @@ class DataSettingsViewModelTest {
     private val configFlow = MutableStateFlow(RetentionConfigState())
     private val retentionConfigStore: RetentionConfigStore = mockk()
     private val exportPlanStore: com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore = mockk()
+    private val appContext: Context = mockk()
+    private val preferences: Preferences = mockk()
+    private val smartGoalNotificationsFlow = MutableStateFlow(true)
 
     @BeforeEach
     fun setUp() {
@@ -36,6 +42,12 @@ class DataSettingsViewModelTest {
 
         every { retentionConfigStore.config } returns configFlow
         every { exportPlanStore.plans } returns MutableStateFlow(emptyList())
+        every { appContext.getString(R.string.settings_smart_goal_notifications_key) } returns "smartGoalNotifications"
+        every { preferences.observeBoolean("smartGoalNotifications", true) } returns smartGoalNotificationsFlow
+        every { preferences.edit(any()) } answers {
+            firstArg<com.adsamcik.tracker.shared.preferences.MutablePreferences.() -> Unit>()
+            Unit
+        }
         coEvery { retentionConfigStore.update(any()) } answers {
             @Suppress("UNCHECKED_CAST")
             val block = invocation.args[0] as (RetentionConfigState.() -> RetentionConfigState)
@@ -48,7 +60,12 @@ class DataSettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = DataSettingsViewModel(retentionConfigStore, exportPlanStore)
+    private fun createViewModel() = DataSettingsViewModel(
+        appContext = appContext,
+        retentionConfigStore = retentionConfigStore,
+        exportPlanStore = exportPlanStore,
+        preferences = preferences,
+    )
 
     // =========================================================================
     // Initial state

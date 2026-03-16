@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PlayerProfileDao : BaseDao<PlayerProfileEntity> {
 	@Query("SELECT * FROM player_profile WHERE id = 1")
-	fun get(): PlayerProfileEntity?
+	suspend fun get(): PlayerProfileEntity?
 
 	@Query("SELECT * FROM player_profile WHERE id = 1")
 	fun observe(): Flow<PlayerProfileEntity?>

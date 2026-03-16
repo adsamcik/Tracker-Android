@@ -26,12 +26,16 @@ class GoalNotificationWorkerTest {
     }
 
     @Test
-    fun `preference keys are distinct`() {
+    fun `threshold complete equals 100`() {
+        GoalNotificationWorker.THRESHOLD_COMPLETE shouldBe 100
+    }
+
+    @Test
+    fun `dedupe keys are distinct`() {
         val keys = setOf(
-            GoalNotificationWorker.KEY_ENABLED.name,
-            GoalNotificationWorker.KEY_LAST_NOTIFIED_DAY.name,
-            GoalNotificationWorker.KEY_LAST_NOTIFIED_THRESHOLD.name,
+            GoalNotificationWorker.KEY_LAST_NOTIFIED_DAY,
+            GoalNotificationWorker.KEY_LAST_NOTIFIED_THRESHOLD,
         )
-        keys.size shouldBe 3
+        keys.size shouldBe 2
     }
 }

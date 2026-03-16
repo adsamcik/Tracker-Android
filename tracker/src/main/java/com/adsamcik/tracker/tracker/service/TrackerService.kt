@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
@@ -83,6 +84,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	@Inject
 	lateinit var activityWatcherController: ActivityWatcherServiceController
 
+	@Inject
+	lateinit var batteryAwarePolicy: BatteryAwarePolicy
+
 	private lateinit var orchestrator: TrackingOrchestrator
 
 	private var lockObservationJob: Job? = null
@@ -107,6 +111,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			trackerListenerManager = trackerListenerManager,
 			signalProcessors = signalProcessors,
 			domainEventRepository = domainEventRepository,
+			dispatchers = dispatchers,
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
@@ -149,11 +154,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			?: !isUserInitiated
 
 		// Determine initial tier from intent flags
-		val initialTier = when {
+		val rawTier = when {
 			isUserInitiated -> PolicyTier.PRECISION
 			isAmbient -> PolicyTier.AMBIENT
 			else -> PolicyTier.AMBIENT
 		}
+		val initialTier = batteryAwarePolicy.adjustForBattery(rawTier)
 		controller.updatePolicyTier(initialTier)
 
 		// Select timer based on tier: AMBIENT uses lightweight handler, ACTIVE+ uses GPS-based timer

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.game.challenge.database.dao
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.database.dao.BaseDao
@@ -8,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface XpLedgerDao : BaseDao<XpLedgerEntity> {
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertOrIgnore(entry: XpLedgerEntity): Long
+
 	@Query("SELECT COALESCE(SUM(amount), 0) FROM xp_ledger")
 	fun getTotalXp(): Long
 
@@ -21,5 +26,5 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	fun getXpSince(since: Long): Long
 
 	@Query("SELECT * FROM xp_ledger ORDER BY earned_at DESC LIMIT :limit")
-	fun getRecent(limit: Int): List<XpLedgerEntity>
+	suspend fun getRecent(limit: Int): List<XpLedgerEntity>
 }

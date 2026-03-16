@@ -1,0 +1,42 @@
+[
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\tracker\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\ui\\compose\\TrackerDashboard.kt",
+    "lines": 2726
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\heatmap\\HeatmapColorScheme.kt",
+    "lines": 1166
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\fragment\\StatsScreen.kt",
+    "lines": 1070
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\sbase\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AppDatabaseMigrations.kt",
+    "lines": 1013
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\ui\\MapScreen.kt",
+    "lines": 879
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\ui\\MapSheet.kt",
+    "lines": 870
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\impexp\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\exporter\\activity\\ImportExportComposeActivity.kt",
+    "lines": 769
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\statistics\\src\\main\\java\\com\\adsamcik\\tracker\\statistics\\ui\\TripDetailRoute.kt",
+    "lines": 726
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\game\\src\\main\\java\\com\\adsamcik\\tracker\\game\\ui\\compose\\GameScreen.kt",
+    "lines": 690
+  },
+  {
+    "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\map\\src\\main\\java\\com\\adsamcik\\tracker\\map\\presentation\\MapStore.kt",
+    "lines": 524
+  }
+]

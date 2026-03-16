@@ -28,7 +28,7 @@ import com.adsamcik.tracker.map.shared.layers.LayerFactory
 import com.adsamcik.tracker.map.shared.layers.LayerRecipe
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
+import com.adsamcik.tracker.map.color.ColorGenerator
 import kotlinx.coroutines.withContext
 
 /** Registry for map layers: registers layers directly. */

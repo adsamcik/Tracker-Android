@@ -126,4 +126,37 @@ class WidgetFormattersTest {
             assertEquals("33%", WidgetFormatters.formatGoalProgress(0.333f))
         }
     }
+
+    @Nested
+    @DisplayName("formatPathPreview")
+    inner class FormatPathPreview {
+
+        @Test
+        fun `not enough points returns dot`() {
+            assertEquals("•", WidgetFormatters.formatPathPreview(emptyList()))
+        }
+
+        @Test
+        fun `diagonal route renders arrow sequence`() {
+            val points = listOf(
+                testLocation(50.0, 14.0),
+                testLocation(50.001, 14.001),
+                testLocation(50.002, 14.001),
+            )
+
+            assertEquals("↗ ↑", WidgetFormatters.formatPathPreview(points))
+        }
+    }
+
+    private fun testLocation(latitude: Double, longitude: Double) =
+        com.adsamcik.tracker.shared.base.data.Location(
+            time = 0L,
+            latitude = latitude,
+            longitude = longitude,
+            altitude = null,
+            horizontalAccuracy = null,
+            verticalAccuracy = null,
+            speed = null,
+            speedAccuracy = null,
+        )
 }

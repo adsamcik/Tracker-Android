@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 
 /**
  * Exports locations to KML format.
@@ -68,4 +68,3 @@ class KmlExporter : Exporter {
 		streamWriter.write("</Document></kml>")
 	}
 }
-

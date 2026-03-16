@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ class DataRetentionWorkerTest {
     private val wifiObservationDao: WifiObservationDao = mockk(relaxed = true)
     private val cellSampleDao: CellSampleDao = mockk(relaxed = true)
     private val sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true)
+    private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -74,6 +76,7 @@ class DataRetentionWorkerTest {
                     wifiObservationDao,
                     cellSampleDao,
                     sessionSegmentDao,
+                    exportPlanStore,
                 )
             }
         }

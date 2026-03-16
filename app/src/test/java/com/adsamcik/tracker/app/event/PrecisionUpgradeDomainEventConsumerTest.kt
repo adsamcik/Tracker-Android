@@ -15,6 +15,7 @@ import com.adsamcik.tracker.app.test.FakePreferencesHelper
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -92,15 +93,30 @@ class PrecisionUpgradeDomainEventConsumerTest {
 
 	@Test
 	fun `no-op when no unconsumed events`() = runTest {
-		coEvery { repository.getUnconsumed(any()) } returns emptyList()
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returns emptyList()
 		consumer.processUnconsumed()
 		// With empty list, markConsumed is never reached — verify only getUnconsumed was called
-		coVerify { repository.getUnconsumed(PrecisionUpgradeDomainEventConsumer.CONSUMER_ID) }
+		coVerify {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		}
 	}
 
 	@Test
 	fun `increments counter for SessionEnded in APPROXIMATE mode`() = runTest {
-		coEvery { repository.getUnconsumed(any()) } returns listOf(sessionEndedEvent())
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(listOf(sessionEndedEvent()), emptyList())
 		consumer.processUnconsumed()
 
 		val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -109,9 +125,15 @@ class PrecisionUpgradeDomainEventConsumerTest {
 
 	@Test
 	fun `sets prompt flag after threshold of 2 sessions`() = runTest {
-		coEvery { repository.getUnconsumed(any()) } returns listOf(
-			sessionEndedEvent(1L, 1000L),
-			sessionEndedEvent(2L, 2000L),
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(
+			listOf(sessionEndedEvent(1L, 1000L)),
+			listOf(sessionEndedEvent(2L, 2000L)),
+			emptyList(),
 		)
 		consumer.processUnconsumed()
 
@@ -129,7 +151,12 @@ class PrecisionUpgradeDomainEventConsumerTest {
 		}
 		FakePreferencesHelper.stringKeyData["precisionUpgradeDismissed"] = true
 
-		coEvery { repository.getUnconsumed(any()) } returns listOf(sessionEndedEvent())
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(listOf(sessionEndedEvent()), emptyList())
 		consumer.processUnconsumed()
 
 		val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -141,7 +168,12 @@ class PrecisionUpgradeDomainEventConsumerTest {
 		FakePreferencesHelper.data[PrefR.string.settings_location_precision_key] = "PRECISE"
 		FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = "PRECISE"
 
-		coEvery { repository.getUnconsumed(any()) } returns listOf(sessionEndedEvent())
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(listOf(sessionEndedEvent()), emptyList())
 		consumer.processUnconsumed()
 
 		val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -151,7 +183,12 @@ class PrecisionUpgradeDomainEventConsumerTest {
 	@Test
 	fun `marks events consumed after processing`() = runTest {
 		val event = sessionEndedEvent(timestampMs = 5000L)
-		coEvery { repository.getUnconsumed(any()) } returns listOf(event)
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(listOf(event), emptyList())
 		consumer.processUnconsumed()
 
 		coVerify {
@@ -159,6 +196,27 @@ class PrecisionUpgradeDomainEventConsumerTest {
 				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
 				EpochMs(5000L),
 			)
+		}
+	}
+
+	@Test
+	fun `marks each drained batch separately`() = runTest {
+		coEvery {
+			repository.getUnconsumedBatch(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(
+			listOf(sessionEndedEvent(sessionId = 1L, timestampMs = 1000L)),
+			listOf(sessionEndedEvent(sessionId = 2L, timestampMs = 2000L)),
+			emptyList(),
+		)
+
+		consumer.processUnconsumed()
+
+		coVerifyOrder {
+			repository.markConsumed(PrecisionUpgradeDomainEventConsumer.CONSUMER_ID, EpochMs(1000L))
+			repository.markConsumed(PrecisionUpgradeDomainEventConsumer.CONSUMER_ID, EpochMs(2000L))
 		}
 	}
 }

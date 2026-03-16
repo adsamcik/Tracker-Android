@@ -41,6 +41,7 @@ protobuf = "3.25.3"
 protobufPlugin = "0.9.4"
 glance = "1.1.1"
 haze = "1.7.1"
+startupRuntime = "1.2.0"
 hilt = "2.59.2"
 hiltAndroidx = "1.3.0"
 
@@ -72,8 +73,8 @@ suncalc = "3.11"
 javaxInject = "1"
 licensesdialog = "2.2.0"
 ossLicensesLib = "17.2.2"
-mpandroidchart = "3.1.0"
 simplify = "1.0.0"
+leakcanary = "2.14"
 cardview = "1.0.0"
 
 # Testing - JUnit 5 (Modern) & JUnit 4 (Android instrumented tests)
@@ -197,6 +198,7 @@ component-slider = { group = "com.github.adsamcik", name = "slider", version.ref
 # Intro & SunCalc
 spotlight = { group = "com.github.adsamcik", name = "spotlight", version.ref = "spotlight" }
 suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.ref = "suncalc" }
+leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
 
 # Compose
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -234,6 +236,9 @@ material-kolor = { group = "com.materialkolor", name = "material-kolor", version
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 
+# App Startup
+androidx-startup-runtime = { group = "androidx.startup", name = "startup-runtime", version.ref = "startupRuntime" }
+
 # Hilt (Dependency Injection)
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
@@ -245,7 +250,6 @@ javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "j
 androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
 licensesdialog = { group = "de.psdev.licensesdialog", name = "licensesdialog", version.ref = "licensesdialog" }
 play-services-oss-licenses = { group = "com.google.android.gms", name = "play-services-oss-licenses", version.ref = "ossLicensesLib" }
-mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpandroidchart" }
 simplify = { group = "com.goebl", name = "simplify", version.ref = "simplify" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxImmutable" }

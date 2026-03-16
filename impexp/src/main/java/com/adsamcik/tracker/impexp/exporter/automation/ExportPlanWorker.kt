@@ -71,10 +71,22 @@ class ExportPlanWorker @AssistedInject constructor(
             when (exportResult) {
                 is PlanExportResult.Success -> {
                     Reporter.i(EXPORT_LOG_SOURCE, "Plan '${plan.name}' completed: ${exportResult.fileName} (${exportResult.recordCount} records)")
-                    showExportCompletedNotification(plan, exportResult)
+                    // Update watermark only on successful export with actual records
+                    if (exportResult.shouldAdvanceWatermark && exportResult.recordCount > 0 && exportResult.maxTimeMs > 0L) {
+                        planStore.updateWatermark(
+                            planId = plan.id,
+                            watermarkMs = exportResult.maxTimeMs,
+                            completedAt = completedAt,
+                            recordCount = exportResult.recordCount,
+                        )
+                    }
+                    if (exportResult.fileName.isNotEmpty()) {
+                        showExportCompletedNotification(plan, exportResult)
+                    }
                     Result.success()
                 }
                 is PlanExportResult.Failed -> {
+                    // Do NOT update watermark on failure
                     Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' failed: ${exportResult.error}")
                     Result.retry()
                 }
@@ -90,12 +102,26 @@ class ExportPlanWorker @AssistedInject constructor(
         val exporter = resolveExporter(plan.format)
 
         // Resolve date range from scope
-        val dateRange = resolveDateRange(plan.scope)
+        val scopeDateRange = resolveDateRange(plan.scope)
+
+        // Apply incremental watermark lower bound when applicable
+        val exportRange = resolveExportRange(plan, exporter, scopeDateRange)
+        if (exportRange.skipBecauseEmptyIncremental) {
+            return@withContext PlanExportResult.Success(
+                fileName = "",
+                fileSizeBytes = 0L,
+                recordCount = 0,
+                maxTimeMs = 0L,
+                isDelta = true,
+                shouldAdvanceWatermark = false,
+            )
+        }
+        val dateRange = exportRange.dateRange
 
         // Build output file
         val exportDir = resolveExportDirectory(plan)
         exportDir.mkdirs()
-        val fileName = buildFileName(plan, exporter.extension)
+        val fileName = buildFileName(plan, exporter.extension, exportRange.isDelta)
         val outputFile = File(exportDir, fileName)
 
         // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
@@ -103,10 +129,14 @@ class ExportPlanWorker @AssistedInject constructor(
         val fromMs = dateRange?.first ?: 0L
         val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
+        var maxTimeMs = 0L
         val samples = locationSampleDao.getAllBetween(fromMs, toMs)
         val locationSequence = samples.asSequence()
             .filter { it.latE7 != null && it.lonE7 != null }
-            .onEach { recordCount++ }
+            .onEach {
+                recordCount++
+                if (it.timeMs > maxTimeMs) maxTimeMs = it.timeMs
+            }
 
         val result = FileOutputStream(outputFile).use { fos ->
             exporter.export(applicationContext, locationSequence, fos, dateRange)
@@ -117,6 +147,9 @@ class ExportPlanWorker @AssistedInject constructor(
                 fileName = fileName,
                 fileSizeBytes = outputFile.length(),
                 recordCount = recordCount,
+                maxTimeMs = maxTimeMs,
+                isDelta = exportRange.isDelta,
+                shouldAdvanceWatermark = exportRange.shouldAdvanceWatermark,
             )
             is ExportResult.Error -> {
                 Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${outputFile.name}")
@@ -129,6 +162,59 @@ class ExportPlanWorker @AssistedInject constructor(
     private fun resolveExporter(format: ExportFormat): Exporter =
         FormatRegistry.exporterFor(format.formatId)
             ?: error("No exporter registered for format ${format.name}")
+
+    internal data class ResolvedExportRange(
+        val dateRange: LongRange?,
+        val isDelta: Boolean,
+        val shouldAdvanceWatermark: Boolean,
+        val skipBecauseEmptyIncremental: Boolean,
+    )
+
+    internal fun resolveExportRange(
+        plan: ExportBackupPlan,
+        exporter: Exporter,
+        scopeDateRange: LongRange?,
+    ): ResolvedExportRange {
+        val supportsIncremental = plan.incrementalEnabled &&
+            exporter.canSelectDateRange &&
+            plan.format != ExportFormat.DATABASE
+        if (!supportsIncremental) {
+            return ResolvedExportRange(
+                dateRange = scopeDateRange,
+                isDelta = false,
+                shouldAdvanceWatermark = false,
+                skipBecauseEmptyIncremental = false,
+            )
+        }
+
+        if (plan.lastWatermarkMs <= 0L) {
+            return ResolvedExportRange(
+                dateRange = scopeDateRange,
+                isDelta = false,
+                shouldAdvanceWatermark = true,
+                skipBecauseEmptyIncremental = false,
+            )
+        }
+
+        val scopeStart = scopeDateRange?.first ?: 0L
+        val scopeEnd = scopeDateRange?.last ?: Long.MAX_VALUE
+        val effectiveStart = maxOf(plan.lastWatermarkMs + 1, scopeStart)
+        if (effectiveStart > scopeEnd) {
+            return ResolvedExportRange(
+                dateRange = null,
+                isDelta = true,
+                shouldAdvanceWatermark = false,
+                skipBecauseEmptyIncremental = true,
+            )
+        }
+
+        return ResolvedExportRange(
+            dateRange = effectiveStart..scopeEnd,
+            isDelta = true,
+            shouldAdvanceWatermark = true,
+            skipBecauseEmptyIncremental = false,
+        )
+    }
 
     private suspend fun resolveDateRange(scope: ExportScope): LongRange? {
         return when (scope) {
@@ -167,10 +253,15 @@ class ExportPlanWorker @AssistedInject constructor(
         }
     }
 
-    private fun buildFileName(plan: ExportBackupPlan, extension: String): String {
+    private fun buildFileName(plan: ExportBackupPlan, extension: String, isDelta: Boolean = false): String {
         val prefix = plan.destination.fileNamePrefix?.takeIf { it.isNotBlank() } ?: "tracker-export"
         val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        return "${prefix}_${timestamp}.$extension"
+        return if (isDelta && plan.lastWatermarkMs > 0L) {
+            val watermarkDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(plan.lastWatermarkMs))
+            "${prefix}_${timestamp}_delta-from-${watermarkDate}.$extension"
+        } else {
+            "${prefix}_${timestamp}.$extension"
+        }
     }
 
     private suspend fun logExport(
@@ -257,6 +348,9 @@ private sealed interface PlanExportResult {
         val fileName: String,
         val fileSizeBytes: Long,
         val recordCount: Int,
+        val maxTimeMs: Long = 0L,
+        val isDelta: Boolean = false,
+        val shouldAdvanceWatermark: Boolean = false,
     ) : PlanExportResult
 
     data class Failed(val error: String) : PlanExportResult

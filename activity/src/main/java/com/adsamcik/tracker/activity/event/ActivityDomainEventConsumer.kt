@@ -8,7 +8,6 @@ import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
-import com.adsamcik.tracker.stats.api.value.EpochMs
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,17 +23,17 @@ class ActivityDomainEventConsumer @Inject constructor(
 ) {
 	/** Process any unconsumed events for the activity module. */
 	suspend fun processUnconsumed() {
-		val events = domainEventRepository.getUnconsumed(CONSUMER_ID)
-		if (events.isEmpty()) return
+		while (true) {
+			val events = domainEventRepository.getUnconsumedBatch(
+				consumerId = CONSUMER_ID,
+				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+			if (events.isEmpty()) return
 
-		var latestTimestamp = EpochMs(0L)
-		for (event in events) {
-			handleEvent(event)
-			if (event.timestampMs.raw > latestTimestamp.raw) {
-				latestTimestamp = event.timestampMs
-			}
+			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
+			events.forEach(::handleEvent)
+			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 		}
-		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 	}
 
 	private fun handleEvent(event: DomainEvent) {

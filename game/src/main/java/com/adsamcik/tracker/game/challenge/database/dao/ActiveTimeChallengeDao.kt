@@ -9,8 +9,8 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 interface ActiveTimeChallengeDao : BaseDao<ActiveTimeChallengeEntity> {
 
     @Query("SELECT * FROM challenge_active_time WHERE id == :id")
-    fun get(id: Long): ActiveTimeChallengeEntity
+    suspend fun get(id: Long): ActiveTimeChallengeEntity
 
     @Query("SELECT * FROM challenge_active_time WHERE entry_id == :entryId")
-    fun getByEntry(entryId: Long): ActiveTimeChallengeEntity
+    suspend fun getByEntry(entryId: Long): ActiveTimeChallengeEntity
 }

@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.dashboard.ui
 
 import android.content.Context
+import com.adsamcik.tracker.dashboard.data.DashboardLayout
+import com.adsamcik.tracker.dashboard.data.DashboardLayoutRepository
+import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
@@ -21,6 +24,7 @@ import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -32,6 +36,7 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -54,6 +59,9 @@ class DashboardViewModelTest {
 	private lateinit var explorationCellDao: ExplorationCellDao
 	private lateinit var explorationStreakDao: ExplorationStreakDao
 	private lateinit var dispatchers: DispatchersProvider
+	private lateinit var layoutRepository: DashboardLayoutRepository
+	private lateinit var sessionInsightsGenerator: SessionInsightsGenerator
+	private lateinit var widgetRegistry: DashboardWidgetRegistry
 	private lateinit var trackerController: TrackerServiceController
 	private lateinit var lockManager: LockManager
 	private lateinit var dailySummaryProvider: DailySummaryProvider
@@ -93,6 +101,10 @@ class DashboardViewModelTest {
 			override val unconfined: CoroutineDispatcher = testDispatcher
 		}
 
+		layoutRepository = mockk(relaxed = true)
+		every { layoutRepository.layout } returns flowOf(DashboardLayout())
+		sessionInsightsGenerator = mockk(relaxed = true)
+		widgetRegistry = mockk(relaxed = true)
 		trackerController = mockk(relaxed = true)
 		lockManager = mockk(relaxed = true)
 		dailySummaryProvider = mockk(relaxed = true)
@@ -115,6 +127,7 @@ class DashboardViewModelTest {
 	private fun createViewModel(): DashboardViewModel {
 		return DashboardViewModel(
 			context, dispatchers, database,
+			layoutRepository, sessionInsightsGenerator, widgetRegistry,
 			trackerController, lockManager,
 			dailySummaryProvider, dailyPointsProvider,
 			goalProgressProvider, activeChallengesProvider
@@ -155,7 +168,7 @@ class DashboardViewModelTest {
 				model.progress shouldBe 0.75f
 				model.difficulty shouldBe "easy"
 				model.timeRemainingMs shouldBe 3_600_000L
-				model.iconResName shouldBe ""
+				model.iconResName shouldBe "ic_challenge_icon"
 				model.rewardPoints shouldBe 0
 			}
 		}

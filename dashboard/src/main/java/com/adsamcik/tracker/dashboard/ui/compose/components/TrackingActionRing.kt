@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 /**
  * Tracking action ring that merges goal progress visualization with the
@@ -139,18 +140,24 @@ private fun RingsWithAction(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val infiniteTransition = rememberInfiniteTransition(label = "ring_action")
+	val reducedMotion = LocalReducedMotion.current
 	val sizing = if (compact) TrackingActionRingSizing.Compact else TrackingActionRingSizing.Default
 
-	val pulseScale by infiniteTransition.animateFloat(
-		initialValue = 1f,
-		targetValue = if (isTracking) 1.06f else 1f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(MotionTokens.AMBIENT_MS),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "ring_pulse",
-	)
+	val pulseScale = if (reducedMotion) {
+		1f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "ring_action")
+		val animatedPulseScale by infiniteTransition.animateFloat(
+			initialValue = 1f,
+			targetValue = if (isTracking) 1.06f else 1f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(MotionTokens.AMBIENT_MS),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "ring_pulse",
+		)
+		animatedPulseScale
+	}
 
 	val animatedDailyProgress by animateFloatAsState(
 		targetValue = goalProgress.dailyProgress.coerceIn(0f, 1f),

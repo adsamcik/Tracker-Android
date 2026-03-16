@@ -8,10 +8,10 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 @Dao
 interface WalkDistanceChallengeDao : BaseDao<WalkDistanceChallengeEntity> {
 	@Query("SELECT * FROM challenge_walk_distance WHERE id == :id")
-	fun get(id: Long): WalkDistanceChallengeEntity
+	suspend fun get(id: Long): WalkDistanceChallengeEntity
 
 	@Query("SELECT * FROM challenge_walk_distance WHERE entry_id == :entryId")
-	fun getByEntry(entryId: Long): WalkDistanceChallengeEntity
+	suspend fun getByEntry(entryId: Long): WalkDistanceChallengeEntity
 
 	@Query("DELETE FROM challenge_walk_distance")
 	fun deleteAll()

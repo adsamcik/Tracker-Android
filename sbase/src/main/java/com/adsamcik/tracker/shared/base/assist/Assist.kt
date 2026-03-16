@@ -13,7 +13,7 @@ import android.view.ViewGroup
 import com.adsamcik.tracker.shared.base.extension.locationManager
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import java.util.*
+import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.pow
 

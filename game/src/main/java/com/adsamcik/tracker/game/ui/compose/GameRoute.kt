@@ -38,6 +38,7 @@ fun GameRoute(
 	val achievements by explorationVm.achievementState.collectAsStateWithLifecycle()
 	val heroLevelState by progressionVm.heroLevelState.collectAsStateWithLifecycle()
 	val trophySummary by progressionVm.trophySummary.collectAsStateWithLifecycle()
+	val leaderboardState by vm.leaderboardState.collectAsStateWithLifecycle()
 
 	// Unlock event state
 	var unlockEvent by remember { mutableStateOf<UnlockEvent?>(null) }
@@ -66,12 +67,14 @@ fun GameRoute(
 			achievementState = achievements,
 			heroLevelState = heroLevelState,
 			trophySummary = trophySummary,
+			leaderboardState = leaderboardState,
 			isLoadingChallenges = challenges == null,
 			onOpenSettings = onOpenSettings,
 			onNavigateToTrophyCase = onNavigateToTrophyCase,
 			onChallengeClick = { challenge -> selectedChallenge = challenge },
 			onStartStreakClick = { showChallengePicker = true },
 			onNavigateToTracker = onNavigateToTracker,
+			onLeaderboardMetricSelected = { vm.selectLeaderboardMetric(it) },
 		)
 
 		selectedChallenge?.let { challenge ->

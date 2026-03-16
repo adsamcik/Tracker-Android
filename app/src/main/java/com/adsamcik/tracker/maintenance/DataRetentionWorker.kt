@@ -10,6 +10,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -42,6 +43,7 @@ class DataRetentionWorker @AssistedInject constructor(
     private val wifiObservationDao: WifiObservationDao,
     private val cellSampleDao: CellSampleDao,
     private val sessionSegmentDao: SessionSegmentDao,
+    private val exportPlanStore: ExportPlanStore,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -122,5 +124,6 @@ class DataRetentionWorker @AssistedInject constructor(
             cellSampleDao.deleteOlderThan(cutoffMillis)
             sessionSegmentDao.deleteOlderThan(cutoffMillis)
         }
+        exportPlanStore.resetAllWatermarks()
     }
 }

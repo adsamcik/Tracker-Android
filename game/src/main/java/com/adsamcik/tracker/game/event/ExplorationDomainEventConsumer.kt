@@ -10,7 +10,6 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
-import com.adsamcik.tracker.stats.api.value.EpochMs
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,21 +33,23 @@ class ExplorationDomainEventConsumer @Inject constructor(
 
 	/** Process any unconsumed CellDiscovered events. */
 	suspend fun processUnconsumed() {
-		val events = domainEventRepository.getUnconsumed(CONSUMER_ID)
-		if (events.isEmpty()) return
-
 		val database = AppDatabase.database(context)
 		val cellDao = database.explorationCellDao()
 		val streakDao = database.explorationStreakDao()
 
-		var latestTimestamp = EpochMs(0L)
-		for (event in events) {
-			handleEvent(event, cellDao, streakDao)
-			if (event.timestampMs.raw > latestTimestamp.raw) {
-				latestTimestamp = event.timestampMs
+		while (true) {
+			val events = domainEventRepository.getUnconsumedBatch(
+				consumerId = CONSUMER_ID,
+				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+			if (events.isEmpty()) return
+
+			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
+			events.forEach { event ->
+				handleEvent(event, cellDao, streakDao)
 			}
+			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 		}
-		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 	}
 
 	private suspend fun handleEvent(

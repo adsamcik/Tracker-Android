@@ -102,23 +102,6 @@ class PermissionRequest private constructor(
         }
 
         /**
-         * Creates permission request with context (alias for newInstance)
-         */
-        fun with(context: Context): Builder {
-            return Builder(context)
-        }
-
-        /**
-         * Creates a builder from existing request
-         */
-        fun from(request: PermissionRequest): Builder {
-            return Builder(request.context).apply {
-                permissions(*request.permissionList.toTypedArray())
-                request.rationaleCallback?.let { onRationale(it) }
-            }
-        }
-
-        /**
          * Creates permission request with legacy callback
          */
         fun newInstance(

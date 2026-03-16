@@ -62,6 +62,7 @@ class PersistenceProcessor @Inject constructor(
 	private val pressureSampleDao: PressureSampleDao,
 	private val stepIntervalDao: StepIntervalDao,
 	private val activitySnapshotDao: ActivitySnapshotDao,
+	private val durableBuffer: DurableSignalBuffer,
 	private val errorCollector: PersistenceErrorCollector,
 ) : SignalProcessor {
 
@@ -81,7 +82,9 @@ class PersistenceProcessor @Inject constructor(
 	private val activityBuffer = mutableListOf<ActivitySnapshot>()
 
 	override suspend fun onStart(context: ProcessorContext) {
+		durableBuffer.setSessionId(context.sessionId)
 		clearBuffers()
+		recoverPendingSignals()
 	}
 
 	/**
@@ -271,6 +274,24 @@ class PersistenceProcessor @Inject constructor(
 		}
 	}
 
+	private suspend fun recoverPendingSignals() {
+		while (durableBuffer.hasPendingEntries()) {
+			val recoveredSignals = durableBuffer.drainBatch(DurableSignalBuffer.DRAIN_BATCH_SIZE)
+			if (recoveredSignals.isEmpty()) {
+				continue
+			}
+
+			for (signal in recoveredSignals) {
+				processRecoveredSignal(signal)
+			}
+			flushAll()
+		}
+	}
+
+	private fun processRecoveredSignal(signal: TrackingSignal) {
+		onSignal(signal)
+	}
+
 	/**
 	 * Drains [buffer] in chunks of [batchSize], calling [insert] for each chunk.
 	 *
@@ -282,7 +303,7 @@ class PersistenceProcessor @Inject constructor(
 	private suspend fun <T> flushTable(
 		tableName: String,
 		buffer: MutableList<T>,
-		@Suppress("SameParameterValue") batchSize: Int,
+		batchSize: Int,
 		insert: suspend (List<T>) -> Unit,
 	) {
 		if (buffer.isEmpty()) return

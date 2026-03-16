@@ -27,7 +27,8 @@ kotlin {
 			runtimeOnly(libs.junit5.jupiter.engine)
 		}
 		androidMain.dependencies {
-			// Android-specific implementations
+			api(project(":sbase"))
+			api(libs.androidx.paging.runtime)
 		}
 		jvmMain.dependencies {
 			// JVM-specific implementations

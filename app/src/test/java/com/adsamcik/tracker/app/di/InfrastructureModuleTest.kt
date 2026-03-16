@@ -94,25 +94,25 @@ class InfrastructureModuleTest {
 	inner class `Application scope provider` {
 		@Test
 		fun `returns non-null CoroutineScope`() {
-			module.provideAppScope().shouldNotBeNull()
+			module.provideAppScope(Dispatchers.Default).shouldNotBeNull()
 		}
 
 		@Test
 		fun `creates new scope on each call`() {
-			val scope1 = module.provideAppScope()
-			val scope2 = module.provideAppScope()
+			val scope1 = module.provideAppScope(Dispatchers.Default)
+			val scope2 = module.provideAppScope(Dispatchers.Default)
 			scope1 shouldNotBe scope2
 		}
 
 		@Test
 		fun `scope is active after creation`() {
-			val scope = module.provideAppScope()
+			val scope = module.provideAppScope(Dispatchers.Default)
 			scope.coroutineContext[Job]!!.isActive shouldBe true
 		}
 
 		@Test
 		fun `scope uses SupervisorJob`() {
-			val scope = module.provideAppScope()
+			val scope = module.provideAppScope(Dispatchers.Default)
 			val job = scope.coroutineContext[Job]!!
 			// SupervisorJob: child failure does not cancel parent
 			job.children.forEach { /* no children yet, just verify structure */ }

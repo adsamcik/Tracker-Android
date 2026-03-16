@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R as TrackerR
 
@@ -70,8 +72,9 @@ internal fun DashboardTopBar(
 	pointsToday: Int,
 	onSettingsClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
+	onCustomizeClick: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
-) {
+){
 	val context = LocalContext.current
 	val settingsContentDescription = stringResource(R.string.dashboard_cd_open_settings)
 	val settingsClickLabel = stringResource(R.string.dashboard_action_open_settings)
@@ -149,6 +152,19 @@ internal fun DashboardTopBar(
 						}
 					}
 
+					// Customize dashboard button (idle mode only)
+					if (onCustomizeClick != null) {
+						IconButton(
+							onClick = onCustomizeClick,
+							modifier = Modifier.size(48.dp),
+						) {
+							Icon(
+								Icons.Default.Tune,
+								contentDescription = stringResource(R.string.dashboard_customize_title),
+							)
+						}
+					}
+
 					IconButton(
 						onClick = onSettingsClick,
 						modifier = Modifier
@@ -193,16 +209,22 @@ internal fun DashboardTopBar(
  */
 @Composable
 private fun RecordingIndicator(modifier: Modifier = Modifier) {
-	val infiniteTransition = rememberInfiniteTransition(label = "recording")
-	val alpha by infiniteTransition.animateFloat(
-		initialValue = 1f,
-		targetValue = 0.3f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(800),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "recording_pulse",
-	)
+	val reducedMotion = LocalReducedMotion.current
+	val alpha = if (reducedMotion) {
+		1f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "recording")
+		val animatedAlpha by infiniteTransition.animateFloat(
+			initialValue = 1f,
+			targetValue = 0.3f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(800),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "recording_pulse",
+		)
+		animatedAlpha
+	}
 
 	Row(
 		verticalAlignment = Alignment.CenterVertically,

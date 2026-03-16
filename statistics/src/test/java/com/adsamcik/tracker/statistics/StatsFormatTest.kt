@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.utils.style.SunSetRise
+import com.adsamcik.tracker.statistics.util.SunSetRise
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.every

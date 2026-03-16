@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -45,9 +46,12 @@ class DefaultDomainEventRepositoryTest {
 
 		repo.persist(listOf(event))
 
-		coEvery { dao.getUnconsumedFor(any()) } returns entitySlot.captured
+		coEvery { dao.getUnconsumedBatchFor(any(), any()) } returns entitySlot.captured
 
-		val result = repo.getUnconsumed("test-consumer")
+		val result = repo.getUnconsumedBatch(
+			consumerId = "test-consumer",
+			limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+		)
 		result shouldHaveSize 1
 		result.first() shouldBe event
 	}

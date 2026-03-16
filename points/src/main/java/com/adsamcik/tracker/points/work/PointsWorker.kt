@@ -12,21 +12,17 @@ import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
-import androidx.annotation.VisibleForTesting
+import com.adsamcik.tracker.points.scoring.PointsScorer
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import kotlin.math.abs
-import kotlin.math.max
 
 @HiltWorker
 internal class PointsWorker @AssistedInject constructor(
@@ -63,19 +59,16 @@ internal class PointsWorker @AssistedInject constructor(
 			.mapNotNull { it.toDatabaseLocation() }
 			.filter { it.altitude != null }
 
+		val scorer = PointsScorer()
 		val points = if (locationData.size > 1) {
-			val slopeList = calculateSlope(locationData)
-			slopeList.sumOf {
-				@Suppress("MagicNumber")
-				val slopePositive = max(it.slope, 0.0)
-
-				@Suppress("MagicNumber")
-				val slopeBonus = kotlin.math.sqrt(slopePositive / HALF_SLOPE) * SLOPE_MULTIPLIER
-
-				it.distance * POINTS_PER_METER_MPS * it.speedMPS * (1.0 + slopeBonus)
-			}
+			scorer.calculateSlopePoints(locationData)
 		} else {
-			calculateFallbackPoints(trip)
+			val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
+			scorer.calculateFallbackPoints(
+				steps = (trip.steps ?: 0),
+				distanceMeters = trip.distanceM.toDouble(),
+				durationMinutes = durationMinutes,
+			)
 		}
 
 		if (points <= 0.0) {
@@ -96,17 +89,6 @@ internal class PointsWorker @AssistedInject constructor(
 		)
 	}
 
-	private fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> =
-		Companion.calculateSlope(locationData)
-
-	private fun calculateFallbackPoints(trip: Trip): Double {
-		val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
-		val stepPoints = (trip.steps ?: 0).coerceAtLeast(0) * FALLBACK_POINTS_PER_STEP
-		val distancePoints = trip.distanceM.coerceAtLeast(0f) * FALLBACK_POINTS_PER_METER
-		val durationPoints = durationMinutes * FALLBACK_POINTS_PER_MINUTE
-		return max(stepPoints, max(distancePoints, durationPoints))
-	}
-
 	private fun LocationSample.toDatabaseLocation(): DatabaseLocation? {
 		val lat = latE7 ?: return null
 		val lon = lonE7 ?: return null
@@ -125,68 +107,7 @@ internal class PointsWorker @AssistedInject constructor(
 		)
 	}
 
-	data class SlopeData(
-		val location: Location,
-		val activity: ActivityInfo,
-		val change: Double,
-		val slope: Double,
-		val distance: Double,
-		val speedMPS: Double
-	)
-
 	companion object {
-		private const val HALF_SLOPE = kotlin.math.PI / 4
-		private const val POINTS_PER_METER_MPS = 0.01
-		private const val SLOPE_MULTIPLIER = 12
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
-		private const val ALTITUDE_THRESHOLD = 10.0
-		private const val FALLBACK_POINTS_PER_STEP = 0.01
-		private const val FALLBACK_POINTS_PER_METER = 0.005
-		private const val FALLBACK_POINTS_PER_MINUTE = 0.5
-
-		@VisibleForTesting
-		internal fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> {
-			val firstLocation = locationData.first()
-			var lastAltitude = requireNotNull(firstLocation.altitude)
-			val slopeList = mutableListOf(
-				SlopeData(
-					firstLocation.location,
-					firstLocation.activityInfo,
-					0.0,
-					0.0,
-					0.0,
-					0.0
-				)
-			)
-			var prevLocation = firstLocation.location
-			locationData.forEachIndexed { index, dbLocation ->
-				val location = dbLocation.location
-				val altitude = requireNotNull(location.altitude)
-				val diff = abs(lastAltitude - altitude)
-				if (index + 1 == locationData.size || diff > ALTITUDE_THRESHOLD) {
-					val distance = prevLocation.distanceFlat(location, LengthUnit.Meter)
-					val timeDelta = location.time - prevLocation.time
-					if (timeDelta <= 0 || distance <= 0.0) return@forEachIndexed
-					val timeDeltaSeconds = timeDelta / 1000.0
-					val speed = distance / timeDeltaSeconds
-					val slope = kotlin.math.atan(diff / distance)
-					slopeList.add(
-						SlopeData(
-							location,
-							dbLocation.activityInfo,
-							diff,
-							slope,
-							distance,
-							speed
-						)
-					)
-
-					prevLocation = location
-					lastAltitude = altitude
-				}
-			}
-
-			return slopeList
-		}
 	}
 }

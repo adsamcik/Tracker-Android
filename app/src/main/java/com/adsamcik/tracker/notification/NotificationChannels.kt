@@ -60,7 +60,7 @@ object NotificationChannels {
 				R.string.channel_goals_name,
 				R.string.channel_goals_description,
 				false,
-				NotificationManager.IMPORTANCE_HIGH
+				NotificationManager.IMPORTANCE_DEFAULT
 		)
 	}
 
@@ -87,4 +87,3 @@ object NotificationChannels {
 		mNotificationManager.createNotificationChannel(mChannel)
 	}
 }
-

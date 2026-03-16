@@ -30,8 +30,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import dagger.hilt.android.EntryPointAccessors
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Today Summary widget (4x2): distance hero metric, secondary stats, goal progress.
@@ -49,9 +47,7 @@ class TodaySummaryWidget : GlanceAppWidget() {
                 TrackerWidgetEntryPoint::class.java,
             )
 
-            summary = withContext(Dispatchers.IO) {
-                entryPoint.dailySummaryProvider().fetchTodaySummary()
-            }
+            summary = entryPoint.dailySummaryProvider().fetchTodaySummary()
             goalProgress = entryPoint.goalProgressProvider().goalProgressFlow.value
         } catch (_: Exception) {
             // Hilt not initialized or DB unavailable - show empty state.

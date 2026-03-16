@@ -102,7 +102,15 @@ internal class CrashViewerActivity : ComposeDetailActivity() {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(crashes) { crash ->
+                items(
+                    items = crashes,
+                    key = { crash ->
+                        when (crash) {
+                            is CrashDisplayItem.DatabaseCrash -> "database-${crash.crashData.id}"
+                            is CrashDisplayItem.FileCrash -> crash.file.absolutePath
+                        }
+                    },
+                ) { crash ->
                     when (crash) {
                         is CrashDisplayItem.DatabaseCrash -> CrashItem(crash = crash.crashData)
                         is CrashDisplayItem.FileCrash -> FileCrashItem(file = crash.file)

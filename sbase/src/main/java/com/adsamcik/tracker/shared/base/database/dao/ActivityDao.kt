@@ -18,27 +18,28 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	 */
 	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM activity")
-	fun getAll(): List<SessionActivity>
+	suspend fun getAll(): List<SessionActivity>
 
 	/**
 	 * Get all session activities created by a user.
 	 */
 	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM activity WHERE id >= 0")
-	fun getAllUser(): List<SessionActivity>
+	suspend fun getAllUser(): List<SessionActivity>
 
 	/**
 	 * Get specific session activity.
 	 */
 	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM activity WHERE id = :id")
-	fun get(id: Long): SessionActivity?
+	suspend fun get(id: Long): SessionActivity?
 
 	/**
 	 * Get specific localized session activity.
 	 */
 	@Transaction
-	fun getLocalized(context: Context, id: Long): SessionActivity? {		return if (id < 0) {
+	suspend fun getLocalized(context: Context, id: Long): SessionActivity? {
+		return if (id < 0) {
 			val nativeSessionActivity = NativeSessionActivity.entries
 					.find { it.id == id }
 
@@ -53,7 +54,7 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	 */
 	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM activity WHERE name = :name")
-	fun find(name: String): SessionActivity?
+	suspend fun find(name: String): SessionActivity?
 
 	/**
 	 * Delete specific session activity.

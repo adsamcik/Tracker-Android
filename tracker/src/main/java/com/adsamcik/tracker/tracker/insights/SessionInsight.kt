@@ -1,18 +1,16 @@
 package com.adsamcik.tracker.tracker.insights
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 
 /**
  * Category of a session insight for grouping and iconography.
  */
 enum class InsightCategory {
-    DURATION,
-    DISTANCE,
-    STEPS,
-    ACTIVITY,
-    GOAL,
+    ACHIEVEMENT,
+    FUN_FACT,
+    COMPARISON,
+    EXPLORATION,
 }
 
 /**

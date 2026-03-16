@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 /**
  * Empty state content shown when the user has no tracking history.
@@ -61,37 +62,52 @@ import com.adsamcik.tracker.dashboard.R
  */
 @Composable
 internal fun EmptyStateCard(modifier: Modifier = Modifier) {
-	val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
-
-	val floatOffset by infiniteTransition.animateFloat(
-		initialValue = 0f,
-		targetValue = 8f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(2000, easing = FastOutSlowInEasing),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "float",
-	)
-
-	val iconScale by infiniteTransition.animateFloat(
-		initialValue = 1f,
-		targetValue = 1.05f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(3000, easing = FastOutSlowInEasing),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "icon_pulse",
-	)
-
-	val pathOffset by infiniteTransition.animateFloat(
-		initialValue = 0f,
-		targetValue = 50f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(8000, easing = LinearEasing),
-			repeatMode = RepeatMode.Restart,
-		),
-		label = "path_offset",
-	)
+	val reducedMotion = LocalReducedMotion.current
+	val floatOffset = if (reducedMotion) {
+		0f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
+		val animatedFloatOffset by infiniteTransition.animateFloat(
+			initialValue = 0f,
+			targetValue = 8f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(2000, easing = FastOutSlowInEasing),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "float",
+		)
+		animatedFloatOffset
+	}
+	val iconScale = if (reducedMotion) {
+		1f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "empty_state_icon")
+		val animatedIconScale by infiniteTransition.animateFloat(
+			initialValue = 1f,
+			targetValue = 1.05f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(3000, easing = FastOutSlowInEasing),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "icon_pulse",
+		)
+		animatedIconScale
+	}
+	val pathOffset = if (reducedMotion) {
+		0f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "empty_state_path")
+		val animatedPathOffset by infiniteTransition.animateFloat(
+			initialValue = 0f,
+			targetValue = 50f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(8000, easing = LinearEasing),
+				repeatMode = RepeatMode.Restart,
+			),
+			label = "path_offset",
+		)
+		animatedPathOffset
+	}
 
 	Card(
 		colors = CardDefaults.cardColors(

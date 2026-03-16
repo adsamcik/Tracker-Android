@@ -68,6 +68,7 @@ dependencies {
 
 	// Arrow
 	implementation(libs.arrow.core)
+	implementation(libs.suncalc)
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -141,7 +142,6 @@ dependencies {
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
 
-	implementation(libs.mpandroidchart)
 	implementation(libs.simplify)
 
 	// MapLibre Compose for trip route visualization

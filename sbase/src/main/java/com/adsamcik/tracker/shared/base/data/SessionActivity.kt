@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.data
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import androidx.annotation.WorkerThread
 import androidx.core.content.res.ResourcesCompat
 import androidx.room.Entity
 import androidx.room.Index
@@ -40,8 +39,7 @@ data class SessionActivity(
 		 */
 		val UNKNOWN: SessionActivity get() = SessionActivity(0L, "", null)
 
-		@WorkerThread
-		fun getAll(context: Context): List<SessionActivity> {
+		suspend fun getAll(context: Context): List<SessionActivity> {
 			val database = AppDatabase.database(context)
 			val activityDao = database.activityDao()
 			val mutableList = mutableListOf<SessionActivity>()
@@ -52,4 +50,3 @@ data class SessionActivity(
 		}
 	}
 }
-
