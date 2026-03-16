@@ -1,9 +1,0 @@
-com.adsamcik.tracker.activity-pngs-0 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\generated\res\pngs\debug
-com.adsamcik.tracker.activity-resValues-1 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\generated\res\resValues\debug
-com.adsamcik.tracker.activity-updated_navigation_xml-2 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\generated\updated_navigation_xml\debug
-com.adsamcik.tracker.activity-mergeDebugResources-3 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\incremental\debug\mergeDebugResources\merged.dir
-com.adsamcik.tracker.activity-mergeDebugResources-4 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\incremental\debug\mergeDebugResources\stripped.dir
-com.adsamcik.tracker.activity-debug-5 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\merged_res\debug\mergeDebugResources
-com.adsamcik.tracker.activity-debug-6 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\packaged_res\debug\packageDebugResources
-com.adsamcik.tracker.activity-debug-7 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\debug\res
-com.adsamcik.tracker.activity-main-8 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\res

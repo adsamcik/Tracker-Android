@@ -1,4 +1,0 @@
-int string settings_log_enabled_default 0x0
-int string settings_log_enabled_key 0x0
-int string settings_log_performance_enabled_default 0x0
-int string settings_log_performance_enabled_key 0x0

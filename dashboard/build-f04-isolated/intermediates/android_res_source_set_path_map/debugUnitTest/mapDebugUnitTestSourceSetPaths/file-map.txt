@@ -1,4 +1,0 @@
-com.adsamcik.tracker.dashboard.test.dashboard-test-0 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\build-f04-isolated\generated\res\resValues\test\debug
-com.adsamcik.tracker.dashboard.test.dashboard-mergeDebugUnitTestResources-1 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\build-f04-isolated\intermediates\incremental\debugUnitTest\mergeDebugUnitTestResources\merged.dir
-com.adsamcik.tracker.dashboard.test.dashboard-mergeDebugUnitTestResources-2 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\build-f04-isolated\intermediates\incremental\debugUnitTest\mergeDebugUnitTestResources\stripped.dir
-com.adsamcik.tracker.dashboard.test.dashboard-debugUnitTest-3 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\dashboard\build-f04-isolated\intermediates\merged_res\debugUnitTest\mergeDebugUnitTestResources
