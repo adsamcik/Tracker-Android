@@ -39,7 +39,7 @@ class AchievementEvaluator(
 		currentValue: Long,
 		previousProgress: Map<String, Pair<Long, AchievementTier?>>,
 	): List<AchievementSnapshot> {
-		val relevantDefinitions = catalog.filter { it.metric == metric }
+		val relevantDefinitions = relevantDefinitions(metric)
 		if (relevantDefinitions.isEmpty()) return emptyList()
 
 		return relevantDefinitions.mapNotNull { definition ->
@@ -53,6 +53,12 @@ class AchievementEvaluator(
 			} else {
 				null
 			}
+		}
+	}
+
+	fun snapshots(metric: String, currentValue: Long): List<AchievementSnapshot> {
+		return relevantDefinitions(metric).map { definition ->
+			snapshot(definition, currentValue)
 		}
 	}
 
@@ -142,5 +148,9 @@ class AchievementEvaluator(
 			nextTierTarget = nextTierTarget,
 			progress = progress,
 		)
+	}
+
+	private fun relevantDefinitions(metric: String): List<AchievementDefinition> {
+		return catalog.filter { it.metric == metric }
 	}
 }

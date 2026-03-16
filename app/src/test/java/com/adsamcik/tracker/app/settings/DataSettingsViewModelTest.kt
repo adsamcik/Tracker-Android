@@ -27,6 +27,7 @@ class DataSettingsViewModelTest {
 
     private val configFlow = MutableStateFlow(RetentionConfigState())
     private val retentionConfigStore: RetentionConfigStore = mockk()
+    private val exportPlanStore: com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore = mockk()
 
     @BeforeEach
     fun setUp() {
@@ -34,6 +35,7 @@ class DataSettingsViewModelTest {
         configFlow.value = RetentionConfigState()
 
         every { retentionConfigStore.config } returns configFlow
+        every { exportPlanStore.plans } returns MutableStateFlow(emptyList())
         coEvery { retentionConfigStore.update(any()) } answers {
             @Suppress("UNCHECKED_CAST")
             val block = invocation.args[0] as (RetentionConfigState.() -> RetentionConfigState)
@@ -46,7 +48,7 @@ class DataSettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = DataSettingsViewModel(retentionConfigStore)
+    private fun createViewModel() = DataSettingsViewModel(retentionConfigStore, exportPlanStore)
 
     // =========================================================================
     // Initial state

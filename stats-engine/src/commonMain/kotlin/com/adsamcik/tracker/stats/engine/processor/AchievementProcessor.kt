@@ -13,10 +13,8 @@ import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
  * SignalProcessor wrapping [AchievementEvaluator].
  *
  * Tracks in-memory progress for live UI updates during a tracking session.
- * Emits only [DomainEvent.AchievementProgress] events — **never** unlock events
- * or XP awards. Unlock persistence is the sole responsibility of
- * [com.adsamcik.tracker.stats.data.worker.AchievementWorker] (via WorkManager)
- * to prevent double-unlock races between real-time and background evaluation.
+ * Emits [DomainEvent.AchievementUnlocked] when a tier increases and
+ * [DomainEvent.AchievementProgress] when the value changes within the same tier.
  */
 class AchievementProcessor(
 	private val evaluator: AchievementEvaluator = AchievementEvaluator(),
@@ -46,20 +44,37 @@ class AchievementProcessor(
 		val events = mutableListOf<DomainEvent>()
 
 		for ((metric, value) in metrics) {
-			val snapshots = evaluator.evaluate(metric, value, previousProgress)
+			val snapshots = evaluator.snapshots(metric, value)
 			for (snap in snapshots) {
-				previousProgress[snap.definition.id] = Pair(snap.currentValue, snap.currentTier)
+				val previous = previousProgress[snap.definition.id]
+				val previousValue = previous?.first
+				val previousTier = previous?.second
+				val currentTier = snap.currentTier
 
-				// Only emit progress events for live UI. Unlocks are handled by AchievementWorker.
-				events.add(
-					DomainEvent.AchievementProgress(
-						timestampMs = now,
-						processorId = descriptor.id,
-						achievementId = snap.definition.id,
-						currentValue = snap.currentValue,
-						targetValue = snap.nextTierTarget ?: snap.currentValue,
-					),
-				)
+				previousProgress[snap.definition.id] = Pair(snap.currentValue, currentTier)
+
+				val tierChangedUpward = currentTier != null &&
+					(previousTier == null || currentTier.ordinal > previousTier.ordinal)
+				if (tierChangedUpward) {
+					events.add(
+						DomainEvent.AchievementUnlocked(
+							timestampMs = now,
+							processorId = descriptor.id,
+							achievementId = snap.definition.id,
+							tier = currentTier.name,
+						),
+					)
+				} else if (previousValue == null || snap.currentValue != previousValue) {
+					events.add(
+						DomainEvent.AchievementProgress(
+							timestampMs = now,
+							processorId = descriptor.id,
+							achievementId = snap.definition.id,
+							currentValue = snap.currentValue,
+							targetValue = snap.nextTierTarget ?: snap.currentValue,
+						),
+					)
+				}
 			}
 		}
 

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.engine.processor
 
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
@@ -71,7 +72,7 @@ class AchievementProcessorTest {
 	}
 
 	@Test
-	fun `flush with real metrics produces achievement progress events`() = runTest {
+	fun `flush with real metrics emits unlock when tier increases`() = runTest {
 		val processor = AchievementProcessor(
 			evaluator = AchievementEvaluator(),
 			metricsProvider = {
@@ -81,9 +82,8 @@ class AchievementProcessorTest {
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		val events = processor.onFlush()
-		// total_steps=15_000 triggers a tier change on "steps_total" → emits progress event
+		// total_steps=15_000 crosses the first tier for steps_total.
 		events.shouldHaveSize(1)
-		// Processor only emits progress events now, never unlock events
-		assert(events.all { it is com.adsamcik.tracker.stats.api.event.DomainEvent.AchievementProgress })
+		assert(events.single() is DomainEvent.AchievementUnlocked)
 	}
 }
