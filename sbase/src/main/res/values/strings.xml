@@ -78,7 +78,7 @@
     <string name="channel_track_name">Tracking</string>
     <string name="channel_goals_description">Goal completion alerts.</string>
     <string name="channel_goals_id" translatable="false">goals_channel_id</string>
-    <string name="channel_goals_name">Goals</string>
+    <string name="channel_goals_name">Goal Progress</string>
 
     <string name="day_short">%d d</string>
 

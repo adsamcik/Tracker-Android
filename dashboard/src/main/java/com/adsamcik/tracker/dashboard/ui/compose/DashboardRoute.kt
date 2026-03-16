@@ -24,12 +24,14 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -88,6 +90,10 @@ fun DashboardRoute(
 	val recentTrips by viewModel.recentTrips.collectAsState()
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
+
+	// Dashboard layout and customize sheet state
+	val dashboardLayout by viewModel.dashboardLayout.collectAsState()
+	var showCustomizeSheet by remember { mutableStateOf(false) }
 
 	// Fetch daily summary and historical data reactively
 	LaunchedEffect(isTracking, sessionData) {
@@ -170,6 +176,24 @@ fun DashboardRoute(
 		viewModel.mapChallenges(activeChallengeInfos)
 	}
 
+	// Generate session insights when not tracking and session data is available
+	val sessionInsights = remember(displaySession, unifiedTodaySummary, goalProgress, isTracking) {
+		if (isTracking || displaySession == null) {
+			emptyList()
+		} else {
+			SessionInsightsGenerator.generate(
+				context = context,
+				session = displaySession,
+				dailySummary = unifiedTodaySummary,
+				goalProgress = GoalProgress(
+					stepsToday = goalProgress.stepsToday,
+					goalSteps = goalProgress.goalSteps,
+					gamificationEnabled = goalProgress.gamificationEnabled,
+				),
+			)
+		}
+	}
+
 	val dashboardState = DashboardUiState(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
@@ -191,6 +215,7 @@ fun DashboardRoute(
 		recentTrips = recentTrips,
 		explorationState = explorationState,
 		streakState = streakState,
+		sessionInsights = sessionInsights,
 	)
 
 	// Contextual permission request dialog
@@ -224,8 +249,18 @@ fun DashboardRoute(
 		}
 	}
 
+	val visibleWidgets = remember(dashboardState, dashboardLayout) {
+		viewModel.widgetRegistry.resolveWidgets(dashboardState, dashboardLayout)
+	}
+	val resolvedWidgetsForSheet = remember(dashboardLayout) {
+		viewModel.widgetRegistry.resolveAllWidgets(dashboardLayout)
+	}
+
 	DashboardScreen(
 		state = dashboardState,
+		visibleWidgets = visibleWidgets,
+		resolvedWidgetsForSheet = resolvedWidgetsForSheet,
+		showCustomizeSheet = showCustomizeSheet,
 		onSettingsClick = onOpenSettings,
 		onMapClick = onOpenMap,
 		onToggleTracking = { shouldStart ->
@@ -257,6 +292,11 @@ fun DashboardRoute(
 		onGameClick = onOpenGame,
 		onChallengesClick = onOpenChallenges,
 		onSessionDetailClick = onSessionDetailClick,
+		onCustomizeClick = { showCustomizeSheet = true },
+		onReorderWidgets = { viewModel.reorderWidgets(it) },
+		onToggleWidgetVisibility = { viewModel.toggleWidgetVisibility(it) },
+		onResetLayout = { viewModel.resetLayout() },
+		onDismissCustomize = { showCustomizeSheet = false },
 		snackbarHostState = snackbarHostState,
 		modifier = Modifier.padding(contentPadding),
 	)

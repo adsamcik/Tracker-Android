@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app
 
-import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
@@ -16,6 +15,7 @@ import com.adsamcik.tracker.logger.Logger
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
+import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
@@ -103,7 +103,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	companion object
 
-	@SuppressLint("DefaultLocale")
 	@WorkerThread
 	private fun initializeModules() {
 		// Static modules: directly initialize known initializers instead of reflection
@@ -157,6 +156,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
 			Log.w("App", "Skipping DailySummaryMaterializationWorker.schedule during unit tests: ${e.message}")
 		}
+		// Schedule smart goal notification checks every 2 hours
+		try {
+			GoalNotificationWorker.schedule(this)
+		} catch (e: IllegalStateException) {
+			Log.w("App", "Skipping GoalNotificationWorker.schedule during unit tests: ${e.message}")
+		}
 	}
 
 	@WorkerThread
@@ -199,7 +204,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 				CrashHandler(this@Application).initialize()
 
 				coroutineScope {
-					launch { preloadNativeLibraries() }
+					// NativeLibraryInitializer handles System.loadLibrary("maplibre") via App Startup.
 					launch { MapLibreInitializer.initialize(this@Application) }
 					launch { initializeWorkManager() }
 					launch { warmUp() }
@@ -221,20 +226,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 					Log.e("App", "Deferred startup initialization failed", t)
 				}
 			}
-		}
-	}
-
-	/**
-	 * Pre-load heavy native libraries on a background thread so they don't
-	 * block the main thread when the corresponding UI first renders.
-	 * MapLibre's native lib (~5s load on emulator) is the primary culprit.
-	 */
-	@WorkerThread
-	private fun preloadNativeLibraries() {
-		try {
-			System.loadLibrary("maplibre")
-		} catch (e: UnsatisfiedLinkError) {
-			Log.w("App", "MapLibre native library not available: ${e.message}")
 		}
 	}
 

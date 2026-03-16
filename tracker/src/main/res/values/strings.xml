@@ -302,4 +302,22 @@
     <string name="tracker_precision_chip_hint">Tap to switch to %1$s</string>
     <string name="action_navigate_back">Navigate back</string>
 
+    <!-- Session Insights (Task F) -->
+    <string name="insight_quick_session_title">Quick session</string>
+    <string name="insight_quick_session_desc">Short but every bit counts!</string>
+    <string name="insight_solid_session_title">Solid session</string>
+    <string name="insight_solid_session_desc">Great session — over %1$d minutes of tracking.</string>
+    <string name="insight_extended_session_title">Extended trek</string>
+    <string name="insight_extended_session_desc">An impressive %1$d-minute session!</string>
+    <string name="insight_distance_title">Distance covered</string>
+    <string name="insight_distance_desc">You covered %1$s this session.</string>
+    <string name="insight_steps_title">Steps recorded</string>
+    <string name="insight_steps_desc">%1$s steps this session — keep it up!</string>
+    <string name="insight_multi_session_title">Multi-session day</string>
+    <string name="insight_multi_session_desc">This is session #%1$d today.</string>
+    <string name="insight_goal_close_title">Goal in sight</string>
+    <string name="insight_goal_close_desc">You\'re at %1$d%% of your daily step goal.</string>
+    <string name="insight_goal_reached_title">Goal reached!</string>
+    <string name="insight_goal_reached_desc">You hit your daily step goal — awesome!</string>
+
 </resources>

@@ -71,6 +71,11 @@
     <string name="settings_debug_seed_data_confirm_message">This adds 3 dummy New York City sessions for development and testing. Continue?</string>
     <string name="settings_data_management_section">Data Management</string>
     <string name="settings_data_danger_zone_section">Danger Zone</string>
+    <string name="settings_incremental_backups_title">Incremental backups</string>
+    <string name="settings_incremental_backups_summary">Only export new data since last backup. Reduces export time and file size.</string>
+    <string name="settings_reset_export_watermarks_title">Force full export</string>
+    <string name="settings_reset_export_watermarks_summary">Next automated backup will include all data instead of only changes</string>
+    <string name="settings_reset_export_watermarks_done">Export watermarks reset — next backup will be a full export</string>
     <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
     <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
     <string name="settings_developer_enabled">Developer options enabled</string>
@@ -680,8 +685,14 @@
     <string name="widget_session_distance">Session Distance</string>
     <string name="widget_session_steps">Session Steps</string>
     <string name="widget_session_duration">Session Duration</string>
+    <string name="widget_current_speed">Current Speed</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
     <string name="widget_collections">Collections</string>
     <string name="widget_distance_on_foot">On Foot</string>
+    <string name="widget_path_preview">Path Preview</string>
+    <string name="widget_activity_unknown">Activity unavailable</string>
     <string name="widget_goal_label">Goal:</string>
     <string name="widget_goal_progress">%1$s / %2$s steps</string>
     <string name="widget_format_km">%.1f km</string>
@@ -690,5 +701,12 @@
     <string name="widget_tier_ambient">Ambient</string>
     <string name="widget_tier_active">Active</string>
     <string name="widget_tier_precision">Precision</string>
+
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title">Almost there!</string>
+    <string name="goal_notification_body_75">You\'re 75%% to your daily step goal — keep moving!</string>
+    <string name="goal_notification_body_90">Just a few more steps to hit your daily goal!</string>
+    <string name="settings_smart_goal_notifications_title">Smart goal notifications</string>
+    <string name="settings_smart_goal_notifications_summary">Get notified when you\'re close to your daily step goal</string>
 
 </resources>

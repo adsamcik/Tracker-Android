@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.insights.SessionInsight
 
 /**
  * Unified UI state for the Dashboard screen.
@@ -46,7 +47,57 @@ data class DashboardUiState(
 
 	// ─── Exploration ─────────────────────────────────────────────────
 	val explorationState: ExplorationUiState = ExplorationUiState(),
-)
+
+	// ─── Post-session insights ───────────────────────────────────────
+	val sessionInsights: List<SessionInsight> = emptyList(),
+) {
+	companion object {
+		/** Preview factory for idle state with representative sample data. */
+		fun previewIdle(): DashboardUiState = DashboardUiState(
+			dashboardMode = DashboardMode.IDLE,
+			isTracking = false,
+			hasLocationPermission = true,
+			policyTier = PolicyTier.OFF,
+			pointsToday = 42,
+			goalProgress = GoalProgressState(
+				gamificationEnabled = true,
+				dailySteps = 6500,
+				dailyGoalSteps = 10000,
+				dailyProgress = 0.65f,
+				weeklySteps = 35000,
+				weeklyGoalSteps = 70000,
+				weeklyProgress = 0.5f,
+			),
+			streakState = StreakState(
+				currentStreak = 3,
+				bestStreak = 7,
+				weeklyDistances = listOf(0.2f, 0.5f, 0.8f, 0.6f, 0.3f, 0.9f, 0.0f),
+				weeklyTrend = WeeklyTrend.UP,
+			),
+			explorationState = ExplorationUiState(
+				newCellsToday = 5,
+				totalCells = 128,
+				seasonsCovered = 2,
+				hasExplorationData = true,
+			),
+		)
+
+		/** Preview factory for tracking-active state. */
+		fun previewTracking(): DashboardUiState = DashboardUiState(
+			dashboardMode = DashboardMode.TRACKING,
+			isTracking = true,
+			hasLocationPermission = true,
+			policyTier = PolicyTier.PRECISION,
+			pointsToday = 15,
+			goalProgress = GoalProgressState(
+				gamificationEnabled = true,
+				dailySteps = 2100,
+				dailyGoalSteps = 10000,
+				dailyProgress = 0.21f,
+			),
+		)
+	}
+}
 
 @Immutable
 enum class DashboardMode {

@@ -141,6 +141,22 @@
     <string name="dashboard_empty_fab_hint_title">Ready when you are</string>
     <string name="dashboard_empty_fab_hint_desc">Use the action button in the bottom-right corner to start tracking as soon as location access is granted.</string>
 
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Today\'s Progress</string>
+    <string name="widget_streak">Streak</string>
+    <string name="widget_challenges">Challenges</string>
+    <string name="widget_last_session">Last Session</string>
+    <string name="widget_recent_trips">Recent Trips</string>
+    <string name="widget_exploration">Exploration</string>
+
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Customize Dashboard</string>
+    <string name="dashboard_customize_reset">Reset to Default</string>
+    <string name="dashboard_customize_cd_move_up">Move %1$s up</string>
+    <string name="dashboard_customize_cd_move_down">Move %1$s down</string>
+    <string name="dashboard_customize_cd_toggle">Toggle %1$s visibility</string>
+    <string name="dashboard_customize_cd_drag_handle">Reorder %1$s</string>
+
     <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">No altitude data</string>
     <string name="dashboard_cd_no_altitude_data">No altitude data available</string>
@@ -167,4 +183,8 @@
     <string name="dashboard_pill_stop">Stop</string>
     <string name="dashboard_pill_enable_location">Enable location</string>
     <string name="dashboard_pill_recording">Recording · %1$s</string>
+
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Session Insights</string>
+    <string name="dashboard_cd_insight_item">Insight: %1$s</string>
 </resources>
