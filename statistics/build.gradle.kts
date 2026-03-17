@@ -64,7 +64,6 @@ dependencies {
 
 	// Stats architecture
 	implementation(project(":stats-api"))
-	implementation(project(":stats-data"))
 
 	// Arrow
 	implementation(libs.arrow.core)

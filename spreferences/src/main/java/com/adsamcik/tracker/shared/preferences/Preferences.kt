@@ -104,6 +104,18 @@ open class Preferences {
         return getInt(key, default)
     }
 
+    /**
+     * Reads a legacy preference that may have been stored as either an Int or a String.
+     * This preserves compatibility with XML-backed EditTextPreference migrations.
+     */
+    fun getIntStringKey(key: String, default: Int = 0): Int {
+        return when (val value = findRawValue(key)) {
+            is Int -> value
+            is String -> value.toIntOrNull() ?: default
+            else -> default
+        }
+    }
+
     suspend fun fetchInt(key: String, default: Int = 0): Int {
         return observeInt(key, default).first()
     }
@@ -187,6 +199,18 @@ open class Preferences {
         return getFloat(key, default)
     }
 
+    /**
+     * Reads a legacy preference that may have been stored as either a Float or a String.
+     * This preserves compatibility with XML-backed numeric preference migrations.
+     */
+    fun getFloatStringKey(key: String, default: Float = Float.NaN): Float {
+        return when (val value = findRawValue(key)) {
+            is Float -> value
+            is String -> value.toFloatOrNull() ?: default
+            else -> default
+        }
+    }
+
     suspend fun fetchFloat(key: String, default: Float = Float.NaN): Float {
         return observeFloat(key, default).first()
     }
@@ -224,6 +248,14 @@ open class Preferences {
 
     protected fun getKey(@StringRes keyRes: Int): String {
         return resources.getString(keyRes)
+    }
+
+    private fun findRawValue(key: String): Any? {
+        return snapshot()
+            .asMap()
+            .entries
+            .firstOrNull { it.key.name == key }
+            ?.value
     }
 
 }

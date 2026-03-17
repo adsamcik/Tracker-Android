@@ -8,20 +8,24 @@ import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
+import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
+import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
-import com.adsamcik.tracker.statistics.repository.SessionRepository
-import com.adsamcik.tracker.statistics.repository.SessionStatsResult
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
+import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -30,14 +34,17 @@ import javax.inject.Inject
  *
  * - Uses [TripPresentationRepository] for trip list paging and deletion.
  * - Uses [DailySummaryRepository] for weekly bar chart data.
- * - Uses [SessionRepository] summary adapter for summary/weekly dialog stats.
+ * - Uses [SessionStatsRepository] for summary/weekly dialog data and local UI formatting.
+ * - Uses [WifiObservationRepository] for Wi-Fi summary dialog data.
  */
 @HiltViewModel
 class StatsPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
-	private val sessionRepository: SessionRepository,
+	private val sessionStatsRepository: SessionStatsRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
+	private val wifiObservationRepository: WifiObservationRepository,
 	private val gpxShareHelper: GpxShareHelper,
+	private val sessionStatsUiFormatter: SessionStatsUiFormatter,
 ) : ViewModel() {
 
 	data class DateFilter(
@@ -76,6 +83,9 @@ class StatsPresenterViewModel @Inject constructor(
 
 	private val _weeklyStatsState = MutableStateFlow<StatsLoadState>(StatsLoadState.Idle)
 	val weeklyStatsState: StateFlow<StatsLoadState> = _weeklyStatsState.asStateFlow()
+
+	private val _wifiStatsState = MutableStateFlow<WifiStatsLoadState>(WifiStatsLoadState.Idle)
+	val wifiStatsState: StateFlow<WifiStatsLoadState> = _wifiStatsState.asStateFlow()
 
 	private val _weeklyBars = MutableStateFlow<List<DayBar>>(emptyList())
 	val weeklyBars: StateFlow<List<DayBar>> = _weeklyBars.asStateFlow()
@@ -135,38 +145,59 @@ class StatsPresenterViewModel @Inject constructor(
 	}
 
 	/**
-	 * Load summary statistics from repository.
-	 * Delegates to [SessionRepository] for the summary dialog.
+	 * Load summary statistics from repository and format them for the summary dialog.
 	 */
 	fun loadSummaryStats() {
 		viewModelScope.launch {
 			_summaryStatsState.value = StatsLoadState.Loading
-			when (val result = sessionRepository.getSummaryStats()) {
-				is SessionStatsResult.Success -> {
-					_summaryStatsState.value = StatsLoadState.Success(result.stats)
-				}
-				is SessionStatsResult.Failure -> {
-					_summaryStatsState.value = StatsLoadState.Error(result.message)
-				}
-			}
+			sessionStatsRepository.getAllTime().fold(
+				ifLeft = { error -> _summaryStatsState.value = StatsLoadState.Error(error.message) },
+				ifRight = { snapshot ->
+					_summaryStatsState.value = StatsLoadState.Success(
+						sessionStatsUiFormatter.formatSummary(snapshot),
+					)
+				},
+			)
 		}
 	}
 
 	/**
-	 * Load weekly statistics from repository.
-	 * Delegates to [SessionRepository] for the weekly dialog.
+	 * Load weekly statistics from repository and format them for the weekly dialog.
 	 */
 	fun loadWeeklyStats() {
 		viewModelScope.launch {
 			_weeklyStatsState.value = StatsLoadState.Loading
-			when (val result = sessionRepository.getWeeklyStats()) {
-				is SessionStatsResult.Success -> {
-					_weeklyStatsState.value = StatsLoadState.Success(result.stats)
-				}
-				is SessionStatsResult.Failure -> {
-					_weeklyStatsState.value = StatsLoadState.Error(result.message)
-				}
-			}
+			val now = System.currentTimeMillis()
+			val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {
+				timeInMillis = now
+				add(Calendar.WEEK_OF_MONTH, -1)
+			}.timeInMillis
+			sessionStatsRepository.getBetween(EpochMs(weekAgo), EpochMs(now)).fold(
+				ifLeft = { error -> _weeklyStatsState.value = StatsLoadState.Error(error.message) },
+				ifRight = { snapshot ->
+					_weeklyStatsState.value = StatsLoadState.Success(
+						sessionStatsUiFormatter.formatWeekly(snapshot),
+					)
+				},
+			)
+		}
+	}
+
+	fun loadWifiStats() {
+		viewModelScope.launch {
+			_wifiStatsState.value = WifiStatsLoadState.Loading
+			wifiObservationRepository.getStatsSummary().fold(
+				ifLeft = { error ->
+					_wifiStatsState.value = WifiStatsLoadState.Error(error.message)
+				},
+				ifRight = { summary ->
+					_wifiStatsState.value = if (summary.totalScans == 0L && summary.uniqueNetworks == 0L) {
+						WifiStatsLoadState.Empty
+					} else {
+						WifiStatsLoadState.Success(summary)
+					}
+				},
+			)
 		}
 	}
 

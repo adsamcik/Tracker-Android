@@ -43,16 +43,12 @@ abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 	@CallSuper
 	override suspend fun onEnableInternal(context: Context) {
 		// Initial sync read for immediate availability; Flow subscription follows for updates
-		@Suppress("DEPRECATION")
-		target = Preferences(context).getIntResString(
-			goalPreferenceKeyRes,
-			goalPreferenceDefaultRes
-		)
+		target = Preferences(context).getIntStringKey(goalPreferenceKey, goalPreferenceDefault)
 		goalPreferenceJob?.cancel()
 		goalPreferenceJob = PreferenceFlows.intFromString(
 			context,
-			goalPreferenceKeyRes,
-			goalPreferenceDefaultRes
+			goalPreferenceKey,
+			goalPreferenceDefault
 		).onEach { target = it }
 			.launchIn(this)
 	}

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.goals.data.implementation
 
 import android.content.Context
-import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.StepGoal
 import com.adsamcik.tracker.shared.base.Time
@@ -17,16 +17,16 @@ import java.util.Locale
  * Weekly step goal
  */
 class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
-	override val goalReachedKeyRes: Int
-		get() = R.string.goals_week_goal_reached_key
+	override val goalReachedPreferenceKey: String
+		get() = GamePreferenceKeys.GOALS_WEEK_REACHED
 
 	override val period: GoalPeriod
 		get() = GoalPeriod.Week
 
-	override val goalPreferenceKeyRes: Int
-		get() = R.string.settings_game_goals_week_steps_key
-	override val goalPreferenceDefaultRes: Int
-		get() = R.string.settings_game_goals_week_steps_default
+	override val goalPreferenceKey: String
+		get() = GamePreferenceKeys.GOALS_WEEK_STEPS
+	override val goalPreferenceDefault: Int
+		get() = GamePreferenceKeys.GOALS_WEEK_STEPS_DEFAULT
 
 	override suspend fun updateFromDatabase(context: Context) {
 		val now = Time.now

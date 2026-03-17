@@ -17,6 +17,18 @@ import kotlin.coroutines.CoroutineContext
  * Follows user preferences about logging.
  */
 object Logger : CoroutineScope {
+    @PublishedApi
+    internal const val GLOBAL_LOG_ENABLED_KEY = "log_enabled"
+
+    @PublishedApi
+    internal const val GLOBAL_LOG_ENABLED_DEFAULT = true
+
+    @PublishedApi
+    internal const val PERFORMANCE_LOG_ENABLED_KEY = "log_performance_enable"
+
+    @PublishedApi
+    internal const val PERFORMANCE_LOG_ENABLED_DEFAULT = false
+
     private val job = SupervisorJob()
     private val dispatchers = DefaultDispatchersProvider
 
@@ -76,11 +88,7 @@ object Logger : CoroutineScope {
         val prefs = preferences ?: return
         // Sync read acceptable: called after async initialization; latency not critical for log gating
         @Suppress("DEPRECATION")
-        if (prefs.getBooleanRes(
-                R.string.settings_log_enabled_key,
-                R.string.settings_log_enabled_default
-            )
-        ) {
+        if (prefs.getBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)) {
             launch {
                 genericDao?.insert(data)
             }
@@ -106,8 +114,8 @@ object Logger : CoroutineScope {
              // Better approach: Launch a coroutine to wait for init if needed?
              // Given this is performance tracing usually, and 'log' just checks global enable,
              // let's pass it through to 'log' which buffers.
-             // However, 'log' checks 'settings_log_enabled_key'.
-             // 'logWithPreference' checks a SPECIFIC key.
+              // However, 'log' still checks the global logging preference.
+              // 'logWithPreference' checks a SPECIFIC key.
              
              launch {
                  initDeferred.await()
@@ -120,6 +128,29 @@ object Logger : CoroutineScope {
         }
     }
 
+    @AnyThread
+    @PublishedApi
+    internal fun logWithStringPreference(data: LogData, key: String, default: Boolean) {
+        if (isInitialized) {
+            preferences?.let { prefs ->
+                // Sync read acceptable: called after async initialization; latency not critical for log gating
+                @Suppress("DEPRECATION")
+                if (prefs.getBoolean(key, default)) {
+                    log(data)
+                }
+            }
+        } else {
+            launch {
+                initDeferred.await()
+                // Sync read acceptable: called after async initialization completes
+                @Suppress("DEPRECATION")
+                if (preferences?.getBoolean(key, default) == true) {
+                    log(data)
+                }
+            }
+        }
+    }
+
 
     @AnyThread
     inline fun <R> measureTimeMillis(name: String, method: () -> R): R {
@@ -128,10 +159,10 @@ object Logger : CoroutineScope {
             result = method()
         }
         val message = "Measured time of $name is $time"
-        logWithPreference(
+        logWithStringPreference(
             LogData(message = message, source = "performance"),
-            com.adsamcik.tracker.logger.R.string.settings_log_performance_enabled_key,
-            com.adsamcik.tracker.logger.R.string.settings_log_performance_enabled_default
+            PERFORMANCE_LOG_ENABLED_KEY,
+            PERFORMANCE_LOG_ENABLED_DEFAULT
         )
         if (BuildConfig.DEBUG) {
             Log.d("TrackerPerf", message)

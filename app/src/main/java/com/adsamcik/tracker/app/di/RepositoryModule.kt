@@ -13,8 +13,6 @@ import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRe
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.statistics.repository.DefaultSessionRepository
-import com.adsamcik.tracker.statistics.repository.SessionRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -35,80 +33,70 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
 
-    /**
-     * Binds SessionRepository interface to its default implementation.
-     * Used by StatsPresenterViewModel for accessing session data.
-     */
-    @Binds
-    @Singleton
-    abstract fun bindSessionRepository(
-        impl: DefaultSessionRepository
-    ): SessionRepository
+	/**
+	 * Binds GameRepository interface to its default implementation.
+	 * Used by GameViewModel for accessing game data.
+	 */
+	@Binds
+	@Singleton
+	abstract fun bindGameRepository(
+		impl: DefaultGameRepository,
+	): GameRepository
 
-    /**
-     * Binds GameRepository interface to its default implementation.
-     * Used by GameViewModel for accessing game data.
-     */
-    @Binds
-    @Singleton
-    abstract fun bindGameRepository(
-        impl: DefaultGameRepository
-    ): GameRepository
+	companion object {
+		/**
+		 * Provides TrackerSettingsRepository.
+		 * Uses @Provides instead of @Binds because DefaultTrackerSettingsRepository
+		 * has optional constructor parameters that need explicit handling.
+		 */
+		@Provides
+		@Singleton
+		fun provideTrackerSettingsRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): TrackerSettingsRepository = DefaultTrackerSettingsRepository(
+			context = context,
+			io = dispatchers.io,
+		)
 
-    companion object {
-        /**
-         * Provides TrackerSettingsRepository.
-         * Uses @Provides instead of @Binds because DefaultTrackerSettingsRepository
-         * has optional constructor parameters that need explicit handling.
-         */
-        @Provides
-        @Singleton
-        fun provideTrackerSettingsRepository(
-            @ApplicationContext context: Context,
-            dispatchers: DispatchersProvider
-        ): TrackerSettingsRepository = DefaultTrackerSettingsRepository(
-            context = context,
-            io = dispatchers.io
-        )
+		@Provides
+		@Singleton
+		fun provideMapSettingsRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): MapSettingsRepository = DefaultMapSettingsRepository(
+			context = context,
+			io = dispatchers.io,
+		)
 
-        @Provides
-        @Singleton
-        fun provideMapSettingsRepository(
-            @ApplicationContext context: Context,
-            dispatchers: DispatchersProvider
-        ): MapSettingsRepository = DefaultMapSettingsRepository(
-            context = context,
-            io = dispatchers.io
-        )
+		@Provides
+		@Singleton
+		fun provideGoalsSettingsRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): GoalsSettingsRepository = DefaultGoalsSettingsRepository(
+			context = context,
+			io = dispatchers.io,
+		)
 
-        @Provides
-        @Singleton
-        fun provideGoalsSettingsRepository(
-            @ApplicationContext context: Context,
-            dispatchers: DispatchersProvider
-        ): GoalsSettingsRepository = DefaultGoalsSettingsRepository(
-            context = context,
-            io = dispatchers.io
-        )
+		@Provides
+		@Singleton
+		fun provideTrackingParamsRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): TrackingParamsRepository = DefaultTrackingParamsRepository(
+			context = context,
+			io = dispatchers.io,
+		)
 
-        @Provides
-        @Singleton
-        fun provideTrackingParamsRepository(
-            @ApplicationContext context: Context,
-            dispatchers: DispatchersProvider
-        ): TrackingParamsRepository = DefaultTrackingParamsRepository(
-            context = context,
-            io = dispatchers.io
-        )
-
-        @Provides
-        @Singleton
-        fun provideRetentionConfigStore(
-            @ApplicationContext context: Context,
-            dispatchers: DispatchersProvider
-        ): RetentionConfigStore = RetentionConfigStore(
-            context = context,
-            ioDispatcher = dispatchers.io
-        )
-    }
+		@Provides
+		@Singleton
+		fun provideRetentionConfigStore(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): RetentionConfigStore = RetentionConfigStore(
+			context = context,
+			ioDispatcher = dispatchers.io,
+		)
+	}
 }

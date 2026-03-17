@@ -1,6 +1,4 @@
 package com.adsamcik.tracker.map.color
-
-import android.graphics.Color
 import androidx.annotation.FloatRange
 import com.adsamcik.tracker.map.color.palette.PaletteGenerator
 import kotlin.math.PI
@@ -61,67 +59,47 @@ object ColorGenerator {
 	): List<Int> {
 		require((startHue < 1.0) and (startHue > 0.0))
 
-		var hue = startHue * CIRCLE_DEGREES
-		val hsv = floatArrayOf(0.0f, 0.984f, 0.769f)
-		val colorList = ArrayList<Int>(count)
-
-		var currentSaturation = minSaturation
-		var i = 0
-		while (i < count) {
-			hsv[0] = hue.toFloat()
-			hsv[1] = currentSaturation
-			val rgb = Color.HSVToColor(hsv)
-
-			if (colorList.isEmpty() || colorList.none { isTooSimilar(rgb, it) }) {
-				colorList.add(rgb)
-				i++
-			}
-
-			// Update hue and saturation for next iteration
-			hue = (hue + GOLDEN_RATIO_DEGREES).rem(CIRCLE_DEGREES)
-			currentSaturation = (currentSaturation + saturationStep).coerceIn(minSaturation, maxSaturation)
+		val baseHue = startHue * CIRCLE_DEGREES
+		return List(count) { index ->
+			val hue = ((baseHue + (index * GOLDEN_RATIO_DEGREES)).rem(CIRCLE_DEGREES)).toFloat()
+			val saturation = (minSaturation + (index * saturationStep)).coerceIn(minSaturation, maxSaturation)
+			hsvToColor(hue, saturation, 0.769f)
 		}
-
-		return colorList
 	}
 
 	private fun isTooSimilar(color1: Int, color2: Int, threshold: Int = 32): Boolean {
-		val r1 = Color.red(color1)
-		val g1 = Color.green(color1)
-		val b1 = Color.blue(color1)
+		val r1 = red(color1)
+		val g1 = green(color1)
+		val b1 = blue(color1)
 
-		val r2 = Color.red(color2)
-		val g2 = Color.green(color2)
-		val b2 = Color.blue(color2)
+		val r2 = red(color2)
+		val g2 = green(color2)
+		val b2 = blue(color2)
 
 		val distance = sqrt(((r2 - r1).toFloat().pow(2) + (g2 - g1).toFloat().pow(2) + (b2 - b1).toFloat().pow(2)))
 		return distance < threshold
 	}
 
 	fun generateDistinctColors(count: Int, startingHue: Float): List<Int> {
-		val colorList = mutableListOf<Int>()
-		val random = Random(startingHue.toRawBits())
+		if (count <= 0) return emptyList()
 
-		while (colorList.size < count) {
-			val hue = randomHue(random)
-			val saturation = random.nextFloat()
-			val brightness = random.nextFloat()
-			val newColor = Color.HSVToColor(floatArrayOf(hue, saturation, brightness))
+		val normalizedStart = ((startingHue % CIRCLE_DEGREES.toFloat()) + CIRCLE_DEGREES.toFloat()) % CIRCLE_DEGREES.toFloat()
+		val phase = startingHue.toRawBits().ushr(1)
 
-			if (colorList.isEmpty() || colorList.none { isTooSimilar(newColor, it) }) {
-				colorList.add(newColor)
+		return List(count) { index ->
+			var hue = (normalizedStart + (index * GOLDEN_RATIO_DEGREES.toFloat())) % CIRCLE_DEGREES.toFloat()
+			if (hue in 60.0f..160.0f) {
+				hue = (hue + 120.0f) % CIRCLE_DEGREES.toFloat()
 			}
+
+			val saturation = 0.65f + (((phase + index) % 3) * 0.1f)
+			val brightness = 0.8f + (((phase + index) % 2) * 0.1f)
+			hsvToColor(
+				hue,
+				saturation.coerceAtMost(1.0f),
+				brightness.coerceAtMost(1.0f)
+			)
 		}
-
-		return colorList
-	}
-
-	private fun randomHue(random: Random): Float {
-		var hue: Float
-		do {
-			hue = random.nextFloat() * 360
-		} while (hue in 60.0..160.0) // Avoiding problematic yellow-green hues
-		return hue
 	}
 
 	private fun isTooSimilarCiede(color1: Int, color2: Int): Boolean {
@@ -133,9 +111,9 @@ object ColorGenerator {
 	}
 
 	fun rgbToLab(color: Int): FloatArray {
-		val r = Color.red(color) / 255.0
-		val g = Color.green(color) / 255.0
-		val b = Color.blue(color) / 255.0
+		val r = pivotRgbChannel(red(color) / 255.0)
+		val g = pivotRgbChannel(green(color) / 255.0)
+		val b = pivotRgbChannel(blue(color) / 255.0)
 
 		// Convert RGB to XYZ
 		val x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047
@@ -153,6 +131,51 @@ object ColorGenerator {
 
 		return floatArrayOf(l.toFloat(), a.toFloat(), bLab.toFloat())
 	}
+
+	private fun pivotRgbChannel(channel: Double): Double {
+		return if (channel <= 0.04045) {
+			channel / 12.92
+		} else {
+			((channel + 0.055) / 1.055).pow(2.4)
+		}
+	}
+
+	private fun hsvToColor(hue: Float, saturation: Float, value: Float): Int {
+		val normalizedHue = ((hue % 360f) + 360f) % 360f
+		val chroma = value * saturation
+		val segment = normalizedHue / 60f
+		val secondary = chroma * (1f - abs((segment % 2f) - 1f))
+		val match = value - chroma
+
+		val (rPrime, gPrime, bPrime) = when {
+			segment < 1f -> Triple(chroma, secondary, 0f)
+			segment < 2f -> Triple(secondary, chroma, 0f)
+			segment < 3f -> Triple(0f, chroma, secondary)
+			segment < 4f -> Triple(0f, secondary, chroma)
+			segment < 5f -> Triple(secondary, 0f, chroma)
+			else -> Triple(chroma, 0f, secondary)
+		}
+
+		return argb(
+			alpha = 255,
+			red = ((rPrime + match) * 255f).toInt().coerceIn(0, 255),
+			green = ((gPrime + match) * 255f).toInt().coerceIn(0, 255),
+			blue = ((bPrime + match) * 255f).toInt().coerceIn(0, 255)
+		)
+	}
+
+	private fun argb(alpha: Int, red: Int, green: Int, blue: Int): Int {
+		return ((alpha and 0xFF) shl 24) or
+			((red and 0xFF) shl 16) or
+			((green and 0xFF) shl 8) or
+			(blue and 0xFF)
+	}
+
+	private fun red(color: Int): Int = (color shr 16) and 0xFF
+
+	private fun green(color: Int): Int = (color shr 8) and 0xFF
+
+	private fun blue(color: Int): Int = color and 0xFF
 
 	private fun ciede2000(lab1: FloatArray, lab2: FloatArray): Double {
 		val L1 = lab1[0].toDouble()

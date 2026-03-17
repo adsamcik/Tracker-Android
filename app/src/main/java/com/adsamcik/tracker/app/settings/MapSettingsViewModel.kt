@@ -10,6 +10,7 @@ import com.adsamcik.tracker.map.basemap.BasemapImportResult
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +33,7 @@ class MapSettingsViewModel @Inject constructor(
     val skiInfrastructureManager = SkiInfrastructureManager(context, dispatchers)
 
     // Basemap path key for legacy preference (basemap path not in proto — it's file-system state)
-    private val basemapPathKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
+    private val basemapPathKey = MapPreferenceKeys.BASEMAP_PATH
     private val prefs get() = preferences
 
     // Basemap state (file-system, not in proto)

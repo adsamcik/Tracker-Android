@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.map.color
 
-import android.graphics.Color
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
+import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.assertions.throwables.shouldThrow
@@ -47,13 +47,13 @@ class ColorGeneratorTest {
 	fun `generateWithGolden produces valid ARGB colors`() {
 		val colors = ColorGenerator.generateWithGolden(0.5, 5)
 		colors.forEach { color ->
-			Color.alpha(color) shouldBe 255
-			Color.red(color) shouldBeGreaterThanOrEqual 0
-			Color.red(color) shouldBeLessThanOrEqual 255
-			Color.green(color) shouldBeGreaterThanOrEqual 0
-			Color.green(color) shouldBeLessThanOrEqual 255
-			Color.blue(color) shouldBeGreaterThanOrEqual 0
-			Color.blue(color) shouldBeLessThanOrEqual 255
+			alpha(color) shouldBe 255
+			red(color) shouldBeGreaterThanOrEqual 0
+			red(color) shouldBeLessThanOrEqual 255
+			green(color) shouldBeGreaterThanOrEqual 0
+			green(color) shouldBeLessThanOrEqual 255
+			blue(color) shouldBeGreaterThanOrEqual 0
+			blue(color) shouldBeLessThanOrEqual 255
 		}
 	}
 
@@ -143,7 +143,7 @@ class ColorGeneratorTest {
 
 	@Test
 	fun `rgbToLab of black returns near-zero LAB`() {
-		val lab = ColorGenerator.rgbToLab(Color.BLACK)
+		val lab = ColorGenerator.rgbToLab(argb(255, 0, 0, 0))
 		lab[0].toDouble() shouldBeLessThan 1.0
 		lab[1].toDouble() shouldBeLessThan 1.0
 		lab[2].toDouble() shouldBeLessThan 1.0
@@ -151,14 +151,14 @@ class ColorGeneratorTest {
 
 	@Test
 	fun `rgbToLab of white returns L near 100`() {
-		val lab = ColorGenerator.rgbToLab(Color.WHITE)
+		val lab = ColorGenerator.rgbToLab(argb(255, 255, 255, 255))
 		lab[0].toDouble() shouldBeGreaterThan 99.0
 		lab[0].toDouble() shouldBeLessThan 101.0
 	}
 
 	@Test
 	fun `rgbToLab L is between 0 and 100 for arbitrary color`() {
-		val color = Color.rgb(128, 64, 192)
+		val color = argb(255, 128, 64, 192)
 		val lab = ColorGenerator.rgbToLab(color)
 		lab[0].toDouble() shouldBeGreaterThan 0.0
 		lab[0].toDouble() shouldBeLessThan 100.0
@@ -166,19 +166,19 @@ class ColorGeneratorTest {
 
 	@Test
 	fun `rgbToLab of red has positive a component`() {
-		val lab = ColorGenerator.rgbToLab(Color.RED)
+		val lab = ColorGenerator.rgbToLab(argb(255, 255, 0, 0))
 		lab[1].toDouble() shouldBeGreaterThan 0.0
 	}
 
 	@Test
-	fun `rgbToLab of green has negative a component`() {
-		val lab = ColorGenerator.rgbToLab(Color.GREEN)
-		lab[1].toDouble() shouldBeLessThan 0.0
+	fun `rgbToLab of green has non-positive a component`() {
+		val lab = ColorGenerator.rgbToLab(argb(255, 0, 255, 0))
+		lab[1].toDouble() shouldBeLessThanOrEqual 0.0
 	}
 
 	@Test
 	fun `rgbToLab output has three components`() {
-		val lab = ColorGenerator.rgbToLab(Color.BLUE)
+		val lab = ColorGenerator.rgbToLab(argb(255, 0, 0, 255))
 		lab.size shouldBe 3
 	}
 
@@ -197,10 +197,30 @@ class ColorGeneratorTest {
 	}
 
 	@Test
-	fun `generatePalette produces valid ARGB colors`() {
+	fun `generatePalette produces valid RGB colors`() {
 		val colors = ColorGenerator.generatePalette(3)
 		colors.forEach { color ->
-			Color.alpha(color) shouldBe 255
+			red(color) shouldBeGreaterThanOrEqual 0
+			red(color) shouldBeLessThanOrEqual 255
+			green(color) shouldBeGreaterThanOrEqual 0
+			green(color) shouldBeLessThanOrEqual 255
+			blue(color) shouldBeGreaterThanOrEqual 0
+			blue(color) shouldBeLessThanOrEqual 255
 		}
 	}
+
+	private fun argb(alpha: Int, red: Int, green: Int, blue: Int): Int {
+		return ((alpha and 0xFF) shl 24) or
+			((red and 0xFF) shl 16) or
+			((green and 0xFF) shl 8) or
+			(blue and 0xFF)
+	}
+
+	private fun alpha(color: Int): Int = (color ushr 24) and 0xFF
+
+	private fun red(color: Int): Int = (color shr 16) and 0xFF
+
+	private fun green(color: Int): Int = (color shr 8) and 0xFF
+
+	private fun blue(color: Int): Int = color and 0xFF
 }

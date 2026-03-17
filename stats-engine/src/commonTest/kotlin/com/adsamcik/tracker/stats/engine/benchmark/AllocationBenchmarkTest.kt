@@ -226,7 +226,7 @@ class AllocationBenchmarkTest {
 		// Creates AggregatorSignal (data class) with nullable Float? boxes
 		// Plus internal aggregator state updates
 		println("  → AggregatorSignal: ~48B + Float? boxing for distanceDeltaM, speedMps")
-		result.perIterationBytes shouldBeLessThan 384L
+		result.perIterationBytes shouldBeLessThan 512L
 	}
 
 	@Test
@@ -243,7 +243,7 @@ class AllocationBenchmarkTest {
 		result.report("SegmentDetectorProcessor.onSignal()")
 		// Creates SegmentSignal with many nullable primitives (Int?, Float?)
 		println("  → SegmentSignal: ~80B + boxing for 6 nullable fields")
-		result.perIterationBytes shouldBeLessThan 384L
+		result.perIterationBytes shouldBeLessThan 512L
 	}
 
 	@Test

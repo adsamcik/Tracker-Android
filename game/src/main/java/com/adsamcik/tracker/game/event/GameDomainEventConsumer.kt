@@ -16,6 +16,7 @@ import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.worker.ChallengeWorker
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -78,9 +79,9 @@ class GameDomainEventConsumer @Inject constructor(
 		enqueueAchievementWorker()
 
 		@Suppress("DEPRECATION")
-		val challengesEnabled = preferences.getBooleanRes(
-			R.string.settings_game_challenge_enable_key,
-			R.string.settings_game_challenge_enable_default,
+		val challengesEnabled = preferences.getBoolean(
+			GamePreferenceKeys.CHALLENGE_ENABLED,
+			GamePreferenceKeys.CHALLENGE_ENABLED_DEFAULT,
 		)
 
 		if (!challengesEnabled) return

@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -35,7 +34,6 @@ import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
 fun MapSettingsScreen(
     viewModel: MapSettingsViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
     val basemapPath by viewModel.basemapPath.collectAsState()
     val skiInfraLoaded by viewModel.skiInfraLoaded.collectAsState()
     val quality by viewModel.quality.collectAsState()
@@ -158,42 +156,42 @@ fun MapSettingsScreen(
                 title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_advanced_section_title),
                 initiallyExpanded = false
             ) {
-                val qualityValues = context.resources.getStringArray(com.adsamcik.tracker.map.R.array.settings_map_quality_values).map { it.toFloat() }
+                val qualityValues = MapSettingOptions.quality
+                val qualityIndex = sliderIndexForValue(quality, qualityValues)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_quality_title),
-                    value = quality,
-                    valueRange = qualityValues.first()..qualityValues.last(),
+                    value = qualityIndex,
+                    valueRange = 0f..qualityValues.lastIndex.toFloat(),
                     steps = qualityValues.size - 2,
-                    valueLabel = { "%.1fx".format(it) },
-                    onValueChange = { viewModel.setQuality(it) },
+                    valueLabel = { "%.1fx".format(valueForSliderIndex(it, qualityValues)) },
+                    onValueChange = { viewModel.setQuality(valueForSliderIndex(it, qualityValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_map_quality
                 )
 
-                val heatValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_max_heat_values)
+                val heatValues = MapSettingOptions.maxHeat
+                val heatIndex = sliderIndexForValue(maxHeat, heatValues)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_max_heat_title),
-                    value = maxHeat.toFloat(),
-                    valueRange = heatValues.first().toFloat()..heatValues.last().toFloat(),
+                    value = heatIndex,
+                    valueRange = 0f..heatValues.lastIndex.toFloat(),
                     steps = heatValues.size - 2,
-                    valueLabel = { "%d".format(it.toInt()) },
-                    onValueChange = { viewModel.setMaxHeat(it.toInt()) },
+                    valueLabel = { "%d".format(valueForSliderIndex(it, heatValues)) },
+                    onValueChange = { viewModel.setMaxHeat(valueForSliderIndex(it, heatValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_max_heat_points
                 )
 
-                val visitValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_visit_threshold_values)
+                val visitValues = MapSettingOptions.visitThresholdSeconds
+                val visitIndex = sliderIndexForValue(visitThreshold, visitValues)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_title),
-                    value = visitThreshold.toFloat(),
-                    valueRange = visitValues.first().toFloat()..visitValues.last().toFloat(),
+                    value = visitIndex,
+                    valueRange = 0f..visitValues.lastIndex.toFloat(),
                     steps = visitValues.size - 2,
-                    valueLabel = {
-                        val minutes = it.toInt() / 60
-                        if (minutes < 60) "$minutes min" else "${minutes / 60}h ${minutes % 60}min"
-                    },
-                    onValueChange = { viewModel.setVisitThreshold(it.toInt()) },
+                    valueLabel = { formatVisitThreshold(valueForSliderIndex(it, visitValues)) },
+                    onValueChange = { viewModel.setVisitThreshold(valueForSliderIndex(it, visitValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
                 )
             }

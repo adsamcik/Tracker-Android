@@ -117,6 +117,7 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
 	implementation(project(":statistics"))
+	implementation(project(":stats-data"))
 	implementation(project(":map"))
 	implementation(project(":game"))
 	implementation(project(":dashboard"))

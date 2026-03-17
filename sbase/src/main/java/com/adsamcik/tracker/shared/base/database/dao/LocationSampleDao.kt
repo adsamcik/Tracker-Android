@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface LocationSampleDao : BaseDao<LocationSample> {
+
+	@Query("SELECT COUNT(*) FROM location_sample")
+	suspend fun countAll(): Long
 	
 	/**
 	 * Get all location samples within time range, ordered by time.

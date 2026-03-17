@@ -48,6 +48,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.shared.MapStyleProvider
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -142,7 +143,7 @@ fun MapScreen(
     val basemapManager = remember { BasemapManager(context) }
     val prefs = remember { Preferences(context) }
     val basemapPathKey = remember {
-        context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
+        MapPreferenceKeys.BASEMAP_PATH
     }
     val customPath by prefs.observeString(basemapPathKey, "")
         .collectAsState(initial = "")

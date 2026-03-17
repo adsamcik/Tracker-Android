@@ -18,11 +18,6 @@ android {
 		
 		consumerProguardFiles("consumer-rules.pro")
 
-		ksp {
-			arg("room.schemaLocation", "$projectDir/schemas")
-			arg("room.incremental", "true")
-			arg("room.generateKotlin", "true")
-		}
 	}
 
 	sourceSets {
@@ -65,6 +60,16 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
+	}
+
+	ksp {
+		arg("room.schemaLocation", "$projectDir/schemas")
+		arg("room.incremental", "true")
+		arg("room.generateKotlin", "false")
+	}
+
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
 	}
     namespace = "com.adsamcik.tracker.shared.base"
 	buildFeatures {

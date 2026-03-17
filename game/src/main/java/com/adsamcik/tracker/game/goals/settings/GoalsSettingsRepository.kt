@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
-import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlinx.coroutines.CoroutineDispatcher
@@ -83,19 +83,19 @@ class DefaultGoalsSettingsRepository(
         get() = Preferences(context)
 
     private val notificationDefault by lazy {
-        context.getString(R.string.settings_game_goals_notification_enabled_default).toBoolean()
+        GamePreferenceKeys.GOALS_NOTIFICATION_ENABLED_DEFAULT
     }
 
     private val dailyStepDefault by lazy {
-        context.getString(R.string.settings_game_goals_day_steps_default).toInt()
+        GamePreferenceKeys.GOALS_DAY_STEPS_DEFAULT
     }
 
     private val weeklyStepDefault by lazy {
-        context.getString(R.string.settings_game_goals_week_steps_default).toInt()
+        GamePreferenceKeys.GOALS_WEEK_STEPS_DEFAULT
     }
 
     private val dailyLimitDefault by lazy {
-        context.getString(R.string.settings_game_goals_week_steps_daily_percentage_default).toFloat()
+        GamePreferenceKeys.GOALS_WEEK_STEPS_DAILY_PERCENTAGE_DEFAULT
     }
 
     override val data: Flow<GoalsSettingsState> = context.goalsSettingsDataStore.data
@@ -192,24 +192,24 @@ class DefaultGoalsSettingsRepository(
     @Suppress("DEPRECATION")
     private fun readFromPreferences(): GoalsSettingsState {
         val notificationsEnabled = prefs.getBoolean(
-            context.getString(R.string.settings_game_goals_notification_enabled_key),
+            GamePreferenceKeys.GOALS_NOTIFICATION_ENABLED,
             notificationDefault
         )
-        val dailyGoal = prefs.getIntResString(
-            R.string.settings_game_goals_day_steps_key,
-            R.string.settings_game_goals_day_steps_default
+        val dailyGoal = prefs.getIntStringKey(
+            GamePreferenceKeys.GOALS_DAY_STEPS,
+            dailyStepDefault,
         )
-        val weeklyGoal = prefs.getIntResString(
-            R.string.settings_game_goals_week_steps_key,
-            R.string.settings_game_goals_week_steps_default
+        val weeklyGoal = prefs.getIntStringKey(
+            GamePreferenceKeys.GOALS_WEEK_STEPS,
+            weeklyStepDefault,
         )
-        val portion = prefs.getFloatResString(
-            R.string.settings_game_goals_week_steps_daily_percentage_key,
-            R.string.settings_game_goals_week_steps_daily_percentage_default
+        val portion = prefs.getFloatStringKey(
+            GamePreferenceKeys.GOALS_WEEK_STEPS_DAILY_PERCENTAGE,
+            dailyLimitDefault,
         ).coerceIn(MIN_DAILY_PORTION, MAX_DAILY_PORTION)
         val challengesEnabled = prefs.getBoolean(
-            context.getString(R.string.settings_game_challenge_enable_key),
-            context.getString(R.string.settings_game_challenge_enable_default).toBoolean()
+            GamePreferenceKeys.CHALLENGE_ENABLED,
+            GamePreferenceKeys.CHALLENGE_ENABLED_DEFAULT,
         )
 
         return GoalsSettingsState(

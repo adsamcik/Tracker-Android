@@ -2,8 +2,10 @@ package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.database.data.WifiObservationBrowseRow
+import com.adsamcik.tracker.shared.base.database.data.WifiObservationScanSummary
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -42,6 +44,33 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	@Query("SELECT * FROM wifi_observation WHERE bssid = :bssid AND time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	suspend fun getForBssid(bssid: String, fromMs: Long, toMs: Long): List<WifiObservation>
 
+	@Query(
+		"""
+		SELECT
+			bssid,
+			ssid,
+			capabilities,
+			frequency,
+			MIN(time_ms) AS first_seen_ms,
+			MAX(time_ms) AS last_seen_ms
+		FROM wifi_observation
+		WHERE (:bssid IS NULL OR bssid LIKE '%' || :bssid || '%' ESCAPE '\')
+			AND (:ssid IS NULL OR ssid LIKE '%' || :ssid || '%' ESCAPE '\')
+			AND (:capabilities IS NULL OR capabilities LIKE '%' || :capabilities || '%' ESCAPE '\')
+			AND (:frequencyPrefix IS NULL OR CAST(frequency AS TEXT) LIKE :frequencyPrefix || '%' ESCAPE '\')
+		GROUP BY bssid, ssid, capabilities, frequency
+		ORDER BY bssid, ssid, frequency
+		LIMIT :limit
+		"""
+	)
+	suspend fun getBrowseItems(
+		bssid: String?,
+		ssid: String?,
+		capabilities: String?,
+		frequencyPrefix: String?,
+		limit: Int,
+	): List<WifiObservationBrowseRow>
+
 	/**
 	 * Count observations without coordinates.
 	 */
@@ -59,6 +88,15 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	 */
 	@Query("SELECT COUNT(DISTINCT bssid) FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs")
 	fun countDistinctBssid(fromMs: Long, toMs: Long): Long
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS total_observations,
+			COUNT(DISTINCT time_ms) AS distinct_scan_times
+		FROM wifi_observation
+		"""
+	)
+	suspend fun getScanSummary(): WifiObservationScanSummary
 
 	/**
 	 * Delete all Wi-Fi observations.

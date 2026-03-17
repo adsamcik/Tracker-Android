@@ -38,6 +38,13 @@ object PreferenceFlows {
             .distinctUntilChanged()
     }
 
+    fun intFromString(context: Context, key: String, default: Int): Flow<Int> {
+        val defaultString = default.toString()
+        return LegacyPreferenceStore.stringOrIntFlow(context, key, defaultString)
+            .map { it.toIntOrNull() ?: default }
+            .distinctUntilChanged()
+    }
+
     fun string(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int): Flow<String> {
         val key = context.getString(keyRes)
         val default = context.getString(defaultRes)

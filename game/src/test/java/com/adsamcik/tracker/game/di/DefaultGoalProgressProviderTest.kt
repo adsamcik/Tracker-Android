@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.di
 
 import android.content.Context
-import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.repository.StepsSummaryData
 import com.adsamcik.tracker.shared.base.di.GoalProgress
@@ -36,10 +35,6 @@ class DefaultGoalProgressProviderTest {
 	fun setUp() {
 		context = mockk(relaxed = true)
 		gameRepository = mockk(relaxed = true)
-
-		every {
-			context.getString(R.string.settings_game_challenge_enable_key)
-		} returns "challenge_enable_key"
 
 		mockkConstructor(Preferences::class)
 		every { anyConstructed<Preferences>().getBoolean(any(), any()) } returns true

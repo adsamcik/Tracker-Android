@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SessionSegmentStats
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,34 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface SessionSegmentDao : BaseDao<SessionSegment> {
+
+	@Query(
+		"""
+		SELECT
+			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
+			COALESCE(SUM(sample_count), 0) AS collection_count,
+			COALESCE(SUM(distance_m), 0) AS distance_m,
+			COALESCE(SUM(steps), 0) AS step_count
+		FROM session_segment
+		WHERE sample_count > 0
+		"""
+	)
+	suspend fun getSummary(): SessionSegmentStats
+
+	@Query(
+		"""
+		SELECT
+			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
+			COALESCE(SUM(sample_count), 0) AS collection_count,
+			COALESCE(SUM(distance_m), 0) AS distance_m,
+			COALESCE(SUM(steps), 0) AS step_count
+		FROM session_segment
+		WHERE sample_count > 0
+			AND start_time_ms >= :fromMs
+			AND end_time_ms <= :toMs
+		"""
+	)
+	suspend fun getSummaryBetween(fromMs: Long, toMs: Long): SessionSegmentStats
 	
 	/**
 	 * Get all session segments within time range, ordered by start time.

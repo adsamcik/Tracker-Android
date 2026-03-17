@@ -27,11 +27,11 @@ abstract class BaseGoal(
 	override val coroutineContext: CoroutineContext
 		get() = dispatchers.main + job
 
-	abstract val goalPreferenceKeyRes: Int
-	abstract val goalPreferenceDefaultRes: Int
+	abstract val goalPreferenceKey: String
+	abstract val goalPreferenceDefault: Int
 
-	abstract val goalReachedKeyRes: Int
-	private lateinit var goalReachedKey: String
+	abstract val goalReachedPreferenceKey: String
+	private lateinit var persistedGoalReachedKey: String
 
 	abstract val period: GoalPeriod
 	override var onValueChanged: (value: Int) -> Unit = {}
@@ -60,14 +60,14 @@ abstract class BaseGoal(
 			isReported = nowRounded == value
 			if (getGoalTime(Time.now) < nowRounded) {
 				Reporter.report(
-						"""Goal ${javaClass.name} with key $goalReachedKey has future time 
+						"""Goal ${javaClass.name} with key $persistedGoalReachedKey has future time 
 						   set as goal. Current time: ${nowRounded}, 
 						   Goal time: ${value},
 						   Now time ${Time.today.toEpochMillis()}"""
 				)
 			}
 			if (isEnabled) {
-				launch { persistence.persist(goalReachedKey, value) }
+				launch { persistence.persist(persistedGoalReachedKey, value) }
 			}
 		}
 
@@ -92,8 +92,8 @@ abstract class BaseGoal(
 	override suspend fun onEnable(context: Context) {
 		onEnableInternal(context)
 		updateFromDatabase(context)
-		goalReachedKey = context.getString(goalReachedKeyRes)
-		persistence.load(goalReachedKey)?.let { lastReportTime = it }
+		persistedGoalReachedKey = goalReachedPreferenceKey
+		persistence.load(persistedGoalReachedKey)?.let { lastReportTime = it }
 		isEnabled = true
 	}
 

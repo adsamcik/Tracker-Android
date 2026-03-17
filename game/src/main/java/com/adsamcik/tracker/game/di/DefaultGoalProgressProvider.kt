@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.di
 
 import android.content.Context
-import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
@@ -29,17 +29,23 @@ class DefaultGoalProgressProvider(
 ) : GoalProgressProvider {
     
     private val prefs = Preferences(context)
-    private val challengeEnabledKey = context.getString(R.string.settings_game_challenge_enable_key)
+    private val challengeEnabledKey = GamePreferenceKeys.CHALLENGE_ENABLED
     
     // Sync read for initial value; acceptable at construction time
     @Suppress("DEPRECATION")
-    private val initialGamificationEnabled = prefs.getBoolean(challengeEnabledKey, true)
+    private val initialGamificationEnabled = prefs.getBoolean(
+        challengeEnabledKey,
+        GamePreferenceKeys.CHALLENGE_ENABLED_DEFAULT,
+    )
     
     override val goalProgressFlow: StateFlow<GoalProgress> = gameRepository.getStepsSummary()
         .map { stepsSummary ->
             // Sync read inside Flow map: acceptable for infrequent updates; avoids combineLatest complexity
             @Suppress("DEPRECATION")
-            val gamificationEnabled = prefs.getBoolean(challengeEnabledKey, true)
+            val gamificationEnabled = prefs.getBoolean(
+                challengeEnabledKey,
+                GamePreferenceKeys.CHALLENGE_ENABLED_DEFAULT,
+            )
             GoalProgress(
                 stepsToday = stepsSummary?.stepsToday ?: 0,
                 goalSteps = stepsSummary?.goalDay ?: 0,

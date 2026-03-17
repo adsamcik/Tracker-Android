@@ -46,6 +46,7 @@ fun StatsRoute(
 
     // Collect statistics state from ViewModel
     val summaryStatsState by vm.summaryStatsState.collectAsState()
+    val wifiStatsState by vm.wifiStatsState.collectAsState()
     val weeklyBars by vm.weeklyBars.collectAsState()
     val heatmapData by vm.heatmapData.collectAsState()
     val activeDateFilter by vm.activeDateFilter.collectAsState()
@@ -78,7 +79,10 @@ fun StatsRoute(
             showSummaryDialog = true
         },
         onShowWeek = { showDateRangeDialog = true },
-        onOpenWifi = { showWifiDialog = true },
+        onOpenWifi = {
+            vm.loadWifiStats()
+            showWifiDialog = true
+        },
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
         heatmapData = heatmapData,
@@ -103,6 +107,7 @@ fun StatsRoute(
     if (showWifiDialog) {
         WifiStatsDialog(
             visible = showWifiDialog,
+            state = wifiStatsState,
             onDismiss = { showWifiDialog = false }
         )
     }
