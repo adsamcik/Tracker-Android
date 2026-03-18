@@ -45,7 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
