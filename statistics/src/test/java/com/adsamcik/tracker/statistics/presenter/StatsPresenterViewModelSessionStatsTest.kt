@@ -143,6 +143,8 @@ class StatsPresenterViewModelSessionStatsTest {
 			duration = DurationMs(12_000L),
 			collections = 42L,
 			totalDistance = DistanceM(1234.5f),
+			onFootDistance = DistanceM(456.7f),
+			inVehicleDistance = DistanceM(890.1f),
 			steps = StepCount(678),
 			tripCount = 9L,
 			locationCount = 77L,

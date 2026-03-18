@@ -56,13 +56,13 @@ class SessionStatsUiFormatter @Inject constructor(
 				R.string.stats_distance_on_foot,
 				com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
 				StatisticDisplayType.INFORMATION,
-				resources.formatDistance(0f, SUMMARY_DECIMAL_PLACES, lengthSystem),
+				resources.formatDistance(snapshot.onFootDistance.raw, SUMMARY_DECIMAL_PLACES, lengthSystem),
 			),
 			Stat(
 				R.string.stats_distance_in_vehicle,
 				com.adsamcik.tracker.shared.base.R.drawable.ic_directions_car_white_24dp,
 				StatisticDisplayType.INFORMATION,
-				resources.formatDistance(0f, SUMMARY_DECIMAL_PLACES, lengthSystem),
+				resources.formatDistance(snapshot.inVehicleDistance.raw, SUMMARY_DECIMAL_PLACES, lengthSystem),
 			),
 			Stat(
 				R.string.stats_collections,

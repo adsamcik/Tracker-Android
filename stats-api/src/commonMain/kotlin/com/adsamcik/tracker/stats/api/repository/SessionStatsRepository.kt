@@ -11,6 +11,8 @@ data class SessionStatsSnapshot(
 	val duration: DurationMs,
 	val collections: Long,
 	val totalDistance: DistanceM,
+	val onFootDistance: DistanceM,
+	val inVehicleDistance: DistanceM,
 	val steps: StepCount,
 	val tripCount: Long,
 	val locationCount: Long,

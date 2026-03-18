@@ -19,12 +19,17 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
+			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
+			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
 			COALESCE(SUM(steps), 0) AS step_count
 		FROM session_segment
 		WHERE sample_count > 0
 		"""
 	)
-	suspend fun getSummary(): SessionSegmentStats
+	suspend fun getSummary(
+		onFootActivities: List<Int>,
+		inVehicleActivities: List<Int>,
+	): SessionSegmentStats
 
 	@Query(
 		"""
@@ -32,6 +37,8 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
+			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
+			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
 			COALESCE(SUM(steps), 0) AS step_count
 		FROM session_segment
 		WHERE sample_count > 0
@@ -39,7 +46,12 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			AND end_time_ms <= :toMs
 		"""
 	)
-	suspend fun getSummaryBetween(fromMs: Long, toMs: Long): SessionSegmentStats
+	suspend fun getSummaryBetween(
+		fromMs: Long,
+		toMs: Long,
+		onFootActivities: List<Int>,
+		inVehicleActivities: List<Int>,
+	): SessionSegmentStats
 	
 	/**
 	 * Get all session segments within time range, ordered by start time.

@@ -31,6 +31,8 @@ class SessionStatsUiFormatterTest {
 		duration = DurationMs(12_000L),
 		collections = 42L,
 		totalDistance = DistanceM(1234.5f),
+		onFootDistance = DistanceM(456.7f),
+		inVehicleDistance = DistanceM(890.1f),
 		steps = StepCount(678),
 		tripCount = 9L,
 		locationCount = 77L,
@@ -52,7 +54,8 @@ class SessionStatsUiFormatterTest {
 		every { 5L.formatReadable() } returns "5"
 		mockkStatic("com.adsamcik.tracker.shared.utils.extension.StringExtensionsKt")
 		every { resources.formatDistance(1234.5f, 1, LengthSystem.Metric) } returns "1.2 km"
-		every { resources.formatDistance(0f, 1, LengthSystem.Metric) } returns "0 m"
+		every { resources.formatDistance(456.7f, 1, LengthSystem.Metric) } returns "456.7 m"
+		every { resources.formatDistance(890.1f, 1, LengthSystem.Metric) } returns "890.1 m"
 	}
 
 	@AfterEach
@@ -78,6 +81,8 @@ class SessionStatsUiFormatterTest {
 		)
 		stats[0].data shouldBe "12s"
 		stats[1].data shouldBe "1.2 km"
+		stats[2].data shouldBe "456.7 m"
+		stats[3].data shouldBe "890.1 m"
 		stats[4].data shouldBe "42"
 		stats[9].data shouldBe "9"
 	}
@@ -98,6 +103,8 @@ class SessionStatsUiFormatterTest {
 			R.string.stats_wifi_count,
 			R.string.stats_cell_count,
 		)
+		stats[2].data shouldBe "456.7 m"
+		stats[3].data shouldBe "890.1 m"
 		stats[6].data shouldBe "9"
 		stats[7].data shouldBe "77"
 	}

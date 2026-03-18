@@ -9,6 +9,10 @@ data class SessionSegmentStats(
 	val collectionCount: Long,
 	@ColumnInfo(name = "distance_m")
 	val distanceM: Float,
+	@ColumnInfo(name = "on_foot_distance_m")
+	val onFootDistanceM: Float,
+	@ColumnInfo(name = "in_vehicle_distance_m")
+	val inVehicleDistanceM: Float,
 	@ColumnInfo(name = "step_count")
 	val stepCount: Long,
 )
