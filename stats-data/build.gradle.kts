@@ -68,6 +68,7 @@ dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.paging.runtime)
 
 	// Arrow
 	implementation(libs.arrow.core)

@@ -18,9 +18,11 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 @ExtendWith(RobolectricExtension::class)
+@Config(sdk = [34])
 class LocationSampleDaoTest {
 
 	private lateinit var database: AppDatabase

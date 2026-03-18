@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.io.ByteArrayInputStream
 
@@ -27,6 +28,7 @@ import java.io.ByteArrayInputStream
  * which is only available with the Android runtime.
  */
 @ExtendWith(RobolectricExtension::class)
+@Config(sdk = [34])
 class JsonImportTest {
 
 	private val jsonImport = JsonImport()

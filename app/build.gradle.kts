@@ -83,6 +83,8 @@ android {
 
 	buildFeatures {
 		compose = true
+		buildConfig = true
+		resValues = true
 		// viewBinding no longer used; Compose-only UI
 		viewBinding = false
 	}
@@ -99,9 +101,6 @@ android {
 	dependenciesInfo {
 		includeInApk = true
 		includeInBundle = true
-	}
-	buildFeatures {
-		buildConfig = true
 	}
 }
 

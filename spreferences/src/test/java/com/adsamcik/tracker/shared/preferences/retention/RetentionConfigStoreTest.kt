@@ -10,10 +10,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @ExtendWith(RobolectricExtension::class)
+@Config(sdk = [34])
 class RetentionConfigStoreTest {
 
 	private lateinit var context: Context

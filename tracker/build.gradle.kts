@@ -60,6 +60,11 @@ android {
 		unitTests.isIncludeAndroidResources = true
 	}
 
+	lint {
+		checkReleaseBuilds = true
+		abortOnError = false
+	}
+
     namespace = "com.adsamcik.tracker.tracker"
 }
 
@@ -70,7 +75,7 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 	implementation(project(":stats-api"))
-	implementation(project(":stats-engine"))
+	api(project(":stats-engine"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)

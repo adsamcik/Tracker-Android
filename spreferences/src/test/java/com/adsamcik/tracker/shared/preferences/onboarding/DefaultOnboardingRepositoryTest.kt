@@ -19,7 +19,7 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
+@Config(manifest = Config.NONE, sdk = [34])
 class DefaultOnboardingRepositoryTest {
 
     private lateinit var context: Context

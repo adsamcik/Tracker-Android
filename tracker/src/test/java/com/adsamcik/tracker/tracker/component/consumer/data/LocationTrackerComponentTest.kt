@@ -15,11 +15,13 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
 import org.robolectric.RuntimeEnvironment
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import kotlin.math.abs
 
 @ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 @DisplayName("LocationTrackerComponent")
 class LocationTrackerComponentTest {
 

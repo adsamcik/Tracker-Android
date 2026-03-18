@@ -2,6 +2,14 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.withGroovyBuilder
 
+private fun String.kspVariantName(): String? {
+    if (!startsWith("ksp") || !endsWith("Kotlin")) return null
+
+    return removePrefix("ksp")
+        .removeSuffix("Kotlin")
+        .takeIf(String::isNotBlank)
+}
+
 /**
  * Configures the Protobuf Gradle plugin for Android library modules.
  *
@@ -60,19 +68,13 @@ fun Project.configureProtobuf() {
     // are available when KSP processors (Room, Hilt) run.
     afterEvaluate {
         tasks.forEach { task ->
-            if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
-                when {
-                    task.name.contains("DebugUnitTest") -> {
-                        tasks.findByName("generateDebugUnitTestProto")?.let { task.dependsOn(it) }
-                        task.dependsOn("generateDebugProto")
-                    }
-                    task.name.contains("ReleaseUnitTest") -> {
-                        tasks.findByName("generateReleaseUnitTestProto")?.let { task.dependsOn(it) }
-                        task.dependsOn("generateReleaseProto")
-                    }
-                    task.name.contains("Debug") -> task.dependsOn("generateDebugProto")
-                    task.name.contains("Release") -> task.dependsOn("generateReleaseProto")
-                }
+            val variantName = task.name.kspVariantName() ?: return@forEach
+
+            tasks.findByName("generate${variantName}Proto")?.let { task.dependsOn(it) }
+
+            if (variantName.endsWith("UnitTest")) {
+                val mainVariantName = variantName.removeSuffix("UnitTest")
+                tasks.findByName("generate${mainVariantName}Proto")?.let { task.dependsOn(it) }
             }
         }
     }

@@ -50,6 +50,21 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
+	buildTypes {
+		getByName("debug") {
+		}
+		create("release_nominify") {
+			isMinifyEnabled = false
+		}
+		getByName("release") {
+			isMinifyEnabled = true
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro",
+			)
+		}
+	}
+
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false

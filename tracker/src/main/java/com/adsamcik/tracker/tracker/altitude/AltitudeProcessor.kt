@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.altitude
 import android.content.Context
 import android.location.Location
 import androidx.annotation.WorkerThread
+import androidx.core.location.LocationCompat
 import androidx.core.location.altitude.AltitudeConverterCompat
 
 /**
@@ -97,8 +98,8 @@ internal class AltitudeProcessor(
 	private fun applyGeoidCorrection(context: Context, location: Location): Double? {
 		return try {
 			AltitudeConverterCompat.addMslAltitudeToLocation(context, location)
-			if (location.hasMslAltitude()) {
-				location.mslAltitudeMeters
+			if (LocationCompat.hasMslAltitude(location)) {
+				LocationCompat.getMslAltitudeMeters(location)
 			} else {
 				// Fallback: use raw altitude if geoid model unavailable
 				location.altitude

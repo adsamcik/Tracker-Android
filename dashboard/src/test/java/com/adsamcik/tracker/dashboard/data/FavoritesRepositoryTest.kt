@@ -13,8 +13,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
 
 @ExtendWith(RobolectricExtension::class)
+@Config(sdk = [34])
 class FavoritesRepositoryTest {
 
 	private lateinit var repo: FavoritesRepository

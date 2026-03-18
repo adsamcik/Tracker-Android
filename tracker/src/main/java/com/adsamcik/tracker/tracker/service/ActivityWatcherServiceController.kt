@@ -44,18 +44,18 @@ class ActivityWatcherServiceController @Inject constructor(
 ) {
 	private val tag = "ActivityWatcherService"
 
-    @Volatile
-    internal var serviceInstance: ActivityWatcherService? = null
+	@Volatile
+	internal var serviceInstance: ActivityWatcherService? = null
 
-    /** Called by [ActivityWatcherService.onCreate]. */
-    fun attachService(service: ActivityWatcherService) {
-        serviceInstance = service
-    }
+	/** Called by [ActivityWatcherService.onCreate]. */
+	fun attachService(service: ActivityWatcherService) {
+		serviceInstance = service
+	}
 
-    /** Called by [ActivityWatcherService.onDestroy]. */
-    fun detachService() {
-        serviceInstance = null
-    }
+	/** Called by [ActivityWatcherService.onDestroy]. */
+	fun detachService() {
+		serviceInstance = null
+	}
 
 	/**
 	 * Evaluates whether the watcher service should be running and starts or
@@ -70,40 +70,40 @@ class ActivityWatcherServiceController @Inject constructor(
 		trackerLocked: Boolean = currentTrackerLocked(),
 		trackerRunning: Boolean = trackerServiceController.isServiceRunning,
 	) {
-        if (updateInterval > 0 && autoTracking > 0) {
-            if (watcherPreference && !trackerLocked && !trackerRunning) {
-                if (serviceInstance == null) {
-                    if (!canStartForegroundService()) {
-                        Log.i(tag, "Skipping ActivityWatcherService start: app not in foreground")
-                        return
-                    }
-                    try {
-                        context.startForegroundService<ActivityWatcherService> { }
-                    } catch (exception: SecurityException) {
-                        Log.w(tag, "Activity watcher start blocked by security policy", exception)
-                    } catch (exception: RuntimeException) {
-                        val isForegroundStartRestricted =
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                                    exception::class.java.name ==
-                                    "android.app.ForegroundServiceStartNotAllowedException"
-                        if (isForegroundStartRestricted) {
-                            Log.w(tag, "Skipped starting ActivityWatcherService from background-restricted context")
-                        } else {
-                            throw exception
-                        }
-                    }
-                }
-                return
-            }
-        }
-        serviceInstance?.stopSelf()
+		if (updateInterval > 0 && autoTracking > 0) {
+			if (watcherPreference && !trackerLocked && !trackerRunning) {
+				if (serviceInstance == null) {
+					if (!canStartForegroundService()) {
+						Log.i(tag, "Skipping ActivityWatcherService start: app not in foreground")
+						return
+					}
+					try {
+						context.startForegroundService<ActivityWatcherService> { }
+					} catch (exception: SecurityException) {
+						Log.w(tag, "Activity watcher start blocked by security policy", exception)
+					} catch (exception: RuntimeException) {
+						val isForegroundStartRestricted =
+							Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+								exception::class.java.name ==
+								"android.app.ForegroundServiceStartNotAllowedException"
+						if (isForegroundStartRestricted) {
+							Log.w(tag, "Skipped starting ActivityWatcherService from background-restricted context")
+						} else {
+							throw exception
+						}
+					}
+				}
+				return
+			}
+		}
+		serviceInstance?.stopSelf()
 	}
 
 	private fun currentTrackerLocked(): Boolean = lockManagerProvider.get().isLocked
 
 	private fun canStartForegroundService(): Boolean {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return ProcessLifecycleOwner.get().lifecycle.currentState
-            .isAtLeast(Lifecycle.State.STARTED)
-    }
+		return ProcessLifecycleOwner.get().lifecycle.currentState
+			.isAtLeast(Lifecycle.State.STARTED)
+	}
 }
