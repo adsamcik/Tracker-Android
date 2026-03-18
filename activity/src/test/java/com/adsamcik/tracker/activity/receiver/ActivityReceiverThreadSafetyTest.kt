@@ -51,7 +51,7 @@ class ActivityReceiverThreadSafetyTest {
 		mockkObject(Logger)
 		mockkObject(Time)
 
-		every { Logger.logWithPreference(any(), any(), any()) } just runs
+		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)

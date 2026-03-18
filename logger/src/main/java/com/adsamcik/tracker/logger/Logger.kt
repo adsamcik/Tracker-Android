@@ -129,8 +129,7 @@ object Logger : CoroutineScope {
     }
 
     @AnyThread
-    @PublishedApi
-    internal fun logWithStringPreference(data: LogData, key: String, default: Boolean) {
+    fun logWithStringPreference(data: LogData, key: String, default: Boolean) {
         if (isInitialized) {
             preferences?.let { prefs ->
                 // Sync read acceptable: called after async initialization; latency not critical for log gating

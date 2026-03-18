@@ -54,7 +54,7 @@ open class Preferences {
     }
 
     suspend fun fetchString(key: String, default: String): String {
-        return observeString(key, default).first()
+        return freshSnapshot()[stringPreferencesKey(key)] ?: default
     }
 
     @Suppress("DEPRECATION")
@@ -69,7 +69,7 @@ open class Preferences {
     }
 
     suspend fun fetchString(key: String): String? {
-         return snapshot()[stringPreferencesKey(key)]
+         return freshSnapshot()[stringPreferencesKey(key)]
     }
 
     fun observeString(key: String, default: String): Flow<String> {
@@ -116,8 +116,16 @@ open class Preferences {
         }
     }
 
+    suspend fun fetchIntStringKey(key: String, default: Int = 0): Int {
+        return when (val value = findFreshRawValue(key)) {
+            is Int -> value
+            is String -> value.toIntOrNull() ?: default
+            else -> default
+        }
+    }
+
     suspend fun fetchInt(key: String, default: Int = 0): Int {
-        return observeInt(key, default).first()
+        return freshSnapshot()[intPreferencesKey(key)] ?: default
     }
 
     @Suppress("DEPRECATION")
@@ -154,7 +162,7 @@ open class Preferences {
     }
 
     suspend fun fetchBoolean(key: String, default: Boolean = false): Boolean {
-        return observeBoolean(key, default).first()
+        return freshSnapshot()[booleanPreferencesKey(key)] ?: default
     }
 
     @Suppress("DEPRECATION")
@@ -173,7 +181,7 @@ open class Preferences {
     }
 
     suspend fun fetchLong(key: String, default: Long = 0L): Long {
-        return observeLong(key, default).first()
+        return freshSnapshot()[longPreferencesKey(key)] ?: default
     }
 
     @Suppress("DEPRECATION")
@@ -211,8 +219,16 @@ open class Preferences {
         }
     }
 
+    suspend fun fetchFloatStringKey(key: String, default: Float = Float.NaN): Float {
+        return when (val value = findFreshRawValue(key)) {
+            is Float -> value
+            is String -> value.toFloatOrNull() ?: default
+            else -> default
+        }
+    }
+
     suspend fun fetchFloat(key: String, default: Float = Float.NaN): Float {
-        return observeFloat(key, default).first()
+        return freshSnapshot()[floatPreferencesKey(key)] ?: default
     }
 
     @Suppress("DEPRECATION")
@@ -250,8 +266,18 @@ open class Preferences {
         return resources.getString(keyRes)
     }
 
+    private suspend fun freshSnapshot(): DataPreferences = LegacyPreferenceStore.freshSnapshot(appContext)
+
     private fun findRawValue(key: String): Any? {
         return snapshot()
+            .asMap()
+            .entries
+            .firstOrNull { it.key.name == key }
+            ?.value
+    }
+
+    private suspend fun findFreshRawValue(key: String): Any? {
+        return freshSnapshot()
             .asMap()
             .entries
             .firstOrNull { it.key.name == key }

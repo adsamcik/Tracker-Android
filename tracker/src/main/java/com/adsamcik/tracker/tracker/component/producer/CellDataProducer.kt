@@ -21,7 +21,7 @@ import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
-import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
@@ -32,8 +32,8 @@ import java.util.ArrayList
 
 internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
     TrackerDataProducerComponent(changeReceiver) {
-	override val keyRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_key
-	override val defaultRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_default
+	override val preferenceKey: String = PreferenceKeys.CELL_ENABLED
+	override val preferenceDefault: Boolean = PreferenceKeys.CELL_ENABLED_DEFAULT
 
 	private var telephonyManager: TelephonyManager? = null
 	private var subscriptionManager: SubscriptionManager? = null

@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -22,10 +23,10 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 	private var pressureSum = 0.0
 	private var sampleCount = 0
 
-	override val keyRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_barometer_enabled_key
-	override val defaultRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_barometer_enabled_default
+	override val preferenceKey: String
+		get() = PreferenceKeys.BAROMETER_ENABLED
+	override val preferenceDefault: Boolean
+		get() = PreferenceKeys.BAROMETER_ENABLED_DEFAULT
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		synchronized(lockObject) {

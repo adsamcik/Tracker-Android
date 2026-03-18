@@ -21,30 +21,30 @@ class PreferencesAssistTest {
 		wifiNetwork: Boolean = false,
 	) {
 		coEvery {
-			mockPreferences.fetchBooleanRes(
-				R.string.settings_location_enabled_key,
-				R.string.settings_location_enabled_default,
+			mockPreferences.fetchBoolean(
+				PreferenceKeys.LOCATION_ENABLED,
+				PreferenceKeys.LOCATION_ENABLED_DEFAULT,
 			)
 		} returns location
 
 		coEvery {
-			mockPreferences.fetchBooleanRes(
-				R.string.settings_cell_enabled_key,
-				R.string.settings_cell_enabled_default,
+			mockPreferences.fetchBoolean(
+				PreferenceKeys.CELL_ENABLED,
+				PreferenceKeys.CELL_ENABLED_DEFAULT,
 			)
 		} returns cell
 
 		coEvery {
-			mockPreferences.fetchBooleanRes(
-				R.string.settings_wifi_location_count_enabled_key,
-				R.string.settings_wifi_location_count_enabled_default,
+			mockPreferences.fetchBoolean(
+				PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+				PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT,
 			)
 		} returns wifiCount
 
 		coEvery {
-			mockPreferences.fetchBooleanRes(
-				R.string.settings_wifi_network_enabled_key,
-				R.string.settings_wifi_network_enabled_default,
+			mockPreferences.fetchBoolean(
+				PreferenceKeys.WIFI_NETWORK_ENABLED,
+				PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT,
 			)
 		} returns wifiNetwork
 	}

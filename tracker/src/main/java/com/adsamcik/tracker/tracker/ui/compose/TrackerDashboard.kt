@@ -157,6 +157,7 @@ import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -167,7 +168,6 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.shared.preferences.R as PrefR
 
 private val defaultDispatchers = DefaultDispatchersProvider
 
@@ -469,14 +469,20 @@ private fun TrackingContent(
     }
 
     val context = LocalContext.current
-    val locationEnabled = rememberPrefBoolean(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
-    val cellEnabled = rememberPrefBoolean(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
+    val locationEnabled = rememberPrefBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
+    val cellEnabled = rememberPrefBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
     val wifiEnabled = run {
-        val wifiCount = rememberPrefBoolean(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
-        val wifiNetwork = rememberPrefBoolean(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
+        val wifiCount = rememberPrefBoolean(
+            PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+            PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
+        )
+        val wifiNetwork = rememberPrefBoolean(
+            PreferenceKeys.WIFI_NETWORK_ENABLED,
+            PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT
+        )
         wifiCount || wifiNetwork
     }
-    val activityEnabled = rememberPrefBoolean(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
+    val activityEnabled = rememberPrefBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
     val trackerSettings = TrackerSettingsQuick.snapshot(context)
 
     var useDecimalDegrees by remember { mutableStateOf(false) }
@@ -705,13 +711,11 @@ private fun TrackingContent(
 }
 
 @Composable
-private fun rememberPrefBoolean(keyRes: Int, defaultRes: Int): Boolean {
+private fun rememberPrefBoolean(key: String, default: Boolean): Boolean {
     val context = LocalContext.current
-    val keyName = remember(context, keyRes) { context.getString(keyRes) }
-    val default = remember(context, defaultRes) { context.resources.getString(defaultRes).toBoolean() }
     val ds = remember(context) { context.trackingTogglesProtoDataStore }
-    val flow = remember(ds, keyName, default) {
-        ds.data.map { proto -> proto.togglesMap[keyName] ?: default }
+    val flow = remember(ds, key, default) {
+        ds.data.map { proto -> proto.togglesMap[key] ?: default }
     }
     val value = flow.collectAsState(initial = default).value
     return value

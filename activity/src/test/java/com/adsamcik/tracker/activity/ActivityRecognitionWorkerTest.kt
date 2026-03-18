@@ -59,7 +59,7 @@ class ActivityRecognitionWorkerTest {
 		every { database.sessionSegmentDao() } returns segmentDao
 		every { Reporter.report(any<Throwable>()) } just runs
 		every { Reporter.log(any<String>()) } just runs
-		every { Logger.logWithPreference(any(), any(), any()) } just runs
+		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 	}
 
 	@AfterEach

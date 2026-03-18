@@ -4,6 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -40,15 +41,15 @@ internal class PolicyAwareLocationPreTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		scope = CoroutineScope(SupervisorJob() + dispatchers.main)
-		userAccuracyThreshold = Preferences(context).fetchIntRes(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+		userAccuracyThreshold = Preferences(context).fetchInt(
+			PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+			PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
 		)
 		// Observe live preference changes (matching LocationPreTrackerComponent)
 		accuracyJob = PreferenceFlows.int(
 			context,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+			PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+			PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
 		).onEach { userAccuracyThreshold = it }
 			.launchIn(requireNotNull(scope))
 	}

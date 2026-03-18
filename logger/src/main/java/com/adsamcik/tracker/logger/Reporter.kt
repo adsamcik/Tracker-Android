@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.base.logging.ErrorReporter
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -44,8 +45,8 @@ object Reporter : ErrorReporter {
 		preferenceJob?.cancel()
 		preferenceJob = PreferenceFlows.boolean(
 			context,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default
+			PreferenceKeys.ERROR_REPORTING,
+			PreferenceKeys.ERROR_REPORTING_DEFAULT
 		).onEach { isEnabled = it }
 			.launchIn(scope)
 	}

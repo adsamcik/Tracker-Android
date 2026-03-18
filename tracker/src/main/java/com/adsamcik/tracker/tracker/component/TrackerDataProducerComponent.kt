@@ -24,8 +24,8 @@ internal abstract class TrackerDataProducerComponent(
     private val preferenceScope = CoroutineScope(SupervisorJob() + mainImmediate)
     private var preferenceJob: Job? = null
 
-	protected abstract val keyRes: Int
-	protected abstract val defaultRes: Int
+	protected abstract val preferenceKey: String
+	protected abstract val preferenceDefault: Boolean
 
 	var isEnabled: Boolean = false
 		private set
@@ -35,7 +35,7 @@ internal abstract class TrackerDataProducerComponent(
 	fun onAttach(context: Context) {
 		// Flow emits initial value immediately, no need for separate sync read
 		preferenceJob?.cancel()
-		preferenceJob = PreferenceFlows.boolean(context, keyRes, defaultRes)
+		preferenceJob = PreferenceFlows.boolean(context, preferenceKey, preferenceDefault)
 			.onEach { changeReceiver.onStateChange(it, this) }
 			.launchIn(preferenceScope)
 	}

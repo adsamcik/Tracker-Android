@@ -29,6 +29,9 @@ object PreferenceFlows {
         return LegacyPreferenceStore.intFlow(context, key, default)
     }
 
+    fun int(context: Context, key: String, default: Int): Flow<Int> =
+        LegacyPreferenceStore.intFlow(context, key, default)
+
     fun intFromString(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int): Flow<Int> {
         val key = context.getString(keyRes)
         val defaultString = context.getString(defaultRes)

@@ -1,10 +1,14 @@
 package com.adsamcik.tracker.game
 
-internal fun logGame(data: com.adsamcik.tracker.logger.LogData) =
-		com.adsamcik.tracker.logger.Logger.logWithPreference(
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+
+internal fun logGame(data: LogData) =
+		Logger.logWithStringPreference(
 				data,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_log_games_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_log_games_default
+				PreferenceKeys.LOG_GAMES,
+				PreferenceKeys.LOG_GAMES_DEFAULT
 		)
 
 internal const val GAME_LOG_SOURCE = "game"

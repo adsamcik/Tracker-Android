@@ -34,6 +34,7 @@ import com.adsamcik.tracker.app.onboarding.data.UserPreferences
 import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManager
 import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -278,23 +279,23 @@ class OnboardingActivity : ComponentActivity() {
             }
             
             // Core enable toggles
-            setBoolean(PrefR.string.settings_location_enabled_key, locationEnabled)
-            setBoolean(PrefR.string.settings_activity_enabled_key, prefs.enableActivityTracking)
-            setBoolean(PrefR.string.settings_wifi_enabled_key, prefs.enableWifiTracking)
-            setBoolean(PrefR.string.settings_cell_enabled_key, prefs.enableCellTracking)
-            setBoolean(PrefR.string.settings_steps_enabled_key, prefs.enableStepsTracking)
+            setBoolean(PreferenceKeys.LOCATION_ENABLED, locationEnabled)
+            setBoolean(PreferenceKeys.ACTIVITY_ENABLED, prefs.enableActivityTracking)
+            setBoolean(PreferenceKeys.WIFI_ENABLED, prefs.enableWifiTracking)
+            setBoolean(PreferenceKeys.CELL_ENABLED, prefs.enableCellTracking)
+            setBoolean(PreferenceKeys.STEPS_ENABLED, prefs.enableStepsTracking)
 
             // Notification styling as a proxy user-visible toggle (no global enable switch exists)
-            setBoolean(PrefR.string.settings_notification_styled_key, prefs.enableNotifications)
+            setBoolean(PreferenceKeys.NOTIFICATION_STYLED, prefs.enableNotifications)
 
             // Map additional auto-tracking toggles to Settings screen keys so onboarding matches Settings
-            setBoolean(PrefR.string.settings_auto_tracking_transition_key, prefs.autoTransitionsEnabled)
+            setBoolean(PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED, prefs.autoTransitionsEnabled)
             setBoolean(ActivityR.string.settings_activity_watcher_key, prefs.activityWatcherEnabled)
             setBoolean(TrackerR.string.settings_disabled_recharge_key, prefs.pauseWhileCharging)
 
             // Apply min distance/time if set
-            prefs.trackingMinDistanceMeters?.let { setInt(PrefR.string.settings_tracking_min_distance_key, it) }
-            prefs.trackingMinTimeSeconds?.let { setInt(PrefR.string.settings_tracking_min_time_key, it) }
+            prefs.trackingMinDistanceMeters?.let { setInt(PreferenceKeys.TRACKING_MIN_DISTANCE, it) }
+            prefs.trackingMinTimeSeconds?.let { setInt(PreferenceKeys.TRACKING_MIN_TIME, it) }
 
             // Tracking profiles removed; rely on explicit distance/time and internal defaults
         }
@@ -311,10 +312,10 @@ class OnboardingActivity : ComponentActivity() {
         val autoTrackingValue = when {
             selectedMode > 0 && hasActivityPermission -> selectedMode
             prefs.enableAutomaticTracking && hasActivityPermission ->
-                resources.getString(PrefR.string.settings_tracking_activity_default).toInt()
+                PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT
             else -> 0
         }
-        preferences.edit { setInt(PrefR.string.settings_tracking_activity_key, autoTrackingValue) }
+        preferences.edit { setInt(PreferenceKeys.TRACKING_ACTIVITY_MODE, autoTrackingValue) }
 
         activityWatcherController.poke(autoTracking = autoTrackingValue)
         if (autoTrackingValue > 0) {

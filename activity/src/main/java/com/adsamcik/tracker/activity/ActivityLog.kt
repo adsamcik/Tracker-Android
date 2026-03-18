@@ -2,11 +2,12 @@ package com.adsamcik.tracker.activity
 
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 
-internal fun logActivity(data: LogData) = Logger.logWithPreference(
+internal fun logActivity(data: LogData) = Logger.logWithStringPreference(
 		data,
-		com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_key,
-		com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_default
+		PreferenceKeys.LOG_ACTIVITY,
+		PreferenceKeys.LOG_ACTIVITY_DEFAULT
 )
 
 internal const val ACTIVITY_LOG_SOURCE = "activity"

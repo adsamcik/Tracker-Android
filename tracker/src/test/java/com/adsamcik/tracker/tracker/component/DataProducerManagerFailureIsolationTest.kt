@@ -119,8 +119,8 @@ class DataProducerManagerFailureIsolationTest {
 			override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {}
 		}
 	) {
-		override val keyRes: Int = 0
-		override val defaultRes: Int = 0
+		override val preferenceKey: String = "throwing-producer"
+		override val preferenceDefault: Boolean = false
 		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			throw exception
 		}
@@ -134,8 +134,8 @@ class DataProducerManagerFailureIsolationTest {
 		var wasInvoked = false
 			private set
 
-		override val keyRes: Int = 0
-		override val defaultRes: Int = 0
+		override val preferenceKey: String = "recording-producer"
+		override val preferenceDefault: Boolean = false
 		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			wasInvoked = true
 		}

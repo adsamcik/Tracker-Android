@@ -8,7 +8,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
-import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -22,10 +22,10 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	private var stepValueAtCollectionStart: Int = -1
 	private var sensorResetDetected: Boolean = false
 
-	override val keyRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_key
-	override val defaultRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_default
+	override val preferenceKey: String
+		get() = PreferenceKeys.STEPS_ENABLED
+	override val preferenceDefault: Boolean
+		get() = PreferenceKeys.STEPS_ENABLED_DEFAULT
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		if (stepCountSinceLastCollection >= 0) {

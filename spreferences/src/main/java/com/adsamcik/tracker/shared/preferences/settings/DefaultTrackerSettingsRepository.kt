@@ -6,6 +6,7 @@ import androidx.datastore.core.DataMigration
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import androidx.datastore.migrations.SharedPreferencesMigration
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.R
 import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
@@ -77,13 +78,13 @@ private class ResourceTrackerSettingsKeyProvider(private val context: Context) :
     override val autoUnitSwitchDefault: Boolean
         get() = context.getString(R.string.settings_statistics_auto_unit_switch_default).toBoolean()
     override val lengthSystemKey: String
-        get() = context.getString(R.string.settings_length_system_key)
+        get() = PreferenceKeys.LENGTH_SYSTEM
     override val lengthSystemDefault: String
-        get() = context.getString(R.string.settings_length_system_default)
+        get() = PreferenceKeys.LENGTH_SYSTEM_DEFAULT
     override val speedFormatKey: String
-        get() = context.getString(R.string.settings_speed_format_key)
+        get() = PreferenceKeys.SPEED_FORMAT
     override val speedFormatDefault: String
-        get() = context.getString(R.string.settings_speed_format_default)
+        get() = PreferenceKeys.SPEED_FORMAT_DEFAULT
 }
 
 private fun defaultSharedPreferencesName(context: Context): String = "${context.packageName}_preferences"

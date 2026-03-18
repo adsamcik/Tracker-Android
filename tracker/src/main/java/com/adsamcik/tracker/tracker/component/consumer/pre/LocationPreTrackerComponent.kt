@@ -5,9 +5,9 @@ import android.os.Build
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 
-import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -35,15 +35,15 @@ internal class LocationPreTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			requiredAccuracy = Preferences(context).fetchIntRes(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-				com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+			requiredAccuracy = Preferences(context).fetchInt(
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
 			)
 			accuracyJob?.cancel()
 			accuracyJob = PreferenceFlows.int(
 				context,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-				com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
 			).onEach { requiredAccuracy = it }
 				.launchIn(this@LocationPreTrackerComponent)
 		}

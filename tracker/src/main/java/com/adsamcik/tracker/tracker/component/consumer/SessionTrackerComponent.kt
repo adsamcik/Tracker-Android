@@ -13,11 +13,11 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.stats.api.PlausibilityResult
 import com.adsamcik.tracker.stats.api.TripPlausibility
 
-import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -180,26 +180,26 @@ internal class SessionTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		val prefs = Preferences(context)
-		minDistanceInMeters = prefs.fetchIntRes(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
+		minDistanceInMeters = prefs.fetchInt(
+			PreferenceKeys.TRACKING_MIN_DISTANCE,
+			PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
 		)
-		minUpdateDelayInSeconds = prefs.fetchIntRes(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+		minUpdateDelayInSeconds = prefs.fetchInt(
+			PreferenceKeys.TRACKING_MIN_TIME,
+			PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
 		)
 
 		preferenceJobs += PreferenceFlows.int(
 			context,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
+			PreferenceKeys.TRACKING_MIN_DISTANCE,
+			PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
 		).onEach { minDistanceInMeters = it }
 			.launchIn(this)
 
 		preferenceJobs += PreferenceFlows.int(
 			context,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+			PreferenceKeys.TRACKING_MIN_TIME,
+			PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
 		).onEach { minUpdateDelayInSeconds = it }
 			.launchIn(this)
 

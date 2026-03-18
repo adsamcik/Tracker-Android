@@ -5,6 +5,7 @@ import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.contains
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
@@ -76,7 +77,7 @@ object TrackerTimerManager {
 	 */
 	suspend fun getSelectedKey(context: Context): String {
 		return Preferences(context)
-			.fetchStringRes(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
+			.fetchString(PreferenceKeys.TRACKER_TIMER)
 			?: getKey(default)
 	}
 

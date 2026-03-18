@@ -32,7 +32,7 @@ class ActivityRecognitionApiTest {
     @BeforeEach
     fun setup() {
         mockkObject(Logger)
-        every { Logger.logWithPreference(any(), any(), any()) } returns Unit
+        every { Logger.logWithStringPreference(any(), any(), any()) } returns Unit
 
         val config = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.DEBUG)

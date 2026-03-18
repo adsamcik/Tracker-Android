@@ -49,7 +49,7 @@ class ActivityReceiverTest {
 		mockkObject(Logger)
 		mockkObject(Time)
 
-		every { Logger.logWithPreference(any(), any(), any()) } just runs
+		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 		every { Time.elapsedRealtimeMillis } returns 5000L
 
 		// Mock the Hilt EntryPoint so the receiver can obtain a backend

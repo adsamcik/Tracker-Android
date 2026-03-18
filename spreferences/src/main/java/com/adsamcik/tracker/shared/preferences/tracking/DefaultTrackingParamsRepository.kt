@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -14,25 +15,24 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
-import com.adsamcik.tracker.shared.preferences.R as PrefR
 
 private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
     override val defaultValue: TrackingParamsProto = TrackingParamsProto.newBuilder()
-        .setLocationEnabled(true)
-        .setActivityEnabled(true)
-        .setStepsEnabled(true)
-        .setWifiEnabled(false)
-        .setCellEnabled(false)
-        .setWifiNetworkEnabled(false)
-        .setWifiLocationCountEnabled(false)
-        .setAutoTrackingMode(1)
-        .setTransitionDetectionEnabled(true)
-        .setNotificationStyled(true)
-        .setMinDistanceMeters(TrackingParamsState.DEFAULT_MIN_DISTANCE)
-        .setMinTimeSeconds(TrackingParamsState.DEFAULT_MIN_TIME)
-        .setRequiredAccuracyMeters(TrackingParamsState.DEFAULT_REQUIRED_ACCURACY)
+        .setLocationEnabled(PreferenceKeys.LOCATION_ENABLED_DEFAULT)
+        .setActivityEnabled(PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
+        .setStepsEnabled(PreferenceKeys.STEPS_ENABLED_DEFAULT)
+        .setWifiEnabled(PreferenceKeys.WIFI_ENABLED_DEFAULT)
+        .setCellEnabled(PreferenceKeys.CELL_ENABLED_DEFAULT)
+        .setWifiNetworkEnabled(PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
+        .setWifiLocationCountEnabled(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT)
+        .setAutoTrackingMode(PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT)
+        .setTransitionDetectionEnabled(PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED_DEFAULT)
+        .setNotificationStyled(PreferenceKeys.NOTIFICATION_STYLED_DEFAULT)
+        .setMinDistanceMeters(PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT)
+        .setMinTimeSeconds(PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
+        .setRequiredAccuracyMeters(PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT)
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
-        .setSkiDetectionEnabled(false)
+        .setSkiDetectionEnabled(PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT)
         .setLegacyMigrated(false)
         .build()
 
@@ -52,6 +52,14 @@ private val Context.trackingParamsDataStore: DataStore<TrackingParamsProto> by d
     fileName = "tracking_params.pb",
     serializer = TrackingParamsSerializer
 )
+
+internal fun resetTrackingParamsForTests() {
+    val fileClass = Class.forName("com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepositoryKt")
+    val delegateField = fileClass.getDeclaredField("trackingParamsDataStore\$delegate").apply { isAccessible = true }
+    val delegate = delegateField.get(null)
+    val instanceField = delegate.javaClass.getDeclaredField("INSTANCE").apply { isAccessible = true }
+    instanceField.set(delegate, null)
+}
 
 /** DataStore-backed implementation of [TrackingParamsRepository]. */
 class DefaultTrackingParamsRepository(
@@ -103,20 +111,39 @@ class DefaultTrackingParamsRepository(
 
             val prefs = Preferences(context)
 
-            val locationEnabled = prefs.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
-            val activityEnabled = prefs.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
-            val stepsEnabled = prefs.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default)
-            val wifiEnabled = prefs.getBoolean(context.getString(PrefR.string.settings_wifi_enabled_key), true)
-            val cellEnabled = prefs.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
-            val wifiNetworkEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
-            val wifiLocationCountEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
-            val autoTrackingMode = prefs.getIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
-            val transitionEnabled = prefs.getBooleanRes(PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
-            val notificationStyled = prefs.getBooleanRes(PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
-            val minDistance = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_distance_key), TrackingParamsState.DEFAULT_MIN_DISTANCE)
-            val minTime = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_time_key), TrackingParamsState.DEFAULT_MIN_TIME)
-            val requiredAccuracy = prefs.getInt(context.getString(PrefR.string.settings_tracking_required_accuracy_key), TrackingParamsState.DEFAULT_REQUIRED_ACCURACY)
+            val locationEnabled = prefs.fetchBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
+            val activityEnabled = prefs.fetchBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
+            val stepsEnabled = prefs.fetchBoolean(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT)
+            val wifiEnabled = prefs.fetchBoolean(PreferenceKeys.WIFI_ENABLED, PreferenceKeys.WIFI_ENABLED_DEFAULT)
+            val cellEnabled = prefs.fetchBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
+            val wifiNetworkEnabled = prefs.fetchBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
+            val wifiLocationCountEnabled = prefs.fetchBoolean(
+                PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+                PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
+            )
+            val autoTrackingMode = prefs.fetchIntStringKey(
+                PreferenceKeys.TRACKING_ACTIVITY_MODE,
+                PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT
+            )
+            val transitionEnabled = prefs.fetchBoolean(
+                PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED,
+                PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED_DEFAULT
+            )
+            val notificationStyled = prefs.fetchBoolean(
+                PreferenceKeys.NOTIFICATION_STYLED,
+                PreferenceKeys.NOTIFICATION_STYLED_DEFAULT
+            )
+            val minDistance = prefs.fetchInt(PreferenceKeys.TRACKING_MIN_DISTANCE, PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT)
+            val minTime = prefs.fetchInt(PreferenceKeys.TRACKING_MIN_TIME, PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
+            val requiredAccuracy = prefs.fetchInt(
+                PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+                PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+            )
             val preset = prefs.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
+            val skiDetectionEnabled = prefs.fetchBoolean(
+                PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED,
+                PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT
+            )
 
             context.trackingParamsDataStore.updateData {
                 TrackingParamsProto.newBuilder()
@@ -134,6 +161,7 @@ class DefaultTrackingParamsRepository(
                     .setMinTimeSeconds(minTime)
                     .setRequiredAccuracyMeters(requiredAccuracy)
                     .setPresetName(preset)
+                    .setSkiDetectionEnabled(skiDetectionEnabled)
                     .setLegacyMigrated(true)
                     .build()
             }

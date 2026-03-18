@@ -5,7 +5,7 @@ data class TrackingParamsState(
     val locationEnabled: Boolean = true,
     val activityEnabled: Boolean = true,
     val stepsEnabled: Boolean = true,
-    val wifiEnabled: Boolean = true,
+    val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
     val wifiNetworkEnabled: Boolean = false,
     val wifiLocationCountEnabled: Boolean = false,

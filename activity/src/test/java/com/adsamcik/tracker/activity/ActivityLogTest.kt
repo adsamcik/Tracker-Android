@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity
 
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.every
@@ -20,7 +21,7 @@ class ActivityLogTest {
     @BeforeEach
     fun setup() {
         mockkObject(Logger)
-        every { Logger.logWithPreference(any(), any(), any()) } returns Unit
+        every { Logger.logWithStringPreference(any(), any(), any()) } returns Unit
     }
 
     @AfterEach
@@ -51,46 +52,46 @@ class ActivityLogTest {
     inner class LogActivityTests {
 
         @Test
-        fun `delegates to Logger logWithPreference`() {
+        fun `delegates to Logger logWithStringPreference`() {
             val data = LogData(message = "test message", source = ACTIVITY_LOG_SOURCE)
 
             logActivity(data)
 
             verify(exactly = 1) {
-                Logger.logWithPreference(
+                Logger.logWithStringPreference(
                     data,
-                    com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_key,
-                    com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_default
+                    PreferenceKeys.LOG_ACTIVITY,
+                    PreferenceKeys.LOG_ACTIVITY_DEFAULT
                 )
             }
         }
 
         @Test
-        fun `passes correct preference key resource`() {
+        fun `passes correct preference key`() {
             val data = LogData(message = "any", source = "src")
 
             logActivity(data)
 
             verify {
-                Logger.logWithPreference(
+                Logger.logWithStringPreference(
                     any(),
-                    eq(com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_key),
+                    eq(PreferenceKeys.LOG_ACTIVITY),
                     any()
                 )
             }
         }
 
         @Test
-        fun `passes correct preference default resource`() {
+        fun `passes correct preference default`() {
             val data = LogData(message = "any", source = "src")
 
             logActivity(data)
 
             verify {
-                Logger.logWithPreference(
+                Logger.logWithStringPreference(
                     any(),
                     any(),
-                    eq(com.adsamcik.tracker.shared.preferences.R.string.settings_log_activity_default)
+                    eq(PreferenceKeys.LOG_ACTIVITY_DEFAULT)
                 )
             }
         }
@@ -105,7 +106,7 @@ class ActivityLogTest {
             logActivity(data)
 
             verify {
-                Logger.logWithPreference(
+                Logger.logWithStringPreference(
                     match { it.message == "recognition started" && it.source == ACTIVITY_LOG_SOURCE },
                     any(),
                     any()
@@ -132,7 +133,7 @@ class ActivityLogTest {
         @Test
         fun `log messages should not embed raw coordinates`() {
             val capturedData = mutableListOf<LogData>()
-            every { Logger.logWithPreference(capture(capturedData), any(), any()) } returns Unit
+            every { Logger.logWithStringPreference(capture(capturedData), any(), any()) } returns Unit
 
             // Simulate typical log calls from the module
             logActivity(LogData(message = "requesting recognition rerun", source = ACTIVITY_LOG_SOURCE))

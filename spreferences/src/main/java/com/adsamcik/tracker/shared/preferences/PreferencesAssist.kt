@@ -19,21 +19,21 @@ object PreferencesAssist {
 	 * Overload for direct Preferences injection (test-friendly; avoids static factory).
 	 */
 	suspend fun hasAnythingToTrackAsync(preferences: Preferences): Boolean {
-		return preferences.fetchBooleanRes(
-				R.string.settings_location_enabled_key,
-				R.string.settings_location_enabled_default
+		return preferences.fetchBoolean(
+				PreferenceKeys.LOCATION_ENABLED,
+				PreferenceKeys.LOCATION_ENABLED_DEFAULT
 		) ||
-				preferences.fetchBooleanRes(
-						R.string.settings_cell_enabled_key,
-						R.string.settings_cell_enabled_default
+				preferences.fetchBoolean(
+						PreferenceKeys.CELL_ENABLED,
+						PreferenceKeys.CELL_ENABLED_DEFAULT
 				) ||
-				preferences.fetchBooleanRes(
-						R.string.settings_wifi_location_count_enabled_key,
-						R.string.settings_wifi_location_count_enabled_default
+				preferences.fetchBoolean(
+						PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+						PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
 				) ||
-				preferences.fetchBooleanRes(
-						R.string.settings_wifi_network_enabled_key,
-						R.string.settings_wifi_network_enabled_default
+				preferences.fetchBoolean(
+						PreferenceKeys.WIFI_NETWORK_ENABLED,
+						PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT
 				)
 	}
 

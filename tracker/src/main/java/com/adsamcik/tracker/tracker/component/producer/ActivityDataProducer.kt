@@ -7,7 +7,7 @@ import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -17,10 +17,10 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		TrackerDataProducerComponent(
 				changeReceiver
 		) {
-	override val keyRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_activity_enabled_key
-	override val defaultRes: Int
-		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_activity_enabled_default
+	override val preferenceKey: String
+		get() = PreferenceKeys.ACTIVITY_ENABLED
+	override val preferenceDefault: Boolean
+		get() = PreferenceKeys.ACTIVITY_ENABLED_DEFAULT
 
 	@Volatile
 	private var lastSnapshot: ActivitySnapshot = ActivitySnapshot(ActivityInfo.UNKNOWN, -1L)

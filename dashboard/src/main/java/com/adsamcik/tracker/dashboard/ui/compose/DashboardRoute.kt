@@ -16,7 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
@@ -27,8 +27,8 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -298,10 +298,13 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 
 private fun hasAnyTrackingOptionEnabled(context: Context): Boolean {
 	val preferences = Preferences(context)
-	return preferences.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default) ||
-		preferences.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default) ||
-		preferences.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default) ||
-		preferences.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default) ||
-		preferences.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default) ||
-		preferences.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
+	return preferences.getBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT) ||
+		preferences.getBoolean(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT) ||
+		preferences.getBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT) ||
+		preferences.getBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT) ||
+		preferences.getBoolean(
+			PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+			PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
+		) ||
+		preferences.getBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -74,6 +75,9 @@ internal object LegacyPreferenceStore {
     }
 
     fun snapshot(context: Context): Preferences = ensureStateFlow(context).value
+
+    suspend fun freshSnapshot(context: Context): Preferences =
+        context.applicationContext.legacyDataStore.data.first()
 
     fun edit(context: Context, operations: List<(androidx.datastore.preferences.core.MutablePreferences) -> Unit>) {
         if (operations.isEmpty()) return
@@ -152,4 +156,8 @@ internal object LegacyPreferenceStore {
                 }
             }
             .distinctUntilChanged()
+
+    internal fun resetForTests() {
+        stateFlowRef.set(null)
+    }
 }
