@@ -47,7 +47,7 @@ import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
-import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.ActivityColors
 import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
@@ -130,8 +130,8 @@ internal fun TrackingStatsGrid(
 			if (currentActivity != null) {
 				val activityName = currentActivity.getGroupedActivityName(context)
 				val activityColor = when (currentActivity.groupedActivity) {
-					GroupedActivity.ON_FOOT -> AppColors.Adaptive.ActivityWalk
-					GroupedActivity.IN_VEHICLE -> AppColors.Adaptive.ActivityRide
+					GroupedActivity.ON_FOOT -> ActivityColors.Adaptive.Walk
+					GroupedActivity.IN_VEHICLE -> ActivityColors.Adaptive.Ride
 					else -> MaterialTheme.colorScheme.onSurface
 				}
 				CompactAnimatedStatItem(

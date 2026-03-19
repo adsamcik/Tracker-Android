@@ -151,20 +151,6 @@ object ActivityColors {
     }
 }
 
-// --- BACKWARD COMPAT: AppColors delegates to ActivityColors ---
-
-@Deprecated("Use ActivityColors directly", ReplaceWith("ActivityColors"))
-object AppColors {
-    object Adaptive {
-        val ActivityWalk: Color @Composable get() = ActivityColors.Adaptive.Walk
-        val ActivityRun: Color @Composable get() = ActivityColors.Adaptive.Run
-        val ActivityRide: Color @Composable get() = ActivityColors.Adaptive.Ride
-        val ActivityVehicle: Color @Composable get() = ActivityColors.Adaptive.Vehicle
-        val ActivityStill: Color @Composable get() = ActivityColors.Adaptive.Still
-        val ActivityUnknown: Color @Composable get() = ActivityColors.Adaptive.Unknown
-    }
-}
-
 // --- COMPONENTS ---
 
 /**

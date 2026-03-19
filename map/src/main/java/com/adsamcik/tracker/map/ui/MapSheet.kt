@@ -99,7 +99,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalClipboard
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
@@ -110,6 +111,7 @@ import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import com.adsamcik.tracker.shared.utils.style.compose.BottomSheetShape
 import com.adsamcik.tracker.shared.utils.style.compose.MomentumPillShape
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 internal const val MAP_SHEET_DRAG_HANDLE_TAG = "map_sheet_drag_handle"
 
@@ -137,7 +139,8 @@ fun MapSheet(
     }
 
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val coroutineScope = rememberCoroutineScope()
     val layers = remember(registry) { registry.getAllLayers() }
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
     var showDateRangeDialog by remember { mutableStateOf(false) }
@@ -311,13 +314,21 @@ fun MapSheet(
                             ) {
                                 TextButton(
                                     onClick = {
-                                        val clipboardText = clipboardManager.getText()?.text?.trim().orEmpty()
-                                        if (clipboardText.isBlank()) {
-                                            showErrorMessage = null
-                                            showErrorMessage = context.getString(R.string.map_search_clipboard_empty)
-                                        } else {
-                                            store.dispatch(MapEvent.UpdateSearchQuery(clipboardText))
-                                            store.dispatch(MapEvent.SubmitSearch)
+                                        coroutineScope.launch {
+                                            val clipboardText = clipboard.getClipEntry()
+                                                ?.clipData
+                                                ?.getItemAt(0)
+                                                ?.text
+                                                ?.toString()
+                                                ?.trim()
+                                                .orEmpty()
+                                            if (clipboardText.isBlank()) {
+                                                showErrorMessage = null
+                                                showErrorMessage = context.getString(R.string.map_search_clipboard_empty)
+                                            } else {
+                                                store.dispatch(MapEvent.UpdateSearchQuery(clipboardText))
+                                                store.dispatch(MapEvent.SubmitSearch)
+                                            }
                                         }
                                     },
                                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)

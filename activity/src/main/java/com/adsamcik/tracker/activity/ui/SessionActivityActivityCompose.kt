@@ -62,7 +62,6 @@ import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

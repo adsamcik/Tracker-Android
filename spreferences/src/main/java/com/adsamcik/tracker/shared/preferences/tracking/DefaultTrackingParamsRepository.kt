@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
-import com.adsamcik.tracker.shared.preferences.Preferences
+import androidx.preference.PreferenceManager
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -109,38 +109,45 @@ class DefaultTrackingParamsRepository(
             val current = context.trackingParamsDataStore.data.first()
             if (current.legacyMigrated) return@withContext
 
-            val prefs = Preferences(context)
+            // Read directly from SharedPreferences — the legacy source.
+            val sp = PreferenceManager.getDefaultSharedPreferences(context)
 
-            val locationEnabled = prefs.fetchBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
-            val activityEnabled = prefs.fetchBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
-            val stepsEnabled = prefs.fetchBoolean(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT)
-            val wifiEnabled = prefs.fetchBoolean(PreferenceKeys.WIFI_ENABLED, PreferenceKeys.WIFI_ENABLED_DEFAULT)
-            val cellEnabled = prefs.fetchBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
-            val wifiNetworkEnabled = prefs.fetchBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
-            val wifiLocationCountEnabled = prefs.fetchBoolean(
+            fun spBool(key: String, def: Boolean): Boolean = sp.getBoolean(key, def)
+            fun spInt(key: String, def: Int): Int = sp.getInt(key, def)
+            fun spIntFromString(key: String, def: Int): Int =
+                sp.getString(key, null)?.toIntOrNull() ?: def
+
+            val locationEnabled = spBool(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
+            val activityEnabled = spBool(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
+            val stepsEnabled = spBool(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT)
+            val wifiEnabled = spBool(PreferenceKeys.WIFI_ENABLED, PreferenceKeys.WIFI_ENABLED_DEFAULT)
+            val cellEnabled = spBool(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
+            val wifiNetworkEnabled = spBool(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
+            val wifiLocationCountEnabled = spBool(
                 PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
                 PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
             )
-            val autoTrackingMode = prefs.fetchIntStringKey(
+            val autoTrackingMode = spIntFromString(
                 PreferenceKeys.TRACKING_ACTIVITY_MODE,
                 PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT
             )
-            val transitionEnabled = prefs.fetchBoolean(
+            val transitionEnabled = spBool(
                 PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED,
                 PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED_DEFAULT
             )
-            val notificationStyled = prefs.fetchBoolean(
+            val notificationStyled = spBool(
                 PreferenceKeys.NOTIFICATION_STYLED,
                 PreferenceKeys.NOTIFICATION_STYLED_DEFAULT
             )
-            val minDistance = prefs.fetchInt(PreferenceKeys.TRACKING_MIN_DISTANCE, PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT)
-            val minTime = prefs.fetchInt(PreferenceKeys.TRACKING_MIN_TIME, PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
-            val requiredAccuracy = prefs.fetchInt(
+            val minDistance = spInt(PreferenceKeys.TRACKING_MIN_DISTANCE, PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT)
+            val minTime = spInt(PreferenceKeys.TRACKING_MIN_TIME, PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
+            val requiredAccuracy = spInt(
                 PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
                 PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
             )
-            val preset = prefs.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
-            val skiDetectionEnabled = prefs.fetchBoolean(
+            val preset = sp.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
+                ?: TrackingParamsState.DEFAULT_PRESET
+            val skiDetectionEnabled = spBool(
                 PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED,
                 PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT
             )
