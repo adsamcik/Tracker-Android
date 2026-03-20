@@ -45,6 +45,7 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
+		baseline = file("lint-baseline.xml")
 	}
     namespace = "com.adsamcik.tracker.shared.preferences"
     buildFeatures {

@@ -60,6 +60,7 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
+		baseline = file("lint-baseline.xml")
 	}
 
 	ksp {

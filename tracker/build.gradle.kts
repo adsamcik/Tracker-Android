@@ -63,6 +63,7 @@ android {
 	lint {
 		checkReleaseBuilds = false
 		abortOnError = false
+		baseline = file("lint-baseline.xml")
 	}
 
     namespace = "com.adsamcik.tracker.tracker"

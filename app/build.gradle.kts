@@ -92,6 +92,7 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
+		baseline = file("lint-baseline.xml")
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
