@@ -122,8 +122,6 @@ dependencies {
 	implementation(project(":game"))
 	implementation(project(":dashboard"))
 
-	debugImplementation(libs.leakcanary)
-
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
@@ -146,6 +144,7 @@ dependencies {
 	// Hilt (Dependency Injection)
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
+	ksp(libs.androidx.hilt.compiler)
 	implementation(libs.hilt.navigation.compose)
 	implementation(libs.hilt.work)
 

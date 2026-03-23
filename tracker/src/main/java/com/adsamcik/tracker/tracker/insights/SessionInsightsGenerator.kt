@@ -11,13 +11,14 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
+import javax.inject.Provider
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 class SessionInsightsGenerator @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val dailySummaryDao: DailySummaryDao,
-    private val explorationCellDao: ExplorationCellDao,
+    private val dailySummaryDaoProvider: Provider<DailySummaryDao>,
+    private val explorationCellDaoProvider: Provider<ExplorationCellDao>,
     private val dispatchers: DispatchersProvider,
 ) {
 
@@ -69,7 +70,7 @@ class SessionInsightsGenerator @Inject constructor(
 
     private suspend fun MutableList<SessionInsight>.addExplorationInsight(session: TrackerSession) {
         val newCells = withContext(dispatchers.io) {
-            explorationCellDao.countDiscoveredSince(session.start, EXPLORATION_LEVEL)
+            explorationCellDaoProvider.get().countDiscoveredSince(session.start, EXPLORATION_LEVEL)
         }
         if (newCells <= 0) return
         add(
@@ -89,7 +90,7 @@ class SessionInsightsGenerator @Inject constructor(
             .toEpochDay()
         val fromDay = max(0L, sessionDay - LOOKBACK_DAYS)
         val dailySummaries = withContext(dispatchers.io) {
-            dailySummaryDao.getBetween(fromDay, sessionDay - 1)
+            dailySummaryDaoProvider.get().getBetween(fromDay, sessionDay - 1)
         }
         val totalTrips = dailySummaries.sumOf { it.tripCount }
         if (totalTrips <= 0) return

@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
-import com.adsamcik.tracker.game.goals.NewDayGoalWorker
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
@@ -46,6 +45,5 @@ class GameModuleInitializer @Inject constructor(
 
 	private fun initializeGoals() {
 		GoalTracker.initialize(context, trackerSessionChannel)
-		NewDayGoalWorker.ensureScheduled(context)
 	}
 }

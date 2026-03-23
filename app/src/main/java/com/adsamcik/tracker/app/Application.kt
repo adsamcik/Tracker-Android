@@ -8,7 +8,6 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
-import androidx.work.WorkManager
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
@@ -20,17 +19,13 @@ import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
-import com.adsamcik.tracker.map.MapLibreInitializer
+import com.adsamcik.tracker.game.goals.GoalResetScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -38,6 +33,7 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -81,23 +77,14 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var lockManagerProvider: Provider<LockManager>
 
 	@Inject
-	lateinit var dailySummaryProvider: Provider<DailySummaryProvider>
-
-	@Inject
-	lateinit var dailyPointsProvider: Provider<DailyPointsProvider>
-
-	@Inject
-	lateinit var goalProgressProvider: Provider<GoalProgressProvider>
-
-	@Inject
-	lateinit var activeChallengesProvider: Provider<ActiveChallengesProvider>
-
-	@Inject
 	lateinit var precisionUpgradeConsumerProvider: Provider<PrecisionUpgradeDomainEventConsumer>
 
 	@Volatile
 	var isStartupReady: Boolean = false
-		private set
+	private set
+
+	private val deferredStartupStarted = AtomicBoolean(false)
+	private val maintenanceStartupStarted = AtomicBoolean(false)
 	
 	override val workManagerConfiguration: Configuration
 		get() = Configuration.Builder()
@@ -132,6 +119,11 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	private fun initializeDatabaseMaintenance() {
+		try {
+			GoalResetScheduler.ensureScheduled(this)
+		} catch (e: IllegalStateException) {
+			Log.w("App", "Skipping GoalResetScheduler.ensureScheduled during unit tests: ${e.message}")
+		}
 		// Schedule periodic DB maintenance if WorkManager is available
 		try {
 			DatabaseMaintenanceWorker.schedule(this)
@@ -161,15 +153,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 		}
 	}
 
-	@WorkerThread
-	private fun initializeWorkManager() {
-		try {
-			WorkManager.initialize(this, workManagerConfiguration)
-		} catch (e: IllegalStateException) {
-			Log.w("App", "WorkManager already initialized: ${e.message}")
-		}
-	}
-
 	/**
 	 * Phase 1: resolve lightweight singletons (no DB access).
 	 * Eagerly touches Hilt-provided singletons so they are ready before UI needs them.
@@ -180,48 +163,45 @@ class Application : AndroidApplication(), Configuration.Provider {
 		lockManagerProvider.get()
 	}
 
-	/**
-	 * Phase 2: resolve DB-touching providers (lazy DB init on first query).
-	 */
-	@WorkerThread
-	private fun warmUpDeferred() {
-		dailySummaryProvider.get()
-		dailyPointsProvider.get()
-		goalProgressProvider.get()
-		activeChallengesProvider.get()
-	}
-
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
 			try {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
-
-				coroutineScope {
-					// NativeLibraryInitializer preloads the native library via App Startup.
-					// We still warm up the MapLibre SDK here so FileSource initialization
-					// happens off the main thread before the user opens the map screen.
-					launch { MapLibreInitializer.initialize(this@Application) }
-					launch { initializeWorkManager() }
-					launch { warmUp() }
-				}
 			} catch (t: Throwable) {
 				Log.e("App", "Background startup initialization failed", t)
 			} finally {
 				isStartupReady = true
 			}
+		}
+	}
 
-			launch(dispatchers.io) {
-				try {
-					warmUpDeferred()
-					initializeClasses()
-					initializeModules()
-					initializeFeatures()
-					initializeDatabaseMaintenance()
-				} catch (t: Throwable) {
-					Log.e("App", "Deferred startup initialization failed", t)
+	fun startDeferredStartupIfNeeded() {
+		if (!deferredStartupStarted.compareAndSet(false, true)) return
+
+		appScope.launch(dispatchers.io) {
+			try {
+				coroutineScope {
+					launch { warmUp() }
 				}
+				initializeClasses()
+				initializeModules()
+				initializeFeatures()
+			} catch (t: Throwable) {
+				Log.e("App", "Deferred startup initialization failed", t)
+			}
+		}
+	}
+
+	fun startMaintenanceStartupIfNeeded() {
+		if (!maintenanceStartupStarted.compareAndSet(false, true)) return
+
+		appScope.launch(dispatchers.io) {
+			try {
+				initializeDatabaseMaintenance()
+			} catch (t: Throwable) {
+				Log.e("App", "Maintenance startup initialization failed", t)
 			}
 		}
 	}

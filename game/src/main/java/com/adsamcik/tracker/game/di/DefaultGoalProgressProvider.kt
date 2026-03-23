@@ -54,7 +54,7 @@ class DefaultGoalProgressProvider(
         }
         .stateIn(
             scope = scope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.Lazily,
             initialValue = GoalProgress(
                 stepsToday = 0,
                 goalSteps = 0,

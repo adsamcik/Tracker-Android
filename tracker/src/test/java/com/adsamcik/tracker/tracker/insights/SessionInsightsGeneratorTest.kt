@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
+import javax.inject.Provider
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -24,6 +25,8 @@ class SessionInsightsGeneratorTest {
     private val context = mockk<Context>(relaxed = true)
     private val dailySummaryDao = mockk<DailySummaryDao>()
     private val explorationCellDao = mockk<ExplorationCellDao>()
+    private val dailySummaryDaoProvider = mockk<Provider<DailySummaryDao>>()
+    private val explorationCellDaoProvider = mockk<Provider<ExplorationCellDao>>()
     private val dispatcher = StandardTestDispatcher()
 
     private lateinit var generator: SessionInsightsGenerator
@@ -37,10 +40,12 @@ class SessionInsightsGeneratorTest {
                 args.drop(1).forEach { append("_$it") }
             }
         }
+        every { dailySummaryDaoProvider.get() } returns dailySummaryDao
+        every { explorationCellDaoProvider.get() } returns explorationCellDao
         generator = SessionInsightsGenerator(
             context = context,
-            dailySummaryDao = dailySummaryDao,
-            explorationCellDao = explorationCellDao,
+            dailySummaryDaoProvider = dailySummaryDaoProvider,
+            explorationCellDaoProvider = explorationCellDaoProvider,
             dispatchers = TestDispatchersProvider(dispatcher),
         )
     }

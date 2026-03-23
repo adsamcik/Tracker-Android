@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -16,6 +17,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -57,16 +59,11 @@ class MainActivityCompose : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install splash screen before super.onCreate
-        val splashScreen = installSplashScreen()
+        installSplashScreen()
 
         // Enable edge-to-edge for modern Compose UI
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        val trackerApplication = application as Application
-        splashScreen.setKeepOnScreenCondition {
-            startupDestination == StartupDestination.Pending || !trackerApplication.isStartupReady
-        }
 
         setTheme(R.style.AppTheme_Translucent)
 
@@ -87,7 +84,6 @@ class MainActivityCompose : ComponentActivity() {
 
         lifecycleScope.launch(dispatchers.io) {
             val destination = runCatching {
-                onboardingRepository.ensureInitialized()
                 if (onboardingRepository.isCompleted.first()) {
                     StartupDestination.Main
                 } else {
@@ -146,7 +142,9 @@ class MainActivityCompose : ComponentActivity() {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
-                        ) {}
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
                 return
@@ -160,6 +158,18 @@ class MainActivityCompose : ComponentActivity() {
             }
 
             StartupDestination.Main -> Unit
+        }
+
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            kotlinx.coroutines.delay(DEFERRED_STARTUP_DELAY_MS)
+            (application as? Application)?.startDeferredStartupIfNeeded()
+        }
+
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            kotlinx.coroutines.delay(MAINTENANCE_STARTUP_DELAY_MS)
+            (application as? Application)?.startMaintenanceStartupIfNeeded()
         }
 
         AppTheme(darkTheme = darkTheme) {
@@ -190,6 +200,8 @@ class MainActivityCompose : ComponentActivity() {
     }
 
     companion object {
+        private const val DEFERRED_STARTUP_DELAY_MS = 250L
+        private const val MAINTENANCE_STARTUP_DELAY_MS = 5_000L
         private const val KEY_SELECTED_TAB = "main_selected_tab"
         const val EXTRA_NAVIGATE_TO = "navigate_to"
         const val EXTRA_CHALLENGE_ID = "challenge_id"

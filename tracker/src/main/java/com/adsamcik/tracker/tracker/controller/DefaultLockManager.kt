@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.locker.DisableTillRechargeWorker
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.service.TrackerService
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -39,6 +40,8 @@ class DefaultLockManager(
     private val trackerServiceController: TrackerServiceController,
     private val activityWatcherController: ActivityWatcherServiceController,
 ) : LockManager {
+    private val persistenceInitialized = AtomicBoolean(false)
+
     
     /**
      * WorkManager tag for recharge lock job.
@@ -68,22 +71,28 @@ class DefaultLockManager(
     }
     
     override suspend fun initializeFromPersistence(context: Context) {
-        val preferences = Preferences(context)
+        if (!persistenceInitialized.compareAndSet(false, true)) return
 
-        val timeKey = context.getString(R.string.settings_disabled_time_key)
-        val timeDefault = context.getString(R.string.settings_disabled_time_default).toLong()
-        setTimeLock(
-            context,
-            preferences.fetchLong(timeKey, timeDefault)
-        )
-
-        setRechargeLock(
-            context,
-            preferences.fetchBooleanRes(
+        try {
+            val preferences = Preferences(context)
+            val timeKey = context.getString(R.string.settings_disabled_time_key)
+            val timeDefault = context.getString(R.string.settings_disabled_time_default).toLong()
+            val persistedTime = preferences.fetchLong(timeKey, timeDefault)
+            val persistedRecharge = preferences.fetchBooleanRes(
                 R.string.settings_disabled_recharge_key,
                 R.string.settings_disabled_recharge_default
             )
-        )
+
+            synchronized(this) {
+                lockedUntilTime = persistedTime
+                lockedUntilRecharge = persistedRecharge
+            }
+
+            refreshLockState(context)
+        } catch (t: Throwable) {
+            persistenceInitialized.set(false)
+            throw t
+        }
     }
     
     override fun lockUntilRecharge(context: Context) {

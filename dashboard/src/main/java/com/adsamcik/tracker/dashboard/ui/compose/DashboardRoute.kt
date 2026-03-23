@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -23,7 +24,9 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
@@ -31,6 +34,7 @@ import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /**
@@ -54,9 +58,6 @@ fun DashboardRoute(
 	// Dependencies via ViewModel (Hilt-injected)
 	val controller = viewModel.trackerController
 	val lockManager = viewModel.lockManager
-	val dailyPointsProvider = viewModel.dailyPointsProvider
-	val goalProgressProvider = viewModel.goalProgressProvider
-	val activeChallengesProvider = viewModel.activeChallengesProvider
 
 	// Permission state from ViewModel
 	val hasLocationPermission by viewModel.hasLocationPermission.collectAsState()
@@ -65,6 +66,13 @@ fun DashboardRoute(
 	val snackbarHostState = remember { SnackbarHostState() }
 	val coroutineScope = rememberCoroutineScope()
 	var userRequestedStop by remember { mutableStateOf(false) }
+	var deferredDashboardDataEnabled by remember { mutableStateOf(false) }
+
+	LaunchedEffect(Unit) {
+		withFrameNanos { }
+		delay(250)
+		deferredDashboardDataEnabled = true
+	}
 
 	// Observe tracking state
 	val isTracking by controller.isServiceRunningFlow.collectAsState()
@@ -78,9 +86,26 @@ fun DashboardRoute(
 	val lastPathPoints by controller.lastPathPointsFlow.collectAsState()
 
 	// Observe daily/gamification state
-	val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
-	val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
-	val activeChallengeInfos by activeChallengesProvider.activeChallengesFlow.collectAsState()
+	val defaultGoalProgress = remember {
+		GoalProgress(
+			stepsToday = 0,
+			goalSteps = 0,
+			gamificationEnabled = false,
+		)
+	}
+	val emptyChallenges = remember { emptyList<ActiveChallengeInfo>() }
+	val pointsTodayFlow = remember(viewModel, deferredDashboardDataEnabled) {
+		if (deferredDashboardDataEnabled) viewModel.pointsTodayFlow else flowOf(0)
+	}
+	val goalProgressFlow = remember(viewModel, deferredDashboardDataEnabled) {
+		if (deferredDashboardDataEnabled) viewModel.goalProgressFlow else flowOf(defaultGoalProgress)
+	}
+	val activeChallengesFlow = remember(viewModel, deferredDashboardDataEnabled, emptyChallenges) {
+		if (deferredDashboardDataEnabled) viewModel.activeChallengesFlow else flowOf(emptyChallenges)
+	}
+	val pointsToday by pointsTodayFlow.collectAsState(initial = 0)
+	val goalProgress by goalProgressFlow.collectAsState(initial = defaultGoalProgress)
+	val activeChallengeInfos by activeChallengesFlow.collectAsState(initial = emptyChallenges)
 
 	// Historical data from ViewModel
 	val todaySummary by viewModel.todaySummary.collectAsState()
@@ -95,7 +120,8 @@ fun DashboardRoute(
 	var showCustomizeSheet by remember { mutableStateOf(false) }
 
 	// Fetch daily summary and historical data reactively
-	LaunchedEffect(isTracking, sessionData) {
+	LaunchedEffect(deferredDashboardDataEnabled, isTracking, sessionData) {
+		if (!deferredDashboardDataEnabled) return@LaunchedEffect
 		viewModel.refreshTodaySummary()
 		viewModel.loadHistoricalData(isTracking, lastSessionData)
 	}
@@ -175,7 +201,8 @@ fun DashboardRoute(
 		viewModel.mapChallenges(activeChallengeInfos)
 	}
 
-	LaunchedEffect(isTracking, displaySession?.id, displaySession?.end) {
+	LaunchedEffect(deferredDashboardDataEnabled, isTracking, displaySession?.id, displaySession?.end) {
+		if (!deferredDashboardDataEnabled) return@LaunchedEffect
 		viewModel.refreshSessionInsights(isTracking, displaySession)
 	}
 

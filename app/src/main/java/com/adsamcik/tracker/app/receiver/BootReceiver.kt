@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -19,7 +18,6 @@ class BootReceiver : BroadcastReceiver() {
 	@InstallIn(SingletonComponent::class)
 	interface BootReceiverEntryPoint {
 		fun lockManager(): LockManager
-		fun activityWatcherServiceController(): ActivityWatcherServiceController
 		@ApplicationScope fun appScope(): CoroutineScope
 	}
 
@@ -33,7 +31,6 @@ class BootReceiver : BroadcastReceiver() {
 			entryPoint.appScope().launch {
 				try {
 					entryPoint.lockManager().initializeFromPersistence(context)
-					entryPoint.activityWatcherServiceController().poke()
 				} finally {
 					pendingResult.finish()
 				}

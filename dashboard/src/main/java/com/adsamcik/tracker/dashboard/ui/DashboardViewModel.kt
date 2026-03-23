@@ -17,6 +17,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
@@ -31,14 +32,16 @@ import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import javax.inject.Inject
+import javax.inject.Provider
+import kotlin.LazyThreadSafetyMode
 
 /**
  * ViewModel for the Dashboard screen.
@@ -51,17 +54,36 @@ class DashboardViewModel @Inject constructor(
 	@ApplicationContext
 	private val appContext: Context,
 	private val dispatchers: DispatchersProvider,
-	private val appDatabase: AppDatabase,
+	private val appDatabaseProvider: Provider<AppDatabase>,
 	private val layoutRepository: DashboardLayoutRepository,
 	private val sessionInsightsGenerator: SessionInsightsGenerator,
 	val widgetRegistry: DashboardWidgetRegistry,
 	val trackerController: TrackerServiceController,
 	val lockManager: LockManager,
-	private val dailySummaryProvider: DailySummaryProvider,
-	val dailyPointsProvider: DailyPointsProvider,
-	val goalProgressProvider: GoalProgressProvider,
-	val activeChallengesProvider: ActiveChallengesProvider,
+	private val dailySummaryProvider: Provider<DailySummaryProvider>,
+	private val dailyPointsProviderFactory: Provider<DailyPointsProvider>,
+	private val goalProgressProviderFactory: Provider<GoalProgressProvider>,
+	private val activeChallengesProviderFactory: Provider<ActiveChallengesProvider>,
 ) : ViewModel() {
+
+	private val dailyPointsProvider by lazy(LazyThreadSafetyMode.NONE) {
+		dailyPointsProviderFactory.get()
+	}
+	private val goalProgressProvider by lazy(LazyThreadSafetyMode.NONE) {
+		goalProgressProviderFactory.get()
+	}
+	private val activeChallengesProvider by lazy(LazyThreadSafetyMode.NONE) {
+		activeChallengesProviderFactory.get()
+	}
+
+	val pointsTodayFlow: StateFlow<Int>
+		get() = dailyPointsProvider.pointsTodayFlow
+
+	val goalProgressFlow: StateFlow<com.adsamcik.tracker.shared.base.di.GoalProgress>
+		get() = goalProgressProvider.goalProgressFlow
+
+	val activeChallengesFlow: StateFlow<List<ActiveChallengeInfo>>
+		get() = activeChallengesProvider.activeChallengesFlow
 
 	val dashboardLayout: StateFlow<DashboardLayout> = layoutRepository.layout
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardLayout())
@@ -105,7 +127,7 @@ class DashboardViewModel @Inject constructor(
 	fun refreshTodaySummary() {
 		viewModelScope.launch {
 			_todaySummary.value = try {
-				dailySummaryProvider.fetchTodaySummary()
+				dailySummaryProvider.get().fetchTodaySummary()
 			} catch (_: Exception) {
 				null
 			}
@@ -122,6 +144,7 @@ class DashboardViewModel @Inject constructor(
 		viewModelScope.launch {
 			withContext(dispatchers.io) {
 				try {
+					val appDatabase = appDatabaseProvider.get()
 					if (lastSessionData == null) {
 						_dbLastSession.value = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
 					}
@@ -177,18 +200,19 @@ class DashboardViewModel @Inject constructor(
 
 	private suspend fun loadStreakData(db: AppDatabase) {
 		val streak = db.explorationStreakDao().getByType(DOMAIN_DAILY_DISCOVERY)
-		val weeklyDistances = mutableListOf<Float>()
 		val cal = Calendar.getInstance().apply {
 			set(Calendar.HOUR_OF_DAY, 0)
 			set(Calendar.MINUTE, 0)
 			set(Calendar.SECOND, 0)
 			set(Calendar.MILLISECOND, 0)
 		}
-		for (daysAgo in 6 downTo 0) {
-			val dayStart = cal.timeInMillis - daysAgo * 86_400_000L
-			val dayEnd = dayStart + 86_400_000L
-			val trips = db.tripDao().getBetween(dayStart, dayEnd)
-			weeklyDistances.add(trips.sumOf { it.distanceM.toDouble() }.toFloat())
+		val todayEpochDay = cal.timeInMillis / 86_400_000L
+		val startEpochDay = todayEpochDay - 6
+		val summariesByDay = db.dailySummaryDao()
+			.getBetween(startEpochDay, todayEpochDay)
+			.associateBy(DailySummaryEntity::dateEpochDay)
+		val weeklyDistances = (startEpochDay..todayEpochDay).map { epochDay ->
+			summariesByDay[epochDay]?.totalDistanceM ?: 0f
 		}
 		val thisWeek = weeklyDistances.takeLast(3).sum()
 		val lastWeek = weeklyDistances.take(3).sum()

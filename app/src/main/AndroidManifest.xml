@@ -64,9 +64,6 @@
                 android:name="androidx.work.WorkManagerInitializer"
                 android:value="androidx.startup"
                 tools:node="remove" />
-            <meta-data
-                android:name="com.adsamcik.tracker.app.startup.NativeLibraryInitializer"
-                android:value="androidx.startup" />
         </provider>
 
         

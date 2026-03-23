@@ -3,24 +3,26 @@ package com.adsamcik.tracker.map
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.WorkerThread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.maplibre.android.MapLibre
 
 /**
- * Pre-initializes the MapLibre SDK on a background thread to prevent ANR.
+ * Initializes the MapLibre SDK on the UI thread before the map composable renders.
  *
  * [MapLibre.getInstance] triggers [org.maplibre.android.storage.FileSource]
  * `initializeFileDirsPaths` and `internalSetResourcesCachePath`, which take
  * 1.7 s+ on first call due to bytecode verification and native init.
- * Pre-calling on a background thread makes the subsequent main-thread call
- * (from the [org.maplibre.compose.map.MaplibreMap] composable) a cached no-op.
  *
- * Two call sites ensure reliability:
- * 1. [com.adsamcik.tracker.app.Application.startBackgroundStartup] — opportunistic early init.
- * 2. `MapScreen` `LaunchedEffect` — guaranteed fallback before rendering the map.
+ * Newer MapLibre builds enforce main-thread access even for SDK bootstrap.
+ * Callers can safely invoke this from any coroutine context; initialization is
+ * marshaled onto [Dispatchers.Main.immediate] and remains idempotent.
+ *
+ * This initializer is intentionally used lazily from `MapScreen` so app startup
+ * stays responsive while still guaranteeing the SDK is ready before map render.
  */
 object MapLibreInitializer {
 
@@ -34,31 +36,25 @@ object MapLibreInitializer {
     @Volatile
     private var initialized = false
 
-    /**
-     * Pre-initialize the MapLibre SDK. Thread-safe, idempotent.
-     * Must be called with an application [Context].
-     * Catches all exceptions so a native-library failure does not crash the app;
-     * the composable will retry initialization itself on render.
-     *
-     * Only marks the SDK ready after a successful background init so the first
-     * map render never falls back to a heavy synchronous main-thread load.
-     */
-    @WorkerThread
-    fun initialize(context: Context): Boolean {
+    suspend fun initialize(context: Context): Boolean {
         if (initialized) return true
-        synchronized(this) {
-            if (initialized) return true
-            return try {
-                MapLibre.getInstance(context.applicationContext)
-                initialized = true
-                _isReady.value = true
-                true
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w(TAG, "Native library not loaded; map will init on render", e)
-                false
-            } catch (e: Exception) {
-                Log.w(TAG, "Pre-initialization failed; map will init on render", e)
-                false
+
+        return withContext(Dispatchers.Main.immediate) {
+            synchronized(this@MapLibreInitializer) {
+                if (initialized) return@withContext true
+
+                try {
+                    MapLibre.getInstance(context.applicationContext)
+                    initialized = true
+                    _isReady.value = true
+                    true
+                } catch (e: UnsatisfiedLinkError) {
+                    Log.w(TAG, "Native library not loaded; map will init on render", e)
+                    false
+                } catch (e: Exception) {
+                    Log.w(TAG, "Pre-initialization failed; map will init on render", e)
+                    false
+                }
             }
         }
     }

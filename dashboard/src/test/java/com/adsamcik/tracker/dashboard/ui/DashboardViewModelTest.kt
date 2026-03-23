@@ -10,9 +10,11 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
@@ -43,6 +45,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import javax.inject.Provider
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -55,7 +58,9 @@ class DashboardViewModelTest {
 	private lateinit var testDispatcher: TestDispatcher
 	private lateinit var context: Context
 	private lateinit var database: AppDatabase
+	private lateinit var databaseProvider: Provider<AppDatabase>
 	private lateinit var tripDao: TripDao
+	private lateinit var dailySummaryDao: DailySummaryDao
 	private lateinit var explorationCellDao: ExplorationCellDao
 	private lateinit var explorationStreakDao: ExplorationStreakDao
 	private lateinit var dispatchers: DispatchersProvider
@@ -65,9 +70,13 @@ class DashboardViewModelTest {
 	private lateinit var trackerController: TrackerServiceController
 	private lateinit var lockManager: LockManager
 	private lateinit var dailySummaryProvider: DailySummaryProvider
+	private lateinit var dailySummaryProviderFactory: Provider<DailySummaryProvider>
 	private lateinit var dailyPointsProvider: DailyPointsProvider
+	private lateinit var dailyPointsProviderFactory: Provider<DailyPointsProvider>
 	private lateinit var goalProgressProvider: GoalProgressProvider
+	private lateinit var goalProgressProviderFactory: Provider<GoalProgressProvider>
 	private lateinit var activeChallengesProvider: ActiveChallengesProvider
+	private lateinit var activeChallengesProviderFactory: Provider<ActiveChallengesProvider>
 
 	@BeforeEach
 	fun setup() {
@@ -81,16 +90,20 @@ class DashboardViewModelTest {
 
 		context = mockk(relaxed = true)
 		database = mockk(relaxed = true)
+		databaseProvider = mockk(relaxed = true)
 		tripDao = mockk(relaxed = true)
+		dailySummaryDao = mockk(relaxed = true)
 		explorationCellDao = mockk(relaxed = true)
 		explorationStreakDao = mockk(relaxed = true)
 
+		every { databaseProvider.get() } returns database
 		every { database.tripDao() } returns tripDao
+		every { database.dailySummaryDao() } returns dailySummaryDao
 		every { database.explorationCellDao() } returns explorationCellDao
 		every { database.explorationStreakDao() } returns explorationStreakDao
 
 		coEvery { tripDao.getRecentTrips(any()) } returns emptyList()
-		coEvery { tripDao.getBetween(any(), any()) } returns emptyList()
+		coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 		coEvery { explorationCellDao.countAtLevel(any()) } returns 0
 		coEvery { explorationStreakDao.getByType(any()) } returns null
 
@@ -108,9 +121,17 @@ class DashboardViewModelTest {
 		trackerController = mockk(relaxed = true)
 		lockManager = mockk(relaxed = true)
 		dailySummaryProvider = mockk(relaxed = true)
+		dailySummaryProviderFactory = mockk(relaxed = true)
+		every { dailySummaryProviderFactory.get() } returns dailySummaryProvider
 		dailyPointsProvider = mockk(relaxed = true)
+		dailyPointsProviderFactory = mockk(relaxed = true)
+		every { dailyPointsProviderFactory.get() } returns dailyPointsProvider
 		goalProgressProvider = mockk(relaxed = true)
+		goalProgressProviderFactory = mockk(relaxed = true)
+		every { goalProgressProviderFactory.get() } returns goalProgressProvider
 		activeChallengesProvider = mockk(relaxed = true)
+		activeChallengesProviderFactory = mockk(relaxed = true)
+		every { activeChallengesProviderFactory.get() } returns activeChallengesProvider
 
 		mockkStatic(androidx.core.content.ContextCompat::class)
 		every {
@@ -126,11 +147,11 @@ class DashboardViewModelTest {
 
 	private fun createViewModel(): DashboardViewModel {
 		return DashboardViewModel(
-			context, dispatchers, database,
+			context, dispatchers, databaseProvider,
 			layoutRepository, sessionInsightsGenerator, widgetRegistry,
 			trackerController, lockManager,
-			dailySummaryProvider, dailyPointsProvider,
-			goalProgressProvider, activeChallengesProvider
+			dailySummaryProviderFactory, dailyPointsProviderFactory,
+			goalProgressProviderFactory, activeChallengesProviderFactory
 		)
 	}
 
@@ -406,14 +427,15 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `trend UP when recent days exceed earlier by more than 10 percent`() = runTest {
-			// Days 0-3 (earlier): no trips; Days 4-6 (recent): 1000m each
-			var callCount = 0
-			coEvery { tripDao.getBetween(any(), any()) } answers {
-				callCount++
-				// Calls 1-4 → earlier days (0m), calls 5-7 → recent days (1000m)
-				if (callCount > 4) listOf(makeTrip(callCount.toLong(), 1000f))
-				else emptyList()
-			}
+			coEvery { dailySummaryDao.getBetween(any(), any()) } returns weeklySummaries(
+				0f,
+				0f,
+				0f,
+				0f,
+				1000f,
+				1000f,
+				1000f,
+			)
 
 			val vm = createViewModel()
 			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
@@ -424,13 +446,15 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `trend DOWN when recent days are below earlier by more than 10 percent`() = runTest {
-			var callCount = 0
-			coEvery { tripDao.getBetween(any(), any()) } answers {
-				callCount++
-				// Calls 1-4 → earlier days (1000m), calls 5-7 → recent days (0m)
-				if (callCount <= 4) listOf(makeTrip(callCount.toLong(), 1000f))
-				else emptyList()
-			}
+			coEvery { dailySummaryDao.getBetween(any(), any()) } returns weeklySummaries(
+				1000f,
+				1000f,
+				1000f,
+				1000f,
+				0f,
+				0f,
+				0f,
+			)
 
 			val vm = createViewModel()
 			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
@@ -441,9 +465,15 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `trend STEADY when totals are within 10 percent`() = runTest {
-			// All days return same distance → equal halves → STEADY
-			coEvery { tripDao.getBetween(any(), any()) } returns
-				listOf(makeTrip(1L, 500f))
+			coEvery { dailySummaryDao.getBetween(any(), any()) } returns weeklySummaries(
+				500f,
+				500f,
+				500f,
+				500f,
+				500f,
+				500f,
+				500f,
+			)
 
 			val vm = createViewModel()
 			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
@@ -454,7 +484,7 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `trend STEADY when all distances are zero`() = runTest {
-			coEvery { tripDao.getBetween(any(), any()) } returns emptyList()
+			coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 
 			val vm = createViewModel()
 			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
@@ -580,4 +610,26 @@ class DashboardViewModelTest {
 		source = SegmentSource.USER_CREATED,
 		createdAt = System.currentTimeMillis(),
 	)
+
+	private fun weeklySummaries(vararg distances: Float): List<DailySummaryEntity> {
+		require(distances.size == 7) { "Expected 7 daily distances" }
+		val todayEpochDay = java.util.Calendar.getInstance().apply {
+			set(java.util.Calendar.HOUR_OF_DAY, 0)
+			set(java.util.Calendar.MINUTE, 0)
+			set(java.util.Calendar.SECOND, 0)
+			set(java.util.Calendar.MILLISECOND, 0)
+		}.timeInMillis / 86_400_000L
+		return distances.mapIndexed { index, distance ->
+			DailySummaryEntity(
+				dateEpochDay = todayEpochDay - 6 + index,
+				totalDistanceM = distance,
+				totalSteps = 0,
+				totalDurationMs = 0L,
+				tripCount = if (distance > 0f) 1 else 0,
+				activeTrackingMs = 0L,
+				lastUpdatedMs = 0L,
+				createdAt = 0L,
+			)
+		}
+	}
 }

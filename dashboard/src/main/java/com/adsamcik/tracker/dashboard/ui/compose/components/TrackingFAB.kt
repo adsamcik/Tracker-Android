@@ -73,7 +73,7 @@ internal fun TrackingFAB(
 		label = "corner_radius",
 	)
 
-	val pulseScale = if (reducedMotion) {
+	val pulseScale = if (reducedMotion || !isTracking) {
 		1f
 	} else {
 		val infiniteTransition = rememberInfiniteTransition(label = "tracking_button_pulse")
@@ -89,7 +89,7 @@ internal fun TrackingFAB(
 		animatedPulseScale
 	}
 
-	val glowRotation = if (reducedMotion) {
+	val glowRotation = if (reducedMotion || !isTracking) {
 		0f
 	} else {
 		val infiniteTransition = rememberInfiniteTransition(label = "tracking_button_glow")

@@ -1,12 +1,5 @@
 package com.adsamcik.tracker.dashboard.ui.compose.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,62 +44,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
-import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 /**
  * Empty state content shown when the user has no tracking history.
  *
- * Includes: floating animated icon, animated route background,
- * feature highlights section, and a hint arrow pointing to the FAB.
+ * Uses a static illustration so the first dashboard screen stays responsive
+ * while the rest of startup work settles.
  */
 @Composable
 internal fun EmptyStateCard(modifier: Modifier = Modifier) {
-	val reducedMotion = LocalReducedMotion.current
-	val floatOffset = if (reducedMotion) {
-		0f
-	} else {
-		val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
-		val animatedFloatOffset by infiniteTransition.animateFloat(
-			initialValue = 0f,
-			targetValue = 8f,
-			animationSpec = infiniteRepeatable(
-				animation = tween(2000, easing = FastOutSlowInEasing),
-				repeatMode = RepeatMode.Reverse,
-			),
-			label = "float",
-		)
-		animatedFloatOffset
-	}
-	val iconScale = if (reducedMotion) {
-		1f
-	} else {
-		val infiniteTransition = rememberInfiniteTransition(label = "empty_state_icon")
-		val animatedIconScale by infiniteTransition.animateFloat(
-			initialValue = 1f,
-			targetValue = 1.05f,
-			animationSpec = infiniteRepeatable(
-				animation = tween(3000, easing = FastOutSlowInEasing),
-				repeatMode = RepeatMode.Reverse,
-			),
-			label = "icon_pulse",
-		)
-		animatedIconScale
-	}
-	val pathOffset = if (reducedMotion) {
-		0f
-	} else {
-		val infiniteTransition = rememberInfiniteTransition(label = "empty_state_path")
-		val animatedPathOffset by infiniteTransition.animateFloat(
-			initialValue = 0f,
-			targetValue = 50f,
-			animationSpec = infiniteRepeatable(
-				animation = tween(8000, easing = LinearEasing),
-				repeatMode = RepeatMode.Restart,
-			),
-			label = "path_offset",
-		)
-		animatedPathOffset
-	}
+	val floatOffset = 0f
+	val iconScale = 1f
+	val pathOffset = 0f
 
 	Card(
 		colors = CardDefaults.cardColors(
