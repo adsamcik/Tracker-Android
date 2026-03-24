@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,50 +58,46 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-private val defaultDispatchers = DefaultDispatchersProvider
 
 /**
  * Session activities manager in Compose (legacy base removed). Supports add / edit / swipe delete with undo.
  * Redesigned with Outdoor Modern aesthetic.
  */
+@AndroidEntryPoint
 class SessionActivityActivityCompose : ComponentActivity() {
+    private val viewModel: SessionActivityViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         title = getString(R.string.settings_activity_title)
         setContent { 
             AppTheme { 
-                SessionActivityRoute() 
+                SessionActivityRoute(viewModel = viewModel) 
             } 
         }
     }
 }
 
 @Composable
-fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
+fun SessionActivityRoute(
+    viewModel: SessionActivityViewModel,
+    onNavigateBack: (() -> Unit)? = null
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val items = remember { mutableStateListOf<SessionActivity>() }
     val snackbarHostState = remember { SnackbarHostState() }
+    val pendingDeleteIds = remember { mutableStateListOf<Long>() }
     var showAddDialog by remember { mutableStateOf(false) }
-    var editingActivity by remember { mutableStateOf<SessionActivity?>(null) } // Fixed null assignment type inference
-
-    // Load activities on first composition
-    LaunchedEffect(Unit) {
-        val activities = withContext(defaultDispatchers.default) {
-            SessionActivity.getAll(context)
-        }
-        items.clear()
-        items.addAll(activities)
-    }
+    var editingActivity by remember { mutableStateOf<SessionActivity?>(null) }
+    val items = uiState.items.filterNot { pendingDeleteIds.contains(it.id) }
 
     SessionActivityScreen(
         items = items,
@@ -110,68 +106,44 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
         onAddActivity = { showAddDialog = true },
         onEditActivity = { editingActivity = it },
         onDeleteActivity = { activity ->
-            scope.launch(defaultDispatchers.default) {
-                // Remove from list immediately for UI responsiveness
-                items.remove(activity)
-                
-                // Show snackbar with undo option
+            scope.launch {
+                if (!pendingDeleteIds.contains(activity.id)) {
+                    pendingDeleteIds.add(activity.id)
+                }
                 val result = snackbarHostState.showSnackbar(
                     message = context.getString(R.string.settings_activity_snackbar_message, activity.name),
                     actionLabel = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_undo),
                     duration = SnackbarDuration.Long
                 )
-                
+
                 if (result == SnackbarResult.ActionPerformed) {
-                    // Undo: add back to list
-                    items.add(activity)
+                    pendingDeleteIds.remove(activity.id)
                 } else {
-                    // Delete from database
-                    AppDatabase.database(context).activityDao().delete(activity.id)
+                    viewModel.deleteActivity(activity)
+                    pendingDeleteIds.remove(activity.id)
                 }
             }
         }
     )
 
-    // Add dialog
     if (showAddDialog) {
         ActivityEditDialog(
             activity = null,
             onDismiss = { showAddDialog = false },
             onSave = { name ->
-                scope.launch(defaultDispatchers.default) {
-                    val newActivity = SessionActivity(0, name, null)
-                    val dao = AppDatabase.database(context).activityDao()
-                    val id = dao.insert(newActivity)
-                    val savedActivity = newActivity.copy(id = id)
-                    
-                    withContext(defaultDispatchers.main) {
-                        items.add(savedActivity)
-                        showAddDialog = false
-                    }
-                }
+                viewModel.insertActivity(name)
+                showAddDialog = false
             }
         )
     }
 
-    // Edit dialog
     editingActivity?.let { activity ->
         ActivityEditDialog(
             activity = activity,
             onDismiss = { editingActivity = null },
             onSave = { name ->
-                scope.launch(defaultDispatchers.default) {
-                    val updatedActivity = activity.copy(name = name)
-                    val dao = AppDatabase.database(context).activityDao()
-                    dao.update(updatedActivity)
-                    
-                    withContext(defaultDispatchers.main) {
-                        val index = items.indexOfFirst { it.id == activity.id }
-                        if (index >= 0) {
-                            items[index] = updatedActivity
-                        }
-                        editingActivity = null
-                    }
-                }
+                viewModel.updateActivity(activity.copy(name = name))
+                editingActivity = null
             }
         )
     }

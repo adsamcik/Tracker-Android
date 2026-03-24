@@ -1,13 +1,14 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import android.util.Log
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
 import com.adsamcik.tracker.tracker.pipeline.StageResult
+import kotlinx.coroutines.CancellationException
 
 /**
  * Builds a [com.adsamcik.tracker.stats.api.signal.TrackingSignal] from cycle and
@@ -17,12 +18,16 @@ internal class SignalDispatchStage(
 	private val processorPipeline: ProcessorPipeline?,
 	private val currentTier: PolicyTier,
 ) : PipelineStage {
+	private companion object {
+		const val TAG = "SignalDispatchStage"
+	}
+
 	override val name: String = "SignalDispatch"
 
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		val pipeline = processorPipeline ?: return StageResult.Continue
 
-		tryWithReport {
+		val signal = try {
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
 
@@ -68,10 +73,16 @@ internal class SignalDispatchStage(
 				pressureAltitudeM = cycle.pressure?.altitudeM,
 				policyTier = currentTier,
 			)
-
-			cycleContext.signal = signal
-			pipeline.onSignal(signal)
+			signal
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to build tracking signal; skipping dispatch", e)
+			return StageResult.Continue
 		}
+
+		cycleContext.signal = signal
+		pipeline.onSignal(signal)
 
 		return StageResult.Continue
 	}

@@ -11,6 +11,7 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.impexp.exporter.EXPORT_LOG_SOURCE
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -88,9 +90,11 @@ class ExportPlanWorker @AssistedInject constructor(
                 is PlanExportResult.Failed -> {
                     // Do NOT update watermark on failure
                     Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' failed: ${exportResult.error}")
-                    Result.retry()
+                    Result.failure()
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' threw exception: ${e.message}")
             logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, clock.currentTimeMillis())
@@ -130,16 +134,28 @@ class ExportPlanWorker @AssistedInject constructor(
         val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
         var maxTimeMs = 0L
-        val samples = locationSampleDao.getAllBetween(fromMs, toMs)
-        val locationSequence = samples.asSequence()
+        val locationSequence = pagedLocationSequence(
+            locationSampleDao = locationSampleDao,
+            fromMs = fromMs,
+            toMs = toMs,
+            pageSize = PAGE_SIZE,
+        )
             .filter { it.latE7 != null && it.lonE7 != null }
             .onEach {
                 recordCount++
                 if (it.timeMs > maxTimeMs) maxTimeMs = it.timeMs
             }
 
-        val result = FileOutputStream(outputFile).use { fos ->
-            exporter.export(applicationContext, locationSequence, fos, dateRange)
+        val result = try {
+            FileOutputStream(outputFile).use { fos ->
+                exporter.export(applicationContext, locationSequence, fos, dateRange)
+            }
+        } catch (e: CancellationException) {
+            deletePartialOutput(outputFile)
+            throw e
+        } catch (e: Exception) {
+            deletePartialOutput(outputFile)
+            throw e
         }
 
         when (result) {
@@ -152,10 +168,18 @@ class ExportPlanWorker @AssistedInject constructor(
                 shouldAdvanceWatermark = exportRange.shouldAdvanceWatermark,
             )
             is ExportResult.Error -> {
-                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${outputFile.name}")
-                outputFile.delete()
-                PlanExportResult.Failed("Export returned error for ${plan.name}")
+                val errorMessage = result.message?.localize(applicationContext)
+                    ?: "Export returned error for ${plan.name}"
+                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${outputFile.name}: $errorMessage")
+                deletePartialOutput(outputFile)
+                PlanExportResult.Failed(errorMessage)
             }
+        }
+    }
+
+    private fun deletePartialOutput(outputFile: File) {
+        if (outputFile.exists() && !outputFile.delete()) {
+            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial export ${outputFile.name}")
         }
     }
 
@@ -338,7 +362,7 @@ class ExportPlanWorker @AssistedInject constructor(
         const val KEY_PLAN_ID = "plan_id"
         const val KEY_TRIGGER_REASON = "trigger_reason"
         const val KEY_TRIGGER_METADATA = "trigger_metadata"
-        private const val PAGE_SIZE = 2000
+        private const val PAGE_SIZE = 5000
         private const val EXPORT_NOTIFICATION_ID_BASE = 904_000
     }
 }

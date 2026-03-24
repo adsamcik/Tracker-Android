@@ -58,7 +58,7 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	/**
 	 * Get all summaries before a specific epoch day, ordered by date.
 	 */
-	@Query("SELECT * FROM daily_summary WHERE date_epoch_day < :beforeDay ORDER BY date_epoch_day")
+	@Query("SELECT * FROM daily_summary WHERE date_epoch_day < :beforeDay ORDER BY date_epoch_day LIMIT 5000")
 	suspend fun getAllBefore(beforeDay: Long): List<DailySummaryEntity>
 
 	/**

@@ -21,8 +21,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 26         │ 385         │ 🚧 UNRELEASED - Analytics/export indices │
+ * │            │             │    (domain_event, export_log,            │
+ * │            │             │    inferred_trip)                        │
  * │ 25         │ 385         │ 🚧 UNRELEASED - Durable signal WAL       │
  * │            │             │    (pending_signal)                      │
+ * │ 24         │ 385         │ 🚧 UNRELEASED - Achievement notified_at  │
+ * │ 23         │ 385         │ 🚧 UNRELEASED - Query indices for route  │
+ * │            │             │    cache/export/live stats               │
+ * │ 22         │ 385         │ 🚧 UNRELEASED - 5G cell ID widening      │
  * │ 21         │ 385         │ 🚧 UNRELEASED - Drop legacy tables       │
  * │            │             │    (tracker_session, location_data,      │
  * │            │             │    wifi_data, cell_location,             │
@@ -64,12 +71,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *
  * Example workflow:
  * - You're adding a new column to an existing table.
- * - Current DB version is 13 (unreleased, versionCode 385).
- * - Action: Update MIGRATION_12_13 directly (no new migration needed).
+ * - Current DB version is 26 (unreleased, versionCode 385).
+ * - Action: Update MIGRATION_25_26 directly (no new migration needed).
  *
- * - You're adding a new table after version 13 ships.
- * - DB version 13 is now RELEASED (versionCode 385).
- * - Action: Bump DB version to 14, create MIGRATION_13_14, update table above.
+ * - You're adding a new table after version 26 ships.
+ * - DB version 26 is now RELEASED (versionCode 385).
+ * - Action: Bump DB version to 27, create MIGRATION_26_27, update table above.
  *
  * ============================================================================
  */
@@ -970,16 +977,58 @@ val MIGRATION_22_23: Migration = object : Migration(22, 23) {
 }
 
 /**
- * Version 23 → 24: Add notified_at column to achievement_progress for tracking
- * whether the user has seen an unlock notification.
+ * Version 23 → 24: Add notified_at to achievement_progress and align the table
+ * with the current nullable tier / null-default schema contract.
  */
 val MIGRATION_23_24: Migration = object : Migration(23, 24) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
-			execSQL("ALTER TABLE achievement_progress ADD COLUMN notified_at INTEGER DEFAULT NULL")
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS achievement_progress_new (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					achievement_id TEXT NOT NULL,
+					current_value INTEGER NOT NULL,
+					target_value INTEGER NOT NULL,
+					tier INTEGER,
+					unlocked_at INTEGER,
+					updated_at INTEGER NOT NULL,
+					notified_at INTEGER
+				)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+				INSERT INTO achievement_progress_new (
+					id,
+					achievement_id,
+					current_value,
+					target_value,
+					tier,
+					unlocked_at,
+					updated_at,
+					notified_at
+				)
+				SELECT
+					id,
+					achievement_id,
+					current_value,
+					target_value,
+					tier,
+					unlocked_at,
+					updated_at,
+					NULL
+				FROM achievement_progress
+				""".trimIndent()
+			)
+			execSQL("DROP TABLE achievement_progress")
+			execSQL("ALTER TABLE achievement_progress_new RENAME TO achievement_progress")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_achievement_id ON achievement_progress(achievement_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_updated_at ON achievement_progress(updated_at)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_unlocked_at ON achievement_progress(unlocked_at)")
 			android.util.Log.i(
 				"AppDatabase",
-				"Migration 23->24: Added notified_at column to achievement_progress"
+				"Migration 23->24: Rebuilt achievement_progress with nullable tier and notified_at"
 			)
 		}
 	}

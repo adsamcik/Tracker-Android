@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import android.util.Log
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
@@ -9,8 +10,6 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
-import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -32,8 +31,6 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
-import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
-import com.adsamcik.tracker.tracker.pipeline.StageResult
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
@@ -42,6 +39,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.PreValidationStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -68,6 +66,10 @@ internal class TrackingOrchestrator(
 	trackingParamsRepository: TrackingParamsRepository,
 	trackerSettingsRepository: TrackerSettingsRepository,
 ) {
+	private companion object {
+		const val TAG = "TrackingOrchestrator"
+	}
+
 	private val componentMutex = Mutex()
 
 	private var dataProducerManager: DataProducerManager? = null
@@ -122,11 +124,49 @@ internal class TrackingOrchestrator(
 
 		// Clear existing components to prevent duplicates and ConcurrentModificationException
 		// if onStartCommand is called multiple times or concurrently with onUpdate.
-		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		tryWithReport { notificationComponent.onDisable(context) }
-		skiTrackingComponent?.let { tryWithReport { it.onDisable(context) } }
-		skiSegmentWriter?.let { tryWithReport { it.onDisable(context) } }
+		preComponentList.forEach { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable pre-component: ${component::class.simpleName}", e)
+			}
+		}
+		dataComponentList.forEach { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable data-component: ${component::class.simpleName}", e)
+			}
+		}
+		try {
+			notificationComponent.onDisable(context)
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to disable notification component: ${notificationComponent::class.simpleName}", e)
+		}
+		skiTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable ski tracking component: ${component::class.simpleName}", e)
+			}
+		}
+		skiSegmentWriter?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable ski segment writer: ${component::class.simpleName}", e)
+			}
+		}
 		preComponentList.clear()
 		dataComponentList.clear()
 		skiTrackingComponent = null
@@ -335,24 +375,78 @@ internal class TrackingOrchestrator(
 
 	private suspend fun destroyComponents(context: Context) {
 		// Stop the stats ProcessorPipeline first (final flush + event delivery)
-		tryWithReport {
+		try {
 			processorPipeline?.stop()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Reporter.report(IllegalStateException("Failed to stop processor pipeline during shutdown", e))
+		} finally {
 			processorPipeline = null
 		}
 
 		dataProducerManager?.onDisable()
-		trackingPolicyManager?.stop()
-		trackingPolicyManager = null
-		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		tryWithReport { notificationComponent.onDisable(context) }
-		skiTrackingComponent?.let { tryWithReport { it.onDisable(context) } }
-		skiSegmentWriter?.let { tryWithReport { it.onDisable(context) } }
+		try {
+			trackingPolicyManager?.stop()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Reporter.report(IllegalStateException("Failed to stop tracking policy manager during shutdown", e))
+		} finally {
+			trackingPolicyManager = null
+		}
+		preComponentList.forEach { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable pre-component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
+		dataComponentList.forEach { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable data-component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
+		try {
+			notificationComponent.onDisable(context)
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to disable notification component during shutdown: ${notificationComponent::class.simpleName}", e)
+		}
+		skiTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable ski tracking component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
+		skiSegmentWriter?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable ski segment writer during shutdown: ${component::class.simpleName}", e)
+			}
+		}
 		skiTrackingComponent = null
 		skiSegmentWriter = null
 		sessionComponent?.let { component ->
-			tryWithReport {
+			try {
 				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable session component during shutdown: ${component::class.simpleName}", e)
 			}
 		}
 		sessionComponent = null

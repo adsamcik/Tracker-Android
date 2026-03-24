@@ -3,7 +3,10 @@ package com.adsamcik.tracker.map
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +22,7 @@ import org.maplibre.android.MapLibre
  *
  * Newer MapLibre builds enforce main-thread access even for SDK bootstrap.
  * Callers can safely invoke this from any coroutine context; initialization is
- * marshaled onto [Dispatchers.Main.immediate] and remains idempotent.
+ * marshaled onto the provided main dispatcher and remains idempotent.
  *
  * This initializer is intentionally used lazily from `MapScreen` so app startup
  * stays responsive while still guaranteeing the SDK is ready before map render.
@@ -36,10 +39,14 @@ object MapLibreInitializer {
     @Volatile
     private var initialized = false
 
-    suspend fun initialize(context: Context): Boolean {
+    suspend fun initialize(
+        context: Context,
+        dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+    ): Boolean {
         if (initialized) return true
 
-        return withContext(Dispatchers.Main.immediate) {
+        val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+        return withContext(mainImmediate) {
             synchronized(this@MapLibreInitializer) {
                 if (initialized) return@withContext true
 
@@ -51,6 +58,8 @@ object MapLibreInitializer {
                 } catch (e: UnsatisfiedLinkError) {
                     Log.w(TAG, "Native library not loaded; map will init on render", e)
                     false
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.w(TAG, "Pre-initialization failed; map will init on render", e)
                     false

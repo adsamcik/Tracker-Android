@@ -12,17 +12,17 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -54,10 +54,15 @@ class DataRetentionWorker @AssistedInject constructor(
 
         val years = config.dataRetentionYears
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
-        tryWithReport {
+        return try {
             pruneOlderThan(cutoff)
+            Result.success()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.report(e)
+            Result.retry()
         }
-        return Result.success()
     }
 
     companion object {
@@ -69,10 +74,12 @@ class DataRetentionWorker @AssistedInject constructor(
          * Legacy entry point for non-Hilt callers (OnboardingActivity, tests).
          * Production code should use [DataRetentionScheduler] instead.
          */
-        @Deprecated("Inject DataRetentionScheduler and call initialize() instead")
+        @Deprecated(
+            message = "Use the injected DataRetentionScheduler.initialize() WorkManager scheduling path instead of DataRetentionWorker.initialize()."
+        )
         fun initialize(context: Context) {
             val appContext = context.applicationContext
-            val store = RetentionConfigStore(appContext, Dispatchers.IO)
+            val store = RetentionConfigStore(appContext, DefaultDispatchersProvider.io)
             store.config.map { it.autoCleanupEnabled }.onEach { enabled ->
                 syncScheduling(appContext, enabled)
             }.launchIn(CoroutineScope(SupervisorJob()))

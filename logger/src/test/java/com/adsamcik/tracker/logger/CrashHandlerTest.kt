@@ -16,6 +16,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @DisplayName("CrashHandler")
 class CrashHandlerTest {
@@ -23,6 +26,7 @@ class CrashHandlerTest {
 	private lateinit var tempDir: File
 	private lateinit var crashDir: File
 	private lateinit var crashHandler: CrashHandler
+	private lateinit var executor: ExecutorService
 
 	/**
 	 * Creates a CrashHandler without calling the constructor (bypasses Kotlin null-checks).
@@ -40,7 +44,7 @@ class CrashHandlerTest {
 		// Set executor (required by cleanup and migration methods)
 		val executorField = CrashHandler::class.java.getDeclaredField("executor")
 		executorField.isAccessible = true
-		executorField.set(handler, java.util.concurrent.Executors.newSingleThreadExecutor())
+		executorField.set(handler, executor)
 
 		// Set defaultHandler to current default
 		val defaultHandlerField = CrashHandler::class.java.getDeclaredField("defaultHandler")
@@ -71,6 +75,7 @@ class CrashHandlerTest {
 		tempDir.mkdirs()
 		crashDir = File(tempDir, "crashes")
 		crashDir.mkdirs()
+		executor = Executors.newSingleThreadExecutor()
 
 		crashHandler = createCrashHandler()
 		injectCrashDir(crashHandler, crashDir)
@@ -78,9 +83,15 @@ class CrashHandlerTest {
 
 	@AfterEach
 	fun tearDown() {
+		executor.shutdownNow()
 		tempDir.deleteRecursively()
 		Thread.setDefaultUncaughtExceptionHandler(null)
 		unmockkStatic(Log::class)
+	}
+
+	private fun awaitExecutorIdle() {
+		executor.shutdown()
+		executor.awaitTermination(5, TimeUnit.SECONDS) shouldBe true
 	}
 
 	@Nested
@@ -312,8 +323,7 @@ class CrashHandlerTest {
 			method.isAccessible = true
 			method.invoke(crashHandler)
 
-			// Cleanup runs on executor, give it time
-			Thread.sleep(500)
+			awaitExecutorIdle()
 
 			val remaining = crashDir.listFiles()
 			remaining.shouldNotBeNull()

@@ -17,6 +17,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	/**
 	 * Get all location samples within time range, ordered by time.
 	 */
+	@Deprecated("Use getChunkBetweenOrdered() for bounded reads", level = DeprecationLevel.WARNING)
 	@Query("SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<LocationSample>
 

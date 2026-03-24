@@ -13,7 +13,8 @@ import androidx.room.PrimaryKey
 	tableName = "session_segment",
 	indices = [
 		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_session_segment_time_range"),
-		Index(value = ["source"], name = "idx_session_segment_source")
+		Index(value = ["source"], name = "idx_session_segment_source"),
+		Index(value = ["primary_activity"], name = "idx_session_segment_primary_activity")
 	]
 )
 data class SessionSegment(

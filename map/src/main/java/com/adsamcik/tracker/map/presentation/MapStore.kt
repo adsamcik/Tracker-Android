@@ -45,6 +45,9 @@ class MapStore @Inject constructor(
     private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
+    internal val dispatchersProvider: DispatchersProvider
+        get() = dispatchers
+
     private enum class CoordinateAxis { Latitude, Longitude }
 
     private data class ParsedCoordinateComponent(

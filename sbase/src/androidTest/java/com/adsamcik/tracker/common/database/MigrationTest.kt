@@ -1,9 +1,11 @@
 package com.adsamcik.tracker.common.database
 
+import android.database.SQLException
 import androidx.core.database.getDoubleOrNull
 import androidx.core.database.getFloatOrNull
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -20,6 +22,8 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_19_20
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_20_21
 import com.adsamcik.tracker.shared.base.database.MIGRATION_21_22
+import com.adsamcik.tracker.shared.base.database.MIGRATION_23_24
+import com.adsamcik.tracker.shared.base.database.MIGRATION_24_25
 import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
@@ -31,6 +35,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -1171,131 +1176,253 @@ class MigrationTest {
 
 	@Test
 	@Throws(IOException::class)
-	fun migrate20To21() {
-		val db = helper.createDatabase(TEST_DB, 20)
-		db.execSQL(
-			"""
-				INSERT INTO cell_location (
-					id,
-					time,
-					mcc,
-					mnc,
-					cell_id,
-					type,
-					asu,
-					lat,
-					lon,
-					alt
-				) VALUES (
-					1,
-					1700000000000,
-					'230',
-					'01',
-					987654,
-					13,
-					42,
-					48.125,
-					17.875,
-					250.0
-				)
-			""".trimIndent()
-		)
-		db.execSQL(
-			"""
-				INSERT INTO wifi_data (
-					bssid,
-					longitude,
-					latitude,
-					altitude,
-					first_seen,
-					last_seen,
-					ssid,
-					capabilities,
-					frequency,
-					level
-				) VALUES (
-					'00:11:22:33:44:55',
-					18.5,
-					49.25,
-					150.0,
-					1699999900000,
-					1700000050000,
-					'Tracker WiFi',
-					'[WPA2-PSK-CCMP][ESS]',
-					2412,
-					-55
-				)
-			""".trimIndent()
-		)
-		db.close()
+	fun migrate20To21_backfillsPopulatedLegacyTablesAndDropsThem() {
+		createVersion20Database {
+			execSQL(
+				"""
+					INSERT INTO cell_location (
+						id,
+						time,
+						mcc,
+						mnc,
+						cell_id,
+						type,
+						asu,
+						lat,
+						lon,
+						alt
+					) VALUES (
+						1,
+						1700000000000,
+						'230',
+						'01',
+						987654,
+						13,
+						42,
+						48.125,
+						17.875,
+						250.0
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO wifi_data (
+						bssid,
+						longitude,
+						latitude,
+						altitude,
+						first_seen,
+						last_seen,
+						ssid,
+						capabilities,
+						frequency,
+						level
+					) VALUES (
+						'00:11:22:33:44:55',
+						18.5,
+						49.25,
+						150.0,
+						1699999900000,
+						1700000050000,
+						'Tracker WiFi',
+						'[WPA2-PSK-CCMP][ESS]',
+						2412,
+						-55
+					)
+				""".trimIndent()
+			)
+		}
 
-		helper.runMigrationsAndValidate(TEST_DB, 21, true, MIGRATION_20_21).apply {
-			val cellSampleCursor = query(
+		migrate20To21Database().apply {
+			query(
 				"""
 					SELECT cell_id, mcc, mnc, lat_e7, lon_e7, provenance
 					FROM cell_sample
 					WHERE time_ms = 1700000000000
 				""".trimIndent()
-			)
-			with(cellSampleCursor) {
-				assertTrue(moveToFirst())
-				assertEquals(987654, getInt(0))
-				assertEquals(230, getInt(1))
-				assertEquals(1, getInt(2))
-				assertEquals(481250000, getInt(3))
-				assertEquals(178750000, getInt(4))
-				assertEquals("LEGACY_MIGRATION", getString(5))
-				assertFalse(moveToNext())
+			).use { cellSampleCursor ->
+				assertTrue(cellSampleCursor.moveToFirst())
+				assertEquals(987654, cellSampleCursor.getInt(0))
+				assertEquals(230, cellSampleCursor.getInt(1))
+				assertEquals(1, cellSampleCursor.getInt(2))
+				assertEquals(481250000, cellSampleCursor.getInt(3))
+				assertEquals(178750000, cellSampleCursor.getInt(4))
+				assertEquals("LEGACY_MIGRATION", cellSampleCursor.getString(5))
+				assertFalse(cellSampleCursor.moveToNext())
 			}
-			cellSampleCursor.close()
 
-			val wifiObservationCursor = query(
+			query(
 				"""
 					SELECT bssid, time_ms, ssid, lat_e7, lon_e7, provenance
 					FROM wifi_observation
 					WHERE bssid = '00:11:22:33:44:55'
 				""".trimIndent()
-			)
-			with(wifiObservationCursor) {
-				assertTrue(moveToFirst())
-				assertEquals("00:11:22:33:44:55", getString(0))
-				assertEquals(1700000050000L, getLong(1))
-				assertEquals("Tracker WiFi", getString(2))
-				assertEquals(492500000, getInt(3))
-				assertEquals(185000000, getInt(4))
-				assertEquals("LEGACY_MIGRATION", getString(5))
-				assertFalse(moveToNext())
+			).use { wifiObservationCursor ->
+				assertTrue(wifiObservationCursor.moveToFirst())
+				assertEquals("00:11:22:33:44:55", wifiObservationCursor.getString(0))
+				assertEquals(1700000050000L, wifiObservationCursor.getLong(1))
+				assertEquals("Tracker WiFi", wifiObservationCursor.getString(2))
+				assertEquals(492500000, wifiObservationCursor.getInt(3))
+				assertEquals(185000000, wifiObservationCursor.getInt(4))
+				assertEquals("LEGACY_MIGRATION", wifiObservationCursor.getString(5))
+				assertFalse(wifiObservationCursor.moveToNext())
 			}
-			wifiObservationCursor.close()
 
-			val droppedTablesCursor = query(
+			assertTableIsDropped("tracker_session")
+			assertTableIsDropped("location_data")
+			assertTableIsDropped("wifi_data")
+			assertTableIsDropped("cell_location")
+			assertTableIsDropped("location_wifi_count")
+
+			query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'network_operator'").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(1, cursor.getInt(0))
+				assertFalse(cursor.moveToNext())
+			}
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate20To21_handlesEmptyLegacyTables() {
+		createVersion20Database()
+
+		migrate20To21Database().apply {
+			assertTableRowCount("cell_sample", 0)
+			assertTableRowCount("wifi_observation", 0)
+			assertTableIsDropped("wifi_data")
+			assertTableIsDropped("cell_location")
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate20To21_handlesEdgeCaseLegacyRows() {
+		val longSsid = "SSID-" + "X".repeat(240)
+		val longCapabilities = "[EDGE]-" + "Y".repeat(240)
+
+		createVersion20Database {
+			execSQL(
 				"""
-					SELECT COUNT(*) FROM sqlite_master
-					WHERE type = 'table' AND name IN (
-						'tracker_session',
-						'location_data',
-						'wifi_data',
-						'cell_location',
-						'location_wifi_count'
+					INSERT INTO cell_location (
+						id,
+						time,
+						mcc,
+						mnc,
+						cell_id,
+						type,
+						asu,
+						lat,
+						lon,
+						alt
+					) VALUES
+						(
+							1,
+							1700000100000,
+							'999',
+							'999',
+							2147483647,
+							-2147483648,
+							2147483647,
+							-89.9999999,
+							179.9999999,
+							NULL
+						),
+						(
+							2,
+							1700000100000,
+							'999',
+							'999',
+							2147483647,
+							-2147483648,
+							2147483647,
+							-89.9999999,
+							179.9999999,
+							NULL
+						)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO wifi_data (
+						bssid,
+						longitude,
+						latitude,
+						altitude,
+						first_seen,
+						last_seen,
+						ssid,
+						capabilities,
+						frequency,
+						level
+					) VALUES (
+						'AA:BB:CC:DD:EE:FF',
+						NULL,
+						NULL,
+						NULL,
+						1,
+						9223372036854775806,
+						'$longSsid',
+						'$longCapabilities',
+						2147483647,
+						-2147483648
 					)
 				""".trimIndent()
 			)
-			with(droppedTablesCursor) {
-				assertTrue(moveToFirst())
-				assertEquals(0, getInt(0))
-				assertFalse(moveToNext())
-			}
-			droppedTablesCursor.close()
+		}
 
-			val networkOperatorCursor = query(
-				"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'network_operator'"
-			)
-			with(networkOperatorCursor) {
-				assertTrue(moveToFirst())
-				assertEquals(1, getInt(0))
-				assertFalse(moveToNext())
+		migrate20To21Database().apply {
+			query(
+				"""
+					SELECT COUNT(*)
+					FROM cell_sample
+					WHERE time_ms = 1700000100000 AND cell_id = 2147483647
+				""".trimIndent()
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(2, cursor.getInt(0))
+				assertFalse(cursor.moveToNext())
 			}
-			networkOperatorCursor.close()
+
+			query(
+				"""
+					SELECT network_type, signal_strength, lat_e7, lon_e7
+					FROM cell_sample
+					WHERE time_ms = 1700000100000 AND cell_id = 2147483647
+					ORDER BY id
+					LIMIT 1
+				""".trimIndent()
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(-2147483648, cursor.getInt(0))
+				assertEquals(2147483647, cursor.getInt(1))
+				assertEquals(-899999999, cursor.getInt(2))
+				assertEquals(1799999999, cursor.getInt(3))
+				assertFalse(cursor.moveToNext())
+			}
+
+			query(
+				"""
+					SELECT time_ms, ssid, capabilities, frequency, level, lat_e7, lon_e7, provenance
+					FROM wifi_observation
+					WHERE bssid = 'AA:BB:CC:DD:EE:FF'
+				""".trimIndent()
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(9223372036854775806L, cursor.getLong(0))
+				assertEquals(longSsid, cursor.getString(1))
+				assertEquals(longCapabilities, cursor.getString(2))
+				assertEquals(2147483647, cursor.getInt(3))
+				assertEquals(-2147483648, cursor.getInt(4))
+				assertTrue(cursor.isNull(5))
+				assertTrue(cursor.isNull(6))
+				assertEquals("LEGACY_MIGRATION", cursor.getString(7))
+				assertFalse(cursor.moveToNext())
+			}
+
+			assertTableIsDropped("wifi_data")
+			assertTableIsDropped("cell_location")
 		}
 	}
 
@@ -1363,6 +1490,78 @@ class MigrationTest {
 		}
 	}
 
+	@Test
+	@Throws(IOException::class)
+	fun migrate23To26_achievementProgressMatchesEntitySchema() {
+		val db = helper.createDatabase(TEST_DB, 23)
+		db.execSQL(
+			"""
+				INSERT INTO achievement_progress (
+					id,
+					achievement_id,
+					current_value,
+					target_value,
+					tier,
+					unlocked_at,
+					updated_at
+				) VALUES (
+					1,
+					'legacy-upgrade-seed',
+					75,
+					100,
+					2,
+					NULL,
+					1700000600000
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(
+			TEST_DB,
+			26,
+			true,
+			MIGRATION_23_24,
+			MIGRATION_24_25,
+			MIGRATION_25_26
+		).apply {
+			val columnInfo = mutableMapOf<String, Pair<Int, String?>>()
+			query(
+				"""
+					SELECT name, "notnull", dflt_value
+					FROM pragma_table_info('achievement_progress')
+					WHERE name IN ('tier', 'notified_at')
+				""".trimIndent()
+			).use { cursor ->
+				while (cursor.moveToNext()) {
+					columnInfo[cursor.getString(0)] = cursor.getInt(1) to if (cursor.isNull(2)) null else cursor.getString(2)
+				}
+			}
+
+			assertEquals(0, columnInfo.getValue("tier").first)
+			assertEquals(0, columnInfo.getValue("notified_at").first)
+			assertEquals(null, columnInfo.getValue("notified_at").second)
+
+			query(
+				"""
+					SELECT achievement_id, current_value, target_value, tier, unlocked_at, updated_at, notified_at
+					FROM achievement_progress
+					WHERE id = 1
+				""".trimIndent()
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("legacy-upgrade-seed", cursor.getString(0))
+				assertEquals(75, cursor.getInt(1))
+				assertEquals(100, cursor.getInt(2))
+				assertEquals(2, cursor.getInt(3))
+				assertTrue(cursor.isNull(4))
+				assertEquals(1700000600000L, cursor.getLong(5))
+				assertTrue(cursor.isNull(6))
+				assertFalse(cursor.moveToNext())
+			}
+		}
+	}
+
 
 	@Test
 	@Throws(IOException::class)
@@ -1390,5 +1589,31 @@ class MigrationTest {
 
 	companion object {
 		private const val TEST_DB = "migration-test"
+	}
+
+	private fun createVersion20Database(setup: SupportSQLiteDatabase.() -> Unit = {}) {
+		helper.createDatabase(TEST_DB, 20).apply {
+			setup()
+			close()
+		}
+	}
+
+	private fun migrate20To21Database(): SupportSQLiteDatabase =
+		helper.runMigrationsAndValidate(TEST_DB, 21, true, MIGRATION_20_21)
+
+	private fun SupportSQLiteDatabase.assertTableRowCount(tableName: String, expectedCount: Int) {
+		query("SELECT COUNT(*) FROM $tableName").use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(expectedCount, cursor.getInt(0))
+			assertFalse(cursor.moveToNext())
+		}
+	}
+
+	private fun SupportSQLiteDatabase.assertTableIsDropped(tableName: String) {
+		try {
+			query("SELECT 1 FROM $tableName LIMIT 1").close()
+			fail("Expected table $tableName to be dropped")
+		} catch (_: SQLException) {
+		}
 	}
 }

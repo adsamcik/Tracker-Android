@@ -1,11 +1,19 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SessionSegmentStats
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import kotlinx.coroutines.flow.Flow
+
+data class SessionSegmentBounds(
+	@ColumnInfo(name = "min_start")
+	val minStart: Long?,
+	@ColumnInfo(name = "max_end")
+	val maxEnd: Long?,
+)
 
 /**
  * DAO for accessing session_segment table.
@@ -58,6 +66,39 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 */
 	@Query("SELECT * FROM session_segment WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms")
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<SessionSegment>
+
+	@Query(
+		"""
+		SELECT MIN(start_time_ms) AS min_start, MAX(end_time_ms) AS max_end
+		FROM session_segment
+		WHERE primary_activity IS NULL
+		"""
+	)
+	suspend fun getUnrecognizedBounds(): SessionSegmentBounds
+
+	@Query(
+		"""
+		SELECT *
+		FROM session_segment
+		WHERE primary_activity IS NULL
+			AND start_time_ms >= :fromMs
+			AND end_time_ms <= :toMs
+		ORDER BY start_time_ms
+		"""
+	)
+	suspend fun getUnrecognizedWithin(fromMs: Long, toMs: Long): List<SessionSegment>
+
+	@Query(
+		"""
+		SELECT *
+		FROM session_segment
+		WHERE primary_activity IS NULL
+			AND start_time_ms >= :fromMs
+			AND start_time_ms <= :toMs
+		ORDER BY start_time_ms
+		"""
+	)
+	suspend fun getUnrecognizedStartingBetween(fromMs: Long, toMs: Long): List<SessionSegment>
 
 	/**
 	 * Get session segments within time range as Flow.

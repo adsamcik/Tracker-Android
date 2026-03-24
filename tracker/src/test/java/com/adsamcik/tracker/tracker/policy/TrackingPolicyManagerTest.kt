@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -511,28 +510,9 @@ class TrackingPolicyManagerTest {
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
 	}
 
-	@Ignore("Activity transitions only escalate, never de-escalate - see TRACKING_POLICY_IMPLEMENTATION_ANALYSIS.md")
-	@Test
-	fun `activity transition to STILL downgrades policy`() = runTest {
-		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
-		startAndAwait(manager)
-
-		// Escalate via steps
-		val baseTime = System.currentTimeMillis()
-		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
-		onStepUpdateAndAwait(manager, stepCount = 60, timeMs = baseTime + 60_000)
-		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
-
-		// Activity recognition detects STILL
-		onActivityTransitionAndAwait(manager, activityType = 3, confidence = 90, timeMs = baseTime + 120_000) // STILL = 3
-
-		// Should downgrade
-		val finalPolicy = manager.currentPolicy.value
-		assertTrue(
-			finalPolicy.ordinal < TrackingPolicy.ACTIVE_MODERATE.ordinal,
-			"Expected downgrade after STILL activity, got $finalPolicy"
-		)
-	}
+	// Test removed: Activity transitions to STILL do not directly de-escalate policy.
+	// De-escalation is handled by cooldown timers, not activity transitions.
+	// See original @Ignore annotation: "Activity transitions only escalate, never de-escalate"
 
 	// ========== Mixed Event Sequences ==========
 

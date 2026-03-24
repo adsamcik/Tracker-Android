@@ -50,5 +50,5 @@ internal suspend fun <T> withDatabaseRetry(
 		}
 	}
 
-	throw lastException!!
+	lastException?.let { throw it } ?: error("Database retry exhausted without capturing an exception")
 }

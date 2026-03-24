@@ -36,6 +36,12 @@ class DefaultLayerRegistry(
     private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : LayerRegistry {
 
+    private companion object {
+        const val LOCATION_PATH_CHUNK_SIZE = 2_000
+        const val LOCATION_PATH_MAX_PRE_POINTS = 30_000
+        const val DEFAULT_LOCATION_RANGE_MS = 30L * 24 * 60 * 60 * 1_000
+    }
+
     /**
      * No-op layer placeholder.
      */
@@ -261,16 +267,52 @@ class DefaultLayerRegistry(
                             LocationPathLayer(
                                 pointsProvider = { range ->
                                     withContext(dispatchers.io) {
-                                        val fromMs = if (!range.isEmpty()) range.first else 0L
-                                        val toMs = if (!range.isEmpty()) range.last else Long.MAX_VALUE
-                                        val rows = dao.getAllBetween(fromMs, toMs)
-                                            .filter { it.latE7 != null && it.lonE7 != null }
-                                        if (rows.isEmpty()) emptyList() else {
-                                            val maxPrePoints = 30_000
-                                            val step = (rows.size / maxPrePoints).coerceAtLeast(1)
+                                        val now = System.currentTimeMillis()
+                                        val fromMs = if (!range.isEmpty()) {
+                                            range.first
+                                        } else {
+                                            now - DEFAULT_LOCATION_RANGE_MS
+                                        }
+                                        val toMs = if (!range.isEmpty()) range.last else now
+                                        val rows = buildList {
+                                            var afterTimeMs: Long? = null
+                                            var afterId: Long? = null
+
+                                            while (true) {
+                                                val chunk = dao.getChunkBetweenOrdered(
+                                                    fromMs = fromMs,
+                                                    toMs = toMs,
+                                                    afterTimeMs = afterTimeMs,
+                                                    afterId = afterId,
+                                                    limit = LOCATION_PATH_CHUNK_SIZE,
+                                                )
+                                                if (chunk.isEmpty()) break
+
+                                                addAll(chunk)
+
+                                                val lastRow = chunk.last()
+                                                afterTimeMs = lastRow.timeMs
+                                                afterId = lastRow.id
+                                                if (chunk.size < LOCATION_PATH_CHUNK_SIZE) {
+                                                    break
+                                                }
+                                            }
+                                        }
+                                        if (rows.isEmpty()) {
+                                            emptyList()
+                                        } else {
+                                            val step = (rows.size / LOCATION_PATH_MAX_PRE_POINTS).coerceAtLeast(1)
                                             rows.asSequence()
                                                 .filterIndexed { index, _ -> index % step == 0 }
-                                                .map { LatLngModel(it.latE7!! / 1e7, it.lonE7!! / 1e7) }
+                                                .mapNotNull { row ->
+                                                    val latE7 = row.latE7
+                                                    val lonE7 = row.lonE7
+                                                    if (latE7 == null || lonE7 == null) {
+                                                        null
+                                                    } else {
+                                                        LatLngModel(latE7 / 1e7, lonE7 / 1e7)
+                                                    }
+                                                }
                                                 .toList()
                                         }
                                     }

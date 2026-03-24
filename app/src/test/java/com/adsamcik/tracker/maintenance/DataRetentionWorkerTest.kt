@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.maintenance
 
 import android.content.Context
-import android.os.Looper
-import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
+import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -19,23 +18,36 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.resetRetentionConfigForTests
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DataRetentionWorkerTest {
+    private companion object {
+        const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
+    }
+
     private lateinit var context: Context
     private lateinit var retentionStore: RetentionConfigStore
+    private val testDispatcher = StandardTestDispatcher()
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
     private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
     private val wifiObservationDao: WifiObservationDao = mockk(relaxed = true)
@@ -45,8 +57,13 @@ class DataRetentionWorkerTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
-        retentionStore = RetentionConfigStore(context, Dispatchers.IO)
+        runTest(testDispatcher) {
+            resetRetentionConfigForTests(context)
+            advanceUntilIdle()
+        }
+        retentionStore = RetentionConfigStore(context, testDispatcher)
         val config = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.DEBUG)
             .setExecutor(SynchronousExecutor())
@@ -55,11 +72,19 @@ class DataRetentionWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
     }
 
-    @Test
-    fun `doWork returns success and does nothing when disabled`() {
-        runBlocking {
-            retentionStore.update { copy(autoCleanupEnabled = false) }
+    @After
+    fun tearDown() {
+        runTest(testDispatcher) {
+            resetRetentionConfigForTests(context)
+            advanceUntilIdle()
         }
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `doWork returns success and does nothing when disabled`() = runTest(testDispatcher) {
+        retentionStore.update { copy(autoCleanupEnabled = false) }
+        advanceUntilIdle()
 
         val workerFactory = object : WorkerFactory() {
             override fun createWorker(
@@ -89,37 +114,19 @@ class DataRetentionWorkerTest {
     }
 
     @Test
-    fun `initialize schedules when enabled and cancels when disabled`() {
-    val wm = WorkManager.getInstance(context)
+    fun `ensureScheduled enqueues work and cancel removes active work`() {
+        val workManager = WorkManager.getInstance(context)
 
-        // Disable first: expect no work enqueued after initialize
-        runBlocking {
-            retentionStore.update { copy(autoCleanupEnabled = false) }
-        }
-    DataRetentionWorker.initialize(context)
-    Thread.sleep(200)
-    shadowOf(Looper.getMainLooper()).idle()
-    var works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-        assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+        DataRetentionWorker.cancel(context)
+        var works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+        assertTrue("expected no active work, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
 
-        // Enable: expect work enqueued
-        runBlocking {
-            retentionStore.update { copy(autoCleanupEnabled = true) }
-        }
-    DataRetentionWorker.initialize(context)
-        Thread.sleep(200)
-        shadowOf(Looper.getMainLooper()).idle()
-        works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-        assertTrue(works.isNotEmpty())
+        DataRetentionWorker.ensureScheduled(context)
+        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+        assertTrue("expected scheduled work, found ${works.map { it.state }}", works.isNotEmpty())
 
-        // Disable again: expect cancellation
-        runBlocking {
-            retentionStore.update { copy(autoCleanupEnabled = false) }
-        }
-        DataRetentionWorker.initialize(context)
-        Thread.sleep(200)
-        shadowOf(Looper.getMainLooper()).idle()
-        works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-        assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
+        DataRetentionWorker.cancel(context)
+        works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+        assertTrue("expected cancellation, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
     }
 }

@@ -111,6 +111,7 @@
     <string name="map_empty_title">No data yet</string>
     <string name="map_empty_subtitle">Start tracking to see your location history on this map.</string>
     <string name="map_loading">Loading map…</string>
+    <string name="map_basemap_unavailable">Map basemap could not be prepared. Close and reopen the map to try again.</string>
     <string name="map_follow_canceled">Stopped centering on your location</string>
     <string name="map_legend_button">Legend</string>
     <string name="map_generating_tiles">Generating %d tiles…</string>

@@ -1,13 +1,14 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import android.util.Log
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.StageResult
+import kotlinx.coroutines.CancellationException
 
 /**
  * Runs post-processing components (notification, ski tracking) that
@@ -18,6 +19,10 @@ internal class PostProcessingStage(
 	private val skiSegmentWriter: SkiSegmentWriter?,
 	private val skiTrackingComponent: SkiTrackingComponent?,
 ) : PipelineStage {
+	private companion object {
+		const val TAG = "PostProcessingStage"
+	}
+
 	override val name: String = "PostProcessing"
 
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
@@ -28,21 +33,33 @@ internal class PostProcessingStage(
 		val collectionData = cycleContext.collectionData
 
 		if (notificationComponent.requirementsMet(cycle)) {
-			tryWithReport {
+			try {
 				notificationComponent.onNewData(context, session, collectionData, cycle)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Notification post-processing failed", e)
 			}
 		}
 		skiSegmentWriter?.let { writer ->
 			if (writer.requirementsMet(cycle)) {
-				tryWithReport {
+				try {
 					writer.onNewData(context, session, collectionData, cycle)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					Log.w(TAG, "Ski segment writer post-processing failed", e)
 				}
 			}
 		}
 		skiTrackingComponent?.let { ski ->
 			if (ski.requirementsMet(cycle)) {
-				tryWithReport {
+				try {
 					ski.onNewData(context, session, collectionData, cycle)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					Log.w(TAG, "Ski tracking post-processing failed", e)
 				}
 			}
 		}

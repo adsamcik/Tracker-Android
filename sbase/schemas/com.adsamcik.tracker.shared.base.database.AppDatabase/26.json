@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 26,
-    "identityHash": "8faffc6ade32aa8653030b1eee1a21c3",
+    "identityHash": "9718d19de7ac4c66b75a690789a3a19a",
     "entities": [
       {
         "tableName": "activity",
@@ -719,6 +719,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_source` ON `${TABLE_NAME}` (`source`)"
+          },
+          {
+            "name": "idx_session_segment_primary_activity",
+            "unique": false,
+            "columnNames": [
+              "primary_activity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_primary_activity` ON `${TABLE_NAME}` (`primary_activity`)"
           }
         ]
       },
@@ -2081,7 +2090,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8faffc6ade32aa8653030b1eee1a21c3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9718d19de7ac4c66b75a690789a3a19a')"
     ]
   }
 }

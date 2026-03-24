@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.getAllBetweenChunked
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -31,7 +32,7 @@ class ExplorerChallengeProcessor @Inject constructor(
 	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		val dao = AppDatabase.database(context).locationSampleDao()
 		val locations = withContext(dispatchers.io) {
-			dao.getAllBetween(session.start, session.end)
+			dao.getAllBetweenChunked(session.start, session.end)
 		}
 		// Limit lookback to 6 months (fix for #103)
 		val lookbackStart = session.start - (180L * 24 * 60 * 60 * 1000)
@@ -62,7 +63,7 @@ class ExplorerChallengeProcessor @Inject constructor(
 		val maxLon = newLocations.maxOf { it.longitude } + Location.longitudeAccuracy(ACCURACY_IN_METERS, maxLat)
 
 		// Filter in-memory since LocationSampleDao lacks a spatial query
-		val existingLocations = withContext(dispatchers.io) { dao.getAllBetween(from, to) }
+		val existingLocations = withContext(dispatchers.io) { dao.getAllBetweenChunked(from, to) }
 			.mapNotNull { sample ->
 				val lat = sample.latE7?.div(1e7) ?: return@mapNotNull null
 				val lon = sample.lonE7?.div(1e7) ?: return@mapNotNull null

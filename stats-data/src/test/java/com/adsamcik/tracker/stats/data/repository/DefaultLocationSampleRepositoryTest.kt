@@ -15,13 +15,17 @@ class DefaultLocationSampleRepositoryTest {
 	private val repository = DefaultLocationSampleRepository(locationSampleDao)
 
 	@Test
-	fun `getSamplesBetween delegates to dao`() = runTest {
-		val samples = listOf(sample(timeMs = 1_000L))
-		coEvery { locationSampleDao.getAllBetween(1_000L, 2_000L) } returns samples
+	fun `getSamplesBetween loads samples through ordered chunks`() = runTest {
+		val samples = listOf(sample(id = 1L, timeMs = 1_000L), sample(id = 2L, timeMs = 1_500L))
+		coEvery {
+			locationSampleDao.getChunkBetweenOrdered(1_000L, 2_000L, null, null, any())
+		} returns samples
 
 		repository.getSamplesBetween(1_000L, 2_000L) shouldBe samples
 
-		coVerify(exactly = 1) { locationSampleDao.getAllBetween(1_000L, 2_000L) }
+		coVerify(exactly = 1) {
+			locationSampleDao.getChunkBetweenOrdered(1_000L, 2_000L, null, null, any())
+		}
 	}
 
 	@Test

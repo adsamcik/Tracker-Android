@@ -7,6 +7,8 @@
     <string name="export_error_no_share">Sdílení zrušeno</string>
     <string name="export_error_no_uri">Nebyla zvolena složka pro export</string>
     <string name="export_error_stream_failed">Nepodařilo se zapsat data do souboru %s</string>
+    <string name="export_error_unknown">Export se nezdařil.</string>
+    <string name="export_error_with_reason">Export se nezdařil: %s</string>
     <string name="export_file_name">Název souboru</string>
     <string name="export_file_name_error">Názvy souborů nemohou obsahovat \/:&lt;*?&gt;|</string>
     <string name="export_gpx_description">Export poloh zaznamenaných pomocí Advention mezi %1$s a %2$s.</string>

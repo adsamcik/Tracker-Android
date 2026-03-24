@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.dao.getAllBetweenChunked
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import dagger.assisted.Assisted
@@ -55,7 +56,7 @@ internal class PointsWorker @AssistedInject constructor(
 
 		val locationData = appDatabase
 			.locationSampleDao()
-			.getAllBetween(trip.startTimeMs, trip.endTimeMs)
+			.getAllBetweenChunked(trip.startTimeMs, trip.endTimeMs)
 			.mapNotNull { it.toDatabaseLocation() }
 			.filter { it.altitude != null }
 

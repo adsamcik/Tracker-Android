@@ -12,10 +12,10 @@ interface AchievementProgressDao {
 	@Query("SELECT * FROM achievement_progress WHERE achievement_id = :achievementId LIMIT 1")
 	suspend fun getById(achievementId: String): AchievementProgressEntity?
 
-	@Query("SELECT * FROM achievement_progress ORDER BY updated_at DESC")
+	@Query("SELECT * FROM achievement_progress ORDER BY updated_at DESC LIMIT 500")
 	suspend fun getAll(): List<AchievementProgressEntity>
 
-	@Query("SELECT * FROM achievement_progress ORDER BY updated_at DESC")
+	@Query("SELECT * FROM achievement_progress ORDER BY updated_at DESC LIMIT 500")
 	fun getAllFlow(): Flow<List<AchievementProgressEntity>>
 
 	@Query("SELECT * FROM achievement_progress WHERE unlocked_at IS NOT NULL ORDER BY unlocked_at DESC")

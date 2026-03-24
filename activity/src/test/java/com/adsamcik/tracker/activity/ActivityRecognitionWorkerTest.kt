@@ -177,8 +177,7 @@ class ActivityRecognitionWorkerTest {
 			val trip = createTrip()
 			coEvery { tripDao.getById(1L) } returns trip
 			// Empty locations and no segments needing recognition → success
-			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns emptyList()
-			coEvery { segmentDao.getAllBetween(any(), any()) } returns emptyList()
+			coEvery { segmentDao.getUnrecognizedWithin(any(), any()) } returns emptyList()
 
 			val worker = buildWorker(1L)
 			val result = worker.doWork()
@@ -191,9 +190,9 @@ class ActivityRecognitionWorkerTest {
 			val trip = createTrip(id = 5L)
 			coEvery { tripDao.getById(5L) } returns trip
 			val samples = createLocationSamples(count = 20)
-			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
+			coEvery { locationSampleDao.getChunkBetweenOrdered(any(), any(), any(), any(), any()) } returnsMany listOf(samples, emptyList())
 			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
-			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
+			coEvery { segmentDao.getUnrecognizedWithin(any(), any()) } returns listOf(segment)
 			coEvery { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(5L)
@@ -207,9 +206,9 @@ class ActivityRecognitionWorkerTest {
 			val trip = createTrip(id = 10L)
 			coEvery { tripDao.getById(10L) } returns trip
 			val samples = createLocationSamples(count = 20)
-			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
+			coEvery { locationSampleDao.getChunkBetweenOrdered(any(), any(), any(), any(), any()) } returnsMany listOf(samples, emptyList())
 			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
-			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
+			coEvery { segmentDao.getUnrecognizedWithin(any(), any()) } returns listOf(segment)
 			coEvery { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(10L)

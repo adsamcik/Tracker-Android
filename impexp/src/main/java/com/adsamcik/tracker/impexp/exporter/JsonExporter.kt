@@ -1,14 +1,19 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import javax.inject.Inject
 
 /**
  * Exports location data and session metadata as a streaming JSON document
@@ -22,7 +27,9 @@ import java.io.OutputStreamWriter
  * {"schema":1,"exportedAt":...,"locations":[...],"sessions":[...]}
  * ```
  */
-class JsonExporter : Exporter {
+class JsonExporter @JvmOverloads @Inject constructor(
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : Exporter {
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = "application/json"
 	override val extension: String = "json"
@@ -36,7 +43,7 @@ class JsonExporter : Exporter {
 		val db = AppDatabase.database(context)
 
 		val sessions = try {
-			val trips = withContext(DefaultDispatchersProvider.io) {
+			val trips = withContext(dispatchers.io) {
 				val fromMs = dateRange?.first ?: 0L
 				val toMs = dateRange?.last ?: Long.MAX_VALUE
 				db.tripDao().getBetween(fromMs, toMs)
@@ -52,6 +59,8 @@ class JsonExporter : Exporter {
 					steps = t.steps?.takeIf { it > 0 },
 				)
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			Reporter.w(EXPORT_LOG_SOURCE, "Failed to load sessions for JSON export: ${e.message}")
 			emptyList()
@@ -105,7 +114,13 @@ class JsonExporter : Exporter {
 			}
 			ExportResult.Success
 		} catch (e: Exception) {
-			ExportResult.Error()
+			Reporter.report(e)
+			ExportResult.Error(
+				LocalizedString(
+					R.string.export_error_with_reason,
+					e.message ?: "Failed to write JSON export",
+				)
+			)
 		}
 	}
 

@@ -35,7 +35,10 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
     }
 
     composable<ActivitySettings> {
+        val viewModel: com.adsamcik.tracker.activity.ui.SessionActivityViewModel =
+            androidx.hilt.navigation.compose.hiltViewModel()
         com.adsamcik.tracker.activity.ui.SessionActivityRoute(
+            viewModel = viewModel,
             onNavigateBack = { navController.popBackStack() },
         )
     }

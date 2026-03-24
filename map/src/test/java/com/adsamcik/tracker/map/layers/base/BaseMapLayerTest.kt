@@ -4,14 +4,30 @@ import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager()) {
+private class TestLayer(
+    dispatcher: TestDispatcher,
+) : BaseMapLayer<List<Int>, List<Int>>(
+    PerformanceManager(),
+    TestDispatchersProvider(dispatcher),
+) {
     @Volatile var before = false
     @Volatile var loaded = false
     @Volatile var processed = false
@@ -47,16 +63,30 @@ private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager(
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Disabled("Moved to androidTest; depends on Android Context")
 class BaseMapLayerTest {
-    @Test
-    fun lifecycle_runs_pipeline_and_disable_calls_onDisable() {
-        val context: Context = mockk(relaxed = true)
-        val layer = TestLayer()
+    private val testDispatcher = kotlinx.coroutines.test.StandardTestDispatcher()
 
-        layer.enable(context, quality = 1f)
-        // Allow background work to complete
-        Thread.sleep(50)
+    @BeforeEach
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun lifecycle_runs_pipeline_and_disable_calls_onDisable() = runTest(testDispatcher) {
+        val context: Context = mockk(relaxed = true)
+        val layer = TestLayer(testDispatcher)
+
+        val enableJob = layer.enable(context, quality = 1f)
+        advanceUntilIdle()
+
+        enableJob.isCompleted shouldBe true
         layer.before shouldBe true
         layer.loaded shouldBe true
         layer.processed shouldBe true
@@ -64,19 +94,21 @@ class BaseMapLayerTest {
         layer.lastConfig.shouldNotBeNull()
 
         layer.disable()
-        Thread.sleep(10)
+        runCurrent()
         layer.disabled shouldBe true
         layer.lastConfig.shouldBeNull()
     }
 
     @Test
-    fun enable_twice_restarts_pipeline_without_crash() {
+    fun enable_twice_restarts_pipeline_without_crash() = runTest(testDispatcher) {
         val context: Context = mockk(relaxed = true)
-        val layer = TestLayer()
+        val layer = TestLayer(testDispatcher)
+
         layer.enable(context, quality = 1f)
-        Thread.sleep(20)
+        runCurrent()
         layer.enable(context, quality = 0.5f)
-        Thread.sleep(50)
+        advanceUntilIdle()
+
         layer.configProduced shouldBe true
         layer.disable()
     }

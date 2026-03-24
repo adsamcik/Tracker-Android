@@ -391,7 +391,12 @@ fun MapSheet(
                                 },
                                 label = {
                                     Text(
-                                        text = try { context.getString(layer.titleRes) } catch (_: Exception) { layer.id },
+                                        text = try {
+                                            context.getString(layer.titleRes)
+                                        } catch (e: Exception) {
+                                            Reporter.w("MapSheet", "Failed to resolve layer title for ${layer.id}: ${e.message}")
+                                            layer.id
+                                        },
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 },
@@ -733,6 +738,7 @@ fun MapLayerCard(
         try {
             layer.recipe.factory.create() as? LayerEntry
         } catch (e: Exception) {
+            Reporter.w("MapSheet", "Failed to create layer entry for ${layer.id}: ${e.message}")
             null
         }
     }
@@ -781,7 +787,12 @@ fun MapLayerCard(
             Column(modifier = Modifier.weight(1f)) {
                 // Title
                 Text(
-                    text = try { context.getString(layer.titleRes) } catch (e: Exception) { layer.id },
+                    text = try {
+                        context.getString(layer.titleRes)
+                    } catch (e: Exception) {
+                        Reporter.w("MapSheet", "Failed to resolve layer title for ${layer.id}: ${e.message}")
+                        layer.id
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -790,8 +801,22 @@ fun MapLayerCard(
                 if (legend != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     if (legend.valueList.isNotEmpty()) {
-                        val firstLabel = legend.valueList.firstOrNull()?.let { try { context.getString(it.nameRes) } catch (_: Exception) { "" } } ?: ""
-                        val lastLabel = legend.valueList.lastOrNull()?.let { try { context.getString(it.nameRes) } catch (_: Exception) { "" } } ?: ""
+                        val firstLabel = legend.valueList.firstOrNull()?.let {
+                            try {
+                                context.getString(it.nameRes)
+                            } catch (e: Exception) {
+                                Reporter.w("MapSheet", "Failed to resolve first legend label for ${layer.id}: ${e.message}")
+                                ""
+                            }
+                        } ?: ""
+                        val lastLabel = legend.valueList.lastOrNull()?.let {
+                            try {
+                                context.getString(it.nameRes)
+                            } catch (e: Exception) {
+                                Reporter.w("MapSheet", "Failed to resolve last legend label for ${layer.id}: ${e.message}")
+                                ""
+                            }
+                        } ?: ""
                         // Show colorful legend strip
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

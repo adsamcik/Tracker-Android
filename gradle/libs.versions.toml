@@ -4,13 +4,6 @@ kotlin = "2.2.20"
 ksp = "2.3.2"
 agp = "9.1.0"
 
-# Android SDK
-android-compile = "36"
-android-target = "36"
-android-min = "26"
-android-build-tools = "36.0.0"
-java = "17"
-
 # Tools
 benmanes = "0.52.0"
 googleServices = "4.4.3"
@@ -66,15 +59,12 @@ sqliteAndroid = "3.49.0"
 
 # Third party
 componentsRecycler = "1.0.0"
-componentsDraggable = "1.0.4"
 componentSlider = "2.1.0"
 spotlight = "2.2.3"
 suncalc = "3.11"
 javaxInject = "1"
 licensesdialog = "2.2.0"
-ossLicensesLib = "17.2.2"
 simplify = "1.0.0"
-leakcanary = "2.14"
 cardview = "1.0.0"
 
 # Testing - JUnit 5 (Modern) & JUnit 4 (Android instrumented tests)
@@ -88,8 +78,6 @@ espresso = "3.7.0"
 
 # Test libs (added)
 robolectric = "4.15.1"
-mockitoCore = "5.19.0"
-mockitoInline = "5.2.0"
 mockitoAndroid = "5.19.0"
 mockitoKotlin = "6.0.0"
 mockk = "1.13.16"
@@ -103,7 +91,6 @@ robolectricJunit5 = "0.9.0"
 [libraries]
 # Arrow
 arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrow" }
-arrow-fx-coroutines = { group = "io.arrow-kt", name = "arrow-fx-coroutines", version.ref = "arrow" }
 
 # Test libraries - JUnit 5 (for unit tests)
 junit5-bom = { group = "org.junit", name = "junit-bom", version.ref = "junit5" }
@@ -123,20 +110,16 @@ espresso = { group = "androidx.test.espresso", name = "espresso-core", version.r
 espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 junit5-robolectric = { module = "tech.apter.junit5.jupiter:robolectric-extension", version.ref = "robolectricJunit5" }
-mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
-mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockitoInline" }
 mockito-android = { module = "org.mockito:mockito-android", version.ref = "mockitoAndroid" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
-mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 # Kotest assertions (modern expressive assertions)
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
-kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 # Kotlin
 kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -192,18 +175,14 @@ sqlite-android = { group = "com.github.requery", name = "sqlite-android", versio
 
 # Recycler & UI utils
 components-recycler = { group = "com.github.adsamcik", name = "Recycler", version.ref = "componentsRecycler" }
-components-draggable = { group = "com.github.adsamcik", name = "Draggable", version.ref = "componentsDraggable" }
 component-slider = { group = "com.github.adsamcik", name = "slider", version.ref = "componentSlider" }
 
 # Intro & SunCalc
 spotlight = { group = "com.github.adsamcik", name = "spotlight", version.ref = "spotlight" }
 suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.ref = "suncalc" }
-leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
-
 # Compose
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
-compose-material3-window-size = { group = "androidx.compose.material3", name = "material3-window-size-class" }
 
 # Glance (App Widgets)
 glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
@@ -228,7 +207,6 @@ compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-mani
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-datastore-core = { group = "androidx.datastore", name = "datastore", version.ref = "datastore" }
-protobuf-javalite = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protobuf" }
 protobuf-java = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
 material-kolor = { group = "com.materialkolor", name = "material-kolor", version.ref = "materialKolor" }
 
@@ -250,7 +228,6 @@ javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "j
 # Misc
 androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
 licensesdialog = { group = "de.psdev.licensesdialog", name = "licensesdialog", version.ref = "licensesdialog" }
-play-services-oss-licenses = { group = "com.google.android.gms", name = "play-services-oss-licenses", version.ref = "ossLicensesLib" }
 simplify = { group = "com.goebl", name = "simplify", version.ref = "simplify" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxImmutable" }
@@ -259,8 +236,6 @@ androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-android-dynamic-feature = { id = "com.android.dynamic-feature", version.ref = "agp" }
-android-test = { id = "com.android.test", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }

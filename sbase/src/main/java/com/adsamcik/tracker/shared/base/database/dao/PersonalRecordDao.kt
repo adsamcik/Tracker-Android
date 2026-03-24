@@ -11,7 +11,7 @@ interface PersonalRecordDao {
 	@Query("SELECT * FROM personal_record WHERE metric = :metric LIMIT 1")
 	suspend fun getByMetric(metric: String): PersonalRecordEntity?
 
-	@Query("SELECT * FROM personal_record ORDER BY updated_at DESC")
+	@Query("SELECT * FROM personal_record ORDER BY updated_at DESC LIMIT 500")
 	suspend fun getAll(): List<PersonalRecordEntity>
 
 	@Insert(onConflict = OnConflictStrategy.REPLACE)

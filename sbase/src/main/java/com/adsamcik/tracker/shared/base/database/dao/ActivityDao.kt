@@ -17,14 +17,14 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	 * Get all session activities from database.
 	 */
 	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * FROM activity")
+	@Query("SELECT * FROM activity LIMIT 1000")
 	suspend fun getAll(): List<SessionActivity>
 
 	/**
 	 * Get all session activities created by a user.
 	 */
 	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * FROM activity WHERE id >= 0")
+	@Query("SELECT * FROM activity WHERE id >= 0 LIMIT 1000")
 	suspend fun getAllUser(): List<SessionActivity>
 
 	/**

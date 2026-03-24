@@ -19,12 +19,15 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
-import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import com.adsamcik.tracker.shared.utils.extension.runWithReport
+import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
+import java.io.IOException
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 
 class ImportWorker(
     private val context: Context,
@@ -38,7 +41,7 @@ class ImportWorker(
     private var errorCount: Int = 0
 
     override suspend fun doWork(): Result {
-        val uriString = inputData.getString(ARG_FILE_URI)
+        val uriString = inputData.getString(ARG_FILE_URI) ?: return Result.failure()
         val uri = Uri.parse(uriString)
         val file = DocumentFile.fromSingleUri(context, uri) ?: return Result.failure()
 
@@ -48,8 +51,10 @@ class ImportWorker(
         )
 
         database = AppDatabase.database(context)
-        database.withTransaction {
-            val importResult = handleFile(file)
+        return try {
+            val importResult = database.withTransaction {
+                handleFile(file)
+            }
 
             val notificationText = buildNotificationText(importResult)
             showNotification(notificationText, false)
@@ -61,10 +66,21 @@ class ImportWorker(
                         importResult.failedCount
                     )
                 )
+                return Result.failure()
             }
-        }
 
-        return Result.success()
+            Result.success()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            Reporter.report(e)
+            showErrorNotification(e.message ?: "Import failed due to an I/O error.")
+            Result.retry()
+        } catch (e: Exception) {
+            Reporter.report(e)
+            showErrorNotification(e.message ?: "Import failed.")
+            Result.failure()
+        }
     }
 
     private fun buildNotificationText(result: ImportResult): String {
@@ -96,8 +112,7 @@ class ImportWorker(
 
     @AnyThread
     private fun showNotification(text: String, inProgress: Boolean) {
-        //notification should under no circumstances crash import
-        tryWithReport {
+        runWithReport {
             val notification = createNotification(text, inProgress)
             notificationManager.notify(NOTIFICATION_ID, notification)
         }
@@ -105,7 +120,7 @@ class ImportWorker(
 
     @AnyThread
     private fun showErrorNotification(text: String) {
-        tryWithReport {
+        runWithReport {
             val notification = createNotification(text, false)
             notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
         }
@@ -118,7 +133,8 @@ class ImportWorker(
             true
         )
 
-        val extractionStream = extractor.extract(context, file) ?: return ImportResult.EMPTY
+        val extractionStream = extractor.extract(context, file)
+            ?: throw IOException("Failed to extract ${file.name ?: "archive"}")
 
         return importAll(extractionStream)
     }
@@ -161,7 +177,7 @@ class ImportWorker(
             true
         )
 
-        return tryWithResultAndReport({ ImportResult.EMPTY }) {
+        return runWithResultAndReport {
             try {
                 import.import(context, database, stream)
             } catch (e: SQLiteCantOpenDatabaseException) {
@@ -171,9 +187,9 @@ class ImportWorker(
                         stream.fileName
                     )
                 )
-                ImportResult.EMPTY
+                throw e
             }
-        }
+        }.getOrThrow()
     }
 
     private suspend fun handleFile(file: DocumentFile): ImportResult {
@@ -184,10 +200,10 @@ class ImportWorker(
         return if (extractor != null) {
             extract(file, extractor)
         } else {
-            val fileName = file.name ?: return ImportResult.EMPTY
+            val fileName = file.name ?: throw IOException("Missing import file name")
             file.openInputStream(context)?.use { inputStream ->
                 tryImport(FileImportStream(inputStream, fileName))
-            } ?: ImportResult.EMPTY
+            } ?: throw IOException("Failed to open ${fileName}")
         }
     }
     companion object {

@@ -147,27 +147,39 @@ fun MapScreen(
     var defaultBasemapPath by remember {
         mutableStateOf(basemapManager.defaultBasemapPath())
     }
+    var basemapLoadError by remember {
+        mutableStateOf<String?>(null)
+    }
 
     LaunchedEffect(Unit) {
-        defaultBasemapPath = basemapManager.ensureDefaultBasemap()
+        basemapLoadError = null
+        try {
+            defaultBasemapPath = basemapManager.ensureDefaultBasemap()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.w(MAP_LOAD_TAG, "Failed to prepare default basemap: ${e.message}")
+            Reporter.report(e)
+            defaultBasemapPath = null
+            basemapLoadError = context.getString(com.adsamcik.tracker.map.R.string.map_basemap_unavailable)
+        }
     }
 
     val baseStyle = remember(customPath, isDark, defaultBasemapPath) {
+        val currentBasemapPath = defaultBasemapPath
         when {
             customPath.isNotEmpty() -> {
                 val json = MapStyleProvider.customStyleJson(customPath, isDark)
                 if (json != null) {
                     BaseStyle.Json(json)
                 } else {
-                    defaultBasemapPath?.let {
+                    currentBasemapPath?.let {
                         BaseStyle.Json(MapStyleProvider.defaultStyleJson(it, isDark))
                     }
                 }
             }
-            defaultBasemapPath != null -> {
-                BaseStyle.Json(
-                    MapStyleProvider.defaultStyleJson(defaultBasemapPath!!, isDark)
-                )
+            currentBasemapPath != null -> {
+                BaseStyle.Json(MapStyleProvider.defaultStyleJson(currentBasemapPath, isDark))
             }
             else -> null
         }
@@ -179,7 +191,7 @@ fun MapScreen(
     val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
     LaunchedEffect(mapLibreReady) {
         if (!mapLibreReady) {
-            MapLibreInitializer.initialize(appContext)
+            MapLibreInitializer.initialize(appContext, store.dispatchersProvider)
         }
     }
 
@@ -314,6 +326,21 @@ fun MapScreen(
                 MapActiveTrackingLayer(path = activeTrackingPath)
                 // Declarative user overlays
                 MapUserOverlays(overlays = state.overlays.toList())
+            }
+        } else if (baseStyle == null && basemapLoadError != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 3.dp,
+                shadowElevation = 2.dp,
+            ) {
+                Text(
+                    text = basemapLoadError.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                )
             }
         } else {
             CircularProgressIndicator(

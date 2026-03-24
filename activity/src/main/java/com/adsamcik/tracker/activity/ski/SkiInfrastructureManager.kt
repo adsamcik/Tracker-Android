@@ -4,8 +4,10 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.logger.Reporter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.engine.ski.SkiLift
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -35,7 +37,10 @@ class SkiInfrastructureManager @Inject constructor(
 
 		val input = try {
 			context.contentResolver.openInputStream(uri)
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
+			Reporter.w(LOG_SOURCE, "Failed to open ski infrastructure import source: ${e.message}")
 			return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
 		} ?: return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
 
@@ -45,6 +50,8 @@ class SkiInfrastructureManager @Inject constructor(
 					source.copyTo(output)
 				}
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			dbFile.delete()
 			return@withContext SkiInfrastructureImportResult.CopyFailed(e)
@@ -63,6 +70,8 @@ class SkiInfrastructureManager @Inject constructor(
 					}
 				}
 			}
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			dbFile.delete()
 			return@withContext SkiInfrastructureImportResult.InvalidDatabase(
@@ -91,6 +100,7 @@ class SkiInfrastructureManager @Inject constructor(
 				}
 			}
 		} catch (e: Exception) {
+			Reporter.w(LOG_SOURCE, "Failed to read ski infrastructure metadata: ${e.message}")
 			null
 		}
 	}
@@ -141,6 +151,7 @@ class SkiInfrastructureManager @Inject constructor(
 				lifts
 			}
 		} catch (e: Exception) {
+			Reporter.w(LOG_SOURCE, "Failed to query nearby ski lifts: ${e.message}")
 			emptyList()
 		}
 	}
@@ -151,5 +162,9 @@ class SkiInfrastructureManager @Inject constructor(
 			null,
 			SQLiteDatabase.OPEN_READONLY
 		)
+	}
+
+	private companion object {
+		const val LOG_SOURCE = "SkiInfrastructureManager"
 	}
 }

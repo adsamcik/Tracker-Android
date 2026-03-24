@@ -52,59 +52,41 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		val trip = database.tripDao().getById(sessionId)
 			?: return@coroutineScope fail("Trip with id $sessionId not found.", false)
 
-		// Parallel fetch: locations and pressure are independent once we have the trip
-		val locationsDeferred = async {
-			database.locationSampleDao().getAllBetween(trip.startTimeMs, trip.endTimeMs)
-				.mapNotNull { it.toDatabaseLocation() }
-		}
-		val pressureDeferred = async {
-			database.pressureSampleDao().getAllBetween(trip.startTimeMs, trip.endTimeMs)
-		}
-
-		// Find segments needing activity recognition within this trip
-		val segments = database.sessionSegmentDao()
-			.getAllBetween(trip.startTimeMs, trip.endTimeMs)
-			.filter { it.primaryActivity == null }
+		val segments = database.sessionSegmentDao().getUnrecognizedWithin(trip.startTimeMs, trip.endTimeMs)
 
 		if (segments.isEmpty()) return@coroutineScope Result.success()
 
-		val allLocations = locationsDeferred.await()
-		val allPressure = pressureDeferred.await()
-
-		for (segment in segments) {
-			val segmentLocations = allLocations.filter {
-				it.time in segment.startTimeMs..segment.endTimeMs
-			}
-			val segmentPressure = allPressure.filter {
-				it.timeMs in segment.startTimeMs..segment.endTimeMs
-			}
-			processSession(segment, segmentLocations, segmentPressure, database)
-		}
-
+		processSegmentWindow(segments)
 		Result.success()
 	}
 
 	/**
-	 * Batch mode: fetches all unrecognized segments and their data in O(3) queries,
-	 * then processes each segment against the pre-fetched data.
+	 * Batch mode: processes unrecognized segments in bounded time windows to avoid
+	 * reading the full location/pressure history into memory at once.
 	 */
 	private suspend fun doBatchWork(): Result = coroutineScope {
-		val segments = database.sessionSegmentDao()
-			.getAllBetween(0L, Long.MAX_VALUE)
-			.filter { it.primaryActivity == null }
-		if (segments.isEmpty()) return@coroutineScope Result.success()
+		val bounds = getUnrecognizedSegmentBounds() ?: return@coroutineScope Result.success()
+		var windowStart = bounds.first
+
+		while (windowStart <= bounds.last) {
+			val windowEnd = minOf(windowStart + BATCH_WINDOW_SIZE_MS - 1, bounds.last)
+			val segments = getUnrecognizedSegmentsBetween(windowStart, windowEnd)
+			if (segments.isNotEmpty()) {
+				processSegmentWindow(segments)
+			}
+			windowStart = windowEnd + 1
+		}
+
+		return@coroutineScope Result.success()
+	}
+
+	private suspend fun processSegmentWindow(segments: List<SessionSegment>) = coroutineScope {
+		if (segments.isEmpty()) return@coroutineScope
 
 		val minStart = segments.minOf { it.startTimeMs }
 		val maxEnd = segments.maxOf { it.endTimeMs }
-
-		// Batch-fetch all locations and pressure for the full time range (2 queries)
-		val allLocationsDeferred = async {
-			database.locationSampleDao().getAllBetween(minStart, maxEnd)
-				.mapNotNull { it.toDatabaseLocation() }
-		}
-		val allPressureDeferred = async {
-			database.pressureSampleDao().getAllBetween(minStart, maxEnd)
-		}
+		val allLocationsDeferred = async { loadLocationsBetween(minStart, maxEnd) }
+		val allPressureDeferred = async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
 
 		val allLocations = allLocationsDeferred.await()
 		val allPressure = allPressureDeferred.await()
@@ -118,8 +100,41 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			}
 			processSession(segment, segmentLocations, segmentPressure, database)
 		}
+	}
 
-		return@coroutineScope Result.success()
+	private suspend fun loadLocationsBetween(fromMs: Long, toMs: Long): List<DatabaseLocation> {
+		val locations = mutableListOf<DatabaseLocation>()
+		var afterTimeMs: Long? = null
+		var afterId: Long? = null
+
+		while (true) {
+			val chunk = database.locationSampleDao().getChunkBetweenOrdered(
+				fromMs = fromMs,
+				toMs = toMs,
+				afterTimeMs = afterTimeMs,
+				afterId = afterId,
+				limit = LOCATION_CHUNK_SIZE,
+			)
+			if (chunk.isEmpty()) break
+
+			chunk.mapNotNullTo(locations) { it.toDatabaseLocation() }
+			val lastSample = chunk.last()
+			afterTimeMs = lastSample.timeMs
+			afterId = lastSample.id
+		}
+
+		return locations
+	}
+
+	private suspend fun getUnrecognizedSegmentBounds(): LongRange? {
+		val bounds = database.sessionSegmentDao().getUnrecognizedBounds()
+		val minStart = bounds.minStart ?: return null
+		val maxEnd = bounds.maxEnd ?: return null
+		return minStart..maxEnd
+	}
+
+	private suspend fun getUnrecognizedSegmentsBetween(fromMs: Long, toMs: Long): List<SessionSegment> {
+		return database.sessionSegmentDao().getUnrecognizedStartingBetween(fromMs, toMs)
 	}
 
 	/**
@@ -242,5 +257,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		const val ARG_SESSION_ID = "sessionId"
 		const val ARG_BATCH_MODE = "batchMode"
 		const val WORK_TAG = "ActivityRecognition"
+		private const val BATCH_WINDOW_SIZE_MS = 7L * 24L * 60L * 60L * 1000L
+		private const val LOCATION_CHUNK_SIZE = 2_000
 	}
 }
