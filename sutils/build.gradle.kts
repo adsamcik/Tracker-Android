@@ -60,6 +60,7 @@ android {
 
 dependencies {
 	implementation(project(":sbase"))
+	implementation(project(":logging-api"))
 	implementation(project(":spreferences"))
 
 

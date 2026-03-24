@@ -2,7 +2,7 @@ package com.adsamcik.tracker.logger
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
+import com.adsamcik.tracker.logger.database.LoggerObjectDatabase
 
 /**
  * Database for logging
@@ -23,7 +23,7 @@ abstract class LogDatabase : RoomDatabase() {
 	 */
 	abstract fun crashDataDao(): CrashDataDao
 
-	companion object : ObjectBaseDatabase<LogDatabase>(LogDatabase::class.java) {
+	companion object : LoggerObjectDatabase<LogDatabase>(LogDatabase::class.java) {
 		override val databaseName: String
 			get() = "debug_database"
 

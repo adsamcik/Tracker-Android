@@ -177,8 +177,8 @@ class ReporterTest {
 
 		@Test
 		fun `Reporter implements ErrorReporter interface`() {
-			val reporter: com.adsamcik.tracker.shared.base.logging.ErrorReporter = Reporter
-			(reporter is com.adsamcik.tracker.shared.base.logging.ErrorReporter) shouldBe true
+			val reporter: com.adsamcik.tracker.logging.api.ErrorReporter = Reporter
+			(reporter is com.adsamcik.tracker.logging.api.ErrorReporter) shouldBe true
 		}
 	}
 }

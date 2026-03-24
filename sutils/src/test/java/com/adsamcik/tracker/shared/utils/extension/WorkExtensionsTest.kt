@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import androidx.work.Data
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs

@@ -2,14 +2,13 @@ package com.adsamcik.tracker.logger
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.shared.base.Time
 
 /**
  * Crash data entity for storing application crashes
  */
 @Entity(tableName = "crash_data")
 data class CrashData(
-    val timeStamp: Long = Time.nowMillis,
+    val timeStamp: Long = System.currentTimeMillis(),
     val exceptionName: String,
     val exceptionMessage: String,
     val stackTrace: String,

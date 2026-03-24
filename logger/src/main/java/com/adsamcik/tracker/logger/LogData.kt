@@ -2,7 +2,6 @@ package com.adsamcik.tracker.logger
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.shared.base.Time
 
 
 /**
@@ -10,7 +9,7 @@ import com.adsamcik.tracker.shared.base.Time
  */
 @Entity(tableName = "log_data")
 data class LogData(
-		val timeStamp: Long = Time.nowMillis,
+		val timeStamp: Long = System.currentTimeMillis(),
 		val message: String,
 		val data: String = "",
 		val source: String
@@ -19,7 +18,7 @@ data class LogData(
 	var id: Long = 0L
 
 	constructor(
-			timeStamp: Long = Time.nowMillis,
+			timeStamp: Long = System.currentTimeMillis(),
 			message: String,
 			data: Any,
 			source: String

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.pm.PackageManager
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.logging.api.ReporterFacade
 
 /**
  * Results from permission request

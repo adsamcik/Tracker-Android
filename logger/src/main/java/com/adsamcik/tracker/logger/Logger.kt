@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.StringRes
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.logger.concurrency.LoggerDispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -30,10 +30,9 @@ object Logger : CoroutineScope {
     internal const val PERFORMANCE_LOG_ENABLED_DEFAULT = false
 
     private val job = SupervisorJob()
-    private val dispatchers = DefaultDispatchersProvider
 
     override val coroutineContext: CoroutineContext
-        get() = dispatchers.default + job
+        get() = LoggerDispatchers.default + job
 
     private var genericDao: GenericLogDao? = null
 
@@ -50,7 +49,7 @@ object Logger : CoroutineScope {
     fun initialize(context: Context) {
         if (isInitialized) return
         
-        launch(dispatchers.io) {
+        launch(LoggerDispatchers.io) {
             preferences = Preferences(context)
             genericDao = LogDatabase.database(context).genericLogDao()
             isInitialized = true

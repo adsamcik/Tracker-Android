@@ -2,13 +2,13 @@ package com.adsamcik.tracker.logger
 
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.tracker.shared.base.database.dao.BaseDao
+import com.adsamcik.tracker.logger.database.LoggerBaseDao
 
 /**
  * DAO for crash data
  */
 @Dao
-interface CrashDataDao : BaseDao<CrashData> {
+interface CrashDataDao : LoggerBaseDao<CrashData> {
     /**
      * Get all crash data from database
      */

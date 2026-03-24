@@ -12,6 +12,7 @@ plugins {
 
 include(":impexp")
 include(":logger")
+include(":logging-api")
 include(":points")
 include(":testing-common")
 include(":app", ":statistics", ":game", ":map", ":sbase", ":spreferences", "sutils", ":tracker", ":activity", ":dashboard")

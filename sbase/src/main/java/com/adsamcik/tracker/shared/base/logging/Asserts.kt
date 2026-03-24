@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.base.logging
 
+import com.adsamcik.tracker.logging.api.ReporterFacade
+
 @Suppress("TooManyFunctions", "unused")
 object Asserts {
     fun assertTrue(value: Boolean) {

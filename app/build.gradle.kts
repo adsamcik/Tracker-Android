@@ -109,6 +109,7 @@ dependencies {
 	coreLibraryDesugaring(libs.desugar.jdk.libs)
 	
 	implementation(project(":sbase"))
+	implementation(project(":logging-api"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
 	implementation(project(":points"))

@@ -57,7 +57,7 @@ android {
 }
 
 dependencies {
-	implementation(project(":sbase"))
+	api(project(":logging-api"))
 	implementation(project(":spreferences"))
 	implementation(libs.androidx.documentfile)
 

@@ -6,7 +6,7 @@ import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiDetector

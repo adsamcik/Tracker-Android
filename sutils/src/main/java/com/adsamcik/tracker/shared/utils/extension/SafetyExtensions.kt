@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.shared.utils.extension
 
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import java.util.concurrent.CancellationException
 
 /**

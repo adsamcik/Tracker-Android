@@ -1,15 +1,9 @@
-package com.adsamcik.tracker.shared.base.logging
+package com.adsamcik.tracker.logging.api
 
 /**
  * Minimal logging facade to avoid hard dependency on :logger from foundational modules.
- * Modules can call ReporterFacade; the :logger module installs a delegate at runtime.
+ * Modules call ReporterFacade; the :logger module installs a delegate at runtime.
  */
-interface ErrorReporter {
-    fun report(message: String)
-    fun report(exception: Throwable)
-    fun log(message: String)
-}
-
 object ReporterFacade {
     @Volatile
     private var delegate: ErrorReporter? = null

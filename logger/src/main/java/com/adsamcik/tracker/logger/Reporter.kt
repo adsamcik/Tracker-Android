@@ -3,10 +3,9 @@ package com.adsamcik.tracker.logger
 import android.content.Context
 import android.util.Log
 import com.adsamcik.tracker.logger.BuildConfig
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.shared.base.isEmulator
-import com.adsamcik.tracker.shared.base.logging.ErrorReporter
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
+import com.adsamcik.tracker.logger.concurrency.LoggerDispatchers
+import com.adsamcik.tracker.logging.api.ErrorReporter
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import kotlinx.coroutines.CoroutineScope
@@ -25,8 +24,19 @@ object Reporter : ErrorReporter {
 	@Volatile
 	private var isEnabled = false
 	private const val TAG = "com.adsamcik.tracker-error"
-	private val scope = CoroutineScope(SupervisorJob() + DefaultDispatchersProvider.default)
+	private val scope = CoroutineScope(SupervisorJob() + LoggerDispatchers.default)
 	private var preferenceJob: Job? = null
+
+	private val isEmulator: Boolean
+		get() = (android.os.Build.FINGERPRINT.startsWith("generic")
+				|| android.os.Build.FINGERPRINT.startsWith("unknown")
+				|| android.os.Build.MODEL.contains("google_sdk")
+				|| android.os.Build.MODEL.contains("Emulator")
+				|| android.os.Build.MODEL.contains("Android SDK built for x86")
+				|| android.os.Build.MODEL.contains("sdk_gphone")
+				|| android.os.Build.MANUFACTURER.contains("Genymotion")
+				|| android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic")
+				|| "google_sdk" == android.os.Build.PRODUCT)
 
 	/**
 	 * Initializes reporter. Required for proper functionality.

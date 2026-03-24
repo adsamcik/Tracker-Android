@@ -80,6 +80,8 @@ android {
 }
 
 dependencies {
+	implementation(project(":logging-api"))
+
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)

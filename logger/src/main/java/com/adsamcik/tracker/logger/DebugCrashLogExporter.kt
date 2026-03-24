@@ -7,7 +7,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.logger.concurrency.LoggerDispatchers
 import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
@@ -142,7 +142,7 @@ object DebugCrashLogExporter {
 
         try {
             val recentLogs = try {
-                withContext(DefaultDispatchersProvider.io) {
+                withContext(LoggerDispatchers.io) {
                     withTimeout(1000) {
                         LogDatabase.database(context).genericLogDao().getLastOrderedDesc(MAX_RECENT_LOGS)
                     }
