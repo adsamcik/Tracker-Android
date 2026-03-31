@@ -7,7 +7,8 @@ import androidx.room.PrimaryKey
 
 /**
  * Materialized daily aggregate. One row per calendar day.
- * Updated by StreamingAggregator on tracking stop and by DailySummaryMaterializationWorker.
+ * Updated by [com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator]
+ * at session end (via TrackingOrchestrator) and periodically by DailySummaryMaterializationWorker.
  */
 @Entity(
 	tableName = "daily_summary",

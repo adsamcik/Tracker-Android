@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -39,6 +40,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.PreValidationStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -62,7 +64,7 @@ internal class TrackingOrchestrator(
 	private val signalProcessors: Set<SignalProcessor>,
 	private val domainEventRepository: DomainEventRepository,
 	private val dispatchers: DispatchersProvider,
-	appDatabase: AppDatabase,
+	private val appDatabase: AppDatabase,
 	trackingParamsRepository: TrackingParamsRepository,
 	trackerSettingsRepository: TrackerSettingsRepository,
 ) {
@@ -450,7 +452,27 @@ internal class TrackingOrchestrator(
 			}
 		}
 		sessionComponent = null
-		// Session finalization is handled by ProcessorPipeline.stop() which
-		// emits SessionEnded domain events consumed by event consumers.
+
+		// Materialize daily summary from session segments now that the session
+		// component has saved its final segment to the database.
+		try {
+			val aggregator = DailySummaryAggregator(
+				dailySummaryDao = appDatabase.dailySummaryDao(),
+				sessionSegmentDao = appDatabase.sessionSegmentDao(),
+			)
+			aggregator.materializeToday()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to materialize daily summary on shutdown", e)
+		}
+
+		// Also enqueue a one-shot worker as a fallback in case the direct
+		// materialization was skipped (e.g., timeout during shutdown).
+		try {
+			DailySummaryMaterializationWorker.runOnce(context)
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to enqueue one-shot daily summary worker", e)
+		}
 	}
 }
