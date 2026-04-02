@@ -88,7 +88,10 @@ internal fun DashboardScreen(
 		bottomInset = bottomInset,
 		isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
 	)
-	val floatingActionBottomPadding = DashboardLayoutDefaults.floatingActionBottomPadding(bottomInset)
+	val floatingActionBottomPadding = DashboardLayoutDefaults.floatingActionBottomPadding(
+		bottomInset = bottomInset,
+		isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+	)
 
 	MilestoneHapticEffect(
 		sessionData = state.sessionData,
@@ -127,7 +130,6 @@ internal fun DashboardScreen(
 			when (state.dashboardMode) {
 				DashboardMode.IDLE -> when {
 					!todayProgressVisible -> true
-					configuration.orientation == Configuration.ORIENTATION_LANDSCAPE -> true
 					else -> idleListState.layoutInfo.visibleItemsInfo.none {
 						it.key == DashboardWidget.TodayProgress.id
 					}

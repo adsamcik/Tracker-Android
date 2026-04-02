@@ -17,6 +17,7 @@ import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,24 +103,21 @@ class StatsPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val todayEpochDay = LocalDate.now().toEpochDay()
 			val fromDay = todayEpochDay - 6
-			dailySummaryRepository.getBetween(fromDay, todayEpochDay).fold(
-				ifLeft = { _weeklyBars.value = emptyList() },
-				ifRight = { summaries ->
-					val summaryMap = summaries.associateBy { it.dayEpoch }
-					val dayFormatter = DateTimeFormatter.ofPattern("EEE")
-					val bars = (0L..6L).map { offset ->
-						val epochDay = fromDay + offset
-						val date = LocalDate.ofEpochDay(epochDay)
-						DayBar(
-							dayLabel = date.format(dayFormatter),
-							distanceM = summaryMap[epochDay]?.totalDistance?.raw ?: 0f,
-							steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
-							epochDay = epochDay,
-						)
-					}
-					_weeklyBars.value = bars
-				},
-			)
+			val summaries = dailySummaryRepository.observeBetween(fromDay, todayEpochDay).first()
+			val summaryMap = summaries.associateBy { it.dayEpoch }
+			val dayFormatter = DateTimeFormatter.ofPattern("EEE")
+			val bars = (0L..6L).map { offset ->
+				val epochDay = fromDay + offset
+				val date = LocalDate.ofEpochDay(epochDay)
+				DayBar(
+					dayLabel = date.format(dayFormatter),
+					distanceM = summaryMap[epochDay]?.totalDistance?.raw ?: 0f,
+					steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
+					epochDay = epochDay,
+					sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
+				)
+			}
+			_weeklyBars.value = bars
 		}
 	}
 
@@ -127,20 +125,20 @@ class StatsPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val todayEpochDay = LocalDate.now().toEpochDay()
 			val fromDay = todayEpochDay - HEATMAP_DAYS + 1
-			dailySummaryRepository.getBetween(fromDay, todayEpochDay).fold(
-				ifLeft = { _heatmapData.value = emptyMap() },
-				ifRight = { summaries ->
-					if (summaries.isEmpty()) {
-						_heatmapData.value = emptyMap()
-						return@fold
-					}
-					val maxDistance = summaries.maxOf { it.totalDistance.raw }.coerceAtLeast(1f)
-					_heatmapData.value = summaries.associate { summary ->
-						LocalDate.ofEpochDay(summary.dayEpoch) to
-							(summary.totalDistance.raw / maxDistance).coerceIn(0f, 1f)
-					}
-				},
-			)
+			val summaries = dailySummaryRepository.observeBetween(fromDay, todayEpochDay).first()
+			if (summaries.isEmpty()) {
+				_heatmapData.value = emptyMap()
+				return@launch
+			}
+			val maxDistance = summaries.maxOf { it.totalDistance.raw }.coerceAtLeast(1f)
+			val maxDuration = summaries.maxOf { it.totalDuration.raw }.coerceAtLeast(1L)
+			_heatmapData.value = summaries.associate { summary ->
+				val distanceIntensity = summary.totalDistance.raw / maxDistance
+				val durationIntensity = summary.totalDuration.raw.toFloat() / maxDuration.toFloat()
+				// Use the higher of distance or duration so zero-distance sessions still register
+				val intensity = maxOf(distanceIntensity, durationIntensity)
+				LocalDate.ofEpochDay(summary.dayEpoch) to intensity.coerceIn(0f, 1f)
+			}
 		}
 	}
 
