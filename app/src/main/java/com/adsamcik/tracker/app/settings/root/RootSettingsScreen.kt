@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.settings.root
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,22 +14,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
-import androidx.compose.material.icons.filled.BarChart
+
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -37,6 +45,8 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.SettingsScreen
 import com.adsamcik.tracker.app.settings.SettingsViewModel
@@ -92,16 +102,19 @@ private fun RootSettingsContent(
     onSpeedFormatSelected: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 88.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         // Core settings group
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_core_group_title),
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_title),
@@ -135,6 +148,7 @@ private fun RootSettingsContent(
                     currentValue = state.lengthSystem.name,
                     entries = lengthNames,
                     entryValues = lengthValues,
+                    icon = Icons.Default.Straighten,
                     onValueChange = { selectedIndex ->
                         onLengthSystemSelected(lengthValues[selectedIndex])
                     }
@@ -144,6 +158,7 @@ private fun RootSettingsContent(
                 SwitchSettingsItem(
                     title = stringResource(R.string.settings_auto_unit_switch_title),
                     subtitle = stringResource(if (state.autoUnitSwitch) R.string.settings_units_auto_summary_on else R.string.settings_units_auto_summary_off),
+                    icon = Icons.Default.SwapHoriz,
                     checked = state.autoUnitSwitch,
                     onCheckedChange = onAutoUnitSwitchChanged
                 )
@@ -156,6 +171,7 @@ private fun RootSettingsContent(
                     currentValue = state.speedFormat.name,
                     entries = speedNames,
                     entryValues = speedValues,
+                    icon = Icons.Default.Speed,
                     onValueChange = { selectedIndex ->
                         onSpeedFormatSelected(speedValues[selectedIndex])
                     }
@@ -191,12 +207,7 @@ private fun RootSettingsContent(
                     icon = Icons.Default.EmojiEvents,
                     onClick = { onNavigate(SettingsScreen.Game) }
                 )
-                SettingsItem(
-                    title = stringResource(R.string.module_statistics_title),
-                    subtitle = stringResource(R.string.settings_module_statistics_subtitle),
-                    icon = Icons.Default.BarChart,
-                    onClick = { onNavigate(SettingsScreen.Statistics) }
-                )
+
             }
         }
 
@@ -210,7 +221,13 @@ private fun RootSettingsContent(
                     title = stringResource(R.string.settings_about_app_title),
                     subtitle = stringResource(R.string.settings_about_app_subtitle),
                     icon = Icons.Default.Info,
-                    onClick = { }
+                    onClick = {
+                        android.widget.Toast.makeText(
+                            context,
+                            "${context.getString(R.string.app_name)} v${com.adsamcik.tracker.BuildConfig.VERSION_NAME} (${com.adsamcik.tracker.BuildConfig.VERSION_CODE})",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 )
                 SettingsItem(
                     title = stringResource(R.string.settings_licenses_title),
@@ -219,13 +236,21 @@ private fun RootSettingsContent(
                         context.startActivity(Intent(context, ThirdPartyLicensesActivity::class.java))
                     }
                 )
+                SettingsItem(
+                    title = stringResource(R.string.settings_privacy_policy_title),
+                    icon = Icons.Default.PrivacyTip,
+                    onClick = { showPrivacyPolicy = true }
+                )
             }
         }
 
         // Debug (conditional)
         if (showDebug) {
             item {
-                SettingsGroupCard(modifier = Modifier.padding(top = 12.dp)) {
+                SettingsGroupCard(
+                    modifier = Modifier.padding(top = 12.dp),
+                    title = stringResource(R.string.settings_debug_group_title),
+                ) {
                     SettingsItem(
                         title = stringResource(R.string.settings_debug_title),
                         subtitle = if (!com.adsamcik.tracker.BuildConfig.DEBUG)
@@ -290,6 +315,44 @@ private fun RootSettingsContent(
                         )
                     }
                 }
+            }
+        }
+    }
+
+    if (showPrivacyPolicy) {
+        val privacyText = remember {
+            try {
+                context.resources.openRawResource(R.raw.privacy_policy)
+                    .bufferedReader()
+                    .use { it.readText() }
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (privacyText != null) {
+            AlertDialog(
+                onDismissRequest = { showPrivacyPolicy = false },
+                title = { Text(stringResource(R.string.settings_privacy_policy_title)) },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(text = privacyText)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showPrivacyPolicy = false }) {
+                        Text(stringResource(android.R.string.ok))
+                    }
+                }
+            )
+        } else {
+            // Fallback: open in browser if raw resource missing
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                val intent = Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://github.com/adsamcik/Tracker-Android/blob/master/privacypolicy.md")
+                )
+                context.startActivity(intent)
+                showPrivacyPolicy = false
             }
         }
     }

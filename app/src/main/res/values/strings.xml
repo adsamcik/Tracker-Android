@@ -56,6 +56,7 @@
     <string name="settings_debug_enabled_default" translatable="false">false</string>
     <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
     <string name="settings_debug_key" translatable="false">debugSection</string>
+    <string name="settings_debug_group_title">Debug</string>
     <string name="settings_debug_title">Developer options</string>
     <string name="settings_debug_tools_section">Debug Tools</string>
     <string name="settings_debug_crash_manager_title">Crash Manager</string>
@@ -102,7 +103,7 @@
     <string name="settings_units_length_ancient_roman_summary">Passus and mille passus</string>
     <string name="settings_units_length_sailing_summary">Nautical miles and fathoms</string>
     <string name="settings_units_length_flying_summary">Flight levels and nautical miles</string>
-    <string name="settings_units_speed_hour_summary">Speed per hour (km/h, mph)</string>
+    <string name="settings_units_speed_hour_summary">Speed (km/h, mph)</string>
     <string name="settings_units_speed_minute_summary">Pace per distance (min/km, min/mi)</string>
     <string name="settings_units_speed_second_summary">Speed per second (m/s)</string>
 
@@ -159,14 +160,14 @@
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>
     <string name="settings_module_group_title">Module settings</string>
     <string name="settings_core_group_title">Core</string>
-    <string name="settings_other_title">Other</string>
+    <string name="settings_other_title">Units &amp; Display</string>
     <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
     <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>
     <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
     <string-array name="settings_speed_format_names">
         <item>Speed per second (m/s)</item>
         <item>Pace per distance (min/km, min/mi)</item>
-        <item>Speed per hour (km/h, mph)</item>
+        <item>Speed (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Speed format</string>
     <string-array name="settings_speed_format_values" translatable="false">
@@ -189,6 +190,9 @@
     <string name="settings_color_picker_swatch_cd">%1$s color %2$s</string>
     <string name="settings_color_picker_shade_cd">%1$s shade %2$s</string>
     <string name="settings_color_picker_selected_prefix">Selected</string>
+
+    <string name="switch_state_on">On</string>
+    <string name="switch_state_off">Off</string>
 
     <string name="show_tips_title">Show tips</string>
 
@@ -712,5 +716,37 @@
     <string name="goal_notification_body_complete">You reached %1$d steps today!</string>
     <string name="settings_smart_goal_notifications_title">Smart goal notifications</string>
     <string name="settings_smart_goal_notifications_summary">Get notified when you\'re close to your daily step goal</string>
+
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">How Should Tracking Work?</string>
+    <string name="setup_how_to_track_subtitle">Choose when tracking starts and how detailed it should be.</string>
+    <string name="setup_auto_tracking_title">Auto-Tracking</string>
+    <string name="setup_auto_tracking_disabled">Disabled</string>
+    <string name="setup_auto_tracking_disabled_desc">Start and stop tracking manually.</string>
+    <string name="setup_auto_tracking_on_foot">On Foot</string>
+    <string name="setup_auto_tracking_on_foot_desc">Automatically track walking and running.</string>
+    <string name="setup_auto_tracking_in_motion">In Motion</string>
+    <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
+    <string name="setup_preset_title">Tracking Detail</string>
+    <string name="setup_what_to_collect_title">What to Collect</string>
+    <string name="setup_what_to_collect_subtitle">Choose what data to record. Each source may need a permission — we\'ll explain why.</string>
+    <string name="setup_source_location">Location</string>
+    <string name="setup_source_location_desc">Record your routes and positions on a map.</string>
+    <string name="setup_source_activity">Activity</string>
+    <string name="setup_source_activity_desc">Detect whether you\'re walking, running, cycling, or driving.</string>
+    <string name="setup_source_steps">Steps</string>
+    <string name="setup_source_steps_desc">Count your steps using the device pedometer.</string>
+    <string name="setup_source_wifi">WiFi Networks</string>
+    <string name="setup_source_wifi_desc">Log nearby WiFi networks to improve location accuracy.</string>
+    <string name="setup_source_cell">Cell Towers</string>
+    <string name="setup_source_cell_desc">Log cell tower info for location context.</string>
+    <string name="setup_perm_location_why">Needed to record your routes and show them on the map.</string>
+    <string name="setup_perm_location_bg_why">Allows tracking to continue when the app is in the background.</string>
+    <string name="setup_perm_activity_why">Needed to detect your movement type (walking, driving, etc.).</string>
+    <string name="setup_perm_notification_why">Needed to show tracking status in notifications.</string>
+    <string name="setup_perm_grant">Grant</string>
+    <string name="setup_perm_granted">Granted</string>
+    <string name="setup_start_exploring">Start Exploring</string>
+    <string name="setup_step_indicator">Step %1$d of %2$d</string>
 
 </resources>

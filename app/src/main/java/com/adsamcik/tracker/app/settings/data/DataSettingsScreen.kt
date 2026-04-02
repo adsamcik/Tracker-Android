@@ -188,7 +188,7 @@ fun DataSettingsScreen() {
         AlertDialog(
             onDismissRequest = { debugVm.hideDeleteDataDialog() },
             title = { Text(stringResource(R.string.settings_remove_all_collected_data_title)) },
-            text = { Text(stringResource(com.adsamcik.tracker.shared.base.R.string.alert_confirm, stringResource(R.string.settings_remove_all_collected_data_title))) },
+            text = { Text(stringResource(com.adsamcik.tracker.shared.base.R.string.alert_confirm, stringResource(R.string.settings_remove_all_collected_data_title).replaceFirstChar { it.lowercase() })) },
             confirmButton = {
                 Button(
                     onClick = {

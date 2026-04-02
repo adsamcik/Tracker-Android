@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,7 +28,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.R
 
 /**
  * Contract: Standard clickable settings item with optional icon.
@@ -99,10 +103,13 @@ fun SettingsItemWithValue(
 fun SwitchSettingsItem(
     title: String,
     subtitle: String? = null,
+    icon: ImageVector? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
 ) {
+    val switchOnDesc = stringResource(R.string.switch_state_on)
+    val switchOffDesc = stringResource(R.string.switch_state_off)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,15 +120,20 @@ fun SwitchSettingsItem(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             )
+            .semantics {
+                stateDescription = if (checked) switchOnDesc else switchOffDesc
+            }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SettingsItemContent(
-            title = title,
-            subtitle = subtitle,
-            icon = null,
-        )
-        Spacer(Modifier.width(12.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            SettingsItemContent(
+                title = title,
+                subtitle = subtitle,
+                icon = icon,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
@@ -250,7 +262,7 @@ private fun SettingsItemContent(
 
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = title,

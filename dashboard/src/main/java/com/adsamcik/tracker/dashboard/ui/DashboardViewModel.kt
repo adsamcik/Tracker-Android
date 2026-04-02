@@ -128,7 +128,8 @@ class DashboardViewModel @Inject constructor(
 		viewModelScope.launch {
 			_todaySummary.value = try {
 				dailySummaryProvider.get().fetchTodaySummary()
-			} catch (_: Exception) {
+			} catch (e: Exception) {
+				Reporter.report(e)
 				null
 			}
 		}
@@ -214,15 +215,26 @@ class DashboardViewModel @Inject constructor(
 		val weeklyDistances = (startEpochDay..todayEpochDay).map { epochDay ->
 			summariesByDay[epochDay]?.totalDistanceM ?: 0f
 		}
-		val thisWeek = weeklyDistances.takeLast(3).sum()
-		val lastWeek = weeklyDistances.take(3).sum()
+		// Use averages to normalise for unequal group sizes (4 older + 3 recent = 7 days).
+		val recentAvg = weeklyDistances.takeLast(3).average().toFloat()
+		val olderAvg = weeklyDistances.take(4).average().toFloat()
 		val trend = when {
-			thisWeek > lastWeek * 1.1f -> WeeklyTrend.UP
-			thisWeek < lastWeek * 0.9f -> WeeklyTrend.DOWN
+			olderAvg <= 0f -> if (recentAvg > 0f) WeeklyTrend.UP else WeeklyTrend.STEADY
+			recentAvg > olderAvg * 1.1f -> WeeklyTrend.UP
+			recentAvg < olderAvg * 0.9f -> WeeklyTrend.DOWN
 			else -> WeeklyTrend.STEADY
 		}
+
+		// Validate streak: reset to 0 if last increment was more than 1 day ago
+		val streakCount = if (streak != null && streak.lastIncrementDay > 0) {
+			val daysSinceLastIncrement = todayEpochDay - streak.lastIncrementDay
+			if (daysSinceLastIncrement > 1) 0 else streak.currentCount
+		} else {
+			streak?.currentCount ?: 0
+		}
+
 		_streakState.value = StreakState(
-			currentStreak = streak?.currentCount ?: 0,
+			currentStreak = streakCount,
 			bestStreak = streak?.bestCount ?: 0,
 			weeklyDistances = weeklyDistances,
 			weeklyTrend = trend,
