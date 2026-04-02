@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -42,7 +43,8 @@ fun DialogListPreference(
     entryValues: List<String>,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    subtitle: String? = null
+    subtitle: String? = null,
+    icon: ImageVector? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val currentIndex = entryValues.indexOf(currentValue).coerceAtLeast(0)
@@ -50,6 +52,7 @@ fun DialogListPreference(
     SettingsItem(
         title = title,
         subtitle = subtitle ?: entries.getOrNull(currentIndex) ?: currentValue,
+        icon = icon,
         onClick = { showDialog = true },
         modifier = modifier
     )
@@ -101,7 +104,7 @@ fun SingleChoiceDialog(
 
     AlertDialog(
         onDismissRequest = ::dismissSafely,
-        properties = DialogProperties(dismissOnClickOutside = false),
+        properties = DialogProperties(dismissOnClickOutside = true),
         title = { Text(title) },
         text = {
             LazyColumn {

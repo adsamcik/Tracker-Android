@@ -20,6 +20,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -76,7 +78,7 @@ fun CalendarHeatmap(
     val totalHeightDp = monthLabelHeight + cellSizeDp * 7 + cellGapDp * 6
 
     val textMeasurer = rememberTextMeasurer()
-    val dayLabels = remember { listOf("M", "", "W", "", "F", "", "S") }
+    val dayLabels = remember { listOf("M", "T", "W", "T", "F", "S", "S") }
 
     Column(modifier = modifier) {
         Row(
@@ -85,25 +87,30 @@ fun CalendarHeatmap(
             // Day labels column
             Column(modifier = Modifier.width(dayLabelWidth)) {
                 Spacer(Modifier.height(monthLabelHeight))
-                dayLabels.forEachIndexed { i, label ->
-                    if (label.isNotEmpty()) {
-                        Text(
-                            text = label,
-                            style = labelStyle,
-                            color = labelColor,
-                            modifier = Modifier.height(cellSizeDp + cellGapDp),
-                        )
-                    } else {
-                        Spacer(Modifier.height(cellSizeDp + cellGapDp))
-                    }
+                dayLabels.forEach { label ->
+                    Text(
+                        text = label,
+                        style = labelStyle,
+                        color = labelColor,
+                        modifier = Modifier.height(cellSizeDp + cellGapDp),
+                    )
                 }
             }
 
             // Grid canvas
+            val activeDays = data.count { it.value > 0f }
+            val heatmapDescription = if (activeDays > 0) {
+                "$activeDays active day${if (activeDays != 1) "s" else ""} in the last $weeks weeks"
+            } else {
+                "No tracked activity in the last $weeks weeks"
+            }
             Canvas(
                 modifier = Modifier
                     .width(totalWidthDp - dayLabelWidth)
-                    .height(totalHeightDp),
+                    .height(totalHeightDp)
+                    .semantics {
+                        contentDescription = heatmapDescription
+                    },
             ) {
                 val monthLabelHeightPx = with(density) { monthLabelHeight.toPx() }
 

@@ -1,7 +1,13 @@
 package com.adsamcik.tracker.map.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +40,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LayersClear
@@ -109,7 +116,6 @@ import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import com.adsamcik.tracker.shared.utils.style.compose.BottomSheetShape
-import com.adsamcik.tracker.shared.utils.style.compose.MomentumPillShape
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -186,12 +192,9 @@ fun MapSheet(
     val density = LocalDensity.current
     
     val bottomInsetDp = with(density) { effectiveBottomInsetPx.toDp() }
-    val currentCenterCoordinates = remember(uiState.camera.lat, uiState.camera.lng) {
-        String.format(Locale.US, "%.5f, %.5f", uiState.camera.lat, uiState.camera.lng)
-    }
 
-    // Peek height includes the visible controls plus the safe area hidden behind app/system bars.
-    val peekHeight = 192.dp + bottomInsetDp
+    // Peek height: drag handle (~48dp) + search bar (~56dp) + chips row (~48dp) + padding (~16dp)
+    val peekHeight = 168.dp + bottomInsetDp
     val visibleSheetHeight = if (visibility == SheetVisibility.Hidden) 0.dp else peekHeight
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -235,84 +238,87 @@ fun MapSheet(
                         .fillMaxWidth()
                         .padding(bottom = bottomInsetDp)
                 ) {
-                    // Search bar — always visible in peek
+                    // Search bar — compact M3-style pill
+                    val hasQuery = uiState.search.query.isNotEmpty()
+                    val resultStatus = uiState.search.resultStatus
+                    val searchBorderColor = when (resultStatus) {
+                        SearchResultStatus.Found -> MaterialTheme.colorScheme.primary
+                        SearchResultStatus.NotFound -> MaterialTheme.colorScheme.error
+                        else -> Color.Transparent
+                    }
+                    val searchBorderWidth = if (resultStatus != SearchResultStatus.Idle) 2.dp else 0.dp
+
                     Surface(
-                        shape = MomentumPillShape,
+                        shape = MaterialTheme.shapes.extraLarge,
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         tonalElevation = 2.dp,
-                        shadowElevation = 4.dp,
+                        shadowElevation = 2.dp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .padding(bottom = 8.dp)
-                            .heightIn(min = 92.dp)
+                            .then(
+                                if (searchBorderWidth > 0.dp) {
+                                    Modifier.border(searchBorderWidth, searchBorderColor, MaterialTheme.shapes.extraLarge)
+                                } else {
+                                    Modifier
+                                }
+                            )
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                        ) {
+                            IconButton(
+                                onClick = { store.dispatch(MapEvent.SubmitSearch) },
+                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                             ) {
-                                IconButton(
-                                    onClick = { store.dispatch(MapEvent.SubmitSearch) },
-                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Search,
-                                        contentDescription = stringResource(R.string.description_map_search),
-                                        modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Box(modifier = Modifier.weight(1f)) {
-                                    TextField(
-                                        value = uiState.search.query,
-                                        onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 56.dp)
-                                            .onFocusChanged { f ->
-                                                if (f.isFocused != uiState.search.hasFocus) {
-                                                    store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
-                                                }
-                                            },
-                                        singleLine = true,
-                                        placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                        keyboardActions = KeyboardActions(onSearch = { store.dispatch(MapEvent.SubmitSearch) }),
-                                        colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = Color.Transparent,
-                                            unfocusedContainerColor = Color.Transparent,
-                                            disabledContainerColor = Color.Transparent,
-                                            focusedIndicatorColor = Color.Transparent,
-                                            unfocusedIndicatorColor = Color.Transparent,
-                                            disabledIndicatorColor = Color.Transparent
-                                        )
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) },
-                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                                    enabled = uiState.search.query.isNotEmpty()
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Close,
-                                        contentDescription = stringResource(R.string.map_search_clear),
-                                        tint = if (uiState.search.query.isNotEmpty()) {
-                                            MaterialTheme.colorScheme.onSurface
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                                        }
-                                    )
-                                }
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.description_map_search),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 8.dp, end = 12.dp, bottom = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Box(modifier = Modifier.weight(1f)) {
+                                TextField(
+                                    value = uiState.search.query,
+                                    onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onFocusChanged { f ->
+                                            if (f.isFocused != uiState.search.hasFocus) {
+                                                store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
+                                            }
+                                        },
+                                    singleLine = true,
+                                    placeholder = {
+                                        Text(
+                                            text = stringResource(R.string.map_search_hint),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(onSearch = { store.dispatch(MapEvent.SubmitSearch) }),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        disabledContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent
+                                    )
+                                )
+                            }
+                            // Paste from clipboard
+                            AnimatedVisibility(
+                                visible = !hasQuery,
+                                enter = fadeIn() + scaleIn(),
+                                exit = fadeOut() + scaleOut()
                             ) {
-                                TextButton(
+                                IconButton(
                                     onClick = {
                                         coroutineScope.launch {
                                             val clipboardText = clipboard.getClipEntry()
@@ -333,34 +339,52 @@ fun MapSheet(
                                     },
                                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                 ) {
-                                    Text(text = stringResource(R.string.map_search_paste))
+                                    Icon(
+                                        Icons.Filled.ContentPaste,
+                                        contentDescription = stringResource(R.string.map_search_paste),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Text(
-                                    text = stringResource(
-                                        R.string.map_search_current_center,
-                                        currentCenterCoordinates
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            }
+                            // Clear search
+                            AnimatedVisibility(
+                                visible = hasQuery,
+                                enter = fadeIn() + scaleIn(),
+                                exit = fadeOut() + scaleOut()
+                            ) {
+                                IconButton(
+                                    onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.map_search_clear),
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Search result feedback
-                    if (uiState.search.resultStatus == SearchResultStatus.NotFound) {
+                    // Inline result feedback — slim, below search bar
+                    AnimatedVisibility(
+                        visible = resultStatus == SearchResultStatus.NotFound || resultStatus == SearchResultStatus.Found,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
                         Text(
-                            text = stringResource(R.string.map_search_not_found),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                    } else if (uiState.search.resultStatus == SearchResultStatus.Found) {
-                        Text(
-                            text = stringResource(R.string.map_search_found),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            text = if (resultStatus == SearchResultStatus.NotFound) {
+                                stringResource(R.string.map_search_not_found)
+                            } else {
+                                stringResource(R.string.map_search_found)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (resultStatus == SearchResultStatus.NotFound) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
                         )
                     }
 
@@ -376,7 +400,7 @@ fun MapSheet(
                     ) {
                         layers.forEach { layer ->
                             val isLayerSelected = if (layer.id == "none") {
-                                uiState.activeLayerIds.isEmpty()
+                                uiState.activeLayerIds.isEmpty() || uiState.activeLayerIds.none { it.contains("heatmap") }
                             } else {
                                 uiState.activeLayerIds.contains(layer.id)
                             }
@@ -397,7 +421,7 @@ fun MapSheet(
                                             Reporter.w("MapSheet", "Failed to resolve layer title for ${layer.id}: ${e.message}")
                                             layer.id
                                         },
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 },
                                 leadingIcon = if (isLayerSelected) {
