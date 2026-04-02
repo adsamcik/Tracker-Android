@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,12 +92,12 @@ fun ExplorationCard(
 				StreakStat(
 					label = stringResource(R.string.exploration_current_streak),
 					value = state.dailyStreak,
-					unit = stringResource(R.string.exploration_days),
+					unit = pluralStringResource(R.plurals.exploration_days_plural, state.dailyStreak),
 				)
 				StreakStat(
 					label = stringResource(R.string.exploration_best_streak),
 					value = state.bestStreak,
-					unit = stringResource(R.string.exploration_days),
+					unit = pluralStringResource(R.plurals.exploration_days_plural, state.bestStreak),
 				)
 			}
 

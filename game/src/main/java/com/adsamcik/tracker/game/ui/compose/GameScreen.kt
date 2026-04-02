@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -40,12 +39,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +67,8 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -123,7 +124,7 @@ fun GameScreen(
     val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) {
         24.dp + safeBottomPadding
     } else {
-        AppDimensions.FloatingNavBarClearance + navBarPadding + safeBottomPadding + 24.dp
+        AppDimensions.FloatingNavBarClearance + navBarPadding + safeBottomPadding + 40.dp
     }
     Scaffold(
         modifier = modifier
@@ -183,15 +184,20 @@ fun GameScreen(
                 } else {
                     PointsCard(
                         points = pointsToday,
-                        onStartTrackingClick = onNavigateToTracker,
                     )
                 }
             }
             item {
-                if (steps == null) {
-                    LoadingGameCard()
-                } else {
-                    StepsCard(steps)
+                val context = LocalContext.current
+                val stepCounterSupported = remember {
+                    context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+                }
+                if (stepCounterSupported) {
+                    if (steps == null) {
+                        LoadingGameCard()
+                    } else {
+                        StepsCard(steps = steps, stepCounterSupported = true)
+                    }
                 }
             }
             item {
@@ -405,8 +411,7 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun PointsCard(
     points: Int,
-    onStartTrackingClick: () -> Unit,
-) {
+){
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -448,25 +453,13 @@ private fun PointsCard(
                     }
                 }
             }
-            if (points == 0) {
-                OutlinedButton(
-                    onClick = onStartTrackingClick,
-                    modifier = Modifier.align(Alignment.End),
-                ) {
-                    Text(text = stringResource(R.string.game_track_and_earn_points_action))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
+
         }
     }
 }
 
 @Composable
-private fun StepsCard(steps: StepsSummaryUi) {
+private fun StepsCard(steps: StepsSummaryUi, stepCounterSupported: Boolean) {
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -487,14 +480,29 @@ private fun StepsCard(steps: StepsSummaryUi) {
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }
-            Row(
-                Modifier
-                    .padding(top = 16.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Stat(stringResource(R.string.game_steps_today), steps.stepsToday, steps.goalDay)
-                Stat(stringResource(R.string.game_steps_week), steps.stepsWeek, steps.goalWeek)
+            if (!stepCounterSupported && steps.stepsToday <= 0 && steps.stepsWeek <= 0) {
+                Text(
+                    text = stringResource(R.string.game_step_sensor_unavailable),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                Text(
+                    text = stringResource(R.string.game_step_sensor_unavailable_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            } else {
+                Row(
+                    Modifier
+                        .padding(top = 16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Stat(stringResource(R.string.game_steps_today), steps.stepsToday, steps.goalDay)
+                    Stat(stringResource(R.string.game_steps_week), steps.stepsWeek, steps.goalWeek)
+                }
             }
         }
     }
@@ -536,7 +544,7 @@ private fun Stat(label: String, value: Int, goal: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = "$value / $goal", 
+            text = if (goal > 0) "$value / $goal" else "$value",
             style = MaterialTheme.typography.titleMedium, 
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface

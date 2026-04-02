@@ -75,7 +75,12 @@ private fun ChallengeCard(
 	onClick: (ChallengeUi) -> Unit,
 ) {
 	val percent = (challenge.progress * 100).toInt()
-	val description = "Challenge: ${challenge.title}, $percent percent"
+	val timeDesc = if (challenge.timeRemainingMs > 0) {
+		val hours = (challenge.timeRemainingMs / (1000 * 60 * 60)).toInt()
+		if (hours >= 24) ", ${hours / 24} ${if (hours / 24 == 1) "day" else "days"} remaining"
+		else ", $hours ${if (hours == 1) "hour" else "hours"} remaining"
+	} else ""
+	val description = "Challenge: ${challenge.title}, $percent percent complete$timeDesc"
 
 	GlassCard(
 		modifier = Modifier

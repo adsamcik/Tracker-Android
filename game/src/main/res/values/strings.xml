@@ -45,6 +45,8 @@
     
     <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Steps goals</string>
+    <string name="game_step_sensor_unavailable">Step sensor unavailable</string>
+    <string name="game_step_sensor_unavailable_detail">This device does not have a step counter sensor. Step goals cannot be tracked.</string>
     <string name="game_steps_today">Today</string>
     <string name="game_steps_week">Week</string>
     
@@ -119,6 +121,10 @@
     <string name="exploration_best_streak">Best Streak</string>
     <string name="exploration_seasons_explored">Seasons Explored</string>
     <string name="exploration_days">days</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">day</item>
+        <item quantity="other">days</item>
+    </plurals>
     <string name="exploration_of_four">of 4</string>
 
     <!-- Achievements card -->
@@ -195,7 +201,7 @@
     <string name="game_level_up">Level Up!</string>
 
     <!-- Weekly Ghost Leaderboard -->
-    <string name="leaderboard_title">Weekly Leaderboard</string>
+    <string name="leaderboard_title">Weekly Challenge</string>
     <string name="leaderboard_metric_distance">Distance</string>
     <string name="leaderboard_metric_steps">Steps</string>
     <string name="leaderboard_metric_active_time">Active</string>
@@ -217,4 +223,19 @@
     <string name="leaderboard_no_data">Not enough data yet</string>
     <string name="leaderboard_you">You</string>
     <string name="leaderboard_current_week">This Week</string>
+
+    <!-- Unlock feature display names -->
+    <string name="unlock_feature_challenges">Challenges</string>
+    <string name="unlock_feature_medals">Medals</string>
+    <string name="unlock_feature_streaks">Streaks</string>
+    <string name="unlock_feature_trophy_case">Trophy Case</string>
+    <string name="unlock_feature_personal_records">Personal Records</string>
+    <string name="unlock_feature_outrun">Outrun Mini-Game</string>
+    <string name="unlock_feature_streak_freeze">Streak Freeze</string>
+    <string name="unlock_feature_speed_challenge">Speed Challenge</string>
+    <string name="unlock_feature_territory">Territory Mini-Game</string>
+    <string name="unlock_feature_lifetime_stats">Lifetime Stats</string>
+    <string name="unlock_feature_consistency">Consistency Challenge</string>
+    <string name="unlock_feature_zen_walk">Zen Walk Mini-Game</string>
+    <string name="unlock_feature_weekly_rank">Weekly Rank</string>
 </resources>
