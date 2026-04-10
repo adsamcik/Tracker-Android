@@ -37,6 +37,9 @@
     <string name="stats_run">run</string>
     <string name="stats_session_count">Session count</string>
     <string name="stats_steps">Step count</string>
+    <string name="stats_step_sensor_unavailable">Step sensor unavailable</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_metric_no_data">No data</string>
     <string name="stats_sum_title">Summary</string>
     <string name="stats_time">Time spent tracking</string>
     <string name="stats_title_text" translatable="false">%1$s %2$s %3$s</string>

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsCar
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -358,6 +360,7 @@ private fun ContentState(
                 SparseStatsSummaryCard(
                     visibleSessionCount = sessionCount,
                     weeklyBars = weeklyBars,
+                    modifier = Modifier.padding(bottom = bottomClearance),
                 )
             }
         }
@@ -441,7 +444,6 @@ private fun ActionChip(
         modifier = modifier
             .height(56.dp)
             .semantics {
-                contentDescription = label
                 selected = isSelected
             },
         selected = isSelected,
@@ -450,7 +452,7 @@ private fun ActionChip(
             Text(
                 text = label,
                 maxLines = 1,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             )
@@ -505,13 +507,17 @@ private fun ActiveFilterCard(label: String) {
 private fun SparseStatsSummaryCard(
     visibleSessionCount: Int,
     weeklyBars: List<DayBar>,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
     val totalDistanceM = remember(weeklyBars) { weeklyBars.sumOf { it.distanceM.toDouble() }.toFloat() }
     val totalSteps = remember(weeklyBars) { weeklyBars.sumOf { it.steps } }
-    val activeDays = remember(weeklyBars) { weeklyBars.count { it.distanceM > 0f || it.steps > 0 } }
+    val stepCounterSupported = remember {
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+    }
+    val activeDays = remember(weeklyBars) { weeklyBars.count { it.distanceM > 0f || it.steps > 0 || it.sessionCount > 0 } }
     val distanceText = remember(totalDistanceM, settings) {
         resources.formatDistance(
             totalDistanceM,
@@ -521,7 +527,7 @@ private fun SparseStatsSummaryCard(
     }
 
     GlassCard(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag("stats_sparse_summary"),
         shape = MaterialTheme.shapes.large,
@@ -559,7 +565,11 @@ private fun SparseStatsSummaryCard(
                 )
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_steps),
-                    value = totalSteps.formatReadable(),
+                    value = if (totalSteps > 0 || stepCounterSupported) {
+                        totalSteps.formatReadable()
+                    } else {
+                        stringResource(R.string.stats_metric_not_available_short)
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetricCard(
@@ -623,7 +633,7 @@ private fun WeeklySummaryDayChip(
     dayBar: DayBar,
     modifier: Modifier = Modifier,
 ) {
-    val hasActivity = dayBar.distanceM > 0f || dayBar.steps > 0
+    val hasActivity = dayBar.distanceM > 0f || dayBar.steps > 0 || dayBar.sessionCount > 0
     val containerColor = if (hasActivity) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -893,31 +903,34 @@ internal fun TripRow(
                             )
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (distanceText != null) {
-                            MetricBadge(
-                                icon = Icons.Filled.Route,
-                                value = distanceText
-                            )
-                        }
-                        if (steps > 0) {
-                            MetricBadge(
-                                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                                value = steps.formatReadable()
-                            )
-                        }
-                        if (distanceText == null && steps == 0) {
-                            Text(
-                                text = stringResource(R.string.stats_session_subtitle_placeholder),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    if (distanceText != null || steps > 0) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (distanceText != null) {
+                                MetricBadge(
+                                    icon = Icons.Filled.Route,
+                                    value = distanceText
+                                )
+                            }
+                            if (steps > 0) {
+                                MetricBadge(
+                                    icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                                    value = steps.formatReadable()
+                                )
+                            }
                         }
                     }
+                }
+                if (onClick != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
+                    )
                 }
             }
         }

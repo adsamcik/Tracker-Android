@@ -63,7 +63,7 @@ internal fun ChallengeCardsRow(
 			EmptyChallengeCard(onClick = onChallengeClick)
 		} else {
 			LazyRow(
-				contentPadding = PaddingValues(horizontal = 0.dp),
+				contentPadding = PaddingValues(end = 16.dp),
 				horizontalArrangement = Arrangement.spacedBy(12.dp),
 			) {
 				items(challenges, key = { it.id }) { challenge ->
@@ -100,11 +100,12 @@ private fun ChallengeCard(
 		progressPercent,
 	)
 	val viewDetailsLabel = stringResource(R.string.dashboard_action_view_details)
+	val timeRemainingText = formatTimeRemaining(challenge.timeRemainingMs)
 
 	Card(
 		modifier = modifier
-			.width(160.dp)
-			.height(120.dp)
+			.width(200.dp)
+			.height(130.dp)
 			.semantics(mergeDescendants = true) {
 				contentDescription = cardContentDescription
 			}
@@ -185,7 +186,7 @@ private fun ChallengeCard(
 				}
 
 				Text(
-					text = formatTimeRemaining(challenge.timeRemainingMs),
+					text = timeRemainingText,
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 					modifier = Modifier.padding(start = 40.dp),
@@ -205,8 +206,8 @@ private fun EmptyChallengeCard(
 
 	Card(
 		modifier = modifier
-			.width(160.dp)
-			.height(120.dp)
+			.width(200.dp)
+			.height(130.dp)
 			.semantics(mergeDescendants = true) {
 				contentDescription = emptyCardContentDescription
 			}
@@ -243,17 +244,17 @@ private fun EmptyChallengeCard(
 				style = MaterialTheme.typography.bodySmall,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
-	
 		}
 	}
 }
 
+@Composable
 private fun formatTimeRemaining(ms: Long): String {
 	val days = TimeUnit.MILLISECONDS.toDays(ms)
 	val hours = TimeUnit.MILLISECONDS.toHours(ms) % 24
 	return when {
-		days > 0 -> "${days}d"
-		hours > 0 -> "${hours}h"
-		else -> "<1h"
+		days > 0 -> stringResource(R.string.dashboard_challenge_time_days, days)
+		hours > 0 -> stringResource(R.string.dashboard_challenge_time_hours, hours)
+		else -> stringResource(R.string.dashboard_challenge_time_less_than_hour)
 	}
 }

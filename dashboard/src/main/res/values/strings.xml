@@ -19,7 +19,10 @@
     <string name="dashboard_cd_open_settings">Open settings</string>
     <string name="dashboard_cd_start_tracking">Start tracking</string>
     <string name="dashboard_cd_start_tracking_permission">Start tracking, permission required</string>
-    <string name="dashboard_cd_streak_banner">Streak: %1$d days. Tap to view streak details</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Streak: %1$d day. Tap to view streak details</item>
+        <item quantity="other">Streak: %1$d days. Tap to view streak details</item>
+    </plurals>
     <string name="dashboard_cd_streak_banner_empty">Start a streak. Tap to view streak details</string>
     <string name="dashboard_cd_stop_tracking">Stop tracking</string>
     <string name="dashboard_action_enable_location">Enable location access</string>
@@ -52,6 +55,7 @@
     <string name="dashboard_greeting_night">Good night</string>
     <string name="dashboard_today_title">Today</string>
     <string name="dashboard_today_no_activity">No activity yet today</string>
+    <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_duration">Duration</string>
     <string name="dashboard_today_steps">Steps</string>
     <string name="dashboard_today_trips">Trips</string>
@@ -63,14 +67,17 @@
     <string name="dashboard_goal_behind">Behind</string>
     <string name="dashboard_streak_day_streak">day streak</string>
     <string name="dashboard_streak_start">Start a streak!</string>
-    <string name="dashboard_streak_trend_up">↑%1$d%%</string>
-    <string name="dashboard_streak_trend_down">↓%1$d%%</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% vs last wk</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% vs last wk</string>
     <string name="dashboard_challenges_title">Challenges</string>
     <string name="dashboard_challenges_empty">Start a challenge →</string>
     <string name="dashboard_challenge_easy">Easy</string>
     <string name="dashboard_challenge_medium">Medium</string>
     <string name="dashboard_challenge_hard">Hard</string>
     <string name="dashboard_challenge_time_remaining">%1$s left</string>
+    <string name="dashboard_challenge_time_days">%1$dd</string>
+    <string name="dashboard_challenge_time_hours">%1$dh</string>
+    <string name="dashboard_challenge_time_less_than_hour">&lt;1h</string>
     <string name="dashboard_last_session_title">Last Session</string>
     <string name="dashboard_last_session_duration">Duration</string>
     <string name="dashboard_last_session_distance">Distance</string>
@@ -113,8 +120,8 @@
     <string name="dashboard_motivational_impressive">Impressive session!</string>
     <string name="dashboard_motivational_marathon">Marathon explorer! 🏆</string>
     <string name="dashboard_motivational_morning">Good morning! Ready to explore?</string>
-    <string name="dashboard_motivational_afternoon">Good afternoon</string>
-    <string name="dashboard_motivational_evening">Good evening</string>
+    <string name="dashboard_motivational_afternoon">Good afternoon! Keep moving?</string>
+    <string name="dashboard_motivational_evening">Good evening! Review your day?</string>
     <string name="dashboard_motivational_night">Night owl mode 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d-day streak!</string>
 

@@ -241,6 +241,10 @@ private fun TripOverview(
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
 
+	val stepCounterSupported = remember {
+		context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+	}
+
 	val startText = remember(trip.startTimeMs) {
 		dateTimeFormatter.format(
 			Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(ZoneId.systemDefault())
@@ -330,7 +334,11 @@ private fun TripOverview(
 		)
 		MetricRow(
 			firstLabel = stringResource(R.string.trip_detail_steps),
-			firstValue = trip.steps.raw.formatReadable(),
+			firstValue = if (trip.steps.raw > 0 || stepCounterSupported) {
+				trip.steps.raw.formatReadable()
+			} else {
+				stringResource(R.string.stats_metric_not_available_short)
+			},
 			secondLabel = stringResource(R.string.trip_detail_avg_speed),
 			secondValue = averageSpeedText,
 		)
@@ -659,6 +667,7 @@ private fun MetricCard(
 	value: String,
 	modifier: Modifier = Modifier
 ) {
+	val isEmptyValue = value == "—" || value == "N/A"
 	GlassCard(modifier = modifier) {
 		Column(modifier = Modifier.fillMaxWidth()) {
 			Text(
@@ -670,8 +679,12 @@ private fun MetricCard(
 			Text(
 				text = value,
 				style = MaterialTheme.typography.titleLarge,
-				fontWeight = FontWeight.Bold,
-				color = MaterialTheme.colorScheme.onSurface
+				fontWeight = if (isEmptyValue) FontWeight.Normal else FontWeight.Bold,
+				color = if (isEmptyValue) {
+					MaterialTheme.colorScheme.onSurfaceVariant
+				} else {
+					MaterialTheme.colorScheme.onSurface
+				},
 			)
 		}
 	}
@@ -679,6 +692,7 @@ private fun MetricCard(
 
 private fun Double?.formatSpeed(lengthSystem: LengthSystem): String {
 	val speed = this ?: return "—"
+	if (speed <= 0.0) return "—"
 	val converted = when (lengthSystem) {
 		LengthSystem.Imperial -> speed * MS_TO_MPH
 		else -> speed * MS_TO_KMH
