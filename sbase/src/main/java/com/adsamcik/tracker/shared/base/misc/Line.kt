@@ -11,8 +11,8 @@ data class Line(val start: Double2, val end: Double2) {
 		val mag = hypot(dx, dy)
 		if (mag > 0.0) {
 			dx /= mag
+			dy /= mag
 		}
-		dy /= mag
 		val pvx = point.x - start.x
 		val pvy = point.y - start.y
 
