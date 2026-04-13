@@ -7,7 +7,9 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
  * Subclasses provide color stops and GeoJSON data; this base handles
  * common config construction.
  */
-abstract class HeatmapLayer<I, P> : BaseMapLayer<I, P>() {
+abstract class HeatmapLayer<I, P> : BaseMapLayer<I, P>(), SupportsDateRange {
+
+    override var dateRange: LongRange = 0L..Long.MAX_VALUE
 
     /** Color stops for the heatmap gradient. Override in subclasses. */
     protected abstract fun colorStops(): List<Pair<Float, Int>>

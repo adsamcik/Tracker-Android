@@ -40,6 +40,8 @@ class WifiHeatmapLayer(
         val query = GeoQuery(
             source = GeoSource.WIFI,
             bounds = bounds,
+            timeFrom = dateRange.first.takeIf { it > 0L },
+            timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "level"
         )
         return repo.queryWeighted(query, "level").first().map { feature ->

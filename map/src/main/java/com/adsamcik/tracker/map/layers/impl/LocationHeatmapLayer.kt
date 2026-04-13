@@ -38,6 +38,8 @@ open class LocationHeatmapLayer(
         val query = GeoQuery(
             source = GeoSource.LOCATION,
             bounds = bounds,
+            timeFrom = dateRange.first.takeIf { it > 0L },
+            timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "hor_acc"
         )
         return repo.queryWeighted(query, "hor_acc").first()

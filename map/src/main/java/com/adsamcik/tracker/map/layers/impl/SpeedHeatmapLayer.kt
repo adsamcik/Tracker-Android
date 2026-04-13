@@ -41,6 +41,8 @@ open class SpeedHeatmapLayer(
         val query = GeoQuery(
             source = GeoSource.LOCATION,
             bounds = bounds,
+            timeFrom = dateRange.first.takeIf { it > 0L },
+            timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "speed"
         )
         return repo.queryWeighted(query, "speed").first()

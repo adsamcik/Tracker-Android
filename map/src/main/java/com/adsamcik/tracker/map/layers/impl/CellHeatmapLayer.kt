@@ -40,6 +40,8 @@ class CellHeatmapLayer(
         val query = GeoQuery(
             source = GeoSource.CELL,
             bounds = bounds,
+            timeFrom = dateRange.first.takeIf { it > 0L },
+            timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "asu"
         )
         return repo.queryWeighted(query, "asu").first()

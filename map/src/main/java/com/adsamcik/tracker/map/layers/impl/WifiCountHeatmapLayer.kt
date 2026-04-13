@@ -35,7 +35,12 @@ class WifiCountHeatmapLayer(
     override fun intensity(): Float = quality
 
     override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
-        val query = GeoQuery(source = GeoSource.WIFI, bounds = bounds)
+        val query = GeoQuery(
+            source = GeoSource.WIFI,
+            bounds = bounds,
+            timeFrom = dateRange.first.takeIf { it > 0L },
+            timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
+        )
         return repo.query(query).first().map { feature ->
             WeightedGeoFeature(feature.lat, feature.lon, feature.time, weight = 1.0)
         }

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.ui
 import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
+import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.MapLayerData
@@ -35,6 +36,15 @@ private class StubMapLayer : BaseMapLayer<Unit, Unit>(PerformanceManager()) {
     override fun onDisable() {
         disableCalled = true
     }
+}
+
+/** Stub layer that supports date range filtering. */
+private class StubDateRangeLayer : BaseMapLayer<Unit, Unit>(PerformanceManager()), SupportsDateRange {
+    override var dateRange: LongRange = 0L..Long.MAX_VALUE
+
+    override suspend fun loadData(context: Context, bounds: Bounds?) = Unit
+    override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
+    override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
 }
 
 private fun stubLegend(name: String = "TestLayer"): MapLayerData = MapLayerData(
@@ -223,6 +233,44 @@ class LayerControllerTest {
             // Controller should remain in clean state
             controller.activeLegend().shouldBeNull()
             controller.activeLayerConfig().shouldBeNull()
+        }
+    }
+
+    @Nested
+    @DisplayName("date range injection")
+    inner class DateRangeInjection {
+
+        @Test
+        fun `injects dateRange into SupportsDateRange layer`() = runTest {
+            val dateRangeLayer = StubDateRangeLayer()
+            val descriptor = stubDescriptor(layer = dateRangeLayer)
+            val range = 1000L..5000L
+
+            controller.setLayer(context, descriptor, 1.0f, range)
+
+            dateRangeLayer.dateRange shouldBe range
+        }
+
+        @Test
+        fun `does not crash for layer without SupportsDateRange`() = runTest {
+            val plainLayer = StubMapLayer()
+            val descriptor = stubDescriptor(layer = plainLayer)
+
+            controller.setLayer(context, descriptor, 1.0f, 1000L..5000L)
+
+            // Should complete without error
+            controller.activeLegend().shouldNotBeNull()
+        }
+
+        @Test
+        fun `all-time range is injected correctly`() = runTest {
+            val dateRangeLayer = StubDateRangeLayer()
+            val descriptor = stubDescriptor(layer = dateRangeLayer)
+            val allTime = 0L..Long.MAX_VALUE
+
+            controller.setLayer(context, descriptor, 1.0f, allTime)
+
+            dateRangeLayer.dateRange shouldBe allTime
         }
     }
 }

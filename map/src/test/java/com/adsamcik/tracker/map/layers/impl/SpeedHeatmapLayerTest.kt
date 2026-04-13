@@ -16,6 +16,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
@@ -106,6 +107,50 @@ class SpeedHeatmapLayerTest {
             result shouldHaveSize 2
             result[0].weight shouldBe 3.5
             result[1].weight shouldBe 12.0
+        }
+
+        @Test
+        fun `passes dateRange as timeFrom and timeTo in query`() = runTest {
+            val querySlot = slot<com.adsamcik.tracker.map.data.GeoQuery>()
+            every { mockRepo.queryWeighted(capture(querySlot), eq("speed")) } returns flowOf(emptyList())
+
+            layer.dateRange = 2000L..8000L
+            val ctx: Context = mockk()
+            layer.testLoadData(ctx)
+
+            querySlot.captured.timeFrom shouldBe 2000L
+            querySlot.captured.timeTo shouldBe 8000L
+        }
+
+        @Test
+        fun `all-time dateRange passes null timeFrom and timeTo`() = runTest {
+            val querySlot = slot<com.adsamcik.tracker.map.data.GeoQuery>()
+            every { mockRepo.queryWeighted(capture(querySlot), eq("speed")) } returns flowOf(emptyList())
+
+            layer.dateRange = 0L..Long.MAX_VALUE
+            val ctx: Context = mockk()
+            layer.testLoadData(ctx)
+
+            querySlot.captured.timeFrom shouldBe null
+            querySlot.captured.timeTo shouldBe null
+        }
+    }
+
+    // ── SupportsDateRange contract ───────────────────────────────────────────
+
+    @Nested
+    @DisplayName("SupportsDateRange")
+    inner class DateRangeContract {
+
+        @Test
+        fun `implements SupportsDateRange`() {
+            layer.shouldBeInstanceOf<com.adsamcik.tracker.map.layers.base.SupportsDateRange>()
+        }
+
+        @Test
+        fun `default dateRange covers all time`() {
+            val freshLayer = TestableSpeedHeatmapLayer(mockRepo)
+            freshLayer.dateRange shouldBe 0L..Long.MAX_VALUE
         }
     }
 
