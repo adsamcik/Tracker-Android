@@ -13,12 +13,6 @@ import kotlinx.coroutines.flow.Flow
 interface CellSampleDao : BaseDao<CellSample> {
 	
 	/**
-	 * Get all cell samples within time range, ordered by time.
-	 */
-	@Query("SELECT * FROM cell_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
-	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<CellSample>
-
-	/**
 	 * Get cell samples within time range as Flow.
 	 */
 	@Query("SELECT * FROM cell_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")

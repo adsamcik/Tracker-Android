@@ -78,7 +78,7 @@ class LocationSampleDaoTest {
 		val sample = createSample(timeMs = 5000L, latE7 = 500_000_000, lonE7 = 140_000_000)
 		dao.insert(sample)
 
-		val results = dao.getAllBetween(4000L, 6000L)
+		val results = dao.getAllBetweenFlow(4000L, 6000L).first()
 		results shouldHaveSize 1
 		results[0].timeMs shouldBe 5000L
 		results[0].latE7 shouldBe 500_000_000
@@ -89,7 +89,7 @@ class LocationSampleDaoTest {
 	fun `getAllBetween returns empty for no matches`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
-		dao.getAllBetween(5000L, 6000L).shouldBeEmpty()
+		dao.getAllBetweenFlow(5000L, 6000L).first().shouldBeEmpty()
 	} }
 
 	@Test
@@ -98,7 +98,7 @@ class LocationSampleDaoTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 
-		val results = dao.getAllBetween(0L, 5000L)
+		val results = dao.getAllBetweenFlow(0L, 5000L).first()
 		results shouldHaveSize 3
 		results[0].timeMs shouldBe 1000L
 		results[1].timeMs shouldBe 2000L
@@ -218,7 +218,7 @@ class LocationSampleDaoTest {
 		deleted shouldBe 2
 
 		dao.countBetween(0L, Long.MAX_VALUE) shouldBe 1
-		val remaining = dao.getAllBetween(0L, Long.MAX_VALUE)
+		val remaining = dao.getAllBetweenFlow(0L, Long.MAX_VALUE).first()
 		remaining[0].timeMs shouldBe 5000L
 	} }
 
@@ -257,7 +257,7 @@ class LocationSampleDaoTest {
 		)
 		dao.insert(sample)
 
-		val result = dao.getAllBetween(4000L, 6000L).single()
+		val result = dao.getAllBetweenFlow(4000L, 6000L).first().single()
 		result.latE7 shouldBe 500_123_456
 		result.lonE7 shouldBe 139_876_543
 		result.altitudeM shouldBe 42.5f
@@ -287,7 +287,7 @@ class LocationSampleDaoTest {
 		)
 		dao.insert(sample)
 
-		val result = dao.getAllBetween(0L, 2000L).single()
+		val result = dao.getAllBetweenFlow(0L, 2000L).first().single()
 		result.latE7.shouldBeNull()
 		result.lonE7.shouldBeNull()
 		result.altitudeM.shouldBeNull()

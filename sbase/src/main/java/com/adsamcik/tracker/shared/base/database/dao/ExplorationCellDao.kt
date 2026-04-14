@@ -43,13 +43,6 @@ interface ExplorationCellDao {
 	""")
 	suspend fun updateVisit(token: String, quality: Int, lastVisitedAt: Long, seasonBit: Int)
 
-	/**
-	 * Returns the most recently discovered cells at the given level, ordered newest first.
-	 * Used for the exploration UI to show recent discoveries.
-	 */
-	@Query("SELECT * FROM exploration_cell WHERE level = :level ORDER BY first_discovered_at DESC LIMIT :limit")
-	suspend fun getRecentAtLevel(level: Int, limit: Int): List<ExplorationCellEntity>
-
 	@Query("SELECT * FROM exploration_cell WHERE level = :level ORDER BY first_discovered_at DESC LIMIT :limit")
 	fun getRecentAtLevelFlow(level: Int, limit: Int): Flow<List<ExplorationCellEntity>>
 

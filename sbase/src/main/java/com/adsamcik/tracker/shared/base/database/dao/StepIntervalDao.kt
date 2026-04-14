@@ -12,12 +12,6 @@ import kotlinx.coroutines.flow.Flow
 interface StepIntervalDao : BaseDao<StepInterval> {
 	
 	/**
-	 * Get all step intervals within time range, ordered by start time.
-	 */
-	@Query("SELECT * FROM step_interval WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms")
-	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<StepInterval>
-
-	/**
 	 * Get step intervals within time range as Flow.
 	 */
 	@Query("SELECT * FROM step_interval WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms")

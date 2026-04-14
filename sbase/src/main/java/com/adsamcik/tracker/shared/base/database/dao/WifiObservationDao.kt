@@ -15,12 +15,6 @@ import kotlinx.coroutines.flow.Flow
 interface WifiObservationDao : BaseDao<WifiObservation> {
 	
 	/**
-	 * Get all Wi-Fi observations within time range, ordered by time.
-	 */
-	@Query("SELECT * FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
-	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<WifiObservation>
-
-	/**
 	 * Get Wi-Fi observations within time range as Flow.
 	 */
 	@Query("SELECT * FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")

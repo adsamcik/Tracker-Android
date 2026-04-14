@@ -12,12 +12,6 @@ import kotlinx.coroutines.flow.Flow
 interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	
 	/**
-	 * Get all activity snapshots within time range, ordered by time.
-	 */
-	@Query("SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
-	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot>
-
-	/**
 	 * Get activity snapshots within time range as Flow.
 	 */
 	@Query("SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")

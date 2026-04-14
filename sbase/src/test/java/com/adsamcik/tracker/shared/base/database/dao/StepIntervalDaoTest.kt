@@ -57,7 +57,7 @@ class StepIntervalDaoTest {
 
 	@Test
 	fun getAllBetweenReturnsEmptyForNoData()  { runTest {
-		val result = dao.getAllBetween(0L, 100_000L)
+		val result = dao.getAllBetweenFlow(0L, 100_000L).first()
 		result.shouldBeEmpty()
 	} }
 
@@ -66,7 +66,7 @@ class StepIntervalDaoTest {
 		val interval = createInterval(startTimeMs = 1000L, endTimeMs = 2000L, stepCount = 50)
 		dao.insert(interval)
 
-		val results = dao.getAllBetween(0L, 3000L)
+		val results = dao.getAllBetweenFlow(0L, 3000L).first()
 		results shouldHaveSize 1
 		results[0].stepCount shouldBe 50
 		results[0].startTimeMs shouldBe 1000L
@@ -78,7 +78,7 @@ class StepIntervalDaoTest {
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
 		dao.insert(createInterval(startTimeMs = 5000L, endTimeMs = 6000L))
 
-		val results = dao.getAllBetween(2500L, 4500L)
+		val results = dao.getAllBetweenFlow(2500L, 4500L).first()
 		results shouldHaveSize 1
 		results[0].startTimeMs shouldBe 3000L
 	} }
@@ -89,7 +89,7 @@ class StepIntervalDaoTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
 
-		val results = dao.getAllBetween(0L, 10000L)
+		val results = dao.getAllBetweenFlow(0L, 10000L).first()
 		results shouldHaveSize 3
 		results[0].startTimeMs shouldBe 1000L
 		results[1].startTimeMs shouldBe 3000L
@@ -137,7 +137,7 @@ class StepIntervalDaoTest {
 
 		dao.deleteAll()
 
-		val results = dao.getAllBetween(0L, 100_000L)
+		val results = dao.getAllBetweenFlow(0L, 100_000L).first()
 		results.shouldBeEmpty()
 	} }
 
@@ -150,7 +150,7 @@ class StepIntervalDaoTest {
 		val deleted = dao.deleteOlderThan(4500L)
 		deleted shouldBe 2
 
-		val remaining = dao.getAllBetween(0L, 100_000L)
+		val remaining = dao.getAllBetweenFlow(0L, 100_000L).first()
 		remaining shouldHaveSize 1
 		remaining[0].startTimeMs shouldBe 5000L
 	} }

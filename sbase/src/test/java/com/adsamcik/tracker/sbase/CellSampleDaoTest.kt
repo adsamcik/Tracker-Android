@@ -70,7 +70,7 @@ class CellSampleDaoTest {
 		val sample = createSample(timeMs = 5000L, cellId = 999)
 		dao.insert(sample)
 
-		val results = dao.getAllBetween(4000L, 6000L)
+		val results = dao.getAllBetweenFlow(4000L, 6000L).first()
 		results shouldHaveSize 1
 		results[0].cellId shouldBe 999
 		results[0].timeMs shouldBe 5000L
@@ -85,7 +85,7 @@ class CellSampleDaoTest {
 		)
 		dao.insert(samples)
 
-		dao.getAllBetween(0L, 5000L) shouldHaveSize 3
+		dao.getAllBetweenFlow(0L, 5000L).first() shouldHaveSize 3
 	} }
 
 	@Test
@@ -96,7 +96,7 @@ class CellSampleDaoTest {
 			createSample(timeMs = 2000L, cellId = 2)
 		))
 
-		val results = dao.getAllBetween(0L, 5000L)
+		val results = dao.getAllBetweenFlow(0L, 5000L).first()
 		results[0].timeMs shouldBe 1000L
 		results[1].timeMs shouldBe 2000L
 		results[2].timeMs shouldBe 3000L
@@ -106,7 +106,7 @@ class CellSampleDaoTest {
 	fun `getAllBetween returns empty when no samples in range`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
-		dao.getAllBetween(5000L, 9000L).shouldBeEmpty()
+		dao.getAllBetweenFlow(5000L, 9000L).first().shouldBeEmpty()
 	} }
 
 	@Test
@@ -117,7 +117,7 @@ class CellSampleDaoTest {
 			createSample(timeMs = 3000L)
 		))
 
-		dao.getAllBetween(1000L, 3000L) shouldHaveSize 3
+		dao.getAllBetweenFlow(1000L, 3000L).first() shouldHaveSize 3
 	} }
 
 	// --- Flow queries ---
@@ -179,7 +179,7 @@ class CellSampleDaoTest {
 	@Test
 	fun `updateCoordinates sets lat lon and provenance`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L, cellId = 42))
-		val inserted = dao.getAllBetween(0L, 2000L)[0]
+		val inserted = dao.getAllBetweenFlow(0L, 2000L).first()[0]
 
 		dao.updateCoordinates(
 			id = inserted.id,
@@ -188,7 +188,7 @@ class CellSampleDaoTest {
 			provenance = CoordinateProvenance.NEAREST_LOCATION
 		)
 
-		val updated = dao.getAllBetween(0L, 2000L)[0]
+		val updated = dao.getAllBetweenFlow(0L, 2000L).first()[0]
 		updated.latE7 shouldBe 490000000
 		updated.lonE7 shouldBe 140000000
 		updated.provenance shouldBe CoordinateProvenance.NEAREST_LOCATION
@@ -227,7 +227,7 @@ class CellSampleDaoTest {
 		))
 
 		dao.deleteAll()
-		dao.getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
+		dao.getAllBetweenFlow(0L, Long.MAX_VALUE).first().shouldBeEmpty()
 	} }
 
 	@Test
@@ -241,7 +241,7 @@ class CellSampleDaoTest {
 		val deleted = dao.deleteOlderThan(3000L)
 		deleted shouldBe 2
 
-		val remaining = dao.getAllBetween(0L, Long.MAX_VALUE)
+		val remaining = dao.getAllBetweenFlow(0L, Long.MAX_VALUE).first()
 		remaining shouldHaveSize 1
 		remaining[0].cellId shouldBe 5
 	} }
@@ -263,7 +263,7 @@ class CellSampleDaoTest {
 			createSample(timeMs = 3000L, cellId = 3, networkType = 13)
 		))
 
-		val all = dao.getAllBetween(0L, 5000L)
+		val all = dao.getAllBetweenFlow(0L, 5000L).first()
 		all shouldHaveSize 3
 		all.map { it.networkType }.toSet() shouldBe setOf(1, 3, 13)
 	} }
@@ -281,7 +281,7 @@ class CellSampleDaoTest {
 		)
 		dao.insert(sample)
 
-		val result = dao.getAllBetween(0L, 2000L)[0]
+		val result = dao.getAllBetweenFlow(0L, 2000L).first()[0]
 		result.cellId shouldBe 54321
 		result.lac shouldBe 200
 		result.mcc shouldBe 262

@@ -11,10 +11,6 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SkiRunSegmentDao : BaseDao<SkiRunSegment> {
 
-    /** Get all ski segments for a session, ordered by run index. */
-    @Query("SELECT * FROM ski_run_segment WHERE session_id = :sessionId ORDER BY run_index")
-    suspend fun getBySession(sessionId: Long): List<SkiRunSegment>
-
     /** Get ski segments for a session as Flow. */
     @Query("SELECT * FROM ski_run_segment WHERE session_id = :sessionId ORDER BY run_index")
     fun getBySessionFlow(sessionId: Long): Flow<List<SkiRunSegment>>
