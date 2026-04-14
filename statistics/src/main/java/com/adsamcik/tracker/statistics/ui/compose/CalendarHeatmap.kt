@@ -78,7 +78,18 @@ fun CalendarHeatmap(
     val totalHeightDp = monthLabelHeight + cellSizeDp * 7 + cellGapDp * 6
 
     val textMeasurer = rememberTextMeasurer()
-    val dayLabels = remember { listOf("M", "T", "W", "T", "F", "S", "S") }
+    val dayLabels = remember {
+        val shortWeekdays = java.text.DateFormatSymbols.getInstance().shortWeekdays
+        listOf(
+            shortWeekdays[java.util.Calendar.MONDAY].take(2),
+            shortWeekdays[java.util.Calendar.TUESDAY].take(2),
+            shortWeekdays[java.util.Calendar.WEDNESDAY].take(2),
+            shortWeekdays[java.util.Calendar.THURSDAY].take(2),
+            shortWeekdays[java.util.Calendar.FRIDAY].take(2),
+            shortWeekdays[java.util.Calendar.SATURDAY].take(2),
+            shortWeekdays[java.util.Calendar.SUNDAY].take(2),
+        )
+    }
 
     Column(modifier = modifier) {
         Row(

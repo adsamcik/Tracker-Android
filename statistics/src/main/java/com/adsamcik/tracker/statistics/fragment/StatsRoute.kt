@@ -55,7 +55,7 @@ fun StatsRoute(
         showSummaryDialog -> StatsHeaderAction.Summary
         showWifiDialog -> StatsHeaderAction.Wifi
         showDateRangeDialog || activeDateFilter != null -> StatsHeaderAction.Dates
-        else -> null
+        else -> StatsHeaderAction.Summary
     }
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {

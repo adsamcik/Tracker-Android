@@ -26,6 +26,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -45,11 +46,12 @@ class StatsPresenterViewModelSessionStatsTest {
 	private val tripPresentationRepository: TripPresentationRepository = mockk()
 	private val wifiObservationRepository: WifiObservationRepository = mockk()
 	private val gpxShareHelper: GpxShareHelper = mockk(relaxed = true)
+	private val dailySummariesFlow = MutableStateFlow<List<DailySummary>>(emptyList())
 
 	@BeforeEach
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
-		coEvery { dailySummaryRepository.getBetween(any(), any()) } returns emptyList<DailySummary>().right()
+		every { dailySummaryRepository.observeBetween(any(), any()) } returns dailySummariesFlow
 		coEvery {
 			wifiObservationRepository.getStatsSummary()
 		} returns WifiObservationStatsSummary(
@@ -120,6 +122,30 @@ class StatsPresenterViewModelSessionStatsTest {
 		val maximumWeekMs = 8L * 24L * 60L * 60L * 1000L
 		assertTrue(windowMs in minimumWeekMs..maximumWeekMs)
 		sessionStatsRepository.betweenCalls shouldBe 1
+	}
+
+	@Test
+	fun `weekly bars react when daily summaries arrive after init`() = runTest {
+		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
+		val viewModel = createViewModel()
+		advanceUntilIdle()
+
+		dailySummariesFlow.value = listOf(
+			DailySummary(
+				dayEpoch = todayEpochDay,
+				totalDistance = DistanceM(394f),
+				totalSteps = StepCount(812),
+				totalDuration = DurationMs(600_000L),
+				tripCount = 1,
+				activeTrackingDuration = DurationMs(0L),
+			),
+		)
+		advanceUntilIdle()
+
+		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
+		viewModel.weeklyBars.value.last().steps shouldBe 812
+		viewModel.weeklyBars.value.last().sessionCount shouldBe 1
+		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
 	}
 
 	private fun createViewModel(

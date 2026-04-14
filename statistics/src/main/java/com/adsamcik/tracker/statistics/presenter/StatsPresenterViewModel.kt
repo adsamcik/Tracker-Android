@@ -17,10 +17,10 @@ import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -95,50 +95,56 @@ class StatsPresenterViewModel @Inject constructor(
 	val heatmapData: StateFlow<Map<LocalDate, Float>> = _heatmapData.asStateFlow()
 
 	init {
-		loadWeeklyBars()
-		loadHeatmapData()
+		observeSummaryWindow()
 	}
 
-	private fun loadWeeklyBars() {
-		viewModelScope.launch {
-			val todayEpochDay = LocalDate.now().toEpochDay()
-			val fromDay = todayEpochDay - 6
-			val summaries = dailySummaryRepository.observeBetween(fromDay, todayEpochDay).first()
-			val summaryMap = summaries.associateBy { it.dayEpoch }
-			val dayFormatter = DateTimeFormatter.ofPattern("EEE")
-			val bars = (0L..6L).map { offset ->
-				val epochDay = fromDay + offset
-				val date = LocalDate.ofEpochDay(epochDay)
-				DayBar(
-					dayLabel = date.format(dayFormatter),
-					distanceM = summaryMap[epochDay]?.totalDistance?.raw ?: 0f,
-					steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
-					epochDay = epochDay,
-					sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
-				)
-			}
-			_weeklyBars.value = bars
-		}
-	}
-
-	private fun loadHeatmapData() {
+	private fun observeSummaryWindow() {
 		viewModelScope.launch {
 			val todayEpochDay = LocalDate.now().toEpochDay()
 			val fromDay = todayEpochDay - HEATMAP_DAYS + 1
-			val summaries = dailySummaryRepository.observeBetween(fromDay, todayEpochDay).first()
-			if (summaries.isEmpty()) {
-				_heatmapData.value = emptyMap()
-				return@launch
+			dailySummaryRepository.observeBetween(fromDay, todayEpochDay).collect { summaries ->
+				_weeklyBars.value = buildWeeklyBars(
+					summaries = summaries,
+					todayEpochDay = todayEpochDay,
+				)
+				_heatmapData.value = buildHeatmapData(summaries)
 			}
-			val maxDistance = summaries.maxOf { it.totalDistance.raw }.coerceAtLeast(1f)
-			val maxDuration = summaries.maxOf { it.totalDuration.raw }.coerceAtLeast(1L)
-			_heatmapData.value = summaries.associate { summary ->
-				val distanceIntensity = summary.totalDistance.raw / maxDistance
-				val durationIntensity = summary.totalDuration.raw.toFloat() / maxDuration.toFloat()
-				// Use the higher of distance or duration so zero-distance sessions still register
-				val intensity = maxOf(distanceIntensity, durationIntensity)
-				LocalDate.ofEpochDay(summary.dayEpoch) to intensity.coerceIn(0f, 1f)
-			}
+		}
+	}
+
+	private fun buildWeeklyBars(
+		summaries: List<com.adsamcik.tracker.stats.api.repository.DailySummary>,
+		todayEpochDay: Long,
+	): List<DayBar> {
+		val fromDay = todayEpochDay - 6
+		val summaryMap = summaries.associateBy { it.dayEpoch }
+		val dayFormatter = DateTimeFormatter.ofPattern("EEE")
+		return (0L..6L).map { offset ->
+			val epochDay = fromDay + offset
+			val date = LocalDate.ofEpochDay(epochDay)
+			DayBar(
+				dayLabel = date.format(dayFormatter),
+				distanceM = summaryMap[epochDay]?.totalDistance?.raw ?: 0f,
+				steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
+				epochDay = epochDay,
+				sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
+			)
+		}
+	}
+
+	private fun buildHeatmapData(
+		summaries: List<com.adsamcik.tracker.stats.api.repository.DailySummary>,
+	): Map<LocalDate, Float> {
+		if (summaries.isEmpty()) {
+			return emptyMap()
+		}
+		val maxDistance = summaries.maxOf { it.totalDistance.raw }.coerceAtLeast(1f)
+		val maxDuration = summaries.maxOf { it.totalDuration.raw }.coerceAtLeast(1L)
+		return summaries.associate { summary ->
+			val distanceIntensity = summary.totalDistance.raw / maxDistance
+			val durationIntensity = summary.totalDuration.raw.toFloat() / maxDuration.toFloat()
+			val intensity = maxOf(distanceIntensity, durationIntensity)
+			LocalDate.ofEpochDay(summary.dayEpoch) to intensity.coerceIn(0f, 1f)
 		}
 	}
 

@@ -24,4 +24,5 @@ data class DayBar(
     val distanceM: Float,
     val steps: Int,
     val epochDay: Long,
+    val sessionCount: Int = 0,
 )

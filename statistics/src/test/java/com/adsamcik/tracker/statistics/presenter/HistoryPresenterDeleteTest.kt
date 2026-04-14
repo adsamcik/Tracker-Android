@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import app.cash.turbine.test
-import arrow.core.right
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -108,7 +107,7 @@ class HistoryPresenterDeleteTest {
 	): HistoryPresenterViewModel {
 		val dailySummaryRepository: com.adsamcik.tracker.stats.api.repository.DailySummaryRepository =
 			mockk(relaxed = true) {
-				coEvery { getBetween(any(), any()) } returns emptyList<com.adsamcik.tracker.stats.api.repository.DailySummary>().right()
+				every { observeBetween(any(), any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
 			}
 		val explorationRepository: com.adsamcik.tracker.stats.api.repository.ExplorationRepository =
 			mockk(relaxed = true) {

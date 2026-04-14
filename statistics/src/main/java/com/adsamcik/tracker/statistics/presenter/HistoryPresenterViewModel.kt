@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -101,9 +102,9 @@ class HistoryPresenterViewModel @Inject constructor(
 				.toEpochMilli()
 			val trips = tripPresentationRepository.getTripsBetween(startOfDay, endOfDay)
 			val epochDay = date.toEpochDay()
-			val summary = dailySummaryRepository.getBetween(epochDay, epochDay)
-				.getOrNull()
-				?.firstOrNull()
+			val summary = dailySummaryRepository.observeBetween(epochDay, epochDay)
+				.first()
+				.firstOrNull()
 			_calendarState.value = _calendarState.value.copy(
 				selectedDay = date,
 				selectedDayDetail = CalendarState.DayDetail(
@@ -140,11 +141,9 @@ class HistoryPresenterViewModel @Inject constructor(
 			// Preload summaries for the date range via repository
 			val firstDay = tripsByDay.keys.minOrNull()?.toEpochDay() ?: return@launch
 			val lastDay = tripsByDay.keys.maxOrNull()?.toEpochDay() ?: return@launch
-			val summaryMap = dailySummaryRepository.getBetween(firstDay, lastDay)
-				.fold(
-					ifLeft = { emptyMap() },
-					ifRight = { list -> list.associateBy { it.dayEpoch } },
-				)
+			val summaryMap = dailySummaryRepository.observeBetween(firstDay, lastDay)
+				.first()
+				.associateBy { it.dayEpoch }
 
 			for ((date, dayTrips) in tripsByDay.toSortedMap(compareByDescending { it })) {
 				val summary = summaryMap[date.toEpochDay()]
@@ -185,9 +184,8 @@ class HistoryPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val firstDay = yearMonth.atDay(1).toEpochDay()
 			val lastDay = yearMonth.atEndOfMonth().toEpochDay()
-			val summaries = dailySummaryRepository.getBetween(firstDay, lastDay)
-				.getOrNull()
-				.orEmpty()
+			val summaries = dailySummaryRepository.observeBetween(firstDay, lastDay)
+				.first()
 
 			val maxDistance = summaries.maxOfOrNull { it.totalDistance.raw } ?: 1f
 			val dayData = summaries.associate { summary ->

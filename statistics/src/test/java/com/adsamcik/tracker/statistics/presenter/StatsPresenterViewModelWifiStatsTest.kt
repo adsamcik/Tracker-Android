@@ -42,7 +42,7 @@ class StatsPresenterViewModelWifiStatsTest {
 	@BeforeEach
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
-		coEvery { dailySummaryRepository.getBetween(any(), any()) } returns emptyList<DailySummary>().right()
+		every { dailySummaryRepository.observeBetween(any(), any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
 		every {
 			tripPresentationRepository.getPagedTripsOverlapping(any(), any())
