@@ -62,7 +62,7 @@ class SessionInsightsGenerator @Inject constructor(
             SessionInsight(
                 iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_access_time_24px,
                 title = context.getString(R.string.insight_duration_title),
-                description = context.getString(R.string.insight_duration_desc, durationMinutes),
+                description = context.resources.getQuantityString(R.plurals.insight_duration_desc, durationMinutes, durationMinutes),
                 category = InsightCategory.FUN_FACT,
             ),
         )
@@ -77,7 +77,7 @@ class SessionInsightsGenerator @Inject constructor(
             SessionInsight(
                 iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
                 title = context.getString(R.string.insight_exploration_title),
-                description = context.getString(R.string.insight_exploration_desc, newCells),
+                description = context.resources.getQuantityString(R.plurals.insight_exploration_desc, newCells, newCells),
                 category = InsightCategory.EXPLORATION,
             ),
         )

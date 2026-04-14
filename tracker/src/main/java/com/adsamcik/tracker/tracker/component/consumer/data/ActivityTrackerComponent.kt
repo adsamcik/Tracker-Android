@@ -72,7 +72,6 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 
 		val stepCount = cycle.stepDelta
 
-		@Suppress("ComplexCondition")
 		if (stepCount != null &&
 				stepCount >= cycle.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
 				(speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
