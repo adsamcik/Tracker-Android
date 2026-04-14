@@ -41,7 +41,7 @@ class DefaultLocationRepository(
     private val dispatchers: DispatchersProvider
 ) : LocationRepository {
     override fun getLocations(sessionId: Long) =
-        dao.getAllBetween(start, end).flowOn(dispatchers.io)
+        dao.getAllBetweenFlow(start, end).flowOn(dispatchers.io)
 }
 ```
 
@@ -205,7 +205,7 @@ class TrackerDashboardTest {
 @Dao
 interface LocationSampleDao {
     @Query("SELECT * FROM location_sample WHERE time_ms BETWEEN :from AND :to ORDER BY time_ms")
-    fun getAllBetween(from: Long, to: Long): Flow<List<LocationSample>>
+    fun getAllBetweenFlow(from: Long, to: Long): Flow<List<LocationSample>>
 
     @Query("SELECT * FROM location_sample ORDER BY time_ms DESC")
     fun getAllPaged(): PagingSource<Int, LocationSample>

@@ -3,7 +3,8 @@ name: qc-evaluator
 description: >
   Focused QC evaluator for Android screen analysis. Returns structured JSON
   findings. Has no tools — purely analytical. Used as a sub-agent dispatched
-  by the android-qc skill to GPT 5.4 and Opus 4.6 in parallel.
+  by the android-qc skill to GPT 5.4 (xhigh reasoning) and Opus 4.6 1M
+  (high reasoning) in parallel.
 tools: []
 ---
 

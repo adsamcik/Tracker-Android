@@ -3,16 +3,17 @@ name: android-qc
 description: >
   Comprehensive Android app QC testing using dual-model parallel evaluation.
   Use this skill when asked to test the app, run QC, find bugs on the emulator,
-  or perform quality checks on the Android app. Dispatches GPT 5.4 and Opus 4.6
-  evaluator agents in parallel on every screen and transition, reconciling their
-  findings into a structured report.
+  or perform quality checks on the Android app. Dispatches GPT 5.4 (xhigh reasoning)
+  and Opus 4.6 1M (high reasoning) evaluator agents in parallel on every screen
+  and transition, reconciling their findings into a structured report.
 ---
 
 # Android QC Skill
 
 Systematic quality control of the Android app running on an emulator.
-Dispatches two evaluator sub-agents (GPT 5.4 + Opus 4.6) in parallel on every
-screen and transition. Disagreement between models is itself a high-value signal.
+Dispatches two evaluator sub-agents (GPT 5.4 xhigh + Opus 4.6 1M high) in
+parallel on every screen and transition. Disagreement between models is itself
+a high-value signal.
 
 ## Architecture
 
@@ -23,8 +24,8 @@ You (orchestrator)
   ├── tools/qc/ Python module (state + reconciliation)
   │
   └── For each screen/transition, dispatch two background task agents:
-      ├── GPT 5.4 evaluator (fast visual triage)
-      └── Opus 4.6 evaluator (deep state/logic reasoning)
+      ├── GPT 5.4 evaluator  (xhigh reasoning · fast visual triage)
+      └── Opus 4.6 1M evaluator (high reasoning · deep state/logic reasoning)
           │
           └── Reconcile → findings[]
 ```
@@ -96,11 +97,11 @@ opus_prompt = build_evaluator_dispatch(
 
 Dispatch both in parallel:
 ```
-gpt_agent = task(agent_type="general-purpose", model="gpt-5.4",
+gpt_agent = task(agent_type="qc-evaluator", model="gpt-5.4",
                  mode="background", description="QC eval: dashboard",
                  prompt=gpt_prompt)
 
-opus_agent = task(agent_type="general-purpose", model="claude-opus-4.6",
+opus_agent = task(agent_type="qc-evaluator", model="claude-opus-4.6-1m",
                   mode="background", description="QC eval: dashboard",
                   prompt=opus_prompt)
 ```

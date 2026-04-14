@@ -3,7 +3,7 @@ android_qc — Prompt templates for dual-model evaluation.
 
 Each prompt type has:
 - A shared system preamble
-- Model-specific task addendums (GPT 5.4 vs Opus 4.6)
+- Model-specific task addendums (GPT 5.4 xhigh vs Opus 4.6 1M high)
 - A user prompt template with {{placeholders}}
 """
 from __future__ import annotations
