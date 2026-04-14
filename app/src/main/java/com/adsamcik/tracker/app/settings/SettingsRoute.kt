@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +31,7 @@ import com.adsamcik.tracker.app.settings.debug.DebugSettingsScreen
 import com.adsamcik.tracker.app.settings.game.GameSettingsScreen
 import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
-import com.adsamcik.tracker.app.settings.statistics.StatisticsSettingsScreen
+
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens.
@@ -90,7 +91,10 @@ fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit
                     SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
                     SettingsScreen.Map -> MapSettingsScreen()
                     SettingsScreen.Game -> GameSettingsScreen()
-                    SettingsScreen.Statistics -> StatisticsSettingsScreen()
+                    SettingsScreen.Statistics -> {
+                        // Statistics sub-screen removed — navigate back to root as defensive fallback.
+                        LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
+                    }
                     SettingsScreen.Debug -> DebugSettingsScreen(onNavigateToDebug)
                 }
             }

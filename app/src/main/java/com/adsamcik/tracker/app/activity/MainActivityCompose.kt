@@ -25,17 +25,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.Application
-import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
 import com.adsamcik.tracker.app.ui.MainRoot
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.Map
+import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -57,6 +56,7 @@ import javax.inject.Inject
 class MainActivityCompose : ComponentActivity() {
 
     @Inject lateinit var dispatchers: DispatchersProvider
+    @Inject lateinit var onboardingRepository: com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
     private val viewModel by viewModels<MainActivityViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,7 +76,6 @@ class MainActivityCompose : ComponentActivity() {
 
         setContent { ComposeRoot(viewModel) }
 
-        val onboardingRepository = DefaultOnboardingRepository(applicationContext, dispatchers.io)
         val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
         lifecycleScope.launch(dispatchers.io) {
@@ -152,13 +151,7 @@ class MainActivityCompose : ComponentActivity() {
                 return
             }
 
-            StartupDestination.Onboarding -> {
-                LaunchedEffect(Unit) {
-                    startActivity(OnboardingActivity.createIntent(this@MainActivityCompose))
-                }
-                return
-            }
-
+            StartupDestination.Onboarding -> Unit // handled below via startDestination = Setup
             StartupDestination.Main -> Unit
         }
 
@@ -177,9 +170,10 @@ class MainActivityCompose : ComponentActivity() {
         AppTheme(darkTheme = darkTheme) {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Box(Modifier.fillMaxSize()) {
-                    // Compose Navigation root with all app routes
+                    val effectiveStartDestination: AppRoute =
+                        if (startupDestination == StartupDestination.Onboarding) Setup else selectedTab
                     MainRoot(
-                        startDestination = selectedTab,
+                        startDestination = effectiveStartDestination,
                         deepNavigationRequest = deepNavigationRequest,
                         onDeepNavigationHandled = viewModel::clearDeepNavigationRequest
                     ) { route ->

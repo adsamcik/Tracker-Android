@@ -51,9 +51,11 @@ fun SettingsItem(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .semantics { contentDescription = if (subtitle != null) "$title: $subtitle" else title }
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (subtitle != null) "$title: $subtitle" else title
+            }
     ) {
         SettingsItemContent(
             title = title,
@@ -80,9 +82,11 @@ fun SettingsItemWithValue(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .semantics { contentDescription = "$title: $value" }
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title: $value"
+            }
     ) {
         SettingsItemContent(
             title = title,

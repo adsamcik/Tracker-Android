@@ -91,7 +91,7 @@ fun RootSettingsScreen(
 }
 
 @Composable
-private fun RootSettingsContent(
+internal fun RootSettingsContent(
     state: TrackerSettingsState,
     showDebug: Boolean,
     developerModeEnabled: Boolean,

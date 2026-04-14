@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity.licenses
 
+import androidx.annotation.RawRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import org.json.JSONObject
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import java.util.Locale
+import kotlin.math.max
 
 class ThirdPartyLicensesActivity : ComposeDetailActivity() {
 
@@ -181,42 +183,109 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
     }
 
     private fun loadLicenseUiState(): LicenseUiState {
-        return try {
-            val metadata = readRawResourceText(R.raw.third_party_license_metadata).trim()
-            if (metadata.isBlank()) {
-                LicenseUiState.Message(getString(R.string.settings_licenses_unavailable))
-            } else if (metadata.startsWith("Licenses are only provided")) {
-                LicenseUiState.Message(getString(R.string.settings_licenses_variant_unavailable))
-            } else {
-                val licenses = JSONObject(metadata)
-                    .let { json ->
-                        buildList {
-                            val keys = json.keys()
-                            while (keys.hasNext()) {
-                                val name = keys.next()
-                                val entry = json.getJSONObject(name)
-                                add(
-                                    ResourceLicenseObject(
-                                        name = name,
-                                        from = entry.getInt("start"),
-                                        length = entry.getInt("length"),
-                                        resources = resources
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    .sortedBy { it.name.lowercase(Locale.getDefault()) }
+        val bundledLicenses = loadBundledLicenses(
+            metadataRawRes = R.raw.third_party_license_metadata,
+            licenseTextRawRes = R.raw.third_party_licenses
+        )
+        if (bundledLicenses != null) {
+            return LicenseUiState.Ready(bundledLicenses)
+        }
 
-                if (licenses.isEmpty()) {
-                    LicenseUiState.Message(getString(R.string.settings_licenses_unavailable))
-                } else {
-                    LicenseUiState.Ready(licenses)
-                }
+        val fallbackMetadataRes = resolveRawResourceId("third_party_license_metadata_release_fallback")
+        val fallbackLicenseTextRes = resolveRawResourceId("third_party_licenses_release_fallback")
+        if (fallbackMetadataRes != null && fallbackLicenseTextRes != null) {
+            val fallbackLicenses = loadBundledLicenses(
+                metadataRawRes = fallbackMetadataRes,
+                licenseTextRawRes = fallbackLicenseTextRes
+            )
+            if (fallbackLicenses != null) {
+                return LicenseUiState.Ready(fallbackLicenses)
             }
-        } catch (_: Exception) {
+        }
+
+        return if (isVariantPlaceholder(R.raw.third_party_licenses)) {
+            LicenseUiState.Message(getString(R.string.settings_licenses_variant_unavailable))
+        } else {
             LicenseUiState.Message(getString(R.string.settings_licenses_unavailable))
         }
+    }
+
+    private fun loadBundledLicenses(
+        @RawRes metadataRawRes: Int,
+        @RawRes licenseTextRawRes: Int
+    ): List<LicenseObject>? {
+        return runCatching {
+            val metadata = readRawResourceText(metadataRawRes).trim()
+            val licenseText = readRawResourceText(licenseTextRawRes).trim()
+            if (metadata.isBlank() || licenseText.isBlank() || isVariantPlaceholder(licenseText)) {
+                return null
+            }
+
+            val parsedLicenses = if (metadata.startsWith("{")) {
+                parseJsonLicenseMetadata(metadata, licenseTextRawRes)
+            } else {
+                parseLineLicenseMetadata(metadata, licenseTextRawRes)
+            }
+
+            parsedLicenses
+                .sortedBy { it.name.lowercase(Locale.getDefault()) }
+                .takeIf { it.isNotEmpty() }
+        }.getOrNull()
+    }
+
+    private fun parseJsonLicenseMetadata(
+        metadata: String,
+        @RawRes licenseTextRawRes: Int
+    ): List<LicenseObject> {
+        return JSONObject(metadata).let { json ->
+            buildList {
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val name = keys.next()
+                    val entry = json.getJSONObject(name)
+                    add(
+                        ResourceLicenseObject(
+                            name = name,
+                            from = entry.getInt("start"),
+                            length = entry.getInt("length"),
+                            resources = resources,
+                            licenseTextRawRes = licenseTextRawRes
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun parseLineLicenseMetadata(
+        metadata: String,
+        @RawRes licenseTextRawRes: Int
+    ): List<LicenseObject> {
+        return metadata.lineSequence()
+            .mapNotNull { line ->
+                LICENSE_METADATA_LINE.matchEntire(line.trim())?.destructured?.let { (start, length, name) ->
+                    ResourceLicenseObject(
+                        name = name,
+                        from = start.toInt(),
+                        length = max(length.toInt(), 0),
+                        resources = resources,
+                        licenseTextRawRes = licenseTextRawRes
+                    )
+                }
+            }
+            .toList()
+    }
+
+    private fun isVariantPlaceholder(@RawRes licenseTextRawRes: Int): Boolean {
+        return runCatching { isVariantPlaceholder(readRawResourceText(licenseTextRawRes).trim()) }.getOrDefault(false)
+    }
+
+    private fun isVariantPlaceholder(licenseText: String): Boolean {
+        return licenseText.startsWith(PLACEHOLDER_LICENSE_PREFIX, ignoreCase = true)
+    }
+
+    private fun resolveRawResourceId(name: String): Int? {
+        return resources.getIdentifier(name, "raw", packageName).takeIf { it != 0 }
     }
 
     private fun readRawResourceText(rawRes: Int): String {
@@ -225,6 +294,12 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
                 reader.readText()
             }
         }
+    }
+
+    private companion object {
+        val LICENSE_METADATA_LINE = Regex("""^(\d+):(\d+)\s+(.+)$""")
+        const val PLACEHOLDER_LICENSE_PREFIX =
+            "Licenses are only provided in build variants"
     }
 }
 

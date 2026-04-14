@@ -15,7 +15,8 @@ class ResourceLicenseObject(
 		override val name: String,
 		val from: Int,
 		val length: Int,
-		val resources: Resources
+		val resources: Resources,
+		@RawRes val licenseTextRawRes: Int = R.raw.third_party_licenses
 ) :
 		LicenseObject {
 	override val notice: Notice
@@ -80,7 +81,7 @@ class ResourceLicenseObject(
 	private fun loadLicense(): String {
 		val buffer = CharArray(length)
 
-		openStream(R.raw.third_party_licenses).use {
+		openStream(licenseTextRawRes).use {
 			if (from > 0) it.skip(from.toLong())
 
 			val reader = InputStreamReader(it, StandardCharsets.UTF_8)

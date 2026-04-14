@@ -16,8 +16,8 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdk = Android.MIN_VERSION
 		targetSdk = Android.TARGET_VERSION
-		versionCode = 385
-		versionName = "2025.1.0"
+		versionCode = 400
+		versionName = "10.0.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
 	}
@@ -96,6 +96,7 @@ android {
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+	sourceSets.getByName("main").res.srcDir("$buildDir/generated/third_party_licenses_fallback/res")
 
 	// dynamicFeatures removed; modules are now statically linked libraries
 	namespace = "com.adsamcik.tracker"
@@ -178,6 +179,7 @@ dependencies {
 	implementation(libs.constraintlayout.compose)
 	implementation(libs.haze)
 	androidTestImplementation(libs.compose.ui.test.junit4)
+	testImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
 	// 1st party dependencies
 	implementation(libs.component.slider)
@@ -243,6 +245,35 @@ dependencies {
 // Configure JUnit 5 for unit tests
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
+}
+
+val syncReleaseLicenseFallback by tasks.registering(Sync::class) {
+	dependsOn(tasks.named("releaseOssLicensesTask"))
+	from(layout.buildDirectory.dir("generated/third_party_licenses/release/res/raw")) {
+		include("third_party_license_metadata", "third_party_licenses")
+		rename("third_party_license_metadata", "third_party_license_metadata_release_fallback")
+		rename("third_party_licenses", "third_party_licenses_release_fallback")
+	}
+	into(layout.buildDirectory.dir("generated/third_party_licenses_fallback/res/raw"))
+}
+
+tasks.configureEach {
+	if (
+		name in setOf(
+			"mapDebugSourceSetPaths",
+			"generateDebugResources",
+			"mergeDebugResources",
+			"processDebugNavigationResources",
+			"packageDebugResources",
+			"mapDevSourceSetPaths",
+			"generateDevResources",
+			"mergeDevResources",
+			"processDevNavigationResources",
+			"packageDevResources"
+		)
+	) {
+		dependsOn(syncReleaseLicenseFallback)
+	}
 }
 
 // Fix for KSP running before R class generation

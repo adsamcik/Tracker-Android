@@ -8,6 +8,8 @@ import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
+import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
@@ -97,6 +99,16 @@ abstract class RepositoryModule {
 		): RetentionConfigStore = RetentionConfigStore(
 			context = context,
 			ioDispatcher = dispatchers.io,
+		)
+
+		@Provides
+		@Singleton
+		fun provideOnboardingRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): OnboardingRepository = DefaultOnboardingRepository(
+			context = context,
+			io = dispatchers.io,
 		)
 	}
 }

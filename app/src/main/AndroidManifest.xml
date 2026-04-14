@@ -82,12 +82,6 @@
         </activity>
         
         <activity
-            android:name="com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity"
-            android:exported="false"
-            android:theme="@style/AppTheme"
-            android:screenOrientation="portrait" />
-
-        <activity
             android:name="com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

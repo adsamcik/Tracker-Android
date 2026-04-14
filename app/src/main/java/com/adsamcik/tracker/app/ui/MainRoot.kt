@@ -53,6 +53,7 @@ import com.adsamcik.tracker.app.ui.navigation.gameGraph
 import com.adsamcik.tracker.app.ui.navigation.mapGraph
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
 import com.adsamcik.tracker.app.ui.navigation.statsGraph
+import com.adsamcik.tracker.app.ui.navigation.setupGraph
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
@@ -65,6 +66,7 @@ import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.SettingsOrigin
 import com.adsamcik.tracker.app.ui.navigation.ActivitySettings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
+import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.app.activity.DeepNavigationRequest
 import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -281,7 +283,8 @@ fun MainRoot(
     }
     val currentRouteObj = navItems.find { item -> routeMatches(item.id as AppRoute) }
     val hideTopLevelNavigation = currentDestination?.hierarchy?.any { destination ->
-        destination.hasRoute<Settings>() ||
+        destination.hasRoute<Setup>() ||
+                destination.hasRoute<Settings>() ||
                 destination.hasRoute<Debug>() ||
                 destination.hasRoute<ActivitySettings>() ||
                 destination.hasRoute<TripDetail>() ||
@@ -343,6 +346,7 @@ fun MainRoot(
                     .hazeSource(state = hazeState)
                     .padding(bottom = bottomPadding)
             ) {
+                setupGraph(navController = navController)
                 dashboardGraph(
                     navController = navController,
                     useSideRail = useSideRail,

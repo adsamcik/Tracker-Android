@@ -2,8 +2,8 @@
 <resources>
     <string name="dev_notification_dummy">Ahoj světe!</string>
     <string name="did_you_know">Věděli jste, že</string>
-    <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
-    <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
+    <string name="error_failed_to_open_license">Nelze otevřít licenci.</string>
+    <string name="first_run_error_reporting_description">Záznamy o pádech jsou uloženy pouze ve vašem zařízení a v případě potřeby si je můžete sami zobrazit nebo exportovat. Více informací najdete v <a href="%1$s">zásadách ochrany osobních údajů</a>.</string>
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
         <item>Lorem ipsum se používá již od roku 16. století</item>
@@ -30,8 +30,8 @@
     <string name="settings_data_title">Data</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
     <string name="settings_developer_enabled">Vývojářské nástroje povoleny</string>
-    <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
-    <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
+    <string name="settings_error_reporting_summary">Záznamy o pádech zůstávají v zařízení, dokud se je sami nerozhodnete exportovat.</string>
+    <string name="settings_error_reporting_title">Místní záznamy o pádech</string>
     <string name="settings_hello_world_title">Vítej světe!</string>
     <string name="settings_language_summary">Aktuální jazyk: %s</string>
     <string name="settings_language_title">Jazyk aplikace</string>

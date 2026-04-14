@@ -8,8 +8,9 @@ import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.ripple
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.Role
@@ -63,7 +65,9 @@ fun FloatingNavigationBar(
     ) {
         val navContent: @Composable () -> Unit = {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -194,19 +198,20 @@ private fun FloatingNavItem(
     Column(
         modifier = modifier
             .testTag(item.testTag)
-            .semantics { 
-                this.selected = isSelected 
-                if (item.stateDescription != null) {
-                    this.stateDescription = item.stateDescription
-                }
-            }
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .clickable(
+            .selectable(
+                selected = isSelected,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = false, radius = 28.dp),
                 onClick = onClick,
                 role = Role.Tab
-            ),
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = item.contentDescription
+                if (item.stateDescription != null) {
+                    this.stateDescription = item.stateDescription
+                }
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -220,7 +225,7 @@ private fun FloatingNavItem(
         ) {
             Icon(
                 imageVector = item.icon,
-                contentDescription = item.contentDescription,
+                contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(24.dp)
             )
