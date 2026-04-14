@@ -94,7 +94,7 @@ class ColorGeneratorTest {
 
 	@Test
 	fun `generateWithGolden random overload returns correct count`() {
-		val colors = ColorGenerator.generateWithGolden(5)
+		val colors = ColorGenerator.generateWithGolden(5, random = kotlin.random.Random(42))
 		colors shouldHaveSize 5
 	}
 

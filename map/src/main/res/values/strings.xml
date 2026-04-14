@@ -89,6 +89,7 @@
 
     <!-- Map Sheet Controls -->
     <string name="map_search_placeholder">Go to coordinates (e.g., 48.8566, 2.3522)</string>
+    <string name="map_search_hint">Lat, Lng  •  e.g. 48.8566, 2.3522</string>
     <string name="map_search_invalid_format">Try 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Clear search</string>
     <string name="map_search_paste">Paste</string>
@@ -130,6 +131,9 @@
     <string name="map_a11y_wifi_count_heatmap">Showing a Wi-Fi count heatmap</string>
     <string name="map_a11y_speed_heatmap">Showing a speed heatmap</string>
     <string name="map_a11y_saved_map_data">Showing saved map data</string>
+    <string name="map_following">Following location</string>
+    <string name="map_not_following">Not following location</string>
+    <string name="map_loading_layer">Loading map layer</string>
     <string name="map_a11y_world_scale">World scale</string>
     <string name="map_a11y_regional_scale">Regional scale</string>
     <string name="map_a11y_city_scale">City scale</string>

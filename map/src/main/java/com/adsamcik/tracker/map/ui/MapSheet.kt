@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -390,10 +392,34 @@ fun MapSheet(
 
                     // Quick layer chips — always visible in peek for one-tap switching
                     val quickLayerScrollState = rememberScrollState()
+                    val fadeEdgeWidth = 24.dp
+                    val fadeColor = MaterialTheme.colorScheme.surfaceContainerLow
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(quickLayerScrollState)
+                            .drawWithContent {
+                                drawContent()
+                                val widthPx = fadeEdgeWidth.toPx()
+                                if (quickLayerScrollState.value > 0) {
+                                    drawRect(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(fadeColor, Color.Transparent),
+                                            startX = 0f,
+                                            endX = widthPx,
+                                        ),
+                                    )
+                                }
+                                if (quickLayerScrollState.value < quickLayerScrollState.maxValue) {
+                                    drawRect(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(Color.Transparent, fadeColor),
+                                            startX = size.width - widthPx,
+                                            endX = size.width,
+                                        ),
+                                    )
+                                }
+                            }
                             .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -422,6 +448,7 @@ fun MapSheet(
                                             layer.id
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
                                     )
                                 },
                                 leadingIcon = if (isLayerSelected) {
@@ -659,6 +686,8 @@ fun MapSheet(
                     modifier = Modifier.size(56.dp)
                 ) {
                     val locationDesc = stringResource(R.string.tips_map_my_location_title)
+                    val followingStateDesc = stringResource(R.string.map_following)
+                    val notFollowingStateDesc = stringResource(R.string.map_not_following)
                     IconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -668,8 +697,8 @@ fun MapSheet(
                             .fillMaxSize()
                             .semantics {
                                 contentDescription = locationDesc
-                                stateDescription = if (isFollowing) "Following" else "Not following"
-                                role = Role.Switch
+                                stateDescription = if (isFollowing) followingStateDesc else notFollowingStateDesc
+                                role = Role.Button
                             },
                     ) {
                         Icon(

@@ -26,8 +26,8 @@ object ColorGenerator {
 	 * Generates distinct colors
 	 * Based on https://martin.ankerl.com/2009/12/09/how-to-create-random-colors-programmatically/
 	 */
-	fun generateWithGolden(count: Int): List<Int> {
-		val hue = Random.nextDouble()
+	fun generateWithGolden(count: Int, random: Random = Random): List<Int> {
+		val hue = random.nextDouble()
 		return generateWithGolden(
 				hue,
 				count

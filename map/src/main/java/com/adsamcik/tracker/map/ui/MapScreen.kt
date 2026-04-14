@@ -445,6 +445,7 @@ fun MapScreen(
         }
 
         // Layer loading indicator
+        val loadingLayerDesc = stringResource(com.adsamcik.tracker.map.R.string.map_loading_layer)
         androidx.compose.animation.AnimatedVisibility(
             visible = isLayerLoading,
             modifier = Modifier.align(Alignment.TopCenter),
@@ -456,7 +457,7 @@ fun MapScreen(
                     .fillMaxWidth()
                     .padding(top = topInsetPadding)
                     .semantics {
-                        contentDescription = "Loading map layer"
+                        contentDescription = loadingLayerDesc
                     }
             )
         }
