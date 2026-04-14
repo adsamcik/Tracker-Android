@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,16 +84,33 @@ private fun ChallengeCard(
 		else ", $hours ${if (hours == 1) "hour" else "hours"} remaining"
 	} else ""
 	val description = "Challenge: ${challenge.title}, $percent percent complete$timeDesc"
+	val difficultyLabel = challenge.difficulty.replace('_', ' ').lowercase()
+		.replaceFirstChar { it.uppercase() }
+	val difficultyColor = when (challenge.difficulty.lowercase()) {
+		"easy", "very_easy" -> MaterialTheme.colorScheme.tertiary
+		"hard", "very_hard" -> MaterialTheme.colorScheme.error
+		else -> MaterialTheme.colorScheme.secondary
+	}
+	val timeRemaining = if (challenge.timeRemainingMs > 0) {
+		val hours = (challenge.timeRemainingMs / (1000 * 60 * 60)).toInt()
+		if (hours >= 24) "${hours / 24} ${if (hours / 24 == 1) "day" else "days"} remaining"
+		else "$hours ${if (hours == 1) "hour" else "hours"} remaining"
+	} else {
+		null
+	}
 
 	GlassCard(
 		modifier = Modifier
-			.width(160.dp)
-			.heightIn(min = 120.dp)
+			.width(200.dp)
+			.heightIn(min = 150.dp)
 			.clickable(role = Role.Button) { onClick(challenge) }
 			.semantics { contentDescription = description },
 	) {
 		Column(
-			horizontalAlignment = Alignment.CenterHorizontally,
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(12.dp),
+			horizontalAlignment = Alignment.Start,
 		) {
 			Icon(
 				imageVector = Icons.Outlined.EmojiEvents,
@@ -105,10 +125,35 @@ private fun ChallengeCard(
 				fontWeight = FontWeight.Bold,
 				maxLines = 2,
 				overflow = TextOverflow.Ellipsis,
-				textAlign = TextAlign.Center,
+				textAlign = TextAlign.Start,
+				modifier = Modifier.fillMaxWidth(),
 			)
-			Spacer(modifier = Modifier.height(8.dp))
+			Spacer(modifier = Modifier.height(6.dp))
+			Surface(
+				color = difficultyColor.copy(alpha = 0.14f),
+				shape = MaterialTheme.shapes.extraLarge,
+			) {
+				Text(
+					text = difficultyLabel,
+					style = MaterialTheme.typography.labelSmall,
+					fontWeight = FontWeight.SemiBold,
+					color = difficultyColor,
+					modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+				)
+			}
+			Spacer(modifier = Modifier.height(10.dp))
 			ProgressArc(progress = challenge.progress)
+			timeRemaining?.let {
+				Spacer(modifier = Modifier.height(8.dp))
+				Text(
+					text = it,
+					style = MaterialTheme.typography.labelSmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.fillMaxWidth(),
+				)
+			}
 		}
 	}
 }
@@ -179,8 +224,8 @@ private fun EmptySlotCard(onStartStreakClick: () -> Unit) {
 
 	GlassCard(
 		modifier = Modifier
-			.width(160.dp)
-			.heightIn(min = 120.dp)
+			.width(200.dp)
+			.heightIn(min = 150.dp)
 			.clickable(role = Role.Button, onClick = onStartStreakClick),
 	) {
 		Column(

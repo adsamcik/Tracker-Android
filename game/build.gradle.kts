@@ -47,6 +47,10 @@ android {
 		}
 	}
 
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
@@ -137,6 +141,8 @@ dependencies {
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.androidx.work.testing)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.compose.ui.test.junit4)
+	testImplementation(libs.activity.compose)
 
 	// Instrumented Tests
 	androidTestImplementation(libs.junit4)

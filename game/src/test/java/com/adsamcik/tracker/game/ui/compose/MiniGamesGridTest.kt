@@ -1,0 +1,92 @@
+package com.adsamcik.tracker.game.ui.compose
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class MiniGamesGridTest {
+
+	@get:Rule
+	val composeRule = createComposeRule()
+
+	@Test
+	fun unlockedGame_showsNameAndDescription() {
+		val games = listOf(
+			MiniGameUi(
+				id = "quiz",
+				name = "Geo Quiz",
+				description = "Test your knowledge",
+				unlockLevel = 3,
+				isUnlocked = true,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MiniGamesGrid(games = games)
+			}
+		}
+
+		composeRule.onNodeWithText("Geo Quiz").assertIsDisplayed()
+		composeRule.onNodeWithText("Test your knowledge").assertIsDisplayed()
+	}
+
+	@Test
+	fun lockedGame_showsUnlockLevel() {
+		val games = listOf(
+			MiniGameUi(
+				id = "runner",
+				name = "Speed Runner",
+				description = "Race against time",
+				unlockLevel = 10,
+				isUnlocked = false,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MiniGamesGrid(games = games)
+			}
+		}
+
+		composeRule.onNodeWithText("Speed Runner").assertIsDisplayed()
+		composeRule.onNodeWithText("Unlocks at Level 10").assertIsDisplayed()
+	}
+
+	@Test
+	fun mixedGames_showsBothStates() {
+		val games = listOf(
+			MiniGameUi(
+				id = "quiz",
+				name = "Geo Quiz",
+				description = "Test your knowledge",
+				unlockLevel = 3,
+				isUnlocked = true,
+			),
+			MiniGameUi(
+				id = "runner",
+				name = "Speed Runner",
+				description = "Race against time",
+				unlockLevel = 10,
+				isUnlocked = false,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MiniGamesGrid(games = games)
+			}
+		}
+
+		composeRule.onNodeWithText("Test your knowledge").assertIsDisplayed()
+		composeRule.onNodeWithText("Unlocks at Level 10").assertIsDisplayed()
+	}
+}

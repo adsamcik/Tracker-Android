@@ -103,7 +103,7 @@ class GameViewModel @Inject constructor(
     private val _leaderboardState = MutableStateFlow<LeaderboardState?>(null)
     val leaderboardState: StateFlow<LeaderboardState?> = _leaderboardState
 
-    private var currentMetric: LeaderboardMetric = LeaderboardMetric.STEPS
+    private var currentMetric: LeaderboardMetric = LeaderboardMetric.DISTANCE
 
     init {
         loadLeaderboard()

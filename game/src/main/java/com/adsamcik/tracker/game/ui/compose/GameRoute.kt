@@ -109,7 +109,7 @@ fun GameRoute(
 		unlockEvent?.let { event ->
 			UnlockAnnouncementBanner(
 				featureName = event.unlockedFeatures.firstOrNull()
-					?.let { unlockFeatureDisplayName(it) },
+					?.let { stringResource(unlockFeatureDisplayName(it)) },
 				newLevel = event.newLevel,
 				modifier = Modifier.align(Alignment.TopCenter),
 				onDismissed = { unlockEvent = null },
@@ -118,18 +118,18 @@ fun GameRoute(
 	}
 }
 
-private fun unlockFeatureDisplayName(feature: UnlockableFeature): String = when (feature) {
-	UnlockableFeature.BASE_CHALLENGES -> "Challenges"
-	UnlockableFeature.MEDALS -> "Medals"
-	UnlockableFeature.STREAKS -> "Streaks"
-	UnlockableFeature.TROPHY_CASE -> "Trophy Case"
-	UnlockableFeature.PERSONAL_RECORDS -> "Personal Records"
-	UnlockableFeature.OUTRUN_MINI_GAME -> "Outrun Mini-Game"
-	UnlockableFeature.STREAK_FREEZE -> "Streak Freeze"
-	UnlockableFeature.SPEED_CHALLENGE -> "Speed Challenge"
-	UnlockableFeature.TERRITORY_MINI_GAME -> "Territory Mini-Game"
-	UnlockableFeature.LIFETIME_STATS -> "Lifetime Stats"
-	UnlockableFeature.CONSISTENCY_CHALLENGE -> "Consistency Challenge"
-	UnlockableFeature.ZEN_WALK_MINI_GAME -> "Zen Walk Mini-Game"
-	UnlockableFeature.WEEKLY_RANK -> "Weekly Rank"
+private fun unlockFeatureDisplayName(feature: UnlockableFeature): Int = when (feature) {
+	UnlockableFeature.BASE_CHALLENGES -> R.string.unlock_feature_challenges
+	UnlockableFeature.MEDALS -> R.string.unlock_feature_medals
+	UnlockableFeature.STREAKS -> R.string.unlock_feature_streaks
+	UnlockableFeature.TROPHY_CASE -> R.string.unlock_feature_trophy_case
+	UnlockableFeature.PERSONAL_RECORDS -> R.string.unlock_feature_personal_records
+	UnlockableFeature.OUTRUN_MINI_GAME -> R.string.unlock_feature_outrun
+	UnlockableFeature.STREAK_FREEZE -> R.string.unlock_feature_streak_freeze
+	UnlockableFeature.SPEED_CHALLENGE -> R.string.unlock_feature_speed_challenge
+	UnlockableFeature.TERRITORY_MINI_GAME -> R.string.unlock_feature_territory
+	UnlockableFeature.LIFETIME_STATS -> R.string.unlock_feature_lifetime_stats
+	UnlockableFeature.CONSISTENCY_CHALLENGE -> R.string.unlock_feature_consistency
+	UnlockableFeature.ZEN_WALK_MINI_GAME -> R.string.unlock_feature_zen_walk
+	UnlockableFeature.WEEKLY_RANK -> R.string.unlock_feature_weekly_rank
 }
