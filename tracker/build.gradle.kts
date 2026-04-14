@@ -122,6 +122,7 @@ dependencies {
 	implementation(libs.compose.ui.tooling.preview)
 
 	// UI Tests
+	testImplementation(libs.compose.ui.test.junit4)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
 	// Needed for ComponentActivity.setContent in androidTest (also added to main above)
