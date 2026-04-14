@@ -20,4 +20,5 @@ interface DailySummaryRepository {
 	fun observeToday(): Flow<DailySummary?>
 	fun observeWeek(): Flow<List<DailySummary>>
 	suspend fun getBetween(fromDay: Long, toDay: Long): Either<StatsError, List<DailySummary>>
+	fun observeBetween(fromDay: Long, toDay: Long): Flow<List<DailySummary>>
 }

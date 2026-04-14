@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.engine.achievement
 
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveAtLeastSize

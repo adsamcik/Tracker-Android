@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.engine.achievement
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.floats.shouldBeGreaterThan

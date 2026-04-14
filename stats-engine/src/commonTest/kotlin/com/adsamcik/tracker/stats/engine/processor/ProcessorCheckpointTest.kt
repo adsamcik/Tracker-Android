@@ -17,7 +17,7 @@ import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
 import com.adsamcik.tracker.stats.api.value.StepCount
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscoveryEngine
 import com.adsamcik.tracker.stats.engine.segment.SessionSegmentDetector

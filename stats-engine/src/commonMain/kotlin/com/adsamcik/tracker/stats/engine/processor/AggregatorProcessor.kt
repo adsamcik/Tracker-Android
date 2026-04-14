@@ -93,7 +93,7 @@ class AggregatorProcessor(
 	 * Returns the current aggregator state as a flat metrics map for achievement evaluation.
 	 * Safe to call at any time; returns an empty map when the aggregator is inactive.
 	 *
-	 * Keys match the [AchievementCatalog] metric names where applicable.
+	 * Keys match the [com.adsamcik.tracker.stats.api.achievement.AchievementCatalog] metric names where applicable.
 	 */
 	fun snapshotMetrics(): Map<String, Long> {
 		if (!aggregator.isActive) return emptyMap()

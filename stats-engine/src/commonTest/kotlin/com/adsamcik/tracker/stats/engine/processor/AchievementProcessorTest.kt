@@ -7,7 +7,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import kotlinx.coroutines.test.runTest

@@ -61,7 +61,6 @@ android {
 
 dependencies {
 	api(project(":stats-api"))
-	implementation(project(":stats-engine"))
 	implementation(project(":sbase"))
 
 	// Core

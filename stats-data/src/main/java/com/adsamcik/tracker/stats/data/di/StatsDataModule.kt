@@ -25,7 +25,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import dagger.Binds
 import dagger.Module
 import dagger.Provides

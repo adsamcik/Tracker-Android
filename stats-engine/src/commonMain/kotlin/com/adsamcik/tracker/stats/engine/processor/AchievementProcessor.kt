@@ -7,7 +7,7 @@ import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 
 /**
  * SignalProcessor wrapping [AchievementEvaluator].

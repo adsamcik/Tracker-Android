@@ -8,8 +8,8 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
-import com.adsamcik.tracker.stats.engine.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 

@@ -4,7 +4,7 @@ package com.adsamcik.tracker.stats.api
  * Static definition of an achievement, describing its category, display info,
  * metric binding, and tier thresholds.
  *
- * Definitions are immutable and stored in [com.adsamcik.tracker.stats.engine.achievement.AchievementCatalog].
+ * Definitions are immutable and stored in [com.adsamcik.tracker.stats.api.achievement.AchievementCatalog].
  * Runtime progress is tracked separately via [AchievementSnapshot].
  *
  * @property id Unique stable identifier, e.g. "explorer_cells". Used as DB key.

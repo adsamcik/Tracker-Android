@@ -14,7 +14,7 @@ import javax.inject.Inject
  * NEVER scans raw location_sample. All queries hit indexed, pre-aggregated tables
  * (daily_summary, exploration_cell, exploration_streak, session_segment, export_log).
  *
- * Metric keys match [com.adsamcik.tracker.stats.engine.achievement.AchievementCatalog] definitions.
+ * Metric keys match [com.adsamcik.tracker.stats.api.achievement.AchievementCatalog] definitions.
  */
 class DefaultAchievementMetricsProvider @Inject constructor(
 	private val dailySummaryDao: DailySummaryDao,

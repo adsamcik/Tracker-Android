@@ -34,6 +34,12 @@ class DefaultDailySummaryRepository @Inject constructor(
 		}
 	}
 
+	override fun observeBetween(fromDay: Long, toDay: Long): Flow<List<DailySummary>> {
+		return dailySummaryDao.getBetweenFlow(fromDay, toDay).map { entities ->
+			entities.map { it.toDailySummary() }
+		}
+	}
+
 	override suspend fun getBetween(fromDay: Long, toDay: Long): Either<StatsError, List<DailySummary>> {
 		return try {
 			val entities = dailySummaryDao.getBetween(fromDay, toDay)

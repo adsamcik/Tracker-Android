@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.stats.engine.achievement
+package com.adsamcik.tracker.stats.api.achievement
 
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition

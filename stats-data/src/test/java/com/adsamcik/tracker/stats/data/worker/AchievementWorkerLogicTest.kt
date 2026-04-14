@@ -6,7 +6,7 @@ import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
-import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.coEvery
