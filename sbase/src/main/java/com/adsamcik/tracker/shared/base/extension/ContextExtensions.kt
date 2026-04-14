@@ -270,10 +270,4 @@ val Context.applicationName: String
 		}
 	}
 
-/**
- * Tag for an activity.
- */
-@Suppress("unused")
-val AppCompatActivity.tag: String
-	get() = applicationName + this::class.java.simpleName
 

@@ -94,7 +94,6 @@ class RetentionConfigStore(
     }
 }
 
-@Suppress("unused")
 suspend fun resetRetentionConfigForTests(context: Context) {
     context.retentionConfigDataStore.updateData {
         RetentionConfigProto.getDefaultInstance()

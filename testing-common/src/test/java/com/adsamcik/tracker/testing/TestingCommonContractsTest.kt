@@ -29,6 +29,7 @@ class TestingCommonContractsTest {
 	fun `fake location source emits expected location data`() = runTest {
 		val fakeLocationSource = FakeLocationSource()
 		val nextLocation = async { fakeLocationSource.locations.first() }
+		runCurrent()
 
 		fakeLocationSource.emitLocation(
 			lat = 50.087451,

@@ -101,6 +101,8 @@ dependencies {
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)
+	testImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
 
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)

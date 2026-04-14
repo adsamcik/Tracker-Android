@@ -151,7 +151,7 @@ fun SessionActivityRoute(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionActivityScreen(
+internal fun SessionActivityScreen(
     items: List<SessionActivity>,
     snackbarHostState: SnackbarHostState,
     onNavigateBack: (() -> Unit)? = null,

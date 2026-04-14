@@ -146,6 +146,8 @@ dependencies {
 	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
 
 	// Instrumented Tests
 	androidTestImplementation(libs.junit4)

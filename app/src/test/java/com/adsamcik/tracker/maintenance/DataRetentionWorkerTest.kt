@@ -86,31 +86,32 @@ class DataRetentionWorkerTest {
         retentionStore.update { copy(autoCleanupEnabled = false) }
         advanceUntilIdle()
 
-        val workerFactory = object : WorkerFactory() {
-            override fun createWorker(
-                appContext: Context,
-                workerClassName: String,
-                workerParameters: WorkerParameters
-            ): ListenableWorker {
-                return DataRetentionWorker(
-                    appContext,
-                    workerParameters,
-                    retentionStore,
-                    mockDatabase,
-                    locationSampleDao,
-                    wifiObservationDao,
-                    cellSampleDao,
-                    sessionSegmentDao,
-                    exportPlanStore,
-                )
-            }
-        }
-
         val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context)
-            .setWorkerFactory(workerFactory)
-            .build()
-        val result = worker.startWork().get()
-        assertEquals(ListenableWorker.Result.success()::class, result::class)
+            .setWorkerFactory(object : WorkerFactory() {
+                override fun createWorker(
+                    appContext: Context,
+                    workerClassName: String,
+                    workerParameters: WorkerParameters
+                ): ListenableWorker {
+                    return DataRetentionWorker(
+                        appContext,
+                        workerParameters,
+                        retentionStore,
+                        mockDatabase,
+                        locationSampleDao,
+                        wifiObservationDao,
+                        cellSampleDao,
+                        sessionSegmentDao,
+                        exportPlanStore,
+                    )
+                }
+            })
+            .build() as DataRetentionWorker
+
+        // Call doWork() directly to avoid blocking thread with startWork().get()
+        val result = worker.doWork()
+        advanceUntilIdle()
+        assertEquals(ListenableWorker.Result.success(), result)
     }
 
     @Test
