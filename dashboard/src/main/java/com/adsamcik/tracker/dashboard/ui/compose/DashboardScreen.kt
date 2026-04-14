@@ -122,17 +122,33 @@ internal fun DashboardScreen(
 
 	// Scroll state for idle content — drives pill visibility
 	val idleListState = rememberLazyListState()
-	val showPill by remember(state.dashboardMode, visibleWidgets, configuration.orientation) {
+	val todayProgressIndex by remember(visibleWidgets) {
+		derivedStateOf { visibleWidgets.indexOf(DashboardWidget.TodayProgress) }
+	}
+	val todayProgressInViewport by remember(idleListState, todayProgressIndex) {
+		derivedStateOf {
+			if (todayProgressIndex < 0) {
+				false
+			} else {
+				val lazyColumnIndex = todayProgressIndex + 1 // motivational header occupies slot 0
+				idleListState.layoutInfo.visibleItemsInfo.any { item ->
+					item.key == DashboardWidget.TodayProgress.id || item.index == lazyColumnIndex
+				}
+			}
+		}
+	}
+	val showPill by remember(
+		state.dashboardMode,
+		visibleWidgets,
+		configuration.orientation,
+		todayProgressInViewport,
+	) {
 		derivedStateOf {
 			val todayProgressVisible = visibleWidgets.any { it == DashboardWidget.TodayProgress }
-			// Show pill when the TodayProgressCard (index 1, after motivational at 0)
-			// is scrolled off-screen, or when the inline card is hidden entirely.
 			when (state.dashboardMode) {
 				DashboardMode.IDLE -> when {
 					!todayProgressVisible -> true
-					else -> idleListState.layoutInfo.visibleItemsInfo.none {
-						it.key == DashboardWidget.TodayProgress.id
-					}
+					else -> !todayProgressInViewport
 				}
 				DashboardMode.TRACKING -> true
 				DashboardMode.EMPTY -> true

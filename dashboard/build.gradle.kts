@@ -37,6 +37,10 @@ android {
 		}
 	}
 
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false

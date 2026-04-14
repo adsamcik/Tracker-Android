@@ -105,15 +105,7 @@ private fun PillContent(
 
 	val label = when {
 		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
-		isTracking -> {
-			val elapsed = if (sessionData != null) {
-				val end = if (sessionData.end > sessionData.start) sessionData.end else Time.nowMillis
-				(end - sessionData.start).coerceAtLeast(0L).formatAsDuration(context)
-			} else {
-				"0:00"
-			}
-			stringResource(R.string.dashboard_pill_recording, elapsed)
-		}
+		isTracking -> stringResource(R.string.dashboard_pill_stop)
 		else -> stringResource(R.string.dashboard_pill_start)
 	}
 

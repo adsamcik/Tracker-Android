@@ -47,7 +47,7 @@ class StreakBannerTest {
 
 		composeRule.onNodeWithText("4").assertIsDisplayed()
 		composeRule.onNodeWithText("day streak").assertIsDisplayed()
-		composeRule.onNodeWithText("↑999%").assertIsDisplayed()
+		composeRule.onNodeWithText("↑999% vs last wk").assertIsDisplayed()
 	}
 
 	private fun setBannerContent(state: StreakState) {

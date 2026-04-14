@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -105,7 +107,7 @@ private fun ChallengeCard(
 	Card(
 		modifier = modifier
 			.width(200.dp)
-			.height(130.dp)
+			.heightIn(min = 150.dp)
 			.semantics(mergeDescendants = true) {
 				contentDescription = cardContentDescription
 			}
@@ -128,13 +130,18 @@ private fun ChallengeCard(
 			modifier = Modifier
 				.padding(12.dp),
 		) {
-			// Difficulty badge
-			Text(
-				text = difficultyLabel,
-				style = MaterialTheme.typography.labelSmall,
-				fontWeight = FontWeight.Bold,
-				color = difficultyColor,
-			)
+			Surface(
+				color = difficultyColor.copy(alpha = 0.14f),
+				shape = MaterialTheme.shapes.extraLarge,
+			) {
+				Text(
+					text = difficultyLabel,
+					style = MaterialTheme.typography.labelSmall,
+					fontWeight = FontWeight.Bold,
+					color = difficultyColor,
+					modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+				)
+			}
 			Spacer(Modifier.height(4.dp))
 
 			// Title
@@ -207,7 +214,7 @@ private fun EmptyChallengeCard(
 	Card(
 		modifier = modifier
 			.width(200.dp)
-			.height(130.dp)
+			.heightIn(min = 150.dp)
 			.semantics(mergeDescendants = true) {
 				contentDescription = emptyCardContentDescription
 			}

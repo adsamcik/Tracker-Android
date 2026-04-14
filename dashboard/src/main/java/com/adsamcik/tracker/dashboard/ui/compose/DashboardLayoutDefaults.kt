@@ -27,5 +27,12 @@ internal object DashboardLayoutDefaults {
 		}
 	}
 
-	fun floatingActionBottomPadding(bottomInset: Dp = 0.dp): Dp = FloatingActionMargin + bottomInset
+	fun floatingActionBottomPadding(
+		bottomInset: Dp = 0.dp,
+		isLandscape: Boolean = false,
+	): Dp = if (isLandscape) {
+		LandscapeBottomBarClearance + bottomInset
+	} else {
+		FloatingActionMargin + bottomInset
+	}
 }

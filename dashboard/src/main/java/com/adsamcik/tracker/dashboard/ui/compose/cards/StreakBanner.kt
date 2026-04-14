@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,8 +56,9 @@ internal fun StreakBanner(
 	val primaryColor = MaterialTheme.colorScheme.primary
 	val tertiaryColor = MaterialTheme.colorScheme.tertiary
 	val errorColor = MaterialTheme.colorScheme.error
-	val streakContentDescription = stringResource(
-		R.string.dashboard_cd_streak_banner,
+	val streakContentDescription = pluralStringResource(
+		R.plurals.dashboard_cd_streak_banner,
+		streakState.currentStreak,
 		streakState.currentStreak,
 	)
 	val streakClickLabel = stringResource(R.string.dashboard_action_view_streak_details)

@@ -65,10 +65,10 @@ internal fun LastSessionCard(
 	val stepsText = when {
 		session.steps > 0 -> session.steps.formatReadable()
 		stepCounterSupported -> "0"
-		else -> stringResource(R.string.dashboard_metric_not_available_short)
+		else -> null // Hide steps when sensor unavailable
 	}
 	val stepsSupportingText = if (stepsUnavailable) {
-		stringResource(R.string.dashboard_last_session_steps_unavailable)
+		null // Don't show "unavailable" text — row is hidden entirely
 	} else {
 		null
 	}
@@ -155,12 +155,14 @@ internal fun LastSessionCard(
 					value = distanceText,
 					modifier = Modifier.weight(1f),
 				)
-				SessionMetricItem(
-					label = stringResource(R.string.dashboard_last_session_steps),
-					value = stepsText,
-					supportingText = stepsSupportingText,
-					modifier = Modifier.weight(1f),
-				)
+				if (stepsText != null) {
+					SessionMetricItem(
+						label = stringResource(R.string.dashboard_last_session_steps),
+						value = stepsText,
+						supportingText = stepsSupportingText,
+						modifier = Modifier.weight(1f),
+					)
+				}
 			}
 
 			// Path preview

@@ -98,6 +98,11 @@ internal fun TodayProgressCard(
 					)
 
 					Text(
+						text = stringResource(R.string.dashboard_today_distance),
+						style = MaterialTheme.typography.labelMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+					Text(
 						text = distanceText,
 						style = primaryMetricStyle,
 						fontWeight = FontWeight.Bold,
