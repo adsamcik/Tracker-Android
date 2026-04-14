@@ -66,6 +66,7 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
+	implementation(project(":map"))
 
 	// Stats architecture
 	implementation(project(":stats-api"))

@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,11 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -408,8 +402,11 @@ private fun RoutePreviewCard(
 	sourceLabel: String,
 	hasDistance: Boolean,
 ) {
+	val validPoints = remember(points) {
+		points.filter { it.latE7 != null && it.lonE7 != null }
+	}
 	val emptyReason = resolveRouteEmptyReason(
-		routePointCount = points.size,
+		routePointCount = validPoints.size,
 		hasDistance = hasDistance,
 		sourceLabel = sourceLabel,
 	)
@@ -440,11 +437,11 @@ private fun RoutePreviewCard(
 					color = MaterialTheme.colorScheme.onSurfaceVariant
 				)
 			} else {
-				TripRoutePreview(
-					points = points,
+				TripRouteMapPreview(
+					points = validPoints,
 					modifier = Modifier
 						.fillMaxWidth()
-						.height(180.dp)
+						.height(200.dp)
 				)
 			}
 		}
@@ -566,75 +563,6 @@ private fun DeveloperMetrics(
 				secondLabel = stringResource(R.string.trip_detail_max_altitude),
 				secondValue = maxAltitudeText,
 			)
-		}
-	}
-}
-
-@Composable
-private fun TripRoutePreview(
-	points: List<LocationSample>,
-	modifier: Modifier = Modifier,
-) {
-	val primaryColor = MaterialTheme.colorScheme.primary
-	val startColor = MaterialTheme.colorScheme.tertiary
-	val endColor = MaterialTheme.colorScheme.error
-
-	Canvas(modifier = modifier) {
-		if (points.size < 2) return@Canvas
-
-		var minLat = Double.MAX_VALUE
-		var maxLat = Double.MIN_VALUE
-		var minLon = Double.MAX_VALUE
-		var maxLon = Double.MIN_VALUE
-
-		val e7Divisor = 1e7
-		points.forEach { point ->
-			val lat = (point.latE7 ?: return@forEach) / e7Divisor
-			val lon = (point.lonE7 ?: return@forEach) / e7Divisor
-			minLat = minOf(minLat, lat)
-			maxLat = maxOf(maxLat, lat)
-			minLon = minOf(minLon, lon)
-			maxLon = maxOf(maxLon, lon)
-		}
-
-		val latRange = (maxLat - minLat).takeIf { it > 0.0 } ?: 0.001
-		val lonRange = (maxLon - minLon).takeIf { it > 0.0 } ?: 0.001
-		val paddedLatMin = minLat - latRange * 0.1
-		val paddedLonMin = minLon - lonRange * 0.1
-		val paddedLatRange = latRange * 1.2
-		val paddedLonRange = lonRange * 1.2
-
-		val screenPoints = points.mapNotNull { point ->
-			val lat = (point.latE7 ?: return@mapNotNull null) / e7Divisor
-			val lon = (point.lonE7 ?: return@mapNotNull null) / e7Divisor
-			Offset(
-				x = ((lon - paddedLonMin) / paddedLonRange).toFloat() * size.width,
-				y = (1 - ((lat - paddedLatMin) / paddedLatRange)).toFloat() * size.height,
-			)
-		}
-
-		val path = Path().apply {
-			screenPoints.forEachIndexed { index, offset ->
-				if (index == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
-			}
-		}
-
-		drawPath(
-			path = path,
-			color = primaryColor,
-			style = Stroke(
-				width = 4.dp.toPx(),
-				cap = StrokeCap.Round,
-				join = StrokeJoin.Round,
-			),
-			alpha = 0.75f,
-		)
-
-		screenPoints.firstOrNull()?.let { start ->
-			drawCircle(color = startColor, radius = 7.dp.toPx(), center = start)
-		}
-		screenPoints.lastOrNull()?.let { end ->
-			drawCircle(color = endColor, radius = 7.dp.toPx(), center = end)
 		}
 	}
 }
