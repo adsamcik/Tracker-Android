@@ -19,11 +19,11 @@ class SafeQueryBuilderTest {
             .limit(100)
             .build()
     val sql = (q as SimpleSQLiteQuery).sql
-        sql shouldContain "FROM location_data"
-        sql shouldContain "time >= ?"
-        sql shouldContain "time <= ?"
-        sql shouldContain "lat <= ?"
-        sql shouldContain "lon >= ?"
+        sql shouldContain "FROM location_sample"
+        sql shouldContain "time_ms >= ?"
+        sql shouldContain "time_ms <= ?"
+        sql shouldContain "lat_e7 <= ?"
+        sql shouldContain "lon_e7 >= ?"
         sql shouldEndWith "LIMIT 100"
     val argCount = sql.count { it == '?' }
     argCount shouldBe 6 // timeFrom, timeTo, north, south, east, west
@@ -33,7 +33,7 @@ class SafeQueryBuilderTest {
     fun `location weighted query`() {
         val q = SafeQueryBuilder.location().weight("speed").build()
     val sql = (q as SimpleSQLiteQuery).sql
-        sql shouldContain "speed AS weight"
+        sql shouldContain "speed_mps AS weight"
     }
 
     @Test
@@ -44,20 +44,23 @@ class SafeQueryBuilderTest {
     }
 
     @Test
-    fun `wifi query aliases columns`() {
+    fun `wifi query uses E7 coordinates and time_ms`() {
         val q = SafeQueryBuilder.wifi().timeRange(0, 10).build()
     val sql = (q as SimpleSQLiteQuery).sql
-        sql shouldContain "SELECT latitude AS lat, longitude AS lon, last_seen AS time"
-        sql shouldContain "FROM wifi_data"
-        sql shouldContain "last_seen >= ?"
+        sql shouldContain "CAST(lat_e7 AS REAL)"
+        sql shouldContain "AS lat"
+        sql shouldContain "FROM wifi_observation"
+        sql shouldContain "time_ms >= ?"
     }
 
     @Test
     fun `cell query basic`() {
         val q = SafeQueryBuilder.cell().limit(50).build()
     val sql = (q as SimpleSQLiteQuery).sql
-        sql shouldStartWith "SELECT lat, lon, time"
-        sql shouldContain "FROM cell_location"
+        sql shouldContain "AS lat"
+        sql shouldContain "AS lon"
+        sql shouldContain "AS time"
+        sql shouldContain "FROM cell_sample"
         sql shouldEndWith "LIMIT 50"
     }
 
@@ -72,7 +75,8 @@ class SafeQueryBuilderTest {
     fun `accept allowed column`() {
         val q = SafeQueryBuilder.location().columns("speed", "hor_acc").build()
         val sql = q.sql
-        sql shouldStartWith "SELECT lat, lon, time, speed, hor_acc"
+        sql shouldContain "speed_mps AS speed"
+        sql shouldContain "h_acc_m AS hor_acc"
     }
 
     @Test
@@ -80,5 +84,32 @@ class SafeQueryBuilderTest {
         shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().timeRange(200L, 100L)
         }
+    }
+
+    @Test
+    fun `bounds converted to E7 integers`() {
+        val q = SafeQueryBuilder.location()
+            .bounds(north = 50.0, east = 15.0, south = 40.0, west = 10.0)
+            .build() as SimpleSQLiteQuery
+        // Verify the args contain E7-converted values
+        val sql = q.sql
+        sql shouldContain "lat_e7 <= ?"
+        sql shouldContain "lat_e7 >= ?"
+        sql shouldContain "lon_e7 <= ?"
+        sql shouldContain "lon_e7 >= ?"
+    }
+
+    @Test
+    fun `degreesToE7 conversion`() {
+        SafeQueryBuilder.degreesToE7(50.0) shouldBe 500_000_000
+        SafeQueryBuilder.degreesToE7(-40.123) shouldBe -401_230_000
+        SafeQueryBuilder.degreesToE7(0.0) shouldBe 0
+    }
+
+    @Test
+    fun `cell weight maps asu to signal_strength`() {
+        val q = SafeQueryBuilder.cell().weight("asu").build()
+        val sql = (q as SimpleSQLiteQuery).sql
+        sql shouldContain "signal_strength AS weight"
     }
 }

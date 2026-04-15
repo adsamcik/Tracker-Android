@@ -5,14 +5,17 @@ import androidx.sqlite.db.SupportSQLiteQuery
 
 /**
  * SafeQueryBuilder builds parameterized spatial/temporal raw queries against underlying
- * geo tables (location_data, wifi_data, cell_location) restricting selectable columns
+ * geo tables (location_sample, wifi_observation, cell_sample) restricting selectable columns
  * and predicates to a vetted allow-list to reduce SQL injection risk.
+ *
+ * Coordinates are stored as E7 integers (degrees × 1e7) and converted to degrees in the
+ * SELECT projection. Bound parameters are converted from degrees to E7 for WHERE clauses.
  *
  * Usage:
  *  val query = SafeQueryBuilder.location()
  *      .bounds(north, east, south, west)
  *      .timeRange(start, end)
- *      .columns("lat", "lon", "time", "speed") // allowed extras only
+ *      .weight("speed")
  *      .build()
  */
 class SafeQueryBuilder private constructor(
@@ -39,6 +42,7 @@ class SafeQueryBuilder private constructor(
     /**
      * Add columns to projection (always includes lat, lon, time implicitly).
      * Only columns from the allow list for the selected table are permitted.
+     * Column names are public API names; they are mapped to actual DB columns internally.
      */
     fun columns(vararg cols: String): SafeQueryBuilder = apply {
         val allowed = table.allowedColumns
@@ -50,6 +54,7 @@ class SafeQueryBuilder private constructor(
 
     /**
      * Designate a numeric column to be returned as weight (aliased as weight).
+     * Uses public API names; mapped to actual DB columns internally.
      */
     fun weight(column: String): SafeQueryBuilder = apply {
         require(table.allowedWeightColumns.contains(column)) { "Column '$column' not allowed as weight for ${table.tableName}" }
@@ -57,7 +62,7 @@ class SafeQueryBuilder private constructor(
     }
 
     /**
-     * Set inclusive time range.
+     * Set inclusive time range (epoch milliseconds).
      */
     fun timeRange(from: Long?, to: Long?): SafeQueryBuilder = apply {
         if (from != null && to != null) require(from <= to) { "from must be <= to" }
@@ -78,71 +83,63 @@ class SafeQueryBuilder private constructor(
     }
 
     fun build(): SupportSQLiteQuery {
-        // Base mandatory columns for GeoFeatureEntity mapping
-        val baseCols = when (table) {
-            Table.WIFI -> listOf(
-                // wifi_data columns are latitude/longitude/last_seen -> alias to lat/lon/time
-                "latitude AS lat", "longitude AS lon", "last_seen AS time"
-            )
-            else -> listOf("lat", "lon", timeColumn())
+        // All tables use E7 lat/lon and time_ms; convert to degrees in projection
+        val baseCols = listOf(
+            "CAST(lat_e7 AS REAL) / $E7_DIVISOR AS lat",
+            "CAST(lon_e7 AS REAL) / $E7_DIVISOR AS lon",
+            "time_ms AS time"
+        )
+
+        val extraCols = selectColumns.map { col ->
+            val dbCol = table.resolveColumn(col)
+            if (dbCol != col) "$dbCol AS $col" else dbCol
         }
-    val weightProjection = weightColumn?.let { listOf("$it AS weight") } ?: emptyList()
-    val allCols = (baseCols + selectColumns + weightProjection).distinct()
+
+        val weightProjection = weightColumn?.let { col ->
+            val dbCol = table.resolveColumn(col)
+            listOf("$dbCol AS weight")
+        } ?: emptyList()
+
+        val allCols = (baseCols + extraCols + weightProjection).distinct()
 
         val sql = StringBuilder()
         sql.append("SELECT ")
-    sql.append(allCols.joinToString())
+        sql.append(allCols.joinToString())
         sql.append(" FROM ")
         sql.append(table.tableName)
 
         val selection = StringBuilder()
         val args = mutableListOf<Any>()
 
-    val timeCol = when (table) { Table.WIFI -> "last_seen" else -> timeColumn() }
-    timeFrom?.let { appendClause(selection, "$timeCol >= ?").also { args += it } }
-    timeTo?.let { appendClause(selection, "$timeCol <= ?").also { args += it } }
+        timeFrom?.let { appendClause(selection, "time_ms >= ?").also { _ -> args += it } }
+        timeTo?.let { appendClause(selection, "time_ms <= ?").also { _ -> args += it } }
+
+        // Bounds compared in E7 space for index usage
         if (north != null) {
-            appendClause(selection, "${latColumn()} <= ?")
-            args += north as Double
+            appendClause(selection, "lat_e7 <= ?")
+            args += degreesToE7(north!!)
         }
         if (south != null) {
-            appendClause(selection, "${latColumn()} >= ?")
-            args += south as Double
+            appendClause(selection, "lat_e7 >= ?")
+            args += degreesToE7(south!!)
         }
         if (east != null) {
-            appendClause(selection, "${lonColumn()} <= ?")
-            args += east as Double
+            appendClause(selection, "lon_e7 <= ?")
+            args += degreesToE7(east!!)
         }
         if (west != null) {
-            appendClause(selection, "${lonColumn()} >= ?")
-            args += west as Double
+            appendClause(selection, "lon_e7 >= ?")
+            args += degreesToE7(west!!)
         }
 
         if (selection.isNotEmpty()) {
             sql.append(" WHERE ").append(selection)
         }
 
-        // Basic ordering for deterministic slices
-    sql.append(" ORDER BY $timeCol ASC")
+        sql.append(" ORDER BY time_ms ASC")
         limit?.let { sql.append(" LIMIT ").append(it) }
 
         return SimpleSQLiteQuery(sql.toString(), args.toTypedArray())
-    }
-
-    private fun timeColumn(): String = when (table) {
-        Table.LOCATION -> "time"
-        Table.WIFI -> "last_seen"
-        Table.CELL -> "time"
-    }
-
-    private fun latColumn(): String = when (table) {
-        Table.WIFI -> "latitude"
-        else -> "lat"
-    }
-
-    private fun lonColumn(): String = when (table) {
-        Table.WIFI -> "longitude"
-        else -> "lon"
     }
 
     private fun appendClause(builder: StringBuilder, clause: String) {
@@ -153,35 +150,49 @@ class SafeQueryBuilder private constructor(
     enum class Table(
         val tableName: String,
         val allowedColumns: Set<String>,
-        val allowedWeightColumns: Set<String>
+        val allowedWeightColumns: Set<String>,
+        private val columnMapping: Map<String, String>,
     ) {
         LOCATION(
-            "location_data",
-            setOf(
-                // numeric columns we may project besides base lat/lon/time
-                "speed", "hor_acc", "ver_acc", "alt", "s_acc"
+            "location_sample",
+            setOf("speed", "hor_acc", "ver_acc", "alt", "s_acc"),
+            setOf("speed", "hor_acc", "ver_acc", "s_acc"),
+            mapOf(
+                "speed" to "speed_mps",
+                "hor_acc" to "h_acc_m",
+                "ver_acc" to "v_acc_m",
+                "alt" to "alt_m",
+                "s_acc" to "speed_accuracy_mps",
             ),
-            setOf("speed", "hor_acc", "ver_acc", "s_acc")
         ),
         WIFI(
-            "wifi_data",
-            setOf(
-                "altitude", "level", "frequency", "first_seen", "last_seen" // lat/lon may be null originally
-            ),
-            setOf("level", "frequency")
+            "wifi_observation",
+            setOf("level", "frequency"),
+            setOf("level", "frequency"),
+            emptyMap(),
         ),
         CELL(
-            "cell_location",
-            setOf(
-                "mcc", "mnc", "cell_id", "type", "asu", "alt" // lat/lon/time already base columns
+            "cell_sample",
+            setOf("mcc", "mnc", "cell_id", "network_type", "asu"),
+            setOf("asu", "network_type"),
+            mapOf(
+                "asu" to "signal_strength",
+                "network_type" to "network_type",
             ),
-            setOf("asu", "type")
         );
+
+        /** Map public column name to actual DB column name. Identity if no mapping exists. */
+        fun resolveColumn(publicName: String): String = columnMapping[publicName] ?: publicName
     }
 
     companion object {
+        private const val E7_DIVISOR = 10_000_000.0
+
         fun location(): SafeQueryBuilder = SafeQueryBuilder(Table.LOCATION)
         fun wifi(): SafeQueryBuilder = SafeQueryBuilder(Table.WIFI)
         fun cell(): SafeQueryBuilder = SafeQueryBuilder(Table.CELL)
+
+        /** Convert degrees to E7 integer for WHERE clause binding. */
+        internal fun degreesToE7(degrees: Double): Int = (degrees * E7_DIVISOR).toInt()
     }
 }
