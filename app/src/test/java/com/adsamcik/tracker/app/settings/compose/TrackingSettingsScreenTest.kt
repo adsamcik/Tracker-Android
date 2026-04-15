@@ -1,30 +1,15 @@
 package com.adsamcik.tracker.app.settings.compose
 
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.performScrollToNode
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
-import com.adsamcik.tracker.app.settings.components.ExpandableSection
-import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
-import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
-import com.adsamcik.tracker.app.settings.components.SwitchSettingsItemWithHelp
-import com.adsamcik.tracker.app.settings.ui.TrackingPresetSelector
+import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsContent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
@@ -35,9 +20,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Tests for the tracking settings screen layout.
- * Since TrackingSettingsScreen uses hiltViewModel(), we recreate the layout
- * with injectable state to test UI rendering and interactions.
+ * Tests for the real [TrackingSettingsContent] composable.
+ * Uses the extracted content composable with injectable state to verify
+ * UI rendering and interactions without requiring Hilt/ViewModel.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -64,105 +49,37 @@ class TrackingSettingsScreenTest {
         skiDetectionEnabled = false,
     )
 
-    @Composable
-    private fun TrackingSettingsTestLayout(
-        uiState: TrackingSettingsUiState = defaultUiState,
-        onPresetSelected: (TrackingPreset) -> Unit = {},
-        onTransitionDetectionChanged: (Boolean) -> Unit = {},
-        onNotificationStyledChanged: (Boolean) -> Unit = {},
-        onSkiDetectionChanged: (Boolean) -> Unit = {},
-    ) {
-        if (!uiState.isLoaded) return
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
-        ) {
-            // Validation warning
-            if (!uiState.hasValidSources) {
-                item {
-                    Text(
-                        text = "Warning: No valid sources",
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-
-            // Preset selector
-            item {
-                TrackingPresetSelector(
-                    selectedPreset = uiState.currentPreset,
-                    currentBatteryImpact = uiState.currentBatteryImpact,
-                    onPresetSelected = onPresetSelected,
-                )
-            }
-
-            // Transition detection toggle
-            item {
-                SwitchSettingsItem(
-                    title = "Auto-tracking transitions",
-                    checked = uiState.transitionDetectionEnabled,
-                    onCheckedChange = onTransitionDetectionChanged,
-                )
-            }
-
-            // Notification toggle
-            item {
-                SwitchSettingsItem(
-                    title = "Styled notification",
-                    checked = uiState.notificationStyled,
-                    onCheckedChange = onNotificationStyledChanged,
-                )
-            }
-
-            // Ski detection toggle
-            item {
-                SwitchSettingsItem(
-                    title = "Ski detection",
-                    checked = uiState.skiDetectionEnabled,
-                    onCheckedChange = onSkiDetectionChanged,
-                )
-            }
-
-            // Advanced section
-            item {
-                ExpandableSection(
-                    title = "Advanced",
-                    initiallyExpanded = false,
-                ) {
-                    SwitchSettingsItem(
-                        title = "Location",
-                        checked = uiState.locationEnabled,
-                        onCheckedChange = {},
-                        enabled = uiState.currentPreset == TrackingPreset.CUSTOM,
-                    )
-                    SwitchSettingsItem(
-                        title = "Activity",
-                        checked = uiState.activityEnabled,
-                        onCheckedChange = {},
-                        enabled = uiState.currentPreset == TrackingPreset.CUSTOM,
-                    )
-                }
-            }
-        }
+    private fun scrollTo(text: String) {
+        composeTestRule.onNodeWithTag("trackingSettingsList")
+            .performScrollToNode(hasText(text, substring = true))
     }
 
     @Test
     fun displaysPresetSelector() {
         composeTestRule.setContent {
-            AppTheme { TrackingSettingsTestLayout() }
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
         composeTestRule.onNodeWithText("Balanced", substring = true).assertIsDisplayed()
     }
 
     @Test
+    fun displaysTrackingNotice() {
+        composeTestRule.setContent {
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+        }
+        composeTestRule.onNodeWithText("Changes take effect", substring = true).assertIsDisplayed()
+    }
+
+    @Test
     fun displaysToggleSettings() {
         composeTestRule.setContent {
-            AppTheme { TrackingSettingsTestLayout() }
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        composeTestRule.onNodeWithText("Auto-tracking transitions").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Styled notification").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Ski detection").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Use activity transitions", substring = true).assertIsDisplayed()
+        scrollTo("Colored notifications")
+        composeTestRule.onNodeWithText("Colored notifications", substring = true).assertIsDisplayed()
+        scrollTo("Ski detection")
+        composeTestRule.onNodeWithText("Ski detection", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -170,12 +87,13 @@ class TrackingSettingsScreenTest {
         var newValue: Boolean? = null
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
+                    uiState = defaultUiState,
                     onTransitionDetectionChanged = { newValue = it },
                 )
             }
         }
-        composeTestRule.onNodeWithText("Auto-tracking transitions").performClick()
+        composeTestRule.onNodeWithText("Use activity transitions", substring = true).performClick()
         newValue shouldBe false // Was true, toggling makes false
     }
 
@@ -184,12 +102,14 @@ class TrackingSettingsScreenTest {
         var newValue: Boolean? = null
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
+                    uiState = defaultUiState,
                     onNotificationStyledChanged = { newValue = it },
                 )
             }
         }
-        composeTestRule.onNodeWithText("Styled notification").performClick()
+        scrollTo("Colored notifications")
+        composeTestRule.onNodeWithText("Colored notifications", substring = true).performClick()
         newValue shouldBe false // Was true, toggling makes false
     }
 
@@ -198,12 +118,14 @@ class TrackingSettingsScreenTest {
         var newValue: Boolean? = null
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
+                    uiState = defaultUiState,
                     onSkiDetectionChanged = { newValue = it },
                 )
             }
         }
-        composeTestRule.onNodeWithText("Ski detection").performClick()
+        scrollTo("Ski detection")
+        composeTestRule.onNodeWithText("Ski detection", substring = true).performClick()
         newValue shouldBe true // Was false, toggling makes true
     }
 
@@ -211,32 +133,35 @@ class TrackingSettingsScreenTest {
     fun validationWarningShownWhenNoValidSources() {
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
                     uiState = defaultUiState.copy(hasValidSources = false),
                 )
             }
         }
-        composeTestRule.onNodeWithText("Warning", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Enable at least one tracking", substring = true)
+            .assertIsDisplayed()
     }
 
     @Test
     fun validationWarningHiddenWhenSourcesValid() {
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
                     uiState = defaultUiState.copy(hasValidSources = true),
                 )
             }
         }
-        composeTestRule.onNodeWithText("Warning", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Enable at least one tracking", substring = true)
+            .assertDoesNotExist()
     }
 
     @Test
     fun advancedSectionCollapsedByDefault() {
         composeTestRule.setContent {
-            AppTheme { TrackingSettingsTestLayout() }
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        composeTestRule.onNodeWithText("Advanced").assertIsDisplayed()
+        scrollTo("Advanced")
+        composeTestRule.onNodeWithText("Advanced", substring = true).assertIsDisplayed()
         // Content inside collapsed section should not be visible
         composeTestRule.onNodeWithText("Location").assertDoesNotExist()
     }
@@ -244,9 +169,10 @@ class TrackingSettingsScreenTest {
     @Test
     fun advancedSectionExpandsOnClick() {
         composeTestRule.setContent {
-            AppTheme { TrackingSettingsTestLayout() }
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        composeTestRule.onNodeWithText("Advanced").performClick()
+        scrollTo("Advanced")
+        composeTestRule.onNodeWithText("Advanced", substring = true).performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Location").assertExists()
         composeTestRule.onNodeWithText("Activity").assertExists()
@@ -256,11 +182,13 @@ class TrackingSettingsScreenTest {
     fun notLoadedShowsNothing() {
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsTestLayout(
+                TrackingSettingsContent(
                     uiState = defaultUiState.copy(isLoaded = false),
                 )
             }
         }
         composeTestRule.onNodeWithText("Balanced", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Use activity transitions", substring = true)
+            .assertDoesNotExist()
     }
 }

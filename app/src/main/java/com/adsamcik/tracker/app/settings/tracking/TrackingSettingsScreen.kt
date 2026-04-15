@@ -21,9 +21,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -40,11 +42,57 @@ fun TrackingSettingsScreen() {
 
     // Single consolidated state
     val uiState by trackingVm.uiState.collectAsState()
+
+    TrackingSettingsContent(
+        uiState = uiState,
+        onPresetSelected = { trackingVm.applyPreset(it) },
+        onTransitionDetectionChanged = { trackingVm.setTransitionDetectionEnabled(it) },
+        onNotificationStyledChanged = { trackingVm.setNotificationStyled(it) },
+        onSkiDetectionChanged = { trackingVm.setSkiDetectionEnabled(it) },
+        onMinDistanceChanged = { trackingVm.setMinDistance(it) },
+        onMinTimeChanged = { trackingVm.setMinTime(it) },
+        onRequiredAccuracyChanged = { trackingVm.setRequiredAccuracy(it) },
+        onLocationEnabledChanged = { trackingVm.setLocationEnabled(it) },
+        onActivityEnabledChanged = { trackingVm.setActivityEnabled(it) },
+        onStepsEnabledChanged = { trackingVm.setStepsEnabled(it) },
+        onWifiEnabledChanged = { trackingVm.setWifiEnabled(it) },
+        onWifiNetworkEnabledChanged = { trackingVm.setWifiNetworkEnabled(it) },
+        onWifiLocationCountEnabledChanged = { trackingVm.setWifiLocationCountEnabled(it) },
+        onCellEnabledChanged = { trackingVm.setCellEnabled(it) },
+        onNotificationCustomize = {
+            context.startActivity(
+                android.content.Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java)
+            )
+        },
+    )
+}
+
+@Composable
+internal fun TrackingSettingsContent(
+    uiState: TrackingSettingsUiState,
+    onPresetSelected: (TrackingPreset) -> Unit = {},
+    onTransitionDetectionChanged: (Boolean) -> Unit = {},
+    onNotificationStyledChanged: (Boolean) -> Unit = {},
+    onSkiDetectionChanged: (Boolean) -> Unit = {},
+    onMinDistanceChanged: (Int) -> Unit = {},
+    onMinTimeChanged: (Int) -> Unit = {},
+    onRequiredAccuracyChanged: (Int) -> Unit = {},
+    onLocationEnabledChanged: (Boolean) -> Unit = {},
+    onActivityEnabledChanged: (Boolean) -> Unit = {},
+    onStepsEnabledChanged: (Boolean) -> Unit = {},
+    onWifiEnabledChanged: (Boolean) -> Unit = {},
+    onWifiNetworkEnabledChanged: (Boolean) -> Unit = {},
+    onWifiLocationCountEnabledChanged: (Boolean) -> Unit = {},
+    onCellEnabledChanged: (Boolean) -> Unit = {},
+    onNotificationCustomize: () -> Unit = {},
+) {
     if (!uiState.isLoaded) return
     val customControlsEnabled = uiState.currentPreset == TrackingPreset.CUSTOM
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("trackingSettingsList"),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Tracking notice
@@ -110,7 +158,7 @@ fun TrackingSettingsScreen() {
             TrackingPresetSelector(
                 selectedPreset = uiState.currentPreset,
                 currentBatteryImpact = uiState.currentBatteryImpact,
-                onPresetSelected = { trackingVm.applyPreset(it) },
+                onPresetSelected = onPresetSelected,
             )
         }
 
@@ -127,7 +175,7 @@ fun TrackingSettingsScreen() {
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
                 checked = uiState.transitionDetectionEnabled,
-                onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
+                onCheckedChange = onTransitionDetectionChanged,
                 helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
             )
         }
@@ -138,7 +186,7 @@ fun TrackingSettingsScreen() {
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
                 checked = uiState.notificationStyled,
-                onCheckedChange = { trackingVm.setNotificationStyled(it) }
+                onCheckedChange = onNotificationStyledChanged,
             )
         }
 
@@ -148,7 +196,7 @@ fun TrackingSettingsScreen() {
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_summary),
                 checked = uiState.skiDetectionEnabled,
-                onCheckedChange = { trackingVm.setSkiDetectionEnabled(it) }
+                onCheckedChange = onSkiDetectionChanged,
             )
         }
 
@@ -158,11 +206,7 @@ fun TrackingSettingsScreen() {
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_summary),
                 icon = Icons.Default.Notifications,
-                onClick = {
-                    context.startActivity(
-                        android.content.Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java)
-                    )
-                }
+                onClick = onNotificationCustomize,
             )
         }
 
@@ -187,7 +231,7 @@ fun TrackingSettingsScreen() {
                     valueRange = 0f..200f,
                     steps = 19,
                     valueLabel = { "${it.toInt()} m" },
-                    onValueChange = { trackingVm.setMinDistance(it.toInt()) },
+                    onValueChange = { onMinDistanceChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
                     enabled = customControlsEnabled,
                 )
@@ -198,7 +242,7 @@ fun TrackingSettingsScreen() {
                     valueRange = 0f..60f,
                     steps = 11,
                     valueLabel = { "${it.toInt()} s" },
-                    onValueChange = { trackingVm.setMinTime(it.toInt()) },
+                    onValueChange = { onMinTimeChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
                     enabled = customControlsEnabled,
                 )
@@ -209,7 +253,7 @@ fun TrackingSettingsScreen() {
                     valueRange = 10f..200f,
                     steps = 18,
                     valueLabel = { "${it.toInt()} m" },
-                    onValueChange = { trackingVm.setRequiredAccuracy(it.toInt()) },
+                    onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
                     enabled = customControlsEnabled,
                 )
@@ -218,28 +262,28 @@ fun TrackingSettingsScreen() {
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
                     checked = uiState.locationEnabled,
-                    onCheckedChange = { trackingVm.setLocationEnabled(it) },
+                    onCheckedChange = onLocationEnabledChanged,
                     enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
                     checked = uiState.activityEnabled,
-                    onCheckedChange = { trackingVm.setActivityEnabled(it) },
+                    onCheckedChange = onActivityEnabledChanged,
                     enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
                     checked = uiState.stepsEnabled,
-                    onCheckedChange = { trackingVm.setStepsEnabled(it) },
+                    onCheckedChange = onStepsEnabledChanged,
                     enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
                     checked = uiState.wifiEnabled,
-                    onCheckedChange = { trackingVm.setWifiEnabled(it) },
+                    onCheckedChange = onWifiEnabledChanged,
                     enabled = customControlsEnabled,
                 )
 
@@ -248,14 +292,14 @@ fun TrackingSettingsScreen() {
                     SwitchSettingsItem(
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
                         checked = uiState.wifiNetworkEnabled,
-                        onCheckedChange = { trackingVm.setWifiNetworkEnabled(it) },
+                        onCheckedChange = onWifiNetworkEnabledChanged,
                         enabled = customControlsEnabled,
                     )
 
                     SwitchSettingsItemWithHelp(
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
                         checked = uiState.wifiLocationCountEnabled,
-                        onCheckedChange = { trackingVm.setWifiLocationCountEnabled(it) },
+                        onCheckedChange = onWifiLocationCountEnabledChanged,
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count,
                         enabled = customControlsEnabled,
                     )
@@ -264,7 +308,7 @@ fun TrackingSettingsScreen() {
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
                     checked = uiState.cellEnabled,
-                    onCheckedChange = { trackingVm.setCellEnabled(it) },
+                    onCheckedChange = onCellEnabledChanged,
                     enabled = customControlsEnabled,
                 )
             }

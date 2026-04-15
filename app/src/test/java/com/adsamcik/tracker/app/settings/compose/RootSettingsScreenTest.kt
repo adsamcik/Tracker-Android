@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings.compose
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -55,35 +56,40 @@ class RootSettingsScreenTest {
         }
     }
 
+    private fun scrollTo(text: String) {
+        composeTestRule.onNode(hasScrollToNodeAction())
+            .performScrollToNode(hasText(text, substring = true))
+    }
+
     @Test
     fun displaysCoreSettingsGroup() {
         setContentWithDefaults()
+        composeTestRule.onNodeWithText("Core", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("Data", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun displaysModuleSettingsGroup() {
-        // Module settings group exists in the LazyColumn but may be off-screen.
-        // We verify the core group (which is always visible) instead.
         setContentWithDefaults()
-        composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+        scrollTo("Map")
+        composeTestRule.onNodeWithText("Map", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Game", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun displaysAboutSection() {
-        // The About section is far down in LazyColumn.
-        // Verify the first group card title is accessible instead.
         setContentWithDefaults()
-        composeTestRule.onNodeWithText("Data", substring = true).assertIsDisplayed()
+        scrollTo("Privacy Policy")
+        composeTestRule.onNodeWithText("About", substring = true).assertExists()
+        composeTestRule.onNodeWithText("Privacy Policy", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun debugGroupShownWhenEnabled() {
-        // Debug group is at the bottom of LazyColumn - might not be composed in test viewport
         setContentWithDefaults(showDebug = true, developerModeEnabled = true)
-        // Core settings should always render
-        composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+        scrollTo("Debug")
+        composeTestRule.onNodeWithText("Debug", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -112,23 +118,22 @@ class RootSettingsScreenTest {
     fun autoUnitSwitchToggleCallsCallback() {
         var newValue: Boolean? = null
         setContentWithDefaults(onAutoUnitSwitchChanged = { newValue = it })
-        composeTestRule.onNodeWithText("Auto", substring = true).performClick()
+        scrollTo("Automatic unit switching")
+        composeTestRule.onNodeWithText("Automatic unit switching", substring = true).performClick()
         newValue shouldBe true
     }
 
     @Test
     fun displaysVersionInfo() {
-        // Version info is at the bottom of LazyColumn - may not be in viewport.
-        // Verify visible content instead.
         setContentWithDefaults()
-        composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+        scrollTo("Version information")
+        composeTestRule.onNodeWithText("Version information", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun displaysLanguageSetting() {
-        // Language setting may be off-screen in LazyColumn under Robolectric.
-        // Verify the General settings group items that are visible.
         setContentWithDefaults()
-        composeTestRule.onNodeWithText("Auto", substring = true).assertIsDisplayed()
+        scrollTo("Application language")
+        composeTestRule.onNodeWithText("Application language", substring = true).assertIsDisplayed()
     }
 }
