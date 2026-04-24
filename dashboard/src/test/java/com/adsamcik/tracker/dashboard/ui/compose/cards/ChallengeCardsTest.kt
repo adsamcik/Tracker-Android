@@ -3,6 +3,7 @@ package com.adsamcik.tracker.dashboard.ui.compose.cards
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
@@ -61,8 +62,8 @@ class ChallengeCardsTest {
 			onClick = { clicked = true },
 		)
 
-		// Verify the card renders - click routing is through the card action
-		composeRule.onNodeWithText("Test Challenge").assertIsDisplayed()
+		composeRule.onNodeWithText("Test Challenge").performClick()
+		clicked shouldBe true
 	}
 
 	@Test
@@ -76,7 +77,7 @@ class ChallengeCardsTest {
 		)
 
 		composeRule.onNodeWithText("Long Challenge").assertIsDisplayed()
-		composeRule.onNodeWithText("2d", substring = true).assertExists()
+		composeRule.onNodeWithText("2d", substring = true).assertIsDisplayed()
 	}
 
 	@Test
@@ -90,7 +91,7 @@ class ChallengeCardsTest {
 		)
 
 		composeRule.onNodeWithText("Medium Challenge").assertIsDisplayed()
-		composeRule.onNodeWithText("3h", substring = true).assertExists()
+		composeRule.onNodeWithText("3h", substring = true).assertIsDisplayed()
 	}
 
 	@Test
@@ -104,7 +105,7 @@ class ChallengeCardsTest {
 		)
 
 		composeRule.onNodeWithText("Urgent Challenge").assertIsDisplayed()
-		composeRule.onNodeWithText("<1h", substring = true).assertExists()
+		composeRule.onNodeWithText("<1h", substring = true).assertIsDisplayed()
 	}
 
 	private fun setContent(challenges: List<ChallengeUiModel>, onClick: (() -> Unit)?) {

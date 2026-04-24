@@ -90,4 +90,26 @@ class ExplorationCardTest {
 
 		composeRule.onAllNodesWithText("Seasons").assertCountEquals(0)
 	}
+
+	@Test
+	fun withZeroCells_showsZeroValues() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				ExplorationCard(
+					explorationState = ExplorationUiState(
+						newCellsToday = 0,
+						totalCells = 0,
+						seasonsCovered = 0,
+						hasExplorationData = true,
+					),
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("Exploration").assertIsDisplayed()
+		composeRule.onAllNodesWithText("0").assertCountEquals(2)
+		composeRule.onNodeWithText("New today", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithText("Total cells", substring = true).assertIsDisplayed()
+		composeRule.onAllNodesWithText("Seasons").assertCountEquals(0)
+	}
 }

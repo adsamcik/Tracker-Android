@@ -38,7 +38,7 @@ class MotivationalTextTest {
 			in 17..21 -> "Good evening"
 			else -> "Night owl"
 		}
-		composeRule.onNodeWithText(expected, substring = true).assertExists()
+		composeRule.onNodeWithText(expected, substring = true).assertIsDisplayed()
 	}
 
 	@Test
@@ -54,6 +54,6 @@ class MotivationalTextTest {
 			}
 		}
 
-		composeRule.onNodeWithText("streak", substring = true).assertExists()
+		composeRule.onNodeWithText("streak", substring = true).assertIsDisplayed()
 	}
 }

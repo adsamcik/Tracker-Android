@@ -4,7 +4,9 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -53,6 +55,10 @@ class RecentTripsCardTest {
 		)
 
 		composeRule.onNodeWithText("Recent Trips").assertIsDisplayed()
+		// 2500m → "2.5 km" in metric
+		composeRule.onNodeWithText("km", substring = true).assertIsDisplayed()
+		// 1,800,000ms = 30 min → "30 m"
+		composeRule.onNodeWithText("30 m", substring = true).assertIsDisplayed()
 	}
 
 	@Test
@@ -76,7 +82,11 @@ class RecentTripsCardTest {
 			onTripClick = { clickedId = it },
 		)
 
-		composeRule.onNodeWithText("Recent Trips").assertIsDisplayed()
+		// Forward arrow is rendered when onTripClick is non-null
+		composeRule.onNodeWithContentDescription("View details").assertIsDisplayed()
+		// Click the trip row via the forward arrow
+		composeRule.onNodeWithContentDescription("View details").performClick()
+		clickedId shouldBe 42L
 	}
 
 	@Test
@@ -99,7 +109,7 @@ class RecentTripsCardTest {
 			onTripClick = null,
 		)
 
-		composeRule.onAllNodesWithContentDescription("Forward arrow", substring = true)
+		composeRule.onAllNodesWithContentDescription("View details")
 			.assertCountEquals(0)
 	}
 

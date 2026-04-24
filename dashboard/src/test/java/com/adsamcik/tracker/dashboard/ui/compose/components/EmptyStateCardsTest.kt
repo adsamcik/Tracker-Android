@@ -32,7 +32,7 @@ class EmptyStateCardsTest {
 	fun emptyStateStartHintCard_showsHintContent() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				EmptyStateStartHintCard()
+				EmptyStateStartHintCard(onStart = {}, hasPermission = true)
 			}
 		}
 

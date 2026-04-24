@@ -49,7 +49,7 @@ class DashboardLayoutDefaultsTest {
 				bottomInset = 10.dp,
 				isLandscape = true,
 			)
-			// LandscapeBottomBarClearance (96.dp) vs PillClearance (64.dp) -> max is 96.dp
+			// LandscapeBottomBarClearance (96.dp) vs PillClearance (112.dp) -> max is 112.dp
 			val expected = maxOf(96.dp, DashboardLayoutDefaults.PillClearance) + 10.dp
 			result shouldBe expected
 		}

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose.visualization
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -36,9 +37,7 @@ class GoalProgressRingsComposeTest {
 			}
 		}
 
-		composeRule.onAllNodesWithText("/", substring = true).fetchSemanticsNodes().let {
-			assert(it.isEmpty()) { "Nothing should render when gamification disabled" }
-		}
+		composeRule.onAllNodesWithText("/", substring = true).assertCountEquals(0)
 	}
 
 	@Test
@@ -56,9 +55,7 @@ class GoalProgressRingsComposeTest {
 			}
 		}
 
-		composeRule.onAllNodesWithText("/", substring = true).fetchSemanticsNodes().let {
-			assert(it.isEmpty()) { "Nothing should render when daily goal is zero" }
-		}
+		composeRule.onAllNodesWithText("/", substring = true).assertCountEquals(0)
 	}
 
 	// endregion
