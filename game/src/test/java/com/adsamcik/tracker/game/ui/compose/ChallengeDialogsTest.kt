@@ -44,6 +44,7 @@ class ChallengeDialogsTest {
 		composeRule.onNodeWithText("Walk five kilometers today").assertIsDisplayed()
 		composeRule.onNodeWithText("65% complete").assertIsDisplayed()
 		composeRule.onNodeWithText("Easy").assertIsDisplayed()
+		composeRule.onNodeWithText("1h 0m remaining").assertIsDisplayed()
 	}
 
 	@Test
@@ -157,5 +158,79 @@ class ChallengeDialogsTest {
 
 		composeRule.onNodeWithText("Close").performClick()
 		assertTrue(dismissed)
+	}
+
+	@Test
+	fun detailsDialog_viewTrophyCase_callsCallback() {
+		var trophyCaseClicked = false
+		val challenge = ChallengeUi(
+			id = 1L,
+			title = "Test",
+			description = "Test desc",
+			progress = 0.0f,
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				ChallengeDetailsDialog(
+					challenge = challenge,
+					onDismiss = {},
+					onViewTrophyCase = { trophyCaseClicked = true },
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("View Trophy Case").performClick()
+		assertTrue(trophyCaseClicked)
+	}
+
+	@Test
+	fun pickerDialog_selectingChallenge_callsCallback() {
+		var selectedId: Long? = null
+		val challenges = listOf(
+			ChallengeUi(
+				id = 42L,
+				title = "Walk 5km",
+				description = "Walk five km",
+				progress = 0.0f,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				ChallengePickerDialog(
+					challenges = challenges,
+					onDismiss = {},
+					onChallengeSelected = { selectedId = it.id },
+					onOpenTrophyCase = {},
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("Walk 5km").performClick()
+		assertTrue(selectedId == 42L)
+	}
+
+	@Test
+	fun detailsDialog_withDaysRemaining_showsFormattedTime() {
+		val challenge = ChallengeUi(
+			id = 1L,
+			title = "Long challenge",
+			description = "Takes days",
+			progress = 0.1f,
+			timeRemainingMs = 90_000_000L, // 1d 1h
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				ChallengeDetailsDialog(
+					challenge = challenge,
+					onDismiss = {},
+					onViewTrophyCase = {},
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("1d 1h remaining").assertIsDisplayed()
 	}
 }

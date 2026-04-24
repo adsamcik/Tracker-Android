@@ -89,6 +89,29 @@ internal fun WeeklyLeaderboardCard(
 
 			Spacer(modifier = Modifier.height(12.dp))
 
+			// Empty state: solo user with no ghosts is a hollow leaderboard. Show an onboarding
+			// nudge instead of the misleading "#1 of 1" rank text per Material 3 Expressive
+			// empty-state guidance.
+			val isSoloWithoutHistory = state.ghosts.isEmpty() &&
+				state.competitors.count { !it.isCurrentUser } == 0
+			if (isSoloWithoutHistory) {
+				Text(
+					text = stringResource(R.string.leaderboard_empty_title),
+					style = MaterialTheme.typography.titleMedium,
+					fontWeight = FontWeight.SemiBold,
+					color = MaterialTheme.colorScheme.onSurface,
+				)
+				Spacer(modifier = Modifier.height(4.dp))
+				Text(
+					text = stringResource(R.string.leaderboard_empty_body),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+				Spacer(modifier = Modifier.height(12.dp))
+				WeekProgressBar(fraction = state.weekProgressFraction)
+				return@Column
+			}
+
 			// Current rank
 			val rankText = stringResource(
 				R.string.leaderboard_rank,

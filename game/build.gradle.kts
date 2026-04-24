@@ -25,6 +25,10 @@ android {
 		}
 	}
 
+	sourceSets {
+		maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+	}
+
 	compileOptions {
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget

@@ -223,6 +223,8 @@
     <string name="leaderboard_no_data">Not enough data yet</string>
     <string name="leaderboard_you">You</string>
     <string name="leaderboard_current_week">This Week</string>
+    <string name="leaderboard_empty_title">No history to race yet</string>
+    <string name="leaderboard_empty_body">Complete at least one full week to unlock ghost competitors — they\'re made from your own past weeks.</string>
 
     <!-- Unlock feature display names -->
     <string name="unlock_feature_challenges">Challenges</string>
