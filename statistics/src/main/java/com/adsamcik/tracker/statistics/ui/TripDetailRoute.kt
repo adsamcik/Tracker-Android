@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -278,11 +281,12 @@ private fun TripOverview(
 		insights.maxAltitudeM.formatElevation(settings.lengthSystem)
 	}
 
+	val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 	Column(
 		modifier = Modifier
 			.fillMaxSize()
 			.verticalScroll(rememberScrollState())
-			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp),
+			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp + navBottom),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -645,7 +649,7 @@ private fun Double?.formatElevation(lengthSystem: LengthSystem): String {
 	return "${converted.roundToInt()} $unit"
 }
 
-private fun formatPace(
+internal fun formatPace(
 	distanceMeters: Double,
 	durationMs: Long,
 	lengthSystem: LengthSystem,
@@ -658,11 +662,12 @@ private fun formatPace(
 	if (unitDistance <= 0.0) return "—"
 
 	val totalSeconds = (durationMs / 1000.0 / unitDistance).roundToInt()
-	val minutes = totalSeconds / 60
-	val seconds = totalSeconds % 60
 	val unitLabel = when (lengthSystem) {
 		LengthSystem.Imperial -> "mi"
 		else -> "km"
 	}
+	if (totalSeconds == 0) return "< 0:01 / $unitLabel"
+	val minutes = totalSeconds / 60
+	val seconds = totalSeconds % 60
 	return String.format(Locale.getDefault(), "%d:%02d / %s", minutes, seconds, unitLabel)
 }

@@ -51,11 +51,11 @@ fun StatsRoute(
     val heatmapData by vm.heatmapData.collectAsState()
     val activeDateFilter by vm.activeDateFilter.collectAsState()
     val selectedDateRange = activeDateFilter?.let { formatDateRange(it.startMs, it.endMs) }
-    val selectedHeaderAction = when {
-        showSummaryDialog -> StatsHeaderAction.Summary
-        showWifiDialog -> StatsHeaderAction.Wifi
+    // Only Dates is a persistent filter and should reflect selected state; Summary/Wi-Fi are one-shot
+    // dialog launchers and must not look permanently activated when they're idle.
+    val selectedHeaderAction: StatsHeaderAction? = when {
         showDateRangeDialog || activeDateFilter != null -> StatsHeaderAction.Dates
-        else -> StatsHeaderAction.Summary
+        else -> null
     }
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {
