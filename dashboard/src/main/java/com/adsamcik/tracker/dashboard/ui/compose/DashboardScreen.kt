@@ -91,6 +91,7 @@ internal fun DashboardScreen(
 	val floatingActionBottomPadding = DashboardLayoutDefaults.floatingActionBottomPadding(
 		bottomInset = bottomInset,
 		isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+		navigationLayout = navigationLayout,
 	)
 
 	MilestoneHapticEffect(
@@ -151,13 +152,21 @@ internal fun DashboardScreen(
 					else -> !todayProgressInViewport
 				}
 				DashboardMode.TRACKING -> true
-				DashboardMode.EMPTY -> true
+				// In EMPTY state the EmptyStateStartHintCard is already the primary CTA — showing
+				// the floating pill on top of short static content caused visible overlap with the
+				// Quick-start card rows. Rely on the inline hint instead until the user has a
+				// TodayProgress widget worth anchoring the pill to.
+				DashboardMode.EMPTY -> false
 			}
 		}
 	}
 
 	Scaffold(
 		modifier = modifier,
+		// Consume no insets here: the outer NavHost/MainRoot reserves the floating nav-bar
+		// clearance itself, and we want the dashboard's background surface to extend all the
+		// way to the bottom of the screen rather than stopping above the system nav bar.
+		contentWindowInsets = WindowInsets(0, 0, 0, 0),
 		topBar = {
 			DashboardTopBar(
 				isTracking = state.isTracking,
@@ -170,6 +179,22 @@ internal fun DashboardScreen(
 			)
 		},
 		snackbarHost = { SnackbarHost(snackbarHostState) },
+		// Sticky tracking pill owns the floatingActionButton slot so M3 handles its position
+		// consistently above the Scaffold's content + bottom system insets. The pill itself
+		// carries its own visibility animation.
+		floatingActionButton = {
+			Box(modifier = Modifier.padding(bottom = floatingActionBottomPadding)) {
+				TrackingPill(
+					visible = showPill,
+					isTracking = state.isTracking,
+					hasPermission = state.hasLocationPermission,
+					sessionData = state.sessionData,
+					onToggleTracking = wrappedToggle,
+					onRequestPermission = wrappedPermission,
+				)
+			}
+		},
+		floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
 	) { paddingValues ->
 		Box(
 			modifier = Modifier
@@ -202,19 +227,6 @@ internal fun DashboardScreen(
 					onMapClick = onMapClick,
 				)
 			}
-
-			// Sticky tracking pill — appears when the inline ring scrolls away
-			TrackingPill(
-				visible = showPill,
-				isTracking = state.isTracking,
-				hasPermission = state.hasLocationPermission,
-				sessionData = state.sessionData,
-				onToggleTracking = wrappedToggle,
-				onRequestPermission = wrappedPermission,
-				modifier = Modifier
-					.align(Alignment.BottomCenter)
-					.padding(bottom = floatingActionBottomPadding),
-			)
 		}
 	}
 
@@ -246,8 +258,16 @@ private fun EmptyStateContent(
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
 		item { EmptyStateCard() }
+		// Put the start-tracking CTA right below the hero so the primary action is reachable
+		// without scrolling. GettingStartedCard is informational detail that can live below
+		// the fold.
+		item {
+			EmptyStateStartHintCard(
+				onStart = if (hasPermission) onToggleTracking else onRequestPermission,
+				hasPermission = hasPermission,
+			)
+		}
 		item { GettingStartedCard() }
-		item { EmptyStateStartHintCard() }
 	}
 }
 
