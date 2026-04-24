@@ -11,25 +11,27 @@ val DisplayFontFamily = FontFamily.Default
 val BodyFontFamily = FontFamily.Default
 
 val AppTypography = Typography(
+    // M3 spec: 57/45/36sp. Previous 64/52/44sp caused live speed HUDs like "12.4 km/h" to truncate on
+    // 360dp screens. Keeping the bolder Ridgeline weight for identity.
     displayLarge = TextStyle(
         fontFamily = DisplayFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 64.sp,
-        lineHeight = 72.sp,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
         letterSpacing = (-0.25).sp
     ),
     displayMedium = TextStyle(
         fontFamily = DisplayFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 52.sp,
-        lineHeight = 60.sp,
-        letterSpacing = (-0.25).sp
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+        letterSpacing = 0.sp
     ),
     displaySmall = TextStyle(
         fontFamily = DisplayFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 44.sp,
-        lineHeight = 52.sp,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
         letterSpacing = 0.sp
     ),
     headlineLarge = TextStyle(
