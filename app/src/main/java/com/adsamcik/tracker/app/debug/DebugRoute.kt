@@ -77,6 +77,9 @@ fun DebugRoute(onNavigateBack: () -> Unit = {}, viewModel: DebugViewModel = hilt
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
     Scaffold(
+        // Explicit opaque container so the push/pop nav transition doesn't bleed the
+        // previous Settings screen through during the animation.
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
                 title = { Text(text = ctx.getString(R.string.settings_debug_title)) },

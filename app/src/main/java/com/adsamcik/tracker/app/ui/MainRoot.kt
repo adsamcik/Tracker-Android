@@ -8,9 +8,12 @@ import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -294,9 +297,14 @@ fun MainRoot(
     val effectiveRouteObj = currentRouteObj ?: navItems.find { it.id == lastTopLevelRoute }
     val isDashboard = effectiveRouteObj?.id == Dashboard
     val isMap = effectiveRouteObj?.id == Map
+    // Tabs whose screens render their own Settings action in the TopAppBar — skip the
+    // global overlay gear for them to avoid the duplicate-icon UX bug.
+    val isGame = effectiveRouteObj?.id == Game
     val navigationLayout = rememberMainNavigationLayout()
     val useSideRail = navigationLayout == MainNavigationLayout.SideRail && !hideTopLevelNavigation && effectiveRouteObj != null
-    val bottomPadding = if (useSideRail || isMap || isDashboard) 0.dp else 96.dp // 72 bar + 24 padding
+    // 72 bar + 24 padding above bar = 96dp; add system nav-bar inset so content clears gesture handle on gesture-nav devices.
+    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomPadding = if (useSideRail || isMap || isDashboard) 0.dp else 96.dp + navBarInset
 
     fun openSettings(origin: AppRoute) {
         settingsLaunchNonce += 1
@@ -372,7 +380,9 @@ fun MainRoot(
             }
 
         // Global settings affordance for top-level tabs that do not render their own in-content entry point.
-        if (!hideTopLevelNavigation && effectiveRouteObj != null && !isDashboard) {
+        // Dashboard and Game already ship their own gear inside their TopAppBar; render this overlay only
+        // for Stats and Map so users never see two settings icons on the same screen.
+        if (!hideTopLevelNavigation && effectiveRouteObj != null && !isDashboard && !isGame) {
             IconButton(
                 onClick = {
                     openSettings((effectiveRouteObj.id as? AppRoute) ?: lastTopLevelRoute)

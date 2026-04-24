@@ -57,9 +57,11 @@ fun FloatingNavigationBar(
     modifier: Modifier = Modifier,
     hazeState: HazeState? = null
 ) {
+    // Horizontal inset to keep the pill inset from screen edges; vertical padding above is supplied by
+    // the caller via `navigationBarsPadding()` so we don't double up with the system nav-bar clearance.
     Box(
         modifier = modifier
-            .padding(horizontal = 24.dp, vertical = 24.dp)
+            .padding(horizontal = 24.dp, vertical = 12.dp)
             .fillMaxWidth(),
         contentAlignment = Alignment.BottomCenter
     ) {

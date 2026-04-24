@@ -20,7 +20,6 @@ internal fun NavGraphBuilder.dashboardGraph(
     onOpenChallenges: () -> Unit,
 ) {
     composable<Dashboard> {
-        val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         com.adsamcik.tracker.dashboard.ui.compose.DashboardRoute(
             onOpenSettings = onOpenSettings,
             onOpenMap = {
@@ -42,11 +41,12 @@ internal fun NavGraphBuilder.dashboardGraph(
                     launchSingleTop = true
                 }
             },
-            contentPadding = if (useSideRail) {
-                PaddingValues()
-            } else {
-                PaddingValues(bottom = 96.dp + navBarPad)
-            },
+            // No extra contentPadding: the DashboardScreen's Scaffold declares
+            // contentWindowInsets = WindowInsets(0) and the internal LazyColumn content applies
+            // its own nav-bar clearance via DashboardLayoutDefaults.contentBottomClearance.
+            // Injecting another 144dp here would shove the TrackingPill into the middle of the
+            // card stack and prevent the surface from reaching the bottom of the screen.
+            contentPadding = PaddingValues(),
         )
     }
 }

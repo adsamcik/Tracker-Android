@@ -60,9 +60,12 @@ internal fun NavGraphBuilder.statsGraph(
             tripId = route.tripId,
             onBack = {
                 if (!navController.popBackStack()) {
+                    // Keep the start destination on the stack so hardware BACK still pops
+                    // through Dashboard before exiting the app.
                     navController.navigate(getTripDetailFallbackRoute()) {
-                        popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 }
             },
