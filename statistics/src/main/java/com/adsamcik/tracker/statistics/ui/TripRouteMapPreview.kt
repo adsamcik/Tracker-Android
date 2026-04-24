@@ -128,7 +128,8 @@ fun TripRouteMapPreview(
 		if (routeCoords.size >= 2) {
 			val avgLat = routeCoords.map { it.lat }.average()
 			val avgLng = routeCoords.map { it.lng }.average()
-			CameraPosition(target = Position(avgLat, avgLng), zoom = 12.0)
+			// GeoJSON / MapLibre Position is (longitude, latitude) — NOT (lat, lng).
+			CameraPosition(target = Position(avgLng, avgLat), zoom = 12.0)
 		} else {
 			CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
 		}
