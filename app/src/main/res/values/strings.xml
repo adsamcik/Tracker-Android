@@ -127,6 +127,7 @@
     <string name="settings_licenses_loading">Loading licenses…</string>
     <string name="settings_licenses_unavailable">Couldn’t load bundled third-party license data.</string>
     <string name="settings_licenses_variant_unavailable">This build variant does not bundle generated license data. Use a release-like build to view third-party licenses.</string>
+    <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>

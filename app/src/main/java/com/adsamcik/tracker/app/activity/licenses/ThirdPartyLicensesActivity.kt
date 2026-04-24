@@ -142,6 +142,22 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
         }
 
         selectedNotice?.let { notice ->
+            val licenseText = remember(notice) {
+                notice.license?.readFullTextFromResources(context).orEmpty().trim()
+            }
+            // The oss-licenses-plugin sometimes stores a URL (e.g.
+            // https://api.github.com/licenses/apache-2.0) as the license "full text" when it
+            // couldn't fetch the canonical SPDX body. Detect that shape so we can render a
+            // friendlier fallback instead of a one-line dialog with just a URL.
+            val licenseIsUrlOnly = remember(licenseText) {
+                licenseText.isNotEmpty() &&
+                    licenseText.lineSequence().all { it.isBlank() || it.trim().isHttpUrl() }
+            }
+            val resolvedLicenseName = notice.license?.getName().orEmpty().ifBlank {
+                inferLicenseNameFromUrl(licenseText)
+                    ?: inferLicenseNameFromUrl(notice.url.orEmpty())
+                    ?: ""
+            }
             AlertDialog(
                 onDismissRequest = { selectedNotice = null },
                 confirmButton = {
@@ -164,6 +180,13 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
+                            if (resolvedLicenseName.isNotBlank()) {
+                                Text(
+                                    text = resolvedLicenseName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                             notice.url?.takeIf { it.isNotBlank() }?.let {
                                 Text(
                                     text = it,
@@ -171,14 +194,47 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            Text(
-                                text = notice.license?.readFullTextFromResources(context).orEmpty(),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            when {
+                                licenseText.isEmpty() -> Text(
+                                    text = stringResource(R.string.settings_licenses_unavailable),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                licenseIsUrlOnly -> Text(
+                                    text = stringResource(R.string.settings_licenses_text_at_url, licenseText),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                else -> Text(
+                                    text = licenseText,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                 }
             )
+        }
+    }
+
+    private fun String.isHttpUrl(): Boolean {
+        return startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
+    }
+
+    private fun inferLicenseNameFromUrl(url: String): String? {
+        val lower = url.lowercase(Locale.getDefault())
+        return when {
+            "apache-2.0" in lower || "apache2" in lower -> "Apache License 2.0"
+            "mit" in lower -> "MIT License"
+            "bsd-3" in lower -> "BSD 3-Clause License"
+            "bsd-2" in lower -> "BSD 2-Clause License"
+            "gpl-3" in lower -> "GNU GPL v3"
+            "gpl-2" in lower -> "GNU GPL v2"
+            "lgpl-3" in lower -> "GNU LGPL v3"
+            "lgpl-2" in lower -> "GNU LGPL v2.1"
+            "epl-2" in lower -> "Eclipse Public License 2.0"
+            "mpl-2" in lower -> "Mozilla Public License 2.0"
+            else -> null
         }
     }
 
