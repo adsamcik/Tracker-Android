@@ -6,8 +6,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 
 internal object DashboardLayoutDefaults {
-	/** Height of the tracking pill plus spacing below content. */
-	val PillClearance = 64.dp
+	/** Height of the tracking pill (96dp) plus the floating-action margin (16dp). */
+	val PillClearance = 112.dp
 	private val LandscapeBottomBarClearance = 96.dp
 	private val FloatingActionMargin = 16.dp
 
@@ -23,16 +23,22 @@ internal object DashboardLayoutDefaults {
 			} else {
 				AppDimensions.FloatingNavBarClearance
 			}
-			maxOf(navigationClearance, PillClearance) + bottomInset
+			// Reserve space for BOTH the floating nav bar *and* the TrackingPill that sits
+			// above it, so cards in the scrollable list never slide up behind the pill.
+			navigationClearance + PillClearance + bottomInset
 		}
 	}
 
 	fun floatingActionBottomPadding(
 		bottomInset: Dp = 0.dp,
 		isLandscape: Boolean = false,
-	): Dp = if (isLandscape) {
-		LandscapeBottomBarClearance + bottomInset
-	} else {
-		FloatingActionMargin + bottomInset
+		navigationLayout: MainNavigationLayout = MainNavigationLayout.BottomBar,
+	): Dp = when {
+		isLandscape -> LandscapeBottomBarClearance + bottomInset
+		navigationLayout == MainNavigationLayout.SideRail -> FloatingActionMargin + bottomInset
+		// Pill anchors to screen bottom (Scaffold uses contentWindowInsets = WindowInsets(0)
+		// so its content Box extends below the system nav bar). Stack: system nav inset
+		// (bottomInset) + floating nav-bar clearance (120dp) + margin above it (16dp).
+		else -> AppDimensions.FloatingNavBarClearance + FloatingActionMargin + bottomInset
 	}
 }

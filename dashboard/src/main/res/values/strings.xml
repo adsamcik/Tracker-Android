@@ -146,7 +146,7 @@
     <string name="dashboard_empty_step_review_title">Review maps and stats</string>
     <string name="dashboard_empty_step_review_desc">After your first session, the Dashboard, Map, and Statistics tabs will fill with recent activity and insights.</string>
     <string name="dashboard_empty_fab_hint_title">Ready when you are</string>
-    <string name="dashboard_empty_fab_hint_desc">Use the action button in the bottom-right corner to start tracking as soon as location access is granted.</string>
+    <string name="dashboard_empty_fab_hint_desc">Tap here to start your first tracking session once location access is granted.</string>
 
     <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Today\'s Progress</string>

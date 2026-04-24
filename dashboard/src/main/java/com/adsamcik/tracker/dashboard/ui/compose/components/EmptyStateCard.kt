@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -225,8 +226,13 @@ internal fun GettingStartedCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun EmptyStateStartHintCard(modifier: Modifier = Modifier) {
+internal fun EmptyStateStartHintCard(
+	onStart: () -> Unit,
+	hasPermission: Boolean,
+	modifier: Modifier = Modifier,
+) {
 	Card(
+		onClick = onStart,
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -240,12 +246,15 @@ internal fun EmptyStateStartHintCard(modifier: Modifier = Modifier) {
 			verticalAlignment = Alignment.CenterVertically,
 		) {
 			Icon(
-				imageVector = Icons.Default.LocationSearching,
+				imageVector = if (hasPermission) Icons.Filled.PlayArrow else Icons.Default.LocationSearching,
 				contentDescription = null,
 				tint = MaterialTheme.colorScheme.onSecondaryContainer,
 				modifier = Modifier.size(28.dp),
 			)
-			Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+			Column(
+				modifier = Modifier.weight(1f),
+				verticalArrangement = Arrangement.spacedBy(4.dp),
+			) {
 				Text(
 					text = stringResource(R.string.dashboard_empty_fab_hint_title),
 					style = MaterialTheme.typography.titleMedium,
@@ -258,6 +267,12 @@ internal fun EmptyStateStartHintCard(modifier: Modifier = Modifier) {
 					color = MaterialTheme.colorScheme.onSecondaryContainer,
 				)
 			}
+			Icon(
+				imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+				contentDescription = null,
+				tint = MaterialTheme.colorScheme.onSecondaryContainer,
+				modifier = Modifier.size(24.dp),
+			)
 		}
 	}
 }
