@@ -121,8 +121,11 @@ private fun ChallengeCard(
 					Modifier
 				},
 			),
+		// Challenges read as informational goals — secondaryContainer feels inviting without
+		// competing with the hero's primaryContainer.
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = MaterialTheme.colorScheme.secondaryContainer,
+			contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
 		),
 		shape = MaterialTheme.shapes.large,
 	) {
@@ -229,7 +232,8 @@ private fun EmptyChallengeCard(
 				},
 			),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = MaterialTheme.colorScheme.secondaryContainer,
+			contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
 		),
 		shape = MaterialTheme.shapes.large,
 	) {

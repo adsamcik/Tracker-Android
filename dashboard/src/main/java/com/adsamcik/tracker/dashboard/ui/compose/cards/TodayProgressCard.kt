@@ -58,12 +58,15 @@ internal fun TodayProgressCard(
 		MaterialTheme.typography.displaySmall
 	}
 
+	// Hero card — primaryContainer gives it visual weight vs the rest of the dashboard widgets.
+	// Use the larger shape bucket so it feels like the anchor widget.
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = MaterialTheme.colorScheme.primaryContainer,
+			contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = MaterialTheme.shapes.extraLarge,
 	) {
 		Row(
 			modifier = Modifier

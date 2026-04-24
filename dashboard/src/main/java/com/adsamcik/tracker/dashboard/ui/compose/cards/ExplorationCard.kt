@@ -39,10 +39,12 @@ internal fun ExplorationCard(
 ) {
 	if (!explorationState.hasExplorationData) return
 
+	// Exploration has a gamification feel — tertiaryContainer aligns with trophy/achievement tone.
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+			contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
 		),
 		shape = MaterialTheme.shapes.large,
 	) {
