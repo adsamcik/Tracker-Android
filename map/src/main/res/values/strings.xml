@@ -54,6 +54,9 @@
     <string name="map_layer_wifi_heatmap_medium">Medium density</string>
     <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
     <string name="map_legend_title">%s legend</string>
+    <string name="map_legend_label">Legend</string>
+    <string name="map_chip_layers">Layer</string>
+    <string name="map_chip_dates">Dates</string>
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
     <string name="map_search">Search…</string>
     <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
@@ -88,7 +91,7 @@
     <string name="tips_map_sheet_title">More options</string>
 
     <!-- Map Sheet Controls -->
-    <string name="map_search_placeholder">Go to coordinates (e.g., 48.8566, 2.3522)</string>
+    <string name="map_search_placeholder">Search place or lat, lng</string>
     <string name="map_search_hint">Lat, Lng  •  e.g. 48.8566, 2.3522</string>
     <string name="map_search_invalid_format">Try 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Clear search</string>

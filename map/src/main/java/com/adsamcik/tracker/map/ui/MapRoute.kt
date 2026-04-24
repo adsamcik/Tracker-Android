@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +22,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
+import com.adsamcik.tracker.map.ui.controls.MapChromeHost
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 
@@ -79,6 +83,10 @@ fun MapRoute(
     var extraBottomPadding by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Read real status-bar height instead of hard-coding 72dp so the Map badge/loading indicator never
+    // clip behind a tall status bar (large-font / cutout / always-on displays).
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Box(Modifier.fillMaxSize()) {
         val finalBottomPadding = maxOf(bottomPaddingPx, extraBottomPadding)
 
@@ -88,10 +96,10 @@ fun MapRoute(
             overlayMode = false,
             bottomPaddingPx = finalBottomPadding,
             isLocationPermissionGranted = hasPermission,
-            topInsetPadding = 72.dp,
+            topInsetPadding = statusBarTop + 16.dp,
         )
 
-        MapSheet(
+        MapChromeHost(
             registry = registry,
             store = store,
             snackbarHostState = snackbarHostState,

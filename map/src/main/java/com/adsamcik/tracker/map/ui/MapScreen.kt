@@ -259,7 +259,8 @@ fun MapScreen(
         val saved = state.camera
         if (saved.zoom > 0f) {
             CameraPosition(
-                target = Position(saved.lat, saved.lng),
+                // GeoJSON / MapLibre Position is (longitude, latitude) — NOT (lat, lng).
+                target = Position(saved.lng, saved.lat),
                 zoom = saved.zoom.toDouble(),
                 tilt = saved.tilt.toDouble(),
                 bearing = saved.bearing.toDouble(),
@@ -348,11 +349,8 @@ fun MapScreen(
             )
         }
 
-        MapTitleBadge(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = topInsetPadding + 16.dp, start = 16.dp, end = 16.dp),
-        )
+        // Nav bar already labels this tab "Map" — a duplicate "Map" chip over the map was
+        // noise; the content is unmistakably a map.
 
         androidx.compose.animation.AnimatedVisibility(
             visible = isMapLoading,
@@ -769,25 +767,6 @@ private fun buildHeatmapColorExpr(
 }
 
 private fun Float.toNumber(): Number = this
-
-@Composable
-private fun MapTitleBadge(
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        tonalElevation = 3.dp,
-        shadowElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-    ) {
-        Text(
-            text = stringResource(com.adsamcik.tracker.map.R.string.module_map_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        )
-    }
-}
 
 /**
  * Custom Compose scale bar that respects the user's [LengthSystem] preference.
