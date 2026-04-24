@@ -147,11 +147,8 @@ fun StatsScreen(
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Text(
-            text = stringResource(R.string.module_statistics_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
-        )
+        // Nav bar already labels this tab "Statistics" — skip a duplicate screen-level title
+        // and let the header action chips sit directly at the top.
         Box(modifier = Modifier.weight(1f)) {
             when (refreshState) {
                 RefreshUiState.Loading -> LoadingState()
@@ -392,60 +389,79 @@ private fun HeaderActions(
     val weekLabel = stringResource(R.string.stats_filter_dates)
     val wifiLabel = stringResource(R.string.stats_wifi_chip_label)
     val scrollState = rememberScrollState()
-    
+
+    // Summary and Wi-Fi are one-shot actions (they open a dialog and return to this screen);
+    // Dates is a persistent filter that remains visibly selected while the filter is applied.
+    // Using AssistChip for the actions + FilterChip for the filter gives TalkBack and sighted users
+    // the correct affordance per Material 3 Expressive.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionChip(
+        ActionAssistChip(
             onClick = onShowSummary,
             icon = Icons.Filled.Summarize,
             label = summaryLabel,
-            isSelected = selectedAction == StatsHeaderAction.Summary,
         )
-        ActionChip(
+        ActionFilterChip(
             onClick = onShowWeek,
             icon = Icons.Filled.CalendarMonth,
             label = weekLabel,
             isSelected = selectedAction == StatsHeaderAction.Dates,
         )
-        ActionChip(
+        ActionAssistChip(
             onClick = onOpenWifi,
             icon = Icons.Filled.Wifi,
             label = wifiLabel,
-            isSelected = selectedAction == StatsHeaderAction.Wifi,
         )
     }
 }
 
 @Composable
-private fun ActionChip(
+private fun ActionAssistChip(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.material3.AssistChip(
+        modifier = modifier,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+        },
+    )
+}
+
+@Composable
+private fun ActionFilterChip(
     onClick: () -> Unit,
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val selectedContainer = MaterialTheme.colorScheme.secondaryContainer
+    val selectedContent = MaterialTheme.colorScheme.onSecondaryContainer
 
     FilterChip(
-        modifier = modifier
-            .height(56.dp)
-            .semantics {
-                selected = isSelected
-            },
+        modifier = modifier.semantics { selected = isSelected },
         selected = isSelected,
         onClick = onClick,
         label = {
@@ -465,12 +481,9 @@ private fun ActionChip(
             )
         },
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = containerColor,
-            selectedLabelColor = contentColor,
-            selectedLeadingIconColor = contentColor,
-            containerColor = containerColor,
-            labelColor = contentColor,
-            iconColor = if (isSelected) contentColor else MaterialTheme.colorScheme.primary,
+            selectedContainerColor = selectedContainer,
+            selectedLabelColor = selectedContent,
+            selectedLeadingIconColor = selectedContent,
         ),
     )
 }

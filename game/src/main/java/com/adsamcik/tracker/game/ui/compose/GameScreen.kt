@@ -131,13 +131,10 @@ fun GameScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         topBar = {
+            // Nav bar already labels this tab "Game" — drop the duplicate title, keep only the
+            // settings action so the screen reads as content-first.
             TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.module_game_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                },
+                title = {},
                 actions = {
                     IconButton(
                         onClick = onOpenSettings,
