@@ -7,8 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -104,11 +107,12 @@ internal fun RootSettingsContent(
     val context = LocalContext.current
     var showPrivacyPolicy by remember { mutableStateOf(false) }
 
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface),
-        contentPadding = PaddingValues(bottom = 16.dp)
+        contentPadding = PaddingValues(bottom = 16.dp + navBottom)
     ) {
         // Core settings group
         item {
@@ -325,6 +329,18 @@ internal fun RootSettingsContent(
                 context.resources.openRawResource(R.raw.privacy_policy)
                     .bufferedReader()
                     .use { it.readText() }
+                    // The dialog already shows a "Privacy Policy" title, so drop the redundant
+                    // leading `# Privacy Policy` H1 from the markdown source if present.
+                    .let { raw ->
+                        raw.trimStart().let { trimmed ->
+                            val firstNewline = trimmed.indexOf('\n')
+                            if (firstNewline > 0 && trimmed.startsWith("# ")) {
+                                trimmed.substring(firstNewline + 1).trimStart()
+                            } else {
+                                trimmed
+                            }
+                        }
+                    }
             } catch (_: Exception) {
                 null
             }
@@ -335,7 +351,9 @@ internal fun RootSettingsContent(
                 title = { Text(stringResource(R.string.settings_privacy_policy_title)) },
                 text = {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        Text(text = privacyText)
+                        com.adsamcik.tracker.shared.utils.style.compose.MarkdownText(
+                            markdown = privacyText,
+                        )
                     }
                 },
                 confirmButton = {
