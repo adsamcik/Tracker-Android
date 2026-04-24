@@ -45,7 +45,12 @@ open class SpeedHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "speed"
         )
-        return repo.queryWeighted(query, "speed").first()
+        // `speed` is m/s. 30 m/s ≈ 108 km/h which is a reasonable fast-car cap; above that we
+        // clamp to full-red. Normalize raw m/s to [0, 1] so the color ramp maps meaningfully and
+        // MapLibre's `heatmap-weight` doesn't saturate on the first sample.
+        return repo.queryWeighted(query, "speed").first().map { feature ->
+            feature.copy(weight = (feature.weight / MAX_SPEED_MPS).coerceIn(0.0, 1.0))
+        }
     }
 
     override fun processData(
@@ -55,6 +60,8 @@ open class SpeedHeatmapLayer(
         val cellSize = GridAggregator.cellSizeForZoom(zoom)
 
         val processed = if (cellSize > 0.0) {
+            // For speed we want the average per cell (not count), so keep GridAggregator's
+            // averaging semantics — but weights are now already normalized to [0, 1].
             val cells = GridAggregator.aggregate(input, cellSize)
             GridAggregator.toWeightedFeatures(cells)
         } else {
@@ -66,5 +73,10 @@ open class SpeedHeatmapLayer(
             }
         }
         return GeoJsonConverter.pointsToFeatureCollection(processed)
+    }
+
+    private companion object {
+        // 30 m/s ≈ 108 km/h — above this we saturate to the hottest color bucket (car/transport).
+        const val MAX_SPEED_MPS: Double = 30.0
     }
 }

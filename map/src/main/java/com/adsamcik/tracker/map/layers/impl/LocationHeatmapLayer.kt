@@ -22,9 +22,14 @@ open class LocationHeatmapLayer(
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
+    // Five-stop ramp: transparent-blue → green → yellow → orange → red. Gives perceptual headroom so
+    // that moderate-density areas stay cool rather than jumping straight to red.
     override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to Color.BLUE,
-        0.5f to Color.YELLOW,
+        0.0f to Color.argb(0, 0, 0, 255),
+        0.2f to Color.rgb(0, 120, 255),
+        0.45f to Color.rgb(0, 200, 120),
+        0.7f to Color.YELLOW,
+        0.9f to Color.rgb(255, 140, 0),
         1.0f to Color.RED
     )
 
@@ -42,7 +47,15 @@ open class LocationHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "hor_acc"
         )
-        return repo.queryWeighted(query, "hor_acc").first()
+        // `hor_acc` is GPS accuracy in meters (5–50+). Lower = more accurate. Invert and clamp
+        // to [0, 1] so each point contributes a normalized weight to the heatmap; high-accuracy
+        // fixes get weight ~0.9, poor fixes ~0.0. Without this, raw meter values (5–50) fed to
+        // MapLibre's `heatmap-weight` saturate the color ramp on the very first sample.
+        return repo.queryWeighted(query, "hor_acc").first().map { feature ->
+            feature.copy(
+                weight = (1.0 - feature.weight / MAX_ACCURACY_METERS).coerceIn(0.0, 1.0)
+            )
+        }
     }
 
     override fun processData(
@@ -52,8 +65,23 @@ open class LocationHeatmapLayer(
         val cellSize = GridAggregator.cellSizeForZoom(zoom)
 
         val processed = if (cellSize > 0.0) {
+            // Aggregate, then re-weight each cell by visit count (normalized by max). This
+            // surfaces true density hotspots instead of averaging per-point accuracy across
+            // cells (which flattened the signal).
             val cells = GridAggregator.aggregate(input, cellSize)
-            GridAggregator.toWeightedFeatures(cells)
+            val maxCount = cells.maxOfOrNull { it.count } ?: 1
+            if (maxCount <= 0) {
+                emptyList()
+            } else {
+                cells.map { cell ->
+                    WeightedGeoFeature(
+                        lat = cell.lat,
+                        lon = cell.lon,
+                        time = cell.newestTime,
+                        weight = (cell.count.toDouble() / maxCount.toDouble()).coerceIn(0.0, 1.0),
+                    )
+                }
+            }
         } else {
             if (input.size > budgets.maxPoints) {
                 val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
@@ -63,5 +91,11 @@ open class LocationHeatmapLayer(
             }
         }
         return GeoJsonConverter.pointsToFeatureCollection(processed)
+    }
+
+    private companion object {
+        // Accuracy above this (meters) yields a weight of 0. Calibrated against typical mobile
+        // GPS: 5 m (excellent) → 0.9, 25 m (mediocre) → 0.5, 50 m (poor) → 0.0.
+        const val MAX_ACCURACY_METERS: Double = 50.0
     }
 }
