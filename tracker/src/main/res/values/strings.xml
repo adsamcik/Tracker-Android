@@ -30,6 +30,7 @@
     <string name="description_tracking_lock">Lock disabling button</string>
     <string name="description_tracking_start">Start tracking button</string>
     <string name="description_tracking_stop">Stop tracking button</string>
+    <string name="description_tracking_start_no_permission">Start tracking — permission required</string>
     <string name="description_points_today">Points earned today: %s</string>
     <string name="description_copy">Copy value</string>
     <string name="description_copied">Value copied</string>

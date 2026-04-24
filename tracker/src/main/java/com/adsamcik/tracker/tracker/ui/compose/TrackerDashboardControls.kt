@@ -119,6 +119,10 @@ internal fun TrackingFAB(
     val primaryColor = MaterialTheme.colorScheme.primary
     val errorColor = MaterialTheme.colorScheme.error
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+
+    val fabStartDesc = stringResource(R.string.description_tracking_start)
+    val fabStopDesc = stringResource(R.string.description_tracking_stop)
+    val fabNoPermissionDesc = stringResource(R.string.description_tracking_start_no_permission)
     
     val containerColor = when {
         !hasPermission -> surfaceVariant
@@ -178,9 +182,9 @@ internal fun TrackingFAB(
                 .testTag("tracking_fab")
                 .semantics {
                     contentDescription = when {
-                        !hasPermission -> "Start tracking - permission required"
-                        isTracking -> "Stop tracking"
-                        else -> "Start tracking"
+                        !hasPermission -> fabNoPermissionDesc
+                        isTracking -> fabStopDesc
+                        else -> fabStartDesc
                     }
                 }
         ) {
@@ -232,15 +236,17 @@ internal fun TrackingFAB(
 @Composable
 internal fun LockBanner(onClick: () -> Unit) {
     val context = LocalContext.current
+    // Card(onClick = ...) provides proper Role.Button semantics + ripple; raw Modifier.clickable
+    // on an inner Row would be announced as non-interactive to TalkBack.
     Card(
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.testTag("lock_banner")
+        modifier = Modifier
+            .testTag("lock_banner")
+            .semantics { contentDescription = context.getString(R.string.description_recharge_settings) }
     ) {
         Row(
-            Modifier
-                .clickable { onClick() }
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .semantics { contentDescription = context.getString(R.string.description_recharge_settings) },
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {

@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.tracker.component.consumer
 
 import android.content.Context
+import android.location.Location
+import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import io.kotest.matchers.floats.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -16,6 +20,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Regression tests for [SessionTrackerComponent] empty-session guard.
@@ -25,6 +32,8 @@ import org.junit.jupiter.api.Test
  *
  * See bug: "Empty Sessions Saved During Rapid Start/Stop".
  */
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 @DisplayName("SessionTrackerComponent")
 class SessionTrackerComponentTest {
 
@@ -210,6 +219,123 @@ class SessionTrackerComponentTest {
 			coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 			// session.id = 42 > 0 → update (segment was pre-inserted in initializeSession)
 			coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+		}
+	}
+
+	@Nested
+	@DisplayName("teleport distance leakage prevention (FIX-001a)")
+	inner class TeleportDistanceLeakage {
+
+		/**
+		 * Helper to create a [TrackingCycle] with precomputed distance in [LocationData],
+		 * simulating what LocationCollectionTrigger produces.
+		 */
+		private fun cycleWithDistance(
+			lat: Double,
+			lon: Double,
+			prevLat: Double,
+			prevLon: Double,
+			timeMs: Long = 1000L,
+			elapsedNanos: Long = 1_000_000_000_000L,
+		): TrackingCycle {
+			val loc = Location("test").apply {
+				latitude = lat; longitude = lon
+				time = timeMs; elapsedRealtimeNanos = elapsedNanos
+			}
+			val prev = Location("test").apply {
+				latitude = prevLat; longitude = prevLon
+				time = timeMs - 1000L
+				elapsedRealtimeNanos = elapsedNanos - 1_000_000_000L
+			}
+			val distance = loc.distanceTo(prev)
+			val locationData = LocationData(
+				locations = listOf(loc),
+				previousLocation = prev,
+				distance = distance,
+			)
+			return TrackingCycle(
+				timestampMs = timeMs,
+				elapsedRealtimeNanos = elapsedNanos,
+				location = locationData,
+			)
+		}
+
+		@Test
+		@DisplayName("teleport jump distance is NOT accumulated when location rejected")
+		fun teleportDistanceNotAccumulated() = runTest {
+			val component = createComponent()
+			val session = emptySession(id = 1L)
+			setSession(component, session)
+
+			// Cycle with huge teleport distance (~5,500 km from (0,0) to Prague)
+			// collectionData.location is null => LocationTrackerComponent rejected it
+			val cycle = cycleWithDistance(
+				lat = 50.08, lon = 14.42,
+				prevLat = 0.0, prevLon = 0.0,
+			)
+			val collectionData = MutableCollectionData(1000L)
+			// Do NOT set collectionData.location — simulates teleport rejection
+
+			component.onDataUpdated(cycle, collectionData)
+
+			session.distanceInM shouldBe 0f
+		}
+
+		@Test
+		@DisplayName("normal movement distance IS accumulated when location accepted")
+		fun normalDistanceAccumulated() = runTest {
+			val component = createComponent()
+			val session = emptySession(id = 1L)
+			setSession(component, session)
+
+			// Small movement: ~100m
+			val cycle = cycleWithDistance(
+				lat = 50.0884, lon = 14.4213,
+				prevLat = 50.0875, prevLon = 14.4213,
+			)
+			val collectionData = MutableCollectionData(1000L)
+			// Simulate LocationTrackerComponent accepting the point
+			collectionData.setLocation(cycle.location!!.lastLocation)
+
+			component.onDataUpdated(cycle, collectionData)
+
+			session.distanceInM shouldBeGreaterThan 0f
+		}
+
+		@Test
+		@DisplayName("mixed sequence: teleport then normal produces only normal distance")
+		fun mixedSequenceOnlyNormalDistance() = runTest {
+			val component = createComponent()
+			val session = emptySession(id = 1L)
+			setSession(component, session)
+
+			// First: teleport (rejected — collectionData.location is null)
+			val teleportCycle = cycleWithDistance(
+				lat = 50.08, lon = 14.42,
+				prevLat = 0.0, prevLon = 0.0,
+			)
+			component.onDataUpdated(
+				teleportCycle,
+				MutableCollectionData(1000L), // location NOT set — simulates rejection
+			)
+			session.distanceInM shouldBe 0f
+
+			// Second: normal movement (accepted — collectionData.location set)
+			val normalCycle = cycleWithDistance(
+				lat = 50.0884, lon = 14.4213,
+				prevLat = 50.0875, prevLon = 14.4213,
+				timeMs = 6000L,
+				elapsedNanos = 1_000_000_000_000L + 5_000_000_000L,
+			)
+			val normalData = MutableCollectionData(6000L)
+			normalData.setLocation(normalCycle.location!!.lastLocation)
+			component.onDataUpdated(normalCycle, normalData)
+
+			// Distance should be ~100m, NOT ~5,500,000m + 100m
+			session.distanceInM shouldBeGreaterThan 0f
+			assert(session.distanceInM < 1000f) {
+				"Expected < 1km but got ${session.distanceInM}m — teleport distance leaked"
+			}
 		}
 	}
 }

@@ -376,7 +376,23 @@ internal class TrackingOrchestrator(
 	}
 
 	private suspend fun destroyComponents(context: Context) {
-		// Stop the stats ProcessorPipeline first (final flush + event delivery)
+		// Finalize session data BEFORE stopping the pipeline. The pipeline's
+		// stop() calls AggregatorProcessor.onStop() which emits SessionEnded.
+		// Downstream consumers (ChallengeWorker, AchievementWorker,
+		// DailySummaryMaterializationWorker) read session_segment rows after
+		// receiving SessionEnded, so the final row must already be persisted.
+		sessionComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable session component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
+		sessionComponent = null
+
+		// Stop the stats ProcessorPipeline (final flush + SessionEnded delivery)
 		try {
 			processorPipeline?.stop()
 		} catch (e: CancellationException) {
@@ -442,16 +458,6 @@ internal class TrackingOrchestrator(
 		}
 		skiTrackingComponent = null
 		skiSegmentWriter = null
-		sessionComponent?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable session component during shutdown: ${component::class.simpleName}", e)
-			}
-		}
-		sessionComponent = null
 
 		// Materialize daily summary from session segments now that the session
 		// component has saved its final segment to the database.

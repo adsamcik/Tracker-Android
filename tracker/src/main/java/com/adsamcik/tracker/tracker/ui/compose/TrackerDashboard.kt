@@ -26,9 +26,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -253,7 +256,7 @@ private fun MilestoneHapticEffect(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun TrackerTopBar(
+internal fun TrackerTopBar(
     isTracking: Boolean,
     isLocked: Boolean,
     policyTier: PolicyTier = PolicyTier.OFF,
@@ -341,7 +344,13 @@ private fun TrackerTopBar(
             )
 
             if (isTracking) {
+                // Recording is an active state, not a loading state. A determinate full band with
+                // the error color communicates "live recording" without abusing the M3 loading
+                // indicator (which would announce "loading" to TalkBack).
                 LinearProgressIndicator(
+                    progress = { 1f },
+                    color = MaterialTheme.colorScheme.error,
+                    trackColor = MaterialTheme.colorScheme.error,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp)
@@ -633,7 +642,10 @@ private fun TrackingContent(
                 }
             }
 
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) { Spacer(Modifier.height(140.dp)) }
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) {
+                val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                Spacer(Modifier.height(140.dp + navInset))
+            }
         }
     }
 }

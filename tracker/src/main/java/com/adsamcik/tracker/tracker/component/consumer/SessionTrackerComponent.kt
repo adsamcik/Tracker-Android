@@ -72,7 +72,11 @@ internal class SessionTrackerComponent(
 				if (locationData != null) {
 					collectedLocationCount++
 				}
-				val distance = locationData?.distance
+				// Only accumulate distance when LocationTrackerComponent accepted
+				// the point (set collectionData.location). Rejected teleport jumps
+				// leave collectionData.location null, preventing inflated distance.
+				val locationAccepted = collectionData.location != null
+				val distance = if (locationAccepted) locationData?.distance else null
 				distance?.let {
 					distanceInM += it
 
