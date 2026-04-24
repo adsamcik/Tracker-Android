@@ -146,7 +146,22 @@ __pycache__/
 # Agent / session artifacts
 ############################################################
 .agent/
+.claude/
+.copilot_crops/
 fix-build.ps1
 run-phase2-tests.ps1
 run_test.bat
 /.worktrees
+
+############################################################
+# QC screenshots and scratch docs
+############################################################
+qc_*.png
+qc-screenshots/
+top_crop.png
+top_zoom.png
+bottom_crop_settings.png
+bottom_zoom.png
+full_enlarged.png
+toggle_crop_settings.png
+scenarios/
