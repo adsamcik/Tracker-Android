@@ -25,7 +25,8 @@ class PointsScorer(private val policy: PointsScoringPolicy = PointsScoringPolicy
 		return slopeSegments.sumOf { segment ->
 			val slopePositive = max(segment.slope, 0.0)
 			val slopeBonus = kotlin.math.sqrt(slopePositive / policy.halfSlope) * policy.slopeMultiplier
-			segment.distance * policy.pointsPerMeterMps * segment.speedMPS * (1.0 + slopeBonus)
+			val cappedSpeed = segment.speedMPS.coerceAtMost(MAX_SCORING_SPEED_MPS)
+			segment.distance * policy.pointsPerMeterMps * cappedSpeed * (1.0 + slopeBonus)
 		}
 	}
 
@@ -103,4 +104,9 @@ class PointsScorer(private val policy: PointsScoringPolicy = PointsScoringPolicy
 		val distance: Double,
 		val speedMPS: Double,
 	)
+
+	companion object {
+		/** Defense-in-depth speed cap: 50 m/s ≈ 180 km/h. */
+		const val MAX_SCORING_SPEED_MPS = 50.0
+	}
 }

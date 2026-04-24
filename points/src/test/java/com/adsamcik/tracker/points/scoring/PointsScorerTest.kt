@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import io.kotest.matchers.doubles.shouldBeExactly
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -164,6 +165,88 @@ class PointsScorerTest {
 			)
 			val points = scorer.calculateSlopePoints(locations)
 			points shouldBeLessThanOrEqual 0.0
+		}
+	}
+
+	// ── Speed cap ──────────────────────────────────────────────────
+
+	@Nested
+	inner class SpeedCap {
+
+		/**
+		 * Builds a two-point segment with a controlled speed by placing
+		 * the second point [speedMps] × 1000 meters east and 1 second later,
+		 * on flat terrain so only the speed multiplier matters.
+		 */
+		private fun flatSegmentLocations(speedMps: Double): List<DatabaseLocation> {
+			// distance ≈ speedMps * timeDelta; timeDelta = 1000s gives
+			// nice round numbers and keeps lat/lon close enough for the
+			// Haversine approximation.
+			val timeDeltaMs = 1_000_000L          // 1 000 s
+			val distanceMeters = speedMps * (timeDeltaMs / 1000.0)
+			// ~1 degree latitude ≈ 111 320 m
+			val latOffset = distanceMeters / 111_320.0
+			return listOf(
+				dbLoc(0L, 50.0, 14.0, 200.0),
+				dbLoc(timeDeltaMs, 50.0 + latOffset, 14.0, 200.0),
+			)
+		}
+
+		@Test
+		fun `normal walking speed is not capped`() {
+			val walkSpeed = 5.0  // m/s
+			val locations = flatSegmentLocations(walkSpeed)
+			val points = scorer.calculateSlopePoints(locations)
+			points shouldBeGreaterThan 0.0
+
+			// Manually verify the speed wasn't capped by comparing to
+			// a cap-boundary run — walking should produce fewer points.
+			val capLocations = flatSegmentLocations(PointsScorer.MAX_SCORING_SPEED_MPS)
+			val capPoints = scorer.calculateSlopePoints(capLocations)
+			points shouldBeLessThanOrEqual capPoints
+		}
+
+		@Test
+		fun `impossible speed is capped to MAX_SCORING_SPEED_MPS`() {
+			val impossibleSpeed = 500.0  // m/s — teleportation artifact
+			val cappedSpeed = PointsScorer.MAX_SCORING_SPEED_MPS
+
+			val impossibleLocations = flatSegmentLocations(impossibleSpeed)
+			val cappedLocations = flatSegmentLocations(cappedSpeed)
+
+			val impossiblePoints = scorer.calculateSlopePoints(impossibleLocations)
+			val cappedPoints = scorer.calculateSlopePoints(cappedLocations)
+
+			// Points from impossible speed should NOT scale with 500 m/s;
+			// they should be comparable to the cap (distance differs, but
+			// the speed multiplier must be identical).
+			impossiblePoints shouldBeGreaterThan 0.0
+
+			// The speed multiplier is capped, so points per meter of distance
+			// should be equal. Extract the effective multiplier:
+			// points = distance * ppmMps * speed * 1.0  (flat, no slope bonus)
+			val segments500 = scorer.calculateSlope(impossibleLocations)
+			val segments50 = scorer.calculateSlope(cappedLocations)
+			val dist500 = segments500.sumOf { it.distance }
+			val dist50 = segments50.sumOf { it.distance }
+
+			val pointsPerMeter500 = impossiblePoints / dist500
+			val pointsPerMeter50 = cappedPoints / dist50
+			// Both should use 50 m/s as effective speed → same points/m
+			// (small tolerance for Haversine approximation at different scales)
+			pointsPerMeter500 shouldBe (pointsPerMeter50 plusOrMinus 1e-3)
+		}
+
+		@Test
+		fun `speed exactly at cap is not reduced`() {
+			val atCapSpeed = PointsScorer.MAX_SCORING_SPEED_MPS
+			val slightlyBelow = atCapSpeed - 0.01
+
+			val atCapPoints = scorer.calculateSlopePoints(flatSegmentLocations(atCapSpeed))
+			val belowCapPoints = scorer.calculateSlopePoints(flatSegmentLocations(slightlyBelow))
+
+			// At-cap should produce slightly more points than slightly below
+			atCapPoints shouldBeGreaterThan belowCapPoints
 		}
 	}
 
