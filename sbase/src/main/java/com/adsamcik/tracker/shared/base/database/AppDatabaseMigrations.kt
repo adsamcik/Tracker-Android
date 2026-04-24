@@ -406,6 +406,9 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 	""".trimIndent())
 	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_time_range ON session_segment(start_time_ms, end_time_ms)")
 	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_source ON session_segment(source)")
+	// SessionSegment entity declares this index; mirror it in the migration so a freshly
+	// migrated schema matches the entity-generated schema.
+	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
 
 	// 8. Migrate data from location_data to location_sample
 	// Convert lat/lon from Double to E7 integers (degrees * 1e7)
