@@ -66,11 +66,14 @@ internal fun CustomizeDashboardSheet(
     val rowHeight = 64.dp
     val reorderThresholdPx = 40.dp
 
+    // Only reset the local list from incoming state while the user is NOT dragging; otherwise a
+    // reorder callback during the drag would trip this effect and snap the dragged item back.
     LaunchedEffect(resolvedWidgets) {
-        items.clear()
-        items.addAll(resolvedWidgets)
-        draggingIndex = -1
-        dragOffsetPx = 0f
+        if (draggingIndex == -1) {
+            items.clear()
+            items.addAll(resolvedWidgets)
+            dragOffsetPx = 0f
+        }
     }
 
     ModalBottomSheet(
@@ -109,8 +112,11 @@ internal fun CustomizeDashboardSheet(
                                 dragOffsetPx = 0f
                             },
                             onDragEnd = {
+                                // Commit the final order only once the user lets go, so mid-drag
+                                // state changes don't recompose the sheet and snap the row back.
                                 draggingIndex = -1
                                 dragOffsetPx = 0f
+                                onReorder(items.map { it.widget.id })
                             },
                             onDragCancel = {
                                 draggingIndex = -1
@@ -130,7 +136,6 @@ internal fun CustomizeDashboardSheet(
                                         items.add(currentIndex + 1, movedItem)
                                         draggingIndex = currentIndex + 1
                                         dragOffsetPx -= rowHeight.toPx()
-                                        onReorder(items.map { it.widget.id })
                                     }
 
                                     dragOffsetPx < -threshold && currentIndex > 0 -> {
@@ -138,7 +143,6 @@ internal fun CustomizeDashboardSheet(
                                         items.add(currentIndex - 1, movedItem)
                                         draggingIndex = currentIndex - 1
                                         dragOffsetPx += rowHeight.toPx()
-                                        onReorder(items.map { it.widget.id })
                                     }
                                 }
                             },
