@@ -35,25 +35,27 @@ class TypographyTest {
 	@DisplayName("display scale")
 	inner class DisplayScale {
 
+		// Sizes track the M3 spec (57/45/36sp). The oversized 64/52/44sp previously used truncated
+		// live speed HUDs like "12.4 km/h" on 360dp screens.
 		@Test
-		fun `displayLarge is 64sp Bold`() {
-			AppTypography.displayLarge.fontSize shouldBe 64.sp
+		fun `displayLarge is 57sp Bold`() {
+			AppTypography.displayLarge.fontSize shouldBe 57.sp
 			AppTypography.displayLarge.fontWeight shouldBe FontWeight.Bold
-			AppTypography.displayLarge.lineHeight shouldBe 72.sp
+			AppTypography.displayLarge.lineHeight shouldBe 64.sp
 		}
 
 		@Test
-		fun `displayMedium is 52sp Bold`() {
-			AppTypography.displayMedium.fontSize shouldBe 52.sp
+		fun `displayMedium is 45sp Bold`() {
+			AppTypography.displayMedium.fontSize shouldBe 45.sp
 			AppTypography.displayMedium.fontWeight shouldBe FontWeight.Bold
-			AppTypography.displayMedium.lineHeight shouldBe 60.sp
+			AppTypography.displayMedium.lineHeight shouldBe 52.sp
 		}
 
 		@Test
-		fun `displaySmall is 44sp Bold`() {
-			AppTypography.displaySmall.fontSize shouldBe 44.sp
+		fun `displaySmall is 36sp Bold`() {
+			AppTypography.displaySmall.fontSize shouldBe 36.sp
 			AppTypography.displaySmall.fontWeight shouldBe FontWeight.Bold
-			AppTypography.displaySmall.lineHeight shouldBe 52.sp
+			AppTypography.displaySmall.lineHeight shouldBe 44.sp
 		}
 
 		@Test
@@ -166,8 +168,10 @@ class TypographyTest {
 	inner class Hierarchy {
 
 		@Test
-		fun `display is larger than headline`() {
-			AppTypography.displaySmall.fontSize shouldBeLargerThan AppTypography.headlineLarge.fontSize
+		fun `display is at least as large as headline`() {
+			// M3 spec makes displaySmall (36sp) equal to headlineLarge (36sp); enforce >= rather
+			// than strict > so future spec tweaks don't trip this invariant.
+			(AppTypography.displaySmall.fontSize.value >= AppTypography.headlineLarge.fontSize.value) shouldBe true
 		}
 
 		@Test
