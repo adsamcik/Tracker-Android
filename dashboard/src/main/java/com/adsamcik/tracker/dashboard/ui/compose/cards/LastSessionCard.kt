@@ -100,9 +100,10 @@ internal fun LastSessionCard(
 		}
 		.then(
 			if (onSessionDetailClick != null) {
+				// Pass the raw session id. A historical bug here negated the id when positive,
+				// producing "Trip not found" because the TripDetail screen couldn't resolve it.
 				Modifier.clickable(onClickLabel = viewDetailsLabel) {
-					val tripId = if (session.id > 0L) -session.id else session.id
-					onSessionDetailClick(tripId)
+					onSessionDetailClick(session.id)
 				}
 			} else {
 				Modifier
