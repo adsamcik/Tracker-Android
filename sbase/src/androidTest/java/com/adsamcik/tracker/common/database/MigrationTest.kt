@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_19_20
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_20_21
 import com.adsamcik.tracker.shared.base.database.MIGRATION_21_22
+import com.adsamcik.tracker.shared.base.database.MIGRATION_22_23
 import com.adsamcik.tracker.shared.base.database.MIGRATION_23_24
 import com.adsamcik.tracker.shared.base.database.MIGRATION_24_25
 import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
@@ -1562,6 +1563,244 @@ class MigrationTest {
 		}
 	}
 
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate22To23_addsAllExpectedIndices() {
+		helper.createDatabase(TEST_DB, 22).close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 23, true, MIGRATION_22_23).apply {
+			val expected = mapOf(
+				"route_cache" to "index_route_cache_segment_id",
+				"export_log" to "index_export_log_completed_at",
+				"frequent_place" to "index_frequent_place_last_visit_ms",
+				"exploration_cell" to "index_exploration_cell_level_first_discovered_at",
+				"achievement_progress" to "index_achievement_progress_updated_at"
+			)
+			expected.forEach { (table, indexName) ->
+				query("PRAGMA index_list('" + table + "')").use { cursor ->
+					val names = buildSet {
+						while (cursor.moveToNext()) {
+							add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+						}
+					}
+					assertTrue(
+						"Expected index $indexName on $table after MIGRATION_22_23",
+						names.contains(indexName)
+					)
+				}
+			}
+			// The second achievement_progress index is also created.
+			query("PRAGMA index_list('achievement_progress')").use { cursor ->
+				val names = buildSet {
+					while (cursor.moveToNext()) {
+						add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+					}
+				}
+				assertTrue(
+					"Expected index index_achievement_progress_unlocked_at on achievement_progress",
+					names.contains("index_achievement_progress_unlocked_at")
+				)
+			}
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate22To23_indicesAreNonUnique() {
+		helper.createDatabase(TEST_DB, 22).close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 23, true, MIGRATION_22_23).apply {
+			val indicesToCheck = listOf(
+				"index_route_cache_segment_id",
+				"index_export_log_completed_at",
+				"index_frequent_place_last_visit_ms",
+				"index_exploration_cell_level_first_discovered_at",
+				"index_achievement_progress_updated_at",
+				"index_achievement_progress_unlocked_at"
+			)
+			indicesToCheck.forEach { name ->
+				query("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", arrayOf<Any?>(name)).use { cursor ->
+					assertTrue("Expected $name to exist", cursor.moveToFirst())
+					val sql = cursor.getString(0)
+					assertFalse("Expected $name to be NOT unique", sql.contains(" UNIQUE ", ignoreCase = true))
+				}
+			}
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate23To24_preservesExistingAchievementData() {
+		val db = helper.createDatabase(TEST_DB, 23)
+		db.execSQL(
+			"""
+				INSERT INTO achievement_progress (
+					id, achievement_id, current_value, target_value, tier, unlocked_at, updated_at
+				) VALUES (
+					1, 'step-1k', 500, 1000, 1, 1700000000000, 1700000600000
+				)
+			""".trimIndent()
+		)
+		db.execSQL(
+			"""
+				INSERT INTO achievement_progress (
+					id, achievement_id, current_value, target_value, tier, unlocked_at, updated_at
+				) VALUES (
+					2, 'distance-10k', 3000, 10000, 2, NULL, 1700000700000
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 24, true, MIGRATION_23_24).apply {
+			// All existing rows survived the table rebuild.
+			query("SELECT COUNT(*) FROM achievement_progress").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(2, cursor.getInt(0))
+			}
+
+			// notified_at column exists and is null for all existing rows.
+			query(
+				"SELECT id, achievement_id, current_value, target_value, tier, unlocked_at, notified_at FROM achievement_progress ORDER BY id"
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(1, cursor.getInt(0))
+				assertEquals("step-1k", cursor.getString(1))
+				assertEquals(500, cursor.getInt(2))
+				assertEquals(1000, cursor.getInt(3))
+				assertEquals(1, cursor.getInt(4))
+				assertEquals(1700000000000L, cursor.getLong(5))
+				assertTrue(cursor.isNull(6))
+
+				assertTrue(cursor.moveToNext())
+				assertEquals(2, cursor.getInt(0))
+				assertEquals("distance-10k", cursor.getString(1))
+				assertTrue(cursor.isNull(5))
+				assertTrue(cursor.isNull(6))
+				assertFalse(cursor.moveToNext())
+			}
+
+			// tier column is now nullable (notnull=0 in pragma_table_info).
+			query("""SELECT "notnull" FROM pragma_table_info('achievement_progress') WHERE name = 'tier'""").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(0, cursor.getInt(0))
+			}
+
+			// Unique and regular indices re-created after the rebuild.
+			query("PRAGMA index_list('achievement_progress')").use { cursor ->
+				val names = buildSet {
+					while (cursor.moveToNext()) {
+						add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+					}
+				}
+				assertTrue(names.contains("index_achievement_progress_achievement_id"))
+				assertTrue(names.contains("index_achievement_progress_updated_at"))
+				assertTrue(names.contains("index_achievement_progress_unlocked_at"))
+			}
+
+			// The unique index on achievement_id is still enforced after rebuild.
+			var duplicateInsertFailed = false
+			try {
+				execSQL(
+					"""
+						INSERT INTO achievement_progress (
+							id, achievement_id, current_value, target_value, tier, unlocked_at, updated_at, notified_at
+						) VALUES (
+							3, 'step-1k', 999, 1000, NULL, NULL, 1700001000000, NULL
+						)
+					""".trimIndent()
+				)
+			} catch (_: SQLException) {
+				duplicateInsertFailed = true
+			}
+			assertTrue(
+				"Unique index on achievement_id must prevent duplicates after rebuild",
+				duplicateInsertFailed
+			)
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate23To24_allowsNullTierForNewRow() {
+		helper.createDatabase(TEST_DB, 23).close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 24, true, MIGRATION_23_24).apply {
+			execSQL(
+				"""
+					INSERT INTO achievement_progress (
+						achievement_id, current_value, target_value, tier, unlocked_at, updated_at, notified_at
+					) VALUES (
+						'post-migration', 10, 100, NULL, NULL, 1700000900000, NULL
+					)
+				""".trimIndent()
+			)
+			query("SELECT tier, notified_at FROM achievement_progress WHERE achievement_id = 'post-migration'").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertTrue(cursor.isNull(0))
+				assertTrue(cursor.isNull(1))
+			}
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate24To25_createsPendingSignalTable() {
+		helper.createDatabase(TEST_DB, 24).close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 25, true, MIGRATION_24_25).apply {
+			// Table exists and is empty.
+			query("SELECT COUNT(*) FROM pending_signal").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(0, cursor.getInt(0))
+			}
+
+			// Required columns exist with correct affinities and NOT NULL constraints.
+			val columnInfo = mutableMapOf<String, Triple<String, Int, String?>>()
+			query(
+				"""SELECT name, type, "notnull", dflt_value FROM pragma_table_info('pending_signal')"""
+			).use { cursor ->
+				while (cursor.moveToNext()) {
+					columnInfo[cursor.getString(0)] =
+						Triple(cursor.getString(1), cursor.getInt(2), if (cursor.isNull(3)) null else cursor.getString(3))
+				}
+			}
+			assertEquals(4, columnInfo.size)
+			assertEquals("INTEGER", columnInfo.getValue("id").first)
+			assertEquals(1, columnInfo.getValue("id").second)
+			assertEquals("INTEGER", columnInfo.getValue("session_id").first)
+			assertEquals(1, columnInfo.getValue("session_id").second)
+			assertEquals("TEXT", columnInfo.getValue("signal_json").first)
+			assertEquals(1, columnInfo.getValue("signal_json").second)
+			assertEquals("INTEGER", columnInfo.getValue("created_at").first)
+			assertEquals(1, columnInfo.getValue("created_at").second)
+
+			// Composite index exists.
+			query("PRAGMA index_list('pending_signal')").use { cursor ->
+				val names = buildSet {
+					while (cursor.moveToNext()) {
+						add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+					}
+				}
+				assertTrue(names.contains("idx_pending_signal_session_time"))
+			}
+
+			// Row round-trip.
+			execSQL(
+				"""
+					INSERT INTO pending_signal (id, session_id, signal_json, created_at)
+					VALUES (1, 42, '{"type":"LOCATION","lat_e7":481250000}', 1700000000000)
+				""".trimIndent()
+			)
+			query("SELECT session_id, signal_json, created_at FROM pending_signal WHERE id = 1").use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(42L, cursor.getLong(0))
+				assertEquals("{\"type\":\"LOCATION\",\"lat_e7\":481250000}", cursor.getString(1))
+				assertEquals(1700000000000L, cursor.getLong(2))
+			}
+		}
+	}
 
 	@Test
 	@Throws(IOException::class)

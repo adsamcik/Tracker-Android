@@ -1073,6 +1073,10 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_event_type_processor_id ON domain_event(event_type, processor_id)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_export_log_started_at ON export_log(started_at)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_segment_id ON inferred_trip(segment_id)")
+			// Declared on SessionSegment entity and present in v26.json, but
+			// no prior migration created it — fresh installs had it, upgrades
+			// did not. Backfill here while v26 is still unreleased.
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
 			android.util.Log.i(
 				"AppDatabase",
 				"Migration 25->26: Added analytics and export query indices",

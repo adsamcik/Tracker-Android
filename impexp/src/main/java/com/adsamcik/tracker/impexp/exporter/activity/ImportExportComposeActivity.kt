@@ -9,6 +9,7 @@ import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +78,7 @@ class ImportExportComposeActivity : ComponentActivity() {
     private lateinit var shareableDir: File
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         shareableDir = File(filesDir, SHARABLE_DIR_NAME)
