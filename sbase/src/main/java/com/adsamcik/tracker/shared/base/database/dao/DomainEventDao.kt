@@ -61,6 +61,9 @@ interface DomainEventDao {
 	@Query("SELECT * FROM domain_event WHERE timestamp_ms >= :sinceMs ORDER BY timestamp_ms ASC")
 	fun observeSince(sinceMs: Long): Flow<List<DomainEventEntity>>
 
+	@Query("SELECT MIN(last_processed_ms) FROM domain_event_cursor")
+	suspend fun getMinimumCursorTimestampMs(): Long?
+
 	@Query("DELETE FROM domain_event WHERE timestamp_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long)
 

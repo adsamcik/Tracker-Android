@@ -98,12 +98,16 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.personalRecordDao().deleteOlderThan(cutoff)
     }
 
-    private suspend fun purgeOperationalData(db: AppDatabase, config: RetentionConfigState, now: Long) {
-        if (config.rawDataRetentionDays == 0) return
-        val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        db.domainEventDao().deleteOlderThan(cutoff)
-        db.exportLogDao().deleteOlderThan(cutoff)
-    }
+	private suspend fun purgeOperationalData(db: AppDatabase, config: RetentionConfigState, now: Long) {
+		if (config.rawDataRetentionDays == 0) return
+		val rawCutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+		val domainEventDao = db.domainEventDao()
+		val cursorCutoff = domainEventDao.getMinimumCursorTimestampMs()
+		// With no consumer cursors yet, retention falls back to the configured raw cutoff.
+		val domainEventCutoff = cursorCutoff?.let { minOf(rawCutoff, it) } ?: rawCutoff
+		domainEventDao.deleteOlderThan(domainEventCutoff)
+		db.exportLogDao().deleteOlderThan(rawCutoff)
+	}
 
     private fun RetentionConfigState.forWorker(): RetentionConfigState {
         if (!autoCleanupEnabled) return this

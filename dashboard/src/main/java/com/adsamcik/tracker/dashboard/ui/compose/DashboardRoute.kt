@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
-import android.content.Context
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -30,8 +29,7 @@ import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
-import com.adsamcik.tracker.shared.preferences.PreferenceKeys
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
@@ -84,6 +82,7 @@ fun DashboardRoute(
 	val pathPoints by controller.pathPointsFlow.collectAsState()
 	val lastSessionData by controller.lastSessionFlow.collectAsState()
 	val lastPathPoints by controller.lastPathPointsFlow.collectAsState()
+	val trackingParams by viewModel.trackingParams.collectAsState()
 
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
@@ -278,7 +277,7 @@ fun DashboardRoute(
 		onToggleTracking = { shouldStart ->
 			if (shouldStart) {
 				userRequestedStop = false
-				if (!hasAnyTrackingOptionEnabled(context)) {
+				if (!trackingParams.hasAnyTrackingOptionEnabled()) {
 					coroutineScope.launch {
 						val result = snackbarHostState.showSnackbar(
 							message = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track),
@@ -323,15 +322,11 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 	}
 }
 
-private fun hasAnyTrackingOptionEnabled(context: Context): Boolean {
-	val preferences = Preferences(context)
-	return preferences.getBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT) ||
-		preferences.getBoolean(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT) ||
-		preferences.getBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT) ||
-		preferences.getBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT) ||
-		preferences.getBoolean(
-			PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
-			PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
-		) ||
-		preferences.getBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
-}
+private fun TrackingParamsState.hasAnyTrackingOptionEnabled(): Boolean =
+	locationEnabled ||
+		stepsEnabled ||
+		activityEnabled ||
+		cellEnabled ||
+		wifiEnabled ||
+		wifiLocationCountEnabled ||
+		wifiNetworkEnabled

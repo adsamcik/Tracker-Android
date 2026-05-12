@@ -89,15 +89,13 @@ import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.extension.formatReadable
-import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.data.store.trackingTogglesProtoDataStore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 
 internal val defaultDispatchers = DefaultDispatchersProvider
@@ -111,7 +109,8 @@ internal data class TrackerDashboardUiState(
     val hasLocationPermission: Boolean = false,
     val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
     val policyTier: PolicyTier = PolicyTier.OFF,
-    val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED
+    val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED,
+    val trackingParams: TrackingParamsState = TrackingParamsState(),
 )
 
 @Composable
@@ -195,7 +194,8 @@ internal fun TrackerDashboard(
                 onMapClick = onMapClick,
                 onSessionDetailClick = onSessionDetailClick,
                 snackbarHostState = snackbarHostState,
-                pathPoints = state.pathPoints
+                pathPoints = state.pathPoints,
+                trackingParams = state.trackingParams,
             )
         }
     }
@@ -396,6 +396,7 @@ private fun TrackingContent(
     onSessionDetailClick: ((Long) -> Unit)? = null,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
     pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
+    trackingParams: TrackingParamsState,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -406,20 +407,12 @@ private fun TrackingContent(
     }
 
     val context = LocalContext.current
-    val locationEnabled = rememberPrefBoolean(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
-    val cellEnabled = rememberPrefBoolean(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
-    val wifiEnabled = run {
-        val wifiCount = rememberPrefBoolean(
-            PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
-            PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
-        )
-        val wifiNetwork = rememberPrefBoolean(
-            PreferenceKeys.WIFI_NETWORK_ENABLED,
-            PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT
-        )
-        wifiCount || wifiNetwork
-    }
-    val activityEnabled = rememberPrefBoolean(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
+    val locationEnabled = trackingParams.locationEnabled
+    val cellEnabled = trackingParams.cellEnabled
+    val wifiEnabled = trackingParams.wifiEnabled ||
+        trackingParams.wifiLocationCountEnabled ||
+        trackingParams.wifiNetworkEnabled
+    val activityEnabled = trackingParams.activityEnabled
     val trackerSettings = TrackerSettingsQuick.snapshot(context)
 
     var useDecimalDegrees by remember { mutableStateOf(false) }
@@ -648,17 +641,6 @@ private fun TrackingContent(
             }
         }
     }
-}
-
-@Composable
-private fun rememberPrefBoolean(key: String, default: Boolean): Boolean {
-    val context = LocalContext.current
-    val ds = remember(context) { context.trackingTogglesProtoDataStore }
-    val flow = remember(ds, key, default) {
-        ds.data.map { proto -> proto.togglesMap[key] ?: default }
-    }
-    val value = flow.collectAsState(initial = default).value
-    return value
 }
 
 internal fun copyToClipboard(

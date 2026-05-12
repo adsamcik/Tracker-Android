@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -23,11 +24,8 @@ import org.robolectric.annotation.Config
 /**
  * Tests for TrackerDashboard sub-components.
  *
- * Note: The full [TrackerDashboard] composable uses proto DataStore internally
- * (rememberPrefBoolean -> trackingTogglesProtoDataStore) which requires native
- * SQLite unavailable in Robolectric unit tests. We test the individual
- * sub-components (TrackingFAB, LockBanner, PolicyTierChip, TopBar elements)
- * in isolation instead.
+ * Tests for the full [TrackerDashboard] route state and isolated dashboard
+ * sub-components (TrackingFAB, LockBanner, PolicyTierChip, TopBar elements).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -51,6 +49,7 @@ class TrackerDashboardTest {
 			"Default precisionModePreset should be BALANCED",
 			state.precisionModePreset == TrackingPreset.BALANCED
 		)
+		assertTrue("Default tracking params should match repository defaults", state.trackingParams == TrackingParamsState())
 	}
 
 	@Test
@@ -60,7 +59,8 @@ class TrackerDashboardTest {
 			isLocked = true,
 			hasLocationPermission = true,
 			policyTier = PolicyTier.PRECISION,
-			precisionModePreset = TrackingPreset.HIGH_ACCURACY
+			precisionModePreset = TrackingPreset.HIGH_ACCURACY,
+			trackingParams = TrackingParamsState(locationEnabled = false)
 		)
 		assertTrue("isTracking should be true", state.isTracking)
 		assertTrue("isLocked should be true", state.isLocked)
@@ -70,6 +70,7 @@ class TrackerDashboardTest {
 			"precisionModePreset should be HIGH_ACCURACY",
 			state.precisionModePreset == TrackingPreset.HIGH_ACCURACY
 		)
+		assertTrue("tracking params should be preserved", !state.trackingParams.locationEnabled)
 	}
 
 	// endregion

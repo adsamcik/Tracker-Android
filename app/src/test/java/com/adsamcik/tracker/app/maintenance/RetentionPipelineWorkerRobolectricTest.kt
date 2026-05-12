@@ -6,6 +6,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -24,13 +25,16 @@ import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -130,6 +134,66 @@ class RetentionPipelineWorkerRobolectricTest {
 		verify(exactly = 0) { db.exportLogDao() }
 	}
 
+	@Test
+	fun `domain event purge clamps cutoff to slowest consumer cursor`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val slowestCursorMs = 1_234L
+		val domainEventDao: DomainEventDao = mockk(relaxed = true)
+		coEvery { domainEventDao.getMinimumCursorTimestampMs() } returns slowestCursorMs
+		val db = retentionDatabase(domainEventDao = domainEventDao)
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(context, retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)), db).doWork()
+		)
+
+		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(slowestCursorMs) }
+	}
+
+	@Test
+	fun `domain event purge uses raw cutoff when every consumer is past retention cutoff`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val domainEventDao: DomainEventDao = mockk(relaxed = true)
+		coEvery { domainEventDao.getMinimumCursorTimestampMs() } returns Long.MAX_VALUE
+		val cutoffSlot = slot<Long>()
+		val db = retentionDatabase(domainEventDao = domainEventDao)
+		val before = System.currentTimeMillis()
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(context, retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)), db).doWork()
+		)
+
+		val after = System.currentTimeMillis()
+		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(capture(cutoffSlot)) }
+		assertTrue(
+			cutoffSlot.captured in
+				(before - Time.DAY_IN_MILLISECONDS)..(after - Time.DAY_IN_MILLISECONDS)
+		)
+	}
+
+	@Test
+	fun `domain event purge uses raw cutoff when no consumer cursors exist`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val domainEventDao: DomainEventDao = mockk(relaxed = true)
+		coEvery { domainEventDao.getMinimumCursorTimestampMs() } returns null
+		val cutoffSlot = slot<Long>()
+		val db = retentionDatabase(domainEventDao = domainEventDao)
+		val before = System.currentTimeMillis()
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(context, retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)), db).doWork()
+		)
+
+		val after = System.currentTimeMillis()
+		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(capture(cutoffSlot)) }
+		assertTrue(
+			cutoffSlot.captured in
+				(before - Time.DAY_IN_MILLISECONDS)..(after - Time.DAY_IN_MILLISECONDS)
+		)
+	}
+
 	private fun worker(
 		context: Context,
 		store: RetentionConfigStore,
@@ -149,4 +213,33 @@ class RetentionPipelineWorkerRobolectricTest {
 				)
 			})
 			.build() as RetentionPipelineWorker
+
+	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore = mockk {
+		every { config } returns flowOf(state)
+	}
+
+	private fun autoPurgeConfig(rawDataRetentionDays: Int): RetentionConfigState =
+		RetentionConfigState(
+			autoPurgeEnabled = true,
+			rawDataRetentionDays = rawDataRetentionDays,
+			wifiCellRetentionDays = 0,
+			tripRetentionDays = 0,
+			dailySummaryRetentionDays = 0,
+			explorationRetentionDays = 0,
+		)
+
+	private fun retentionDatabase(
+		domainEventDao: DomainEventDao = mockk(relaxed = true),
+		exportLogDao: ExportLogDao = mockk(relaxed = true),
+	): AppDatabase {
+		val db: AppDatabase = mockk(relaxed = true)
+		every { db.locationSampleDao() } returns mockk(relaxed = true)
+		every { db.stepIntervalDao() } returns mockk(relaxed = true)
+		every { db.activitySnapshotDao() } returns mockk(relaxed = true)
+		every { db.trackerRunDao() } returns mockk(relaxed = true)
+		every { db.pressureSampleDao() } returns mockk(relaxed = true)
+		every { db.domainEventDao() } returns domainEventDao
+		every { db.exportLogDao() } returns exportLogDao
+		return db
+	}
 }
