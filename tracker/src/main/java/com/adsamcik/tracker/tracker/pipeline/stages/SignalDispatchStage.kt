@@ -15,8 +15,8 @@ import kotlinx.coroutines.CancellationException
  * collection data, then dispatches it through the [ProcessorPipeline].
  */
 internal class SignalDispatchStage(
-	private val processorPipeline: ProcessorPipeline?,
-	private val currentTier: PolicyTier,
+	private val processorPipelineProvider: () -> ProcessorPipeline?,
+	private val currentTierProvider: () -> PolicyTier,
 ) : PipelineStage {
 	private companion object {
 		const val TAG = "SignalDispatchStage"
@@ -25,7 +25,7 @@ internal class SignalDispatchStage(
 	override val name: String = "SignalDispatch"
 
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
-		val pipeline = processorPipeline ?: return StageResult.Continue
+		val pipeline = processorPipelineProvider() ?: return StageResult.Continue
 
 		val signal = try {
 			val cycle = cycleContext.cycle
@@ -71,7 +71,7 @@ internal class SignalDispatchStage(
 				wifiNetworks = wifiNetworks,
 				pressureHpa = cycle.pressure?.pressureHpa,
 				pressureAltitudeM = cycle.pressure?.altitudeM,
-				policyTier = currentTier,
+				policyTier = currentTierProvider(),
 			)
 			signal
 		} catch (e: CancellationException) {

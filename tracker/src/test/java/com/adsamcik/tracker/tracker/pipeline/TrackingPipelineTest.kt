@@ -103,6 +103,18 @@ class TrackingPipelineTest {
 			result.metrics.first().durationMs shouldBe result.metrics.first().durationMs
 			(result.metrics.first().durationMs >= 0) shouldBe true
 		}
+
+		@Test
+		fun `metrics can be disabled for hot path execution`() = runTest {
+			val stage = ContinueStage("hotPath")
+			val pipeline = TrackingPipeline(listOf(stage), collectMetrics = false)
+
+			val result = pipeline.execute(mockContext, minimalCycleContext())
+
+			stage.callCount shouldBe 1
+			result.completedSuccessfully shouldBe true
+			result.metrics shouldHaveSize 0
+		}
 	}
 
 	@Nested

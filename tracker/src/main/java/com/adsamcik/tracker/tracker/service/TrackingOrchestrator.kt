@@ -77,6 +77,7 @@ internal class TrackingOrchestrator(
 	private var dataProducerManager: DataProducerManager? = null
 	private var trackingPolicyManager: TrackingPolicyManager? = null
 	private var processorPipeline: ProcessorPipeline? = null
+	private var trackingPipeline: TrackingPipeline? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var persistenceErrorCollector: PersistenceErrorCollector? = null
 
@@ -88,6 +89,7 @@ internal class TrackingOrchestrator(
 	val notificationComponent: NotificationComponent = NotificationComponent()
 
 	// Current tier used for signal building — set during initialize
+	@Volatile
 	private var currentTier: PolicyTier = PolicyTier.PRECISION
 
 	private val componentFactory by lazy {
@@ -178,7 +180,7 @@ internal class TrackingOrchestrator(
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 
-		dataProducerManager = DataProducerManager(context, initialTier).apply { onEnable() }
+		dataProducerManager = DataProducerManager(context, initialTier, dispatchers).apply { onEnable() }
 
 		// Initialize the new 4-tier escalation engine
 		val escalationEngine = DefaultPolicyEscalationEngine()
@@ -205,6 +207,8 @@ internal class TrackingOrchestrator(
 			componentMutex = componentMutex,
 			controller = controller,
 			componentFactory = componentFactory,
+			dispatchers = dispatchers,
+			onTierChanged = { currentTier = it },
 		).apply {
 			this.currentTier = initialTier
 			this.dataComponentList = this@TrackingOrchestrator.dataComponentList
@@ -224,7 +228,6 @@ internal class TrackingOrchestrator(
 						policy = newPolicy,
 						context = context,
 						timerReceiver = timerReceiver,
-						scope = scope,
 					)
 				}
 			}
@@ -272,6 +275,7 @@ internal class TrackingOrchestrator(
 			startTimestamp = EpochMs(Time.nowMillis),
 			sessionId = session.id,
 		)
+		trackingPipeline = createTrackingPipeline(scope)
 
 		// Wire mutable references into tier escalation handler
 		tierEscalationHandler.processorPipeline = processorPipeline
@@ -284,17 +288,15 @@ internal class TrackingOrchestrator(
 	 *
 	 * @param context  Android context for post-component callbacks.
 	 * @param cycle    tracking cycle from the timer trigger.
-	 * @param scope    coroutine scope for launching async policy updates.
 	 */
 	suspend fun onCycleUpdate(
 		context: Context,
 		cycle: TrackingCycle,
-		scope: CoroutineScope,
 	) {
 		componentMutex.withLock {
 			if (!controller.isServiceRunning) return
 
-			collectAndProcess(context, cycle, scope)
+			collectAndProcess(context, cycle)
 		}
 	}
 
@@ -338,7 +340,6 @@ internal class TrackingOrchestrator(
 	private suspend fun collectAndProcess(
 		context: Context,
 		triggerCycle: TrackingCycle,
-		scope: CoroutineScope,
 	) {
 		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
 
@@ -347,18 +348,9 @@ internal class TrackingOrchestrator(
 			collectionData = MutableCollectionData(cycle.timestampMs),
 		)
 
-		val pipeline = TrackingPipeline(
-			stages = listOf(
-				PreValidationStage(preComponentList),
-				DataCollectionStage(dataComponentList),
-				SessionUpdateStage(requireNotNull(sessionComponent), controller),
-				PostProcessingStage(notificationComponent, skiSegmentWriter, skiTrackingComponent),
-				SignalDispatchStage(processorPipeline, currentTier),
-				PolicyUpdateStage(policyFeeder, trackingPolicyManager, scope),
-			),
-		)
-
-		val result = pipeline.execute(context, cycleContext)
+		val result = requireNotNull(trackingPipeline) {
+			"Tracking pipeline must be initialized before processing cycles"
+		}.execute(context, cycleContext)
 
 		if (BuildConfig.DEBUG) {
 			result.metrics.forEach { m ->
@@ -373,6 +365,23 @@ internal class TrackingOrchestrator(
 			}
 			trackerListenerManager.send(context, session, cycleContext.collectionData)
 		}
+	}
+
+	private fun createTrackingPipeline(scope: CoroutineScope): TrackingPipeline {
+		return TrackingPipeline(
+			stages = listOf(
+				PreValidationStage(preComponentList),
+				DataCollectionStage(dataComponentList),
+				SessionUpdateStage(requireNotNull(sessionComponent), controller),
+				PostProcessingStage(notificationComponent, skiSegmentWriter, skiTrackingComponent),
+				SignalDispatchStage(
+					processorPipelineProvider = { processorPipeline },
+					currentTierProvider = { currentTier },
+				),
+				PolicyUpdateStage(policyFeeder, trackingPolicyManager, scope),
+			),
+			collectMetrics = BuildConfig.DEBUG,
+		)
 	}
 
 	private suspend fun destroyComponents(context: Context) {
@@ -401,6 +410,7 @@ internal class TrackingOrchestrator(
 			Reporter.report(IllegalStateException("Failed to stop processor pipeline during shutdown", e))
 		} finally {
 			processorPipeline = null
+			trackingPipeline = null
 		}
 
 		dataProducerManager?.onDisable()

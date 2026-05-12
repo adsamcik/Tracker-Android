@@ -17,14 +17,12 @@ internal class DataCollectionStage(
 	override val name: String = "DataCollection"
 
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
-		dataComponents
-			.asSequence()
-			.filter { it.requirementsMet(cycleContext.cycle) }
-			.forEach {
-				tryWithReport {
-					it.onDataUpdated(cycleContext.cycle, cycleContext.collectionData)
-				}
+		for (component in dataComponents) {
+			if (!component.requirementsMet(cycleContext.cycle)) continue
+			tryWithReport {
+				component.onDataUpdated(cycleContext.cycle, cycleContext.collectionData)
 			}
+		}
 		return StageResult.Continue
 	}
 }

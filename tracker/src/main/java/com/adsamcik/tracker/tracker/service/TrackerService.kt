@@ -37,9 +37,9 @@ import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -194,7 +194,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				}
 			}
 
-			async(dispatchers.default) {
+			withContext(dispatchers.default) {
 				orchestrator.initialize(
 					context = this@TrackerService,
 					isSessionUserInitiated = isUserInitiated,
@@ -203,7 +203,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					timerReceiver = this@TrackerService,
 					timerAccessor = timerAccessor,
 				)
-			}.await()
+			}
 
 			if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
@@ -237,7 +237,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onUpdate(cycle: TrackingCycle): Job = launch(dispatchers.default) {
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
-			orchestrator.onCycleUpdate(this@TrackerService, cycle, this@TrackerService)
+			orchestrator.onCycleUpdate(this@TrackerService, cycle)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
