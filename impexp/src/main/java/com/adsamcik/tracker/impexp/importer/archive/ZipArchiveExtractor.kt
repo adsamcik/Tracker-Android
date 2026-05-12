@@ -5,12 +5,18 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.io.File
+import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
  * Extracts zip archives
  */
-internal class ZipArchiveExtractor : ArchiveExtractor {
+internal class ZipArchiveExtractor(
+		private val tempFileFactory: (File) -> File = { importCacheDir ->
+			File.createTempFile("zip-entry-", ".tmp", importCacheDir)
+		},
+		private val tempInputStreamFactory: (File) -> InputStream = { it.inputStream() },
+) : ArchiveExtractor {
 	override val supportedExtensions: Collection<String> = listOf("zip")
 
 	override fun extract(context: Context, file: DocumentFile): Sequence<FileImportStream>? {
@@ -19,20 +25,25 @@ internal class ZipArchiveExtractor : ArchiveExtractor {
 		return file.openInputStream(context)?.use {
 			ZipInputStream(it).use { zipStream ->
 				val extractedEntries = mutableListOf<FileImportStream>()
-				while (true) {
-					val entry = zipStream.nextEntry ?: break
-					try {
-						if (entry.isDirectory) continue
+				try {
+					while (true) {
+						val entry = zipStream.nextEntry ?: break
+						try {
+							if (entry.isDirectory) continue
 
-						val entryName = entry.name
-						if (!isSafeZipEntryName(entryName)) continue
+							val entryName = entry.name
+							if (!isSafeZipEntryName(entryName)) continue
 
-						extractedEntries.add(materializeEntry(context, zipStream, entryName))
-					} finally {
-						zipStream.closeEntry()
+							extractedEntries.add(materializeEntry(context, zipStream, entryName))
+						} finally {
+							zipStream.closeEntry()
+						}
 					}
+					extractedEntries.asSequence()
+				} catch (throwable: Throwable) {
+					closeMaterializedEntries(extractedEntries, throwable)
+					throw throwable
 				}
-				extractedEntries.asSequence()
 			}
 		}
 	}
@@ -43,17 +54,30 @@ internal class ZipArchiveExtractor : ArchiveExtractor {
 		entryName: String
 	): FileImportStream {
 		val importCacheDir = File(context.cacheDir, ZIP_IMPORT_CACHE_DIR).apply { mkdirs() }
-		val tempFile = File.createTempFile("zip-entry-", ".tmp", importCacheDir)
+		val tempFile = tempFileFactory(importCacheDir)
 		try {
 			tempFile.outputStream().use { output ->
 				zipStream.copyTo(output)
 			}
-			return FileImportStream(tempFile.inputStream(), entryName) {
+			return FileImportStream(entryName, { tempInputStreamFactory(tempFile) }) {
 				tempFile.delete()
 			}
-		} catch (e: Exception) {
+		} catch (throwable: Throwable) {
 			tempFile.delete()
-			throw e
+			throw throwable
+		}
+	}
+
+	private fun closeMaterializedEntries(
+			extractedEntries: Collection<FileImportStream>,
+			failure: Throwable
+	) {
+		extractedEntries.forEach { stream ->
+			try {
+				stream.close()
+			} catch (closeFailure: Throwable) {
+				failure.addSuppressed(closeFailure)
+			}
 		}
 	}
 
