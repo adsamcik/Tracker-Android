@@ -38,7 +38,7 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			isMinifyEnabled = true
+			isMinifyEnabled = false
 		}
 	}
 

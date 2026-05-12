@@ -1,3 +1,4 @@
+import org.gradle.api.GradleException
 import java.util.Locale
 
 buildscript {
@@ -50,6 +51,51 @@ allprojects {
 
 tasks.register("clean", Delete::class) {
 	delete(rootProject.layout.buildDirectory)
+}
+
+val roomSchemaGeneratorTasks = listOf(
+	":game:kspDebugKotlin",
+	":logger:kspDebugKotlin",
+	":points:kspDebugKotlin",
+	":sbase:kspDebugKotlin",
+	":statistics:kspDebugKotlin",
+	":stats-data:kspDebugKotlin"
+)
+
+val roomSchemaPaths = listOf(
+	"game/schemas",
+	"logger/schemas",
+	"points/schemas",
+	"sbase/schemas",
+	"statistics/schemas",
+	"stats-data/schemas",
+	"sutils/schemas"
+)
+
+tasks.register("checkRoomSchemaDrift") {
+	group = "verification"
+	description = "Generates Room schemas and fails when schema JSON changes are not committed."
+	dependsOn(roomSchemaGeneratorTasks)
+	inputs.files(roomSchemaPaths.map { layout.projectDirectory.dir(it) })
+
+	doLast {
+		val process = ProcessBuilder(listOf("git", "status", "--porcelain", "--") + roomSchemaPaths)
+			.directory(rootDir)
+			.redirectErrorStream(true)
+			.start()
+
+		val schemaStatus = process.inputStream.bufferedReader().use { it.readText() }.trim()
+		val exitCode = process.waitFor()
+		if (exitCode != 0) {
+			throw GradleException("Unable to check Room schema drift with git status:\n$schemaStatus")
+		}
+		if (schemaStatus.isNotEmpty()) {
+			throw GradleException(
+				"Room schema drift detected. Commit generated schema JSON changes or fix the migration.\n" +
+					schemaStatus
+			)
+		}
+	}
 }
 
 /**

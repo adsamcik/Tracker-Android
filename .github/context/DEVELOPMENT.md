@@ -58,6 +58,7 @@ Reference for building, testing, and debugging Tracker Android.
 | Task | Command |
 |------|---------|
 | Lint | `./gradlew.bat lint` |
+| Room schema drift | `./gradlew.bat checkRoomSchemaDrift` |
 | Detekt | Configured via `detekt.yml` (maxIssues: 10) |
 | Dep updates | `./gradlew.bat dependencyUpdates -Drevision=release` |
 
@@ -77,8 +78,18 @@ Reference for building, testing, and debugging Tracker Android.
 |----------|---------|----------|
 | `ANDROID_HOME` / `sdk.dir` | Android SDK location | Yes (in local.properties) |
 | `JAVA_HOME` | JDK location | No (AS bundled) |
+| `TRACKER_RELEASE_STORE_FILE` | Release keystore path | Release signing only |
+| `TRACKER_RELEASE_STORE_PASSWORD` | Release keystore password | Release signing only |
+| `TRACKER_RELEASE_KEY_ALIAS` | Release key alias | Release signing only |
+| `TRACKER_RELEASE_KEY_PASSWORD` | Release key password | Release signing only |
 
 **No API keys required for core functionality.** The app is fully offline.
+Release signing values may also be supplied in ignored `local.properties` as
+`tracker.release.storeFile`, `tracker.release.storePassword`,
+`tracker.release.keyAlias`, and `tracker.release.keyPassword`.
+Only the app `release` variant is minified; library release variants remain
+unminified so app R8 can perform whole-program shrinking across module
+boundaries.
 
 ## Project Structure
 
