@@ -264,6 +264,7 @@ internal fun RootSettingsContent(
         // Version info card (7-tap enables developer mode in release builds)
         item {
             var tapCount by remember { mutableIntStateOf(0) }
+            val developerModeEnabledToast = stringResource(R.string.settings_developer_mode_enabled_toast)
 
             Card(
                 modifier = Modifier
@@ -277,7 +278,7 @@ internal fun RootSettingsContent(
                                     com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, true)
                                     android.widget.Toast.makeText(
                                         context,
-                                        context.getString(R.string.settings_developer_mode_enabled_toast),
+                                        developerModeEnabledToast,
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                     tapCount = 0

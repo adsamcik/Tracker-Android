@@ -1,3 +1,6 @@
+import org.gradle.api.GradleException
+import java.util.Properties
+
 plugins {
 	alias(libs.plugins.android.application)
 	alias(libs.plugins.kotlin.android)
@@ -7,6 +10,67 @@ plugins {
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
 	alias(libs.plugins.oss.licenses)
+}
+
+val localProperties = Properties().apply {
+	val localPropertiesFile = rootProject.file("local.properties")
+	if (localPropertiesFile.isFile) {
+		localPropertiesFile.inputStream().use(::load)
+	}
+}
+
+fun signingProperty(environmentName: String, localPropertyName: String): String? =
+	providers.environmentVariable(environmentName).orNull?.takeIf(String::isNotBlank)
+		?: localProperties.getProperty(localPropertyName)?.takeIf(String::isNotBlank)
+
+data class ReleaseSigningProperties(
+	val storeFile: File,
+	val storePassword: String,
+	val keyAlias: String,
+	val keyPassword: String
+)
+
+val releaseStoreFilePath = signingProperty(
+	"TRACKER_RELEASE_STORE_FILE",
+	"tracker.release.storeFile"
+)
+val releaseStorePassword = signingProperty(
+	"TRACKER_RELEASE_STORE_PASSWORD",
+	"tracker.release.storePassword"
+)
+val releaseKeyAlias = signingProperty(
+	"TRACKER_RELEASE_KEY_ALIAS",
+	"tracker.release.keyAlias"
+)
+val releaseKeyPassword = signingProperty(
+	"TRACKER_RELEASE_KEY_PASSWORD",
+	"tracker.release.keyPassword"
+)
+val releaseSigningValues = listOf(
+	releaseStoreFilePath,
+	releaseStorePassword,
+	releaseKeyAlias,
+	releaseKeyPassword
+)
+
+if (releaseSigningValues.any { it != null } && releaseSigningValues.any { it == null }) {
+	throw GradleException(
+		"Partial release signing configuration found. Provide all TRACKER_RELEASE_* environment variables " +
+			"or all tracker.release.* local.properties entries."
+	)
+}
+
+val releaseSigningProperties = releaseStoreFilePath?.let { storeFilePath ->
+	val storeFile = rootProject.file(storeFilePath)
+	if (!storeFile.isFile) {
+		throw GradleException("Release keystore file does not exist: $storeFilePath")
+	}
+	ReleaseSigningProperties(
+		storeFile = storeFile,
+		storePassword = checkNotNull(releaseStorePassword),
+		keyAlias = checkNotNull(releaseKeyAlias),
+		keyPassword = checkNotNull(releaseKeyPassword)
+	)
 }
 
 android {
@@ -47,16 +111,34 @@ android {
 	}
 
 
+	val releaseSigningConfig = releaseSigningProperties?.let { signing ->
+		signingConfigs.create("release") {
+			storeFile = signing.storeFile
+			storePassword = signing.storePassword
+			keyAlias = signing.keyAlias
+			keyPassword = signing.keyPassword
+		}
+	}
+
 	buildTypes {
 		getByName("debug") {
 			applicationIdSuffix = ".debug"
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 
+		val release = getByName("release") {
+			isMinifyEnabled = true
+			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+			buildConfigField("boolean", "COMPOSE_MAIN", "true")
+			releaseSigningConfig?.let {
+				signingConfig = it
+			}
+		}
+
 		// Installable alongside production: non-debuggable, unique appId/label
 		create("dev") {
 			// Base on release settings for closer-to-prod behavior
-			initWith(getByName("release"))
+			initWith(release)
 			// Use debug dependencies if a matching dev variant doesn't exist in deps
 			matchingFallbacks += listOf("debug", "release")
 			// Distinct identity on device and in Play/adb lists
@@ -67,17 +149,13 @@ android {
 			// Sign with debug key for easy local installs (customize if you have a dev keystore)
 			signingConfig = signingConfigs.getByName("debug")
 			isDebuggable = false
+			isMinifyEnabled = false
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 
 		create("release_nominify") {
+			initWith(release)
 			isMinifyEnabled = false
-		}
-		getByName("release") {
-			// Keep minification disabled for now; Compose-only main is enforced across variants
-			isMinifyEnabled = false
-			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 	}
 
@@ -91,7 +169,7 @@ android {
 
 	lint {
 		checkReleaseBuilds = true
-		abortOnError = false
+		abortOnError = true
 		baseline = file("lint-baseline.xml")
 	}
 

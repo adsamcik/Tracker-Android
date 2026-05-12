@@ -44,7 +44,7 @@ jobs:
           retention-days: 7
 
   build:
-    name: Assemble release (nominify)
+    name: Assemble release
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -65,8 +65,14 @@ jobs:
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
           cp -f google-services.json.example app/google-services.json
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease_nominify --stacktrace
+      - name: Run lint
+        run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
+      - name: Build minified release
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --console=plain
+      - name: Build diagnostic release (nominify)
+        run: ./gradlew assembleRelease_nominify --no-daemon --stacktrace --console=plain
+      - name: Check Room schema drift
+        run: ./gradlew checkRoomSchemaDrift --no-daemon --stacktrace --console=plain
       - name: Upload build reports
         if: always()
         uses: actions/upload-artifact@v4
