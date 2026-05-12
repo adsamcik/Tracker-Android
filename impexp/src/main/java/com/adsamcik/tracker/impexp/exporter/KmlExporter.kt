@@ -1,12 +1,11 @@
 package com.adsamcik.tracker.impexp.exporter
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import java.io.OutputStream
 import java.io.OutputStreamWriter
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 /**
  * Exports locations to KML format.
@@ -39,11 +38,8 @@ class KmlExporter : Exporter {
 		}
 	}
 
-	@SuppressLint("SimpleDateFormat")
 	private fun formatTime(time: Long): String {
-		val date = Date(time)
-		val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-		return format.format(date)
+		return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(time))
 	}
 
 	private fun writeSample(streamWriter: OutputStreamWriter, sample: LocationSample) {

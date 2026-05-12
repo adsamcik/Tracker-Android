@@ -3,8 +3,10 @@ package com.adsamcik.tracker.impexp.exporter.automation
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -17,6 +19,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.time.Clock
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -25,6 +28,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -122,11 +126,13 @@ class ExportPlanWorker @AssistedInject constructor(
         }
         val dateRange = exportRange.dateRange
 
-        // Build output file
-        val exportDir = resolveExportDirectory(plan)
-        exportDir.mkdirs()
         val fileName = buildFileName(plan, exporter.extension, exportRange.isDelta)
-        val outputFile = File(exportDir, fileName)
+        val output = when (val resolved = resolveExportOutput(plan, exporter, fileName)) {
+            is ExportOutputResolution.Failed -> {
+                return@withContext PlanExportResult.Failed(resolved.error)
+            }
+            is ExportOutputResolution.Success -> resolved.output
+        }
 
         // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
         val locationSampleDao = appDatabase.locationSampleDao()
@@ -147,21 +153,26 @@ class ExportPlanWorker @AssistedInject constructor(
             }
 
         val result = try {
-            FileOutputStream(outputFile).use { fos ->
-                exporter.export(applicationContext, locationSequence, fos, dateRange)
+            val outputStream = output.openOutputStream()
+            if (outputStream == null) {
+                output.deletePartial()
+                return@withContext PlanExportResult.Failed("Unable to open export destination")
+            }
+            outputStream.use { stream ->
+                exporter.export(applicationContext, locationSequence, stream, dateRange)
             }
         } catch (e: CancellationException) {
-            deletePartialOutput(outputFile)
+            output.deletePartial()
             throw e
         } catch (e: Exception) {
-            deletePartialOutput(outputFile)
+            output.deletePartial()
             throw e
         }
 
         when (result) {
             is ExportResult.Success -> PlanExportResult.Success(
-                fileName = fileName,
-                fileSizeBytes = outputFile.length(),
+                fileName = output.fileName,
+                fileSizeBytes = output.length(),
                 recordCount = recordCount,
                 maxTimeMs = maxTimeMs,
                 isDelta = exportRange.isDelta,
@@ -170,16 +181,10 @@ class ExportPlanWorker @AssistedInject constructor(
             is ExportResult.Error -> {
                 val errorMessage = result.message?.localize(applicationContext)
                     ?: "Export returned error for ${plan.name}"
-                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${outputFile.name}: $errorMessage")
-                deletePartialOutput(outputFile)
+                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${output.fileName}: $errorMessage")
+                output.deletePartial()
                 PlanExportResult.Failed(errorMessage)
             }
-        }
-    }
-
-    private fun deletePartialOutput(outputFile: File) {
-        if (outputFile.exists() && !outputFile.delete()) {
-            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial export ${outputFile.name}")
         }
     }
 
@@ -265,16 +270,55 @@ class ExportPlanWorker @AssistedInject constructor(
         }
     }
 
-    private fun resolveExportDirectory(plan: ExportBackupPlan): File {
+    private fun resolveExportOutput(
+        plan: ExportBackupPlan,
+        exporter: Exporter,
+        fileName: String,
+    ): ExportOutputResolution {
         return when (val dest = plan.destination) {
             is ExportDestination.PrivateStorage -> {
-                File(applicationContext.filesDir, dest.relativeDirectory)
+                val exportDir = File(applicationContext.filesDir, dest.relativeDirectory)
+                if (!exportDir.exists() && !exportDir.mkdirs()) {
+                    return ExportOutputResolution.Failed("Unable to create private export directory")
+                }
+                ExportOutputResolution.Success(FileExportOutput(File(exportDir, fileName)))
             }
             is ExportDestination.DocumentTree -> {
-                // Fallback to private storage — SAF write requires Activity context
-                File(applicationContext.filesDir, "exports")
+                if (!hasPersistedWritePermission(dest.treeUri)) {
+                    return ExportOutputResolution.Failed(
+                        "Missing persisted write permission for document tree export destination"
+                    )
+                }
+                val root = DocumentFile.fromTreeUri(applicationContext, dest.treeUri)
+                    ?: return ExportOutputResolution.Failed("Unable to open document tree export destination")
+                val directory = resolveDocumentDirectory(root, dest.subdirectory)
+                    ?: return ExportOutputResolution.Failed("Unable to create document tree export subdirectory")
+                val document = directory.createFile(exporter.mimeType, fileName)
+                    ?: return ExportOutputResolution.Failed("Unable to create document tree export file")
+                ExportOutputResolution.Success(DocumentFileExportOutput(applicationContext, document, fileName))
             }
         }
+    }
+
+    internal fun hasPersistedWritePermission(treeUri: Uri): Boolean =
+        applicationContext.contentResolver.persistedUriPermissions.any {
+            it.uri == treeUri && it.isWritePermission
+        }
+
+    private fun resolveDocumentDirectory(root: DocumentFile, subdirectory: String?): DocumentFile? {
+        var current = root
+        val segments = subdirectory
+            ?.split('/', '\\')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+        for (segment in segments) {
+            val existing = current.findFile(segment)?.takeIf { it.isDirectory }
+            current = existing ?: current.createDirectory(segment) ?: return null
+        }
+
+        return current
     }
 
     private fun buildFileName(plan: ExportBackupPlan, extension: String, isDelta: Boolean = false): String {
@@ -378,4 +422,46 @@ private sealed interface PlanExportResult {
     ) : PlanExportResult
 
     data class Failed(val error: String) : PlanExportResult
+}
+
+private sealed interface ExportOutputResolution {
+    data class Success(val output: ExportOutput) : ExportOutputResolution
+    data class Failed(val error: String) : ExportOutputResolution
+}
+
+private interface ExportOutput {
+    val fileName: String
+    fun openOutputStream(): OutputStream?
+    fun length(): Long
+    fun deletePartial()
+}
+
+private data class FileExportOutput(private val file: File) : ExportOutput {
+    override val fileName: String = file.name
+
+    override fun openOutputStream(): OutputStream = FileOutputStream(file)
+
+    override fun length(): Long = file.length()
+
+    override fun deletePartial() {
+        if (file.exists() && !file.delete()) {
+            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial export $fileName")
+        }
+    }
+}
+
+private data class DocumentFileExportOutput(
+    private val context: Context,
+    private val document: DocumentFile,
+    override val fileName: String,
+) : ExportOutput {
+    override fun openOutputStream(): OutputStream? = document.openOutputStream(context, append = false)
+
+    override fun length(): Long = document.length()
+
+    override fun deletePartial() {
+        if (!document.delete()) {
+            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial document export")
+        }
+    }
 }

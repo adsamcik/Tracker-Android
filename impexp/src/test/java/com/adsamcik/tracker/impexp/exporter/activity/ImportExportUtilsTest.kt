@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.extension.ExtendWith
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.robolectric.annotation.Config
+import java.io.File
 
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [34])
@@ -188,5 +189,33 @@ class ImportExportUtilsTest {
             every { findFile("export_3.gpx") } returns null
         }
         findAvailableFileName(dir, "export", "gpx") shouldBe "export_3"
+    }
+
+    @Test
+    fun `cleanupShareableDirectory deletes stale files and keeps fresh files`() {
+        val dir = File("build/test-shareable-cleanup-${System.nanoTime()}")
+        val oldFile = File(dir, "old.gpx")
+        val freshFile = File(dir, "fresh.gpx")
+        val subdirectory = File(dir, "nested")
+        try {
+            dir.mkdirs()
+            subdirectory.mkdirs()
+            oldFile.writeText("old")
+            freshFile.writeText("fresh")
+            oldFile.setLastModified(1_000L)
+            freshFile.setLastModified(1_900L)
+
+            cleanupShareableDirectory(
+                directory = dir,
+                nowMillis = 2_000L,
+                maxAgeMillis = 500L,
+            )
+
+            oldFile.exists() shouldBe false
+            freshFile.exists() shouldBe true
+            subdirectory.exists() shouldBe true
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 }

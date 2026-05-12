@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -28,15 +29,19 @@ class ZipArchiveExtractorTest {
 
 	private val extractor = ZipArchiveExtractor()
 	private val mockContext = mockk<Context>()
+	private lateinit var cacheDir: File
 
 	@BeforeEach
 	fun setUp() {
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
+		cacheDir = File("build/test-zip-cache-${System.nanoTime()}").apply { mkdirs() }
+		every { mockContext.cacheDir } returns cacheDir
 	}
 
 	@AfterEach
 	fun tearDown() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
+		cacheDir.deleteRecursively()
 	}
 
 	private fun buildZipBytes(entries: List<Pair<String, ByteArray>>): ByteArray {
@@ -53,7 +58,7 @@ class ZipArchiveExtractorTest {
 
 	private fun mockFile(
 		stream: java.io.InputStream?,
-		isDirectory: Boolean = true
+		isDirectory: Boolean = false
 	): DocumentFile {
 		val file = mockk<DocumentFile> {
 			every { this@mockk.isDirectory } returns isDirectory
@@ -77,8 +82,8 @@ class ZipArchiveExtractorTest {
 	inner class Preconditions {
 
 		@Test
-		fun `throws IllegalArgumentException when file is not a directory`() {
-			val file = mockFile(stream = null, isDirectory = false)
+		fun `throws IllegalArgumentException when file is a directory`() {
+			val file = mockFile(stream = null, isDirectory = true)
 			assertThrows<IllegalArgumentException> {
 				extractor.extract(mockContext, file)
 			}
@@ -129,6 +134,17 @@ class ZipArchiveExtractorTest {
 		}
 
 		@Test
+		fun `entry content remains readable after extractor returns`() {
+			val zipBytes = buildZipBytes(listOf("export.json" to """{"locations":[]}""".toByteArray()))
+			val file = mockFile(ByteArrayInputStream(zipBytes))
+
+			val result = extractor.extract(mockContext, file)
+			result.shouldNotBeNull()
+			val text = result.first().bufferedReader().use { it.readText() }
+			text shouldBe """{"locations":[]}"""
+		}
+
+		@Test
 		fun `empty zip returns non-null sequence with no elements`() {
 			val zipBytes = buildZipBytes(emptyList())
 			val file = mockFile(ByteArrayInputStream(zipBytes))
@@ -149,10 +165,23 @@ class ZipArchiveExtractorTest {
 			val file = mockFile(ByteArrayInputStream(baos.toByteArray()))
 
 			val result = extractor.extract(mockContext, file)
-			// The directory entry is the only entry; after skipping it,
-			// zipStream.nextEntry runs on the closed stream and may throw.
-			// We verify the sequence is at least returned (non-null).
 			result.shouldNotBeNull()
+			result.toList().shouldBeEmpty()
+		}
+
+		@Test
+		fun `unsafe traversal entries are skipped`() {
+			val zipBytes = buildZipBytes(
+				listOf(
+					"../evil.gpx" to "bad".toByteArray(),
+					"tracks/safe.gpx" to "good".toByteArray(),
+				)
+			)
+			val file = mockFile(ByteArrayInputStream(zipBytes))
+
+			val result = extractor.extract(mockContext, file)
+			result.shouldNotBeNull()
+			result.map { it.fileName }.toList() shouldContainExactly listOf("tracks/safe.gpx")
 		}
 	}
 }

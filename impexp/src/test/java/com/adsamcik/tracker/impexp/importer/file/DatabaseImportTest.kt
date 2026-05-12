@@ -437,6 +437,11 @@ class DatabaseImportTest {
             val import = DatabaseImport()
             import.supportedExtensions shouldContainExactly listOf("db")
         }
+
+        @Test
+        fun `documents merge compatible rows import mode`() {
+            DatabaseImport.IMPORT_MODE shouldBe "MERGE_COMPATIBLE_ROWS"
+        }
     }
 
     // region reflection helpers — access private/internal methods for unit testing

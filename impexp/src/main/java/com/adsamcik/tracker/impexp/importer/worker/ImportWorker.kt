@@ -136,14 +136,23 @@ class ImportWorker(
         val extractionStream = extractor.extract(context, file)
             ?: throw IOException("Failed to extract ${file.name ?: "archive"}")
 
-        return importAll(extractionStream)
+        val extractedStreams = extractionStream.toList()
+        return try {
+            importAll(extractedStreams.asSequence())
+        } finally {
+            extractedStreams.forEach { stream ->
+                runWithReport { stream.close() }
+            }
+        }
     }
 
     @WorkerThread
     private suspend fun importAll(stream: Sequence<FileImportStream>): ImportResult {
         var result = ImportResult.EMPTY
-        for (it in stream) {
-            result += tryImport(it)
+        for (importStream in stream) {
+            importStream.use {
+                result += tryImport(it)
+            }
         }
         return result
     }
@@ -162,9 +171,11 @@ class ImportWorker(
                     stream.fileName
                 )
             )
+            return ImportResult(
+                skippedCount = 1,
+                errors = listOf("Unsupported import file type")
+            )
         }
-
-        return ImportResult.EMPTY
     }
 
     @WorkerThread

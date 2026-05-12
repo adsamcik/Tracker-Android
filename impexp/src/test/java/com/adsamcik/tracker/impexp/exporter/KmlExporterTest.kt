@@ -244,7 +244,7 @@ class KmlExporterTest {
 
             output shouldContain "<TimeStamp>"
             output shouldContain "<when>"
-            output shouldContain "2023-11-1"
+            output shouldContain "<when>2023-11-14T22:13:20Z</when>"
         }
     }
 

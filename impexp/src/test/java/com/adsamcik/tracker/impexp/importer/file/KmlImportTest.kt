@@ -42,4 +42,19 @@ class KmlImportTest {
 			(kmlImport.supportedExtensions is List<*>) shouldBe true
 		}
 	}
+
+	@Nested
+	@DisplayName("Timestamp parsing")
+	inner class TimestampParsing {
+
+		@Test
+		fun `parses exporter ISO instant timestamp with timezone`() {
+			KmlImport.parseWhenTimestamp("2023-11-14T22:13:20Z") shouldBe 1_700_000_000_000L
+		}
+
+		@Test
+		fun `returns null for timestamp without timezone`() {
+			KmlImport.parseWhenTimestamp("2023-11-14T22:13:20").shouldBe(null)
+		}
+	}
 }

@@ -527,11 +527,19 @@
     <string name="settings_export_data_summary">Save your tracking data in various formats</string>
     <string name="export_format_dialog_title">Choose Export Format</string>
     <string name="export_format_gpx_name">GPX (Recommended)</string>
-    <string name="export_format_gpx_desc">For GPS devices, fitness apps, and universal compatibility</string>
+    <string name="export_format_gpx_desc">Full-precision route points for GPS devices, fitness apps, and universal compatibility</string>
     <string name="export_format_kml_name">KML</string>
-    <string name="export_format_kml_desc">For Google Earth and geographic visualization</string>
+    <string name="export_format_kml_desc">Full-precision route points for Google Earth and geographic visualization</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Streaming locations and session summaries; import merges data and regenerates some metadata</string>
     <string name="export_format_db_name">Database</string>
-    <string name="export_format_db_desc">Complete backup including all data and settings</string>
+    <string name="export_format_db_desc">Raw SQLite backup with all data and settings; import merges compatible rows, not a full restore</string>
+    <string name="export_sensitivity_dialog_title">Export precise location data?</string>
+    <string name="export_sensitivity_gpx_message">This GPX export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_kml_message">This KML export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_json_message">This JSON export contains full-precision locations and session summaries. Some derived metadata is lossy on import; only save or share it with destinations you trust.</string>
+    <string name="export_sensitivity_db_message">This raw database backup may include precise locations, Wi-Fi/cell radio data, activity, and settings. Keep it private and only store it somewhere you trust.</string>
+    <string name="export_sensitivity_confirm">Continue export</string>
     
     <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_button">Export</string>
@@ -565,7 +573,7 @@
     <string name="settings_export_title">Export</string>
 
     <string name="settings_import_no_types">no types supported on your device, sorry.</string>
-    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
     <string name="settings_import_title">Import</string>
 
     <!-- Help Text for Advanced Settings (Progressive Disclosure) -->

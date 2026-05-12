@@ -6,6 +6,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import kotlinx.coroutines.CancellationException
@@ -43,30 +44,42 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		val db = AppDatabase.database(context)
 
 		val sessions = try {
-			val trips = withContext(dispatchers.io) {
-				val fromMs = dateRange?.first ?: 0L
-				val toMs = dateRange?.last ?: Long.MAX_VALUE
-				db.tripDao().getBetween(fromMs, toMs)
-			}
-			trips.map { t ->
-				SessionSnapshot(
-					id = t.id,
-					start = t.startTimeMs,
-					end = t.endTimeMs,
-					collections = t.sampleCount,
-					distanceInM = t.distanceM,
-					isUserInitiated = t.isUserInitiated,
-					steps = t.steps?.takeIf { it > 0 },
-				)
-			}
+			loadSessionSnapshots(db, dateRange)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Reporter.w(EXPORT_LOG_SOURCE, "Failed to load sessions for JSON export: ${e.message}")
+			Reporter.w(EXPORT_LOG_SOURCE, "Failed to load session summaries for JSON export")
 			emptyList()
 		}
 
 		return writeJson(outputStream, locationData, sessions, dateRange)
+	}
+
+	private suspend fun loadSessionSnapshots(
+		db: AppDatabase,
+		dateRange: LongRange?,
+	): List<SessionSnapshot> {
+		val fromMs = dateRange?.first ?: 0L
+		val toMs = dateRange?.last ?: Long.MAX_VALUE
+		val sessions = mutableListOf<SessionSnapshot>()
+		var offset = 0
+
+		while (true) {
+			val trips = withContext(dispatchers.io) {
+				db.tripDao().getBetweenPage(
+					fromMs = fromMs,
+					toMs = toMs,
+					limit = SESSION_PAGE_SIZE,
+					offset = offset,
+				)
+			}
+			if (trips.isEmpty()) break
+			sessions += trips.map { it.toSessionSnapshot() }
+			offset += trips.size
+			if (trips.size < SESSION_PAGE_SIZE) break
+		}
+
+		return sessions
 	}
 
 	/**
@@ -152,8 +165,20 @@ class JsonExporter @JvmOverloads @Inject constructor(
 			.replace("\n", "\\n")
 			.replace("\r", "\\r")
 			.replace("\t", "\\t")
+
+		private const val SESSION_PAGE_SIZE = 500
 	}
 }
+
+private fun Trip.toSessionSnapshot(): SessionSnapshot = SessionSnapshot(
+	id = id,
+	start = startTimeMs,
+	end = endTimeMs,
+	collections = sampleCount,
+	distanceInM = distanceM,
+	isUserInitiated = isUserInitiated,
+	steps = steps?.takeIf { it > 0 },
+)
 
 /**
  * Lightweight snapshot of a Trip for JSON export.
