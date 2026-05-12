@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.engine.filter
 
+import java.util.Arrays
+
 /**
  * A GPS location point for cleaning.
  */
@@ -43,16 +45,29 @@ object GpsTrackCleaner {
 	): List<CleanedSegment> {
 		if (points.isEmpty()) return emptyList()
 
-		val validated = points.filter { isValidPoint(it) }
+		val validated = ArrayList<GpsPoint>(points.size)
+		for (point in points) {
+			if (isValidPoint(point)) {
+				validated.add(point)
+			}
+		}
 		if (validated.isEmpty()) return emptyList()
 
-		val sorted = validated
-			.sortedBy { it.timeMs }
-			.distinctBy { it.timeMs }
+		validated.sortBy { it.timeMs }
 
-		val accuracyFiltered = sorted.filter { point ->
-			val acc = point.horizontalAccuracyM
-			acc == null || acc <= config.accuracyGateM
+		val accuracyFiltered = ArrayList<GpsPoint>(validated.size)
+		var hasLastTime = false
+		var lastTimeMs = Long.MIN_VALUE
+		for (point in validated) {
+			if (hasLastTime && point.timeMs == lastTimeMs) {
+				continue
+			}
+			hasLastTime = true
+			lastTimeMs = point.timeMs
+			val accuracy = point.horizontalAccuracyM
+			if (accuracy == null || accuracy <= config.accuracyGateM) {
+				accuracyFiltered.add(point)
+			}
 		}
 
 		if (accuracyFiltered.isEmpty()) return emptyList()
@@ -71,7 +86,8 @@ object GpsTrackCleaner {
 	 */
 	internal fun removeSpikesBySpeed(points: List<GpsPoint>, maxSpeedMps: Float): List<GpsPoint> {
 		if (points.size < 2) return points
-		val result = mutableListOf(points[0])
+		val result = ArrayList<GpsPoint>(points.size)
+		result.add(points[0])
 		for (i in 1 until points.size) {
 			val prev = result.last()
 			val curr = points[i]
@@ -94,25 +110,46 @@ object GpsTrackCleaner {
 	 * Altitude is filtered separately with its own window.
 	 */
 	internal fun medianFilterPosition(points: List<GpsPoint>, windowSize: Int): List<GpsPoint> {
-		if (points.size <= windowSize) return points
+		if (windowSize <= 1 || points.size <= windowSize) return points
 		val halfWindow = windowSize / 2
-		return points.mapIndexed { index, point ->
+		val maxWindowLength = halfWindow * 2 + 1
+		val latitudes = DoubleArray(maxWindowLength)
+		val longitudes = DoubleArray(maxWindowLength)
+		val altitudes = FloatArray(maxWindowLength)
+		val result = ArrayList<GpsPoint>(points.size)
+		for (index in points.indices) {
+			val point = points[index]
 			val start = (index - halfWindow).coerceAtLeast(0)
 			val end = (index + halfWindow).coerceAtMost(points.lastIndex)
-			val window = points.subList(start, end + 1)
-			val medianLat = window.map { it.latitudeDeg }.sorted()[window.size / 2]
-			val medianLon = window.map { it.longitudeDeg }.sorted()[window.size / 2]
-			val medianAlt = point.altitudeM?.let {
-				window.mapNotNull { w -> w.altitudeM }.sorted().let { alts ->
-					if (alts.isNotEmpty()) alts[alts.size / 2] else null
+			val windowLength = end - start + 1
+			var altitudeCount = 0
+			for (windowIndex in 0 until windowLength) {
+				val windowPoint = points[start + windowIndex]
+				latitudes[windowIndex] = windowPoint.latitudeDeg
+				longitudes[windowIndex] = windowPoint.longitudeDeg
+				val altitude = windowPoint.altitudeM
+				if (altitude != null) {
+					altitudes[altitudeCount++] = altitude
 				}
 			}
-			point.copy(
+
+			Arrays.sort(latitudes, 0, windowLength)
+			Arrays.sort(longitudes, 0, windowLength)
+			val medianLat = latitudes[windowLength / 2]
+			val medianLon = longitudes[windowLength / 2]
+			val medianAlt = if (point.altitudeM != null && altitudeCount > 0) {
+				Arrays.sort(altitudes, 0, altitudeCount)
+				altitudes[altitudeCount / 2]
+			} else {
+				null
+			}
+			result.add(point.copy(
 				latitudeDeg = medianLat,
 				longitudeDeg = medianLon,
 				altitudeM = medianAlt
-			)
+			))
 		}
+		return result
 	}
 
 	/**
@@ -124,19 +161,28 @@ object GpsTrackCleaner {
 		minPoints: Int
 	): List<CleanedSegment> {
 		if (points.isEmpty()) return emptyList()
-		val segments = mutableListOf<MutableList<GpsPoint>>()
-		var current = mutableListOf(points[0])
+		val segments = ArrayList<CleanedSegment>()
+		var segmentStart = 0
 		for (i in 1 until points.size) {
 			if (points[i].timeMs - points[i - 1].timeMs > gapMs) {
-				segments.add(current)
-				current = mutableListOf()
+				addSegmentIfLargeEnough(points, segmentStart, i, minPoints, segments)
+				segmentStart = i
 			}
-			current.add(points[i])
 		}
-		segments.add(current)
+		addSegmentIfLargeEnough(points, segmentStart, points.size, minPoints, segments)
 		return segments
-			.filter { it.size >= minPoints }
-			.map { CleanedSegment(it) }
+	}
+
+	private fun addSegmentIfLargeEnough(
+		points: List<GpsPoint>,
+		startInclusive: Int,
+		endExclusive: Int,
+		minPoints: Int,
+		segments: MutableList<CleanedSegment>
+	) {
+		if (endExclusive - startInclusive >= minPoints) {
+			segments.add(CleanedSegment(ArrayList(points.subList(startInclusive, endExclusive))))
+		}
 	}
 
 	/**

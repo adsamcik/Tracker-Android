@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.engine.ski
 
+import java.util.Arrays
+
 /**
  * Timestamped altitude reading (from barometer or GPS).
  */
@@ -46,37 +48,46 @@ object VerticalRateCalculator {
         // Step 1: Median filter to remove single-point spikes
         val filtered = medianFilter(altitudes, medianWindow)
 
-        // Step 2: Finite difference derivative (Δalt / Δtime)
-        val rawRates = mutableListOf<TimestampedVerticalRate>()
-        rawRates.add(TimestampedVerticalRate(filtered[0].timeMs, 0f))
+        // Step 2: Finite difference derivative (Δalt / Δtime) with EMA smoothing.
+        val result = ArrayList<TimestampedVerticalRate>(filtered.size)
+        var previousSmoothedRate = 0f
+        result.add(TimestampedVerticalRate(filtered[0].timeMs, previousSmoothedRate))
 
         for (i in 1 until filtered.size) {
             val dt = (filtered[i].timeMs - filtered[i - 1].timeMs) / 1000f
-            val rate = if (dt > 0f) {
+            val rawRate = if (dt > 0f) {
                 (filtered[i].altitudeM - filtered[i - 1].altitudeM) / dt
             } else {
                 0f
             }
-            rawRates.add(TimestampedVerticalRate(filtered[i].timeMs, rate))
+            val smoothedRate = emaAlpha * rawRate + (1 - emaAlpha) * previousSmoothedRate
+            result.add(TimestampedVerticalRate(filtered[i].timeMs, smoothedRate))
+            previousSmoothedRate = smoothedRate
         }
 
-        // Step 3: EMA smoothing on the derivative
-        return emaSmooth(rawRates, emaAlpha)
+        return result
     }
 
     internal fun medianFilter(
         data: List<TimestampedAltitude>,
         windowSize: Int
     ): List<TimestampedAltitude> {
-        if (data.size <= windowSize) return data
+        if (windowSize <= 1 || data.size <= windowSize) return data
         val halfWindow = windowSize / 2
-        return data.mapIndexed { index, sample ->
+        val windowValues = FloatArray(halfWindow * 2 + 1)
+        val result = ArrayList<TimestampedAltitude>(data.size)
+        for (index in data.indices) {
+            val sample = data[index]
             val start = (index - halfWindow).coerceAtLeast(0)
             val end = (index + halfWindow).coerceAtMost(data.lastIndex)
-            val windowValues = data.subList(start, end + 1).map { it.altitudeM }.sorted()
-            val median = windowValues[windowValues.size / 2]
-            sample.copy(altitudeM = median)
+            val windowLength = end - start + 1
+            for (windowIndex in 0 until windowLength) {
+                windowValues[windowIndex] = data[start + windowIndex].altitudeM
+            }
+            Arrays.sort(windowValues, 0, windowLength)
+            result.add(sample.copy(altitudeM = windowValues[windowLength / 2]))
         }
+        return result
     }
 
     internal fun emaSmooth(
@@ -84,7 +95,8 @@ object VerticalRateCalculator {
         alpha: Float
     ): List<TimestampedVerticalRate> {
         if (rates.isEmpty()) return rates
-        val result = mutableListOf(rates[0])
+        val result = ArrayList<TimestampedVerticalRate>(rates.size)
+        result.add(rates[0])
         for (i in 1 until rates.size) {
             val smoothed = alpha * rates[i].verticalRateMps + (1 - alpha) * result[i - 1].verticalRateMps
             result.add(rates[i].copy(verticalRateMps = smoothed))

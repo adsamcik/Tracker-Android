@@ -61,22 +61,48 @@ object SkiRunExtractor {
     ): SkiSessionSummary {
         val coalescedGroups = coalesceRuns(segments, config)
 
-        val runs = coalescedGroups.mapIndexed { index, group ->
-            val segmentLocations = locations.filter { loc ->
-                loc.timeMs in group.first().startMs..group.last().endMs
+        val runs = ArrayList<SkiRun>(coalescedGroups.size)
+        var locationSearchStart = 0
+        for (index in coalescedGroups.indices) {
+            val group = coalescedGroups[index]
+            val startMs = group.first().startMs
+            val endMs = group.last().endMs
+            while (locationSearchStart < locations.size && locations[locationSearchStart].timeMs < startMs) {
+                locationSearchStart++
             }
-            computeRunMetrics(index, group, segmentLocations)
+            var locationEnd = locationSearchStart
+            while (locationEnd < locations.size && locations[locationEnd].timeMs <= endMs) {
+                locationEnd++
+            }
+            runs.add(computeRunMetrics(index, group, locations, locationSearchStart, locationEnd))
+            locationSearchStart = locationEnd
         }
 
-        val downhillRuns = runs.filter { it.segmentType == SkiState.DOWNHILL_RUN }
-        val liftRuns = runs.filter { it.segmentType == SkiState.LIFT_UP }
+        var totalRuns = 0
+        var totalVerticalM = 0f
+        var totalDistanceM = 0f
+        var totalLiftTimeMs = 0L
+        var totalRunTimeMs = 0L
+        for (run in runs) {
+            when (run.segmentType) {
+                SkiState.DOWNHILL_RUN -> {
+                    totalRuns++
+                    totalVerticalM += run.verticalM
+                    totalDistanceM += run.distanceM
+                    totalRunTimeMs += run.durationMs
+                }
+                SkiState.LIFT_UP -> totalLiftTimeMs += run.durationMs
+                SkiState.IDLE -> Unit
+                SkiState.WALK -> Unit
+            }
+        }
 
         return SkiSessionSummary(
-            totalRuns = downhillRuns.size,
-            totalVerticalM = downhillRuns.sumOf { it.verticalM.toDouble() }.toFloat(),
-            totalDistanceM = downhillRuns.sumOf { it.distanceM.toDouble() }.toFloat(),
-            totalLiftTimeMs = liftRuns.sumOf { it.durationMs },
-            totalRunTimeMs = downhillRuns.sumOf { it.durationMs },
+            totalRuns = totalRuns,
+            totalVerticalM = totalVerticalM,
+            totalDistanceM = totalDistanceM,
+            totalLiftTimeMs = totalLiftTimeMs,
+            totalRunTimeMs = totalRunTimeMs,
             runs = runs
         )
     }
@@ -128,26 +154,63 @@ object SkiRunExtractor {
         index: Int,
         group: List<SkiStateSegment>,
         locations: List<SkiLocationPoint>
+    ): SkiRun = computeRunMetrics(index, group, locations, 0, locations.size)
+
+    private fun computeRunMetrics(
+        index: Int,
+        group: List<SkiStateSegment>,
+        locations: List<SkiLocationPoint>,
+        startIndex: Int,
+        endIndex: Int
     ): SkiRun {
         // For coalesced groups (DOWNHILL+IDLE+DOWNHILL), pick state from the actual runs
-        val downhillSegments = group.filter { it.state == SkiState.DOWNHILL_RUN }
-        val primarySegment = downhillSegments.maxByOrNull { it.durationMs }
-            ?: group.maxByOrNull { it.durationMs }
-            ?: group.first()
+        var primaryDownhill: SkiStateSegment? = null
+        var longestSegment = group.first()
+        for (segment in group) {
+            if (segment.durationMs > longestSegment.durationMs) {
+                longestSegment = segment
+            }
+            if (segment.state == SkiState.DOWNHILL_RUN &&
+                (primaryDownhill == null || segment.durationMs > primaryDownhill.durationMs)
+            ) {
+                primaryDownhill = segment
+            }
+        }
+        val primarySegment = primaryDownhill ?: longestSegment
         val startMs = group.first().startMs
         val endMs = group.last().endMs
-        val altitudes = locations.mapNotNull { it.altitudeM }
-        val speeds = locations.mapNotNull { it.speedMps }
+        var firstAltitude: Float? = null
+        var lastAltitude: Float? = null
+        var maxSpeed = 0f
+        var speedSum = 0.0
+        var speedCount = 0
+        for (i in startIndex until endIndex) {
+            val location = locations[i]
+            val altitude = location.altitudeM
+            if (altitude != null) {
+                if (firstAltitude == null) {
+                    firstAltitude = altitude
+                }
+                lastAltitude = altitude
+            }
+            val speed = location.speedMps
+            if (speed != null) {
+                if (speed > maxSpeed) {
+                    maxSpeed = speed
+                }
+                speedSum += speed
+                speedCount++
+            }
+        }
 
-        val verticalDrop = if (altitudes.size >= 2) {
-            altitudes.last() - altitudes.first()
+        val verticalDrop = if (firstAltitude != null && lastAltitude != null) {
+            lastAltitude - firstAltitude
         } else {
             0f
         }
 
-        val totalDistance = computeTotalDistance(locations)
-        val maxSpeed = speeds.maxOrNull() ?: 0f
-        val avgSpeed = if (speeds.isNotEmpty()) speeds.average().toFloat() else 0f
+        val totalDistance = computeTotalDistance(locations, startIndex, endIndex)
+        val avgSpeed = if (speedCount > 0) (speedSum / speedCount).toFloat() else 0f
 
         return SkiRun(
             runIndex = index,
@@ -161,10 +224,14 @@ object SkiRunExtractor {
         )
     }
 
-    private fun computeTotalDistance(locations: List<SkiLocationPoint>): Float {
-        if (locations.size < 2) return 0f
+    private fun computeTotalDistance(
+        locations: List<SkiLocationPoint>,
+        startIndex: Int,
+        endIndex: Int
+    ): Float {
+        if (endIndex - startIndex < 2) return 0f
         var total = 0.0
-        for (i in 1 until locations.size) {
+        for (i in startIndex + 1 until endIndex) {
             total += haversineDistance(
                 locations[i - 1].latitudeDeg, locations[i - 1].longitudeDeg,
                 locations[i].latitudeDeg, locations[i].longitudeDeg
