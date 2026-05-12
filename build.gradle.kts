@@ -1,4 +1,5 @@
 import org.gradle.api.GradleException
+import java.io.File
 import java.util.Locale
 
 buildscript {
@@ -53,24 +54,15 @@ tasks.register("clean", Delete::class) {
 	delete(rootProject.layout.buildDirectory)
 }
 
-val roomSchemaGeneratorTasks = listOf(
-	":game:kspDebugKotlin",
-	":logger:kspDebugKotlin",
-	":points:kspDebugKotlin",
-	":sbase:kspDebugKotlin",
-	":statistics:kspDebugKotlin",
-	":stats-data:kspDebugKotlin"
-)
+val roomSchemaProjects = subprojects
+	.filter { it.layout.projectDirectory.dir("schemas").asFile.isDirectory }
+	.sortedBy { it.path }
 
-val roomSchemaPaths = listOf(
-	"game/schemas",
-	"logger/schemas",
-	"points/schemas",
-	"sbase/schemas",
-	"statistics/schemas",
-	"stats-data/schemas",
-	"sutils/schemas"
-)
+val roomSchemaGeneratorTasks = roomSchemaProjects.map { "${it.path}:kspDebugKotlin" }
+
+val roomSchemaPaths = roomSchemaProjects.map { project ->
+	"${project.projectDir.relativeTo(rootDir).path.replace(File.separatorChar, '/')}/schemas"
+}
 
 tasks.register("checkRoomSchemaDrift") {
 	group = "verification"
