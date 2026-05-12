@@ -225,7 +225,7 @@
 
     <!-- Soft hint when Wi‑Fi permission is missing -->
     <string name="wifi_permission_hint_title">Allow Wi‑Fi for better indoor accuracy</string>
-    <string name="wifi_permission_hint_text">Grant Wi‑Fi permission in app to improve signal-based location indoors. You can do this from onboarding or app settings.</string>
+    <string name="wifi_permission_hint_text">Grant Wi‑Fi permission in app settings to improve signal-based location indoors. No Wi‑Fi radio data is collected until you allow it.</string>
 
     <!-- Tracker Dashboard -->
     <string name="tracker_time_placeholder">--:--</string>

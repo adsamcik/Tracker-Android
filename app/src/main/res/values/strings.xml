@@ -513,11 +513,16 @@
     <string name="settings_export_data_summary">Save your tracking data in various formats</string>
     <string name="export_format_dialog_title">Choose Export Format</string>
     <string name="export_format_gpx_name">GPX (Recommended)</string>
-    <string name="export_format_gpx_desc">For GPS devices, fitness apps, and universal compatibility</string>
+    <string name="export_format_gpx_desc">Full-precision route points for GPS devices and fitness apps</string>
     <string name="export_format_kml_name">KML</string>
-    <string name="export_format_kml_desc">For Google Earth and geographic visualization</string>
+    <string name="export_format_kml_desc">Full-precision route points for geographic visualization</string>
     <string name="export_format_db_name">Database</string>
-    <string name="export_format_db_desc">Complete backup including all data and settings</string>
+    <string name="export_format_db_desc">Raw full backup including precise locations, radio data, and settings</string>
+    <string name="export_sensitivity_dialog_title">Export precise location data?</string>
+    <string name="export_sensitivity_gpx_message">This GPX export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_kml_message">This KML export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_db_message">This raw database backup may include precise locations, Wi-Fi/cell radio data, activity, and settings. Keep it private and only store it somewhere you trust.</string>
+    <string name="export_sensitivity_confirm">Continue export</string>
     
     <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_button">Export</string>
@@ -745,8 +750,14 @@
     <string name="setup_perm_location_bg_why">Allows tracking to continue when the app is in the background.</string>
     <string name="setup_perm_activity_why">Needed to detect your movement type (walking, driving, etc.).</string>
     <string name="setup_perm_notification_why">Needed to show tracking status in notifications.</string>
+    <string name="setup_perm_wifi_why">Wi-Fi scans can reveal nearby networks and infer location. Grant this only if you want Wi-Fi radio data collected for local accuracy.</string>
+    <string name="setup_perm_cell_why">Cell tower data can be combined with your route. Grant phone state and precise location only if you want cell radio data collected locally.</string>
     <string name="setup_perm_grant">Grant</string>
     <string name="setup_perm_granted">Granted</string>
+    <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. No Wi-Fi radio data is collected until you grant it.</string>
+    <string name="settings_cell_permission_required">Requires phone state and precise location permission. No cell radio data is collected until you grant both.</string>
+    <string name="settings_wifi_privacy_summary">Collect nearby Wi-Fi radio data locally for improved location context.</string>
+    <string name="settings_cell_privacy_summary">Collect cell tower radio data locally for improved location context.</string>
     <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 

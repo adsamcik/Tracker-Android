@@ -154,6 +154,8 @@ fun SetupRoute(
                         onBackgroundLocationResult = viewModel::onBackgroundLocationResult,
                         onActivityPermissionResult = viewModel::onActivityPermissionResult,
                         onNotificationPermissionResult = viewModel::onNotificationPermissionResult,
+                        onWifiPermissionResult = viewModel::onWifiPermissionResult,
+                        onCellPermissionResult = viewModel::onCellPermissionResult,
                         onComplete = {
                             viewModel.completeSetup(onDone = onSetupComplete)
                         },

@@ -5,6 +5,7 @@ import android.util.Log
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -132,6 +133,42 @@ class CrashHandlerTest {
 			handler.uncaughtException(thread, exception)
 
 			verify { originalHandler.uncaughtException(thread, exception) }
+		}
+
+		@Test
+		fun `uncaughtException logs redacted throwable`() {
+			val originalHandler = mockk<Thread.UncaughtExceptionHandler>(relaxed = true)
+			Thread.setDefaultUncaughtExceptionHandler(originalHandler)
+
+			val handler = createCrashHandler()
+			injectCrashDir(handler, crashDir)
+			handler.initialize()
+
+			val exception = RuntimeException(
+				"failed at lat=48.858844 for alice@example.com",
+				IllegalStateException("phone=+1 206-555-0199 near 52.52000")
+			)
+
+			handler.uncaughtException(Thread("worker-48.858844"), exception)
+
+			verify {
+				Log.e(
+					"CrashHandler",
+					match { message ->
+						message.startsWith("Uncaught exception") &&
+								!message.contains("48.858844") &&
+								!message.contains("alice@example.com")
+					},
+					match { throwable ->
+						val redacted = PiiRedactor.redactThrowableToString(throwable)
+						redacted.shouldNotContain("alice@example.com")
+						redacted.shouldNotContain("48.858844")
+						redacted.shouldNotContain("206-555-0199")
+						redacted.shouldNotContain("52.52000")
+						true
+					}
+				)
+			}
 		}
 	}
 

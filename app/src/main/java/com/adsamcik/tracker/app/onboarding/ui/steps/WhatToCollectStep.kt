@@ -64,6 +64,8 @@ fun WhatToCollectStep(
     onBackgroundLocationResult: (Boolean) -> Unit,
     onActivityPermissionResult: (Boolean) -> Unit,
     onNotificationPermissionResult: (Boolean) -> Unit,
+    onWifiPermissionResult: (Boolean) -> Unit,
+    onCellPermissionResult: (Boolean) -> Unit,
     onComplete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -91,6 +93,20 @@ fun WhatToCollectStep(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         onNotificationPermissionResult(granted)
+    }
+
+    val wifiLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        onWifiPermissionResult(results.values.any { it })
+    }
+
+    val cellLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val fineLocationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val phoneStateGranted = results[Manifest.permission.READ_PHONE_STATE] == true
+        onCellPermissionResult(fineLocationGranted && phoneStateGranted)
     }
 
     Column(
@@ -228,6 +244,27 @@ fun WhatToCollectStep(
                 onToggle = onWifiEnabledChange,
             )
 
+            if (state.wifiEnabled) {
+                if (state.needsWifiPermission) {
+                    PermissionExplanation(
+                        explanation = stringResource(R.string.setup_perm_wifi_why),
+                        onGrant = {
+                            val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                            } else {
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                )
+                            }
+                            wifiLauncher.launch(perms)
+                        },
+                    )
+                } else {
+                    PermissionGrantedBadge()
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // --- Cell ---
@@ -238,6 +275,24 @@ fun WhatToCollectStep(
                 enabled = state.cellEnabled,
                 onToggle = onCellEnabledChange,
             )
+
+            if (state.cellEnabled) {
+                if (state.needsCellPermission) {
+                    PermissionExplanation(
+                        explanation = stringResource(R.string.setup_perm_cell_why),
+                        onGrant = {
+                            cellLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.READ_PHONE_STATE,
+                                ),
+                            )
+                        },
+                    )
+                } else {
+                    PermissionGrantedBadge()
+                }
+            }
 
             // Notification permission (always relevant)
             Spacer(modifier = Modifier.height(20.dp))

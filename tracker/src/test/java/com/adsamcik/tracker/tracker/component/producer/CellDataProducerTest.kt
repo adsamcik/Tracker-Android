@@ -47,6 +47,7 @@ class CellDataProducerTest {
 		mockContext = mockk(relaxed = true)
 		mockTelephonyManager = mockk(relaxed = true)
 		mockSubscriptionManager = mockk(relaxed = true)
+		every { mockSubscriptionManager.activeSubscriptionInfoList } returns null
 
 		// Inject fields via reflection since onEnable requires full Android context
 		setPrivateField("context", mockContext)
@@ -85,10 +86,13 @@ class CellDataProducerTest {
 		} returns if (enabled) 1 else 0
 	}
 
-	private fun mockReadPhonePermission(granted: Boolean) {
+	private fun mockCellScanPermission(granted: Boolean) {
 		mockkStatic(ContextCompat::class)
 		every {
 			ContextCompat.checkSelfPermission(mockContext, android.Manifest.permission.READ_PHONE_STATE)
+		} returns if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+		every {
+			ContextCompat.checkSelfPermission(mockContext, android.Manifest.permission.ACCESS_FINE_LOCATION)
 		} returns if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
 	}
 
@@ -110,7 +114,7 @@ class CellDataProducerTest {
 		@Test
 		fun `returns null when network operator is empty`() {
 			mockAirplaneMode(enabled = false)
-			mockReadPhonePermission(granted = false)
+			mockCellScanPermission(granted = true)
 			every { mockTelephonyManager.networkOperator } returns ""
 
 			val builder = createBuilder()
@@ -122,7 +126,7 @@ class CellDataProducerTest {
 		@Test
 		fun `returns null when allCellInfo is null`() {
 			mockAirplaneMode(enabled = false)
-			mockReadPhonePermission(granted = false)
+			mockCellScanPermission(granted = true)
 			every { mockTelephonyManager.networkOperator } returns "310260"
 			every { mockTelephonyManager.networkOperatorName } returns "T-Mobile"
 			every { mockTelephonyManager.allCellInfo } returns null
@@ -136,7 +140,7 @@ class CellDataProducerTest {
 		@Test
 		fun `produces cell data when cell info is available`() {
 			mockAirplaneMode(enabled = false)
-			mockReadPhonePermission(granted = false)
+			mockCellScanPermission(granted = true)
 			every { mockTelephonyManager.networkOperator } returns "310260"
 			every { mockTelephonyManager.networkOperatorName } returns "T-Mobile"
 
@@ -154,6 +158,18 @@ class CellDataProducerTest {
 			producer.onDataRequest(builder)
 
 			builder.cellScan.shouldNotBeNull()
+		}
+
+		@Test
+		fun `returns null when cell permissions are missing`() {
+			mockCellScanPermission(granted = false)
+			every { mockTelephonyManager.networkOperator } returns "310260"
+
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
+
+			getPrivateField("lastCellScanData").shouldBeNull()
+			builder.cellScan.shouldBeNull()
 		}
 	}
 
@@ -185,7 +201,7 @@ class CellDataProducerTest {
 		@Test
 		fun `uses cached data within TTL window`() {
 			mockAirplaneMode(enabled = false)
-			mockReadPhonePermission(granted = false)
+			mockCellScanPermission(granted = true)
 			every { mockTelephonyManager.networkOperator } returns "310260"
 			every { mockTelephonyManager.networkOperatorName } returns "T-Mobile"
 

@@ -10,6 +10,8 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
+import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -123,6 +125,14 @@ class SetupViewModel @Inject constructor(
         _state.update { it.copy(notificationPermissionGranted = granted) }
     }
 
+    fun onWifiPermissionResult(granted: Boolean) {
+        _state.update { it.copy(wifiPermissionGranted = granted) }
+    }
+
+    fun onCellPermissionResult(granted: Boolean) {
+        _state.update { it.copy(cellPermissionGranted = granted) }
+    }
+
     // endregion
 
     // region Completion
@@ -153,6 +163,8 @@ class SetupViewModel @Inject constructor(
     private fun applyPreferences(s: SetupUiState) {
         val preferences = Preferences(appContext)
         val preset = s.trackingPreset.settings
+        val wifiAllowed = s.wifiEnabled && appContext.hasWifiScanPermission
+        val cellAllowed = s.cellEnabled && appContext.hasCellScanPermission
 
         preferences.edit {
             // Location precision
@@ -165,9 +177,9 @@ class SetupViewModel @Inject constructor(
             setBoolean(PreferenceKeys.LOCATION_ENABLED, s.locationEnabled)
             setBoolean(PreferenceKeys.ACTIVITY_ENABLED, s.activityEnabled)
             setBoolean(PreferenceKeys.STEPS_ENABLED, s.stepsEnabled)
-            setBoolean(PreferenceKeys.WIFI_ENABLED, s.wifiEnabled)
-            setBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, preset.wifiLocationCountEnabled)
-            setBoolean(PreferenceKeys.CELL_ENABLED, s.cellEnabled)
+            setBoolean(PreferenceKeys.WIFI_ENABLED, wifiAllowed)
+            setBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, preset.wifiLocationCountEnabled && wifiAllowed)
+            setBoolean(PreferenceKeys.CELL_ENABLED, cellAllowed)
 
             // Tracking preset parameters
             setInt(PreferenceKeys.TRACKING_MIN_DISTANCE, preset.minDistanceMeters)

@@ -61,13 +61,13 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText(
-            "For GPS devices, fitness apps, and universal compatibility"
+            "Full-precision route points for GPS devices and fitness apps"
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "For Google Earth and geographic visualization"
+            "Full-precision route points for geographic visualization"
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Complete backup including all data and settings"
+            "Raw full backup including precise locations, radio data, and settings"
         ).assertIsDisplayed()
     }
 
@@ -96,6 +96,7 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("GPX (Recommended)").performClick()
+        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.GPX, selectedFormat)
     }
 
@@ -111,6 +112,7 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("KML").performClick()
+        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.KML, selectedFormat)
     }
 
@@ -126,6 +128,7 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("Database").performClick()
+        composeTestRule.onNodeWithText("Continue export").performClick()
         assertEquals(ExportFormat.DATABASE, selectedFormat)
     }
 
@@ -141,7 +144,26 @@ class ExportFormatDialogTest {
             }
         }
         composeTestRule.onNodeWithText("GPX (Recommended)").performClick()
+        composeTestRule.onNodeWithText("Continue export").performClick()
         assertTrue(dismissed)
+    }
+
+    @Test
+    fun selectingDatabase_showsSensitivityWarningBeforeCallback() {
+        var selectedFormat: ExportFormat? = null
+        composeTestRule.setContent {
+            AppTheme(useDynamicColor = false) {
+                ExportFormatDialog(
+                    onDismiss = {},
+                    onFormatSelected = { selectedFormat = it }
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("Database").performClick()
+        composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("precise locations, Wi-Fi/cell radio data", substring = true)
+            .assertIsDisplayed()
+        assertEquals(null, selectedFormat)
     }
 
     @Test

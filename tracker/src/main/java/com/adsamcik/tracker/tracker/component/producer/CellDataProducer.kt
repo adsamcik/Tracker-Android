@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
@@ -46,6 +47,12 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val context = requireNotNull(context)
+		if (!context.hasCellScanPermission) {
+			lastCellScanData = null
+			lastCellScanElapsedRealtimeMillis = -1L
+			return
+		}
+
 		// If airplane mode is enabled do not provide stale data.
 		if (Assist.isAirplaneModeEnabled(context)) {
 			lastCellScanData = null

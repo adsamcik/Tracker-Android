@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.ui.compose
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
@@ -38,6 +39,8 @@ class WhatToCollectStepTest {
                     onBackgroundLocationResult = {},
                     onActivityPermissionResult = {},
                     onNotificationPermissionResult = {},
+                    onWifiPermissionResult = {},
+                    onCellPermissionResult = {},
                     onComplete = {},
                 )
             }
@@ -62,11 +65,41 @@ class WhatToCollectStepTest {
                     onBackgroundLocationResult = {},
                     onActivityPermissionResult = {},
                     onNotificationPermissionResult = {},
+                    onWifiPermissionResult = {},
+                    onCellPermissionResult = {},
                     onComplete = { called = true },
                 )
             }
         }
         composeTestRule.onNodeWithTag("setup_cta_complete").performClick()
         called shouldBe true
+    }
+
+    @Test
+    fun wifiAndCellTogglesShowPrivacyRationalesWhenEnabledWithoutPermissions() {
+        composeTestRule.setContent {
+            AppTheme {
+                WhatToCollectStep(
+                    state = SetupUiState(wifiEnabled = true, cellEnabled = true),
+                    onLocationEnabledChange = {},
+                    onLocationPrecisionChange = {},
+                    onActivityEnabledChange = {},
+                    onStepsEnabledChange = {},
+                    onWifiEnabledChange = {},
+                    onCellEnabledChange = {},
+                    onLocationPermissionResult = {},
+                    onBackgroundLocationResult = {},
+                    onActivityPermissionResult = {},
+                    onNotificationPermissionResult = {},
+                    onWifiPermissionResult = {},
+                    onCellPermissionResult = {},
+                    onComplete = {},
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("Wi-Fi scans can reveal nearby networks", substring = true)
+            .assertExists()
+        composeTestRule.onNodeWithText("Cell tower data can be combined with your route", substring = true)
+            .assertExists()
     }
 }

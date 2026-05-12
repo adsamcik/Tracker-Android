@@ -45,15 +45,8 @@ internal object WifiPermissionHintNotifier {
         val resources = context.resources
         val channelId = resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 
-        // Build explicit intent to onboarding without introducing a module dependency
-        val launchIntent = Intent().apply {
-            setClassName(
-                context.packageName,
-                "com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity"
-            )
-            // Matches OnboardingActivity.EXTRA_ONBOARDING_STEP and OnboardingStep.EnhancedFeatures.name
-            putExtra("onboarding_step", "enhanced_features")
-        }
+        // Build explicit intent to the Compose settings route without introducing a module dependency.
+        val launchIntent = createSettingsIntent(context)
         val contentIntent: PendingIntent? = TaskStackBuilder.create(context).run {
             addNextIntentWithParentStack(launchIntent)
             getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -80,5 +73,13 @@ internal object WifiPermissionHintNotifier {
                 .setWifiHintShownCount(current.wifiHintShownCount + 1)
                 .build()
         }
+    }
+
+    internal fun createSettingsIntent(context: Context): Intent = Intent().apply {
+        setClassName(
+            context.packageName,
+            "com.adsamcik.tracker.app.activity.MainActivityCompose"
+        )
+        putExtra("navigate_to", "settings")
     }
 }

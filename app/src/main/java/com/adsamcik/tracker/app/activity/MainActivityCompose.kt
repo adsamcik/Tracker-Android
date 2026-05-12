@@ -124,6 +124,7 @@ class MainActivityCompose : ComponentActivity() {
         viewModel.setSelectedTab(when (target) {
             TARGET_GAME -> Game
             TARGET_STATS -> Stats
+            TARGET_SETTINGS -> Dashboard
             else -> Dashboard
         })
         intent.removeExtra(EXTRA_NAVIGATE_TO)
@@ -191,6 +192,7 @@ class MainActivityCompose : ComponentActivity() {
         const val EXTRA_CHALLENGE_ID = "challenge_id"
         const val EXTRA_SCROLL_TO = "scroll_to"
         const val TARGET_IMPEXP = "impexp"
+        const val TARGET_SETTINGS = "settings"
         const val TARGET_GAME = "game"
         const val TARGET_DASHBOARD = "dashboard"
         const val TARGET_STATS = "stats"

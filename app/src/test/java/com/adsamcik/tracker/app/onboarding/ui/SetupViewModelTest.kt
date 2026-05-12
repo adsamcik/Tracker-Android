@@ -87,6 +87,8 @@ class SetupViewModelTest {
             state.backgroundLocationGranted shouldBe false
             state.activityPermissionGranted shouldBe false
             state.notificationPermissionGranted shouldBe false
+            state.wifiPermissionGranted shouldBe false
+            state.cellPermissionGranted shouldBe false
         }
     }
 
@@ -254,6 +256,20 @@ class SetupViewModelTest {
             val vm = createViewModel()
             vm.onNotificationPermissionResult(true)
             vm.state.value.notificationPermissionGranted shouldBe true
+        }
+
+        @Test
+        fun `onWifiPermissionResult updates state`() {
+            val vm = createViewModel()
+            vm.onWifiPermissionResult(true)
+            vm.state.value.wifiPermissionGranted shouldBe true
+        }
+
+        @Test
+        fun `onCellPermissionResult updates state`() {
+            val vm = createViewModel()
+            vm.onCellPermissionResult(true)
+            vm.state.value.cellPermissionGranted shouldBe true
         }
     }
 

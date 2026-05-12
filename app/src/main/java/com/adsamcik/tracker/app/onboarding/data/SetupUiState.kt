@@ -27,6 +27,8 @@ data class SetupUiState(
     val backgroundLocationGranted: Boolean = false,
     val activityPermissionGranted: Boolean = false,
     val notificationPermissionGranted: Boolean = false,
+    val wifiPermissionGranted: Boolean = false,
+    val cellPermissionGranted: Boolean = false,
 ) {
     /** Progress fraction 0..1 based on current step. */
     val progress: Float
@@ -43,4 +45,12 @@ data class SetupUiState(
     /** True when auto-tracking is enabled and needs background location. */
     val needsBackgroundLocationPermission: Boolean
         get() = autoTrackingMode > 0 && locationEnabled
+
+    /** True when Wi-Fi collection is enabled and still needs runtime permission. */
+    val needsWifiPermission: Boolean
+        get() = wifiEnabled && !wifiPermissionGranted
+
+    /** True when cell/radio collection is enabled and still needs runtime permission. */
+    val needsCellPermission: Boolean
+        get() = cellEnabled && !cellPermissionGranted
 }

@@ -30,7 +30,8 @@ internal fun DeepNavigationHandler(
         val request = deepNavigationRequest ?: return@LaunchedEffect
 
         when (request.target) {
-            MainActivityCompose.TARGET_IMPEXP -> {
+            MainActivityCompose.TARGET_IMPEXP,
+            MainActivityCompose.TARGET_SETTINGS -> {
                 val nonce = onSettingsLaunchNonceIncrement()
                 navController.navigate(
                     Settings(

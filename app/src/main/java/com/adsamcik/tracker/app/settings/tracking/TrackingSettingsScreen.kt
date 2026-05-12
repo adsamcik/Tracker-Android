@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.app.settings.tracking
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,6 +46,18 @@ fun TrackingSettingsScreen() {
 
     // Single consolidated state
     val uiState by trackingVm.uiState.collectAsState()
+    val wifiPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        trackingVm.onWifiPermissionResult(results.values.any { it })
+    }
+    val cellPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val fineLocationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val phoneStateGranted = results[Manifest.permission.READ_PHONE_STATE] == true
+        trackingVm.onCellPermissionResult(fineLocationGranted && phoneStateGranted)
+    }
 
     TrackingSettingsContent(
         uiState = uiState,
@@ -55,10 +71,35 @@ fun TrackingSettingsScreen() {
         onLocationEnabledChanged = { trackingVm.setLocationEnabled(it) },
         onActivityEnabledChanged = { trackingVm.setActivityEnabled(it) },
         onStepsEnabledChanged = { trackingVm.setStepsEnabled(it) },
-        onWifiEnabledChanged = { trackingVm.setWifiEnabled(it) },
+        onWifiEnabledChanged = { enabled ->
+            if (enabled && !uiState.wifiPermissionGranted) {
+                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                } else {
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    )
+                }
+                wifiPermissionLauncher.launch(permissions)
+            } else {
+                trackingVm.setWifiEnabled(enabled)
+            }
+        },
         onWifiNetworkEnabledChanged = { trackingVm.setWifiNetworkEnabled(it) },
         onWifiLocationCountEnabledChanged = { trackingVm.setWifiLocationCountEnabled(it) },
-        onCellEnabledChanged = { trackingVm.setCellEnabled(it) },
+        onCellEnabledChanged = { enabled ->
+            if (enabled && !uiState.cellPermissionGranted) {
+                cellPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.READ_PHONE_STATE,
+                    ),
+                )
+            } else {
+                trackingVm.setCellEnabled(enabled)
+            }
+        },
         onNotificationCustomize = {
             context.startActivity(
                 android.content.Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java)
@@ -282,6 +323,11 @@ internal fun TrackingSettingsContent(
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
+                    subtitle = if (uiState.wifiPermissionGranted) {
+                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_privacy_summary)
+                    } else {
+                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_permission_required)
+                    },
                     checked = uiState.wifiEnabled,
                     onCheckedChange = onWifiEnabledChanged,
                     enabled = customControlsEnabled,
@@ -307,6 +353,11 @@ internal fun TrackingSettingsContent(
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
+                    subtitle = if (uiState.cellPermissionGranted) {
+                        stringResource(com.adsamcik.tracker.R.string.settings_cell_privacy_summary)
+                    } else {
+                        stringResource(com.adsamcik.tracker.R.string.settings_cell_permission_required)
+                    },
                     checked = uiState.cellEnabled,
                     onCheckedChange = onCellEnabledChanged,
                     enabled = customControlsEnabled,

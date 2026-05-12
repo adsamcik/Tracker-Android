@@ -71,13 +71,6 @@ object Reporter : ErrorReporter {
 
 	private fun redactMessage(message: String): String = PiiRedactor.redact(message)
 
-	private fun redactThrowable(exception: Throwable): Throwable = Throwable(
-		redactMessage(exception.message ?: exception::class.java.simpleName),
-		exception.cause?.let { redactThrowable(it) }
-	).apply {
-		stackTrace = exception.stackTrace
-	}
-
 	private fun shouldEmitErrorLogs(): Boolean = BuildConfig.DEBUG || isEnabled
 
 	private fun debugTrace(message: String) {
@@ -88,7 +81,7 @@ object Reporter : ErrorReporter {
 
 	override fun report(exception: Throwable) {
 		if (!checkInitialized() || !shouldEmitErrorLogs()) return
-		val sanitizedException = redactThrowable(exception)
+		val sanitizedException = PiiRedactor.redactThrowable(exception)
 		Log.e(TAG, sanitizedException.message.orEmpty(), sanitizedException)
 		if (BuildConfig.DEBUG) {
 			sanitizedException.printStackTrace()

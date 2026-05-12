@@ -127,6 +127,51 @@ class PiiRedactorTest {
 	}
 
 	@Nested
+	@DisplayName("Obvious PII patterns")
+	inner class ObviousPiiPatterns {
+
+		@Test
+		fun `redacts email addresses`() {
+			val result = PiiRedactor.redact("Crash for user alice@example.com")
+			result.shouldNotContain("alice@example.com")
+			result.shouldContain("[REDACTED]")
+		}
+
+		@Test
+		fun `redacts labeled phone numbers`() {
+			val result = PiiRedactor.redact("contact=(+1) 206-555-0199")
+			result.shouldNotContain("206-555-0199")
+			result.shouldContain("[REDACTED]")
+		}
+
+		@Test
+		fun `redacts MAC addresses`() {
+			val result = PiiRedactor.redact("bssid=aa:bb:cc:dd:ee:ff")
+			result.shouldNotContain("aa:bb:cc:dd:ee:ff")
+			result.shouldContain("[REDACTED]")
+		}
+	}
+
+	@Nested
+	@DisplayName("Throwable redaction")
+	inner class ThrowableRedaction {
+
+		@Test
+		fun `redacts throwable message and cause`() {
+			val cause = IllegalStateException("email alice@example.com at lat=48.858844")
+			val exception = RuntimeException("failed near 52.52000 with phone=+1 206-555-0199", cause)
+
+			val result = PiiRedactor.redactThrowableToString(exception)
+
+			result.shouldNotContain("alice@example.com")
+			result.shouldNotContain("48.858844")
+			result.shouldNotContain("52.52000")
+			result.shouldNotContain("206-555-0199")
+			result.shouldContain("[REDACTED]")
+		}
+	}
+
+	@Nested
 	@DisplayName("Preserves safe content")
 	inner class PreservesSafe {
 

@@ -1,11 +1,9 @@
 package com.adsamcik.tracker.tracker.component.producer
 
-import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -13,6 +11,7 @@ import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.wifiManager
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
@@ -136,24 +135,7 @@ internal class WifiDataProducer(
     }
 
     private fun readScanResultsOrNull(): Array<ScanResult>? {
-        val canReadScanResults = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.NEARBY_WIFI_DEVICES
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            val fine = ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            val coarse = ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            fine || coarse
-        }
-
-        if (!canReadScanResults) {
+        if (!appContext.hasWifiScanPermission) {
             return null
         }
 
@@ -166,22 +148,6 @@ internal class WifiDataProducer(
     }
 
     private fun hasWifiScanPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.NEARBY_WIFI_DEVICES
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            // Prior to API 33, Wi‑Fi scans/results are gated by location permission
-            val fine = ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            val coarse = ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            fine || coarse
-        }
+        return appContext.hasWifiScanPermission
     }
 }

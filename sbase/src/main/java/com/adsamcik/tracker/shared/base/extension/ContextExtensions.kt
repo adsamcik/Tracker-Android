@@ -184,6 +184,28 @@ inline val Context.hasReadPhonePermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.READ_PHONE_STATE)
 
+/**
+ * Checks if application can collect Wi-Fi scan data.
+ * On API 33+ this is gated by NEARBY_WIFI_DEVICES; older Android versions gate
+ * Wi-Fi scan results behind location permission.
+ */
+inline val Context.hasWifiScanPermission: Boolean
+	get() =
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			hasSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES)
+		} else {
+			hasLocationPermission
+		}
+
+/**
+ * Checks if application can collect cell/radio scan data.
+ * Cell scan data can be joined with locations, so require both explicit phone
+ * state access and precise location before collection.
+ */
+inline val Context.hasCellScanPermission: Boolean
+	get() =
+		hasReadPhonePermission && hasPreciseLocationPermission
+
 
 /**
  * Returns typed system service so no cast is necessary.

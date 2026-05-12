@@ -133,6 +133,7 @@ fun ExportScreen(
     // State for date pickers
     val showFromDatePicker = remember { mutableStateOf(false) }
     val showToDatePicker = remember { mutableStateOf(false) }
+    val pendingSensitiveAction = remember { mutableStateOf<ExportSensitiveAction?>(null) }
 
     if (uiState.showNoDataDialog) {
         AlertDialog(
@@ -324,9 +325,90 @@ fun ExportScreen(
                     }
                 }
 
+                fun startShareExport() {
+                    shareableDir.mkdirs()
+                    val directory = DocumentFile.fromFile(shareableDir)
+                    val selectedRange = if (canSelectDateRange) rangeState.value else null
+                    viewModel.exportToDocument(
+                        directory = directory,
+                        forceOverride = true,
+                        exporter = exporter,
+                        fileName = fileNameState.value,
+                        range = selectedRange,
+                    ) { result ->
+                        when (result) {
+                            is ExportDocumentResult.Success -> {
+                                val file = File(shareableDir, result.fileNameWithExtension)
+                                val shareUri = FileProvider.getUriForFile(
+                                    activity,
+                                    "${activity.packageName}.fileprovider",
+                                    file
+                                )
+                                viewModel.resolveShareTripSummary(
+                                    fallbackFileName = result.baseFileName,
+                                    range = selectedRange
+                                ) { shareSummary ->
+                                    val shareIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_STREAM, shareUri)
+                                        putExtra(
+                                            Intent.EXTRA_SUBJECT,
+                                            "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
+                                        )
+                                        putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
+                                        type = exporter.mimeType
+                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    }
+                                    val chooser = Intent.createChooser(
+                                        shareIntent,
+                                        activity.getString(R.string.export_share_button)
+                                    )
+                                    activity.startActivity(chooser)
+                                    activity.finish()
+                                }
+                            }
+                            is ExportDocumentResult.Failure -> {
+                                scope.launch {
+                                    showExportError(
+                                        snackBarHostState = snackBarHostState,
+                                        context = activity,
+                                        error = result.error,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                pendingSensitiveAction.value?.let { action ->
+                    AlertDialog(
+                        onDismissRequest = { pendingSensitiveAction.value = null },
+                        title = { Text(stringResource(R.string.export_sensitivity_title)) },
+                        text = { Text(stringResource(R.string.export_sensitivity_message)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    pendingSensitiveAction.value = null
+                                    when (action) {
+                                        ExportSensitiveAction.Export -> exportLauncher.launch(null)
+                                        ExportSensitiveAction.Share -> startShareExport()
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.export_sensitivity_confirm))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { pendingSensitiveAction.value = null }) {
+                                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                            }
+                        },
+                    )
+                }
+
                 OutlinedButton(
                     onClick = {
-                        exportLauncher.launch(null)
+                        pendingSensitiveAction.value = ExportSensitiveAction.Export
                     },
                     modifier = Modifier.weight(1f),
                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -339,58 +421,7 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        shareableDir.mkdirs()
-                        val directory = DocumentFile.fromFile(shareableDir)
-                        val selectedRange = if (canSelectDateRange) rangeState.value else null
-                        viewModel.exportToDocument(
-                            directory = directory,
-                            forceOverride = true,
-                            exporter = exporter,
-                            fileName = fileNameState.value,
-                            range = selectedRange,
-                        ) { result ->
-                            when (result) {
-                                is ExportDocumentResult.Success -> {
-                                    val file = File(shareableDir, result.fileNameWithExtension)
-                                    val shareUri = FileProvider.getUriForFile(
-                                        activity,
-                                        "${activity.packageName}.fileprovider",
-                                        file
-                                    )
-                                    viewModel.resolveShareTripSummary(
-                                        fallbackFileName = result.baseFileName,
-                                        range = selectedRange
-                                    ) { shareSummary ->
-                                        val shareIntent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_STREAM, shareUri)
-                                            putExtra(
-                                                Intent.EXTRA_SUBJECT,
-                                                "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
-                                            )
-                                            putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
-                                            type = exporter.mimeType
-                                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                        }
-                                        val chooser = Intent.createChooser(
-                                            shareIntent,
-                                            activity.getString(R.string.export_share_button)
-                                        )
-                                        activity.startActivity(chooser)
-                                        activity.finish()
-                                    }
-                                }
-                                is ExportDocumentResult.Failure -> {
-                                    scope.launch {
-                                        showExportError(
-                                            snackBarHostState = snackBarHostState,
-                                            context = activity,
-                                            error = result.error,
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        pendingSensitiveAction.value = ExportSensitiveAction.Share
                     },
                     modifier = Modifier.weight(1f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -536,6 +567,11 @@ internal fun findAvailableFileName(
     }
     
     return candidateName
+}
+
+private enum class ExportSensitiveAction {
+    Export,
+    Share,
 }
 
 internal data class ShareTripSummary(

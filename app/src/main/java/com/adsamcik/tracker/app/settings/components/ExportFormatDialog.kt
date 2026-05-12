@@ -22,6 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,6 +42,21 @@ fun ExportFormatDialog(
     onDismiss: () -> Unit,
     onFormatSelected: (ExportFormat) -> Unit
 ) {
+    var pendingFormat by remember { mutableStateOf<ExportFormat?>(null) }
+
+    pendingFormat?.let { format ->
+        ExportSensitivityDialog(
+            format = format,
+            onDismiss = { pendingFormat = null },
+            onConfirm = {
+                pendingFormat = null
+                onFormatSelected(format)
+                onDismiss()
+            },
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.export_format_dialog_title)) },
@@ -51,8 +70,7 @@ fun ExportFormatDialog(
                     description = stringResource(R.string.export_format_gpx_desc),
                     icon = Icons.Default.Route,
                     onClick = {
-                        onFormatSelected(ExportFormat.GPX)
-                        onDismiss()
+                        pendingFormat = ExportFormat.GPX
                     }
                 )
                 
@@ -63,8 +81,7 @@ fun ExportFormatDialog(
                     description = stringResource(R.string.export_format_kml_desc),
                     icon = Icons.Default.Map,
                     onClick = {
-                        onFormatSelected(ExportFormat.KML)
-                        onDismiss()
+                        pendingFormat = ExportFormat.KML
                     }
                 )
                 
@@ -75,8 +92,7 @@ fun ExportFormatDialog(
                     description = stringResource(R.string.export_format_db_desc),
                     icon = Icons.Default.Storage,
                     onClick = {
-                        onFormatSelected(ExportFormat.DATABASE)
-                        onDismiss()
+                        pendingFormat = ExportFormat.DATABASE
                     }
                 )
             }
@@ -87,6 +103,35 @@ fun ExportFormatDialog(
                 Text(stringResource(android.R.string.cancel))
             }
         }
+    )
+}
+
+@Composable
+private fun ExportSensitivityDialog(
+    format: ExportFormat,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val message = when (format) {
+        ExportFormat.GPX -> stringResource(R.string.export_sensitivity_gpx_message)
+        ExportFormat.KML -> stringResource(R.string.export_sensitivity_kml_message)
+        ExportFormat.DATABASE -> stringResource(R.string.export_sensitivity_db_message)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.export_sensitivity_dialog_title)) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.export_sensitivity_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
     )
 }
 
