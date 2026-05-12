@@ -58,6 +58,7 @@ Reference for building, testing, and debugging Tracker Android.
 | Task | Command |
 |------|---------|
 | Lint | `./gradlew.bat lint` |
+| Release lint | `./gradlew.bat :app:lintRelease` |
 | Room schema drift | `./gradlew.bat checkRoomSchemaDrift` |
 | Detekt | Configured via `detekt.yml` (maxIssues: 10) |
 | Dep updates | `./gradlew.bat dependencyUpdates -Drevision=release` |
