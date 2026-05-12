@@ -1,5 +1,8 @@
 import org.gradle.api.GradleException
 import java.util.Properties
+import javax.xml.XMLConstants
+import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.Element
 
 plugins {
 	alias(libs.plugins.android.application)
@@ -181,6 +184,61 @@ android {
 	dependenciesInfo {
 		includeInApk = true
 		includeInBundle = true
+	}
+}
+
+val releaseLintReport = layout.buildDirectory.file("reports/lint-results-release.xml")
+
+tasks.register("checkReleaseLintReport") {
+	group = "verification"
+	description = "Fails when app release lint reports unbaselined fatal/error issues."
+	dependsOn("lintReportRelease")
+	mustRunAfter("lintRelease")
+	inputs.file(releaseLintReport)
+
+	doLast {
+		val report = releaseLintReport.get().asFile
+		if (!report.isFile) {
+			throw GradleException("Release lint report was not generated: ${report.absolutePath}")
+		}
+
+		val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply {
+			setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+			isExpandEntityReferences = false
+		}
+		val document = documentBuilderFactory.newDocumentBuilder().parse(report)
+		val issues = document.getElementsByTagName("issue")
+		val blockingIssues = buildList {
+			for (index in 0 until issues.length) {
+				val issue = issues.item(index) as? Element ?: continue
+				val severity = issue.getAttribute("severity")
+				if (severity != "Fatal" && severity != "Error") continue
+
+				val id = issue.getAttribute("id")
+				val message = issue.getAttribute("message")
+				val locations = issue.getElementsByTagName("location")
+				val location = if (locations.length > 0) {
+					val element = locations.item(0) as Element
+					val file = element.getAttribute("file")
+					val line = element.getAttribute("line")
+					if (line.isBlank()) file else "$file:$line"
+				} else {
+					"no location"
+				}
+				add("[$severity][$id] $message ($location)")
+			}
+		}
+
+		if (blockingIssues.isNotEmpty()) {
+			val visibleIssues = blockingIssues.take(20).joinToString(separator = "\n")
+			val remaining = blockingIssues.size - 20
+			val suffix = if (remaining > 0) "\n... and $remaining more" else ""
+			throw GradleException(
+				"App release lint reported ${blockingIssues.size} unbaselined fatal/error issue(s):\n" +
+					visibleIssues +
+					suffix
+			)
+		}
 	}
 }
 
