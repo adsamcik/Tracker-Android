@@ -68,7 +68,7 @@ jobs:
       - name: Run debug lint
         run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
       - name: Run release lint
-        run: ./gradlew :app:lintRelease --no-daemon --stacktrace --console=plain
+        run: ./gradlew :app:lintRelease :app:checkReleaseLintReport --no-daemon --stacktrace --console=plain
       - name: Build minified release
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --console=plain
       - name: Build diagnostic release (nominify)
