@@ -163,6 +163,39 @@ class JsonExporterRoomIntegrationTest {
 		session.getInt("steps") shouldBe 248
 	}
 
+	@Test
+	fun `json export includes sessions beyond legacy five hundred row trip cap`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val exporter = JsonExporter(TestDispatchersProvider(dispatcher))
+		val baseTimeMs = 1_725_000_000_000L
+		val sessionCount = 505
+		repeat(sessionCount) { index ->
+			val start = baseTimeMs + index * 60_000L
+			sessionSegmentDao.insert(
+				createSessionSegment(
+					startTimeMs = start,
+					endTimeMs = start + 30_000L,
+					sampleCount = 1,
+					distanceM = index.toFloat(),
+					steps = index + 1,
+				),
+			)
+		}
+
+		val outputFile = createTempExportFile()
+		outputFile.outputStream().use { outputStream ->
+			exporter.export(
+				context = context,
+				locationData = emptySequence(),
+				outputStream = outputStream,
+				dateRange = baseTimeMs..(baseTimeMs + sessionCount * 60_000L),
+			) shouldBe ExportResult.Success
+		}
+
+		val document = JSONObject(outputFile.readText(Charsets.UTF_8))
+		document.getJSONArray("sessions").length() shouldBe sessionCount
+	}
+
 	private suspend fun loadPersistedLocations(dateRange: LongRange): Sequence<LocationSample> {
 		val collected = mutableListOf<LocationSample>()
 		var afterTimeMs: Long? = null
@@ -190,7 +223,7 @@ class JsonExporterRoomIntegrationTest {
 	}
 
 	private fun createTempExportFile(): File =
-		File.createTempFile("json-export-room-e2e", ".json").also(tempFiles::add)
+		File(context.cacheDir, "json-export-room-e2e-${System.nanoTime()}.json").also(tempFiles::add)
 
 	private fun createLocationSample(
 		timeMs: Long,

@@ -81,7 +81,10 @@ class ImportExportComposeActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        shareableDir = File(filesDir, SHARABLE_DIR_NAME)
+        val legacyShareableDir = File(filesDir, SHARABLE_DIR_NAME)
+        cleanupShareableDirectory(legacyShareableDir, maxAgeMillis = 0L)
+        shareableDir = File(cacheDir, SHARABLE_DIR_NAME)
+        cleanupShareableDirectory(shareableDir)
 
         val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.extras?.getSerializable(EXPORTER_KEY, Class::class.java) as? Class<*>
@@ -326,6 +329,7 @@ fun ExportScreen(
                 }
 
                 fun startShareExport() {
+                    cleanupShareableDirectory(shareableDir)
                     shareableDir.mkdirs()
                     val directory = DocumentFile.fromFile(shareableDir)
                     val selectedRange = if (canSelectDateRange) rangeState.value else null
@@ -617,3 +621,20 @@ internal fun mapActivityToEmoji(activityName: String?, activityId: Long?): Strin
         else -> "📍"
     }
 }
+
+internal fun cleanupShareableDirectory(
+    directory: File,
+    nowMillis: Long = System.currentTimeMillis(),
+    maxAgeMillis: Long = SHAREABLE_MAX_AGE_MS,
+) {
+    if (!directory.exists()) return
+    directory.listFiles()?.forEach { file ->
+        if (file.isDirectory) return@forEach
+        val ageMillis = nowMillis - file.lastModified()
+        if (ageMillis >= maxAgeMillis && !file.delete()) {
+            file.deleteOnExit()
+        }
+    }
+}
+
+private const val SHAREABLE_MAX_AGE_MS = 24L * 60L * 60L * 1000L

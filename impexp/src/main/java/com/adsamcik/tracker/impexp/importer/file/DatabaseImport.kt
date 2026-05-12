@@ -19,13 +19,14 @@ import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
 /**
- * Imports data from database file.
+ * Merges compatible rows from a database file into the current database.
  * 
  * Known limitations:
  * - UNIQUE constraint violations may fail import; autoincrement usage could break foreign keys
  * - Direct SQL copy approach; consider Room-based migration for schema version mismatches
  * 
- * Current implementation preserves ability to import any structurally compatible database.
+ * This is not a full-device restore: existing rows are preserved, and incoming rows are inserted
+ * table-by-table when the source schema is structurally compatible.
  */
 internal class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
@@ -35,7 +36,7 @@ internal class DatabaseImport : FileImport {
 			database: AppDatabase,
 			stream: FileImportStream
 	): ImportResult {
-		val databaseTmpFile = File.createTempFile(stream.fileName, null)
+		val databaseTmpFile = createImportTempFile(context)
 		var fromDatabase: SQLiteDatabase? = null
 		try {
 			databaseTmpFile.outputStream().use {
@@ -55,6 +56,11 @@ internal class DatabaseImport : FileImport {
 			fromDatabase?.close()
 			databaseTmpFile.delete()
 		}
+	}
+
+	private fun createImportTempFile(context: Context): File {
+		val importCacheDir = File(context.cacheDir, IMPORT_CACHE_DIR).apply { mkdirs() }
+		return File.createTempFile("db-import-", ".db", importCacheDir)
 	}
 
 	private fun addColumn(columnDefinition: String, requiredColumns: MutableList<ImportColumn>) {
@@ -185,7 +191,7 @@ internal class DatabaseImport : FileImport {
 			} else {
 				Reporter.report(
 						Exception(
-								"Foreign key issue on table $tableName with values ${values.joinToString()}",
+								"Constraint issue while importing table $tableName",
 								e
 						)
 				)
@@ -284,6 +290,11 @@ internal class DatabaseImport : FileImport {
 			}
 		}
 		return result
+	}
+
+	internal companion object {
+		const val IMPORT_MODE = "MERGE_COMPATIBLE_ROWS"
+		private const val IMPORT_CACHE_DIR = "database-import"
 	}
 }
 

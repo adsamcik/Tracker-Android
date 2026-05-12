@@ -39,6 +39,14 @@ class FormatRegistryTest {
 		fun `import extensions include gpx kml json db`() {
 			FormatRegistry.allImportExtensions() shouldContainAll setOf("gpx", "kml", "json", "db")
 		}
+
+		@Test
+		fun `all import formats have importers`() {
+			FormatRegistry.allImportFormats().shouldNotBeEmpty()
+			FormatRegistry.allImportFormats().forEach { descriptor ->
+				FormatRegistry.importerForExtension(descriptor.extensions.first()).shouldNotBeNull()
+			}
+		}
 	}
 
 	@Nested

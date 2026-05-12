@@ -1,12 +1,16 @@
 package com.adsamcik.tracker.impexp.exporter.automation
 
+import android.content.ContentResolver
 import android.content.Context
+import android.content.UriPermission
+import android.net.Uri
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.proto.ExportBackupPlanProto
 import com.adsamcik.tracker.impexp.exporter.proto.ExportFormatProto
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.time.Clock
+import io.mockk.every
 import io.mockk.mockk
 import java.io.OutputStream
 import java.time.LocalTime
@@ -238,6 +242,31 @@ class IncrementalExportTest {
         assertFalse(reset.incrementalEnabled)
     }
 
+    @Test
+    fun documentTreeDestination_requiresPersistedWritePermission() {
+        val treeUri = mockk<Uri>(relaxed = true)
+        val context = mockk<Context>(relaxed = true)
+        val contentResolver = mockk<ContentResolver>(relaxed = true)
+        every { context.contentResolver } returns contentResolver
+        every { contentResolver.persistedUriPermissions } returns emptyList()
+
+        assertFalse(worker(context).hasPersistedWritePermission(treeUri))
+    }
+
+    @Test
+    fun documentTreeDestination_acceptsPersistedWritePermission() {
+        val treeUri = mockk<Uri>(relaxed = true)
+        val context = mockk<Context>(relaxed = true)
+        val contentResolver = mockk<ContentResolver>(relaxed = true)
+        val permission = mockk<UriPermission>(relaxed = true)
+        every { context.contentResolver } returns contentResolver
+        every { permission.uri } returns treeUri
+        every { permission.isWritePermission } returns true
+        every { contentResolver.persistedUriPermissions } returns listOf(permission)
+
+        assertTrue(worker(context).hasPersistedWritePermission(treeUri))
+    }
+
     private fun buildTestPlan(
         lastWatermarkMs: Long = 0L,
         lastCompletedAt: Long = 0L,
@@ -260,9 +289,9 @@ class IncrementalExportTest {
         incrementalEnabled = incrementalEnabled,
     )
 
-    private fun worker(): ExportPlanWorker {
+    private fun worker(appContext: Context = mockk(relaxed = true)): ExportPlanWorker {
         return ExportPlanWorker(
-            appContext = mockk(relaxed = true),
+            appContext = appContext,
             params = mockk(relaxed = true),
             planStore = mockk(relaxed = true),
             appDatabase = mockk(relaxed = true),

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.app.settings.components.ExportFormat
 import com.adsamcik.tracker.app.settings.components.ExportFormatDialog
+import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -47,6 +48,7 @@ class ExportFormatDialogTest {
         }
         composeTestRule.onNodeWithText("GPX (Recommended)").assertIsDisplayed()
         composeTestRule.onNodeWithText("KML").assertIsDisplayed()
+        composeTestRule.onNodeWithText("JSON").assertIsDisplayed()
         composeTestRule.onNodeWithText("Database").assertIsDisplayed()
     }
 
@@ -67,7 +69,10 @@ class ExportFormatDialogTest {
             "Full-precision route points for geographic visualization"
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(
-            "Raw full backup including precise locations, radio data, and settings"
+            "Streaming locations and session summaries; import merges data and regenerates some metadata"
+        ).assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "Raw SQLite backup; import merges compatible rows into existing data, not a full restore"
         ).assertIsDisplayed()
     }
 
@@ -133,6 +138,30 @@ class ExportFormatDialogTest {
     }
 
     @Test
+    fun selectingJson_callsOnFormatSelectedWithJson() {
+        var selectedFormat: ExportFormat? = null
+        composeTestRule.setContent {
+            AppTheme(useDynamicColor = false) {
+                ExportFormatDialog(
+                    onDismiss = {},
+                    onFormatSelected = { selectedFormat = it }
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("JSON").performClick()
+        composeTestRule.onNodeWithText("Continue export").performClick()
+        assertEquals(ExportFormat.JSON, selectedFormat)
+    }
+
+    @Test
+    fun supportedExportFormats_matchFormatRegistry() {
+        val registryIds = FormatRegistry.allExportFormats().map { it.id }.toSet()
+        val dialogIds = ExportFormat.supportedExportFormats().map { it.formatId }.toSet()
+
+        assertEquals(registryIds, dialogIds)
+    }
+
+    @Test
     fun selectingFormat_alsoDismissesDialog() {
         var dismissed = false
         composeTestRule.setContent {
@@ -162,6 +191,24 @@ class ExportFormatDialogTest {
         composeTestRule.onNodeWithText("Database").performClick()
         composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
         composeTestRule.onNodeWithText("precise locations, Wi-Fi/cell radio data", substring = true)
+            .assertIsDisplayed()
+        assertEquals(null, selectedFormat)
+    }
+
+    @Test
+    fun selectingJson_showsSensitivityWarningBeforeCallback() {
+        var selectedFormat: ExportFormat? = null
+        composeTestRule.setContent {
+            AppTheme(useDynamicColor = false) {
+                ExportFormatDialog(
+                    onDismiss = {},
+                    onFormatSelected = { selectedFormat = it }
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("JSON").performClick()
+        composeTestRule.onNodeWithText("Export precise location data?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("full-precision locations", substring = true)
             .assertIsDisplayed()
         assertEquals(null, selectedFormat)
     }

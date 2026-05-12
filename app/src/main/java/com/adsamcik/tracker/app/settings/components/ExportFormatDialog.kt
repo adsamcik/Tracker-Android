@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.settings.components
 
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.impexp.format.FormatRegistry
 
 /**
  * Dialog for selecting export format with clear descriptions and GPX as recommended default.
@@ -65,36 +67,19 @@ fun ExportFormatDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                ExportFormatOption(
-                    name = stringResource(R.string.export_format_gpx_name),
-                    description = stringResource(R.string.export_format_gpx_desc),
-                    icon = Icons.Default.Route,
-                    onClick = {
-                        pendingFormat = ExportFormat.GPX
+                ExportFormat.supportedExportFormats().forEachIndexed { index, format ->
+                    if (index > 0) {
+                        HorizontalDivider()
                     }
-                )
-                
-                HorizontalDivider()
-                
-                ExportFormatOption(
-                    name = stringResource(R.string.export_format_kml_name),
-                    description = stringResource(R.string.export_format_kml_desc),
-                    icon = Icons.Default.Map,
-                    onClick = {
-                        pendingFormat = ExportFormat.KML
-                    }
-                )
-                
-                HorizontalDivider()
-                
-                ExportFormatOption(
-                    name = stringResource(R.string.export_format_db_name),
-                    description = stringResource(R.string.export_format_db_desc),
-                    icon = Icons.Default.Storage,
-                    onClick = {
-                        pendingFormat = ExportFormat.DATABASE
-                    }
-                )
+                    ExportFormatOption(
+                        name = stringResource(format.displayNameRes),
+                        description = stringResource(format.descriptionRes),
+                        icon = format.icon,
+                        onClick = {
+                            pendingFormat = format
+                        }
+                    )
+                }
             }
         },
         confirmButton = {},
@@ -112,11 +97,7 @@ private fun ExportSensitivityDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val message = when (format) {
-        ExportFormat.GPX -> stringResource(R.string.export_sensitivity_gpx_message)
-        ExportFormat.KML -> stringResource(R.string.export_sensitivity_kml_message)
-        ExportFormat.DATABASE -> stringResource(R.string.export_sensitivity_db_message)
-    }
+    val message = stringResource(format.sensitivityMessageRes)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -175,21 +156,61 @@ private fun ExportFormatOption(
 /**
  * Export format options with associated exporter classes.
  */
-enum class ExportFormat {
-    GPX,
-    KML,
-    DATABASE
+enum class ExportFormat(
+    val formatId: String,
+    @StringRes val displayNameRes: Int,
+    @StringRes val descriptionRes: Int,
+    @StringRes val sensitivityMessageRes: Int,
+) {
+    GPX(
+        formatId = "gpx",
+        displayNameRes = R.string.export_format_gpx_name,
+        descriptionRes = R.string.export_format_gpx_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_gpx_message,
+    ),
+    KML(
+        formatId = "kml",
+        displayNameRes = R.string.export_format_kml_name,
+        descriptionRes = R.string.export_format_kml_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_kml_message,
+    ),
+    JSON(
+        formatId = "json",
+        displayNameRes = R.string.export_format_json_name,
+        descriptionRes = R.string.export_format_json_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_json_message,
+    ),
+    DATABASE(
+        formatId = "db",
+        displayNameRes = R.string.export_format_db_name,
+        descriptionRes = R.string.export_format_db_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_db_message,
+    );
+
+    companion object {
+        fun fromFormatId(formatId: String): ExportFormat? =
+            values().firstOrNull { it.formatId == formatId }
+
+        fun supportedExportFormats(): List<ExportFormat> =
+            FormatRegistry.allExportFormats().mapNotNull { fromFormatId(it.id) }
+    }
 }
+
+private val ExportFormat.icon: ImageVector
+    get() = when (this) {
+        ExportFormat.GPX -> Icons.Default.Route
+        ExportFormat.KML -> Icons.Default.Map
+        ExportFormat.JSON -> Icons.Default.Storage
+        ExportFormat.DATABASE -> Icons.Default.Storage
+    }
 
 /**
  * Launch export activity for the selected format.
  */
 fun launchExportActivity(context: Context, format: ExportFormat) {
-    val exporterClass = when (format) {
-        ExportFormat.GPX -> com.adsamcik.tracker.impexp.exporter.GpxExporter::class.java
-        ExportFormat.KML -> com.adsamcik.tracker.impexp.exporter.KmlExporter::class.java
-        ExportFormat.DATABASE -> com.adsamcik.tracker.impexp.exporter.DatabaseExporter::class.java
-    }
+    val exporterClass = requireNotNull(FormatRegistry.exporterFor(format.formatId)) {
+        "No exporter registered for ${format.formatId}"
+    }.javaClass
     
     context.startActivity(
         Intent(

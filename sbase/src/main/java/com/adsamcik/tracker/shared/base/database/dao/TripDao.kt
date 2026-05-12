@@ -70,6 +70,29 @@ interface TripDao {
 	suspend fun getBetween(fromMs: Long, toMs: Long): List<Trip>
 
 	/**
+	 * Trips within a time range, paged for streaming exports.
+	 */
+	@Query(
+		"""
+		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
+		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
+		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
+		FROM session_segment
+		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs AND sample_count > 0
+		ORDER BY startTimeMs DESC
+		LIMIT :limit OFFSET :offset
+		"""
+	)
+	suspend fun getBetweenPage(
+		fromMs: Long,
+		toMs: Long,
+		limit: Int,
+		offset: Int
+	): List<Trip>
+
+	/**
 	 * Single trip lookup by ID.
 	 */
 	@Query(

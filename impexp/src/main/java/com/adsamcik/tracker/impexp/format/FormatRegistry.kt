@@ -62,6 +62,10 @@ object FormatRegistry {
 	fun allExportFormats(): List<FormatDescriptor> =
 		entries.values.filter { it.exporter != null }.map { it.descriptor }
 
+	/** All descriptors that have a file importer registered. */
+	fun allImportFormats(): List<FormatDescriptor> =
+		entries.values.filter { it.importer != null }.map { it.descriptor }
+
 	/** Flat set of every extension that has an importer registered. */
 	fun allImportExtensions(): Set<String> =
 		entries.values

@@ -48,6 +48,6 @@
     <string name="format_database">Database</string>
 
     <string name="settings_import_no_types">no types supported on your device, sorry.</string>
-    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
     <string name="settings_import_title">Import</string>
 </resources>

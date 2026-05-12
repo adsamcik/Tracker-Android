@@ -43,6 +43,9 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.launchExportActivity
+import com.adsamcik.tracker.impexp.format.FormatRegistry
+import com.adsamcik.tracker.impexp.importer.DataImport
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 private val defaultDispatchers = DefaultDispatchersProvider
@@ -58,6 +61,8 @@ fun DataSettingsScreen() {
 
     val coroutineScope = rememberCoroutineScope()
     var showExportFormatDialog by remember { mutableStateOf(false) }
+    val dataImport = remember { DataImport() }
+    val importMimeTypes = remember { supportedImportMimeTypes(dataImport) }
 
     // File picker launcher for import
     val importLauncher = rememberLauncherForActivityResult(
@@ -113,17 +118,19 @@ fun DataSettingsScreen() {
 
         // Import section
         item {
+            val importFormatNames = supportedImportFormatNames()
+            val archiveNames = dataImport.supportedArchiveExtractorExtensions
+                .joinToString { it.uppercase(Locale.getDefault()) }
             SettingsItem(
                 title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
-                subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_summary, "GPX, KML, ZIP", "ZIP"),
+                subtitle = stringResource(
+                    com.adsamcik.tracker.impexp.R.string.settings_import_summary,
+                    importFormatNames,
+                    archiveNames
+                ),
                 icon = Icons.Default.FileDownload,
                 onClick = {
-                    importLauncher.launch(arrayOf(
-                        "application/gpx+xml",
-                        "application/vnd.google-earth.kml+xml",
-                        "application/zip",
-                        "*/*"
-                    ))
+                    importLauncher.launch(importMimeTypes)
                 }
             )
         }
@@ -230,4 +237,26 @@ fun DataSettingsScreen() {
             }
         )
     }
+}
+
+@Composable
+private fun supportedImportFormatNames(): String {
+    val names = mutableListOf<String>()
+    for (descriptor in FormatRegistry.allImportFormats()) {
+        names += stringResource(descriptor.displayNameRes)
+    }
+    return names.joinToString()
+}
+
+private fun supportedImportMimeTypes(dataImport: DataImport): Array<String> {
+    val fileMimeTypes = FormatRegistry.allImportFormats().map { it.mimeType }
+    val archiveMimeTypes = dataImport.supportedArchiveExtractorExtensions.flatMap { extension ->
+        when (extension.lowercase(Locale.ROOT)) {
+            "zip" -> listOf("application/zip", "application/x-zip-compressed")
+            else -> emptyList()
+        }
+    }
+    return (fileMimeTypes + archiveMimeTypes + "*/*")
+        .distinct()
+        .toTypedArray()
 }

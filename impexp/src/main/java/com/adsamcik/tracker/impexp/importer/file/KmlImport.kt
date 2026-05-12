@@ -137,7 +137,7 @@ internal class KmlImport(
 		while (!(event == XmlPullParser.END_TAG && parser.depth == timestampDepth && parser.name == "TimeStamp")) {
 			if (event == XmlPullParser.START_TAG && parser.name == "when") {
 				timestamp = parser.readTextOrNull()
-					?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+					?.let(::parseWhenTimestamp)
 			}
 			event = parser.next()
 		}
@@ -297,8 +297,11 @@ internal class KmlImport(
 		val nextTimeCursor: Long
 	)
 
-	private companion object {
+	internal companion object {
 		const val BATCH_SIZE = 100
 		const val POINT_TIME_DELTA_MS = Time.SECOND_IN_MILLISECONDS
+
+		fun parseWhenTimestamp(value: String): Long? =
+			runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
 	}
 }
