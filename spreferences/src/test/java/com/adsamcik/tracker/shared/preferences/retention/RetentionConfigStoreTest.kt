@@ -1,7 +1,10 @@
 package com.adsamcik.tracker.shared.preferences.retention
 
 import android.content.Context
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,11 +27,17 @@ class RetentionConfigStoreTest {
 	@BeforeEach
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
+		PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
 		val dsDir = context.filesDir.resolve("datastore")
 		if (dsDir.exists()) {
 			dsDir.listFiles()?.forEach { file -> file.delete() }
 		}
-		kotlinx.coroutines.runBlocking { resetRetentionConfigForTests(context) }
+		LegacyPreferenceStore.resetForTests()
+		kotlinx.coroutines.runBlocking {
+			Preferences(context).editSuspend { clear() }
+			resetRetentionConfigForTests(context)
+		}
+		LegacyPreferenceStore.resetForTests()
 		store = RetentionConfigStore(context, Dispatchers.IO)
 	}
 
@@ -63,6 +72,20 @@ class RetentionConfigStoreTest {
 	fun `store emits default config on first read`()  { runTest {
 		val config = store.config.first()
 		config shouldBe RetentionConfigState()
+	} }
+
+	@Test
+	fun `legacy migration preserves keep forever data setting`()  { runTest {
+		Preferences(context).editSuspend {
+			setBoolean("autoCleanupOldData", true)
+			setString("dataRetentionYears", "0")
+		}
+		Preferences(context).fetchBoolean("autoCleanupOldData", false) shouldBe true
+		Preferences(context).fetchString("dataRetentionYears") shouldBe "0"
+		val config = store.config.first()
+
+		config.autoCleanupEnabled shouldBe true
+		config.dataRetentionYears shouldBe 0
 	} }
 
 	// endregion
@@ -170,13 +193,12 @@ class RetentionConfigStoreTest {
 
 	// endregion
 
-	// region Edge cases — withDefault behavior
+	// region Edge cases — zero means keep forever
 
 	@Test
-	fun `zero raw data days reads back as default after domain-proto round-trip`()  { runTest {
-		// When 0 is stored in proto, toDomain() applies withDefault → DEFAULT_RAW_DAYS
+	fun `zero raw data days reads back as keep forever after domain-proto round-trip`()  { runTest {
 		store.update { copy(rawDataRetentionDays = 0) }
-		store.config.first().rawDataRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
+		store.config.first().rawDataRetentionDays shouldBe 0
 	} }
 
 	@Test
@@ -186,9 +208,9 @@ class RetentionConfigStoreTest {
 	} }
 
 	@Test
-	fun `zero daily summary days reads back as default`()  { runTest {
+	fun `zero daily summary days reads back as keep forever`()  { runTest {
 		store.update { copy(dailySummaryRetentionDays = 0) }
-		store.config.first().dailySummaryRetentionDays shouldBe RetentionConfigState.DEFAULT_DAILY_SUMMARY_DAYS
+		store.config.first().dailySummaryRetentionDays shouldBe 0
 	} }
 
 	@Test
@@ -217,15 +239,21 @@ class RetentionConfigStoreTest {
 	} }
 
 	@Test
-	fun `zero wifi cell days reads back as default`()  { runTest {
+	fun `zero wifi cell days reads back as keep forever`()  { runTest {
 		store.update { copy(wifiCellRetentionDays = 0) }
-		store.config.first().wifiCellRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
+		store.config.first().wifiCellRetentionDays shouldBe 0
 	} }
 
 	@Test
-	fun `zero legacy session days reads back as default`()  { runTest {
+	fun `zero legacy session days reads back as keep forever`()  { runTest {
 		store.update { copy(legacySessionRetentionDays = 0) }
-		store.config.first().legacySessionRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
+		store.config.first().legacySessionRetentionDays shouldBe 0
+	} }
+
+	@Test
+	fun `zero data retention years reads back as keep forever`()  { runTest {
+		store.update { copy(dataRetentionYears = 0) }
+		store.config.first().dataRetentionYears shouldBe 0
 	} }
 
 	// endregion

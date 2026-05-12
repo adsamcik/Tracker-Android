@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.service
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
@@ -34,6 +35,7 @@ internal class TrackerTierEscalationHandler(
 	private val componentMutex: Mutex,
 	private val controller: TrackerServiceController,
 	private val componentFactory: TrackerComponentFactory,
+	private val trackingParamsRepository: TrackingParamsRepository,
 ) {
 
 	/**
@@ -110,7 +112,11 @@ internal class TrackerTierEscalationHandler(
 
 				// Recreate DataProducerManager with full producer set
 				dataProducerManager?.onDisable()
-				val newManager = DataProducerManager(context, newTier)
+				val newManager = DataProducerManager(
+					context = context,
+					initialTier = newTier,
+					trackingParamsRepository = trackingParamsRepository,
+				)
 				newManager.onEnable()
 				dataProducerManager = newManager
 				onProducerManagerChanged?.invoke(newManager)

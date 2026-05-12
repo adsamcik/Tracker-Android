@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -15,6 +17,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -75,6 +78,12 @@ class SessionTrackerComponentTest {
 		field.set(component, value)
 	}
 
+	private fun intField(component: SessionTrackerComponent, name: String): Int {
+		val field = SessionTrackerComponent::class.java.getDeclaredField(name)
+		field.isAccessible = true
+		return field.getInt(component)
+	}
+
 	// ── helpers ──────────────────────────────────────────────────────────
 
 	private fun emptySession(id: Long = 42L, start: Long = 1000L): MutableTrackerSession =
@@ -109,6 +118,31 @@ class SessionTrackerComponentTest {
 	)
 
 	// ── tests ───────────────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("reads min distance and time from tracking repository on enable")
+	fun readsTrackingParamsRepositoryOnEnable() = runTest {
+		val params = MutableStateFlow(
+			TrackingParamsState(
+				minDistanceMeters = 33,
+				minTimeSeconds = 7,
+			)
+		)
+		val repository: TrackingParamsRepository = mockk {
+			every { data } returns params
+		}
+		val component = SessionTrackerComponent(
+			isUserInitiated = true,
+			sessionSegmentDao = mockSegmentDao,
+			trackingParamsRepository = repository,
+		)
+
+		component.onEnable(context)
+
+		intField(component, "minDistanceInMeters") shouldBe 33
+		intField(component, "minUpdateDelayInSeconds") shouldBe 7
+		component.onDisable(context)
+	}
 
 	@Nested
 	@DisplayName("empty session guard on disable")

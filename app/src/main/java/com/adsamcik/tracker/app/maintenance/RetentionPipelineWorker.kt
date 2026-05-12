@@ -26,9 +26,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val config = retentionConfigStore.config.first()
+        val storedConfig = retentionConfigStore.config.first()
+        val config = storedConfig.forWorker()
 
-        if (!config.autoPurgeEnabled) return Result.success()
+        if (!storedConfig.autoPurgeEnabled && !storedConfig.autoCleanupEnabled) return Result.success()
 
         if (config.exportBeforePurge) {
             ReporterFacade.report(
@@ -45,6 +46,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
             purgeTripData(appDatabase, config, now)
             purgeDailySummaries(appDatabase, config, now)
             purgeExplorationData(appDatabase, config, now)
+            purgeOperationalData(appDatabase, config, now)
 
             Result.success()
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -60,6 +62,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.stepIntervalDao().deleteOlderThan(cutoff)
         db.activitySnapshotDao().deleteOlderThan(cutoff)
         db.trackerRunDao().deleteOlderThan(cutoff)
+        db.pressureSampleDao().deleteOlderThan(cutoff)
     }
 
     private suspend fun purgeWifiCellData(db: AppDatabase, config: RetentionConfigState, now: Long) {
@@ -76,6 +79,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.inferredTripDao().deleteOlderThan(cutoff)
         db.tripLegDao().deleteOlderThan(cutoff)
         db.frequentPlaceDao().deleteOlderThan(cutoff)
+        db.routeCacheDao().deleteOlderThan(cutoff)
     }
 
     private suspend fun purgeDailySummaries(db: AppDatabase, config: RetentionConfigState, now: Long) {
@@ -94,18 +98,46 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.personalRecordDao().deleteOlderThan(cutoff)
     }
 
-    companion object {
-        private const val WORK_NAME = "retention_pipeline"
+    private suspend fun purgeOperationalData(db: AppDatabase, config: RetentionConfigState, now: Long) {
+        if (config.rawDataRetentionDays == 0) return
+        val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+        db.domainEventDao().deleteOlderThan(cutoff)
+        db.exportLogDao().deleteOlderThan(cutoff)
+    }
 
-        fun schedule(context: Context) {
+    private fun RetentionConfigState.forWorker(): RetentionConfigState {
+        if (!autoCleanupEnabled) return this
+        val days = if (dataRetentionYears == 0) 0 else dataRetentionYears.coerceAtLeast(1) * DAYS_PER_YEAR
+        return copy(
+            rawDataRetentionDays = days,
+            wifiCellRetentionDays = days,
+            tripRetentionDays = days,
+            dailySummaryRetentionDays = days,
+            explorationRetentionDays = days,
+            legacySessionRetentionDays = days,
+            autoPurgeEnabled = true,
+        )
+    }
+
+    companion object {
+        private const val WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
+        private const val DAYS_PER_YEAR = 365
+
+        fun ensureScheduled(context: Context) {
             val request = PeriodicWorkRequestBuilder<RetentionPipelineWorker>(
                 7, TimeUnit.DAYS,
             ).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }
+
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        }
+
+        fun schedule(context: Context) = ensureScheduled(context)
     }
 }

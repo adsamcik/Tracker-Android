@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PlausibilityResult
 import com.adsamcik.tracker.stats.api.TripPlausibility
 
@@ -25,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,6 +37,7 @@ import kotlin.math.max
 internal class SessionTrackerComponent(
 	private val isUserInitiated: Boolean,
 	private val sessionSegmentDao: SessionSegmentDao,
+	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : DataTrackerComponent,
 	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
@@ -183,29 +186,42 @@ internal class SessionTrackerComponent(
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val prefs = Preferences(context)
-		minDistanceInMeters = prefs.fetchInt(
-			PreferenceKeys.TRACKING_MIN_DISTANCE,
-			PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
-		)
-		minUpdateDelayInSeconds = prefs.fetchInt(
-			PreferenceKeys.TRACKING_MIN_TIME,
-			PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
-		)
+		val repository = trackingParamsRepository
+		if (repository != null) {
+			val params = repository.data.first()
+			minDistanceInMeters = params.minDistanceMeters
+			minUpdateDelayInSeconds = params.minTimeSeconds
+			preferenceJobs += repository.data
+				.onEach {
+					minDistanceInMeters = it.minDistanceMeters
+					minUpdateDelayInSeconds = it.minTimeSeconds
+				}
+				.launchIn(this)
+		} else {
+			val prefs = Preferences(context)
+			minDistanceInMeters = prefs.fetchInt(
+				PreferenceKeys.TRACKING_MIN_DISTANCE,
+				PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
+			)
+			minUpdateDelayInSeconds = prefs.fetchInt(
+				PreferenceKeys.TRACKING_MIN_TIME,
+				PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
+			)
 
-		preferenceJobs += PreferenceFlows.int(
-			context,
-			PreferenceKeys.TRACKING_MIN_DISTANCE,
-			PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
-		).onEach { minDistanceInMeters = it }
-			.launchIn(this)
+			preferenceJobs += PreferenceFlows.int(
+				context,
+				PreferenceKeys.TRACKING_MIN_DISTANCE,
+				PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
+			).onEach { minDistanceInMeters = it }
+				.launchIn(this)
 
-		preferenceJobs += PreferenceFlows.int(
-			context,
-			PreferenceKeys.TRACKING_MIN_TIME,
-			PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
-		).onEach { minUpdateDelayInSeconds = it }
-			.launchIn(this)
+			preferenceJobs += PreferenceFlows.int(
+				context,
+				PreferenceKeys.TRACKING_MIN_TIME,
+				PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
+			).onEach { minUpdateDelayInSeconds = it }
+				.launchIn(this)
+		}
 
 		withContext(coroutineContext) {
 			initializeSession()

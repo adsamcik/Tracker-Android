@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -14,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 internal class PolicyAwareLocationPreTrackerComponent(
 	private val policyFlow: StateFlow<com.adsamcik.tracker.tracker.policy.TrackingPolicy>,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : PreTrackerComponent {
 
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
@@ -41,17 +44,24 @@ internal class PolicyAwareLocationPreTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		scope = CoroutineScope(SupervisorJob() + dispatchers.main)
-		userAccuracyThreshold = Preferences(context).fetchInt(
-			PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
-			PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
-		)
-		// Observe live preference changes (matching LocationPreTrackerComponent)
-		accuracyJob = PreferenceFlows.int(
-			context,
-			PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
-			PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
-		).onEach { userAccuracyThreshold = it }
-			.launchIn(requireNotNull(scope))
+		val repository = trackingParamsRepository
+		if (repository != null) {
+			userAccuracyThreshold = repository.data.first().requiredAccuracyMeters
+			accuracyJob = repository.data
+				.onEach { userAccuracyThreshold = it.requiredAccuracyMeters }
+				.launchIn(requireNotNull(scope))
+		} else {
+			userAccuracyThreshold = Preferences(context).fetchInt(
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+			)
+			accuracyJob = PreferenceFlows.int(
+				context,
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+			).onEach { userAccuracyThreshold = it }
+				.launchIn(requireNotNull(scope))
+		}
 	}
 
 	override suspend fun onDisable(context: Context) {

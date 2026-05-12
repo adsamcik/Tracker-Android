@@ -53,6 +53,9 @@ class DataRetentionWorker @AssistedInject constructor(
         }
 
         val years = config.dataRetentionYears
+        if (years == 0) {
+            return Result.success()
+        }
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
         return try {
             pruneOlderThan(cutoff)
@@ -113,12 +116,13 @@ class DataRetentionWorker @AssistedInject constructor(
         }
 
         @WorkerThread
-        private fun yearsToMillis(years: Int): Long = years * ONE_YEAR_MILLIS
+        private fun yearsToMillis(years: Int): Long = years.coerceAtLeast(0) * ONE_YEAR_MILLIS
 
         /** Visible for tests to validate cutoff calculation for different retention values. */
         @JvmStatic
         @VisibleForTesting
         fun computeCutoffMillis(years: Int, nowMillis: Long = System.currentTimeMillis()): Long {
+            if (years <= 0) return Long.MIN_VALUE
             return nowMillis - yearsToMillis(years)
         }
     }

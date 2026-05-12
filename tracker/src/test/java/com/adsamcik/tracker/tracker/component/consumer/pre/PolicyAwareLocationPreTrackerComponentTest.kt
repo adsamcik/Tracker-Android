@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.component.consumer.pre
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import io.mockk.every
@@ -178,7 +180,7 @@ class PolicyAwareLocationPreTrackerComponentTest {
 	}
 
 	@Test
-	fun `PASSIVE_LOW accepts tracking with location present`() = runTest {
+    fun `PASSIVE_LOW accepts tracking with location present`() = runTest {
 		policyFlow.value = TrackingPolicy.PASSIVE_LOW
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
@@ -197,6 +199,38 @@ class PolicyAwareLocationPreTrackerComponentTest {
 
 		val result = component.onNewData(cycle)
 
-		assertTrue(result, "PASSIVE_LOW should accept tracking with location")
-	}
+        assertTrue(result, "PASSIVE_LOW should accept tracking with location")
+    }
+
+    @Test
+    fun `USER_INITIATED uses repository accuracy threshold`() = runTest {
+        policyFlow.value = TrackingPolicy.USER_INITIATED
+        val params = MutableStateFlow(TrackingParamsState(requiredAccuracyMeters = 25))
+        val repository: TrackingParamsRepository = mockk {
+            every { data } returns params
+        }
+        val component = PolicyAwareLocationPreTrackerComponent(
+            policyFlow = policyFlow,
+            trackingParamsRepository = repository,
+        )
+        component.onEnable(context)
+
+        val mockLocation = mockk<android.location.Location>(relaxed = true)
+        every { mockLocation.hasAccuracy() } returns true
+        every { mockLocation.accuracy } returns 30f
+
+        val locationData = com.adsamcik.tracker.shared.base.data.LocationData.Builder()
+            .apply { setLocation(mockLocation) }
+            .build()
+        val cycle = TrackingCycle(
+            timestampMs = System.currentTimeMillis(),
+            elapsedRealtimeNanos = 0L,
+            location = locationData,
+        )
+
+        val result = component.onNewData(cycle)
+
+        assertFalse(result, "USER_INITIATED should use repository required accuracy")
+        component.onDisable(context)
+    }
 }

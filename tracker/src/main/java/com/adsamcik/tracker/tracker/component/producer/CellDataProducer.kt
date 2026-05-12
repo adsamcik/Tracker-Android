@@ -23,16 +23,23 @@ import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
+import kotlinx.coroutines.flow.map
 import java.util.ArrayList
 
-internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
-    TrackerDataProducerComponent(changeReceiver) {
+internal class CellDataProducer(
+	changeReceiver: TrackerDataProducerObserver,
+	trackingParamsRepository: TrackingParamsRepository? = null,
+) : TrackerDataProducerComponent(
+	changeReceiver,
+	enabledFlow = trackingParamsRepository?.data?.map { it.cellEnabled },
+) {
 	override val preferenceKey: String = PreferenceKeys.CELL_ENABLED
 	override val preferenceDefault: Boolean = PreferenceKeys.CELL_ENABLED_DEFAULT
 

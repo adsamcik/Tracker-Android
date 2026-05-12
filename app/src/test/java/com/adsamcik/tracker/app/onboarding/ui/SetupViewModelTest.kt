@@ -7,14 +7,18 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -32,10 +36,22 @@ class SetupViewModelTest {
     private val onboardingRepository: OnboardingRepository = mockk(relaxed = true)
     private val activityWatcherController: ActivityWatcherServiceController = mockk(relaxed = true)
     private val dataRetentionScheduler: DataRetentionScheduler = mockk(relaxed = true)
+    private val paramsFlow = MutableStateFlow(TrackingParamsState())
+    private val trackingParamsRepository: TrackingParamsRepository = mockk()
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        paramsFlow.value = TrackingParamsState()
+        every { dispatchers.io } returns testDispatcher
+        every { trackingParamsRepository.data } returns paramsFlow
+        coEvery { trackingParamsRepository.update(any()) } answers {
+            @Suppress("UNCHECKED_CAST")
+            val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
+            paramsFlow.value = block(paramsFlow.value)
+        }
+        coEvery { onboardingRepository.markCompleted() } returns Unit
+        every { dataRetentionScheduler.initialize() } returns Unit
     }
 
     @AfterEach
@@ -49,6 +65,7 @@ class SetupViewModelTest {
         onboardingRepository = onboardingRepository,
         activityWatcherController = activityWatcherController,
         dataRetentionScheduler = dataRetentionScheduler,
+        trackingParamsRepository = trackingParamsRepository,
     )
 
     @Nested

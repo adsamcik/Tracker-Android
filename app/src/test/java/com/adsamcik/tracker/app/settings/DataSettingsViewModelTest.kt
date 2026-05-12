@@ -145,6 +145,7 @@ class DataSettingsViewModelTest {
 
                 vm.setAutoCleanupEnabled(true)
                 awaitItem().autoCleanupEnabled shouldBe true
+                configFlow.value.autoPurgeEnabled shouldBe true
             }
         }
 
@@ -159,6 +160,7 @@ class DataSettingsViewModelTest {
 
                 vm.setAutoCleanupEnabled(false)
                 awaitItem().autoCleanupEnabled shouldBe false
+                configFlow.value.autoPurgeEnabled shouldBe false
             }
         }
 
@@ -170,6 +172,9 @@ class DataSettingsViewModelTest {
 
                 vm.setDataRetentionYears(5)
                 awaitItem().dataRetentionYears shouldBe 5
+                configFlow.value.rawDataRetentionDays shouldBe 5 * 365
+                configFlow.value.wifiCellRetentionDays shouldBe 5 * 365
+                configFlow.value.tripRetentionDays shouldBe 5 * 365
             }
         }
 
@@ -181,9 +186,27 @@ class DataSettingsViewModelTest {
 
                 vm.setDataRetentionYears(2)
                 awaitItem().dataRetentionYears shouldBe 2
+                configFlow.value.rawDataRetentionDays shouldBe 2 * 365
 
                 vm.setDataRetentionYears(10)
                 awaitItem().dataRetentionYears shouldBe 10
+                configFlow.value.rawDataRetentionDays shouldBe 10 * 365
+            }
+        }
+
+        @Test
+        fun `setDataRetentionYears accepts zero as keep forever`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            vm.uiState.test {
+                awaitItem() // initial
+
+                vm.setDataRetentionYears(0)
+                awaitItem().dataRetentionYears shouldBe 0
+                configFlow.value.rawDataRetentionDays shouldBe 0
+                configFlow.value.wifiCellRetentionDays shouldBe 0
+                configFlow.value.tripRetentionDays shouldBe 0
+                configFlow.value.dailySummaryRetentionDays shouldBe 0
+                configFlow.value.explorationRetentionDays shouldBe 0
             }
         }
     }

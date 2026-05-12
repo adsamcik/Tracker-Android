@@ -336,6 +336,11 @@
     <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
     <string name="settings_auto_cleanup_old_data_summary">Automatically remove data older than 1 year</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Keep data forever; auto-cleanup will not delete old data</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Automatically remove data older than %1$d year</item>
+        <item quantity="other">Automatically remove data older than %1$d years</item>
+    </plurals>
     <string name="settings_auto_cleanup_old_data_default" translatable="false">false</string>
 
     <!-- Data retention period options -->
@@ -344,6 +349,7 @@
     <string name="settings_data_retention_years_default" translatable="false">1</string>
 
     <string-array name="settings_data_retention_years_titles">
+        <item>Keep forever</item>
         <item>1 year</item>
         <item>2 years</item>
         <item>3 years</item>
@@ -351,6 +357,7 @@
         <item>10 years</item>
     </string-array>
     <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
         <item>1</item>
         <item>2</item>
         <item>3</item>

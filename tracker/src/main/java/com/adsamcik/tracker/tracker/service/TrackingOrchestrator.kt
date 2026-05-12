@@ -65,7 +65,7 @@ internal class TrackingOrchestrator(
 	private val domainEventRepository: DomainEventRepository,
 	private val dispatchers: DispatchersProvider,
 	private val appDatabase: AppDatabase,
-	trackingParamsRepository: TrackingParamsRepository,
+	private val trackingParamsRepository: TrackingParamsRepository,
 	trackerSettingsRepository: TrackerSettingsRepository,
 ) {
 	private companion object {
@@ -178,7 +178,11 @@ internal class TrackingOrchestrator(
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 
-		dataProducerManager = DataProducerManager(context, initialTier).apply { onEnable() }
+		dataProducerManager = DataProducerManager(
+			context = context,
+			initialTier = initialTier,
+			trackingParamsRepository = trackingParamsRepository,
+		).apply { onEnable() }
 
 		// Initialize the new 4-tier escalation engine
 		val escalationEngine = DefaultPolicyEscalationEngine()
@@ -205,6 +209,7 @@ internal class TrackingOrchestrator(
 			componentMutex = componentMutex,
 			controller = controller,
 			componentFactory = componentFactory,
+			trackingParamsRepository = trackingParamsRepository,
 		).apply {
 			this.currentTier = initialTier
 			this.dataComponentList = this@TrackingOrchestrator.dataComponentList

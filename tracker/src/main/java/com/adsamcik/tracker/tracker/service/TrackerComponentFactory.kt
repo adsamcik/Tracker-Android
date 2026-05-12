@@ -77,6 +77,7 @@ internal class TrackerComponentFactory(
 		val sessionComponent = SessionTrackerComponent(
 			isSessionUserInitiated,
 			appDatabase.sessionSegmentDao(),
+			trackingParamsRepository,
 		).apply {
 			onEnable(context)
 		}
@@ -125,9 +126,12 @@ internal class TrackerComponentFactory(
 	): List<PreTrackerComponent> {
 		val components = mutableListOf<PreTrackerComponent>().apply {
 			trackingPolicyManager?.let { policyMgr ->
-				add(PolicyAwareLocationPreTrackerComponent(policyMgr.currentPolicy))
+				add(PolicyAwareLocationPreTrackerComponent(
+					policyFlow = policyMgr.currentPolicy,
+					trackingParamsRepository = trackingParamsRepository,
+				))
 			} ?: run {
-				add(LocationPreTrackerComponent())
+				add(LocationPreTrackerComponent(trackingParamsRepository = trackingParamsRepository))
 			}
 		}
 		for (component in components) { component.onEnable(context) }

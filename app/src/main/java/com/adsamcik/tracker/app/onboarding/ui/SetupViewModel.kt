@@ -12,9 +12,10 @@ import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
-import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,6 +43,7 @@ class SetupViewModel @Inject constructor(
     private val onboardingRepository: OnboardingRepository,
     private val activityWatcherController: ActivityWatcherServiceController,
     private val dataRetentionScheduler: DataRetentionScheduler,
+    private val trackingParamsRepository: TrackingParamsRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SetupUiState())
@@ -160,11 +162,12 @@ class SetupViewModel @Inject constructor(
     }
 
     @Suppress("DEPRECATION")
-    private fun applyPreferences(s: SetupUiState) {
+    private suspend fun applyPreferences(s: SetupUiState) {
         val preferences = Preferences(appContext)
         val preset = s.trackingPreset.settings
         val wifiAllowed = s.wifiEnabled && appContext.hasWifiScanPermission
         val cellAllowed = s.cellEnabled && appContext.hasCellScanPermission
+        val effectiveMode = if (s.activityPermissionGranted) s.autoTrackingMode else 0
 
         preferences.edit {
             // Location precision
@@ -173,36 +176,33 @@ class SetupViewModel @Inject constructor(
                 s.locationPrecision.name,
             )
 
-            // Data source toggles
-            setBoolean(PreferenceKeys.LOCATION_ENABLED, s.locationEnabled)
-            setBoolean(PreferenceKeys.ACTIVITY_ENABLED, s.activityEnabled)
-            setBoolean(PreferenceKeys.STEPS_ENABLED, s.stepsEnabled)
-            setBoolean(PreferenceKeys.WIFI_ENABLED, wifiAllowed)
-            setBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, preset.wifiLocationCountEnabled && wifiAllowed)
-            setBoolean(PreferenceKeys.CELL_ENABLED, cellAllowed)
-
-            // Tracking preset parameters
-            setInt(PreferenceKeys.TRACKING_MIN_DISTANCE, preset.minDistanceMeters)
-            setInt(PreferenceKeys.TRACKING_MIN_TIME, preset.minTimeSeconds)
-            setInt(PreferenceKeys.TRACKING_REQUIRED_ACCURACY, preset.requiredAccuracyMeters)
-
-            // Auto-tracking
-            setBoolean(PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED, preset.useTransitionDetection)
+            // Activity watcher service flag is still a legacy preference bridge.
             setBoolean(
                 appContext.getString(ActivityR.string.settings_activity_watcher_key),
                 s.autoTrackingMode > 0,
             )
+        }
 
-            // Notification styling on
-            setBoolean(PreferenceKeys.NOTIFICATION_STYLED, true)
-
-            // Auto-tracking mode
-            val effectiveMode = if (s.activityPermissionGranted) s.autoTrackingMode else 0
-            setInt(PreferenceKeys.TRACKING_ACTIVITY_MODE, effectiveMode)
+        trackingParamsRepository.update {
+            copy(
+                locationEnabled = s.locationEnabled,
+                activityEnabled = s.activityEnabled,
+                stepsEnabled = s.stepsEnabled,
+                wifiEnabled = wifiAllowed,
+                wifiNetworkEnabled = preset.wifiEnabled && wifiAllowed,
+                wifiLocationCountEnabled = preset.wifiLocationCountEnabled && wifiAllowed,
+                cellEnabled = cellAllowed,
+                autoTrackingMode = effectiveMode,
+                transitionDetectionEnabled = preset.useTransitionDetection,
+                notificationStyled = true,
+                minDistanceMeters = preset.minDistanceMeters,
+                minTimeSeconds = preset.minTimeSeconds,
+                requiredAccuracyMeters = preset.requiredAccuracyMeters,
+                presetName = s.trackingPreset.toTrackingPreset().name,
+            )
         }
 
         // Poke activity watcher so it picks up the new settings immediately
-        val effectiveMode = if (s.activityPermissionGranted) s.autoTrackingMode else 0
         activityWatcherController.poke(autoTracking = effectiveMode)
         if (effectiveMode > 0) {
             activityWatcherController.poke()
@@ -210,4 +210,10 @@ class SetupViewModel @Inject constructor(
     }
 
     // endregion
+
+    private fun TrackingPolicyPreset.toTrackingPreset(): TrackingPreset = when (this) {
+        TrackingPolicyPreset.BATTERY_SAVER -> TrackingPreset.POWER_SAVE
+        TrackingPolicyPreset.BALANCED -> TrackingPreset.BALANCED
+        TrackingPolicyPreset.HIGH_PRECISION -> TrackingPreset.HIGH_ACCURACY
+    }
 }

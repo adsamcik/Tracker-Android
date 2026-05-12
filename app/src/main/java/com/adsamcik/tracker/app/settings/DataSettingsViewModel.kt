@@ -65,7 +65,9 @@ class DataSettingsViewModel @Inject constructor(
     fun setAutoCleanupEnabled(enabled: Boolean) {
         viewModelScope.launch {
             runCatching {
-                retentionConfigStore.update { copy(autoCleanupEnabled = enabled) }
+                retentionConfigStore.update {
+                    copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
+                }
             }.onFailure {
                 Log.e("DataSettingsViewModel", "Failed to update auto-cleanup", it)
             }
@@ -73,10 +75,21 @@ class DataSettingsViewModel @Inject constructor(
     }
 
     fun setDataRetentionYears(years: Int) {
-        if (years <= 0) return
+        if (years < 0) return
         viewModelScope.launch {
             runCatching {
-                retentionConfigStore.update { copy(dataRetentionYears = years) }
+                val retentionDays = if (years == 0) 0 else years * DAYS_PER_YEAR
+                retentionConfigStore.update {
+                    copy(
+                        dataRetentionYears = years,
+                        rawDataRetentionDays = retentionDays,
+                        wifiCellRetentionDays = retentionDays,
+                        tripRetentionDays = retentionDays,
+                        dailySummaryRetentionDays = retentionDays,
+                        explorationRetentionDays = retentionDays,
+                        legacySessionRetentionDays = retentionDays,
+                    )
+                }
             }.onFailure {
                 Log.e("DataSettingsViewModel", "Failed to update retention years", it)
             }
@@ -113,5 +126,9 @@ class DataSettingsViewModel @Inject constructor(
                 Log.e("DataSettingsViewModel", "Failed to reset export watermarks", it)
             }
         }
+    }
+
+    private companion object {
+        const val DAYS_PER_YEAR = 365
     }
 }

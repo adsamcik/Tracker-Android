@@ -27,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -133,9 +134,18 @@ fun DataSettingsScreen() {
         }
 
         item {
+            val autoCleanupSummary = if (uiState.dataRetentionYears == 0) {
+                stringResource(R.string.settings_auto_cleanup_old_data_summary_forever)
+            } else {
+                pluralStringResource(
+                    R.plurals.settings_auto_cleanup_old_data_summary_years,
+                    uiState.dataRetentionYears,
+                    uiState.dataRetentionYears,
+                )
+            }
             SwitchSettingsItem(
                 title = stringResource(R.string.settings_auto_cleanup_old_data_title),
-                subtitle = stringResource(R.string.settings_auto_cleanup_old_data_summary),
+                subtitle = autoCleanupSummary,
                 checked = uiState.autoCleanupEnabled,
                 onCheckedChange = { dataVm.setAutoCleanupEnabled(it) }
             )

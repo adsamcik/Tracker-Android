@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.wifiManager
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -25,14 +26,20 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal class WifiDataProducer(
     changeReceiver: TrackerDataProducerObserver,
+    trackingParamsRepository: TrackingParamsRepository? = null,
     private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
-) : TrackerDataProducerComponent(changeReceiver, dispatchers) {
+) : TrackerDataProducerComponent(
+    changeReceiver,
+    dispatchers,
+    trackingParamsRepository?.data?.map { it.wifiEnabled },
+) {
     override val preferenceKey: String = PreferenceKeys.WIFI_ENABLED
     override val preferenceDefault: Boolean = PreferenceKeys.WIFI_ENABLED_DEFAULT
 

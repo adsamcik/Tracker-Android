@@ -9,13 +9,19 @@ import android.hardware.SensorManager
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.flow.map
 
-internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
-		TrackerDataProducerComponent(changeReceiver),
-		SensorEventListener {
+internal class StepDataProducer(
+	changeReceiver: TrackerDataProducerObserver,
+	trackingParamsRepository: TrackingParamsRepository? = null,
+) : TrackerDataProducerComponent(
+		changeReceiver,
+		enabledFlow = trackingParamsRepository?.data?.map { it.stepsEnabled },
+), SensorEventListener {
 	private val lockObject = Object()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
