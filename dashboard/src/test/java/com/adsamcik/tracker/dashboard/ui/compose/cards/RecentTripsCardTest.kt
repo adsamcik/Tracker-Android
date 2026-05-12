@@ -7,6 +7,10 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.DownhillSkiing
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -111,6 +115,15 @@ class RecentTripsCardTest {
 
 		composeRule.onAllNodesWithContentDescription("View details")
 			.assertCountEquals(0)
+	}
+
+	@Test
+	fun getTripIcon_supportsGmsNativeAndSkiIds() {
+		getTripIcon(7) shouldBe Icons.AutoMirrored.Filled.DirectionsWalk
+		getTripIcon(-2) shouldBe Icons.AutoMirrored.Filled.DirectionsWalk
+		getTripIcon(1) shouldBe Icons.AutoMirrored.Filled.DirectionsBike
+		getTripIcon(-4) shouldBe Icons.AutoMirrored.Filled.DirectionsBike
+		getTripIcon(-22) shouldBe Icons.Filled.DownhillSkiing
 	}
 
 	private fun setContent(trips: List<Trip>, onTripClick: ((Long) -> Unit)?) {

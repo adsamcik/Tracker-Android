@@ -116,6 +116,10 @@ object ActivityRequestManager {
 					minInterval,
 					transitions
 			)
+		} else {
+			val message = "activity recognition permission missing; request not started"
+			logActivity(LogData(message = message, source = ACTIVITY_LOG_SOURCE))
+			Reporter.log(message)
 		}
 	}
 

@@ -2,11 +2,16 @@ package com.adsamcik.tracker.activity.api.backend
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import io.kotest.matchers.shouldBe
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockkObject
+import io.mockk.runs
 import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -30,6 +35,10 @@ class GmsActivityRecognitionBackendTest {
 	fun setUp() {
 		backend = GmsActivityRecognitionBackend(context)
 		mockkObject(Assist)
+		mockkObject(Logger)
+		mockkObject(Reporter)
+		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
+		every { Reporter.report(any<Throwable>()) } just runs
 	}
 
 	@AfterEach
@@ -77,6 +86,11 @@ class GmsActivityRecognitionBackendTest {
 			val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
 
 			result shouldBe false
+			verify {
+				Reporter.report(match<Throwable> {
+					it.message?.contains("Google Play Services unavailable") == true
+				})
+			}
 		}
 	}
 

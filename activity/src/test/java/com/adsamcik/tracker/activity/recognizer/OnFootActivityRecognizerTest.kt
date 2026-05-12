@@ -305,11 +305,10 @@ class OnFootActivityRecognizerTest {
     inner class `edge cases` {
 
         @Test
-        fun `empty collection returns WALKING with zero confidence`() {
-            // No data: other(0)>0 false, run(0)>0/3=0 false -> WALKING, confidence=0
+        fun `empty collection returns null`() {
             val result = recognizer.resolve(session, emptyList())
 
-            result.recognizedActivity shouldBe NativeSessionActivity.WALKING
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 
@@ -336,33 +335,32 @@ class OnFootActivityRecognizerTest {
         }
 
         @Test
-        fun `all zero confidence walking returns WALKING with 0`() {
+        fun `all zero confidence walking returns null`() {
             val locations = locationsOf(5, DetectedActivity.WALKING, confidence = 0)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.WALKING
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 
         @Test
-        fun `only STILL locations returns WALKING with 0 confidence`() {
-            // All in still bucket; walk/run/onFoot/other all empty
+        fun `only STILL locations returns null`() {
             val locations = locationsOf(5, DetectedActivity.STILL, confidence = 90)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.WALKING
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 
         @Test
-        fun `only UNKNOWN locations returns WALKING with 0 confidence`() {
+        fun `only UNKNOWN locations returns null`() {
             val locations = locationsOf(5, DetectedActivity.UNKNOWN, confidence = 80)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.WALKING
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 

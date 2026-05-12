@@ -17,6 +17,12 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	@Query("SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<ActivitySnapshot>>
 
+	@Query("SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
+	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot>
+
+	@Query("SELECT * FROM activity_snapshot WHERE time_ms < :timeMs ORDER BY time_ms DESC LIMIT 1")
+	suspend fun getLatestBefore(timeMs: Long): ActivitySnapshot?
+
 	/**
 	 * Get only activity transitions (not periodic updates).
 	 */

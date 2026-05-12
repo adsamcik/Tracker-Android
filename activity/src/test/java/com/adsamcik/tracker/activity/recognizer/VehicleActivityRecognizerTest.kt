@@ -118,17 +118,14 @@ class VehicleActivityRecognizerTest {
         }
 
         @Test
-        fun `unknown alone can trigger bicycle with zero bicycle confidence`() {
-            // 3 UNKNOWN, 0 BICYCLE, 1 IN_VEHICLE, 6 STILL
-            // Bicycle: unknown(3)+bicycle(0)=3 > (unknown(3)+onFoot(0)+vehicle(1))/2=2 -> true
-            // bicycle.confidence = 0 (no bicycle locations)
+        fun `unknown alone does not trigger bicycle`() {
             val locations = locationsOf(3, DetectedActivity.UNKNOWN, confidence = 50) +
                     locationsOf(1, DetectedActivity.IN_VEHICLE, confidence = 80) +
                     locationsOf(6, DetectedActivity.STILL, confidence = 70)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.BICYCLE
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
     }
@@ -229,13 +226,11 @@ class VehicleActivityRecognizerTest {
 
         @Test
         fun `TILTING maps to unknown bucket`() {
-            // 10 TILTING: unknown=10
-            // Bicycle: 10+0=10 > (10+0+0)/2=5 -> true -> BICYCLE (0 confidence)
             val locations = locationsOf(10, DetectedActivity.TILTING, confidence = 60)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.BICYCLE
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
     }
@@ -252,12 +247,12 @@ class VehicleActivityRecognizerTest {
         }
 
         @Test
-        fun `all zero confidence vehicle still detects by count`() {
+        fun `all zero confidence vehicle returns null`() {
             val locations = locationsOf(10, DetectedActivity.IN_VEHICLE, confidence = 0)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.LAND_VEHICLE
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 

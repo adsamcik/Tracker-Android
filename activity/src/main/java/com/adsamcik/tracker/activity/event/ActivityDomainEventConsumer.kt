@@ -3,6 +3,7 @@ package com.adsamcik.tracker.activity.event
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
@@ -64,10 +65,17 @@ class ActivityDomainEventConsumer @Inject constructor(
 			)
 			.build()
 
-		WorkManager.getInstance(context).enqueue(workRequest)
+		WorkManager.getInstance(context).enqueueUniqueWork(
+			uniqueWorkName(sessionId),
+			ExistingWorkPolicy.KEEP,
+			workRequest,
+		)
 	}
 
 	companion object {
 		const val CONSUMER_ID = "activity-module"
+		private const val UNIQUE_WORK_PREFIX = "ActivityRecognition-session"
+
+		fun uniqueWorkName(sessionId: Long): String = "$UNIQUE_WORK_PREFIX-$sessionId"
 	}
 }

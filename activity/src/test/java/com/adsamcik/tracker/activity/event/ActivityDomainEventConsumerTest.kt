@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.activity.event
 
 import android.content.Context
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -17,6 +19,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -29,6 +32,7 @@ class ActivityDomainEventConsumerTest {
 
 	private val domainEventRepository: DomainEventRepository = mockk(relaxed = true)
 	private val context: Context = mockk(relaxed = true)
+	private lateinit var workManager: WorkManager
 	private val consumer = ActivityDomainEventConsumer(domainEventRepository, context)
 
 	@AfterEach
@@ -38,7 +42,8 @@ class ActivityDomainEventConsumerTest {
 
 	private fun stubWorkManager() {
 		mockkObject(WorkManager)
-		every { WorkManager.getInstance(context) } returns mockk(relaxed = true)
+		workManager = mockk(relaxed = true)
+		every { WorkManager.getInstance(context) } returns workManager
 	}
 
 	@Nested
@@ -87,6 +92,13 @@ class ActivityDomainEventConsumerTest {
 
 			consumer.processUnconsumed()
 
+			verify {
+				workManager.enqueueUniqueWork(
+					ActivityDomainEventConsumer.uniqueWorkName(42L),
+					ExistingWorkPolicy.KEEP,
+					any<OneTimeWorkRequest>(),
+				)
+			}
 			coVerify(exactly = 1) {
 				domainEventRepository.markConsumed(
 					ActivityDomainEventConsumer.CONSUMER_ID,
@@ -220,6 +232,11 @@ class ActivityDomainEventConsumerTest {
 		@Test
 		fun `consumer ID is activity-module`() {
 			ActivityDomainEventConsumer.CONSUMER_ID shouldBe "activity-module"
+		}
+
+		@Test
+		fun `unique work name includes session id`() {
+			ActivityDomainEventConsumer.uniqueWorkName(42L) shouldBe "ActivityRecognition-session-42"
 		}
 	}
 }

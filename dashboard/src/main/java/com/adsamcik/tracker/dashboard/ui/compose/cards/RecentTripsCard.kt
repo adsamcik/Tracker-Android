@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.DownhillSkiing
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
@@ -35,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -177,14 +179,15 @@ private fun RecentTripRow(
 	}
 }
 
-private fun getTripIcon(primaryActivity: Int?): ImageVector {
+internal fun getTripIcon(primaryActivity: Int?): ImageVector {
 	return when (primaryActivity) {
-		-2 -> Icons.AutoMirrored.Filled.DirectionsWalk
-		-3 -> Icons.AutoMirrored.Filled.DirectionsRun
-		-4 -> Icons.AutoMirrored.Filled.DirectionsBike
-		-5, -34 -> Icons.Filled.DirectionsCar
-		-26 -> Icons.Filled.Sailing
-		-31 -> Icons.Filled.Flight
+		in SessionActivityIds.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
+		in SessionActivityIds.RUNNING -> Icons.AutoMirrored.Filled.DirectionsRun
+		in SessionActivityIds.CYCLING -> Icons.AutoMirrored.Filled.DirectionsBike
+		in SessionActivityIds.DRIVING -> Icons.Filled.DirectionsCar
+		in SessionActivityIds.WATER -> Icons.Filled.Sailing
+		in SessionActivityIds.AIR -> Icons.Filled.Flight
+		in SessionActivityIds.SLOPE_SPORTS -> Icons.Filled.DownhillSkiing
 		else -> Icons.Filled.Route
 	}
 }

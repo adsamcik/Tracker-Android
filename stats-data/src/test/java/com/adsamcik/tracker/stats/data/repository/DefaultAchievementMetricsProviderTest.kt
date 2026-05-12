@@ -115,9 +115,22 @@ class DefaultAchievementMetricsProviderTest {
 		coEvery { sessionSegmentDao.countByActivity(2) } returns 10L  // ON_FOOT
 		coEvery { sessionSegmentDao.countByActivity(7) } returns 20L  // WALKING
 		coEvery { sessionSegmentDao.countByActivity(8) } returns 5L   // RUNNING
+		coEvery { sessionSegmentDao.countByActivity(-2) } returns 3L  // Native WALKING
+		coEvery { sessionSegmentDao.countByActivity(-3) } returns 2L  // Native RUNNING
 
 		val metrics = provider.collect()
 
-		metrics["walking_trips"] shouldBe 35L
+		metrics["walking_trips"] shouldBe 40L
+	}
+
+	@Test
+	fun `collect sums cycling trips from GMS and native bicycle ids`() = runTest {
+		stubAllZero()
+		coEvery { sessionSegmentDao.countByActivity(1) } returns 6L
+		coEvery { sessionSegmentDao.countByActivity(-4) } returns 4L
+
+		val metrics = provider.collect()
+
+		metrics["cycling_trips"] shouldBe 10L
 	}
 }

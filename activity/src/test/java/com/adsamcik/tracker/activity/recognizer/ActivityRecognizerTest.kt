@@ -241,13 +241,10 @@ class ActivityRecognizerTest {
         }
 
         @Test
-        fun `empty collection returns WALKING with zero confidence`() {
-            // No locations: all counts are 0. other.count (0) > 0 -> false.
-            // run.confidenceSum (0) > walk.confidenceSum (0) / 3 = 0 -> false.
-            // Returns WALKING with walk.confidence = 0 (count is 0).
+        fun `empty collection returns null`() {
             val result = recognizer.resolve(session, emptyList())
 
-            result.recognizedActivity shouldBe NativeSessionActivity.WALKING
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 
@@ -389,19 +386,14 @@ class ActivityRecognizerTest {
         }
 
         @Test
-        fun `unknown contributes to vehicle threshold`() {
-            // 1 IN_VEHICLE, 2 UNKNOWN, 7 STILL (total=10)
-            // vehicle.count=1, unknown.count=2, still.count=7
-            // Bicycle check: 2+0=2 > (2+0+1)/2=1 -> true -> BICYCLE
-            // bicycle.confidence = 0/0 = 0 (no bicycle points)
-            // This is interesting: UNKNOWN can push to BICYCLE even with 0 bicycle count
+        fun `unknown does not contribute to vehicle threshold`() {
             val locations = locationsOf(1, DetectedActivity.IN_VEHICLE, confidence = 80) +
                     locationsOf(2, DetectedActivity.UNKNOWN, confidence = 50) +
                     locationsOf(7, DetectedActivity.STILL, confidence = 80)
 
             val result = recognizer.resolve(session, locations)
 
-            result.recognizedActivity shouldBe NativeSessionActivity.BICYCLE
+            result.recognizedActivity.shouldBeNull()
             result.confidence shouldBe 0
         }
 
