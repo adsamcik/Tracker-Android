@@ -39,7 +39,7 @@ object GridAggregator {
             (points.size / 4).coerceAtLeast(16)
         )
 
-        points.forEach { feature ->
+        for (feature in points) {
             val latBucket = floor(feature.lat / cellSizeDegrees).toLong()
             val normLon = normalizeLon(feature.lon)
             val lonBucket = floor(normLon / cellSizeDegrees).toLong()
@@ -52,30 +52,35 @@ object GridAggregator {
             cell.count += 1
         }
 
-        return cells.values.map { cell ->
-            AggregatedCell(
+        val result = ArrayList<AggregatedCell>(cells.size)
+        for (cell in cells.values) {
+            result.add(AggregatedCell(
                 lat = cell.latSum / cell.count,
                 lon = cell.lonSum / cell.count,
                 weight = cell.weightSum / cell.count,
                 count = cell.count,
                 newestTime = cell.newestTime,
-            )
+            ))
         }
+        return result
     }
 
     /**
      * Convert aggregated cells back to [WeightedGeoFeature] for the existing
      * GeoJSON pipeline.
      */
-    fun toWeightedFeatures(cells: List<AggregatedCell>): List<WeightedGeoFeature> =
-        cells.map { cell ->
-            WeightedGeoFeature(
+    fun toWeightedFeatures(cells: List<AggregatedCell>): List<WeightedGeoFeature> {
+        val features = ArrayList<WeightedGeoFeature>(cells.size)
+        for (cell in cells) {
+            features.add(WeightedGeoFeature(
                 lat = cell.lat,
                 lon = cell.lon,
                 time = cell.newestTime,
                 weight = cell.weight,
-            )
+            ))
         }
+        return features
+    }
 
     /**
      * Cell size in degrees for a given zoom level.

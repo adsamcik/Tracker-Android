@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map.color.palette
 
-import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.shared.base.extension.remove
 import com.adsamcik.tracker.map.color.ColorFunctions.validateLab
 import kotlin.random.Random
@@ -27,6 +26,8 @@ internal class PaletteGeneratorKMeans {
 			ultraPrecision: Boolean,
 			random: Random
 	): List<DoubleArray> {
+
+		if (colorsCount <= 0) return emptyList()
 
 		// K-Means Mode
 		fun checkColor2(lab: DoubleArray): Boolean {
@@ -69,7 +70,6 @@ internal class PaletteGeneratorKMeans {
 
 
 		val colorSamples = mutableListOf<DoubleArray>()
-		val samplesClosest = mutableListOf<Int?>()
 		val tmpLabArray = DoubleArray(3)
 		for (l in 0..100 step stepL) {
 			for (a in -100..100 step stepA) {
@@ -79,44 +79,48 @@ internal class PaletteGeneratorKMeans {
 					tmpLabArray[2] = b.toDouble()
 					if (checkColor2(tmpLabArray)) {
 						colorSamples.add(tmpLabArray.copyOf())
-						samplesClosest.add(null)
 					}
 				}
 			}
 		}
 
+		val centroidL = DoubleArray(colorsCount)
+		val centroidA = DoubleArray(colorsCount)
+		val centroidB = DoubleArray(colorsCount)
+		val centroidCounts = IntArray(colorsCount)
+
 		// Steps
 		repeat(quality) {
-			// kMeans -> Samples Closest
+			centroidL.fill(0.0)
+			centroidA.fill(0.0)
+			centroidB.fill(0.0)
+			centroidCounts.fill(0)
+
+			// Assign samples and accumulate centroids in one pass.
 			for (i in 0 until colorSamples.size) {
 				val lab = colorSamples[i]
 				var minDistance = Double.POSITIVE_INFINITY
+				var closest = 0
 				for (j in kMeans.indices) {
 					val kMean = kMeans[j]
-					//ns.getColorDistance(lab, kMean, distanceType) replaced with ColorUtils euclidean
-					val distance = ColorUtils.distanceEuclidean(lab, kMean)
+					val distance = distanceEuclideanSquared(lab, kMean)
 					if (distance < minDistance) {
 						minDistance = distance
-						samplesClosest[i] = j
+						closest = j
 					}
 				}
+				centroidL[closest] += lab[0]
+				centroidA[closest] += lab[1]
+				centroidB[closest] += lab[2]
+				centroidCounts[closest]++
 			}
 
 			// Samples -> kMeans
 			val freeColorSamples = colorSamples.toMutableList()
 
 			for (j in 0 until kMeans.size) {
-				var count = 0
-				val candidateKMean = doubleArrayOf(0.0, 0.0, 0.0)
-				for (i in 0 until colorSamples.size) {
-					if (samplesClosest[i] == j) {
-						count++
-						candidateKMean[0] += colorSamples[i][0]
-						candidateKMean[1] += colorSamples[i][1]
-						candidateKMean[2] += colorSamples[i][2]
-					}
-				}
-
+				val count = centroidCounts[j]
+				val candidateKMean = doubleArrayOf(centroidL[j], centroidA[j], centroidB[j])
 				if (count != 0) {
 					//for some reason /= doesn't work
 					candidateKMean[0] = candidateKMean[0] / count
@@ -135,7 +139,7 @@ internal class PaletteGeneratorKMeans {
 						for (i in freeColorSamples.indices) {
 
 							//ns.getColorDistance(freeColorSamples[i],candidateKMean,distanceType );
-							val distance = ColorUtils.distanceEuclidean(
+							val distance = distanceEuclideanSquared(
 									freeColorSamples[i],
 									candidateKMean
 							)
@@ -154,7 +158,7 @@ internal class PaletteGeneratorKMeans {
 						var closest = -1
 						for (i in 0 until colorSamples.size) {
 							//ns.getColorDistance(colorSamples[i],candidateKMean,distanceType)
-							val distance = ColorUtils.distanceEuclidean(
+							val distance = distanceEuclideanSquared(
 									colorSamples[i],
 									candidateKMean
 							)
@@ -175,5 +179,12 @@ internal class PaletteGeneratorKMeans {
 			}
 		}
 		return kMeans
+	}
+
+	private fun distanceEuclideanSquared(first: DoubleArray, second: DoubleArray): Double {
+		val l = first[0] - second[0]
+		val a = first[1] - second[1]
+		val b = first[2] - second[2]
+		return l * l + a * a + b * b
 	}
 }

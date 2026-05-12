@@ -33,16 +33,20 @@ object PolylineOptimizer {
         val keep = BooleanArray(points.size)
         keep[0] = true
         keep[points.lastIndex] = true
-        val stack = ArrayDeque<Pair<Int, Int>>()
-        stack.addLast(0 to points.lastIndex)
-        while (stack.isNotEmpty()) {
-            val (start, end) = stack.removeLast()
+        val stack = IntArray(points.size * 2)
+        var stackSize = 0
+        stack[stackSize++] = 0
+        stack[stackSize++] = points.lastIndex
+        while (stackSize > 0) {
+            val end = stack[--stackSize]
+            val start = stack[--stackSize]
             var maxDist = 0.0
             var index = -1
             val a = points[start]
             val b = points[end]
+            val segment = ProjectedSegment(a, b)
             for (i in start + 1 until end) {
-                val d = perpendicularDistanceMeters(points[i], a, b)
+                val d = segment.perpendicularDistanceMeters(points[i])
                 if (d > maxDist) {
                     maxDist = d
                     index = i
@@ -50,11 +54,17 @@ object PolylineOptimizer {
             }
             if (maxDist > tolerance && index != -1) {
                 keep[index] = true
-                stack.addLast(start to index)
-                stack.addLast(index to end)
+                stack[stackSize++] = start
+                stack[stackSize++] = index
+                stack[stackSize++] = index
+                stack[stackSize++] = end
             }
         }
-        val out = ArrayList<LatLngModel>(keep.count { it })
+        var keepCount = 0
+        for (shouldKeep in keep) {
+            if (shouldKeep) keepCount++
+        }
+        val out = ArrayList<LatLngModel>(keepCount)
         for (i in points.indices) if (keep[i]) out.add(points[i])
         return out
     }
@@ -117,21 +127,28 @@ object PolylineOptimizer {
         lng = a.lng + (b.lng - a.lng) * t,
     )
 
-    private fun perpendicularDistanceMeters(c: LatLngModel, a: LatLngModel, b: LatLngModel): Double {
-        val distAB = distanceMeters(a, b)
-        if (distAB == 0.0) return distanceMeters(a, c)
-        val latRad = Math.toRadians((a.lat + b.lat) / 2.0)
-        val xB = Math.toRadians(b.lng - a.lng) * cos(latRad)
-        val yB = Math.toRadians(b.lat - a.lat)
-        val xC = Math.toRadians(c.lng - a.lng) * cos(latRad)
-        val yC = Math.toRadians(c.lat - a.lat)
-        val proj = ((xC * xB) + (yC * yB)) / (xB * xB + yB * yB)
-        val clamped = proj.coerceIn(0.0, 1.0)
-        val xP = xB * clamped
-        val yP = yB * clamped
-        val dx = xC - xP
-        val dy = yC - yP
-        val earthR = 6371000.0
-        return kotlin.math.sqrt(dx * dx + dy * dy) * earthR
+    private class ProjectedSegment(
+        private val a: LatLngModel,
+        b: LatLngModel,
+    ) {
+        private val latRad = Math.toRadians((a.lat + b.lat) / 2.0)
+        private val cosLat = cos(latRad)
+        private val xB = Math.toRadians(b.lng - a.lng) * cosLat
+        private val yB = Math.toRadians(b.lat - a.lat)
+        private val lengthSquared = xB * xB + yB * yB
+
+        fun perpendicularDistanceMeters(c: LatLngModel): Double {
+            if (lengthSquared == 0.0) return distanceMeters(a, c)
+            val xC = Math.toRadians(c.lng - a.lng) * cosLat
+            val yC = Math.toRadians(c.lat - a.lat)
+            val proj = ((xC * xB) + (yC * yB)) / lengthSquared
+            val clamped = proj.coerceIn(0.0, 1.0)
+            val xP = xB * clamped
+            val yP = yB * clamped
+            val dx = xC - xP
+            val dy = yC - yP
+            val earthR = 6371000.0
+            return kotlin.math.sqrt(dx * dx + dy * dy) * earthR
+        }
     }
 }
