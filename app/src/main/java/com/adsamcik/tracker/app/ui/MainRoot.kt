@@ -66,10 +66,11 @@ import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
-import com.adsamcik.tracker.app.ui.navigation.SettingsOrigin
+import com.adsamcik.tracker.app.ui.navigation.SettingsSection
 import com.adsamcik.tracker.app.ui.navigation.ActivitySettings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.Setup
+import com.adsamcik.tracker.app.ui.navigation.toSettingsOrigin
 import com.adsamcik.tracker.app.activity.DeepNavigationRequest
 import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -96,6 +97,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLay
 fun MainRoot(
     startDestination: AppRoute = Dashboard,
     deepNavigationRequest: DeepNavigationRequest? = null,
+    showOnboardingReadError: Boolean = false,
+    onSetupComplete: () -> Unit = {},
     onDeepNavigationHandled: () -> Unit = {},
     onRouteChanged: (AppRoute) -> Unit = {}
 ) {
@@ -176,12 +179,18 @@ fun MainRoot(
         val request = deepNavigationRequest ?: return@LaunchedEffect
 
         when (request.target) {
-            MainActivityCompose.TARGET_IMPEXP -> {
+            MainActivityCompose.TARGET_IMPEXP,
+            MainActivityCompose.TARGET_SETTINGS -> {
                 settingsLaunchNonce += 1
                 navController.navigate(
                     Settings(
                         origin = lastTopLevelRoute.toSettingsOrigin(),
                         nonce = settingsLaunchNonce,
+                        section = if (request.target == MainActivityCompose.TARGET_IMPEXP) {
+                            SettingsSection.DATA
+                        } else {
+                            SettingsSection.ROOT
+                        },
                     )
                 ) {
                     launchSingleTop = true
@@ -195,9 +204,6 @@ fun MainRoot(
                 }
             }
             MainActivityCompose.TARGET_DASHBOARD -> {
-                if (request.scrollTo == "goals") {
-                    Log.d("MainRoot", "Deep link requested dashboard goals section")
-                }
                 navController.navigate(Dashboard) {
                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                     launchSingleTop = true
@@ -354,7 +360,11 @@ fun MainRoot(
                     .hazeSource(state = hazeState)
                     .padding(bottom = bottomPadding)
             ) {
-                setupGraph(navController = navController)
+                setupGraph(
+                    navController = navController,
+                    showOnboardingReadError = showOnboardingReadError,
+                    onSetupComplete = onSetupComplete,
+                )
                 dashboardGraph(
                     navController = navController,
                     useSideRail = useSideRail,
@@ -422,19 +432,4 @@ fun MainRoot(
             }
         }
     }
-}
-
-private fun AppRoute.toSettingsOrigin(): SettingsOrigin = when (this) {
-    Dashboard -> SettingsOrigin.DASHBOARD
-    Stats -> SettingsOrigin.STATS
-    Map -> SettingsOrigin.MAP
-    Game -> SettingsOrigin.GAME
-    else -> SettingsOrigin.DASHBOARD
-}
-
-private fun SettingsOrigin.toAppRoute(): AppRoute = when (this) {
-    SettingsOrigin.DASHBOARD -> Dashboard
-    SettingsOrigin.STATS -> Stats
-    SettingsOrigin.MAP -> Map
-    SettingsOrigin.GAME -> Game
 }

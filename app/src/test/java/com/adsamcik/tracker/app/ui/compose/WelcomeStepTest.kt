@@ -43,4 +43,45 @@ class WelcomeStepTest {
             .performClick()
         called shouldBe true
     }
+
+    @Test
+    fun displaysPrivacyPolicyEntryPoint() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithTag("setup_privacy_policy_button")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun clickPrivacyPolicyEntryPoint_opensBundledPolicyDialog() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithTag("setup_privacy_policy_button")
+            .performScrollTo()
+            .performClick()
+
+        composeTestRule.onNodeWithText("Privacy Policy", substring = false)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun displaysSafeSetupMessageWhenOnboardingReadFails() {
+        composeTestRule.setContent {
+            AppTheme {
+                WelcomeStep(
+                    onGetStarted = {},
+                    showOnboardingReadError = true,
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("setup_onboarding_read_error")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
 }

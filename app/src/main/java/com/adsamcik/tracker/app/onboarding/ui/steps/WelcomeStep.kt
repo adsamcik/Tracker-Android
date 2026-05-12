@@ -17,12 +17,18 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -33,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.ui.components.BenefitItem
+import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
 import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
 
 /**
@@ -42,7 +49,10 @@ import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
 fun WelcomeStep(
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
+    showOnboardingReadError: Boolean = false,
 ) {
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -117,6 +127,37 @@ fun WelcomeStep(
 
         Spacer(modifier = Modifier.height(48.dp))
 
+        if (showOnboardingReadError) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("setup_onboarding_read_error"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ),
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_state_read_error_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        TextButton(
+            onClick = { showPrivacyPolicy = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("setup_privacy_policy_button"),
+        ) {
+            Text(stringResource(R.string.onboarding_privacy_policy_button))
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         PrimaryActionButton(
             text = stringResource(R.string.onboarding_get_started),
             onClick = onGetStarted,
@@ -126,5 +167,9 @@ fun WelcomeStep(
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(onDismissRequest = { showPrivacyPolicy = false })
     }
 }

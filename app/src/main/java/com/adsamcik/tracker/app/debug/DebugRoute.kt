@@ -113,8 +113,10 @@ fun DebugRoute(onNavigateBack: () -> Unit = {}, viewModel: DebugViewModel = hilt
                 }
             }
 
-            item {
-                SeedDataSection()
+            if (com.adsamcik.tracker.BuildConfig.DEBUG || com.adsamcik.tracker.BuildConfig.BUILD_TYPE == "dev") {
+                item {
+                    SeedDataSection()
+                }
             }
 
             item {

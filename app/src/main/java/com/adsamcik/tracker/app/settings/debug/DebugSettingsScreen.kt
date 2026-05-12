@@ -80,8 +80,8 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
             )
         }
 
-        // Developer tools (only show in debug builds)
-        if (com.adsamcik.tracker.BuildConfig.DEBUG) {
+        // Developer tools (only show in debug/dev builds)
+        if (com.adsamcik.tracker.BuildConfig.DEBUG || com.adsamcik.tracker.BuildConfig.BUILD_TYPE == "dev") {
             item {
                 SectionHeader(stringResource(R.string.settings_debug_developer_tools_section))
             }

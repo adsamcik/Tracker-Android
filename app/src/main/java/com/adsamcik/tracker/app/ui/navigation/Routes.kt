@@ -36,6 +36,7 @@ data object Debug : AppRoute
 data class Settings(
     val origin: SettingsOrigin = SettingsOrigin.DASHBOARD,
     val nonce: Long = 0L,
+    val section: SettingsSection = SettingsSection.ROOT,
 ) : AppRoute
 
 @Serializable
@@ -44,6 +45,12 @@ enum class SettingsOrigin {
     STATS,
     MAP,
     GAME,
+}
+
+@Serializable
+enum class SettingsSection {
+    ROOT,
+    DATA,
 }
 
 @Serializable

@@ -107,6 +107,14 @@ class SettingsRouteTest {
     }
 
     @Test
+    fun startsOnDataScreenWhenProvided() {
+        composeTestRule.setContent {
+            AppTheme { SettingsRouteTestLayout(initialScreen = SettingsScreen.Data) }
+        }
+        composeTestRule.onNodeWithText("Data Settings Content").assertIsDisplayed()
+    }
+
+    @Test
     fun navigatesToTrackingScreen() {
         composeTestRule.setContent {
             AppTheme { SettingsRouteTestLayout() }

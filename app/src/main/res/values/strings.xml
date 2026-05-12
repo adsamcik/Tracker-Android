@@ -129,6 +129,7 @@
     <string name="settings_licenses_variant_unavailable">This build variant does not bundle generated license data. Use a release-like build to view third-party licenses.</string>
     <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
+    <string name="settings_privacy_policy_unavailable">The bundled privacy policy could not be opened. Please try again after restarting the app.</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>
     <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
@@ -225,6 +226,8 @@
     <string name="onboarding_benefit_gamification_desc">Complete challenges, earn achievements, and make tracking fun.</string>
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_learn_more">Learn more</string>
+    <string name="onboarding_privacy_policy_button">Read Privacy Policy</string>
+    <string name="onboarding_state_read_error_message">We could not verify whether setup was already completed, so setup is shown to keep your data private. You can continue safely.</string>
 
     <!-- Contextual Permission Rationales (shown before system prompt) -->
     <string name="permission_location_rationale_title">Location Access Needed</string>

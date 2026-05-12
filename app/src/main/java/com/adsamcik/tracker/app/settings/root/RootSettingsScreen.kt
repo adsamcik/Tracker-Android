@@ -33,8 +33,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,12 +46,11 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.SettingsScreen
 import com.adsamcik.tracker.app.settings.SettingsViewModel
 import com.adsamcik.tracker.app.settings.components.DialogListPreference
+import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -325,55 +322,7 @@ internal fun RootSettingsContent(
     }
 
     if (showPrivacyPolicy) {
-        val privacyText = remember {
-            try {
-                context.resources.openRawResource(R.raw.privacy_policy)
-                    .bufferedReader()
-                    .use { it.readText() }
-                    // The dialog already shows a "Privacy Policy" title, so drop the redundant
-                    // leading `# Privacy Policy` H1 from the markdown source if present.
-                    .let { raw ->
-                        raw.trimStart().let { trimmed ->
-                            val firstNewline = trimmed.indexOf('\n')
-                            if (firstNewline > 0 && trimmed.startsWith("# ")) {
-                                trimmed.substring(firstNewline + 1).trimStart()
-                            } else {
-                                trimmed
-                            }
-                        }
-                    }
-            } catch (_: Exception) {
-                null
-            }
-        }
-        if (privacyText != null) {
-            AlertDialog(
-                onDismissRequest = { showPrivacyPolicy = false },
-                title = { Text(stringResource(R.string.settings_privacy_policy_title)) },
-                text = {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        com.adsamcik.tracker.shared.utils.style.compose.MarkdownText(
-                            markdown = privacyText,
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showPrivacyPolicy = false }) {
-                        Text(stringResource(android.R.string.ok))
-                    }
-                }
-            )
-        } else {
-            // Fallback: open in browser if raw resource missing
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                val intent = Intent(
-                    Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://github.com/adsamcik/Tracker-Android/blob/master/privacypolicy.md")
-                )
-                context.startActivity(intent)
-                showPrivacyPolicy = false
-            }
-        }
+        PrivacyPolicyDialog(onDismissRequest = { showPrivacyPolicy = false })
     }
 }
 

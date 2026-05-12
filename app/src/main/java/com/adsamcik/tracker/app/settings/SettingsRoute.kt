@@ -39,9 +39,14 @@ import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 // Thin navigation shell — screen implementations live in per-screen packages.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}, onNavigateToActivities: () -> Unit = {}) {
+fun SettingsRoute(
+    onNavigateBack: () -> Unit = {},
+    onNavigateToDebug: () -> Unit = {},
+    onNavigateToActivities: () -> Unit = {},
+    initialScreen: SettingsScreen = SettingsScreen.Root,
+) {
     val vm: SettingsViewModel = hiltViewModel()
-    var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
+    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) }
 
     BackHandler(enabled = currentScreen != SettingsScreen.Root) {
         currentScreen = SettingsScreen.Root

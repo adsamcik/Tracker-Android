@@ -51,6 +51,7 @@ import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
 fun SetupRoute(
     onSetupComplete: () -> Unit,
     modifier: Modifier = Modifier,
+    showOnboardingReadError: Boolean = false,
     viewModel: SetupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -132,6 +133,7 @@ fun SetupRoute(
                 when (step) {
                     SetupStep.Welcome -> WelcomeStep(
                         onGetStarted = { viewModel.goToNextStep() },
+                        showOnboardingReadError = showOnboardingReadError,
                     )
 
                     SetupStep.HowToTrack -> HowToTrackStep(
