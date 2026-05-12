@@ -210,6 +210,17 @@ class HistoryTypesTest {
 		fun `negative value returns Trip`() {
 			activityLabel(-1) shouldBe "Trip"
 		}
+
+		@Test
+		fun `native activity values return specific labels`() {
+			activityLabel(-2) shouldBe "Walk"
+			activityLabel(-3) shouldBe "Run"
+			activityLabel(-4) shouldBe "Cycle"
+			activityLabel(-22) shouldBe "Ski"
+			activityLabel(-26) shouldBe "Sail"
+			activityLabel(-31) shouldBe "Fly"
+			activityLabel(-34) shouldBe "Drive"
+		}
 	}
 
 	@Nested
@@ -259,6 +270,13 @@ class HistoryTypesTest {
 			activityIcon(1) shouldNotBe null
 			activityIcon(0) shouldNotBe null
 			activityIcon(4) shouldNotBe null
+			activityIcon(-2) shouldNotBe null
+			activityIcon(-3) shouldNotBe null
+			activityIcon(-4) shouldNotBe null
+			activityIcon(-22) shouldNotBe null
+			activityIcon(-26) shouldNotBe null
+			activityIcon(-31) shouldNotBe null
+			activityIcon(-34) shouldNotBe null
 			activityIcon(null) shouldNotBe null
 			activityIcon(99) shouldNotBe null
 		}

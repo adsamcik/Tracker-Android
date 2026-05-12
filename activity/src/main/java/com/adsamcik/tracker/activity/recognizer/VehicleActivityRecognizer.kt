@@ -32,11 +32,19 @@ internal class VehicleActivityRecognizer : ActivityRecognizer() {
 				confidenceSum += it.activityInfo.confidence
 			}
 		}
-		if (unknown.count + bicycle.count > (unknown.count + onFoot.count + vehicle.count) / LOCATION_BICYCLE_DENOMINATOR) {
+		if (
+			bicycle.count > 0 &&
+			bicycle.count > (onFoot.count + vehicle.count) / LOCATION_BICYCLE_DENOMINATOR &&
+			bicycle.confidence > 0
+		) {
 			return ActivityRecognitionResult(NativeSessionActivity.BICYCLE, bicycle.confidence)
 		}
 
-		if (unknown.count + vehicle.count > locationCollection.size * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE) {
+		if (
+			vehicle.count > 0 &&
+			vehicle.count > locationCollection.size * MINIMUM_PERCENTAGE_OF_TOTAL_VEHICLE &&
+			vehicle.confidence > 0
+		) {
 			return ActivityRecognitionResult(NativeSessionActivity.LAND_VEHICLE, vehicle.confidence)
 		}
 

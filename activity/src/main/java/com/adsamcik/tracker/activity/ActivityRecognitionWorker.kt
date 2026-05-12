@@ -9,6 +9,8 @@ import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.SkiActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.toSegmentPrimaryActivityId
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.logger.Reporter
@@ -16,15 +18,19 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 
 @HiltWorker
 internal class ActivityRecognitionWorker @AssistedInject constructor(
@@ -32,6 +38,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 	@Assisted workerParams: WorkerParameters,
 	private val database: AppDatabase,
 	private val skiInfrastructureManager: SkiInfrastructureManager,
+	private val trackingParamsRepository: TrackingParamsRepository,
 ) :
 	CoroutineWorker(
 		context,
@@ -85,11 +92,20 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val minStart = segments.minOf { it.startTimeMs }
 		val maxEnd = segments.maxOf { it.endTimeMs }
-		val allLocationsDeferred = async { loadLocationsBetween(minStart, maxEnd) }
-		val allPressureDeferred = async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
+		val skiDetectionEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
+		val allLocationSamplesDeferred = async { loadLocationSamplesBetween(minStart, maxEnd) }
+		val allActivitySnapshotsDeferred = async { loadActivitySnapshotsBetween(minStart, maxEnd) }
+		val allPressureDeferred = if (skiDetectionEnabled) {
+			async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
+		} else {
+			null
+		}
 
-		val allLocations = allLocationsDeferred.await()
-		val allPressure = allPressureDeferred.await()
+		val allActivitySnapshots = allActivitySnapshotsDeferred.await()
+		val allLocations = allLocationSamplesDeferred.await().mapNotNull {
+			it.toDatabaseLocation(allActivitySnapshots)
+		}
+		val allPressure = allPressureDeferred?.await().orEmpty()
 
 		for (segment in segments) {
 			val segmentLocations = allLocations.filter {
@@ -98,12 +114,12 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			val segmentPressure = allPressure.filter {
 				it.timeMs in segment.startTimeMs..segment.endTimeMs
 			}
-			processSession(segment, segmentLocations, segmentPressure, database)
+			processSession(segment, segmentLocations, segmentPressure, skiDetectionEnabled, database)
 		}
 	}
 
-	private suspend fun loadLocationsBetween(fromMs: Long, toMs: Long): List<DatabaseLocation> {
-		val locations = mutableListOf<DatabaseLocation>()
+	private suspend fun loadLocationSamplesBetween(fromMs: Long, toMs: Long): List<LocationSample> {
+		val samples = mutableListOf<LocationSample>()
 		var afterTimeMs: Long? = null
 		var afterId: Long? = null
 
@@ -117,13 +133,20 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			)
 			if (chunk.isEmpty()) break
 
-			chunk.mapNotNullTo(locations) { it.toDatabaseLocation() }
+			samples += chunk
 			val lastSample = chunk.last()
 			afterTimeMs = lastSample.timeMs
 			afterId = lastSample.id
 		}
 
-		return locations
+		return samples
+	}
+
+	private suspend fun loadActivitySnapshotsBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot> {
+		val dao = database.activitySnapshotDao()
+		return (listOfNotNull(dao.getLatestBefore(fromMs)) + dao.getAllBetween(fromMs, toMs))
+			.distinctBy { "${it.timeMs}:${it.activityType}:${it.confidence}:${it.isTransition}" }
+			.sortedBy { it.timeMs }
 	}
 
 	private suspend fun getUnrecognizedSegmentBounds(): LongRange? {
@@ -144,13 +167,14 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		segment: SessionSegment,
 		locationCollection: List<DatabaseLocation>,
 		pressureSamples: List<PressureSample>,
+		skiDetectionEnabled: Boolean,
 		database: AppDatabase
 	): Result = coroutineScope {
-		val recognizers = listOf(
-			OnFootActivityRecognizer(),
-			VehicleActivityRecognizer(),
-			SkiActivityRecognizer()
-		)
+		val recognizers = buildList {
+			add(OnFootActivityRecognizer())
+			add(VehicleActivityRecognizer())
+			if (skiDetectionEnabled) add(SkiActivityRecognizer())
+		}
 
 		recognizers.filterIsInstance<SkiActivityRecognizer>().forEach {
 			it.pressureSamples = pressureSamples
@@ -166,10 +190,10 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val deferredResults = recognizers.map {
 			async {
-				val result = tryWithResultAndReport(
-					default = { ActivityRecognitionResult(null, 0) }
-				) {
+				val result = runWithResultAndReport {
 					it.resolve(session, locationCollection)
+				}.getOrElse {
+					ActivityRecognitionResult(null, 0)
 				}
 				Pair(it, result)
 			}
@@ -177,7 +201,10 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val results = deferredResults.mapNotNull {
 			val result = it.await()
-			return@mapNotNull if (result.second.recognizedActivity == null) {
+			return@mapNotNull if (
+				result.second.recognizedActivity == null ||
+				result.second.confidence <= 0
+			) {
 				null
 			} else {
 				result
@@ -191,7 +218,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		) { "results was checked non-empty but maxByOrNull returned null" }
 
 		val updatedSegment = segment.copy(
-			primaryActivity = activityRecognitionResult.second.requireRecognizedActivity.id.toInt(),
+			primaryActivity = activityRecognitionResult.second.requireRecognizedActivity.toSegmentPrimaryActivityId(),
 			activityConfidence = activityRecognitionResult.second.confidence
 		)
 		database.sessionSegmentDao().update(updatedSegment)
@@ -233,9 +260,9 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 	/**
 	 * Converts a [LocationSample] to a [DatabaseLocation] for recognizer compatibility.
-	 * Activity info defaults to UNKNOWN since LocationSample doesn't store per-point activity.
+	 * Uses persisted activity snapshots when available; otherwise keeps the signal unknown.
 	 */
-	private fun LocationSample.toDatabaseLocation(): DatabaseLocation? {
+	private fun LocationSample.toDatabaseLocation(activitySnapshots: List<ActivitySnapshot>): DatabaseLocation? {
 		val lat = latE7 ?: return null
 		val lon = lonE7 ?: return null
 		return DatabaseLocation(
@@ -249,8 +276,25 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 				speed = speedMps,
 				speedAccuracy = speedAccuracyMps
 			),
-			activityInfo = ActivityInfo.UNKNOWN
+			activityInfo = resolveActivityInfo(activitySnapshots)
 		)
+	}
+
+	private fun LocationSample.resolveActivityInfo(activitySnapshots: List<ActivitySnapshot>): ActivityInfo {
+		val snapshot = activitySnapshots.lastOrNull { it.timeMs <= timeMs }
+		if (snapshot != null &&
+			snapshot.confidence > 0 &&
+			snapshot.activityType != DetectedActivity.UNKNOWN.value
+		) {
+			return ActivityInfo(snapshot.activityType, snapshot.confidence.coerceIn(0, 100))
+		}
+
+		return when (motionState) {
+			MotionState.STILL -> ActivityInfo(DetectedActivity.STILL, 100)
+			MotionState.MOVING,
+			MotionState.UNKNOWN,
+			null -> ActivityInfo.UNKNOWN
+		}
 	}
 
 	companion object {

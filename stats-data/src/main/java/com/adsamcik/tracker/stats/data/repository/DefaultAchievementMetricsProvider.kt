@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import javax.inject.Inject
 
@@ -62,11 +63,17 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		// Walking trips: ON_FOOT(2) + WALKING(7) + RUNNING(8)
 		val walkingTrips = sessionSegmentDao.countByActivity(ACTIVITY_ON_FOOT) +
 			sessionSegmentDao.countByActivity(ACTIVITY_WALKING) +
-			sessionSegmentDao.countByActivity(ACTIVITY_RUNNING)
+			sessionSegmentDao.countByActivity(ACTIVITY_RUNNING) +
+			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_WALKING) +
+			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_RUNNING)
 		put("walking_trips", walkingTrips)
 
 		// Cycling trips: ON_BICYCLE(1)
-		put("cycling_trips", sessionSegmentDao.countByActivity(ACTIVITY_ON_BICYCLE))
+		put(
+			"cycling_trips",
+			sessionSegmentDao.countByActivity(ACTIVITY_ON_BICYCLE) +
+				sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_BICYCLE),
+		)
 
 		// ── MILESTONES ──────────────────────────────────────────────
 		put("total_trips", dailySummaryDao.sumTotalTrips())
@@ -83,6 +90,9 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		private const val ACTIVITY_ON_FOOT = 2
 		private const val ACTIVITY_WALKING = 7
 		private const val ACTIVITY_RUNNING = 8
+		private val ACTIVITY_NATIVE_WALKING = NativeSessionActivity.WALKING.id.toInt()
+		private val ACTIVITY_NATIVE_RUNNING = NativeSessionActivity.RUNNING.id.toInt()
+		private val ACTIVITY_NATIVE_BICYCLE = NativeSessionActivity.BICYCLE.id.toInt()
 
 		private const val DAILY_STREAK_TYPE = "DAILY_DISCOVERY"
 		private const val WEEKLY_STREAK_TYPE = "WEEKLY_EXPLORER"

@@ -98,7 +98,9 @@ class GmsActivityRecognitionBackend @Inject constructor(
 
 			true
 		} else {
-			com.adsamcik.tracker.logger.Reporter.report(Throwable("Unavailable play services"))
+			val message = "activity recognition unavailable: Google Play Services unavailable"
+			logActivity(LogData(message = message, source = ACTIVITY_LOG_SOURCE))
+			com.adsamcik.tracker.logger.Reporter.report(Throwable(message))
 			false
 		}
 	}

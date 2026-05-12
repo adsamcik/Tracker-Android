@@ -5,10 +5,14 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.DownhillSkiing
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import java.time.LocalDate
 import java.time.YearMonth
@@ -112,13 +116,16 @@ data class ExplorationStats(
 
 /**
  * Returns human-readable label for a detected activity type.
- * Activity type values follow Google Play Services DetectedActivity constants.
+ * Activity type values may be Google Play Services DetectedActivity constants or native Tracker ids.
  */
 internal fun activityLabel(activity: Int?): String = when (activity) {
-	7 -> "Walk"        // DetectedActivity.WALKING
-	8 -> "Run"         // DetectedActivity.RUNNING
-	1 -> "Cycle"       // DetectedActivity.ON_BICYCLE
-	0 -> "Drive"       // DetectedActivity.IN_VEHICLE
+	in SessionActivityIds.WALKING -> "Walk"
+	in SessionActivityIds.RUNNING -> "Run"
+	in SessionActivityIds.CYCLING -> "Cycle"
+	in SessionActivityIds.DRIVING -> "Drive"
+	in SessionActivityIds.WATER -> "Sail"
+	in SessionActivityIds.AIR -> "Fly"
+	in SessionActivityIds.SLOPE_SPORTS -> "Ski"
 	else -> "Trip"
 }
 
@@ -126,10 +133,13 @@ internal fun activityLabel(activity: Int?): String = when (activity) {
  * Returns an icon for a detected activity type.
  */
 internal fun activityIcon(activity: Int?): ImageVector = when (activity) {
-	7 -> Icons.AutoMirrored.Filled.DirectionsWalk
-	8 -> Icons.AutoMirrored.Filled.DirectionsRun
-	1 -> Icons.AutoMirrored.Filled.DirectionsBike
-	0 -> Icons.Filled.DirectionsCar
+	in SessionActivityIds.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
+	in SessionActivityIds.RUNNING -> Icons.AutoMirrored.Filled.DirectionsRun
+	in SessionActivityIds.CYCLING -> Icons.AutoMirrored.Filled.DirectionsBike
+	in SessionActivityIds.DRIVING -> Icons.Filled.DirectionsCar
+	in SessionActivityIds.WATER -> Icons.Filled.Sailing
+	in SessionActivityIds.AIR -> Icons.Filled.Flight
+	in SessionActivityIds.SLOPE_SPORTS -> Icons.Filled.DownhillSkiing
 	4 -> Icons.Filled.Train  // UNKNOWN used as transit placeholder
 	else -> Icons.Filled.QuestionMark
 }

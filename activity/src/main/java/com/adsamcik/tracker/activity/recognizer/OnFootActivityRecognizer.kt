@@ -33,16 +33,25 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 			}
 		}
 
-		if (other.count > onFoot.count + walk.count + run.count) {
+		val onFootSignalCount = onFoot.count + walk.count + run.count
+		if (onFootSignalCount == 0 || other.count > onFootSignalCount) {
 			return ActivityRecognitionResult(null, 0)
 		}
 		// check if large enough portion consisted of running
 		if (run.confidenceSum > walk.confidenceSum / WALK_DENOMINATOR) {
 			val confidence = (run.count.toDouble() / locationCollection.size.toDouble()) * run.confidence
-			return ActivityRecognitionResult(NativeSessionActivity.RUNNING, confidence.roundToInt())
+			return if (confidence > 0.0) {
+				ActivityRecognitionResult(NativeSessionActivity.RUNNING, confidence.roundToInt())
+			} else {
+				ActivityRecognitionResult(null, 0)
+			}
 		}
 
-		return ActivityRecognitionResult(NativeSessionActivity.WALKING, walk.confidence)
+		return if (walk.confidence > 0) {
+			ActivityRecognitionResult(NativeSessionActivity.WALKING, walk.confidence)
+		} else {
+			ActivityRecognitionResult(null, 0)
+		}
 	}
 
 	companion object {

@@ -4,7 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
@@ -93,14 +93,7 @@ class DefaultSessionStatsRepository @Inject constructor(
 	}
 
 	private companion object {
-		val ON_FOOT_ACTIVITY_TYPES = listOf(
-			DetectedActivity.WALKING.value,
-			DetectedActivity.RUNNING.value,
-			DetectedActivity.ON_FOOT.value,
-		)
-		val IN_VEHICLE_ACTIVITY_TYPES = listOf(
-			DetectedActivity.IN_VEHICLE.value,
-			DetectedActivity.ON_BICYCLE.value,
-		)
+		val ON_FOOT_ACTIVITY_TYPES = SessionActivityIds.ON_FOOT.toList()
+		val IN_VEHICLE_ACTIVITY_TYPES = SessionActivityIds.IN_VEHICLE.toList()
 	}
 }
