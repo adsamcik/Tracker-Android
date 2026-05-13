@@ -195,7 +195,7 @@ class DefaultLayerRegistryTest {
         }
 
         @Test
-        fun `cell heatmap legend describes signal strength not technology types`() {
+        fun `cell heatmap legend describes technology-normalized signal strength bands`() {
             val entry = registry.findById("cell_heatmap")!!.recipe.factory.create() as LayerEntry
 
             entry.legend.colorList shouldBe HeatmapColorRamps.CellSignal.map { it.second }

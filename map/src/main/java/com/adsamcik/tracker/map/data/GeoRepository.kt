@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map.data
 
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -8,6 +7,7 @@ import kotlinx.coroutines.flow.map
 interface GeoRepository {
     fun query(query: GeoQuery): Flow<List<GeoFeature>>
     fun queryWeighted(query: GeoQuery, weightColumn: String): Flow<List<WeightedGeoFeature>>
+    fun queryCellSignals(query: GeoQuery): Flow<List<CellSignalGeoFeature>>
     fun queryWeightedAggregated(
         query: GeoQuery,
         weightColumn: String,
@@ -68,6 +68,19 @@ class GeoRepositoryImpl(
             GeoSource.WIFI -> dao.queryWifiWeighted(sql).map { it.map { w -> w.toDomain() } }
             GeoSource.CELL -> dao.queryCellsWeighted(sql).map { it.map { w -> w.toDomain() } }
         }
+    }
+
+    override fun queryCellSignals(query: GeoQuery): Flow<List<CellSignalGeoFeature>> {
+        require(query.source == GeoSource.CELL) { "Cell signal queries require CELL source" }
+        val builder = SafeQueryBuilder.cell()
+        query.bounds?.let { builder.bounds(it.north, it.east, it.south, it.west) }
+        builder.timeRange(query.timeFrom, query.timeTo)
+        query.limit?.let { builder.limit(it) }
+        builder.columns("network_type")
+        builder.weight("asu")
+        val sql = builder.build()
+
+        return dao.queryCellSignals(sql).map { list -> list.map { it.toDomain() } }
     }
 
     override fun queryWeightedAggregated(

@@ -2,9 +2,10 @@ package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.map.data.CellSignalGeoFeature
 import com.adsamcik.tracker.map.data.GeoRepository
-import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.shared.base.data.CellType
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -32,12 +33,12 @@ class CellHeatmapLayerTest {
 	}
 
 	@Test
-	fun `loadData normalizes ASU signal strength into heatmap weight range`() = runTest {
-		every { mockRepo.queryWeighted(any(), eq("asu")) } returns flowOf(
+	fun `loadData normalizes GSM ASU relative to GSM signal range`() = runTest {
+		every { mockRepo.queryCellSignals(any()) } returns flowOf(
 			listOf(
-				WeightedGeoFeature(50.0, 14.0, 1_000L, -10.0),
-				WeightedGeoFeature(51.0, 15.0, 2_000L, 48.5),
-				WeightedGeoFeature(52.0, 16.0, 3_000L, 120.0),
+				CellSignalGeoFeature(50.0, 14.0, 1_000L, -10.0, CellType.GSM.ordinal),
+				CellSignalGeoFeature(51.0, 15.0, 2_000L, 15.5, CellType.GSM.ordinal),
+				CellSignalGeoFeature(52.0, 16.0, 3_000L, 31.0, CellType.GSM.ordinal),
 			)
 		)
 
@@ -46,6 +47,24 @@ class CellHeatmapLayerTest {
 		result shouldHaveSize 3
 		result[0].weight shouldBe 0.0
 		result[1].weight shouldBe 0.5
+		result[2].weight shouldBe 1.0
+	}
+
+	@Test
+	fun `loadData keeps LTE and NR ASU normalized against their wider range`() = runTest {
+		every { mockRepo.queryCellSignals(any()) } returns flowOf(
+			listOf(
+				CellSignalGeoFeature(50.0, 14.0, 1_000L, 48.5, CellType.LTE.ordinal),
+				CellSignalGeoFeature(51.0, 15.0, 2_000L, 97.0, CellType.NR.ordinal),
+				CellSignalGeoFeature(52.0, 16.0, 3_000L, 120.0, CellType.LTE.ordinal),
+			)
+		)
+
+		val result = layer.testLoadData(mockk())
+
+		result shouldHaveSize 3
+		result[0].weight shouldBe 0.5
+		result[1].weight shouldBe 1.0
 		result[2].weight shouldBe 1.0
 	}
 }

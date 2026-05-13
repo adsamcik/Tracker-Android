@@ -10,11 +10,12 @@ import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.graphics.GridAggregator
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.shared.base.data.CellType
 import kotlinx.coroutines.flow.first
 
 /**
  * Heatmap layer showing cell tower signal strength.
- * Queries ASU-weighted cell data and produces GeoJSON for MapLibre's native heatmap.
+ * Queries ASU cell data and normalizes it by radio technology for MapLibre's native heatmap.
  */
 open class CellHeatmapLayer(
     private val repo: GeoRepository,
@@ -37,8 +38,13 @@ open class CellHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "asu"
         )
-        return repo.queryWeighted(query, "asu").first().map { feature ->
-            feature.copy(weight = (feature.weight / MAX_ASU).coerceIn(0.0, 1.0))
+        return repo.queryCellSignals(query).first().map { feature ->
+            WeightedGeoFeature(
+                lat = feature.lat,
+                lon = feature.lon,
+                time = feature.time,
+                weight = feature.asu.toCellSignalWeight(feature.networkType),
+            )
         }
     }
 
@@ -62,9 +68,24 @@ open class CellHeatmapLayer(
         return GeoJsonConverter.pointsToFeatureCollection(processed)
     }
 
-    private companion object {
-        // Android ASU values vary by radio technology; 97 is the LTE/NR upper bound and keeps
-        // stronger readings on the hot end without saturating ordinary mid-strength samples.
-        const val MAX_ASU: Double = 97.0
+}
+
+private const val GSM_MAX_ASU: Double = 31.0
+private const val CDMA_MAX_ASU: Double = 16.0
+private const val WCDMA_MAX_ASU: Double = 31.0
+private const val LTE_NR_MAX_ASU: Double = 97.0
+
+private fun Double.toCellSignalWeight(networkType: Int): Double {
+    if (this <= 0.0) return 0.0
+    val maxAsu = when (CellType.values().getOrNull(networkType)) {
+        CellType.GSM -> GSM_MAX_ASU
+        CellType.CDMA -> CDMA_MAX_ASU
+        CellType.WCDMA -> WCDMA_MAX_ASU
+        CellType.LTE,
+        CellType.NR -> LTE_NR_MAX_ASU
+        CellType.Unknown,
+        CellType.None,
+        null -> LTE_NR_MAX_ASU
     }
+    return (this / maxAsu).coerceIn(0.0, 1.0)
 }
