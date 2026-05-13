@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.dashboard.ui.compose.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
@@ -26,10 +28,12 @@ class EmptyStateCardsTest {
 		}
 
 		composeRule.onNodeWithText("Quick start", substring = true).assertIsDisplayed()
+		composeRule.onAllNodesWithText("floating action button", substring = true)
+			.assertCountEquals(0)
 	}
 
 	@Test
-	fun emptyStateStartHintCard_showsHintContent() {
+	fun emptyStateStartHintCard_withPermissionShowsStartHint() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				EmptyStateStartHintCard(onStart = {}, hasPermission = true)
@@ -37,5 +41,20 @@ class EmptyStateCardsTest {
 		}
 
 		composeRule.onNodeWithText("Ready when you are").assertIsDisplayed()
+		composeRule.onNodeWithText("Tap here to start your first tracking session.").assertIsDisplayed()
+	}
+
+	@Test
+	fun emptyStateStartHintCard_withoutPermissionShowsGrantLocationHint() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				EmptyStateStartHintCard(onStart = {}, hasPermission = false)
+			}
+		}
+
+		composeRule.onNodeWithText("Ready when you are").assertIsDisplayed()
+		composeRule.onNodeWithText(
+			"Tap here to grant location access, then start your first tracking session.",
+		).assertIsDisplayed()
 	}
 }

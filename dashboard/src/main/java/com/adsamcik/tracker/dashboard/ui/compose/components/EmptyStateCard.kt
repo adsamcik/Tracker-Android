@@ -167,7 +167,7 @@ internal fun EmptyStateCard(modifier: Modifier = Modifier) {
 
 				Spacer(Modifier.height(16.dp))
 
-				// Hint arrow pointing to FAB
+				// Hint arrow pointing to the Ready card below.
 				Icon(
 					imageVector = Icons.Filled.KeyboardArrowDown,
 					contentDescription = null,
@@ -262,7 +262,13 @@ internal fun EmptyStateStartHintCard(
 					color = MaterialTheme.colorScheme.onSecondaryContainer,
 				)
 				Text(
-					text = stringResource(R.string.dashboard_empty_fab_hint_desc),
+					text = stringResource(
+						if (hasPermission) {
+							R.string.dashboard_empty_fab_hint_desc
+						} else {
+							R.string.dashboard_empty_fab_hint_desc_no_permission
+						},
+					),
 					style = MaterialTheme.typography.bodyMedium,
 					color = MaterialTheme.colorScheme.onSecondaryContainer,
 				)

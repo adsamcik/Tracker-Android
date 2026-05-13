@@ -1,13 +1,16 @@
 package com.adsamcik.tracker.dashboard.ui.compose.components
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.stats.api.PolicyTier
 import io.kotest.matchers.shouldBe
@@ -63,6 +66,15 @@ class DashboardTopBarTest {
 		composeRule.onNodeWithContentDescription("Open settings").performClick()
 
 		settingsClicked shouldBe true
+	}
+
+	@Test
+	fun settingsButton_hasMinimumTouchTarget() {
+		setContent(isTracking = false)
+
+		composeRule.onNodeWithContentDescription("Open settings")
+			.assertWidthIsAtLeast(48.dp)
+			.assertHeightIsAtLeast(48.dp)
 	}
 
 	@Test

@@ -32,13 +32,13 @@ class DashboardLayoutDefaultsTest {
 		}
 
 		@Test
-		fun `BottomBar portrait returns max of NavBarClearance and PillClearance plus inset`() {
+		fun `BottomBar portrait stacks NavBarClearance and PillClearance plus inset`() {
 			val result = DashboardLayoutDefaults.contentBottomClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				bottomInset = 0.dp,
 				isLandscape = false,
 			)
-			val expected = maxOf(AppDimensions.FloatingNavBarClearance, DashboardLayoutDefaults.PillClearance)
+			val expected = AppDimensions.FloatingNavBarClearance + DashboardLayoutDefaults.PillClearance
 			result shouldBe expected
 		}
 
@@ -49,8 +49,7 @@ class DashboardLayoutDefaultsTest {
 				bottomInset = 10.dp,
 				isLandscape = true,
 			)
-			// LandscapeBottomBarClearance (96.dp) vs PillClearance (112.dp) -> max is 112.dp
-			val expected = maxOf(96.dp, DashboardLayoutDefaults.PillClearance) + 10.dp
+			val expected = 96.dp + DashboardLayoutDefaults.PillClearance + 10.dp
 			result shouldBe expected
 		}
 	}
@@ -69,13 +68,12 @@ class DashboardLayoutDefaultsTest {
 		}
 
 		@Test
-		fun `portrait returns floating action margin plus inset`() {
+		fun `portrait returns nav clearance plus floating action margin plus inset`() {
 			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
 				bottomInset = 8.dp,
 				isLandscape = false,
 			)
-			// FloatingActionMargin = 16.dp
-			result shouldBe 16.dp + 8.dp
+			result shouldBe AppDimensions.FloatingNavBarClearance + 16.dp + 8.dp
 		}
 	}
 }
