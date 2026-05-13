@@ -8,6 +8,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.app.onboarding.ui.steps.WelcomeStep
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.testing.accessibility.assertIsAccessibilityHeading
+import com.adsamcik.tracker.testing.accessibility.assertMinTouchTargetSize
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
@@ -30,6 +32,31 @@ class WelcomeStepTest {
         composeTestRule.onNodeWithTag("setup_cta_get_started")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun welcomeTitle_isAccessibilityHeading() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithText("Track Your Journeys Privately")
+            .assertIsAccessibilityHeading()
+    }
+
+    @Test
+    fun primaryActionsMeetMinimumTouchTargets() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithTag("setup_privacy_policy_button")
+            .performScrollTo()
+            .assertMinTouchTargetSize()
+
+        composeTestRule.onNodeWithTag("setup_cta_get_started")
+            .performScrollTo()
+            .assertMinTouchTargetSize()
     }
 
     @Test

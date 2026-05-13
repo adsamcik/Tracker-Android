@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -21,7 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -80,25 +85,33 @@ private fun MiniGameCard(
     val context = LocalContext.current
     val isPlayable = game.isUnlocked && game.isAvailable
     val alphaValue = if (isPlayable) 1f else 0.4f
+    val statusText = when {
+        isPlayable -> game.description
+        !game.isUnlocked -> stringResource(R.string.minigame_locked, game.unlockLevel)
+        else -> stringResource(R.string.minigame_coming_soon)
+    }
 
     GlassCard(
         modifier = modifier
             .alpha(alphaValue)
+            .heightIn(min = 48.dp)
             .then(
                 if (!game.isUnlocked) {
-                    Modifier.clickable {
+                    Modifier.clickable(role = Role.Button) {
                         Toast.makeText(
                             context,
                             context.getString(R.string.minigame_locked, game.unlockLevel),
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
-                } else if (!game.isAvailable) {
-                    Modifier
                 } else {
                     Modifier
                 }
-            ),
+            )
+            .testTag("minigame_card_${game.id}")
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${game.name}: $statusText"
+            },
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

@@ -838,17 +838,6 @@
     <issue
         id="LogNotTimber"
         message="Using &apos;Log&apos; instead of &apos;Timber&apos;"
-        errorLine1="                    Log.d(&quot;MainRoot&quot;, &quot;Deep link requested dashboard goals section&quot;)"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/adsamcik/tracker/app/ui/DeepNavigationHandler.kt"
-            line="55"
-            column="21"/>
-    </issue>
-
-    <issue
-        id="LogNotTimber"
-        message="Using &apos;Log&apos; instead of &apos;Timber&apos;"
         errorLine1="                Log.w(&quot;MainRoot&quot;, &quot;Unrecognized destination: ${destination.route}&quot;)"
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location

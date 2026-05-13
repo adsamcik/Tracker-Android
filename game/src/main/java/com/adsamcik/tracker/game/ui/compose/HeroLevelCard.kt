@@ -1,9 +1,7 @@
 package com.adsamcik.tracker.game.ui.compose
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.StreakMilestone
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineMotion
 
 /**
  * Displays the player's level, XP progress bar, and streak information.
@@ -155,13 +155,16 @@ private fun LevelContent(
 private fun LevelCircle(level: Int) {
 	val previousLevel = remember { mutableIntStateOf(level) }
 	val isLevelUp = level > previousLevel.intValue
+	val reducedMotion = LocalReducedMotion.current
+	val scaleSpec = if (reducedMotion) {
+		snap<Float>()
+	} else {
+		RidgelineMotion.Crest
+	}
 
 	val scale by animateFloatAsState(
 		targetValue = if (isLevelUp) LEVEL_UP_SCALE else 1f,
-		animationSpec = spring(
-			dampingRatio = Spring.DampingRatioMediumBouncy,
-			stiffness = Spring.StiffnessMedium,
-		),
+		animationSpec = scaleSpec,
 		label = "levelScale",
 	)
 
@@ -200,10 +203,16 @@ private fun XpProgressBar(
 	} else {
 		0f
 	}
+	val reducedMotion = LocalReducedMotion.current
+	val progressSpec = if (reducedMotion) {
+		snap<Float>()
+	} else {
+		RidgelineMotion.Respond
+	}
 
 	val animatedFraction by animateFloatAsState(
 		targetValue = xpFraction,
-		animationSpec = tween(durationMillis = XP_ANIMATION_DURATION_MS),
+		animationSpec = progressSpec,
 		label = "xp_progress",
 	)
 
@@ -289,7 +298,6 @@ private fun streakEmoji(streak: Int): String = when {
 }
 
 private const val LEVEL_UP_SCALE = 1.3f
-private const val XP_ANIMATION_DURATION_MS = 600
 private const val STREAK_TIER_FLAME = 5
 private const val STREAK_TIER_BLAZE = 10
 private const val STREAK_TIER_INFERNO = 20

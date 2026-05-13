@@ -52,9 +52,9 @@ Data flow: `Sensors -> Producers -> TempData -> Pre/Data/Post-Components -> Room
 ## 4. UI & Compose
 - **Compose-only.** Zero XML layouts, zero Fragments, no `AndroidView` interop.
 - Route-based: `FeatureRoute()` entry composables; stateless sub-composables.
-- **MaterialExpressiveTheme** via `AppTheme` at all composition roots. Uses `MotionScheme.expressive()`, `TrackerShapes`, `TrackerTypography`.
+- `AppTheme` at all composition roots. Current dependencies do not expose public `MaterialExpressiveTheme` or public `MaterialTheme.motionScheme`; use `AppTheme`'s Material 3 root with Tracker/Ridgeline shapes, typography, and motion tokens.
 - Dynamic color (Android 12+) else MaterialKolor `PaletteStyle.Expressive` seed. No ad-hoc colors.
-- **MotionScheme tokens for animations:** Use `MaterialTheme.motionScheme.fastSpatialSpec()` / `defaultSpatialSpec()` / `slowSpatialSpec()` for spatial movement; `fastEffectsSpec()` / `defaultEffectsSpec()` / `slowEffectsSpec()` for color/alpha/fade. Keep `infiniteRepeatable` custom.
+- **Motion tokens for animations:** Use `RidgelineMotion`/`ridgeline*` springs for spatial movement and `tweenQuick`/`tweenStandard`/`tweenEmphasized` for effects until Material MotionScheme is public. Keep `infiniteRepeatable` custom.
 - Touch targets >= 48dp. WCAG AA contrast. Support 200% font scaling.
 
 ---

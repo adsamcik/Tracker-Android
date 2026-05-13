@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +41,7 @@ import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.WelcomeStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
+import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 
 /**
  * Composable route for the first-time setup wizard.
@@ -117,14 +119,17 @@ fun SetupRoute(
             }
 
             // Animated step content
+            val stepTransitionSpec = ridgelineSettle<IntOffset>()
             AnimatedContent(
                 targetState = state.currentStep,
                 transitionSpec = {
                     val forward = targetState.index > initialState.index
                     if (forward) {
-                        slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                        slideInHorizontally(animationSpec = stepTransitionSpec) { it } togetherWith
+                            slideOutHorizontally(animationSpec = stepTransitionSpec) { -it }
                     } else {
-                        slideInHorizontally { -it } togetherWith slideOutHorizontally { it }
+                        slideInHorizontally(animationSpec = stepTransitionSpec) { -it } togetherWith
+                            slideOutHorizontally(animationSpec = stepTransitionSpec) { it }
                     }
                 },
                 label = "setup_step_transition",

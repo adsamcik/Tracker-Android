@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.ui.steps
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,13 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.ui.components.BenefitItem
 import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineMotion
 
 /**
  * Welcome step – value proposition and "Get Started" CTA.
@@ -63,13 +66,16 @@ fun WelcomeStep(
         Spacer(modifier = Modifier.height(48.dp))
 
         val scale = remember { Animatable(0f) }
-        LaunchedEffect(Unit) {
+        val reducedMotion = LocalReducedMotion.current
+        val iconEntranceSpec = if (reducedMotion) {
+            snap<Float>()
+        } else {
+            RidgelineMotion.Crest
+        }
+        LaunchedEffect(reducedMotion) {
             scale.animateTo(
                 targetValue = 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow,
-                ),
+                animationSpec = iconEntranceSpec,
             )
         }
 
@@ -90,6 +96,8 @@ fun WelcomeStep(
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .semantics { heading() },
         )
 
         Spacer(modifier = Modifier.height(16.dp))

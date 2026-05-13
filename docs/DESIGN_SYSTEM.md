@@ -18,29 +18,18 @@ The user's stated vision is **"forest green / emerald, adventurous / outdoorsy."
 - **Activity colors:** Unchanged (Okabe-Ito accessible palette, independent of brand seed)
 - **Implementation:** Run `#1B6B3A` through [Material Theme Builder](https://m3.material.io/theme-builder) to generate full light/dark schemes, then hand-audit WCAG AA on every token pair
 
-### Theme Root: `MaterialExpressiveTheme` — CONFIRMED
+### Theme Root: `AppTheme` backed by `MaterialTheme` — CURRENT
 
-**Decision:** `AppTheme` uses `MaterialExpressiveTheme` (from `androidx.compose.material3:material3` 1.3+) as its composition root. Feature code consumes tokens via the standard `MaterialTheme` accessor object.
+**Decision:** `AppTheme` remains the single composition root and currently delegates to `androidx.compose.material3.MaterialTheme` with Ridgeline color, typography, and shape tokens. The resolved Material 3 artifacts do not expose a public `MaterialExpressiveTheme` composable or public `MaterialTheme.motionScheme` accessor to Kotlin callers, so the code and docs intentionally avoid claiming those APIs until the dependency supports them.
 
-**Why not plain `MaterialTheme`?**
-- `MaterialExpressiveTheme` provides `MotionScheme` parameter → enables `MaterialTheme.motionScheme.defaultSpatialSpec()` etc.
-- Expanded shape system with `MaterialShapes` for morphing
-- Zero API change for consumers — `MaterialTheme.colorScheme`, `.typography`, `.shapes` work identically
-- Custom `AppMotion` springs continue to supplement `motionScheme` for app-specific animations
+**Current behavior:**
+- Feature code consumes tokens via standard `MaterialTheme` accessors.
+- Ridgeline motion tokens are the approved public animation specs for route transitions, standard effects, app-specific animations, and infinite loops.
+- Revisit a direct `MaterialExpressiveTheme` swap only when the dependency provides that API.
 
-**Migration delta in `AppTheme.kt`:**
+**Current `AppTheme.kt`:**
 ```kotlin
-// BEFORE
 MaterialTheme(colorScheme = colorScheme, typography = AppTypography, shapes = AppShapes, content = content)
-
-// AFTER
-MaterialExpressiveTheme(
-    colorScheme = colorScheme,
-    typography = AppTypography,
-    shapes = AppShapes,
-    motionScheme = MotionScheme.expressive(),
-    content = content
-)
 ```
 
 ### Migration Strategy: Direct Replacement, No Shim — CONFIRMED
@@ -49,7 +38,7 @@ MaterialExpressiveTheme(
 
 **Approach:**
 1. Update `Color.kt` token values (teal → green) — affects all screens instantly
-2. Update `AppTheme.kt` (`MaterialTheme` → `MaterialExpressiveTheme`) — one-line change
+2. Keep `AppTheme.kt` on `MaterialTheme` until `MaterialExpressiveTheme` is available from dependencies
 3. Verify screen-by-screen in priority order (Dashboard → Map → Statistics → Game → Settings → Import/Export)
 4. One PR per screen for review, but the token swap itself is a single atomic PR
 
@@ -229,7 +218,7 @@ Micro(150ms), Short(250ms), Medium(400ms), Long(600ms). (§4)
 Enter/Exit/Pulse durations, pulse alpha range. `LoadingMotion` object. (§4)
 
 ##### 6.4 MotionScheme Integration
-`MaterialExpressiveTheme` provides `MotionScheme.expressive()`. `MaterialTheme.motionScheme.defaultSpatialSpec()` etc. for standard transitions. `AppMotion` supplements for app-specific animations. (R26–28 resolution)
+The current Material 3 dependency does not expose public `MaterialTheme.motionScheme` APIs to Kotlin callers. Use `RidgelineMotion`, `ridgeline*` generic springs, and tween helpers for standard transitions and app-specific animations until MotionScheme becomes public. (RC-fix clarification)
 
 ##### 6.5 Staggered Card Entrance
 60ms stagger, 6-card max depth, fade+translate per card. (§38.1)
@@ -254,7 +243,7 @@ All springs → instant snap. Animation loops → static. Glass blur retained (n
 ### PART II — COMPONENTS (Composables)
 
 #### 7. AppTheme Setup
-Ridgeline uses a single composition root that always applies `MaterialExpressiveTheme` via `AppTheme` and provides runtime accessibility locals for motion/transparency.
+Ridgeline uses a single composition root that always applies `AppTheme`, backed by Material 3 `MaterialTheme`, and provides runtime accessibility locals for motion/transparency.
 
 ##### 7.1 Composable Signature
 ```kotlin
@@ -280,15 +269,14 @@ fun AppTheme(
         }
     }
 
-    MaterialExpressiveTheme(
-        colorScheme = baseScheme,
-        typography = RidgelineTypography,
-        shapes = RidgelineShapes,
-        motionScheme = MotionScheme.expressive(),
+    CompositionLocalProvider(
+        LocalReducedMotion provides reducedMotion,
+        LocalReduceTransparency provides reduceTransparency,
     ) {
-        CompositionLocalProvider(
-            LocalReducedMotion provides reducedMotion,
-            LocalReduceTransparency provides reduceTransparency,
+        MaterialTheme(
+            colorScheme = baseScheme,
+            typography = RidgelineTypography,
+            shapes = RidgelineShapes,
             content = content,
         )
     }

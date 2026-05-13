@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -18,6 +19,8 @@ import com.adsamcik.tracker.app.settings.components.SliderSettingsItem
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.testing.accessibility.assertIsAccessibilityHeading
+import com.adsamcik.tracker.testing.accessibility.assertMinTouchTargetSize
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
@@ -50,6 +53,18 @@ class SettingsComponentsTest {
             }
         }
         composeTestRule.onNodeWithText("Dark mode").assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsItem_exposesMergedDescriptionAndTouchTarget() {
+        composeTestRule.setContent {
+            AppTheme {
+                SettingsItem(title = "Theme", subtitle = "Dark mode", onClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Theme: Dark mode")
+            .assertMinTouchTargetSize()
     }
 
     @Test
@@ -177,6 +192,16 @@ class SettingsComponentsTest {
         composeTestRule.onNodeWithText("Advanced").assertIsDisplayed()
     }
 
+    @Test
+    fun sectionHeader_isAccessibilityHeading() {
+        composeTestRule.setContent {
+            AppTheme { SectionHeader(text = "Advanced") }
+        }
+
+        composeTestRule.onNodeWithText("Advanced")
+            .assertIsAccessibilityHeading()
+    }
+
     // endregion
 
     // region SettingsGroupCard
@@ -191,6 +216,20 @@ class SettingsComponentsTest {
             }
         }
         composeTestRule.onNodeWithText("Group Title").assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsGroupCardTitle_isAccessibilityHeading() {
+        composeTestRule.setContent {
+            AppTheme {
+                SettingsGroupCard(title = "Group Title") {
+                    // empty
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithText("Group Title")
+            .assertIsAccessibilityHeading()
     }
 
     @Test

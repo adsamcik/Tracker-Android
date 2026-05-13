@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -203,7 +204,9 @@ fun SectionHeader(text: String) {
         text = text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics { heading() }
     )
 }
 
@@ -221,11 +224,13 @@ fun SettingsGroupCard(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         if (title != null) {
-             Text(
+            Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                modifier = Modifier
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                    .semantics { heading() }
             )
         }
         Card(
