@@ -2,16 +2,24 @@ package com.adsamcik.tracker.statistics.ui.compose
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.statistics.fragment.AppendUiState
 import com.adsamcik.tracker.statistics.fragment.RefreshUiState
 import com.adsamcik.tracker.statistics.fragment.StatsScreen
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -215,6 +223,49 @@ class StatsScreenComposeTest {
 		composeTestRule.onNodeWithTag("stats_calendar_heatmap").assertIsDisplayed()
 	}
 
+	@Test
+	fun `sparse summary daily activity shows distance when today session has no steps`() {
+		val today = LocalDate.now()
+		val todayEpochDay = today.toEpochDay()
+		val trip = Trip(
+			id = 1L,
+			startTimeMs = System.currentTimeMillis() - 57_000L,
+			endTimeMs = System.currentTimeMillis(),
+			distanceM = 304f,
+			steps = 0,
+			primaryActivity = null,
+			activityConfidence = null,
+			sampleCount = 4,
+			source = SegmentSource.USER_CREATED,
+			createdAt = System.currentTimeMillis(),
+		)
+		val weeklyBars = listOf(
+			DayBar(
+				dayLabel = "Today",
+				distanceM = 304f,
+				steps = 0,
+				epochDay = todayEpochDay,
+				sessionCount = 1,
+				durationMs = 57_000L,
+			),
+		)
+
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsScreenWithSingleSession(
+					trip = trip,
+					weeklyBars = weeklyBars,
+				)
+			}
+		}
+
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithTag("stats_sparse_summary").assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 304 m")
+			.performScrollTo()
+			.assertIsDisplayed()
+	}
+
 	// ─── Active filter label ─────────────────────────────────────────────
 
 	@Test
@@ -251,6 +302,24 @@ class StatsScreenComposeTest {
 			}
 		}
 		composeTestRule.onNodeWithText("Mar 15 – Apr 15").assertIsDisplayed()
+	}
+
+	@Composable
+	private fun StatsScreenWithSingleSession(
+		trip: Trip,
+		weeklyBars: List<DayBar>,
+	) {
+		val sessions = flowOf(PagingData.from(listOf(trip))).collectAsLazyPagingItems()
+		StatsScreen(
+			refreshState = RefreshUiState.Content,
+			appendState = AppendUiState.NotLoading,
+			onRetry = {},
+			onShowSummary = {},
+			onShowWeek = {},
+			onOpenWifi = {},
+			sessions = sessions,
+			weeklyBars = weeklyBars,
+		)
 	}
 
 }
