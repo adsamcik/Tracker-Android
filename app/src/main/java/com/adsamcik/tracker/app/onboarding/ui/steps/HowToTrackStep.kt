@@ -7,13 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -29,7 +24,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.common.ui.BatteryImpactIndicator
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
 
 /**
  * Step 2 – How to Track.
@@ -47,105 +41,89 @@ fun HowToTrackStep(
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
+    SetupStepScaffold(
+        actionText = stringResource(R.string.button_continue),
+        actionTestTag = "setup_cta_how_to_track",
+        onAction = onContinue,
+        modifier = modifier,
+        bottomPaddingTestTag = "setup_how_to_track_scroll_bottom_padding",
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = stringResource(R.string.setup_how_to_track_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = stringResource(R.string.setup_how_to_track_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- Auto-tracking mode ---
-            Text(
-                text = stringResource(R.string.setup_auto_tracking_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            AutoTrackingModeCard(
-                selected = autoTrackingMode == 0,
-                title = stringResource(R.string.setup_auto_tracking_disabled),
-                description = stringResource(R.string.setup_auto_tracking_disabled_desc),
-                onClick = { onAutoTrackingModeChange(0) },
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AutoTrackingModeCard(
-                selected = autoTrackingMode == 1,
-                title = stringResource(R.string.setup_auto_tracking_on_foot),
-                description = stringResource(R.string.setup_auto_tracking_on_foot_desc),
-                onClick = { onAutoTrackingModeChange(1) },
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AutoTrackingModeCard(
-                selected = autoTrackingMode == 2,
-                title = stringResource(R.string.setup_auto_tracking_in_motion),
-                description = stringResource(R.string.setup_auto_tracking_in_motion_desc),
-                onClick = { onAutoTrackingModeChange(2) },
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // --- Tracking preset ---
-            Text(
-                text = stringResource(R.string.setup_preset_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            TrackingPolicyPreset.entries.filter { it != TrackingPolicyPreset.BALANCED || true }
-                .forEach { preset ->
-                    PresetCard(
-                        selected = trackingPreset == preset,
-                        preset = preset,
-                        onClick = { onPresetChange(preset) },
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Pinned CTA
-        PrimaryActionButton(
-            text = stringResource(R.string.button_continue),
-            onClick = onContinue,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("setup_cta_how_to_track"),
+        Text(
+            text = stringResource(R.string.setup_how_to_track_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = stringResource(R.string.setup_how_to_track_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- Auto-tracking mode ---
+        Text(
+            text = stringResource(R.string.setup_auto_tracking_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        AutoTrackingModeCard(
+            selected = autoTrackingMode == 0,
+            title = stringResource(R.string.setup_auto_tracking_disabled),
+            description = stringResource(R.string.setup_auto_tracking_disabled_desc),
+            onClick = { onAutoTrackingModeChange(0) },
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AutoTrackingModeCard(
+            selected = autoTrackingMode == 1,
+            title = stringResource(R.string.setup_auto_tracking_on_foot),
+            description = stringResource(R.string.setup_auto_tracking_on_foot_desc),
+            onClick = { onAutoTrackingModeChange(1) },
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AutoTrackingModeCard(
+            selected = autoTrackingMode == 2,
+            title = stringResource(R.string.setup_auto_tracking_in_motion),
+            description = stringResource(R.string.setup_auto_tracking_in_motion_desc),
+            onClick = { onAutoTrackingModeChange(2) },
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // --- Tracking preset ---
+        Text(
+            text = stringResource(R.string.setup_preset_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TrackingPolicyPreset.entries.filter { it != TrackingPolicyPreset.BALANCED || true }
+            .forEach { preset ->
+                PresetCard(
+                    selected = trackingPreset == preset,
+                    preset = preset,
+                    onClick = { onPresetChange(preset) },
+                    modifier = Modifier.testTag(preset.testTag),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
     }
 }
 
@@ -252,3 +230,6 @@ private fun PresetCard(
         }
     }
 }
+
+private val TrackingPolicyPreset.testTag: String
+    get() = "setup_preset_${name.lowercase()}"

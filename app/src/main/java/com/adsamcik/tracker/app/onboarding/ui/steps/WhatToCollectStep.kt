@@ -10,14 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Check
@@ -35,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,7 +40,6 @@ import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionSelector
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
 
 /**
  * Step 3 – What to Collect.
@@ -109,218 +104,201 @@ fun WhatToCollectStep(
         onCellPermissionResult(fineLocationGranted && phoneStateGranted)
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
+    SetupStepScaffold(
+        actionText = stringResource(R.string.setup_start_exploring),
+        actionTestTag = "setup_cta_complete",
+        onAction = onComplete,
+        modifier = modifier,
+        bottomPaddingTestTag = "setup_what_to_collect_scroll_bottom_padding",
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = stringResource(R.string.setup_what_to_collect_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = stringResource(R.string.setup_what_to_collect_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- Location ---
-            DataSourceCard(
-                icon = Icons.Default.MyLocation,
-                title = stringResource(R.string.setup_source_location),
-                description = stringResource(R.string.setup_source_location_desc),
-                enabled = state.locationEnabled,
-                onToggle = onLocationEnabledChange,
-            )
-
-            if (state.locationEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LocationPrecisionSelector(
-                    selectedMode = state.locationPrecision,
-                    onModeSelected = onLocationPrecisionChange,
-                    modifier = Modifier.padding(start = 16.dp),
-                )
-
-                // Foreground location permission
-                if (state.needsLocationPermission && !state.locationPermissionGranted) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_location_why),
-                        onGrant = {
-                            val perms = if (state.locationPrecision == LocationPrecisionMode.PRECISE) {
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            } else {
-                                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
-                            }
-                            locationLauncher.launch(perms)
-                        },
-                    )
-                } else if (state.locationPermissionGranted) {
-                    PermissionGrantedBadge()
-                }
-
-                // Background location permission (needed for auto-tracking)
-                if (state.needsBackgroundLocationPermission &&
-                    state.locationPermissionGranted &&
-                    !state.backgroundLocationGranted
-                ) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_location_bg_why),
-                        onGrant = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                backgroundLocationLauncher.launch(
-                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                                )
-                            }
-                        },
-                    )
-                } else if (state.backgroundLocationGranted && state.needsBackgroundLocationPermission) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    PermissionGrantedBadge()
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // --- Activity ---
-            DataSourceCard(
-                icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                title = stringResource(R.string.setup_source_activity),
-                description = stringResource(R.string.setup_source_activity_desc),
-                enabled = state.activityEnabled,
-                onToggle = onActivityEnabledChange,
-            )
-
-            if (state.activityEnabled && state.needsActivityPermission) {
-                if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_activity_why),
-                        onGrant = {
-                            activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                        },
-                    )
-                } else if (state.activityPermissionGranted) {
-                    PermissionGrantedBadge()
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // --- Steps ---
-            DataSourceCard(
-                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                title = stringResource(R.string.setup_source_steps),
-                description = stringResource(R.string.setup_source_steps_desc),
-                enabled = state.stepsEnabled,
-                onToggle = onStepsEnabledChange,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // --- WiFi ---
-            DataSourceCard(
-                icon = Icons.Default.Wifi,
-                title = stringResource(R.string.setup_source_wifi),
-                description = stringResource(R.string.setup_source_wifi_desc),
-                enabled = state.wifiEnabled,
-                onToggle = onWifiEnabledChange,
-            )
-
-            if (state.wifiEnabled) {
-                if (state.needsWifiPermission) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_wifi_why),
-                        onGrant = {
-                            val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
-                            } else {
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            }
-                            wifiLauncher.launch(perms)
-                        },
-                    )
-                } else {
-                    PermissionGrantedBadge()
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // --- Cell ---
-            DataSourceCard(
-                icon = Icons.Default.CellTower,
-                title = stringResource(R.string.setup_source_cell),
-                description = stringResource(R.string.setup_source_cell_desc),
-                enabled = state.cellEnabled,
-                onToggle = onCellEnabledChange,
-            )
-
-            if (state.cellEnabled) {
-                if (state.needsCellPermission) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_cell_why),
-                        onGrant = {
-                            cellLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.READ_PHONE_STATE,
-                                ),
-                            )
-                        },
-                    )
-                } else {
-                    PermissionGrantedBadge()
-                }
-            }
-
-            // Notification permission (always relevant)
-            Spacer(modifier = Modifier.height(20.dp))
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                !state.notificationPermissionGranted
-            ) {
-                PermissionExplanation(
-                    explanation = stringResource(R.string.setup_perm_notification_why),
-                    onGrant = {
-                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    },
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Pinned CTA
-        PrimaryActionButton(
-            text = stringResource(R.string.setup_start_exploring),
-            onClick = onComplete,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("setup_cta_complete"),
+        Text(
+            text = stringResource(R.string.setup_what_to_collect_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = stringResource(R.string.setup_what_to_collect_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- Location ---
+        DataSourceCard(
+            icon = Icons.Default.MyLocation,
+            title = stringResource(R.string.setup_source_location),
+            description = stringResource(R.string.setup_source_location_desc),
+            enabled = state.locationEnabled,
+            onToggle = onLocationEnabledChange,
+        )
+
+        if (state.locationEnabled) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LocationPrecisionSelector(
+                selectedMode = state.locationPrecision,
+                onModeSelected = onLocationPrecisionChange,
+                modifier = Modifier.padding(start = 16.dp),
+            )
+
+            // Foreground location permission
+            if (state.needsLocationPermission && !state.locationPermissionGranted) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_location_why),
+                    onGrant = {
+                        val perms = if (state.locationPrecision == LocationPrecisionMode.PRECISE) {
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            )
+                        } else {
+                            arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        }
+                        locationLauncher.launch(perms)
+                    },
+                )
+            } else if (state.locationPermissionGranted) {
+                PermissionGrantedBadge()
+            }
+
+            // Background location permission (needed for auto-tracking)
+            if (state.needsBackgroundLocationPermission &&
+                state.locationPermissionGranted &&
+                !state.backgroundLocationGranted
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_location_bg_why),
+                    onGrant = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            backgroundLocationLauncher.launch(
+                                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                            )
+                        }
+                    },
+                )
+            } else if (state.backgroundLocationGranted && state.needsBackgroundLocationPermission) {
+                Spacer(modifier = Modifier.height(4.dp))
+                PermissionGrantedBadge()
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- Activity ---
+        DataSourceCard(
+            icon = Icons.AutoMirrored.Filled.DirectionsRun,
+            title = stringResource(R.string.setup_source_activity),
+            description = stringResource(R.string.setup_source_activity_desc),
+            enabled = state.activityEnabled,
+            onToggle = onActivityEnabledChange,
+        )
+
+        if (state.activityEnabled && state.needsActivityPermission) {
+            if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_activity_why),
+                    onGrant = {
+                        activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    },
+                )
+            } else if (state.activityPermissionGranted) {
+                PermissionGrantedBadge()
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- Steps ---
+        DataSourceCard(
+            icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+            title = stringResource(R.string.setup_source_steps),
+            description = stringResource(R.string.setup_source_steps_desc),
+            enabled = state.stepsEnabled,
+            onToggle = onStepsEnabledChange,
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- WiFi ---
+        DataSourceCard(
+            icon = Icons.Default.Wifi,
+            title = stringResource(R.string.setup_source_wifi),
+            description = stringResource(R.string.setup_source_wifi_desc),
+            enabled = state.wifiEnabled,
+            onToggle = onWifiEnabledChange,
+        )
+
+        if (state.wifiEnabled) {
+            if (state.needsWifiPermission) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_wifi_why),
+                    onGrant = {
+                        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                        } else {
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            )
+                        }
+                        wifiLauncher.launch(perms)
+                    },
+                )
+            } else {
+                PermissionGrantedBadge()
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- Cell ---
+        DataSourceCard(
+            icon = Icons.Default.CellTower,
+            title = stringResource(R.string.setup_source_cell),
+            description = stringResource(R.string.setup_source_cell_desc),
+            enabled = state.cellEnabled,
+            onToggle = onCellEnabledChange,
+        )
+
+        if (state.cellEnabled) {
+            if (state.needsCellPermission) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_cell_why),
+                    onGrant = {
+                        cellLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.READ_PHONE_STATE,
+                            ),
+                        )
+                    },
+                )
+            } else {
+                PermissionGrantedBadge()
+            }
+        }
+
+        // Notification permission (always relevant)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !state.notificationPermissionGranted
+        ) {
+            PermissionExplanation(
+                explanation = stringResource(R.string.setup_perm_notification_why),
+                onGrant = {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                },
+            )
+        }
     }
 }
 
