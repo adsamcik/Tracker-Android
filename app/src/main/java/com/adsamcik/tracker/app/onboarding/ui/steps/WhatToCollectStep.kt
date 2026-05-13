@@ -32,7 +32,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
@@ -111,7 +114,7 @@ fun WhatToCollectStep(
         modifier = modifier,
         bottomPaddingTestTag = "setup_what_to_collect_scroll_bottom_padding",
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = stringResource(R.string.setup_what_to_collect_title),
@@ -128,7 +131,7 @@ fun WhatToCollectStep(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // --- Location ---
         DataSourceCard(
@@ -140,7 +143,7 @@ fun WhatToCollectStep(
         )
 
         if (state.locationEnabled) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             LocationPrecisionSelector(
                 selectedMode = state.locationPrecision,
@@ -152,6 +155,9 @@ fun WhatToCollectStep(
             if (state.needsLocationPermission && !state.locationPermissionGranted) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_location_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_location_content_description),
+                    rationaleTestTag = "setup_perm_location_rationale",
+                    grantButtonTestTag = "setup_perm_location_grant",
                     onGrant = {
                         val perms = if (state.locationPrecision == LocationPrecisionMode.PRECISE) {
                             arrayOf(
@@ -176,6 +182,9 @@ fun WhatToCollectStep(
                 Spacer(modifier = Modifier.height(4.dp))
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_location_bg_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_background_location_content_description),
+                    rationaleTestTag = "setup_perm_background_location_rationale",
+                    grantButtonTestTag = "setup_perm_background_location_grant",
                     onGrant = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             backgroundLocationLauncher.launch(
@@ -190,7 +199,7 @@ fun WhatToCollectStep(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- Activity ---
         DataSourceCard(
@@ -205,6 +214,9 @@ fun WhatToCollectStep(
             if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_activity_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_activity_content_description),
+                    rationaleTestTag = "setup_perm_activity_rationale",
+                    grantButtonTestTag = "setup_perm_activity_grant",
                     onGrant = {
                         activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                     },
@@ -214,7 +226,11 @@ fun WhatToCollectStep(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(
+            modifier = Modifier
+                .height(24.dp)
+                .testTag("setup_perm_activity_clearance_anchor"),
+        )
 
         // --- Steps ---
         DataSourceCard(
@@ -240,6 +256,9 @@ fun WhatToCollectStep(
             if (state.needsWifiPermission) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_wifi_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_wifi_content_description),
+                    rationaleTestTag = "setup_perm_wifi_rationale",
+                    grantButtonTestTag = "setup_perm_wifi_grant",
                     onGrant = {
                         val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
@@ -272,6 +291,9 @@ fun WhatToCollectStep(
             if (state.needsCellPermission) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_cell_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_cell_content_description),
+                    rationaleTestTag = "setup_perm_cell_rationale",
+                    grantButtonTestTag = "setup_perm_cell_grant",
                     onGrant = {
                         cellLauncher.launch(
                             arrayOf(
@@ -294,6 +316,9 @@ fun WhatToCollectStep(
         ) {
             PermissionExplanation(
                 explanation = stringResource(R.string.setup_perm_notification_why),
+                grantContentDescription = stringResource(R.string.setup_perm_grant_notification_content_description),
+                rationaleTestTag = "setup_perm_notification_rationale",
+                grantButtonTestTag = "setup_perm_notification_grant",
                 onGrant = {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 },
@@ -357,13 +382,17 @@ private fun DataSourceCard(
 @Composable
 private fun PermissionExplanation(
     explanation: String,
+    grantContentDescription: String,
+    rationaleTestTag: String,
+    grantButtonTestTag: String,
     onGrant: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, top = 4.dp),
+            .padding(start = 16.dp, top = 4.dp)
+            .testTag(rationaleTestTag),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -371,11 +400,16 @@ private fun PermissionExplanation(
             text = explanation,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("${rationaleTestTag}_text"),
         )
 
         Button(
             onClick = onGrant,
+            modifier = Modifier
+                .testTag(grantButtonTestTag)
+                .semantics { contentDescription = grantContentDescription },
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,

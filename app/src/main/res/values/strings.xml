@@ -748,7 +748,7 @@
     <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
     <string name="setup_preset_title">Tracking Detail</string>
     <string name="setup_what_to_collect_title">What to Collect</string>
-    <string name="setup_what_to_collect_subtitle">Choose what data to record. Each source may need a permission — we\'ll explain why.</string>
+    <string name="setup_what_to_collect_subtitle">More options below. Start exploring without permissions or grant them later. Data stays on this device.</string>
     <string name="setup_source_location">Location</string>
     <string name="setup_source_location_desc">Record your routes and positions on a map.</string>
     <string name="setup_source_activity">Activity</string>
@@ -766,6 +766,12 @@
     <string name="setup_perm_wifi_why">Wi-Fi scans can reveal nearby networks and infer location. Grant this only if you want Wi-Fi radio data collected for local accuracy.</string>
     <string name="setup_perm_cell_why">Cell tower data can be combined with your route. Grant phone state and precise location only if you want cell radio data collected locally.</string>
     <string name="setup_perm_grant">Grant</string>
+    <string name="setup_perm_grant_location_content_description">Grant location permission</string>
+    <string name="setup_perm_grant_background_location_content_description">Grant background location permission</string>
+    <string name="setup_perm_grant_activity_content_description">Grant activity recognition permission</string>
+    <string name="setup_perm_grant_notification_content_description">Grant notification permission</string>
+    <string name="setup_perm_grant_wifi_content_description">Grant Wi-Fi permission</string>
+    <string name="setup_perm_grant_cell_content_description">Grant cell radio permission</string>
     <string name="setup_perm_granted">Granted</string>
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. No Wi-Fi radio data is collected until you grant it.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. No cell radio data is collected until you grant both.</string>
