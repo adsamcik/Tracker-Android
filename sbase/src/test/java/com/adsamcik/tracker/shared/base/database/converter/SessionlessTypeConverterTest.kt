@@ -42,10 +42,8 @@ class SessionlessTypeConverterTest {
 		}
 
 		@Test
-		fun `toSampleQuality throws for invalid string`() {
-			assertThrows<IllegalArgumentException> {
-				converter.toSampleQuality("INVALID")
-			}
+		fun `toSampleQuality maps unknown quality to coarse fallback`() {
+			converter.toSampleQuality("INVALID") shouldBe SampleQuality.COARSE
 		}
 	}
 
