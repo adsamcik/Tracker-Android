@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -181,6 +182,33 @@ internal fun WeeklyLeaderboardCard(
 
 			// Week progress indicator
 			WeekProgressBar(fraction = state.weekProgressFraction)
+		}
+	}
+}
+
+@Composable
+internal fun WeeklyLeaderboardErrorCard(
+	onRetry: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	GlassCard(modifier = modifier.fillMaxWidth()) {
+		Column(modifier = Modifier.padding(16.dp)) {
+			Text(
+				text = stringResource(R.string.leaderboard_error_title),
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Spacer(modifier = Modifier.height(4.dp))
+			Text(
+				text = stringResource(R.string.leaderboard_error_body),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			Spacer(modifier = Modifier.height(12.dp))
+			Button(onClick = onRetry) {
+				Text(text = stringResource(R.string.leaderboard_retry))
+			}
 		}
 	}
 }

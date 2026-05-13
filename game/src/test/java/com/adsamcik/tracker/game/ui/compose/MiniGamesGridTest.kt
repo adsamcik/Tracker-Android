@@ -89,4 +89,27 @@ class MiniGamesGridTest {
 		composeRule.onNodeWithText("Test your knowledge").assertIsDisplayed()
 		composeRule.onNodeWithText("Unlocks at Level 10").assertIsDisplayed()
 	}
+
+	@Test
+	fun unavailableUnlockedGame_showsComingSoonState() {
+		val games = listOf(
+			MiniGameUi(
+				id = "outrun",
+				name = "Outrun",
+				description = "Race a ghost",
+				unlockLevel = 1,
+				isUnlocked = true,
+				isAvailable = false,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MiniGamesGrid(games = games)
+			}
+		}
+
+		composeRule.onNodeWithText("Outrun").assertIsDisplayed()
+		composeRule.onNodeWithText("Coming soon").assertIsDisplayed()
+	}
 }

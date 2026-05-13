@@ -25,6 +25,17 @@ class ProgressionRepository @Inject constructor(
 	private val xpCalculator: XpCalculator,
 	private val streakManager: StreakManager,
 ) {
+	private var databaseProvider: (Context) -> ChallengeDatabase = { context ->
+		ChallengeDatabase.database(context)
+	}
+
+	internal constructor(
+		xpCalculator: XpCalculator,
+		streakManager: StreakManager,
+		databaseProvider: (Context) -> ChallengeDatabase,
+	) : this(xpCalculator, streakManager) {
+		this.databaseProvider = databaseProvider
+	}
 
 	/**
 	 * Called when a challenge is completed.
@@ -35,7 +46,7 @@ class ProgressionRepository @Inject constructor(
 		context: Context,
 		instance: ChallengeInstanceNew,
 	): CompletionResult {
-		val database = ChallengeDatabase.database(context)
+		val database = databaseProvider(context)
 		val now = Time.nowMillis
 		val entity = instance.entity
 
@@ -103,7 +114,7 @@ class ProgressionRepository @Inject constructor(
 		context: Context,
 		expired: List<ChallengeInstanceNew>,
 	): ExpiryResult {
-		val database = ChallengeDatabase.database(context)
+		val database = databaseProvider(context)
 		val now = Time.nowMillis
 
 		// Record each expired challenge in history
@@ -144,7 +155,7 @@ class ProgressionRepository @Inject constructor(
 		session: TrackerSession,
 		isVehicleOrStill: Boolean = false,
 	) {
-		val database = ChallengeDatabase.database(context)
+		val database = databaseProvider(context)
 		val xpAward = xpCalculator.calculateSessionXp(session, isVehicleOrStill)
 		if (xpAward.amount <= 0) return
 

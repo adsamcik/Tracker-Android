@@ -58,8 +58,26 @@ interface DomainEventDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun upsertCursor(cursor: DomainEventCursorEntity)
 
-	@Query("SELECT * FROM domain_event WHERE timestamp_ms >= :sinceMs ORDER BY timestamp_ms ASC")
+	@Deprecated(
+		message = "Unbounded domain-event flows can allocate very large lists. Use observeSinceLimited or cursor batches.",
+	)
+	@Query("SELECT * FROM domain_event WHERE timestamp_ms >= :sinceMs ORDER BY timestamp_ms ASC, id ASC")
 	fun observeSince(sinceMs: Long): Flow<List<DomainEventEntity>>
+
+	@Query(
+		"""
+		SELECT *
+		FROM (
+			SELECT *
+			FROM domain_event
+			WHERE timestamp_ms >= :sinceMs
+			ORDER BY timestamp_ms DESC, id DESC
+			LIMIT :limit
+		) AS latest_events
+		ORDER BY timestamp_ms ASC, id ASC
+		"""
+	)
+	fun observeSinceLimited(sinceMs: Long, limit: Int): Flow<List<DomainEventEntity>>
 
 	@Query("SELECT MIN(last_processed_ms) FROM domain_event_cursor")
 	suspend fun getMinimumCursorTimestampMs(): Long?

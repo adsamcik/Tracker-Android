@@ -44,8 +44,25 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	/**
 	 * Get location samples within time range as Flow.
 	 */
+	@Deprecated(
+		message = "Unbounded location flows can allocate very large lists. Use getAllBetweenFlowLimited for UI flows or getChunkBetweenOrdered for exports.",
+	)
 	@Query("SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<LocationSample>>
+
+	/**
+	 * Observe a bounded window of location samples within a time range.
+	 */
+	@Query(
+		"""
+		SELECT *
+		FROM location_sample
+		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+		ORDER BY time_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	fun getAllBetweenFlowLimited(fromMs: Long, toMs: Long, limit: Int): Flow<List<LocationSample>>
 
 	/**
 	 * Get nearest location sample to a given timestamp (within tolerance).

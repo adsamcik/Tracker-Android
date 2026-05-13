@@ -76,6 +76,17 @@ class DomainEventDaoTest {
 		dao.remainingTimestamps() shouldContainExactly listOf(4_000L)
 	}
 
+	@Test
+	fun `observeSinceLimited emits newest bounded events in ascending order`() = runTest {
+		dao.insertAll(listOf(eventAt(1_000L), eventAt(2_000L), eventAt(3_000L), eventAt(4_000L)))
+
+		val timestamps = dao.observeSinceLimited(sinceMs = 0L, limit = 2)
+			.first()
+			.map(DomainEventEntity::timestampMs)
+
+		timestamps shouldContainExactly listOf(3_000L, 4_000L)
+	}
+
 	private suspend fun DomainEventDao.remainingTimestamps(): List<Long> =
 		observeSince(0L).first().map(DomainEventEntity::timestampMs)
 

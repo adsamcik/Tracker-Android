@@ -33,7 +33,7 @@
     <string name="minigame_zenwalk_description">Keep your pace steady in the zone</string>
     <string name="minigame_section_title">Mini-Games</string>
     <string name="minigame_locked">Unlocks at Level %1$d</string>
-    <string name="minigame_coming_soon">Coming during tracking!</string>
+    <string name="minigame_coming_soon">Coming soon</string>
 
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>
     <string name="goals_daily_goal">daily</string>
@@ -225,6 +225,9 @@
     <string name="leaderboard_current_week">This Week</string>
     <string name="leaderboard_empty_title">No history to race yet</string>
     <string name="leaderboard_empty_body">Complete at least one full week to unlock ghost competitors — they\'re made from your own past weeks.</string>
+    <string name="leaderboard_error_title">Leaderboard unavailable</string>
+    <string name="leaderboard_error_body">Your data is safe on this device. Try loading the weekly challenge again.</string>
+    <string name="leaderboard_retry">Retry</string>
 
     <!-- Unlock feature display names -->
     <string name="unlock_feature_challenges">Challenges</string>

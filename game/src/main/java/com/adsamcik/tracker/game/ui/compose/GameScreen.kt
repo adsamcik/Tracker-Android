@@ -62,6 +62,7 @@ import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
 import com.adsamcik.tracker.game.leaderboard.LeaderboardState
 import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardCard
+import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardErrorCard
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
@@ -104,6 +105,7 @@ fun GameScreen(
     heroLevelState: HeroLevelUiState? = null,
     trophySummary: TrophySummaryUi? = null,
     leaderboardState: LeaderboardState? = null,
+    isLeaderboardError: Boolean = false,
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false,
     onViewAllAchievements: () -> Unit = {},
@@ -113,6 +115,7 @@ fun GameScreen(
     onStartStreakClick: () -> Unit = {},
     onNavigateToTracker: () -> Unit = {},
     onLeaderboardMetricSelected: (LeaderboardMetric) -> Unit = {},
+    onRetryLeaderboard: () -> Unit = {},
 ) {
 	val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
@@ -198,7 +201,9 @@ fun GameScreen(
                 }
             }
             item {
-                if (leaderboardState != null) {
+                if (isLeaderboardError) {
+                    WeeklyLeaderboardErrorCard(onRetry = onRetryLeaderboard)
+                } else if (leaderboardState != null) {
                     WeeklyLeaderboardCard(
                         state = leaderboardState,
                         onMetricSelected = onLeaderboardMetricSelected,
@@ -244,12 +249,13 @@ fun GameScreen(
                             MiniGameUi(
                                 id = entry.id,
                                 name = stringResource(entry.nameRes),
-                                description = stringResource(entry.descriptionRes),
-                                unlockLevel = entry.unlockLevel,
-                                isUnlocked = entry.isUnlocked,
-                            )
-                        },
-                    )
+                                 description = stringResource(entry.descriptionRes),
+                                 unlockLevel = entry.unlockLevel,
+                                 isUnlocked = entry.isUnlocked,
+                                 isAvailable = entry.isAvailable,
+                             )
+                         },
+                     )
                 }
             }
             item {

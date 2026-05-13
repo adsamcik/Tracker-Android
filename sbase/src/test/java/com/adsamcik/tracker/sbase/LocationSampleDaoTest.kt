@@ -145,6 +145,19 @@ class LocationSampleDaoTest {
 	} }
 
 	@Test
+	fun `getAllBetweenFlowLimited bounds observed samples`() { runTest {
+		dao.insert(createSample(timeMs = 1000L))
+		dao.insert(createSample(timeMs = 2000L))
+		dao.insert(createSample(timeMs = 3000L))
+
+		val results = dao.getAllBetweenFlowLimited(0L, 5000L, limit = 2).first()
+
+		results shouldHaveSize 2
+		results[0].timeMs shouldBe 1000L
+		results[1].timeMs shouldBe 2000L
+	} }
+
+	@Test
 	fun `getNearestWithCoordinates finds closest sample`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_000, lonE7 = 140_000_000))
 		dao.insert(createSample(timeMs = 3000L, latE7 = 510_000_000, lonE7 = 141_000_000))

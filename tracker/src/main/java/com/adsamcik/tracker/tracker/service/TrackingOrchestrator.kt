@@ -67,6 +67,8 @@ internal class TrackingOrchestrator(
 	private val appDatabase: AppDatabase,
 	private val trackingParamsRepository: TrackingParamsRepository,
 	trackerSettingsRepository: TrackerSettingsRepository,
+	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
+	private val enableNotifications: Boolean = true,
 ) {
 	private companion object {
 		const val TAG = "TrackingOrchestrator"
@@ -96,6 +98,7 @@ internal class TrackingOrchestrator(
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
 			dispatchers = dispatchers,
+			enableNotifications = enableNotifications,
 		)
 	}
 	private val policyFeeder = TrackerPolicyFeeder()
@@ -193,6 +196,8 @@ internal class TrackingOrchestrator(
 			isUserInitiated = isSessionUserInitiated,
 			escalationEngine = escalationEngine,
 			scope = scope,
+			database = appDatabase,
+			dispatchers = dispatchers,
 		).apply {
 			start() // Start tracking run + engine
 		}
@@ -310,10 +315,21 @@ internal class TrackingOrchestrator(
 	 * @param preShutdown optional action to run inside the component lock before
 	 *                    teardown (e.g., disabling the timer component).
 	 */
-	suspend fun shutdown(context: Context, preShutdown: (suspend () -> Unit)? = null) {
-		componentMutex.withLock {
-			preShutdown?.invoke()
-			destroyComponents(context)
+	suspend fun shutdown(
+		context: Context,
+		preShutdown: (suspend () -> Unit)? = null,
+	): ShutdownResult = componentMutex.withLock {
+		preShutdown?.invoke()
+		destroyComponents(context)
+	}
+
+	internal fun enqueueDailySummaryFallback(context: Context): Boolean {
+		return try {
+			dailySummaryFallbackEnqueuer(context)
+			true
+		} catch (e: Exception) {
+			Log.w(TAG, "Failed to enqueue one-shot daily summary worker", e)
+			false
 		}
 	}
 
@@ -380,7 +396,7 @@ internal class TrackingOrchestrator(
 		}
 	}
 
-	private suspend fun destroyComponents(context: Context) {
+	private suspend fun destroyComponents(context: Context): ShutdownResult {
 		// Finalize session data BEFORE stopping the pipeline. The pipeline's
 		// stop() calls AggregatorProcessor.onStop() which emits SessionEnded.
 		// Downstream consumers (ChallengeWorker, AchievementWorker,
@@ -466,24 +482,33 @@ internal class TrackingOrchestrator(
 
 		// Materialize daily summary from session segments now that the session
 		// component has saved its final segment to the database.
-		try {
+		val dailySummaryMaterialized = try {
 			val aggregator = DailySummaryAggregator(
 				dailySummaryDao = appDatabase.dailySummaryDao(),
 				sessionSegmentDao = appDatabase.sessionSegmentDao(),
 			)
 			aggregator.materializeToday()
+			true
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
 			Log.w(TAG, "Failed to materialize daily summary on shutdown", e)
+			false
 		}
 
-		// Also enqueue a one-shot worker as a fallback in case the direct
-		// materialization was skipped (e.g., timeout during shutdown).
-		try {
-			DailySummaryMaterializationWorker.runOnce(context)
-		} catch (e: Exception) {
-			Log.w(TAG, "Failed to enqueue one-shot daily summary worker", e)
+		val fallbackEnqueued = if (dailySummaryMaterialized) {
+			false
+		} else {
+			enqueueDailySummaryFallback(context)
 		}
+		return ShutdownResult(
+			dailySummaryMaterialized = dailySummaryMaterialized,
+			fallbackEnqueued = fallbackEnqueued,
+		)
 	}
 }
+
+internal data class ShutdownResult(
+	val dailySummaryMaterialized: Boolean,
+	val fallbackEnqueued: Boolean,
+)
