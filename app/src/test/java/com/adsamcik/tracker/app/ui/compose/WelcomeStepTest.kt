@@ -1,16 +1,22 @@
 package com.adsamcik.tracker.app.ui.compose
 
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.ui.steps.WelcomeStep
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.testing.accessibility.assertIsAccessibilityHeading
 import com.adsamcik.tracker.testing.accessibility.assertMinTouchTargetSize
 import io.kotest.matchers.shouldBe
+import kotlin.math.abs
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,6 +51,17 @@ class WelcomeStepTest {
     }
 
     @Test
+    fun displaysPrivacySubtitleWithoutAmbiguousTrackingCopy() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithText(
+            "All data stays on your device. No cloud sync or third-party tracking.",
+        ).assertIsDisplayed()
+    }
+
+    @Test
     fun primaryActionsMeetMinimumTouchTargets() {
         composeTestRule.setContent {
             AppTheme { WelcomeStep(onGetStarted = {}) }
@@ -57,6 +74,32 @@ class WelcomeStepTest {
         composeTestRule.onNodeWithTag("setup_cta_get_started")
             .performScrollTo()
             .assertMinTouchTargetSize()
+    }
+
+    @Test
+    fun getStartedLabel_isCenteredWithinPrimaryButton() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        val buttonNode = composeTestRule.onNodeWithTag(
+            testTag = "setup_cta_get_started",
+            useUnmergedTree = true,
+        )
+            .performScrollTo()
+            .fetchSemanticsNode()
+        val labelNode = composeTestRule.onNodeWithText(
+            text = "GET STARTED",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode()
+
+        val centerDelta = abs(buttonNode.boundsInRoot.center.x - labelNode.boundsInRoot.center.x)
+        val tolerancePx = with(buttonNode.layoutInfo.density) { 1.dp.toPx() }
+        assertTrue(
+            actual = centerDelta <= tolerancePx,
+            message = "Expected GET STARTED label to be horizontally centered in the primary button. " +
+                "buttonBounds=${buttonNode.boundsInRoot}, labelBounds=${labelNode.boundsInRoot}",
+        )
     }
 
     @Test
@@ -80,6 +123,20 @@ class WelcomeStepTest {
         composeTestRule.onNodeWithTag("setup_privacy_policy_button")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun privacyPolicyEntryPoint_hasSingleMergedClickTarget() {
+        composeTestRule.setContent {
+            AppTheme { WelcomeStep(onGetStarted = {}) }
+        }
+
+        composeTestRule.onNodeWithTag("setup_privacy_policy_button")
+            .performScrollTo()
+            .assertHasClickAction()
+
+        composeTestRule.onAllNodes(hasClickAction() and hasText("Read Privacy Policy"))
+            .fetchSemanticsNodes().size shouldBe 1
     }
 
     @Test

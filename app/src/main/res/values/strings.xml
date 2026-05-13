@@ -217,7 +217,7 @@
 
     <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Track Your Journeys Privately</string>
-    <string name="onboarding_streamlined_subtitle">All data stays on your device. No cloud, no tracking.</string>
+    <string name="onboarding_streamlined_subtitle">All data stays on your device. No cloud sync or third-party tracking.</string>
     <string name="onboarding_benefit_privacy_title">Privacy-first</string>
     <string name="onboarding_benefit_privacy_desc">All tracking data remains on your device. No servers, no cloud sync, complete control.</string>
     <string name="onboarding_benefit_insights_title">Activity insights</string>
