@@ -15,6 +15,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
+import com.adsamcik.tracker.map.presentation.udf.SelectedTripMapContext
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -64,6 +65,9 @@ class MapStore @Inject constructor(
         private const val CAMERA_ZOOM_KEY = "camera_zoom"
         private const val CAMERA_TILT_KEY = "camera_tilt"
         private const val CAMERA_BEARING_KEY = "camera_bearing"
+        private const val TRIP_ID_KEY = "tripId"
+        private const val TRIP_START_MS_KEY = "startMs"
+        private const val TRIP_END_MS_KEY = "endMs"
         private val coordinatePartDelimiterRegex = Regex("[,;\\n]+")
         private val coordinateNumberRegex = Regex("[-+]?\\d+(?:\\.\\d+)?")
         private val hemisphereRegex = Regex("[NSEW]", RegexOption.IGNORE_CASE)
@@ -73,6 +77,7 @@ class MapStore @Inject constructor(
     }
 
     private var layerManager: LayerEngine? = null
+    private val initialTripContext = readTripContext(savedStateHandle)
 
     fun setLayerEngine(engine: LayerEngine) {
         layerManager = engine
@@ -93,11 +98,14 @@ class MapStore @Inject constructor(
                 tilt = savedStateHandle[CAMERA_TILT_KEY] ?: 0f,
                 bearing = savedStateHandle[CAMERA_BEARING_KEY] ?: 0f,
             ),
-            activeLayerIds = when (val savedLayerId = savedStateHandle.get<String>(SELECTED_LAYER_ID_KEY)) {
-                null -> persistentSetOf(DEFAULT_LAYER_ID)
-                NONE_LAYER_ID -> persistentSetOf()
-                else -> persistentSetOf(savedLayerId)
-            }
+            activeLayerIds = when {
+                initialTripContext != null -> persistentSetOf(DEFAULT_LAYER_ID)
+                savedStateHandle.get<String>(SELECTED_LAYER_ID_KEY) == null -> persistentSetOf(DEFAULT_LAYER_ID)
+                savedStateHandle.get<String>(SELECTED_LAYER_ID_KEY) == NONE_LAYER_ID -> persistentSetOf()
+                else -> persistentSetOf(requireNotNull(savedStateHandle.get<String>(SELECTED_LAYER_ID_KEY)))
+            },
+            dateRange = initialTripContext?.let { it.startMs..it.endMs } ?: (0L..Long.MAX_VALUE),
+            selectedTripContext = initialTripContext,
         )
     )
     val state = _state.asStateFlow()
@@ -170,7 +178,7 @@ class MapStore @Inject constructor(
                 applyLayer()
             }
             is MapEvent.SetDateRange -> {
-                _state.update { it.copy(dateRange = event.range) }
+                _state.update { it.copy(dateRange = event.range, selectedTripContext = null) }
                 applyLayer()
             }
             is MapEvent.UpdateSearchQuery -> {
@@ -235,7 +243,7 @@ class MapStore @Inject constructor(
                 savedStateHandle[CAMERA_TILT_KEY] = event.position.tilt
                 savedStateHandle[CAMERA_BEARING_KEY] = event.position.bearing
                 // Debounced layer refresh so heatmaps reload with new viewport bounds
-                if (_state.value.activeLayerIds.isNotEmpty()) {
+                if (_state.value.activeLayerIds.any(::isBoundsSensitiveLayer)) {
                     cameraRefreshJob?.cancel()
                     cameraRefreshJob = viewModelScope.launch {
                         delay(cameraRefreshDebounceMs)
@@ -357,7 +365,8 @@ class MapStore @Inject constructor(
                             legend = persistentListOf(*legend.legend.valueList.map { v ->
                                 LegendItem(
                                     label = legendLabel,
-                                    color = v.color
+                                    color = v.color,
+                                    labelRes = v.nameRes,
                                 )
                             }.toTypedArray()),
                             layerConfig = config,
@@ -444,6 +453,26 @@ class MapStore @Inject constructor(
         return buildCoordinatePair(
             ParsedCoordinateComponent(CoordinateAxis.Latitude, values[0]),
             ParsedCoordinateComponent(CoordinateAxis.Longitude, values[1])
+        )
+    }
+
+    private fun isBoundsSensitiveLayer(layerId: String): Boolean = layerId in setOf(
+        "location_heatmap",
+        "cell_heatmap",
+        "wifi_heatmap",
+        "wifi_count_heatmap",
+        "speed_heatmap",
+    )
+
+    private fun readTripContext(handle: SavedStateHandle): SelectedTripMapContext? {
+        val tripId = handle.get<Long>(TRIP_ID_KEY) ?: return null
+        val startMs = handle.get<Long>(TRIP_START_MS_KEY) ?: return null
+        val endMs = handle.get<Long>(TRIP_END_MS_KEY) ?: return null
+        if (tripId <= 0L || startMs < 0L || endMs < startMs) return null
+        return SelectedTripMapContext(
+            tripId = tripId,
+            startMs = startMs,
+            endMs = endMs,
         )
     }
 

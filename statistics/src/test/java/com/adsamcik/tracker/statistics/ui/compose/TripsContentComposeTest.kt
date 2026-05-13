@@ -8,6 +8,7 @@ import com.adsamcik.tracker.statistics.ui.formatTripTimeRange
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -86,6 +87,23 @@ class TripsContentComposeTest {
 		}
 		composeTestRule.onNodeWithText("Walk").performClick()
 		assert(clicked) { "onClick should have been called" }
+	}
+
+	@Test
+	fun `trip card map action callback triggers`() {
+		var viewedOnMap = false
+		val trip = sampleTrip()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TripCard(
+					trip = trip,
+					onClick = {},
+					onViewOnMap = { viewedOnMap = true },
+				)
+			}
+		}
+		composeTestRule.onNodeWithContentDescription("View trip on map").performClick()
+		viewedOnMap shouldBe true
 	}
 
 	// ─── Anomaly trip ────────────────────────────────────────────────────

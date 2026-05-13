@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HistoryRoute(
 	onNavigateToTripDetail: (Long) -> Unit,
+	onNavigateToMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
 	modifier: Modifier = Modifier,
 	viewModel: HistoryPresenterViewModel = hiltViewModel(),
 ) {
@@ -78,6 +79,9 @@ fun HistoryRoute(
 					HistoryTab.TRIPS -> TripsContent(
 						tripsItems = tripsItems,
 						onTripClick = onNavigateToTripDetail,
+						onViewTripOnMap = { trip ->
+							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)
+						},
 						onDeleteTrip = { tripId ->
 							viewModel.requestDeleteTrip(tripId)
 							scope.launch {
@@ -99,6 +103,9 @@ fun HistoryRoute(
 						state = calendarState,
 						onDayClick = viewModel::selectDay,
 						onNavigateToTripDetail = onNavigateToTripDetail,
+						onViewTripOnMap = { trip ->
+							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)
+						},
 					)
 				}
 			}

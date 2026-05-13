@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.map.layers.registry
 
+import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
+import com.adsamcik.tracker.map.ui.LayerEntry
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
@@ -166,6 +169,44 @@ class DefaultLayerRegistryTest {
                 descriptor.recipe.shouldNotBeNull()
                 descriptor.recipe.factory.shouldNotBeNull()
             }
+        }
+
+        @Test
+        fun `location heatmap legend matches density color ramp`() {
+            val entry = registry.findById("location_heatmap")!!.recipe.factory.create() as LayerEntry
+
+            entry.legend.colorList shouldBe HeatmapColorRamps.LocationDensity.drop(1).map { it.second }
+            entry.legend.legend.valueList.map { it.color } shouldBe HeatmapColorRamps.LocationDensity.drop(1).map { it.second }
+            entry.legend.legend.valueList.map { it.nameRes } shouldBe listOf(
+                R.string.map_layer_location_heatmap_low,
+                R.string.map_layer_location_heatmap_low_medium,
+                R.string.map_layer_location_heatmap_medium,
+                R.string.map_layer_location_heatmap_high,
+                R.string.map_layer_location_heatmap_peak,
+            )
+        }
+
+        @Test
+        fun `speed heatmap legend matches speed color ramp`() {
+            val entry = registry.findById("speed_heatmap")!!.recipe.factory.create() as LayerEntry
+
+            entry.legend.colorList shouldBe HeatmapColorRamps.Speed.map { it.second }
+            entry.legend.legend.valueList.map { it.color } shouldBe HeatmapColorRamps.Speed.map { it.second }
+        }
+
+        @Test
+        fun `cell heatmap legend describes signal strength not technology types`() {
+            val entry = registry.findById("cell_heatmap")!!.recipe.factory.create() as LayerEntry
+
+            entry.legend.colorList shouldBe HeatmapColorRamps.CellSignal.map { it.second }
+            entry.legend.legend.description shouldBe R.string.map_layer_cell_heatmap_description
+            entry.legend.legend.valueList.map { it.nameRes } shouldBe listOf(
+                R.string.map_layer_cell_signal_weak,
+                R.string.map_layer_cell_signal_fair,
+                R.string.map_layer_cell_signal_good,
+                R.string.map_layer_cell_signal_strong,
+                R.string.map_layer_cell_signal_excellent,
+            )
         }
     }
 }

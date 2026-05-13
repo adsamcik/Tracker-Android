@@ -238,9 +238,6 @@ private fun LayerTile(
 
 @Composable
 private fun LegendStrip(legend: ImmutableList<LegendItem>) {
-	// MapStore collapses the layer's value list into color-only items whose label is just the
-	// layer name, so per-stop labels aren't meaningful here; we render the gradient strip with
-	// a single caption instead.
 	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
 		Text(
 			text = stringResource(R.string.map_legend_label),
@@ -259,6 +256,21 @@ private fun LegendStrip(legend: ImmutableList<LegendItem>) {
 						.weight(1f)
 						.fillMaxHeight()
 						.background(Color(item.color)),
+				)
+			}
+		}
+		Row(
+			modifier = Modifier.fillMaxWidth(),
+			horizontalArrangement = Arrangement.SpaceBetween,
+		) {
+			legend.forEach { item ->
+				Text(
+					text = item.labelRes?.let { stringResource(it) } ?: item.label,
+					style = MaterialTheme.typography.labelSmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.weight(1f),
 				)
 			}
 		}

@@ -57,7 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -94,10 +94,12 @@ private const val METERS_PER_MILE = 1609.344
 fun TripDetailRoute(
 	tripId: Long,
 	onBack: () -> Unit,
+	onViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	BackHandler(onBack = onBack)
 	val state by viewModel.state.collectAsState()
+	val loadedState = state as? TripDetailState.Loaded
 	val skiSegments by viewModel.skiSegments.collectAsState()
 	val insights by viewModel.insights.collectAsState()
 	var showDeleteDialog by remember { mutableStateOf(false) }
@@ -127,7 +129,7 @@ fun TripDetailRoute(
 					}
 				},
 				actions = {
-					if (state is TripDetailState.Loaded) {
+					if (loadedState != null) {
 						Box {
 							IconButton(onClick = { showMenu = true }) {
 								Icon(
@@ -139,6 +141,17 @@ fun TripDetailRoute(
 								expanded = showMenu,
 								onDismissRequest = { showMenu = false }
 							) {
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.trip_detail_view_on_map)) },
+									onClick = {
+										showMenu = false
+										onViewOnMap(
+											loadedState.trip.id,
+											loadedState.trip.startTimeMs.raw,
+											loadedState.trip.endTimeMs.raw,
+										)
+									}
+								)
 								DropdownMenuItem(
 									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
 									onClick = {
@@ -402,12 +415,12 @@ private fun MetricRow(
 
 @Composable
 private fun RoutePreviewCard(
-	points: List<LocationSample>,
+	points: List<LatLngModel>,
 	sourceLabel: String,
 	hasDistance: Boolean,
 ) {
 	val validPoints = remember(points) {
-		points.filter { it.latE7 != null && it.lonE7 != null }
+		points.filter { it.lat.isFinite() && it.lng.isFinite() }
 	}
 	val emptyReason = resolveRouteEmptyReason(
 		routePointCount = validPoints.size,

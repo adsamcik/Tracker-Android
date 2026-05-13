@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -52,6 +54,7 @@ internal fun TripsContent(
 	onTripClick: (Long) -> Unit,
 	onDeleteTrip: (Long) -> Unit,
 	pendingDeletes: Set<Long>,
+	onViewTripOnMap: (Trip) -> Unit = {},
 	modifier: Modifier = Modifier,
 ) {
 	if (tripsItems.itemCount == 0) {
@@ -83,6 +86,7 @@ internal fun TripsContent(
 			SwipeToDeleteTripCard(
 				trip = trip,
 				onClick = { onTripClick(trip.id) },
+				onViewOnMap = { onViewTripOnMap(trip) },
 				onDelete = { onDeleteTrip(trip.id) },
 			)
 		}
@@ -98,6 +102,7 @@ internal fun SwipeToDeleteTripCard(
 	trip: Trip,
 	onClick: () -> Unit,
 	onDelete: () -> Unit,
+	onViewOnMap: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	val dismissState = rememberSwipeToDismissBoxState(
@@ -119,6 +124,7 @@ internal fun SwipeToDeleteTripCard(
 			TripCard(
 				trip = trip,
 				onClick = onClick,
+				onViewOnMap = onViewOnMap,
 			)
 		},
 	)
@@ -157,6 +163,7 @@ private fun SwipeDeleteBackground() {
 internal fun TripCard(
 	trip: Trip,
 	onClick: () -> Unit,
+	onViewOnMap: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	val plausible = !trip.hasDistanceAnomaly
@@ -226,6 +233,15 @@ internal fun TripCard(
 					style = MaterialTheme.typography.labelSmall,
 					color = MaterialTheme.colorScheme.onSurface,
 				)
+			}
+			if (onViewOnMap != null) {
+				IconButton(onClick = onViewOnMap) {
+					Icon(
+						imageVector = Icons.Filled.Map,
+						contentDescription = stringResource(R.string.history_view_trip_on_map),
+						tint = MaterialTheme.colorScheme.primary,
+					)
+				}
 			}
 		}
 	}

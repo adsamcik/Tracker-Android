@@ -4,8 +4,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,7 +25,9 @@ import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.shared.MapStyleProvider
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
+import com.adsamcik.tracker.statistics.R
 import kotlinx.coroutines.CancellationException
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
@@ -40,7 +45,6 @@ import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val E7_DIVISOR = 1e7
 private const val MIN_SPAN_DEGREES = 0.001
 
 private val NO_GESTURES = GestureOptions(
@@ -58,45 +62,57 @@ private val NO_GESTURES = GestureOptions(
  * Renders the trip polyline on an offline basemap with start/end markers.
  * All gestures are disabled — this is a static preview card.
  *
- * @param points GPS samples with valid latE7/lonE7 coordinates (pre-filtered).
+ * @param points route coordinates already filtered and simplified for preview rendering.
  */
 @Composable
 fun TripRouteMapPreview(
-	points: List<LocationSample>,
+	points: List<LatLngModel>,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
 	val isDark = isSystemInDarkTheme()
 
 	val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
+	val prefs = remember { Preferences(context) }
+	val customPath by prefs.observeString(MapPreferenceKeys.BASEMAP_PATH, "")
+		.collectAsState(initial = "")
 	var basemapPath by remember { mutableStateOf<String?>(null) }
 	var mapReady by remember { mutableStateOf(false) }
+	var preparingBasemap by remember { mutableStateOf(true) }
+	var mapLoadFailed by remember { mutableStateOf(false) }
 
 	LaunchedEffect(Unit) {
 		if (!mapLibreReady) {
 			MapLibreInitializer.initialize(context.applicationContext)
 		}
 		try {
+			preparingBasemap = true
+			mapLoadFailed = false
 			basemapPath = BasemapManager(context).ensureDefaultBasemap()
 		} catch (_: CancellationException) {
 			throw CancellationException()
 		} catch (_: Exception) {
-			// Basemap extraction failed — map won't render, but we don't crash
+			basemapPath = null
+		} finally {
+			preparingBasemap = false
 		}
 	}
 
-	val baseStyle = remember(isDark, basemapPath) {
-		basemapPath?.let { path ->
-			BaseStyle.Json(MapStyleProvider.defaultStyleJson(path, isDark))
+	val baseStyle = remember(customPath, isDark, basemapPath) {
+		when {
+			customPath.isNotBlank() -> {
+				MapStyleProvider.customStyleJson(customPath, isDark)?.let { BaseStyle.Json(it) }
+					?: basemapPath?.let { path -> BaseStyle.Json(MapStyleProvider.defaultStyleJson(path, isDark)) }
+			}
+			basemapPath != null -> {
+				BaseStyle.Json(MapStyleProvider.defaultStyleJson(requireNotNull(basemapPath), isDark))
+			}
+			else -> null
 		}
 	}
 
 	val routeCoords = remember(points) {
-		points.mapNotNull { sample ->
-			val lat = sample.latE7 ?: return@mapNotNull null
-			val lon = sample.lonE7 ?: return@mapNotNull null
-			LatLngModel(lat / E7_DIVISOR, lon / E7_DIVISOR)
-		}
+		points.filter { it.lat.isFinite() && it.lng.isFinite() }
 	}
 
 	val bounds = remember(routeCoords) {
@@ -155,31 +171,67 @@ fun TripRouteMapPreview(
 	}
 
 	Box(modifier = modifier, contentAlignment = Alignment.Center) {
-		if (baseStyle != null && mapLibreReady && routeCoords.size >= 2) {
-			MaplibreMap(
-				modifier = Modifier.fillMaxSize(),
-				baseStyle = baseStyle,
-				cameraState = cameraState,
-				options = MapOptions(
-					gestureOptions = NO_GESTURES,
-					ornamentOptions = OrnamentOptions(
-						isScaleBarEnabled = false,
-						isLogoEnabled = false,
-						isAttributionEnabled = false,
+		when (tripPreviewContentState(baseStyle != null, mapLibreReady, routeCoords.size, preparingBasemap, mapLoadFailed)) {
+			TripPreviewContentState.Map -> {
+				MaplibreMap(
+					modifier = Modifier.fillMaxSize(),
+					baseStyle = requireNotNull(baseStyle),
+					cameraState = cameraState,
+					options = MapOptions(
+						gestureOptions = NO_GESTURES,
+						ornamentOptions = OrnamentOptions(
+							isScaleBarEnabled = false,
+							isLogoEnabled = false,
+							isAttributionEnabled = false,
+						),
 					),
-				),
-				onMapLoadFinished = { mapReady = true },
-			) {
-				RouteLineLayer(routeCoords)
-				RouteEndpointLayers(routeCoords)
+					onMapLoadFinished = { mapReady = true },
+					onMapLoadFailed = {
+						mapReady = false
+						mapLoadFailed = true
+					},
+				) {
+					RouteLineLayer(routeCoords)
+					RouteEndpointLayers(routeCoords)
+				}
 			}
-		} else {
-			CircularProgressIndicator(
-				modifier = Modifier.align(Alignment.Center),
-				strokeWidth = 2.dp,
-			)
+			TripPreviewContentState.Loading -> {
+				CircularProgressIndicator(
+					modifier = Modifier.align(Alignment.Center),
+					strokeWidth = 2.dp,
+				)
+			}
+			TripPreviewContentState.Error -> {
+				Surface(
+					shape = MaterialTheme.shapes.medium,
+					color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
+				) {
+					Text(
+						text = androidx.compose.ui.res.stringResource(R.string.trip_route_preview_unavailable),
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+						modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+					)
+				}
+			}
 		}
 	}
+}
+
+internal enum class TripPreviewContentState { Loading, Map, Error }
+
+internal fun tripPreviewContentState(
+	hasBaseStyle: Boolean,
+	mapLibreReady: Boolean,
+	routePointCount: Int,
+	preparingBasemap: Boolean,
+	mapLoadFailed: Boolean,
+): TripPreviewContentState = when {
+	mapLoadFailed -> TripPreviewContentState.Error
+	routePointCount < 2 -> TripPreviewContentState.Error
+	hasBaseStyle && mapLibreReady -> TripPreviewContentState.Map
+	preparingBasemap || !mapLibreReady -> TripPreviewContentState.Loading
+	else -> TripPreviewContentState.Error
 }
 
 @Composable

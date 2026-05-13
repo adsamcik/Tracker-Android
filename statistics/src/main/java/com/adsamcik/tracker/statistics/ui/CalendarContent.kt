@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -59,6 +60,7 @@ internal fun CalendarContent(
 	state: CalendarState,
 	onDayClick: (LocalDate) -> Unit,
 	onNavigateToTripDetail: (Long) -> Unit,
+	onViewTripOnMap: (Trip) -> Unit = {},
 	modifier: Modifier = Modifier,
 ) {
 	Column(modifier = modifier.fillMaxSize()) {
@@ -81,6 +83,7 @@ internal fun CalendarContent(
 			DayDetailSection(
 				detail = detail,
 				onTripClick = onNavigateToTripDetail,
+				onViewTripOnMap = onViewTripOnMap,
 			)
 		}
 	}
@@ -220,6 +223,7 @@ private fun CalendarCell(
 private fun DayDetailSection(
 	detail: CalendarState.DayDetail,
 	onTripClick: (Long) -> Unit,
+	onViewTripOnMap: (Trip) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	LazyColumn(
@@ -266,6 +270,7 @@ private fun DayDetailSection(
 			CalendarTripCard(
 				trip = trip,
 				onClick = { onTripClick(trip.id) },
+				onViewOnMap = { onViewTripOnMap(trip) },
 			)
 		}
 	}
@@ -298,6 +303,7 @@ private fun DayStatItem(
 private fun CalendarTripCard(
 	trip: Trip,
 	onClick: () -> Unit,
+	onViewOnMap: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Card(
@@ -325,6 +331,15 @@ private fun CalendarTripCard(
 				style = MaterialTheme.typography.labelMedium,
 				color = MaterialTheme.colorScheme.primary,
 			)
+			if (onViewOnMap != null) {
+				IconButton(onClick = onViewOnMap) {
+					Icon(
+						imageVector = Icons.Filled.Map,
+						contentDescription = stringResource(R.string.history_view_trip_on_map),
+						tint = MaterialTheme.colorScheme.primary,
+					)
+				}
+			}
 		}
 	}
 }

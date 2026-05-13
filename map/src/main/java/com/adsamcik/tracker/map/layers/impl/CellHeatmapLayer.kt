@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
@@ -17,18 +16,12 @@ import kotlinx.coroutines.flow.first
  * Heatmap layer showing cell tower signal strength.
  * Queries ASU-weighted cell data and produces GeoJSON for MapLibre's native heatmap.
  */
-class CellHeatmapLayer(
+open class CellHeatmapLayer(
     private val repo: GeoRepository,
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
-    override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to Color.rgb(68, 1, 84),     // Low: Dark purple (viridis)
-        0.25f to Color.rgb(59, 82, 139),   // Medium-low
-        0.5f to Color.rgb(33, 145, 140),   // Medium
-        0.75f to Color.rgb(94, 201, 98),   // Medium-high
-        1.0f to Color.rgb(253, 231, 37)    // High: Yellow (viridis)
-    )
+    override fun colorStops(): List<Pair<Float, Int>> = HeatmapColorRamps.CellSignal
 
     override fun geoJsonFrom(processed: String): String = processed
 
@@ -44,7 +37,9 @@ class CellHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "asu"
         )
-        return repo.queryWeighted(query, "asu").first()
+        return repo.queryWeighted(query, "asu").first().map { feature ->
+            feature.copy(weight = (feature.weight / MAX_ASU).coerceIn(0.0, 1.0))
+        }
     }
 
     override fun processData(
@@ -65,5 +60,11 @@ class CellHeatmapLayer(
             }
         }
         return GeoJsonConverter.pointsToFeatureCollection(processed)
+    }
+
+    private companion object {
+        // Android ASU values vary by radio technology; 97 is the LTE/NR upper bound and keeps
+        // stronger readings on the hot end without saturating ordinary mid-strength samples.
+        const val MAX_ASU: Double = 97.0
     }
 }

@@ -60,6 +60,7 @@ import com.adsamcik.tracker.app.ui.navigation.setupGraph
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
+import com.adsamcik.tracker.app.ui.navigation.MapTripContext
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.TrophyCase
 import com.adsamcik.tracker.app.ui.navigation.TripDetail
@@ -113,6 +114,7 @@ fun MainRoot(
         mutableStateOf<AppRoute>(
             when (startDestination) {
                 Dashboard, Stats, Map, Game -> startDestination
+                is MapTripContext -> Map
                 else -> Dashboard
             }
         )
@@ -153,6 +155,7 @@ fun MainRoot(
                 destination.hasRoute<Dashboard>() -> Dashboard
                 destination.hasRoute<Stats>() -> Stats
                 destination.hasRoute<Map>() -> Map
+                destination.hasRoute<MapTripContext>() -> Map
                 destination.hasRoute<Game>() -> Game
                 destination.hasRoute<TrophyCase>() -> TrophyCase
                 destination.hasRoute<TripDetail>() -> Stats
@@ -284,7 +287,7 @@ fun MainRoot(
             when (route) {
                 Dashboard -> destination.hasRoute<Dashboard>() || destination.route == "dashboard" || destination.route?.contains("Dashboard") == true
                 Stats -> destination.hasRoute<Stats>() || destination.route == "stats" || destination.route?.contains("Stats") == true
-                Map -> destination.hasRoute<Map>() || destination.route == "map" || destination.route?.contains("Map") == true
+                Map -> destination.hasRoute<Map>() || destination.hasRoute<MapTripContext>() || destination.route == "map" || destination.route?.contains("Map") == true
                 Game -> destination.hasRoute<Game>() || destination.route == "game" || destination.route?.contains("Game") == true
                 else -> false
             }

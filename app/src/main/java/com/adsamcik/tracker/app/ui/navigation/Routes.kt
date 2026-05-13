@@ -18,6 +18,13 @@ data object Stats : AppRoute
 data object Map : AppRoute
 
 @Serializable
+data class MapTripContext(
+    val tripId: Long,
+    val startMs: Long,
+    val endMs: Long,
+) : AppRoute
+
+@Serializable
 data object Game : AppRoute
 
 @Serializable

@@ -129,12 +129,13 @@ fun MapChromeHost(
 		}
 	}
 
-	val dateRangeLabel = remember(state.dateRange) {
+	val dateRangeLabel = remember(state.dateRange, state.selectedTripContext) {
 		val range = state.dateRange
 		val now = System.currentTimeMillis()
 		val oneWeekMs = 7L * 24 * 60 * 60 * 1000
 		val oneMonthMs = 30L * 24 * 60 * 60 * 1000
 		when {
+			state.selectedTripContext != null -> context.getString(R.string.map_date_range_selected_trip)
 			range.first == 0L && range.last == Long.MAX_VALUE ->
 				context.getString(R.string.map_date_range_all_time)
 			range.first >= now - oneWeekMs -> context.getString(R.string.map_date_preset_week)

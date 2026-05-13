@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
+import com.adsamcik.tracker.map.graphics.PolylineOptimizer
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
@@ -82,8 +84,8 @@ class TripDetailPresenterViewModel @Inject constructor(
 		val projection = withContext(dispatchers.io) {
 			tripPresentationRepository.getTripProjection(tripId)
 		}
-		val samples = withContext(dispatchers.io) {
-			locationSampleRepository.getSamplesBetween(tripStart, tripEnd)
+		val sampleInsights = withContext(dispatchers.io) {
+			loadSampleInsights(locationSampleRepository, tripStart, tripEnd)
 		}
 		val segments = withContext(dispatchers.io) {
 			skiRunSegmentRepository.getSegmentsByTimeRange(tripStart, tripEnd)
@@ -93,7 +95,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 		_insights.value = buildInsights(
 			trip = trip,
 			projection = projection,
-			samples = samples,
+			sampleInsights = sampleInsights,
 		)
 	}
 
@@ -142,8 +144,95 @@ data class TripDetailInsights(
 	val elevationGainM: Double? = null,
 	val elevationLossM: Double? = null,
 	val maxAltitudeM: Double? = null,
-	val routePoints: List<LocationSample> = emptyList(),
+	val routePoints: List<LatLngModel> = emptyList(),
 )
+
+private data class SampleInsights(
+	val providerCounts: Map<String, Int> = emptyMap(),
+	val maxSpeedMps: Double? = null,
+	val elevationGainM: Double = 0.0,
+	val elevationLossM: Double = 0.0,
+	val maxAltitudeM: Double? = null,
+	val routePoints: List<LatLngModel> = emptyList(),
+)
+
+private suspend fun loadSampleInsights(
+	locationSampleRepository: LocationSampleRepository,
+	fromMs: Long,
+	toMs: Long,
+): SampleInsights {
+	val providerCounts = linkedMapOf<String, Int>()
+	val routePoints = ArrayList<LatLngModel>(ROUTE_PREVIEW_MAX_POINTS)
+	var maxSpeed: Double? = null
+	var elevationGain = 0.0
+	var elevationLoss = 0.0
+	var maxAltitude: Double? = null
+	var previousAltitude: Double? = null
+	var afterTimeMs: Long? = null
+	var afterId: Long? = null
+
+	while (true) {
+		val chunk = locationSampleRepository.getOrderedChunkBetween(
+			fromMs = fromMs,
+			toMs = toMs,
+			afterTimeMs = afterTimeMs,
+			afterId = afterId,
+			limit = SAMPLE_CHUNK_SIZE,
+		)
+		if (chunk.isEmpty()) break
+
+		for (sample in chunk) {
+			providerCounts[normalizeProviderLabel(sample.provider)] =
+				(providerCounts[normalizeProviderLabel(sample.provider)] ?: 0) + 1
+
+			val altitude = sample.altitudeM?.toDouble()
+			if (altitude != null) {
+				val previous = previousAltitude
+				if (previous != null) {
+					val delta = altitude - previous
+					if (abs(delta) >= 1.0) {
+						if (delta > 0) elevationGain += delta else elevationLoss += -delta
+					}
+				}
+				previousAltitude = altitude
+				maxAltitude = maxOf(maxAltitude ?: altitude, altitude)
+			}
+
+			val speed = sample.speedMps?.toDouble()?.takeIf { it > 0.0 }
+			if (speed != null) {
+				maxSpeed = maxOf(maxSpeed ?: speed, speed)
+			}
+
+			val lat = sample.latE7
+			val lon = sample.lonE7
+			if (lat != null && lon != null) {
+				routePoints.add(LatLngModel(lat / E7_DIVISOR, lon / E7_DIVISOR))
+			}
+		}
+
+		if (routePoints.size > ROUTE_PREVIEW_MAX_POINTS * ROUTE_COMPACTION_FACTOR) {
+			val compacted = simplifyRoutePoints(routePoints)
+			routePoints.clear()
+			routePoints.addAll(compacted)
+		}
+
+		val lastSample = chunk.last()
+		afterTimeMs = lastSample.timeMs
+		afterId = lastSample.id
+		if (chunk.size < SAMPLE_CHUNK_SIZE) {
+			break
+		}
+	}
+
+	return SampleInsights(
+		providerCounts = providerCounts,
+		maxSpeedMps = maxSpeed,
+		elevationGainM = elevationGain,
+		elevationLossM = elevationLoss,
+		maxAltitudeM = maxAltitude,
+		routePoints = simplifyRoutePoints(routePoints),
+	)
+}
 
 private fun buildInsights(
 	trip: TripSummary,
@@ -167,7 +256,13 @@ private fun buildInsights(
 	val averageSpeed = durationSeconds
 		?.let { duration -> trip.distance.raw.toDouble().takeIf { it > 0.0 }?.div(duration) }
 
-	val routePoints = samples.filter { it.latE7 != null && it.lonE7 != null }
+	val routePoints = simplifyRoutePoints(
+		samples.mapNotNull { sample ->
+			val lat = sample.latE7 ?: return@mapNotNull null
+			val lon = sample.lonE7 ?: return@mapNotNull null
+			LatLngModel(lat / E7_DIVISOR, lon / E7_DIVISOR)
+		}
+	)
 
 	return TripDetailInsights(
 		activityType = resolveActivityType(projection, trip),
@@ -180,6 +275,39 @@ private fun buildInsights(
 		routePoints = routePoints,
 	)
 }
+
+private fun buildInsights(
+	trip: TripSummary,
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	sampleInsights: SampleInsights,
+): TripDetailInsights {
+	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
+	val averageSpeed = durationSeconds
+		?.let { duration -> trip.distance.raw.toDouble().takeIf { it > 0.0 }?.div(duration) }
+
+	return TripDetailInsights(
+		activityType = resolveActivityType(projection, trip),
+		sourceLabel = resolveSourceLabel(sampleInsights.providerCounts, projection),
+		averageSpeedMps = averageSpeed,
+		maxSpeedMps = sampleInsights.maxSpeedMps,
+		elevationGainM = sampleInsights.elevationGainM.takeIf { it > 0.0 },
+		elevationLossM = sampleInsights.elevationLossM.takeIf { it > 0.0 },
+		maxAltitudeM = sampleInsights.maxAltitudeM,
+		routePoints = sampleInsights.routePoints,
+	)
+}
+
+internal fun simplifyRoutePoints(points: List<LatLngModel>): List<LatLngModel> =
+	if (points.size <= ROUTE_PREVIEW_MAX_POINTS) {
+		points
+	} else {
+		PolylineOptimizer.optimize(
+			points = points,
+			toleranceMeters = ROUTE_PREVIEW_TOLERANCE_METERS,
+			maxPoints = ROUTE_PREVIEW_MAX_POINTS,
+			evenSpacing = false,
+		)
+	}
 
 private fun resolveActivityType(
 	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
@@ -204,6 +332,23 @@ private fun resolveSourceLabel(
 		.maxByOrNull { it.value }
 		?.key
 
+	return resolveSourceLabel(provider, projection)
+}
+
+private fun resolveSourceLabel(
+	providerCounts: Map<String, Int>,
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+): String {
+	val provider = providerCounts.maxByOrNull { it.value }?.key
+
+	return resolveSourceLabel(provider, projection)
+}
+
+private fun resolveSourceLabel(
+	provider: String?,
+	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+): String {
+
 	if (provider != null) {
 		return provider
 	}
@@ -217,6 +362,12 @@ private fun resolveSourceLabel(
 		null -> "—"
 	}
 }
+
+private const val SAMPLE_CHUNK_SIZE = 2_000
+private const val ROUTE_PREVIEW_MAX_POINTS = 1_500
+private const val ROUTE_COMPACTION_FACTOR = 4
+private const val ROUTE_PREVIEW_TOLERANCE_METERS = 8.0
+private const val E7_DIVISOR = 1e7
 
 private fun normalizeProviderLabel(provider: String): String = when (provider.lowercase()) {
 	"gps" -> "GPS"

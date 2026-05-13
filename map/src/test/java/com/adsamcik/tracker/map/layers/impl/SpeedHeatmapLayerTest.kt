@@ -67,6 +67,11 @@ class SpeedHeatmapLayerTest {
         }
 
         @Test
+        fun `returns shared speed ramp stops`() {
+            layer.testColorStops() shouldBe HeatmapColorRamps.Speed
+        }
+
+        @Test
         fun `positions span 0 to 1 in ascending order`() {
             val stops = layer.testColorStops()
             stops.first().first shouldBe 0.0f
@@ -105,8 +110,8 @@ class SpeedHeatmapLayerTest {
             val result = layer.testLoadData(ctx)
 
             result shouldHaveSize 2
-            result[0].weight shouldBe 3.5
-            result[1].weight shouldBe 12.0
+            result[0].weight shouldBe 3.5 / 30.0
+            result[1].weight shouldBe 12.0 / 30.0
         }
 
         @Test
