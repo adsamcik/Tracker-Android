@@ -42,6 +42,8 @@ internal object WifiPermissionHintNotifier {
         if (hints.wifiHintShownCount >= MAX_SHOWS) return
         if (now - hints.wifiHintLastShown < COOLDOWN_MS) return
 
+        TrackerNotificationChannels.ensureTrackingChannel(context)
+
         val resources = context.resources
         val channelId = resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 

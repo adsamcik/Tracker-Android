@@ -31,6 +31,7 @@ import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -219,6 +220,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	private fun ensureForegroundStarted() {
+		TrackerNotificationChannels.ensureTrackingChannel(this)
 		val notification = TrackerNotificationManager.getForegroundNotification(this)
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			startForeground(

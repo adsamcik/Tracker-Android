@@ -106,10 +106,12 @@ class TrackerNotificationManager(
 				notificationStyled
 			)
 				.setContentTitle(context.getString(R.string.notification_starting))
+				.setContentText(context.getString(R.string.notification_tracker_active_ticker))
 				.build()
 		}
 
 		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {
+			TrackerNotificationChannels.ensureTrackingChannel(context)
 			val resources = context.resources
 			val intent =
 				requireNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
@@ -118,6 +120,9 @@ class TrackerNotificationManager(
 				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 			)
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+				.setCategory(NotificationCompat.CATEGORY_SERVICE)
+				.setPriority(NotificationCompat.PRIORITY_LOW)
+				.setOnlyAlertOnce(true)
 				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals) // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker)) // the done text
 				.setWhen(Time.nowMillis) // the time stamp

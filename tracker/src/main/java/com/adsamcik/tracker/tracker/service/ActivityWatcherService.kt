@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -39,11 +41,13 @@ class ActivityWatcherService : CoreService() {
 	override fun onCreate() {
 		super.onCreate()
 
+		TrackerNotificationChannels.ensureActivityWatcherChannel(this)
+
 		activityWatcherController.attachService(this)
 
 		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
 
-		startForeground(NOTIFICATION_ID, updateNotification())
+		startForegroundCompat(updateNotification())
 
 		notificationManager = (this as Context).notificationManager
 
@@ -75,6 +79,19 @@ class ActivityWatcherService : CoreService() {
 		return START_REDELIVER_INTENT
 	}
 
+	private fun startForegroundCompat(notification: Notification) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+			// SPECIAL_USE foreground service type is available from Android 14.
+			startForeground(
+				NOTIFICATION_ID,
+				notification,
+				ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+			)
+		} else {
+			startForeground(NOTIFICATION_ID, notification)
+		}
+	}
+
 	private fun updateNotification(): Notification {
 		val intent = packageManager.getLaunchIntentForPackage(packageName)
 			?: throw NullPointerException("Launch intent for package is null.")
@@ -84,6 +101,9 @@ class ActivityWatcherService : CoreService() {
 			getString(com.adsamcik.tracker.shared.base.R.string.channel_activity_watcher_id)
 		)
 			.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+			.setCategory(NotificationCompat.CATEGORY_SERVICE)
+			.setPriority(NotificationCompat.PRIORITY_LOW)
+			.setOnlyAlertOnce(true)
 			.setTicker(
 				getString(R.string.notification_activity_watcher_ticker)
 			)  // the done text
