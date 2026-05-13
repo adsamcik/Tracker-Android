@@ -32,6 +32,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import java.time.Instant
 import java.time.LocalDate
@@ -93,6 +94,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.ui.compose.CalendarHeatmap
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
+import com.adsamcik.tracker.statistics.viewmodel.hasTrackedActivity
 
 /**
  * Refresh state for statistics route. Mirrors the test expectations.
@@ -530,7 +532,7 @@ private fun SparseStatsSummaryCard(
     val stepCounterSupported = remember {
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_STEP_COUNTER)
     }
-    val activeDays = remember(weeklyBars) { weeklyBars.count { it.distanceM > 0f || it.steps > 0 || it.sessionCount > 0 } }
+    val activeDays = remember(weeklyBars) { weeklyBars.count { it.hasTrackedActivity } }
     val distanceText = remember(totalDistanceM, settings) {
         resources.formatDistance(
             totalDistanceM,
@@ -646,7 +648,12 @@ private fun WeeklySummaryDayChip(
     dayBar: DayBar,
     modifier: Modifier = Modifier,
 ) {
-    val hasActivity = dayBar.distanceM > 0f || dayBar.steps > 0 || dayBar.sessionCount > 0
+    val context = LocalContext.current
+    val settings = remember { TrackerSettingsQuick.snapshot(context) }
+    val valueText = remember(dayBar, settings.lengthSystem) {
+        weeklySummaryDayValueText(dayBar, context, settings.lengthSystem)
+    }
+    val hasActivity = dayBar.hasTrackedActivity
     val containerColor = if (hasActivity) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -662,6 +669,9 @@ private fun WeeklySummaryDayChip(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(containerColor)
+            .semantics {
+                contentDescription = "${dayBar.dayLabel}, $valueText"
+            }
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -673,11 +683,29 @@ private fun WeeklySummaryDayChip(
             fontWeight = FontWeight.Medium,
         )
         Text(
-            text = if (dayBar.steps > 0) dayBar.steps.formatReadable() else "—",
+            text = valueText,
             style = MaterialTheme.typography.bodySmall,
             color = contentColor,
             maxLines = 1,
         )
+    }
+}
+
+internal fun weeklySummaryDayValueText(
+    dayBar: DayBar,
+    context: Context,
+    lengthSystem: LengthSystem,
+): String {
+    return when {
+        dayBar.steps > 0 -> dayBar.steps.formatReadable()
+        dayBar.distanceM > 0f -> context.resources.formatDistance(
+            dayBar.distanceM,
+            digits = if (dayBar.distanceM >= 1000f) 1 else 2,
+            unit = lengthSystem,
+        )
+        dayBar.durationMs > 0L -> dayBar.durationMs.formatAsDuration(context)
+        dayBar.sessionCount > 0 -> dayBar.sessionCount.formatReadable()
+        else -> "—"
     }
 }
 

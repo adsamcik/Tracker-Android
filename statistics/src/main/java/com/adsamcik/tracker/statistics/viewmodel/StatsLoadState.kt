@@ -18,6 +18,7 @@ sealed class StatsLoadState {
  * @param distanceM Total distance in meters for this day
  * @param steps Total step count for this day
  * @param epochDay The java.time epoch day value
+ * @param durationMs Total tracked duration in milliseconds for this day
  */
 data class DayBar(
     val dayLabel: String,
@@ -25,4 +26,8 @@ data class DayBar(
     val steps: Int,
     val epochDay: Long,
     val sessionCount: Int = 0,
+    val durationMs: Long = 0L,
 )
+
+internal val DayBar.hasTrackedActivity: Boolean
+    get() = distanceM > 0f || steps > 0 || sessionCount > 0 || durationMs > 0L

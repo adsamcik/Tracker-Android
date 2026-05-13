@@ -145,6 +145,33 @@ class StatsPresenterViewModelSessionStatsTest {
 		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
 		viewModel.weeklyBars.value.last().steps shouldBe 812
 		viewModel.weeklyBars.value.last().sessionCount shouldBe 1
+		viewModel.weeklyBars.value.last().durationMs shouldBe 600_000L
+		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
+	}
+
+	@Test
+	fun `distance-only today summary still produces visible daily activity state`() = runTest {
+		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
+		val viewModel = createViewModel()
+		advanceUntilIdle()
+
+		dailySummariesFlow.value = listOf(
+			DailySummary(
+				dayEpoch = todayEpochDay,
+				totalDistance = DistanceM(304.06f),
+				totalSteps = StepCount(0),
+				totalDuration = DurationMs(57_000L),
+				tripCount = 1,
+				activeTrackingDuration = DurationMs(57_000L),
+			),
+		)
+		advanceUntilIdle()
+
+		val todayBar = viewModel.weeklyBars.value.last()
+		todayBar.distanceM shouldBe 304.06f
+		todayBar.steps shouldBe 0
+		todayBar.sessionCount shouldBe 1
+		todayBar.durationMs shouldBe 57_000L
 		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
 	}
 

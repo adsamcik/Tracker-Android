@@ -128,6 +128,7 @@ class StatsPresenterViewModel @Inject constructor(
 				steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
 				epochDay = epochDay,
 				sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
+				durationMs = summaryMap[epochDay]?.totalDuration?.raw ?: 0L,
 			)
 		}
 	}
