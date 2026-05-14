@@ -2,6 +2,7 @@ package com.adsamcik.tracker.dashboard.ui.compose.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
@@ -40,7 +40,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,7 +55,13 @@ import com.adsamcik.tracker.dashboard.R
  * while the rest of startup work settles.
  */
 @Composable
-internal fun EmptyStateCard(modifier: Modifier = Modifier) {
+internal fun EmptyStateCard(
+	onExploreClick: () -> Unit = {},
+	onAchieveClick: () -> Unit = {},
+	onTrackClick: () -> Unit = {},
+	onPrivacyClick: () -> Unit = {},
+	modifier: Modifier = Modifier,
+) {
 	val floatOffset = 0f
 	val iconScale = 1f
 	val pathOffset = 0f
@@ -163,18 +171,11 @@ internal fun EmptyStateCard(modifier: Modifier = Modifier) {
 				Spacer(Modifier.height(24.dp))
 
 				// Feature highlights
-				FeatureHighlights()
-
-				Spacer(Modifier.height(16.dp))
-
-				// Hint arrow pointing to FAB
-				Icon(
-					imageVector = Icons.Filled.KeyboardArrowDown,
-					contentDescription = null,
-					tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-					modifier = Modifier
-						.size(28.dp)
-						.graphicsLayer { translationY = floatOffset * 0.5f },
+				FeatureHighlights(
+					onExploreClick = onExploreClick,
+					onAchieveClick = onAchieveClick,
+					onTrackClick = onTrackClick,
+					onPrivacyClick = onPrivacyClick,
 				)
 			}
 		}
@@ -182,7 +183,12 @@ internal fun EmptyStateCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun GettingStartedCard(modifier: Modifier = Modifier) {
+internal fun GettingStartedCard(
+	onChooseTrackingStyleClick: () -> Unit = {},
+	onStartFirstTrackClick: () -> Unit = {},
+	onReviewMapsAndStatsClick: () -> Unit = {},
+	modifier: Modifier = Modifier,
+) {
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
@@ -210,16 +216,22 @@ internal fun GettingStartedCard(modifier: Modifier = Modifier) {
 				icon = Icons.Default.Tune,
 				title = stringResource(R.string.dashboard_empty_step_customize_title),
 				description = stringResource(R.string.dashboard_empty_step_customize_desc),
+				onClick = onChooseTrackingStyleClick,
+				testTag = "dashboard_quick_start_choose_tracking_style",
 			)
 			QuickStartStep(
 				icon = Icons.Default.PlayArrow,
 				title = stringResource(R.string.dashboard_empty_step_start_title),
 				description = stringResource(R.string.dashboard_empty_step_start_desc),
+				onClick = onStartFirstTrackClick,
+				testTag = "dashboard_quick_start_start_first_track",
 			)
 			QuickStartStep(
 				icon = Icons.Default.Map,
 				title = stringResource(R.string.dashboard_empty_step_review_title),
 				description = stringResource(R.string.dashboard_empty_step_review_desc),
+				onClick = onReviewMapsAndStatsClick,
+				testTag = "dashboard_quick_start_review_maps_stats",
 			)
 		}
 	}
@@ -233,7 +245,9 @@ internal fun EmptyStateStartHintCard(
 ) {
 	Card(
 		onClick = onStart,
-		modifier = modifier.fillMaxWidth(),
+		modifier = modifier
+			.fillMaxWidth()
+			.testTag("dashboard_ready_when_you_are_card"),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.secondaryContainer,
 		),
@@ -281,7 +295,13 @@ internal fun EmptyStateStartHintCard(
  * Feature highlights grid for the empty state.
  */
 @Composable
-private fun FeatureHighlights(modifier: Modifier = Modifier) {
+private fun FeatureHighlights(
+	onExploreClick: () -> Unit,
+	onAchieveClick: () -> Unit,
+	onTrackClick: () -> Unit,
+	onPrivacyClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
 	Column(
 		modifier = modifier.fillMaxWidth(),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -295,6 +315,8 @@ private fun FeatureHighlights(modifier: Modifier = Modifier) {
 				title = stringResource(R.string.dashboard_empty_feature_explore),
 				description = stringResource(R.string.dashboard_empty_feature_explore_desc),
 				modifier = Modifier.weight(1f),
+				onClick = onExploreClick,
+				testTag = "dashboard_tile_explore",
 			)
 			Spacer(Modifier.width(8.dp))
 			FeatureChip(
@@ -302,6 +324,8 @@ private fun FeatureHighlights(modifier: Modifier = Modifier) {
 				title = stringResource(R.string.dashboard_empty_feature_achieve),
 				description = stringResource(R.string.dashboard_empty_feature_achieve_desc),
 				modifier = Modifier.weight(1f),
+				onClick = onAchieveClick,
+				testTag = "dashboard_tile_achieve",
 			)
 		}
 		Row(
@@ -313,6 +337,8 @@ private fun FeatureHighlights(modifier: Modifier = Modifier) {
 				title = stringResource(R.string.dashboard_empty_feature_track),
 				description = stringResource(R.string.dashboard_empty_feature_track_desc),
 				modifier = Modifier.weight(1f),
+				onClick = onTrackClick,
+				testTag = "dashboard_tile_track",
 			)
 			Spacer(Modifier.width(8.dp))
 			FeatureChip(
@@ -320,6 +346,8 @@ private fun FeatureHighlights(modifier: Modifier = Modifier) {
 				title = stringResource(R.string.dashboard_empty_feature_privacy),
 				description = stringResource(R.string.dashboard_empty_feature_privacy_desc),
 				modifier = Modifier.weight(1f),
+				onClick = onPrivacyClick,
+				testTag = "dashboard_tile_privacy",
 			)
 		}
 	}
@@ -330,10 +358,16 @@ private fun QuickStartStep(
 	icon: ImageVector,
 	title: String,
 	description: String,
+	onClick: () -> Unit,
+	testTag: String,
 	modifier: Modifier = Modifier,
 ) {
 	Row(
-		modifier = modifier.fillMaxWidth(),
+		modifier = modifier
+			.fillMaxWidth()
+			.testTag(testTag)
+			.clip(MaterialTheme.shapes.medium)
+			.clickable(role = Role.Button, onClick = onClick),
 		horizontalArrangement = Arrangement.spacedBy(12.dp),
 		verticalAlignment = Alignment.Top,
 	) {
@@ -372,12 +406,16 @@ private fun FeatureChip(
 	icon: ImageVector,
 	title: String,
 	description: String,
+	onClick: () -> Unit,
+	testTag: String,
 	modifier: Modifier = Modifier,
 ) {
 	Row(
 		modifier = modifier
+			.testTag(testTag)
 			.clip(MaterialTheme.shapes.small)
 			.background(MaterialTheme.colorScheme.surfaceContainerLow)
+			.clickable(role = Role.Button, onClick = onClick)
 			.padding(horizontal = 12.dp, vertical = 8.dp),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(8.dp),
