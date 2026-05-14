@@ -181,6 +181,9 @@ dependencies {
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	testImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
+	// proto-java is needed at compile time for debug TestDataSeeder which interacts with
+	// OnboardingStateProto's GeneratedMessageV3 supertype. Release does not depend on this.
+	debugImplementation(libs.protobuf.java)
 	// 1st party dependencies
 	implementation(libs.component.slider)
 	// Draggable overlay removed with legacy fallback

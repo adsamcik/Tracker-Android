@@ -3,6 +3,28 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <receiver
+            android:name="com.adsamcik.tracker.app.debug.DebugSeedBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.adsamcik.tracker.debug.SEED_SESSIONS" />
+                <action android:name="com.adsamcik.tracker.debug.RESET_ONBOARDING" />
+                <action android:name="com.adsamcik.tracker.debug.RESET_ALL_DATA" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            DebugInitProvider runs at app process start (before Application.onCreate) and
+            dynamically registers DebugSeedBroadcastReceiver so `am broadcast` can drive QA
+            workflows. Manifest receivers are filtered out by FLAG_RECEIVER_REGISTERED_ONLY
+            which `am` adds by default.
+        -->
+        <provider
+            android:name="com.adsamcik.tracker.app.debug.DebugInitProvider"
+            android:authorities="${applicationId}.debug-init"
+            android:exported="false"
+            android:initOrder="100" />
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
