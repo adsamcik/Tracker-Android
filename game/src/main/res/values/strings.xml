@@ -109,7 +109,7 @@
     <string name="medal_bronze">Bronze</string>
     <string name="medal_none">None</string>
     <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
-    <string name="game_start_tracking_action">Start Tracking</string>
+    <string name="game_start_tracking_action">Open Dashboard to start</string>
     <string name="game_track_and_earn_points_action">Track &amp; Earn Points</string>
     <string name="game_open_settings">Open settings</string>
     <string name="game_close">Close</string>

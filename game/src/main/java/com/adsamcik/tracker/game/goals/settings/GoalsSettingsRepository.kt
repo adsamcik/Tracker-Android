@@ -28,7 +28,7 @@ data class GoalsSettingsState(
     val dailyStepGoal: Int,
     val weeklyStepGoal: Int,
     val weeklyProgressDailyLimit: Float,
-    val challengesEnabled: Boolean = true,
+    val challengesEnabled: Boolean = false,
 )
 
 /** Repository boundary exposing goals settings as reactive state plus mutation APIs. */
@@ -209,7 +209,7 @@ class DefaultGoalsSettingsRepository(
         ).coerceIn(MIN_DAILY_PORTION, MAX_DAILY_PORTION)
         val challengesEnabled = prefs.getBoolean(
             GamePreferenceKeys.CHALLENGE_ENABLED,
-            GamePreferenceKeys.CHALLENGE_ENABLED_DEFAULT,
+            false,
         )
 
         return GoalsSettingsState(

@@ -74,8 +74,8 @@ class RetentionConfigStore(
 
                 val prefs = Preferences(context)
                 val autoCleanup = runCatching {
-                    prefs.getBooleanSync("autoCleanupOldData", false)
-                }.getOrDefault(false)
+                    prefs.getBooleanSync("autoCleanupOldData", DEFAULT_AUTO_CLEANUP_ENABLED)
+                }.getOrDefault(DEFAULT_AUTO_CLEANUP_ENABLED)
                 val retentionYears = runCatching {
                     prefs.getStringSync("dataRetentionYears")?.toIntOrNull()
                         ?: prefs.getIntSync(
@@ -101,7 +101,7 @@ suspend fun resetRetentionConfigForTests(context: Context) {
 }
 
 private fun RetentionConfigProto.toDomain(): RetentionConfigState {
-    if (!initialized) return RetentionConfigState()
+    if (!initialized) return RetentionConfigState(autoCleanupEnabled = DEFAULT_AUTO_CLEANUP_ENABLED)
     return RetentionConfigState(
         rawDataRetentionDays = rawDataRetentionDays.withDefault(RetentionConfigState.DEFAULT_RAW_DAYS),
         wifiCellRetentionDays = wifiCellRetentionDays.withDefault(RetentionConfigState.DEFAULT_RAW_DAYS),
@@ -132,3 +132,5 @@ private fun RetentionConfigState.toProto(): RetentionConfigProto =
         .build()
 
 private fun Int.withDefault(default: Int): Int = if (this <= 0) default else this
+
+private const val DEFAULT_AUTO_CLEANUP_ENABLED = true

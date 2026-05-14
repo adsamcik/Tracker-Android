@@ -76,8 +76,14 @@ internal object LegacyPreferenceStore {
 
     fun snapshot(context: Context): Preferences = ensureStateFlow(context).value
 
-    suspend fun freshSnapshot(context: Context): Preferences =
-        context.applicationContext.legacyDataStore.data.first()
+    suspend fun freshSnapshot(context: Context): Preferences {
+        val appContext = context.applicationContext
+        val prefs = appContext.legacyDataStore.data.first()
+        val smartGoalNotificationsKey = booleanPreferencesKey(SMART_GOAL_NOTIFICATIONS_KEY)
+        if (prefs.contains(smartGoalNotificationsKey)) return prefs
+        appContext.legacyDataStore.edit { it[smartGoalNotificationsKey] = false }
+        return appContext.legacyDataStore.data.first()
+    }
 
     fun edit(context: Context, operations: List<(androidx.datastore.preferences.core.MutablePreferences) -> Unit>) {
         if (operations.isEmpty()) return
@@ -105,7 +111,7 @@ internal object LegacyPreferenceStore {
 
     fun booleanFlow(context: Context, key: String, default: Boolean): Flow<Boolean> =
         ensureStateFlow(context)
-            .map { prefs -> prefs[booleanPreferencesKey(key)] ?: default }
+            .map { prefs -> prefs[booleanPreferencesKey(key)] ?: defaultBooleanFor(key, default) }
             .distinctUntilChanged()
 
     fun intFlow(context: Context, key: String, default: Int): Flow<Int> =
@@ -160,4 +166,11 @@ internal object LegacyPreferenceStore {
     internal fun resetForTests() {
         stateFlowRef.set(null)
     }
+
+    private fun defaultBooleanFor(key: String, default: Boolean): Boolean = when (key) {
+        SMART_GOAL_NOTIFICATIONS_KEY -> false
+        else -> default
+    }
+
+    private const val SMART_GOAL_NOTIFICATIONS_KEY = "smartGoalNotifications"
 }
