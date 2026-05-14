@@ -152,6 +152,12 @@ fix-build.ps1
 run-phase2-tests.ps1
 run_test.bat
 /.worktrees
+.github/v10-validation/
+
+############################################################
+# Node.js diagnostic reports (OOM, fatal)
+############################################################
+report.*.json
 
 ############################################################
 # QC screenshots and scratch docs
