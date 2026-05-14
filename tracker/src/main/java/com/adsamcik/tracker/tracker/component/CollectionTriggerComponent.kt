@@ -91,9 +91,11 @@ internal class NoTimer : CollectionTriggerComponent {
 		throw TrackerTimerNotInitializedException()
 	}
 
-	override fun onDisable(context: Context) {
-		throw TrackerTimerNotInitializedException()
-	}
+	// Teardown must be safe to call even when no real timer was ever installed
+	// (e.g. TrackerService.onDestroy after OS-initiated kill on permission revoke).
+	// Throwing here surfaced as a crash in TrackingOrchestrator.shutdown when the
+	// service shut down before it had a chance to swap the placeholder.
+	override fun onDisable(context: Context) = Unit
 }
 
 internal class TrackerTimerNotInitializedException : Exception()
