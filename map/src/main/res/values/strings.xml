@@ -73,6 +73,9 @@
     <string name="settings_map_basemap_title">Basemap</string>
     <string name="settings_map_basemap_custom">Custom .pmtiles file active (tap to remove)</string>
     <string name="settings_map_basemap_default">Built-in basemap active. Tap to import a custom .pmtiles file.</string>
+    <string name="basemap_import_error_source_open">Couldn\'t open that file. Try a different one or share it with Tracker again.</string>
+    <string name="basemap_import_error_copy">Couldn\'t copy the basemap file. Check that there\'s enough free space and try again.</string>
+    <string name="basemap_import_error_invalid_format">Not a valid PMTiles file: %1$s</string>
     <string name="settings_map_advanced_section_title">Advanced Settings</string>
     <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
     <string name="settings_map_max_heat_title">Max heat after visits</string>
