@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.statistics.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -10,12 +11,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.MapLibreInitializer
 import com.adsamcik.tracker.map.basemap.BasemapManager
@@ -38,10 +46,20 @@ import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.log2
+import kotlin.math.tan
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val E7_DIVISOR = 1e7
 private const val MIN_SPAN_DEGREES = 0.001
+private const val BUNDLED_BASEMAP_MAX_ZOOM = 6.0
+private const val TILE_SIZE_PX = 512.0
+private const val MAX_MERCATOR_LAT = 85.05112878
+private val ROUTE_PREVIEW_PADDING = 24.dp
 
 private val NO_GESTURES = GestureOptions(
 	isRotateEnabled = false,
@@ -53,10 +71,11 @@ private val NO_GESTURES = GestureOptions(
 )
 
 /**
- * MapLibre-based route preview for trip detail.
+ * Route preview for trip detail.
  *
- * Renders the trip polyline on an offline basemap with start/end markers.
- * All gestures are disabled — this is a static preview card.
+ * Renders the trip polyline on an offline basemap when the bundled tiles have
+ * enough detail, otherwise falls back to a local track outline. All gestures are
+ * disabled when MapLibre is used — this is a static preview card.
  *
  * @param points GPS samples with valid latE7/lonE7 coordinates (pre-filtered).
  */
@@ -135,7 +154,9 @@ fun TripRouteMapPreview(
 		}
 	}
 
-	val cameraState = rememberCameraState(firstPosition = initialPosition)
+	val cameraState = key(routeCoords) {
+		rememberCameraState(firstPosition = initialPosition)
+	}
 
 	// Fit camera to bounds once the map loads
 	LaunchedEffect(mapReady, bounds) {
@@ -143,8 +164,8 @@ fun TripRouteMapPreview(
 			try {
 				cameraState.animateTo(
 					boundingBox = bounds,
-					padding = PaddingValues(24.dp),
-					duration = 0.milliseconds,
+					padding = PaddingValues(ROUTE_PREVIEW_PADDING),
+					duration = 1.milliseconds,
 				)
 			} catch (_: CancellationException) {
 				throw CancellationException()
@@ -154,8 +175,34 @@ fun TripRouteMapPreview(
 		}
 	}
 
-	Box(modifier = modifier, contentAlignment = Alignment.Center) {
-		if (baseStyle != null && mapLibreReady && routeCoords.size >= 2) {
+	BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+		val density = LocalDensity.current
+		val previewSize = remember(maxWidth, maxHeight, density) {
+			with(density) {
+				PreviewSize(
+					widthPx = maxWidth.toPx().takeIf { it.isFinite() && it > 0f } ?: 1f,
+					heightPx = maxHeight.toPx().takeIf { it.isFinite() && it > 0f } ?: 1f,
+				)
+			}
+		}
+		val previewPaddingPx = with(density) { ROUTE_PREVIEW_PADDING.toPx() }
+		val useTrackOutlineFallback = remember(bounds, previewSize, previewPaddingPx) {
+			bounds?.let {
+				estimatedFitZoom(
+					bounds = it,
+					previewSize = previewSize,
+					paddingPx = previewPaddingPx,
+				) > BUNDLED_BASEMAP_MAX_ZOOM
+			} ?: false
+		}
+
+		if (routeCoords.size >= 2 && useTrackOutlineFallback) {
+			// The blank card was not a layer/style race: the bundled PMTiles basemap is
+			// world-wide but only z0-z6, while fitting a neighborhood trip asks MapLibre
+			// for z15+ detail. Draw a local track outline instead of over-zooming tiles
+			// that are not present.
+			RouteTrackOutline(routeCoords = routeCoords, modifier = Modifier.fillMaxSize())
+		} else if (baseStyle != null && mapLibreReady && routeCoords.size >= 2) {
 			MaplibreMap(
 				modifier = Modifier.fillMaxSize(),
 				baseStyle = baseStyle,
@@ -170,8 +217,10 @@ fun TripRouteMapPreview(
 				),
 				onMapLoadFinished = { mapReady = true },
 			) {
-				RouteLineLayer(routeCoords)
-				RouteEndpointLayers(routeCoords)
+				key(mapReady, routeCoords) {
+					RouteLineLayer(routeCoords)
+					RouteEndpointLayers(routeCoords)
+				}
 			}
 		} else {
 			CircularProgressIndicator(
@@ -181,6 +230,138 @@ fun TripRouteMapPreview(
 		}
 	}
 }
+
+@Composable
+private fun RouteTrackOutline(
+	routeCoords: List<LatLngModel>,
+	modifier: Modifier = Modifier,
+) {
+	val backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+	val routeColor = MaterialTheme.colorScheme.primary
+	val startColor = MaterialTheme.colorScheme.tertiary
+	val endColor = MaterialTheme.colorScheme.error
+	val markerStrokeColor = MaterialTheme.colorScheme.surface
+
+	Canvas(modifier = modifier.fillMaxSize()) {
+		drawRect(backgroundColor)
+		val points = projectRouteToCanvas(
+			routeCoords = routeCoords,
+			width = size.width,
+			height = size.height,
+			padding = ROUTE_PREVIEW_PADDING.toPx(),
+		)
+		if (points.size < 2) return@Canvas
+
+		val path = Path().apply {
+			points.forEachIndexed { index, point ->
+				if (index == 0) {
+					moveTo(point.x, point.y)
+				} else {
+					lineTo(point.x, point.y)
+				}
+			}
+		}
+
+		drawPath(
+			path = path,
+			color = routeColor,
+			style = Stroke(
+				width = 4.dp.toPx(),
+				cap = StrokeCap.Round,
+				join = StrokeJoin.Round,
+			),
+		)
+
+		val start = points.first()
+		val end = points.last()
+		drawCircle(color = markerStrokeColor, radius = 9.dp.toPx(), center = start)
+		drawCircle(color = startColor, radius = 7.dp.toPx(), center = start)
+		drawCircle(color = markerStrokeColor, radius = 9.dp.toPx(), center = end)
+		drawCircle(color = endColor, radius = 7.dp.toPx(), center = end)
+	}
+}
+
+private fun estimatedFitZoom(
+	bounds: BoundingBox,
+	previewSize: PreviewSize,
+	paddingPx: Float,
+): Double {
+	val usableWidth = (previewSize.widthPx - paddingPx * 2f).toDouble().coerceAtLeast(1.0)
+	val usableHeight = (previewSize.heightPx - paddingPx * 2f).toDouble().coerceAtLeast(1.0)
+	val lonFraction = ((bounds.east - bounds.west) / 360.0).coerceAtLeast(1e-12)
+	val latFraction = abs(mercatorY(bounds.north) - mercatorY(bounds.south)).coerceAtLeast(1e-12)
+	val zoomX = log2(usableWidth / (TILE_SIZE_PX * lonFraction))
+	val zoomY = log2(usableHeight / (TILE_SIZE_PX * latFraction))
+	return minOf(zoomX, zoomY).coerceIn(0.0, 22.0)
+}
+
+private fun mercatorY(latitude: Double): Double {
+	val latRad = latitude.coerceIn(-MAX_MERCATOR_LAT, MAX_MERCATOR_LAT) * PI / 180.0
+	return (1.0 - ln(tan(latRad) + 1.0 / cos(latRad)) / PI) / 2.0
+}
+
+private fun projectRouteToCanvas(
+	routeCoords: List<LatLngModel>,
+	width: Float,
+	height: Float,
+	padding: Float,
+): List<Offset> {
+	if (routeCoords.isEmpty()) return emptyList()
+
+	var minLat = Double.MAX_VALUE
+	var maxLat = -Double.MAX_VALUE
+	var minLon = Double.MAX_VALUE
+	var maxLon = -Double.MAX_VALUE
+	routeCoords.forEach { coord ->
+		minLat = minOf(minLat, coord.lat)
+		maxLat = maxOf(maxLat, coord.lat)
+		minLon = minOf(minLon, coord.lng)
+		maxLon = maxOf(maxLon, coord.lng)
+	}
+
+	val centerLat = (minLat + maxLat) / 2.0
+	val centerLon = (minLon + maxLon) / 2.0
+	val lonScale = cos(centerLat.coerceIn(-MAX_MERCATOR_LAT, MAX_MERCATOR_LAT) * PI / 180.0)
+		.coerceAtLeast(0.001)
+	val projected = routeCoords.map { coord ->
+		ProjectedPoint(
+			x = (coord.lng - centerLon) * lonScale,
+			y = coord.lat - centerLat,
+		)
+	}
+
+	val minX = projected.minOf { it.x }
+	val maxX = projected.maxOf { it.x }
+	val minY = projected.minOf { it.y }
+	val maxY = projected.maxOf { it.y }
+	val xSpan = (maxX - minX).coerceAtLeast(MIN_SPAN_DEGREES * lonScale)
+	val ySpan = (maxY - minY).coerceAtLeast(MIN_SPAN_DEGREES)
+	val availableWidth = (width - padding * 2f).coerceAtLeast(1f)
+	val availableHeight = (height - padding * 2f).coerceAtLeast(1f)
+	val scale = minOf(
+		availableWidth.toDouble() / xSpan,
+		availableHeight.toDouble() / ySpan,
+	)
+	val left = ((width - xSpan * scale) / 2.0).toFloat()
+	val top = ((height - ySpan * scale) / 2.0).toFloat()
+
+	return projected.map { point ->
+		Offset(
+			x = left + ((point.x - minX) * scale).toFloat(),
+			y = top + ((maxY - point.y) * scale).toFloat(),
+		)
+	}
+}
+
+private data class PreviewSize(
+	val widthPx: Float,
+	val heightPx: Float,
+)
+
+private data class ProjectedPoint(
+	val x: Double,
+	val y: Double,
+)
 
 @Composable
 private fun RouteLineLayer(routeCoords: List<LatLngModel>) {

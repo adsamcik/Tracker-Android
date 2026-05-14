@@ -3,6 +3,8 @@ package com.adsamcik.tracker.shared.base.database.aggregator
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Aggregates session segment data into the daily_summary table.
@@ -25,11 +27,11 @@ class DailySummaryAggregator(
 	 * Materialize daily summary for a specific epoch day by aggregating
 	 * all session segments that fall within that calendar day.
 	 *
-	 * @param epochDay the day identifier computed as `localMidnightMs / DAY_IN_MILLISECONDS`
+	 * @param epochDay the [LocalDate.toEpochDay] identifier for the local calendar day
 	 */
 	suspend fun materializeDayFromSegments(epochDay: Long) {
-		val startOfDayMs = epochDay * Time.DAY_IN_MILLISECONDS
-		val endOfDayMs = startOfDayMs + Time.DAY_IN_MILLISECONDS
+		val startOfDayMs = startOfLocalDayMs(epochDay)
+		val endOfDayMs = startOfLocalDayMs(epochDay + 1)
 
 		val segments = sessionSegmentDao.getAllBetween(startOfDayMs, endOfDayMs)
 		val totalDistanceM = segments.sumOf { it.distanceM.toDouble() }.toFloat()
@@ -56,7 +58,14 @@ class DailySummaryAggregator(
 	 * Materialize today's daily summary from session segments.
 	 */
 	suspend fun materializeToday() {
-		val todayEpochDay = Time.todayMillis / Time.DAY_IN_MILLISECONDS
+		val todayEpochDay = LocalDate.now().toEpochDay()
 		materializeDayFromSegments(todayEpochDay)
+	}
+
+	private fun startOfLocalDayMs(epochDay: Long): Long {
+		return LocalDate.ofEpochDay(epochDay)
+			.atStartOfDay(ZoneId.systemDefault())
+			.toInstant()
+			.toEpochMilli()
 	}
 }
