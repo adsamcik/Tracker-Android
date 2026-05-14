@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.data.store.TrackingTogglesDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,7 @@ data class TrackingSettingsUiState(
 class TrackingSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackingParamsRepository: TrackingParamsRepository,
+    private val trackingTogglesDataStore: TrackingTogglesDataStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
@@ -80,50 +83,57 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setLocationEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setLocationEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.LOCATION_ENABLED, enabled) {
+                setLocationEnabled(enabled)
+            }
         }
     }
 
     fun setActivityEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setActivityEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.ACTIVITY_ENABLED, enabled) {
+                setActivityEnabled(enabled)
+            }
         }
     }
 
     fun setStepsEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setStepsEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.STEPS_ENABLED, enabled) {
+                setStepsEnabled(enabled)
+            }
         }
     }
 
     fun setWifiEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.WIFI_ENABLED, enabled) {
+                setWifiEnabled(enabled)
+            }
         }
     }
 
     fun setCellEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setCellEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.CELL_ENABLED, enabled) {
+                setCellEnabled(enabled)
+            }
         }
     }
 
     fun setWifiNetworkEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiNetworkEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.WIFI_NETWORK_ENABLED, enabled) {
+                setWifiNetworkEnabled(enabled)
+            }
         }
     }
 
     fun setWifiLocationCountEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiLocationCountEnabled(enabled)
-            markCustomPreset()
+            setSourceToggle(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, enabled) {
+                setWifiLocationCountEnabled(enabled)
+            }
         }
     }
 
@@ -185,7 +195,28 @@ class TrackingSettingsViewModel @Inject constructor(
                     presetName = preset.name,
                 )
             }
+            trackingTogglesDataStore.setAll(
+                sourceToggleMap(
+                    locationEnabled = config.locationEnabled,
+                    activityEnabled = config.activityEnabled,
+                    stepsEnabled = config.stepsEnabled,
+                    wifiEnabled = config.wifiEnabled,
+                    cellEnabled = config.cellEnabled,
+                    wifiNetworkEnabled = config.wifiEnabled,
+                    wifiLocationCountEnabled = preset == TrackingPreset.HIGH_ACCURACY,
+                )
+            )
         }
+    }
+
+    private suspend fun setSourceToggle(
+        sourceName: String,
+        enabled: Boolean,
+        updateTrackingParams: suspend TrackingParamsRepository.() -> Unit,
+    ) {
+        trackingParamsRepository.updateTrackingParams()
+        trackingTogglesDataStore.setSource(sourceName, enabled)
+        markCustomPreset()
     }
 
     private suspend fun markCustomPreset() {
@@ -211,4 +242,22 @@ class TrackingSettingsViewModel @Inject constructor(
         )
         _uiState.value = state.copy(currentBatteryImpact = currentSettings.calculateBatteryImpact())
     }
+
+    private fun sourceToggleMap(
+        locationEnabled: Boolean,
+        activityEnabled: Boolean,
+        stepsEnabled: Boolean,
+        wifiEnabled: Boolean,
+        cellEnabled: Boolean,
+        wifiNetworkEnabled: Boolean,
+        wifiLocationCountEnabled: Boolean,
+    ): Map<String, Boolean> = mapOf(
+        PreferenceKeys.LOCATION_ENABLED to locationEnabled,
+        PreferenceKeys.ACTIVITY_ENABLED to activityEnabled,
+        PreferenceKeys.STEPS_ENABLED to stepsEnabled,
+        PreferenceKeys.WIFI_ENABLED to wifiEnabled,
+        PreferenceKeys.CELL_ENABLED to cellEnabled,
+        PreferenceKeys.WIFI_NETWORK_ENABLED to wifiNetworkEnabled,
+        PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED to wifiLocationCountEnabled,
+    )
 }

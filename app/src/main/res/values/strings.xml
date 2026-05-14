@@ -129,9 +129,23 @@
     <string name="settings_licenses_variant_unavailable">This build variant does not bundle generated license data. Use a release-like build to view third-party licenses.</string>
     <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
+    <string name="privacy_policy_load_error">Privacy policy could not be loaded. Please reinstall the app or contact support.</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>
     <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
+    <string name="about_title">About</string>
+    <string name="about_app_name_label">App</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Build commit</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Author</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Email</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Links</string>
     <string name="settings_send_feedback_title">Send feedback</string>
     <string name="settings_send_feedback_subtitle">Report issues on GitHub</string>
     <string name="settings_log_activity_title">Log activity changes</string>
@@ -223,7 +237,7 @@
     <string name="onboarding_benefit_insights_desc">View your routes on maps, analyze statistics, and track your progress over time.</string>
     <string name="onboarding_benefit_gamification_title">Gamification</string>
     <string name="onboarding_benefit_gamification_desc">Complete challenges, earn achievements, and make tracking fun.</string>
-    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_get_started">GET STARTED</string>
     <string name="onboarding_learn_more">Learn more</string>
 
     <!-- Contextual Permission Rationales (shown before system prompt) -->
@@ -362,7 +376,7 @@
     <string name="button_ok">OK</string>
     <string name="button_cancel">Cancel</string>
     <string name="button_back">Back</string>
-    <string name="button_continue">Continue</string>
+    <string name="button_continue">CONTINUE</string>
     <string name="button_skip">Skip for now</string>
     <string name="loading_text">Loading…</string>
 
@@ -746,8 +760,13 @@
     <string name="setup_perm_activity_why">Needed to detect your movement type (walking, driving, etc.).</string>
     <string name="setup_perm_notification_why">Needed to show tracking status in notifications.</string>
     <string name="setup_perm_grant">Grant</string>
-    <string name="setup_perm_granted">Granted</string>
-    <string name="setup_start_exploring">Start Exploring</string>
+    <string name="setup_perm_granted">Permission granted ✓</string>
+    <string name="permission_grant_in_settings">Allow in Settings →</string>
+    <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
+    <string name="setup_failed_message">Setup failed: %1$s. Please try again.</string>
+    <string name="setup_background_location_title">Background Location</string>
+    <string name="setup_background_location_desc">Needed for In Motion auto-tracking so Tracker can keep recording while the app is not open.</string>
+    <string name="setup_start_exploring">START EXPLORING</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 
 </resources>

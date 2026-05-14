@@ -25,6 +25,15 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
             onNavigateToActivities = {
                 navController.navigate(ActivitySettings) { launchSingleTop = true }
             },
+            onNavigateToAbout = {
+                navController.navigate(About) { launchSingleTop = true }
+            },
+        )
+    }
+
+    composable<About> {
+        com.adsamcik.tracker.app.settings.about.AboutScreen(
+            onNavigateBack = { navController.popBackStack() },
         )
     }
 

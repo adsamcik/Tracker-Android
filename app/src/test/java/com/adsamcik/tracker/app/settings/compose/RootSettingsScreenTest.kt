@@ -38,6 +38,7 @@ class RootSettingsScreenTest {
         developerModeEnabled: Boolean = false,
         onNavigate: (SettingsScreen) -> Unit = {},
         onNavigateToActivities: () -> Unit = {},
+        onNavigateToAbout: () -> Unit = {},
         onAutoUnitSwitchChanged: (Boolean) -> Unit = {},
     ) {
         composeTestRule.setContent {
@@ -48,6 +49,7 @@ class RootSettingsScreenTest {
                     developerModeEnabled = developerModeEnabled,
                     onNavigate = onNavigate,
                     onNavigateToActivities = onNavigateToActivities,
+                    onNavigateToAbout = onNavigateToAbout,
                     onAutoUnitSwitchChanged = onAutoUnitSwitchChanged,
                     onLengthSystemSelected = {},
                     onSpeedFormatSelected = {},

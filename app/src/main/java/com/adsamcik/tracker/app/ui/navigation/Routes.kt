@@ -39,6 +39,9 @@ data class Settings(
 ) : AppRoute
 
 @Serializable
+data object About : AppRoute
+
+@Serializable
 enum class SettingsOrigin {
     DASHBOARD,
     STATS,
