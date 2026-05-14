@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -41,6 +42,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,10 +79,20 @@ fun MapChromeHost(
 
 	val layers = remember(registry) { registry.getAllLayers() }
 	var showLayers by remember { mutableStateOf(false) }
+	var showQuality by remember { mutableStateOf(false) }
 	var showDates by remember { mutableStateOf(false) }
 	var showCustomDateRange by remember { mutableStateOf(false) }
 	var searchError by remember { mutableStateOf<String?>(null) }
 	var searchFocused by remember { mutableStateOf(false) }
+	var followAfterPermissionGrant by rememberSaveable { mutableStateOf(false) }
+	val locationPermissionFlow = rememberMapLocationPermissionFlow(
+		onPermissionGranted = {
+			if (followAfterPermissionGrant) {
+				followAfterPermissionGrant = false
+				store.dispatch(MapEvent.ToggleFollow)
+			}
+		}
+	)
 
 	// Inset handling: keyboard (ime) can be larger than the nav bar, take the max so the
 	// control bar lifts above whichever is showing.
@@ -102,8 +114,9 @@ fun MapChromeHost(
 	}
 
 	// Close popovers on system back before letting nav handle it.
-	BackHandler(enabled = showLayers || showDates) {
+	BackHandler(enabled = showLayers || showQuality || showDates) {
 		showLayers = false
+		showQuality = false
 		showDates = false
 	}
 
@@ -113,8 +126,17 @@ fun MapChromeHost(
 		searchError?.let { snackbarHostState.showSnackbar(it) }
 	}
 
-	val activeLayerLabel = remember(state.activeLayerIds, layers) {
-		val active = state.activeLayerIds.firstOrNull()
+	val activeLayerId = state.activeLayerIds.firstOrNull()
+	val isHeatmapLayerSelected = activeLayerId.isHeatmapLayerId()
+
+	LaunchedEffect(isHeatmapLayerSelected) {
+		if (!isHeatmapLayerSelected) {
+			showQuality = false
+		}
+	}
+
+	val activeLayerLabel = remember(activeLayerId, layers) {
+		val active = activeLayerId
 		if (active.isNullOrBlank() || active == "none") {
 			context.getString(R.string.map_layer_none_title)
 		} else {
@@ -129,19 +151,14 @@ fun MapChromeHost(
 		}
 	}
 
+	val activeQualityLabel = remember(state.quality) {
+		context.getString(qualityLabelRes(state.quality))
+	}
+
 	val dateRangeLabel = remember(state.dateRange) {
-		val range = state.dateRange
-		val now = System.currentTimeMillis()
-		val oneWeekMs = 7L * 24 * 60 * 60 * 1000
-		val oneMonthMs = 30L * 24 * 60 * 60 * 1000
-		when {
-			range.first == 0L && range.last == Long.MAX_VALUE ->
-				context.getString(R.string.map_date_range_all_time)
-			range.first >= now - oneWeekMs -> context.getString(R.string.map_date_preset_week)
-			range.first >= now - oneMonthMs && range.first < now - oneWeekMs ->
-				context.getString(R.string.map_date_preset_month)
-			else -> context.getString(R.string.map_date_preset_custom)
-		}
+		matchingMapDateRangePreset(state.dateRange)
+			?.let { context.getString(it.labelRes) }
+			?: context.getString(R.string.map_date_preset_custom)
 	}
 
 	Box(modifier = modifier.fillMaxSize()) {
@@ -162,7 +179,12 @@ fun MapChromeHost(
 					isFollowing = state.isFollowing,
 					onClick = {
 						haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-						store.dispatch(MapEvent.ToggleFollow)
+						if (locationPermissionFlow.isGranted) {
+							store.dispatch(MapEvent.ToggleFollow)
+						} else {
+							followAfterPermissionGrant = true
+							locationPermissionFlow.requestLocationAccess()
+						}
 					},
 					modifier = Modifier.padding(end = 24.dp),
 				)
@@ -189,15 +211,18 @@ fun MapChromeHost(
 							searchError = context.getString(R.string.map_search_clipboard_empty)
 						} else {
 							store.dispatch(MapEvent.UpdateSearchQuery(text))
-							store.dispatch(MapEvent.SubmitSearch)
 						}
 					}
 				},
 				activeLayerLabel = activeLayerLabel,
 				onLayersClick = { showLayers = true },
+				showQualityChip = isHeatmapLayerSelected,
+				qualityLabel = activeQualityLabel,
+				onQualityClick = { showQuality = true },
 				dateRangeLabel = dateRangeLabel,
 				onDatesClick = { showDates = true },
 				layersExpanded = showLayers,
+				qualityExpanded = showQuality,
 				datesExpanded = showDates,
 			)
 		}
@@ -213,7 +238,6 @@ fun MapChromeHost(
 			LayerPickerPopover(
 				layers = layers,
 				activeLayerIds = state.activeLayerIds,
-				quality = state.quality,
 				activeLegend = state.legend,
 				onLayerSelected = { id ->
 					try {
@@ -222,8 +246,15 @@ fun MapChromeHost(
 						searchError = context.getString(R.string.map_layer_load_error)
 					}
 				},
-				onQualityChange = { value -> store.setQuality(value) },
 				onDismiss = { showLayers = false },
+			)
+		}
+
+		if (showQuality && isHeatmapLayerSelected) {
+			QualityPickerPopover(
+				quality = state.quality,
+				onQualityChange = { value -> store.setQuality(value) },
+				onDismiss = { showQuality = false },
 			)
 		}
 
@@ -238,8 +269,8 @@ fun MapChromeHost(
 
 		// Sheet-visibility signal is legacy-but-harmless; keep the store in sync with our
 		// current popover state so any downstream consumer sees a coherent value.
-		LaunchedEffect(showLayers, showDates) {
-			val vis = if (showLayers || showDates) SheetVisibility.Expanded else SheetVisibility.Peek
+		LaunchedEffect(showLayers, showQuality, showDates) {
+			val vis = if (showLayers || showQuality || showDates) SheetVisibility.Expanded else SheetVisibility.Peek
 			if (state.sheet.visibility != vis) {
 				store.dispatch(MapEvent.SetSheet(vis))
 			}
@@ -293,7 +324,10 @@ private fun MyLocationFab(
 		tonalElevation = 3.dp,
 		shadowElevation = 6.dp,
 	) {
-		IconButton(onClick = onClick) {
+		IconButton(
+			onClick = onClick,
+			modifier = Modifier.testTag("map_my_location_button"),
+		) {
 			Icon(
 				imageVector = Icons.Filled.MyLocation,
 				contentDescription = stringResource(R.string.tips_map_my_location_title),
@@ -305,4 +339,12 @@ private fun MyLocationFab(
 			)
 		}
 	}
+}
+
+private fun String?.isHeatmapLayerId(): Boolean = this?.endsWith("_heatmap") == true
+
+private fun qualityLabelRes(quality: Float): Int = when {
+	quality < 0.75f -> R.string.map_quality_fast
+	quality > 1.5f -> R.string.map_quality_detailed
+	else -> R.string.map_quality_balanced
 }

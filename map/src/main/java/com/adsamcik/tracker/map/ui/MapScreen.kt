@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.ui
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapLibreInitializer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,17 +23,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.basemap.BasemapManager
@@ -87,11 +92,13 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import org.maplibre.compose.map.OrnamentOptions
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
 private const val MAP_LOAD_TAG = "MapScreen"
 
@@ -113,6 +120,9 @@ fun MapScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val appContext = context.applicationContext
+    val locationPermissionFlow = rememberMapLocationPermissionFlow()
+    val hasLocationPermission = isLocationPermissionGranted || locationPermissionFlow.isGranted
+    var isPermissionBannerDismissed by rememberSaveable { mutableStateOf(false) }
     val trackerController = store.trackerController
     val isTracking by trackerController.isServiceRunningFlow.collectAsState()
     val activeSession by trackerController.sessionFlow.collectAsState()
@@ -208,7 +218,11 @@ fun MapScreen(
     val isLayerLoading = state.layerLoadingProgress in 1..99
     val isAccessibilityLoading = isMapLoading || isLayerLoading
     val hasActiveLayer = state.activeLayerIds.isNotEmpty()
-    val hasNoData = state.layerConfig == null && !isAccessibilityLoading && hasActiveLayer
+    val activeLayerId = state.activeLayerIds.firstOrNull()
+    val hasRenderableLayerData = remember(state.layerConfig) {
+        state.layerConfig.hasRenderableData()
+    }
+    val hasNoData = !isAccessibilityLoading && hasActiveLayer && !hasRenderableLayerData
     val mapAccessibilityLabels = MapAccessibilityLabels(
         mapOverview = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_map_overview),
         centeredOnYourLocation = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_centered_on_location),
@@ -288,6 +302,13 @@ fun MapScreen(
     }
 
     val followCanceledText = stringResource(com.adsamcik.tracker.map.R.string.map_follow_canceled)
+    val emptyStateSubtitle = when (activeLayerId) {
+        "cell_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_cell)
+        "wifi_heatmap",
+        "wifi_count_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_wifi)
+        "speed_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_speed)
+        else -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_location)
+    }
 
     Box(Modifier.fillMaxSize()) {
         if (baseStyle != null && mapLibreReady) {
@@ -393,6 +414,7 @@ fun MapScreen(
             exit = androidx.compose.animation.fadeOut(),
         ) {
             Surface(
+                modifier = Modifier.testTag("map_empty_state_card"),
                 shape = MaterialTheme.shapes.large,
                 tonalElevation = 2.dp,
                 shadowElevation = 2.dp,
@@ -416,7 +438,7 @@ fun MapScreen(
                     )
                     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
                     Text(
-                        text = stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle),
+                        text = emptyStateSubtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -469,26 +491,44 @@ fun MapScreen(
         )
 
         // Permission denied banner
-        if (!isLocationPermissionGranted) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !hasLocationPermission && !isPermissionBannerDismissed,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = topInsetPadding + 16.dp, start = 16.dp, end = 16.dp),
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            Surface(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topInsetPadding + 16.dp, start = 16.dp, end = 16.dp),
+                    .testTag("map_permission_banner")
+                    .clickable(
+                        role = Role.Button,
+                        onClick = locationPermissionFlow.requestLocationAccess,
+                    ),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.errorContainer,
+                tonalElevation = 2.dp,
+                shadowElevation = 2.dp,
             ) {
-                androidx.compose.material3.Card(
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = stringResource(com.adsamcik.tracker.map.R.string.map_location_permission_denied),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer
+                    Text(
+                        text = stringResource(com.adsamcik.tracker.map.R.string.map_location_permission_denied),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { isPermissionBannerDismissed = true }) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_permission_banner_dismiss
+                            ),
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     }
                 }
@@ -499,8 +539,8 @@ fun MapScreen(
 
     val locationManager = remember(appContext) { LocationAndSensorsManager(appContext) }
 
-    LaunchedEffect(locationManager, isLocationPermissionGranted, overlayMode) {
-        if (!isLocationPermissionGranted || overlayMode) return@LaunchedEffect
+    LaunchedEffect(locationManager, hasLocationPermission, overlayMode) {
+        if (!hasLocationPermission || overlayMode) return@LaunchedEffect
         try {
             locationManager.locationUpdates(highAccuracy = true).collectLatest { (lat, lng, accuracy) ->
                 store.dispatch(
@@ -767,6 +807,16 @@ private fun buildHeatmapColorExpr(
 }
 
 private fun Float.toNumber(): Number = this
+
+private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
+    null -> false
+    is MapLibreLayerConfig.Heatmap -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.Line -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
+}
+
+private fun String.hasRenderableGeoJsonData(): Boolean =
+    !contains(""""features":[]""") && !contains(""""coordinates":[]""")
 
 /**
  * Custom Compose scale bar that respects the user's [LengthSystem] preference.

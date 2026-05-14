@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.ui.controls
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,87 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.adsamcik.tracker.map.R
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.temporal.TemporalAdjusters
+
+internal enum class MapDateRangePreset(@StringRes val labelRes: Int) {
+	TODAY(R.string.map_date_today),
+	YESTERDAY(R.string.map_date_yesterday),
+	THIS_WEEK(R.string.map_date_this_week),
+	LAST_WEEK(R.string.map_date_preset_week),
+	LAST_MONTH(R.string.map_date_preset_month),
+	ALL_TIME(R.string.map_date_range_all_time),
+}
+
+internal data class MapDateRangePresetOption(
+	val preset: MapDateRangePreset,
+	val range: LongRange,
+)
+
+internal fun mapDateRangePresetOptions(
+	nowMillis: Long = System.currentTimeMillis(),
+	zoneId: ZoneId = ZoneId.systemDefault(),
+): List<MapDateRangePresetOption> {
+	val now = ZonedDateTime.ofInstant(Instant.ofEpochMilli(nowMillis), zoneId)
+	val startOfToday = now.startOfLocalDay()
+	val startOfYesterday = startOfToday.minusDays(1)
+	val startOfThisWeek = now
+		.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+		.startOfLocalDay()
+	val startOfLastWeek = startOfThisWeek.minusWeeks(1)
+	val startOfThisMonth = now.withDayOfMonth(1).startOfLocalDay()
+	val startOfLastMonth = startOfThisMonth.minusMonths(1)
+
+	return listOf(
+		MapDateRangePresetOption(MapDateRangePreset.TODAY, startOfToday.toEpochMillis()..nowMillis),
+		MapDateRangePresetOption(
+			MapDateRangePreset.YESTERDAY,
+			startOfYesterday.toEpochMillis()..startOfToday.toEpochMillis(),
+		),
+		MapDateRangePresetOption(MapDateRangePreset.THIS_WEEK, startOfThisWeek.toEpochMillis()..nowMillis),
+		MapDateRangePresetOption(
+			MapDateRangePreset.LAST_WEEK,
+			startOfLastWeek.toEpochMillis()..startOfThisWeek.toEpochMillis(),
+		),
+		MapDateRangePresetOption(
+			MapDateRangePreset.LAST_MONTH,
+			startOfLastMonth.toEpochMillis()..startOfThisMonth.toEpochMillis(),
+		),
+		MapDateRangePresetOption(MapDateRangePreset.ALL_TIME, 0L..Long.MAX_VALUE),
+	)
+}
+
+internal fun matchingMapDateRangePreset(
+	range: LongRange,
+	nowMillis: Long = System.currentTimeMillis(),
+	zoneId: ZoneId = ZoneId.systemDefault(),
+): MapDateRangePreset? {
+	val options = mapDateRangePresetOptions(nowMillis, zoneId)
+	val optionByPreset = options.associateBy { it.preset }
+	val today = optionByPreset.getValue(MapDateRangePreset.TODAY).range
+	val yesterday = optionByPreset.getValue(MapDateRangePreset.YESTERDAY).range
+	val thisWeek = optionByPreset.getValue(MapDateRangePreset.THIS_WEEK).range
+	val lastWeek = optionByPreset.getValue(MapDateRangePreset.LAST_WEEK).range
+	val lastMonth = optionByPreset.getValue(MapDateRangePreset.LAST_MONTH).range
+	val allTime = optionByPreset.getValue(MapDateRangePreset.ALL_TIME).range
+
+	return when {
+		range == allTime -> MapDateRangePreset.ALL_TIME
+		range.first == today.first && range.last in today.first..nowMillis -> MapDateRangePreset.TODAY
+		range == yesterday -> MapDateRangePreset.YESTERDAY
+		range.first == thisWeek.first && range.last in thisWeek.first..nowMillis -> MapDateRangePreset.THIS_WEEK
+		range == lastWeek -> MapDateRangePreset.LAST_WEEK
+		range == lastMonth -> MapDateRangePreset.LAST_MONTH
+		else -> null
+	}
+}
+
+private fun ZonedDateTime.startOfLocalDay(): ZonedDateTime = toLocalDate().atStartOfDay(zone)
+
+private fun ZonedDateTime.toEpochMillis(): Long = toInstant().toEpochMilli()
 
 /**
  * Popover for date-range presets. Opens from the Dates chip; the custom range picker
@@ -89,47 +171,29 @@ internal fun DateRangePopover(
 					)
 
 					val now = remember { System.currentTimeMillis() }
-					val oneWeekMs = 7L * 24 * 60 * 60 * 1000
-					val oneMonthMs = 30L * 24 * 60 * 60 * 1000
-					val isAllTime = currentRange.first == 0L && currentRange.last == Long.MAX_VALUE
-					val isLastWeek = !isAllTime && currentRange.first >= now - oneWeekMs
-					val isLastMonth = !isAllTime &&
-						currentRange.first >= now - oneMonthMs &&
-						currentRange.first < now - oneWeekMs
-					val isCustom = !isAllTime && !isLastWeek && !isLastMonth
+					val presetOptions = remember(now) { mapDateRangePresetOptions(now) }
+					val selectedPreset = remember(currentRange, now) {
+						matchingMapDateRangePreset(currentRange, now)
+					}
+					val isAllTime = selectedPreset == MapDateRangePreset.ALL_TIME
+					val isCustom = selectedPreset == null
 
 					FlowRow(
 						horizontalArrangement = Arrangement.spacedBy(8.dp),
 						verticalArrangement = Arrangement.spacedBy(8.dp),
 						modifier = Modifier.fillMaxWidth(),
 					) {
-						FilterChip(
-							selected = isAllTime,
-							onClick = {
-								onSetRange(0L..Long.MAX_VALUE)
-								onDismiss()
-							},
-							label = { Text(stringResource(R.string.map_date_range_all_time)) },
-							shape = MaterialTheme.shapes.medium,
-						)
-						FilterChip(
-							selected = isLastWeek,
-							onClick = {
-								onSetRange((now - oneWeekMs)..now)
-								onDismiss()
-							},
-							label = { Text(stringResource(R.string.map_date_preset_week)) },
-							shape = MaterialTheme.shapes.medium,
-						)
-						FilterChip(
-							selected = isLastMonth,
-							onClick = {
-								onSetRange((now - oneMonthMs)..now)
-								onDismiss()
-							},
-							label = { Text(stringResource(R.string.map_date_preset_month)) },
-							shape = MaterialTheme.shapes.medium,
-						)
+						presetOptions.forEach { option ->
+							FilterChip(
+								selected = selectedPreset == option.preset,
+								onClick = {
+									onSetRange(option.range)
+									onDismiss()
+								},
+								label = { Text(stringResource(option.preset.labelRes)) },
+								shape = MaterialTheme.shapes.medium,
+							)
+						}
 						FilterChip(
 							selected = isCustom,
 							onClick = {

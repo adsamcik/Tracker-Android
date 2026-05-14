@@ -5,8 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,11 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,9 +48,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 /**
  * Popover summoned from the Layers chip on the map control bar. Shows layers as a
  * 2-column grid of full-width tiles so every option has a comfortable 56dp tap target
- * and no title ever truncates. A segmented row for render detail sits below the grid —
- * it's the only place this infrequent setting is surfaced on the map, so it lives with
- * the layers it affects rather than in its own panel.
+ * and no title ever truncates. Heatmap render quality is intentionally owned by the
+ * separate Quality chip so this list stays focused on overlay selection.
  *
  * Dismissal: tap the scrim or press back.
  */
@@ -61,10 +58,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 internal fun LayerPickerPopover(
 	layers: List<LayerDescriptor>,
 	activeLayerIds: ImmutableSet<String>,
-	quality: Float,
 	activeLegend: ImmutableList<LegendItem>,
 	onLayerSelected: (String) -> Unit,
-	onQualityChange: (Float) -> Unit,
 	onDismiss: () -> Unit,
 ) {
 	Popup(
@@ -129,10 +124,6 @@ internal fun LayerPickerPopover(
 						LegendStrip(activeLegend)
 					}
 
-					QualityRow(
-						quality = quality,
-						onQualityChange = onQualityChange,
-					)
 				}
 			}
 		}
@@ -265,37 +256,91 @@ private fun LegendStrip(legend: ImmutableList<LegendItem>) {
 	}
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QualityRow(
+internal fun QualityPickerPopover(
 	quality: Float,
 	onQualityChange: (Float) -> Unit,
+	onDismiss: () -> Unit,
+) {
+	Popup(
+		onDismissRequest = onDismiss,
+		properties = PopupProperties(
+			focusable = true,
+			dismissOnBackPress = true,
+			dismissOnClickOutside = true,
+		),
+	) {
+		val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.fillMaxHeight()
+				.background(Color.Black.copy(alpha = 0.32f))
+				.clickable(onClick = onDismiss),
+			contentAlignment = Alignment.BottomCenter,
+		) {
+			Surface(
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(
+						start = 16.dp,
+						end = 16.dp,
+						bottom = navBarInset + 128.dp,
+					)
+					.clickable(enabled = false, onClick = {}),
+				shape = RoundedCornerShape(28.dp),
+				color = MaterialTheme.colorScheme.surfaceContainerHigh,
+				tonalElevation = 4.dp,
+				shadowElevation = 3.dp,
+			) {
+				QualityOptions(
+					quality = quality,
+					onQualityChange = {
+						onQualityChange(it)
+						onDismiss()
+					},
+					modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+				)
+			}
+		}
+	}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QualityOptions(
+	quality: Float,
+	onQualityChange: (Float) -> Unit,
+	modifier: Modifier = Modifier,
 ) {
 	val options = remember {
 		listOf(
-			"Fast" to 0.5f,
-			"Balanced" to 1.0f,
-			"Detailed" to 2.0f,
+			R.string.map_quality_fast to 0.5f,
+			R.string.map_quality_balanced to 1.0f,
+			R.string.map_quality_detailed to 2.0f,
 		)
 	}
-	Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+	Column(
+		modifier = modifier,
+		verticalArrangement = Arrangement.spacedBy(10.dp),
+	) {
 		Text(
 			text = stringResource(R.string.map_quality_label),
-			style = MaterialTheme.typography.labelMedium,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			style = MaterialTheme.typography.titleMedium,
+			fontWeight = FontWeight.Bold,
 		)
-		SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-			options.forEachIndexed { index, (label, value) ->
-				SegmentedButton(
+		FlowRow(
+			horizontalArrangement = Arrangement.spacedBy(8.dp),
+			verticalArrangement = Arrangement.spacedBy(8.dp),
+			modifier = Modifier.fillMaxWidth(),
+		) {
+			options.forEach { (labelRes, value) ->
+				FilterChip(
 					selected = quality == value,
 					onClick = { onQualityChange(value) },
-					shape = SegmentedButtonDefaults.itemShape(
-						index = index,
-						count = options.size,
-					),
-				) {
-					Text(label)
-				}
+					label = { Text(stringResource(labelRes)) },
+					shape = MaterialTheme.shapes.medium,
+				)
 			}
 		}
 	}

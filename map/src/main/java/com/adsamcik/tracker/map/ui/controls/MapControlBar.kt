@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,9 +78,13 @@ internal fun MapChromeBar(
 	onSearchFocusChange: (Boolean) -> Unit,
 	activeLayerLabel: String,
 	onLayersClick: () -> Unit,
+	showQualityChip: Boolean,
+	qualityLabel: String,
+	onQualityClick: () -> Unit,
 	dateRangeLabel: String,
 	onDatesClick: () -> Unit,
 	layersExpanded: Boolean,
+	qualityExpanded: Boolean,
 	datesExpanded: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -104,9 +109,13 @@ internal fun MapChromeBar(
 			ContextualChipsRow(
 				activeLayerLabel = activeLayerLabel,
 				onLayersClick = onLayersClick,
+				showQualityChip = showQualityChip,
+				qualityLabel = qualityLabel,
+				onQualityClick = onQualityClick,
 				dateRangeLabel = dateRangeLabel,
 				onDatesClick = onDatesClick,
 				layersExpanded = layersExpanded,
+				qualityExpanded = qualityExpanded,
 				datesExpanded = datesExpanded,
 				modifier = Modifier
 					.fillMaxWidth()
@@ -132,9 +141,13 @@ internal fun MapChromeBar(
 private fun ContextualChipsRow(
 	activeLayerLabel: String,
 	onLayersClick: () -> Unit,
+	showQualityChip: Boolean,
+	qualityLabel: String,
+	onQualityClick: () -> Unit,
 	dateRangeLabel: String,
 	onDatesClick: () -> Unit,
 	layersExpanded: Boolean,
+	qualityExpanded: Boolean,
 	datesExpanded: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -143,6 +156,7 @@ private fun ContextualChipsRow(
 		horizontalArrangement = Arrangement.spacedBy(8.dp),
 	) {
 		val layersA11y = stringResource(R.string.map_chip_layers) + ", " + activeLayerLabel
+		val qualityA11y = stringResource(R.string.map_quality_label) + ", " + qualityLabel
 		val datesA11y = stringResource(R.string.map_chip_dates) + ", " + dateRangeLabel
 		ContextualChip(
 			icon = Icons.Filled.Layers,
@@ -150,15 +164,30 @@ private fun ContextualChipsRow(
 			contentDescription = layersA11y,
 			expanded = layersExpanded,
 			onClick = onLayersClick,
-			modifier = Modifier.weight(1f),
+			modifier = Modifier
+				.weight(1f)
+				.testTag("map_layer_picker_chip"),
 		)
+		if (showQualityChip) {
+			QualityContextualChip(
+				value = qualityLabel,
+				contentDescription = qualityA11y,
+				expanded = qualityExpanded,
+				onClick = onQualityClick,
+				modifier = Modifier
+					.weight(0.9f)
+					.testTag("map_quality_picker_chip"),
+			)
+		}
 		ContextualChip(
 			icon = Icons.Filled.DateRange,
 			value = dateRangeLabel,
 			contentDescription = datesA11y,
 			expanded = datesExpanded,
 			onClick = onDatesClick,
-			modifier = Modifier.weight(1f),
+			modifier = Modifier
+				.weight(1f)
+				.testTag("map_date_picker_chip"),
 		)
 	}
 }
@@ -210,6 +239,59 @@ private fun ContextualChip(
 				contentDescription = null,
 				modifier = Modifier.size(20.dp),
 			)
+			Text(
+				text = value,
+				style = MaterialTheme.typography.titleSmall,
+				fontWeight = FontWeight.Bold,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+				modifier = Modifier.weight(1f),
+			)
+			Icon(
+				imageVector = Icons.Filled.ArrowDropDown,
+				contentDescription = null,
+				modifier = Modifier.size(20.dp),
+			)
+		}
+	}
+}
+
+@Composable
+private fun QualityContextualChip(
+	value: String,
+	contentDescription: String,
+	expanded: Boolean,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val containerColor = if (expanded) {
+		MaterialTheme.colorScheme.primaryContainer
+	} else {
+		MaterialTheme.colorScheme.surfaceContainerHighest
+	}
+	val contentColor = if (expanded) {
+		MaterialTheme.colorScheme.onPrimaryContainer
+	} else {
+		MaterialTheme.colorScheme.onSurface
+	}
+	Surface(
+		modifier = modifier
+			.height(44.dp)
+			.semantics(mergeDescendants = true) {
+				this.contentDescription = contentDescription
+			},
+		onClick = onClick,
+		shape = RoundedCornerShape(22.dp),
+		color = containerColor,
+		contentColor = contentColor,
+		tonalElevation = 0.dp,
+		shadowElevation = 0.dp,
+	) {
+		Row(
+			modifier = Modifier.padding(start = 14.dp, end = 10.dp),
+			verticalAlignment = Alignment.CenterVertically,
+			horizontalArrangement = Arrangement.spacedBy(8.dp),
+		) {
 			Text(
 				text = value,
 				style = MaterialTheme.typography.titleSmall,
@@ -289,7 +371,8 @@ private fun SearchRow(
 					modifier = Modifier
 						.fillMaxWidth()
 						.focusRequester(focusRequester)
-						.onFocusChanged { state -> onFocusChange(state.isFocused) },
+						.onFocusChanged { state -> onFocusChange(state.isFocused) }
+						.testTag("map_search_field"),
 					singleLine = true,
 					textStyle = MaterialTheme.typography.bodyLarge,
 					placeholder = {
@@ -320,7 +403,9 @@ private fun SearchRow(
 			) {
 				IconButton(
 					onClick = onPaste,
-					modifier = Modifier.size(48.dp),
+					modifier = Modifier
+						.size(48.dp)
+						.testTag("map_search_paste_button"),
 				) {
 					Icon(
 						imageVector = Icons.Filled.ContentPaste,
