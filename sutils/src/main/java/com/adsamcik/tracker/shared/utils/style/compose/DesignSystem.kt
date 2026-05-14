@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -234,7 +235,7 @@ fun PrimaryActionButton(
     Surface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 48.dp),
         shape = MomentumPillShape,
         color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
         contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -249,7 +250,7 @@ fun PrimaryActionButton(
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(end = RidgelineSpacing.Sm))
                 }
                 Text(
-                    text = text.uppercase(),
+                    text = text,
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
