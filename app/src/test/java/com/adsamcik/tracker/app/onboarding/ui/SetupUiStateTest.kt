@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.onboarding.ui
 
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
+import com.adsamcik.tracker.app.onboarding.data.AutoTrackingMode
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -55,37 +56,37 @@ class SetupUiStateTest {
 
         @Test
         fun `activity permission needed when auto-tracking on foot`() {
-            val state = SetupUiState(autoTrackingMode = 1, activityEnabled = false)
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.OnFoot, activityEnabled = false)
             assertTrue(state.needsActivityPermission)
         }
 
         @Test
         fun `activity permission needed when activity tracking enabled`() {
-            val state = SetupUiState(autoTrackingMode = 0, activityEnabled = true)
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.Disabled, activityEnabled = true)
             assertTrue(state.needsActivityPermission)
         }
 
         @Test
         fun `activity permission not needed when both disabled`() {
-            val state = SetupUiState(autoTrackingMode = 0, activityEnabled = false)
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.Disabled, activityEnabled = false)
             assertFalse(state.needsActivityPermission)
         }
 
         @Test
-        fun `background location needed when auto-tracking enabled and location on`() {
-            val state = SetupUiState(autoTrackingMode = 1, locationEnabled = true)
+        fun `background location needed when in-motion auto-tracking enabled and location on`() {
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.InMotion, locationEnabled = true)
             assertTrue(state.needsBackgroundLocationPermission)
         }
 
         @Test
         fun `background location not needed when auto-tracking disabled`() {
-            val state = SetupUiState(autoTrackingMode = 0, locationEnabled = true)
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.Disabled, locationEnabled = true)
             assertFalse(state.needsBackgroundLocationPermission)
         }
 
         @Test
         fun `background location not needed when location disabled`() {
-            val state = SetupUiState(autoTrackingMode = 2, locationEnabled = false)
+            val state = SetupUiState(autoTrackingMode = AutoTrackingMode.InMotion, locationEnabled = false)
             assertFalse(state.needsBackgroundLocationPermission)
         }
     }
@@ -100,13 +101,13 @@ class SetupUiStateTest {
         }
 
         @Test
-        fun `default auto-tracking is on-foot`() {
-            assertEquals(1, SetupUiState().autoTrackingMode)
+        fun `default auto-tracking is disabled`() {
+            assertEquals(AutoTrackingMode.Disabled, SetupUiState().autoTrackingMode)
         }
 
         @Test
-        fun `default preset is balanced`() {
-            assertEquals(TrackingPolicyPreset.BALANCED, SetupUiState().trackingPreset)
+        fun `default preset is battery saver`() {
+            assertEquals(TrackingPolicyPreset.BATTERY_SAVER, SetupUiState().trackingPreset)
         }
 
         @Test

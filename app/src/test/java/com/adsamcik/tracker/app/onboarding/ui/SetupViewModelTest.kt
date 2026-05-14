@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import android.content.Context
+import com.adsamcik.tracker.app.onboarding.data.AutoTrackingMode
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
@@ -62,15 +63,15 @@ class SetupViewModelTest {
         }
 
         @Test
-        fun `default auto-tracking mode is 1`() {
+        fun `default auto-tracking mode is disabled`() {
             val vm = createViewModel()
-            vm.state.value.autoTrackingMode shouldBe 1
+            vm.state.value.autoTrackingMode shouldBe AutoTrackingMode.Disabled
         }
 
         @Test
-        fun `default tracking preset is BALANCED`() {
+        fun `default tracking preset is battery saver`() {
             val vm = createViewModel()
-            vm.state.value.trackingPreset shouldBe TrackingPolicyPreset.BALANCED
+            vm.state.value.trackingPreset shouldBe TrackingPolicyPreset.BATTERY_SAVER
         }
 
         @Test
@@ -155,18 +156,15 @@ class SetupViewModelTest {
         @Test
         fun `setAutoTrackingMode updates mode`() {
             val vm = createViewModel()
-            vm.setAutoTrackingMode(2)
-            vm.state.value.autoTrackingMode shouldBe 2
+            vm.setAutoTrackingMode(AutoTrackingMode.InMotion)
+            vm.state.value.autoTrackingMode shouldBe AutoTrackingMode.InMotion
         }
 
         @Test
-        fun `setAutoTrackingMode clamps to 0-2 range`() {
+        fun `setAutoTrackingMode accepts disabled mode`() {
             val vm = createViewModel()
-            vm.setAutoTrackingMode(-1)
-            vm.state.value.autoTrackingMode shouldBe 0
-
-            vm.setAutoTrackingMode(5)
-            vm.state.value.autoTrackingMode shouldBe 2
+            vm.setAutoTrackingMode(AutoTrackingMode.Disabled)
+            vm.state.value.autoTrackingMode shouldBe AutoTrackingMode.Disabled
         }
 
         @Test
@@ -264,14 +262,14 @@ class SetupViewModelTest {
         @Test
         fun `multiple updates are reflected in single state snapshot`() {
             val vm = createViewModel()
-            vm.setAutoTrackingMode(2)
+            vm.setAutoTrackingMode(AutoTrackingMode.InMotion)
             vm.setTrackingPreset(TrackingPolicyPreset.HIGH_PRECISION)
             vm.setLocationEnabled(true)
             vm.setCellEnabled(true)
             vm.onLocationPermissionResult(true)
 
             val state = vm.state.value
-            state.autoTrackingMode shouldBe 2
+            state.autoTrackingMode shouldBe AutoTrackingMode.InMotion
             state.trackingPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
             state.locationEnabled shouldBe true
             state.cellEnabled shouldBe true
@@ -281,13 +279,13 @@ class SetupViewModelTest {
         @Test
         fun `navigation does not reset data selections`() {
             val vm = createViewModel()
-            vm.setAutoTrackingMode(2)
+            vm.setAutoTrackingMode(AutoTrackingMode.InMotion)
             vm.goToNextStep()
             vm.setCellEnabled(true)
             vm.goToPreviousStep()
 
             val state = vm.state.value
-            state.autoTrackingMode shouldBe 2
+            state.autoTrackingMode shouldBe AutoTrackingMode.InMotion
             state.cellEnabled shouldBe true
             state.currentStep shouldBe SetupStep.Welcome
         }

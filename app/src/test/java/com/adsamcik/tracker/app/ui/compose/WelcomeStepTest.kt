@@ -1,14 +1,11 @@
 package com.adsamcik.tracker.app.ui.compose
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.app.onboarding.ui.steps.WelcomeStep
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,24 +20,12 @@ class WelcomeStepTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun displaysGetStartedButton() {
+    fun displaysWelcomeContent() {
+        // Note: the CTA ("Get Started") was moved out of WelcomeStep into SetupScaffold's
+        // bottomBar slot during the SYS-2 layout-overlay fix. WelcomeStep is now content-only.
         composeTestRule.setContent {
-            AppTheme { WelcomeStep(onGetStarted = {}) }
+            AppTheme { WelcomeStep(contentPadding = PaddingValues()) }
         }
-        composeTestRule.onNodeWithTag("setup_cta_get_started")
-            .performScrollTo()
-            .assertIsDisplayed()
-    }
-
-    @Test
-    fun clickGetStarted_callsCallback() {
-        var called = false
-        composeTestRule.setContent {
-            AppTheme { WelcomeStep(onGetStarted = { called = true }) }
-        }
-        composeTestRule.onNodeWithTag("setup_cta_get_started")
-            .performScrollTo()
-            .performClick()
-        called shouldBe true
+        composeTestRule.onNodeWithText("Track Your Journeys Privately").assertIsDisplayed()
     }
 }

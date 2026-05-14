@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsPropertiesAndroid
+import androidx.compose.ui.semantics.semantics
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -74,7 +76,13 @@ class MainActivityCompose : ComponentActivity() {
             handleDeepNavigation(intent)
         }
 
-        setContent { ComposeRoot(viewModel) }
+        setContent {
+            // Propagate Compose testTag values to Android View resource-id so external
+            // automation (UIAutomator / MCP) can find them via By.res(...). See QC SYS-3.
+            Box(Modifier.semantics { set(SemanticsPropertiesAndroid.TestTagsAsResourceId, true) }) {
+                ComposeRoot(viewModel)
+            }
+        }
 
         val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 

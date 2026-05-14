@@ -1,10 +1,11 @@
 package com.adsamcik.tracker.app.ui.compose
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.adsamcik.tracker.app.onboarding.data.AutoTrackingMode
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -22,56 +23,42 @@ class HowToTrackStepTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    @Test
-    fun displaysContinueButton() {
-        composeTestRule.setContent {
-            AppTheme {
-                HowToTrackStep(
-                    autoTrackingMode = 1,
-                    trackingPreset = TrackingPolicyPreset.BALANCED,
-                    onAutoTrackingModeChange = {},
-                    onPresetChange = {},
-                    onContinue = {},
-                )
-            }
-        }
-        composeTestRule.onNodeWithTag("setup_cta_how_to_track").assertIsDisplayed()
-    }
+    // Note: the CONTINUE CTA was moved out of HowToTrackStep into SetupScaffold's bottomBar
+    // slot during the SYS-2 layout-overlay fix. HowToTrackStep is now content-only.
 
     @Test
-    fun clickContinue_callsCallback() {
-        var called = false
+    fun displaysAutoTrackingRadioCards() {
         composeTestRule.setContent {
             AppTheme {
                 HowToTrackStep(
-                    autoTrackingMode = 1,
+                    autoTrackingMode = AutoTrackingMode.OnFoot,
                     trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = {},
                     onPresetChange = {},
-                    onContinue = { called = true },
+                    contentPadding = PaddingValues(),
                 )
             }
         }
-        composeTestRule.onNodeWithTag("setup_cta_how_to_track").performClick()
-        called shouldBe true
+        composeTestRule.onNodeWithTag("auto_tracking_disabled_card").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("auto_tracking_on_foot_card").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("auto_tracking_in_motion_card").assertIsDisplayed()
     }
 
     @Test
     fun autoTrackingModeChange_callsCallback() {
-        var newMode: Int? = null
+        var newMode: AutoTrackingMode? = null
         composeTestRule.setContent {
             AppTheme {
                 HowToTrackStep(
-                    autoTrackingMode = 1,
+                    autoTrackingMode = AutoTrackingMode.OnFoot,
                     trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = { newMode = it },
                     onPresetChange = {},
-                    onContinue = {},
+                    contentPadding = PaddingValues(),
                 )
             }
         }
-        // The first card (mode 0) has the "Disabled" text from string resource
-        // We tap it to select mode 0
-        composeTestRule.onNodeWithTag("setup_cta_how_to_track").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("auto_tracking_disabled_card").performClick()
+        newMode shouldBe AutoTrackingMode.Disabled
     }
 }

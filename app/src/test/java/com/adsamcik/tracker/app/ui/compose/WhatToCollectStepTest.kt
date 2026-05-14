@@ -1,14 +1,12 @@
 package com.adsamcik.tracker.app.ui.compose
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithText
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
-import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,32 +20,13 @@ class WhatToCollectStepTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    @Test
-    fun displaysCompleteButton() {
-        composeTestRule.setContent {
-            AppTheme {
-                WhatToCollectStep(
-                    state = SetupUiState(),
-                    onLocationEnabledChange = {},
-                    onLocationPrecisionChange = {},
-                    onActivityEnabledChange = {},
-                    onStepsEnabledChange = {},
-                    onWifiEnabledChange = {},
-                    onCellEnabledChange = {},
-                    onLocationPermissionResult = {},
-                    onBackgroundLocationResult = {},
-                    onActivityPermissionResult = {},
-                    onNotificationPermissionResult = {},
-                    onComplete = {},
-                )
-            }
-        }
-        composeTestRule.onNodeWithTag("setup_cta_complete").assertIsDisplayed()
-    }
+    // Note: the START EXPLORING CTA was moved out of WhatToCollectStep into SetupScaffold's
+    // bottomBar slot during the SYS-2 layout-overlay fix. WhatToCollectStep is now content-only.
+    // Permission-result callbacks now carry per-permission Boolean tuples (e.g. fine+coarse+
+    // background) and onPermissionStateHydrated is invoked on lifecycle resume per S3-F2 fix.
 
     @Test
-    fun clickComplete_callsCallback() {
-        var called = false
+    fun displaysSourcesContent() {
         composeTestRule.setContent {
             AppTheme {
                 WhatToCollectStep(
@@ -58,15 +37,15 @@ class WhatToCollectStepTest {
                     onStepsEnabledChange = {},
                     onWifiEnabledChange = {},
                     onCellEnabledChange = {},
-                    onLocationPermissionResult = {},
-                    onBackgroundLocationResult = {},
-                    onActivityPermissionResult = {},
+                    onLocationPermissionResult = { _, _, _ -> },
+                    onBackgroundLocationResult = { _, _ -> },
+                    onActivityPermissionResult = { _, _ -> },
                     onNotificationPermissionResult = {},
-                    onComplete = { called = true },
+                    onPermissionStateHydrated = {},
+                    contentPadding = PaddingValues(),
                 )
             }
         }
-        composeTestRule.onNodeWithTag("setup_cta_complete").performClick()
-        called shouldBe true
+        composeTestRule.onNodeWithText("Location").assertIsDisplayed()
     }
 }
