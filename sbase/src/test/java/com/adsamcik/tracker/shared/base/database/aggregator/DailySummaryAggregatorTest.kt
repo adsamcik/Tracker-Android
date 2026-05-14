@@ -2,10 +2,12 @@ package com.adsamcik.tracker.shared.base.database.aggregator
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.TimeZone
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -70,7 +72,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayCreatesRowFromSingleSegment() = runBlocking {
 		val epochDay = 19000L
-		val startMs = epochDay * Time.DAY_IN_MILLISECONDS + 1000L
+		val startMs = startOfDayMs(epochDay) + 1000L
 		val endMs = startMs + 3600_000L
 
 		database.sessionSegmentDao().insert(
@@ -95,7 +97,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayAggregatesMultipleSegments() = runBlocking {
 		val epochDay = 19000L
-		val dayStartMs = epochDay * Time.DAY_IN_MILLISECONDS
+		val dayStartMs = startOfDayMs(epochDay)
 
 		// Session 1: morning walk
 		database.sessionSegmentDao().insert(
@@ -130,7 +132,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayIsIdempotent() = runBlocking {
 		val epochDay = 19000L
-		val startMs = epochDay * Time.DAY_IN_MILLISECONDS + 1000L
+		val startMs = startOfDayMs(epochDay) + 1000L
 
 		database.sessionSegmentDao().insert(
 			createSegment(
@@ -155,7 +157,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayExcludesSegmentsFromOtherDays() = runBlocking {
 		val epochDay = 19000L
-		val dayStartMs = epochDay * Time.DAY_IN_MILLISECONDS
+		val dayStartMs = startOfDayMs(epochDay)
 
 		// Segment in target day
 		database.sessionSegmentDao().insert(
@@ -189,7 +191,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayHandlesNullSteps() = runBlocking {
 		val epochDay = 19000L
-		val startMs = epochDay * Time.DAY_IN_MILLISECONDS + 1000L
+		val startMs = startOfDayMs(epochDay) + 1000L
 
 		database.sessionSegmentDao().insert(
 			createSegment(
@@ -211,7 +213,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayUpdatesExistingRow() = runBlocking {
 		val epochDay = 19000L
-		val dayStartMs = epochDay * Time.DAY_IN_MILLISECONDS
+		val dayStartMs = startOfDayMs(epochDay)
 
 		// First segment
 		database.sessionSegmentDao().insert(
@@ -248,7 +250,7 @@ class DailySummaryAggregatorTest {
 	@Test
 	fun materializeDayPreservesActiveTrackingMs() = runBlocking {
 		val epochDay = 19000L
-		val dayStartMs = epochDay * Time.DAY_IN_MILLISECONDS
+		val dayStartMs = startOfDayMs(epochDay)
 
 		// Pre-populate with existing active tracking time
 		database.dailySummaryDao().upsert(
@@ -277,5 +279,47 @@ class DailySummaryAggregatorTest {
 		assertNotNull(result)
 		assertEquals(2000f, result!!.totalDistanceM)
 		assertEquals(7200_000L, result.activeTrackingMs)
+	}
+
+	@Test
+	fun materializeTodayIncludesTodaySessionInWeeklySummaryForPositiveOffsetTimeZone() = runBlocking {
+		val originalTimeZone = TimeZone.getDefault()
+		try {
+			val pragueZone = ZoneId.of("Europe/Prague")
+			TimeZone.setDefault(TimeZone.getTimeZone(pragueZone))
+			val today = LocalDate.now(pragueZone)
+			val todayEpochDay = today.toEpochDay()
+			val startMs = today
+				.atStartOfDay(pragueZone)
+				.plusHours(11)
+				.toInstant()
+				.toEpochMilli()
+
+			database.sessionSegmentDao().insert(
+				createSegment(
+					startTimeMs = startMs,
+					endTimeMs = startMs + 15_000L,
+					distanceM = 5100f,
+					steps = 0,
+				)
+			)
+
+			aggregator.materializeToday()
+
+			val weeklyDistance = database.dailySummaryDao()
+				.getBetween(todayEpochDay - 6, todayEpochDay)
+				.sumOf { it.totalDistanceM.toDouble() }
+				.toFloat()
+			assertEquals(5100f, weeklyDistance)
+		} finally {
+			TimeZone.setDefault(originalTimeZone)
+		}
+	}
+
+	private fun startOfDayMs(epochDay: Long): Long {
+		return LocalDate.ofEpochDay(epochDay)
+			.atStartOfDay(ZoneId.systemDefault())
+			.toInstant()
+			.toEpochMilli()
 	}
 }

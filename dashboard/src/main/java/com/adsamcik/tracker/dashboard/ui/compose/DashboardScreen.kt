@@ -204,6 +204,9 @@ internal fun DashboardScreen(
 			when (state.dashboardMode) {
 				DashboardMode.EMPTY -> EmptyStateContent(
 					bottomClearance = bottomClearance,
+					onSettingsClick = onSettingsClick,
+					onMapClick = onMapClick,
+					onGameClick = onGameClick,
 					onToggleTracking = wrappedToggle,
 					onRequestPermission = wrappedPermission,
 					isTracking = state.isTracking,
@@ -245,29 +248,47 @@ internal fun DashboardScreen(
 @Composable
 private fun EmptyStateContent(
 	bottomClearance: Dp,
+	onSettingsClick: () -> Unit,
+	onMapClick: () -> Unit,
+	onGameClick: (() -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	isTracking: Boolean,
 	hasPermission: Boolean,
 	modifier: Modifier = Modifier,
 ) {
+	val startTrackingAction = if (hasPermission) onToggleTracking else onRequestPermission
+
 	LazyColumn(
 		modifier = modifier.fillMaxSize(),
 		contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomClearance),
 		verticalArrangement = Arrangement.spacedBy(16.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
-		item { EmptyStateCard() }
+		item {
+			EmptyStateCard(
+				onExploreClick = onMapClick,
+				onAchieveClick = onGameClick ?: {},
+				onTrackClick = startTrackingAction,
+				onPrivacyClick = onSettingsClick,
+			)
+		}
 		// Put the start-tracking CTA right below the hero so the primary action is reachable
 		// without scrolling. GettingStartedCard is informational detail that can live below
 		// the fold.
 		item {
 			EmptyStateStartHintCard(
-				onStart = if (hasPermission) onToggleTracking else onRequestPermission,
+				onStart = startTrackingAction,
 				hasPermission = hasPermission,
 			)
 		}
-		item { GettingStartedCard() }
+		item {
+			GettingStartedCard(
+				onChooseTrackingStyleClick = onSettingsClick,
+				onStartFirstTrackClick = startTrackingAction,
+				onReviewMapsAndStatsClick = onMapClick,
+			)
+		}
 	}
 }
 

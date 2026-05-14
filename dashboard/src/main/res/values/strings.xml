@@ -142,7 +142,7 @@
     <string name="dashboard_empty_step_customize_title">Choose your tracking style</string>
     <string name="dashboard_empty_step_customize_desc">Open Settings any time to adjust presets, battery use, and the sensors you want to record.</string>
     <string name="dashboard_empty_step_start_title">Start your first track</string>
-    <string name="dashboard_empty_step_start_desc">Tap the floating action button to begin a walk, run, ride, or background tracking session.</string>
+    <string name="dashboard_empty_step_start_desc">Tap \'Ready when you are\' above to begin a walk, run, ride, or background tracking session.</string>
     <string name="dashboard_empty_step_review_title">Review maps and stats</string>
     <string name="dashboard_empty_step_review_desc">After your first session, the Dashboard, Map, and Statistics tabs will fill with recent activity and insights.</string>
     <string name="dashboard_empty_fab_hint_title">Ready when you are</string>
