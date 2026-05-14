@@ -296,15 +296,15 @@ fun MainRoot(
     } == true
     val effectiveRouteObj = currentRouteObj ?: navItems.find { it.id == lastTopLevelRoute }
     val isDashboard = effectiveRouteObj?.id == Dashboard
-    val isMap = effectiveRouteObj?.id == Map
     // Tabs whose screens render their own Settings action in the TopAppBar — skip the
     // global overlay gear for them to avoid the duplicate-icon UX bug.
     val isGame = effectiveRouteObj?.id == Game
     val navigationLayout = rememberMainNavigationLayout()
     val useSideRail = navigationLayout == MainNavigationLayout.SideRail && !hideTopLevelNavigation && effectiveRouteObj != null
+    val showBottomNavigation = !hideTopLevelNavigation && effectiveRouteObj != null && !useSideRail
     // 72 bar + 24 padding above bar = 96dp; add system nav-bar inset so content clears gesture handle on gesture-nav devices.
     val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomPadding = if (useSideRail || isMap || isDashboard) 0.dp else 96.dp + navBarInset
+    val bottomPadding = if (showBottomNavigation) 96.dp + navBarInset else 0.dp
 
     fun openSettings(origin: AppRoute) {
         settingsLaunchNonce += 1
@@ -403,7 +403,7 @@ fun MainRoot(
                 }
             }
 
-            if (!hideTopLevelNavigation && effectiveRouteObj != null && !useSideRail) {
+            if (showBottomNavigation) {
                 FloatingNavigationBar(
                     items = navItems,
                     selectedItem = effectiveRouteObj,

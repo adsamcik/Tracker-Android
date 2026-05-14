@@ -209,7 +209,8 @@ private fun FloatingNavItem(
                 role = Role.Tab
             )
             .semantics(mergeDescendants = true) {
-                contentDescription = item.contentDescription
+                // Do not set contentDescription here: the inner Text already exposes the
+                // tab label and would otherwise be announced twice ("Home, Home"). See QC S4-F6.
                 if (item.stateDescription != null) {
                     this.stateDescription = item.stateDescription
                 }
