@@ -2,6 +2,7 @@ package com.adsamcik.tracker.statistics.presenter
 
 import androidx.lifecycle.SavedStateHandle
 import arrow.core.right
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
@@ -74,7 +75,15 @@ class TripDetailPresenterViewModelTest {
 		)
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
 		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
-		coEvery { locationSampleRepository.getSamplesBetween(TRIP_START_MS, TRIP_END_MS) } returns persistedSamples
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(
+				fromMs = TRIP_START_MS,
+				toMs = TRIP_END_MS,
+				afterTimeMs = null,
+				afterId = null,
+				limit = any(),
+			)
+		} returns persistedSamples
 		coEvery { skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, TRIP_END_MS) } returns emptyList()
 
 		val viewModel = createViewModel()
@@ -82,9 +91,20 @@ class TripDetailPresenterViewModelTest {
 
 		advanceUntilIdle()
 
-		viewModel.insights.value.routePoints shouldBe persistedSamples
+		val expectedRoutePoints = listOf(
+			LatLngModel(50.0, 14.0),
+			LatLngModel(50.01, 14.01),
+			LatLngModel(50.02, 14.02),
+		)
+		viewModel.insights.value.routePoints shouldBe expectedRoutePoints
 		coVerify(exactly = 1) {
-			locationSampleRepository.getSamplesBetween(TRIP_START_MS, TRIP_END_MS)
+			locationSampleRepository.getOrderedChunkBetween(
+				fromMs = TRIP_START_MS,
+				toMs = TRIP_END_MS,
+				afterTimeMs = null,
+				afterId = null,
+				limit = any(),
+			)
 		}
 		stateCollector.cancel()
 	}
