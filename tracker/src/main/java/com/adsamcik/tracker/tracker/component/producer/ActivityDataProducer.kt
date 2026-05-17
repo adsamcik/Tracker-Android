@@ -8,15 +8,20 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.flow.map
 
-internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) :
-		TrackerDataProducerComponent(
-				changeReceiver
-		) {
+internal class ActivityDataProducer(
+	changeReceiver: TrackerDataProducerObserver,
+	trackingParamsRepository: TrackingParamsRepository? = null,
+) : TrackerDataProducerComponent(
+	changeReceiver,
+	enabledFlow = trackingParamsRepository?.data?.map { it.activityEnabled },
+) {
 	override val preferenceKey: String
 		get() = PreferenceKeys.ACTIVITY_ENABLED
 	override val preferenceDefault: Boolean

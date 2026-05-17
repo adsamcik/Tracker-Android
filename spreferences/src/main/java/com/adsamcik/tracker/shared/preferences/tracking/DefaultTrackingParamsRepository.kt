@@ -73,6 +73,7 @@ class DefaultTrackingParamsRepository(
 
     override suspend fun update(block: TrackingParamsState.() -> TrackingParamsState) {
         withContext(io) {
+            ensureMigrated()
             context.trackingParamsDataStore.updateData { current ->
                 val newState = current.toDomain().block()
                 newState.toProto()
@@ -97,8 +98,12 @@ class DefaultTrackingParamsRepository(
 
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
         withContext(io) {
+            ensureMigrated()
             context.trackingParamsDataStore.updateData { current ->
-                current.toBuilder().block().build()
+                current.toBuilder()
+                    .block()
+                    .setLegacyMigrated(true)
+                    .build()
             }
         }
     }

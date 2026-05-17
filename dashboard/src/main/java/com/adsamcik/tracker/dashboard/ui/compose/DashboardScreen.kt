@@ -4,9 +4,11 @@ import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -24,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -260,8 +263,10 @@ private fun EmptyStateContent(
 	val startTrackingAction = if (hasPermission) onToggleTracking else onRequestPermission
 
 	LazyColumn(
-		modifier = modifier.fillMaxSize(),
-		contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomClearance),
+		modifier = modifier
+			.fillMaxSize()
+			.testTag("dashboard_empty_list"),
+		contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
@@ -287,6 +292,13 @@ private fun EmptyStateContent(
 				onChooseTrackingStyleClick = onSettingsClick,
 				onStartFirstTrackClick = startTrackingAction,
 				onReviewMapsAndStatsClick = onMapClick,
+			)
+		}
+		item(key = "dashboard_empty_bottom_clearance") {
+			Spacer(
+				modifier = Modifier
+					.height(bottomClearance)
+					.testTag("dashboard_empty_bottom_clearance"),
 			)
 		}
 	}

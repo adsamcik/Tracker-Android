@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -240,7 +241,12 @@ fun PrimaryActionButton(
         color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
         contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
-        Box(modifier = Modifier.padding(horizontal = RidgelineSpacing.Xxl, vertical = RidgelineSpacing.Lg)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = RidgelineSpacing.Xxl, vertical = RidgelineSpacing.Lg),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,

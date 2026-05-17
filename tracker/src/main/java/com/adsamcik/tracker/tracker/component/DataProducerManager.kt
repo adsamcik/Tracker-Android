@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import java.util.concurrent.CopyOnWriteArrayList
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -32,7 +33,8 @@ import kotlin.coroutines.CoroutineContext
 internal class DataProducerManager(
 	context: Context,
 	private val initialTier: PolicyTier = PolicyTier.PRECISION,
-	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : TrackerDataProducerObserver, CoroutineScope {
 	private val appContext = context.applicationContext
 
@@ -46,11 +48,11 @@ internal class DataProducerManager(
 	@Suppress("unused")
 	private val producerList = buildList {
 		if (initialTier >= PolicyTier.ACTIVE) {
-			add(WifiDataProducer(this@DataProducerManager))
-			add(CellDataProducer(this@DataProducerManager))
+			add(WifiDataProducer(this@DataProducerManager, trackingParamsRepository))
+			add(CellDataProducer(this@DataProducerManager, trackingParamsRepository))
 		}
-		add(ActivityDataProducer(this@DataProducerManager))
-		add(StepDataProducer(this@DataProducerManager))
+		add(ActivityDataProducer(this@DataProducerManager, trackingParamsRepository))
+		add(StepDataProducer(this@DataProducerManager, trackingParamsRepository))
 		add(BarometerDataProducer(this@DataProducerManager))
 	}
 

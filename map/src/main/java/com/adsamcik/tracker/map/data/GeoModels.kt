@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.data
 
+import com.adsamcik.tracker.shared.base.database.entity.GeoCellSignalFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
 import kotlin.math.pow
@@ -67,5 +68,15 @@ data class WeightedGeoFeature(
     val weight: Double
 ) : GeoFeature
 
+data class CellSignalGeoFeature(
+    override val lat: Double,
+    override val lon: Double,
+    override val time: Long,
+    val asu: Double,
+    val networkType: Int
+) : GeoFeature
+
 internal fun GeoFeatureEntity.toDomain(): BasicGeoFeature = BasicGeoFeature(lat, lon, time, properties)
 internal fun GeoWeightedFeatureEntity.toDomain(): WeightedGeoFeature = WeightedGeoFeature(lat, lon, time, weight)
+internal fun GeoCellSignalFeatureEntity.toDomain(): CellSignalGeoFeature =
+    CellSignalGeoFeature(lat, lon, time, weight, networkType)

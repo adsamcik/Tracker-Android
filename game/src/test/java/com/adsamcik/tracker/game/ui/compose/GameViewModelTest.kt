@@ -198,6 +198,7 @@ class GameViewModelTest {
 				entries[0].isUnlocked shouldBe true   // level 1 <= 2
 				entries[1].isUnlocked shouldBe false  // level 3 > 2
 				entries[2].isUnlocked shouldBe false  // level 5 > 2
+				entries[0].isAvailable shouldBe false
 			}
 		}
 
@@ -290,6 +291,50 @@ class GameViewModelTest {
 			vm.selectLeaderboardMetric(LeaderboardMetric.DISTANCE) // same as default
 			testDispatcher.scheduler.advanceUntilIdle()
 			callCount shouldBe initialCount
+		}
+
+		@Test
+		fun `leaderboard load failure exposes retryable error`() = runTest {
+			coEvery {
+				ghostLeaderboardProvider.getLeaderboard(any(), any(), any())
+			} throws IllegalStateException("database unavailable")
+
+			val vm = createViewModel()
+			testDispatcher.scheduler.advanceUntilIdle()
+
+			vm.leaderboardState.value.shouldBeNull()
+			vm.leaderboardError.value shouldBe true
+		}
+
+		@Test
+		fun `retryLeaderboard clears error after successful reload`() = runTest {
+			var shouldFail = true
+			val state = LeaderboardState(
+				metric = LeaderboardMetric.DISTANCE,
+				currentWeekValue = 10.0,
+				competitors = emptyList(),
+				currentRank = 1,
+				weekProgressFraction = 0.5f,
+			)
+			coEvery {
+				ghostLeaderboardProvider.getLeaderboard(any(), any(), any())
+			} answers {
+				if (shouldFail) {
+					shouldFail = false
+					throw IllegalStateException("database unavailable")
+				}
+				state
+			}
+
+			val vm = createViewModel()
+			testDispatcher.scheduler.advanceUntilIdle()
+			vm.leaderboardError.value shouldBe true
+
+			vm.retryLeaderboard()
+			testDispatcher.scheduler.advanceUntilIdle()
+
+			vm.leaderboardError.value shouldBe false
+			vm.leaderboardState.value shouldBe state
 		}
 	}
 }

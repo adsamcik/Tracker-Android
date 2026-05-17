@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
@@ -22,14 +21,7 @@ open class SpeedHeatmapLayer(
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
-    override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to Color.rgb(153, 102, 255),  // Very Slow: Purple
-        0.2f to Color.rgb(102, 204, 255),  // Walking: Light Blue
-        0.4f to Color.rgb(102, 255, 102),  // Running: Light Green
-        0.6f to Color.rgb(255, 255, 102),  // Bike: Yellow
-        0.8f to Color.rgb(255, 128, 0),    // Transport: Orange
-        1.0f to Color.rgb(255, 51, 51)     // Car: Red
-    )
+    override fun colorStops(): List<Pair<Float, Int>> = HeatmapColorRamps.Speed
 
     override fun geoJsonFrom(processed: String): String = processed
 

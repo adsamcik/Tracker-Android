@@ -6,6 +6,7 @@ import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.impl.CellHeatmapLayer
+import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
 import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
 import com.adsamcik.tracker.map.layers.impl.SpeedHeatmapLayer
@@ -15,7 +16,6 @@ import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
-import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.map.shared.MapLayerData
@@ -28,7 +28,6 @@ import com.adsamcik.tracker.map.shared.layers.LayerFactory
 import com.adsamcik.tracker.map.shared.layers.LayerRecipe
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.map.color.ColorGenerator
 import kotlinx.coroutines.withContext
 
 /** Registry for map layers: registers layers directly. */
@@ -51,14 +50,27 @@ class DefaultLayerRegistry(
         override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
     }
 
-    private fun cellTypeColors(): List<Int> {
-        val count = CellType.values().size
-        val startHue = 0.230
-        return ColorGenerator.generateWithGolden(startHue, count)
+    private fun locationDensityLegendValues(): List<MapLegendValue> {
+        val colors = HeatmapColorRamps.LocationDensity.drop(1).map { it.second }
+        return listOf(
+            MapLegendValue(R.string.map_layer_location_heatmap_low, colors[0]),
+            MapLegendValue(R.string.map_layer_location_heatmap_low_medium, colors[1]),
+            MapLegendValue(R.string.map_layer_location_heatmap_medium, colors[2]),
+            MapLegendValue(R.string.map_layer_location_heatmap_high, colors[3]),
+            MapLegendValue(R.string.map_layer_location_heatmap_peak, colors[4]),
+        )
     }
 
-    private fun cellTypeLegendValues(colors: List<Int>): List<MapLegendValue> =
-        CellType.values().mapIndexed { index, type -> MapLegendValue(type.nameRes, colors[index]) }
+    private fun cellSignalLegendValues(): List<MapLegendValue> {
+        val colors = HeatmapColorRamps.CellSignal.map { it.second }
+        return listOf(
+            MapLegendValue(R.string.map_layer_cell_signal_weak, colors[0]),
+            MapLegendValue(R.string.map_layer_cell_signal_fair, colors[1]),
+            MapLegendValue(R.string.map_layer_cell_signal_good, colors[2]),
+            MapLegendValue(R.string.map_layer_cell_signal_strong, colors[3]),
+            MapLegendValue(R.string.map_layer_cell_signal_excellent, colors[4]),
+        )
+    }
 
     private fun buildLayers(): List<LayerDescriptor> = buildList {
         // No layer (legend only; acts as a placeholder)
@@ -97,14 +109,10 @@ class DefaultLayerRegistry(
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_location_heatmap_title),
-                            colorList = listOf(Color.BLUE, Color.YELLOW, Color.RED),
+                            colorList = HeatmapColorRamps.LocationDensity.drop(1).map { it.second },
                             legend = MapLegend(
                                 description = R.string.map_layer_location_heatmap_description,
-                                valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_location_heatmap_low, Color.BLUE),
-                                    MapLegendValue(R.string.map_layer_location_heatmap_medium, Color.YELLOW),
-                                    MapLegendValue(R.string.map_layer_location_heatmap_high, Color.RED)
-                                )
+                                valueList = locationDensityLegendValues()
                             )
                         )
                     )
@@ -128,10 +136,10 @@ class DefaultLayerRegistry(
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
-                            colorList = cellTypeColors(),
+                            colorList = HeatmapColorRamps.CellSignal.map { it.second },
                             legend = MapLegend(
                                 description = R.string.map_layer_cell_heatmap_description,
-                                valueList = cellTypeLegendValues(cellTypeColors())
+                                valueList = cellSignalLegendValues()
                             )
                         )
                     )
@@ -226,25 +234,16 @@ class DefaultLayerRegistry(
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SpeedHeatmapLayer", R.string.map_layer_speed_heatmap_title),
-                            colorList = listOf(
-                                Color.rgb(153, 102, 255),
-                                Color.rgb(102, 204, 255),
-                                Color.rgb(102, 255, 102),
-                                Color.rgb(255, 255, 102),
-                                Color.rgb(255, 128, 0),
-                                Color.rgb(255, 51, 51),
-                                Color.rgb(255, 0, 0)
-                            ),
+                            colorList = HeatmapColorRamps.Speed.map { it.second },
                             legend = MapLegend(
                                 description = R.string.map_layer_speed_heatmap_description,
                                 valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_speed_very_slow, Color.rgb(153, 102, 255)),
-                                    MapLegendValue(R.string.map_layer_speed_walking, Color.rgb(102, 204, 255)),
-                                    MapLegendValue(R.string.map_layer_speed_running, Color.rgb(102, 255, 102)),
-                                    MapLegendValue(R.string.map_layer_speed_moderate, Color.rgb(255, 255, 102)),
-                                    MapLegendValue(R.string.map_layer_speed_fast, Color.rgb(255, 128, 0)),
-                                    MapLegendValue(R.string.map_layer_speed_very_fast, Color.rgb(255, 51, 51)),
-                                    MapLegendValue(R.string.map_layer_speed_extreme, Color.rgb(255, 0, 0))
+                                    MapLegendValue(R.string.map_layer_speed_very_slow, HeatmapColorRamps.Speed[0].second),
+                                    MapLegendValue(R.string.map_layer_speed_walking, HeatmapColorRamps.Speed[1].second),
+                                    MapLegendValue(R.string.map_layer_speed_running, HeatmapColorRamps.Speed[2].second),
+                                    MapLegendValue(R.string.map_layer_speed_moderate, HeatmapColorRamps.Speed[3].second),
+                                    MapLegendValue(R.string.map_layer_speed_fast, HeatmapColorRamps.Speed[4].second),
+                                    MapLegendValue(R.string.map_layer_speed_very_fast, HeatmapColorRamps.Speed[5].second)
                                 )
                             )
                         )

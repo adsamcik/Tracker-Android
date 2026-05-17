@@ -2,7 +2,7 @@
 
 > **Version:** 1.0 — Final (Round 30 of 30)
 > **Status:** All decisions locked. This is the definitive developer reference.
-> **Seed:** `#1B6B3A` (Canopy Green) · **Theme:** `MaterialExpressiveTheme` · **Strategy:** Direct replacement, no shim
+> **Seed:** `#1B6B3A` (Canopy Green) · **Theme:** `AppTheme` backed by Material 3 `MaterialTheme` · **Strategy:** Single composition root, no shim
 
 ---
 
@@ -17,7 +17,7 @@
 │                                                                  │
 │  SEED        #1B6B3A  Canopy Green (HCT: H≈145° C≈48 T≈38)     │
 │  TERTIARY    #857010 / #D0B24A  Trail Gold (H≈49°)              │
-│  THEME ROOT  MaterialExpressiveTheme via AppTheme                │
+│  THEME ROOT  MaterialTheme via AppTheme                          │
 │                                                                  │
 │  FONTS       Display/Headline/Title: Outfit (Google Fonts)       │
 │              Body/Label: Inter (or system Roboto)                │
@@ -82,7 +82,7 @@
 | # | Decision | Value | Rationale |
 |---|----------|-------|-----------|
 | 1 | **Brand seed color** | `#1B6B3A` Canopy Green | Forest-green/emerald aligns with "adventurous/outdoorsy" brand. Teal was a placeholder. HCT H≈145° C≈48 T≈38 — true green, not blue-green. |
-| 2 | **Theme root** | `MaterialExpressiveTheme` | Provides `MotionScheme`, expanded shape system, MaterialShapes morphing. Zero consumer API change — standard `MaterialTheme` accessor still works. |
+| 2 | **Theme root** | `AppTheme` backed by `MaterialTheme` | Current dependencies do not expose public `MaterialExpressiveTheme` or `MaterialTheme.motionScheme`; consumers still use standard `MaterialTheme` accessors and Ridgeline motion tokens. |
 | 3 | **Migration strategy** | Direct replacement, no shim | 100% Compose codebase, all screens use `MaterialTheme.colorScheme.*`. A shim layer would add drift risk with zero benefit. |
 | 4 | **Shape language** | Diagonal asymmetry, 3:1 ratio | Terrain-inspired identity. Major corners (TL/BR) at 3× minor (TR/BL). Creates the "ridgeline" visual signature. |
 | 5 | **Activity color palette** | Okabe-Ito mode-adaptive | Color-blind friendly (6 hues spanning 164°→327°). Independent of brand seed. Mode-adaptive for WCAG AA in both themes. |
@@ -1187,20 +1187,19 @@ fun <T> tweenExpressive(): AnimationSpec<T> = tween(RidgelineDurations.EXPRESSIV
 
 #### 6.3 MotionScheme Integration
 
-`MaterialExpressiveTheme` provides `MotionScheme.expressive()` as the default motion profile. This gives access to M3's standardized motion tokens:
+The current Material 3 dependency does not expose public `MaterialTheme.motionScheme` APIs to Kotlin callers. `MaterialExpressiveTheme` is not present in the resolved artifacts, so `AppTheme` stays on `MaterialTheme` while feature code uses public Ridgeline motion tokens:
 
 ```kotlin
-// Access via MaterialTheme.motionScheme
-val spatialDefault = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
-val spatialFast = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
-val spatialSlow = MaterialTheme.motionScheme.slowSpatialSpec<Float>()
+val spatialDefault = ridgelineSettle<Float>()
+val spatialFast = ridgelineSnap<Float>()
+val spatialSlow = ridgelineDrift<Float>()
 
-val effectsDefault = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-val effectsFast = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-val effectsSlow = MaterialTheme.motionScheme.slowEffectsSpec<Float>()
+val effectsFast = tweenQuick<Float>()
+val effectsDefault = tweenStandard<Float>()
+val effectsSlow = tweenEmphasized<Float>()
 ```
 
-**Rule:** Use `MotionScheme` tokens for standard M3 component transitions (shared element, container transform). Use `RidgelineMotion` springs for app-specific animations (tracking state, celebration, metric update). Keep `infiniteRepeatable` animations custom.
+**Rule:** Use Ridgeline motion tokens for standard component transitions and app-specific animations (tracking state, celebration, metric update) until public MotionScheme APIs are available. Keep `infiniteRepeatable` animations custom.
 
 ---
 
@@ -1397,7 +1396,7 @@ object LoadingMotion {
 
 
 #### 7. AppTheme Setup
-Ridgeline uses a single composition root that always applies `MaterialExpressiveTheme` via `AppTheme` and provides runtime accessibility locals for motion/transparency.
+Ridgeline uses a single composition root that always applies `AppTheme`, backed by Material 3 `MaterialTheme`, and provides runtime accessibility locals for motion/transparency.
 
 ##### 7.1 Composable Signature
 ```kotlin
@@ -1423,15 +1422,14 @@ fun AppTheme(
         }
     }
 
-    MaterialExpressiveTheme(
-        colorScheme = baseScheme,
-        typography = RidgelineTypography,
-        shapes = RidgelineShapes,
-        motionScheme = MotionScheme.expressive(),
+    CompositionLocalProvider(
+        LocalReducedMotion provides reducedMotion,
+        LocalReduceTransparency provides reduceTransparency,
     ) {
-        CompositionLocalProvider(
-            LocalReducedMotion provides reducedMotion,
-            LocalReduceTransparency provides reduceTransparency,
+        MaterialTheme(
+            colorScheme = baseScheme,
+            typography = RidgelineTypography,
+            shapes = RidgelineShapes,
             content = content,
         )
     }
@@ -3011,7 +3009,7 @@ Screen compositions (24+) are **consumers**, not part of the DS contract.
 | R29 | — | Part 0 (Quick Reference) + Part I (Tokens) synthesis. |
 | R28 | — | Accessibility v1 minimum bar confirmed. Theme root + migration strategy finalized. |
 | R27 | — | Color seed `#1B6B3A` confirmed. Teal palette superseded. |
-| R26 | — | `MaterialExpressiveTheme` adoption. Direct replacement strategy. |
+| R26 | — | Material 3 theme-root direction clarified for current dependency surface. |
 | R23–R25 | — | Empty states, permissions, export, celebrations, testing matrix. |
 | R20–R22 | — | Glass polish, elevation strategy, dark mode edge handling, animation choreography. |
 | R18–R19 | — | Token pipeline, component inventory, developer experience. |
@@ -3026,7 +3024,7 @@ Screen compositions (24+) are **consumers**, not part of the DS contract.
 | Token | Value |
 |-------|-------|
 | Brand seed | `#1B6B3A` (Canopy Green, HCT H≈145° C≈48 T≈38) |
-| Theme root | `MaterialExpressiveTheme` via `AppTheme` |
+| Theme root | Material 3 `MaterialTheme` via `AppTheme` |
 | Glass G0 | Solid (no blur, α=1.00) |
 | Glass G1 | blur=10dp, α=0.85 light / 0.88 dark |
 | Glass G2 | blur=18dp, α=0.78 light / 0.82 dark |

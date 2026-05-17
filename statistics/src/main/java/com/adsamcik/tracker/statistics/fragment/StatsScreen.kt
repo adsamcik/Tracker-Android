@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Summarize
@@ -130,11 +131,12 @@ fun StatsScreen(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onNavigateToHistory: () -> Unit = {},
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
     heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
-    onTripViewOnMap: (Long) -> Unit = {},
+    onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
     onTripDelete: (Long) -> Unit = {},
     onExportGpx: (Trip) -> Unit = {},
     activeDateFilterLabel: String? = null,
@@ -163,6 +165,7 @@ fun StatsScreen(
                     onShowSummary = onShowSummary,
                     onShowWeek = onShowWeek,
                     onOpenWifi = onOpenWifi,
+                    onNavigateToHistory = onNavigateToHistory,
                     selectedHeaderAction = selectedHeaderAction,
                     weeklyBars = weeklyBars,
                     heatmapData = heatmapData,
@@ -245,11 +248,12 @@ private fun ContentState(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onNavigateToHistory: () -> Unit,
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
     heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
-    onTripViewOnMap: (Long) -> Unit = {},
+    onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
     onTripDelete: (Long) -> Unit = {},
     onExportGpx: (Trip) -> Unit = {},
     activeDateFilterLabel: String? = null,
@@ -269,12 +273,13 @@ private fun ContentState(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "header_actions") { 
-            HeaderActions(
-                onShowSummary = onShowSummary,
-                onShowWeek = onShowWeek,
-                onOpenWifi = onOpenWifi,
-                selectedAction = selectedHeaderAction,
-            )
+                HeaderActions(
+                    onShowSummary = onShowSummary,
+                    onShowWeek = onShowWeek,
+                    onOpenWifi = onOpenWifi,
+                    onNavigateToHistory = onNavigateToHistory,
+                    selectedAction = selectedHeaderAction,
+                )
         }
 
         if (heatmapData.isNotEmpty()) {
@@ -338,7 +343,7 @@ private fun ContentState(
                     TripRow(
                         trip = trip,
                         onClick = { onTripClick(trip.id) },
-                        onViewOnMap = { onTripViewOnMap(trip.id) },
+                        onViewOnMap = { onTripViewOnMap(trip.id, trip.startTimeMs, trip.endTimeMs) },
                         onDelete = { onTripDelete(trip.id) },
                         onExportGpx = { onExportGpx(trip) },
                     )
@@ -385,11 +390,13 @@ private fun HeaderActions(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onNavigateToHistory: () -> Unit,
     selectedAction: StatsHeaderAction?,
 ) {
     val summaryLabel = stringResource(R.string.stats_sum_title)
     val weekLabel = stringResource(R.string.stats_filter_dates)
     val wifiLabel = stringResource(R.string.stats_wifi_chip_label)
+    val historyLabel = stringResource(R.string.history_button_label)
     val scrollState = rememberScrollState()
 
     // Summary and Wi-Fi are one-shot actions (they open a dialog and return to this screen);
@@ -418,6 +425,11 @@ private fun HeaderActions(
             onClick = onOpenWifi,
             icon = Icons.Filled.Wifi,
             label = wifiLabel,
+        )
+        ActionAssistChip(
+            onClick = onNavigateToHistory,
+            icon = Icons.Filled.History,
+            label = historyLabel,
         )
     }
 }

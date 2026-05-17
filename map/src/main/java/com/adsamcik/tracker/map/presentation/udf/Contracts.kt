@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.presentation.udf
 
 import androidx.compose.runtime.Immutable
+import androidx.annotation.StringRes
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 import kotlinx.collections.immutable.ImmutableList
@@ -28,11 +29,19 @@ enum class SheetVisibility { Hidden, Peek, Expanded }
 @Immutable
 data class LegendItem(
     val label: String,
-    val color: Int
+    val color: Int,
+    @StringRes val labelRes: Int? = null,
 )
 
 @Immutable
 data class LatLngModel(val lat: Double, val lng: Double)
+
+@Immutable
+data class SelectedTripMapContext(
+    val tripId: Long,
+    val startMs: Long,
+    val endMs: Long,
+)
 
 @Immutable
 sealed interface MapOverlayState {
@@ -80,6 +89,7 @@ data class MapState(
     val uiSettings: MapUiSettings = MapUiSettings(),
     val quality: Float = 1f,
     val dateRange: LongRange = 0L..Long.MAX_VALUE,
+    val selectedTripContext: SelectedTripMapContext? = null,
     val layerLoadingProgress: Int = 0,
     val layerConfig: MapLibreLayerConfig? = null,
 )

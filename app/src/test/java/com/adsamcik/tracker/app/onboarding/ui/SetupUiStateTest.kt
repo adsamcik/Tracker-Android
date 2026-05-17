@@ -89,6 +89,30 @@ class SetupUiStateTest {
             val state = SetupUiState(autoTrackingMode = AutoTrackingMode.InMotion, locationEnabled = false)
             assertFalse(state.needsBackgroundLocationPermission)
         }
+
+        @Test
+        fun `wifi permission needed when wifi enabled but not granted`() {
+            val state = SetupUiState(wifiEnabled = true, wifiPermissionGranted = false)
+            assertTrue(state.needsWifiPermission)
+        }
+
+        @Test
+        fun `wifi permission not needed when wifi disabled`() {
+            val state = SetupUiState(wifiEnabled = false, wifiPermissionGranted = false)
+            assertFalse(state.needsWifiPermission)
+        }
+
+        @Test
+        fun `cell permission needed when cell enabled but not granted`() {
+            val state = SetupUiState(cellEnabled = true, cellPermissionGranted = false)
+            assertTrue(state.needsCellPermission)
+        }
+
+        @Test
+        fun `cell permission not needed once granted`() {
+            val state = SetupUiState(cellEnabled = true, cellPermissionGranted = true)
+            assertFalse(state.needsCellPermission)
+        }
     }
 
     @Nested

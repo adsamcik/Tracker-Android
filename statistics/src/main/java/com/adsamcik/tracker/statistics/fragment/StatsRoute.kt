@@ -31,7 +31,7 @@ import java.time.format.FormatStyle
 @Composable
 fun StatsRoute(
     onTripClick: (Long) -> Unit = {},
-    onTripViewOnMap: (Long) -> Unit = {},
+    onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
     onNavigateToHistory: () -> Unit = {},
     onNavigateToTracker: () -> Unit = {},
 ) {
@@ -83,6 +83,7 @@ fun StatsRoute(
             vm.loadWifiStats()
             showWifiDialog = true
         },
+        onNavigateToHistory = onNavigateToHistory,
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
         heatmapData = heatmapData,

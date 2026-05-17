@@ -39,7 +39,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
-import com.adsamcik.tracker.app.settings.privacypolicy.PrivacyPolicyDialog
+import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

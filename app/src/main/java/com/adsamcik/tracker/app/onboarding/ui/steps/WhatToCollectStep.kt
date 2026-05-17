@@ -1,69 +1,48 @@
 package com.adsamcik.tracker.app.onboarding.ui.steps
 
 import android.Manifest
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsRun
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.GpsNotFixed
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.common.ui.BatteryImpact
-import com.adsamcik.tracker.app.common.ui.BatteryImpactIndicator
-import com.adsamcik.tracker.app.onboarding.data.SetupPermissionState
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
+import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionSelector
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import com.adsamcik.tracker.shared.utils.style.compose.RadioCard
 
 /**
  * Step 3 – What to Collect.
@@ -79,58 +58,33 @@ fun WhatToCollectStep(
     onStepsEnabledChange: (Boolean) -> Unit,
     onWifiEnabledChange: (Boolean) -> Unit,
     onCellEnabledChange: (Boolean) -> Unit,
-    onLocationPermissionResult: (Boolean, Boolean, Boolean) -> Unit,
-    onBackgroundLocationResult: (Boolean, Boolean) -> Unit,
-    onActivityPermissionResult: (Boolean, Boolean) -> Unit,
+    onLocationPermissionResult: (Boolean) -> Unit,
+    onBackgroundLocationResult: (Boolean) -> Unit,
+    onActivityPermissionResult: (Boolean) -> Unit,
     onNotificationPermissionResult: (Boolean) -> Unit,
-    onPermissionStateHydrated: (SetupPermissionState) -> Unit,
-    contentPadding: PaddingValues,
+    onWifiPermissionResult: (Boolean) -> Unit,
+    onCellPermissionResult: (Boolean) -> Unit,
+    onComplete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-
-    LaunchedEffect(context) {
-        onPermissionStateHydrated(context.currentPermissionState(state))
-    }
-
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        onPermissionStateHydrated(context.currentPermissionState(state))
-    }
-
     // Permission launchers
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        val foregroundGranted = fineGranted || coarseGranted
-        onLocationPermissionResult(
-            fineGranted,
-            coarseGranted,
-            !foregroundGranted && context.isForegroundLocationPermanentlyDenied(),
-        )
+        val granted = results.values.any { it }
+        onLocationPermissionResult(granted)
     }
 
     val backgroundLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        onBackgroundLocationResult(
-            granted,
-            !granted && context.isPermissionPermanentlyDenied(
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-            ),
-        )
+        onBackgroundLocationResult(granted)
     }
 
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        onActivityPermissionResult(
-            granted,
-            !granted && context.isPermissionPermanentlyDenied(
-                Manifest.permission.ACTIVITY_RECOGNITION,
-            ),
-        )
+        onActivityPermissionResult(granted)
     }
 
     val notificationLauncher = rememberLauncherForActivityResult(
@@ -139,14 +93,28 @@ fun WhatToCollectStep(
         onNotificationPermissionResult(granted)
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
+    val wifiLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        onWifiPermissionResult(results.values.any { it })
+    }
+
+    val cellLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val fineLocationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val phoneStateGranted = results[Manifest.permission.READ_PHONE_STATE] == true
+        onCellPermissionResult(fineLocationGranted && phoneStateGranted)
+    }
+
+    SetupStepScaffold(
+        actionText = stringResource(R.string.setup_start_exploring),
+        actionTestTag = "setup_cta_complete",
+        onAction = onComplete,
+        modifier = modifier,
+        bottomPaddingTestTag = "setup_what_to_collect_scroll_bottom_padding",
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = stringResource(R.string.setup_what_to_collect_title),
@@ -163,7 +131,7 @@ fun WhatToCollectStep(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // --- Location ---
         DataSourceCard(
@@ -175,7 +143,7 @@ fun WhatToCollectStep(
         )
 
         if (state.locationEnabled) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             LocationPrecisionSelector(
                 selectedMode = state.locationPrecision,
@@ -187,18 +155,10 @@ fun WhatToCollectStep(
             if (state.needsLocationPermission && !state.locationPermissionGranted) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_location_why),
-                    buttonText = stringResource(
-                        if (state.locationPermissionPermanentlyDenied) {
-                            R.string.permission_grant_in_settings
-                        } else {
-                            R.string.setup_perm_grant
-                        },
-                    ),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_location_content_description),
+                    rationaleTestTag = "setup_perm_location_rationale",
+                    grantButtonTestTag = "setup_perm_location_grant",
                     onGrant = {
-                        if (state.locationPermissionPermanentlyDenied) {
-                            context.openApplicationSettings()
-                            return@PermissionExplanation
-                        }
                         val perms = if (state.locationPrecision == LocationPrecisionMode.PRECISE) {
                             arrayOf(
                                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -214,51 +174,32 @@ fun WhatToCollectStep(
                 PermissionGrantedBadge()
             }
 
-            // Background location permission (needed for in-motion auto-tracking)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                state.needsBackgroundLocationPermission &&
-                state.locationPermissionGranted
+            // Background location permission (needed for auto-tracking)
+            if (state.needsBackgroundLocationPermission &&
+                state.locationPermissionGranted &&
+                !state.backgroundLocationGranted
             ) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.setup_background_location_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp),
-                )
-                Text(
-                    text = stringResource(R.string.setup_background_location_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, top = 2.dp),
-                )
-                if (!state.backgroundLocationGranted) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_location_bg_why),
-                        buttonText = stringResource(
-                            if (state.backgroundLocationPermissionPermanentlyDenied) {
-                                R.string.permission_grant_in_settings
-                            } else {
-                                R.string.setup_perm_grant
-                            },
-                        ),
-                        onGrant = {
-                            if (state.backgroundLocationPermissionPermanentlyDenied) {
-                                context.openApplicationSettings()
-                                return@PermissionExplanation
-                            }
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_location_bg_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_background_location_content_description),
+                    rationaleTestTag = "setup_perm_background_location_rationale",
+                    grantButtonTestTag = "setup_perm_background_location_grant",
+                    onGrant = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             backgroundLocationLauncher.launch(
                                 Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                             )
-                        },
-                    )
-                } else {
-                    PermissionGrantedBadge()
-                }
+                        }
+                    },
+                )
+            } else if (state.backgroundLocationGranted && state.needsBackgroundLocationPermission) {
+                Spacer(modifier = Modifier.height(4.dp))
+                PermissionGrantedBadge()
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- Activity ---
         DataSourceCard(
@@ -273,18 +214,10 @@ fun WhatToCollectStep(
             if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 PermissionExplanation(
                     explanation = stringResource(R.string.setup_perm_activity_why),
-                    buttonText = stringResource(
-                        if (state.activityPermissionPermanentlyDenied) {
-                            R.string.permission_grant_in_settings
-                        } else {
-                            R.string.setup_perm_grant
-                        },
-                    ),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_activity_content_description),
+                    rationaleTestTag = "setup_perm_activity_rationale",
+                    grantButtonTestTag = "setup_perm_activity_grant",
                     onGrant = {
-                        if (state.activityPermissionPermanentlyDenied) {
-                            context.openApplicationSettings()
-                            return@PermissionExplanation
-                        }
                         activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                     },
                 )
@@ -293,7 +226,11 @@ fun WhatToCollectStep(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(
+            modifier = Modifier
+                .height(24.dp)
+                .testTag("setup_perm_activity_clearance_anchor"),
+        )
 
         // --- Steps ---
         DataSourceCard(
@@ -315,6 +252,30 @@ fun WhatToCollectStep(
             onToggle = onWifiEnabledChange,
         )
 
+        if (state.wifiEnabled) {
+            if (state.needsWifiPermission) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_wifi_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_wifi_content_description),
+                    rationaleTestTag = "setup_perm_wifi_rationale",
+                    grantButtonTestTag = "setup_perm_wifi_grant",
+                    onGrant = {
+                        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                        } else {
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            )
+                        }
+                        wifiLauncher.launch(perms)
+                    },
+                )
+            } else {
+                PermissionGrantedBadge()
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         // --- Cell ---
@@ -326,6 +287,27 @@ fun WhatToCollectStep(
             onToggle = onCellEnabledChange,
         )
 
+        if (state.cellEnabled) {
+            if (state.needsCellPermission) {
+                PermissionExplanation(
+                    explanation = stringResource(R.string.setup_perm_cell_why),
+                    grantContentDescription = stringResource(R.string.setup_perm_grant_cell_content_description),
+                    rationaleTestTag = "setup_perm_cell_rationale",
+                    grantButtonTestTag = "setup_perm_cell_grant",
+                    onGrant = {
+                        cellLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.READ_PHONE_STATE,
+                            ),
+                        )
+                    },
+                )
+            } else {
+                PermissionGrantedBadge()
+            }
+        }
+
         // Notification permission (always relevant)
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -334,140 +316,18 @@ fun WhatToCollectStep(
         ) {
             PermissionExplanation(
                 explanation = stringResource(R.string.setup_perm_notification_why),
+                grantContentDescription = stringResource(R.string.setup_perm_grant_notification_content_description),
+                rationaleTestTag = "setup_perm_notification_rationale",
+                grantButtonTestTag = "setup_perm_notification_grant",
                 onGrant = {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 },
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            PermissionGrantedBadge()
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
 // region Private composables
-
-@Composable
-private fun LocationPrecisionSelector(
-    selectedMode: LocationPrecisionMode?,
-    onModeSelected: (LocationPrecisionMode) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .selectableGroup(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.location_precision_selector_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        Text(
-            text = stringResource(R.string.location_precision_selector_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        PrecisionModeCard(
-            mode = LocationPrecisionMode.APPROXIMATE,
-            selected = selectedMode == LocationPrecisionMode.APPROXIMATE,
-            onClick = { onModeSelected(LocationPrecisionMode.APPROXIMATE) },
-            modifier = Modifier.testTag("precision_approximate_card"),
-        )
-
-        PrecisionModeCard(
-            mode = LocationPrecisionMode.PRECISE,
-            selected = selectedMode == LocationPrecisionMode.PRECISE,
-            onClick = { onModeSelected(LocationPrecisionMode.PRECISE) },
-            modifier = Modifier.testTag("precision_precise_card"),
-        )
-    }
-}
-
-@Composable
-private fun PrecisionModeCard(
-    mode: LocationPrecisionMode,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val (icon, titleRes, descriptionRes, batteryImpact) = when (mode) {
-        LocationPrecisionMode.APPROXIMATE -> PrecisionModeInfo(
-            icon = Icons.Default.GpsNotFixed,
-            title = R.string.location_precision_approximate_title,
-            description = R.string.location_precision_approximate_description,
-            batteryImpact = BatteryImpact.LOW,
-        )
-
-        LocationPrecisionMode.PRECISE -> PrecisionModeInfo(
-            icon = Icons.Default.GpsFixed,
-            title = R.string.location_precision_precise_title,
-            description = R.string.location_precision_precise_description,
-            batteryImpact = BatteryImpact.MODERATE,
-        )
-    }
-
-    RadioCard(
-        selected = selected,
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = null,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = MaterialTheme.colorScheme.primary,
-                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
-
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        )
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(titleRes),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Text(
-                text = stringResource(descriptionRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            BatteryImpactIndicator(
-                impact = batteryImpact,
-                compact = true,
-            )
-        }
-    }
-}
-
-private data class PrecisionModeInfo(
-    val icon: ImageVector,
-    val title: Int,
-    val description: Int,
-    val batteryImpact: BatteryImpact,
-)
 
 @Composable
 private fun DataSourceCard(
@@ -522,14 +382,17 @@ private fun DataSourceCard(
 @Composable
 private fun PermissionExplanation(
     explanation: String,
+    grantContentDescription: String,
+    rationaleTestTag: String,
+    grantButtonTestTag: String,
     onGrant: () -> Unit,
     modifier: Modifier = Modifier,
-    buttonText: String? = null,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, top = 4.dp),
+            .padding(start = 16.dp, top = 4.dp)
+            .testTag(rationaleTestTag),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -537,17 +400,22 @@ private fun PermissionExplanation(
             text = explanation,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("${rationaleTestTag}_text"),
         )
 
         Button(
             onClick = onGrant,
+            modifier = Modifier
+                .testTag(grantButtonTestTag)
+                .semantics { contentDescription = grantContentDescription },
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
         ) {
-            Text(text = buttonText ?: stringResource(R.string.setup_perm_grant))
+            Text(text = stringResource(R.string.setup_perm_grant))
         }
     }
 }
@@ -574,65 +442,3 @@ private fun PermissionGrantedBadge(modifier: Modifier = Modifier) {
 }
 
 // endregion
-
-private fun Context.currentPermissionState(state: SetupUiState): SetupPermissionState {
-    val fineLocationGranted = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    val coarseLocationGranted = hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-    val foregroundLocationGranted = fineLocationGranted || coarseLocationGranted
-    val backgroundLocationGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-        hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    val activityRecognitionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-        hasPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-    val notificationGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        hasPermission(Manifest.permission.POST_NOTIFICATIONS)
-
-    return SetupPermissionState(
-        fineLocationGranted = fineLocationGranted,
-        coarseLocationGranted = coarseLocationGranted,
-        backgroundLocationGranted = backgroundLocationGranted,
-        activityRecognitionGranted = activityRecognitionGranted,
-        notificationGranted = notificationGranted,
-        locationPermanentlyDenied = !foregroundLocationGranted &&
-            state.locationPermissionDenied &&
-            isForegroundLocationPermanentlyDenied(),
-        backgroundLocationPermanentlyDenied = !backgroundLocationGranted &&
-            state.backgroundLocationPermissionDenied &&
-            isPermissionPermanentlyDenied(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-        activityRecognitionPermanentlyDenied = !activityRecognitionGranted &&
-            state.activityPermissionDenied &&
-            isPermissionPermanentlyDenied(Manifest.permission.ACTIVITY_RECOGNITION),
-    )
-}
-
-private fun Context.hasPermission(permission: String): Boolean =
-    ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-
-private fun Context.openApplicationSettings() {
-    val intent = Intent(
-        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-        Uri.fromParts("package", packageName, null),
-    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    startActivity(intent)
-}
-
-private fun Context.isForegroundLocationPermanentlyDenied(): Boolean {
-    val activity = findActivity() ?: return false
-    return !ActivityCompat.shouldShowRequestPermissionRationale(
-        activity,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-    ) && !ActivityCompat.shouldShowRequestPermissionRationale(
-        activity,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-    )
-}
-
-private fun Context.isPermissionPermanentlyDenied(permission: String): Boolean {
-    val activity = findActivity() ?: return false
-    return !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
-}
-
-private fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}

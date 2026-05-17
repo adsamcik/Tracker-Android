@@ -21,13 +21,20 @@
     </plurals>
 
     <string name="map_drag_content_description">Drag or tap to change map bottom sheet visibility.</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
+    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal strength. Brighter colors mean stronger readings within each radio technology.</string>
     <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
     <string name="map_layer_location_heatmap_description">Heatmap based on the count of locations in a given area.</string>
     <string name="map_layer_location_heatmap_high">High density</string>
     <string name="map_layer_location_heatmap_low">Low density</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Medium density</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
     <string name="map_layer_location_heatmap_title">Location heatmap</string>
+    <string name="map_layer_cell_signal_weak" translatable="false">Weak signal</string>
+    <string name="map_layer_cell_signal_fair" translatable="false">Fair signal</string>
+    <string name="map_layer_cell_signal_good" translatable="false">Good signal</string>
+    <string name="map_layer_cell_signal_strong" translatable="false">Strong signal</string>
+    <string name="map_layer_cell_signal_excellent" translatable="false">Excellent signal</string>
     <string name="map_layer_speed_heatmap_description">Heatmap representing the speed of movement across different areas.</string>
     <string name="map_layer_speed_very_slow">Very Slow</string>
     <string name="map_layer_speed_walking">Walking Pace</string>
@@ -116,6 +123,7 @@
     <string name="map_quality_low">Low</string>
     <string name="map_quality_high">High</string>
     <string name="map_date_range_all_time">All time</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
     <string name="map_layers_title">Map Layers</string>
     <string name="map_layer_load_error">Couldn\'t load this layer. Try selecting a different one.</string>
     <string name="map_empty_title">No data yet</string>

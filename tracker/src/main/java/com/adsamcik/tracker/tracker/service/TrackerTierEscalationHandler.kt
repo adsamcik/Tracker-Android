@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.service
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
@@ -17,6 +17,8 @@ import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.PolicyTierMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -33,8 +35,7 @@ internal class TrackerTierEscalationHandler(
 	private val componentMutex: Mutex,
 	private val controller: TrackerServiceController,
 	private val componentFactory: TrackerComponentFactory,
-	private val dispatchers: DispatchersProvider,
-	private val onTierChanged: (PolicyTier) -> Unit,
+	private val trackingParamsRepository: TrackingParamsRepository,
 ) {
 
 	/**
@@ -68,61 +69,72 @@ internal class TrackerTierEscalationHandler(
 	 * triggers a full tier escalation if the tier boundary crosses from
 	 * non-GPS to GPS-enabled.
 	 */
-	suspend fun onPolicyChanged(
+	fun onPolicyChanged(
 		policy: TrackingPolicy,
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
-	) = componentMutex.withLock {
+		scope: CoroutineScope,
+	) {
 		val newTier = PolicyTierMapper.toTier(policy)
 		val oldTier = currentTier
 
 		if (newTier != oldTier) {
 			currentTier = newTier
-			onTierChanged(newTier)
 			controller.updatePolicyTier(newTier)
 
 			if (!oldTier.isGpsEnabled && newTier.isGpsEnabled) {
-				onTierEscalation(newTier, context, timerReceiver)
+				onTierEscalation(newTier, context, timerReceiver, scope)
 			}
 		}
 
 		val timer = timerAccessor.get()
-		if (timer is DynamicIntervalCollectionTrigger) {
-			val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-			val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
-			timer.updateInterval(context, intervalSeconds, minDistanceMeters)
+		if (timer !is DynamicIntervalCollectionTrigger) {
+			return
 		}
+
+		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
+		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
+		timer.updateInterval(context, intervalSeconds, minDistanceMeters)
 	}
 
-	private suspend fun onTierEscalation(
+	private fun onTierEscalation(
 		newTier: PolicyTier,
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
+		scope: CoroutineScope,
 	) {
-		// Swap timer
-		timerAccessor.get().onDisable(context)
-		val gpsTimer = TrackerTimerManager.getSelected(context)
-		timerAccessor.set(gpsTimer)
+		scope.launch {
+			componentMutex.withLock {
+				// Swap timer
+				timerAccessor.get().onDisable(context)
+				val gpsTimer = TrackerTimerManager.getSelected(context)
+				timerAccessor.set(gpsTimer)
 
-		// Recreate DataProducerManager with full producer set
-		dataProducerManager?.onDisable()
-		val newManager = DataProducerManager(context, newTier, dispatchers)
-		newManager.onEnable()
-		dataProducerManager = newManager
-		onProducerManagerChanged?.invoke(newManager)
+				// Recreate DataProducerManager with full producer set
+				dataProducerManager?.onDisable()
+				val newManager = DataProducerManager(
+					context = context,
+					initialTier = newTier,
+					trackingParamsRepository = trackingParamsRepository,
+				)
+				newManager.onEnable()
+				dataProducerManager = newManager
+				onProducerManagerChanged?.invoke(newManager)
 
-		// Add GPS-dependent data components
-		val newDataComponents = componentFactory.buildEscalationDataComponents(context)
-		dataComponentList.addAll(newDataComponents)
+				// Add GPS-dependent data components
+				val newDataComponents = componentFactory.buildEscalationDataComponents(context)
+				dataComponentList.addAll(newDataComponents)
 
-		// Escalate the stats ProcessorPipeline
-		processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
+				// Escalate the stats ProcessorPipeline
+				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
 
-		// Enable GPS timer
-		if (gpsTimer.hasRequiredPermissions(context)) {
-			gpsTimer.onEnable(context, timerReceiver)
-		} else {
-			Reporter.report("Missing permissions for GPS timer during escalation")
+				// Enable GPS timer
+				if (gpsTimer.hasRequiredPermissions(context)) {
+					gpsTimer.onEnable(context, timerReceiver)
+				} else {
+					Reporter.report("Missing permissions for GPS timer during escalation")
+				}
+			}
 		}
 	}
 

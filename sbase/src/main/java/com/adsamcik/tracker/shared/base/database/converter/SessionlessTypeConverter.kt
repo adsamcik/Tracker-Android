@@ -14,7 +14,7 @@ class SessionlessTypeConverter {
 	
 	@TypeConverter
 	fun toSampleQuality(value: String): SampleQuality {
-		return SampleQuality.valueOf(value)
+		return SampleQuality.entries.firstOrNull { it.name == value } ?: SampleQuality.COARSE
 	}
 
 	@TypeConverter

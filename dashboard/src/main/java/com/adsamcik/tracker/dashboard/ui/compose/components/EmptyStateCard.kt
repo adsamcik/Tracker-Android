@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.LocationSearching
@@ -177,6 +178,18 @@ internal fun EmptyStateCard(
 					onTrackClick = onTrackClick,
 					onPrivacyClick = onPrivacyClick,
 				)
+
+				Spacer(Modifier.height(16.dp))
+
+				// Hint arrow pointing to the Ready card below.
+				Icon(
+					imageVector = Icons.Filled.KeyboardArrowDown,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+					modifier = Modifier
+						.size(28.dp)
+						.graphicsLayer { translationY = floatOffset * 0.5f },
+				)
 			}
 		}
 	}
@@ -276,7 +289,13 @@ internal fun EmptyStateStartHintCard(
 					color = MaterialTheme.colorScheme.onSecondaryContainer,
 				)
 				Text(
-					text = stringResource(R.string.dashboard_empty_fab_hint_desc),
+					text = stringResource(
+						if (hasPermission) {
+							R.string.dashboard_empty_fab_hint_desc
+						} else {
+							R.string.dashboard_empty_fab_hint_desc_no_permission
+						},
+					),
 					style = MaterialTheme.typography.bodyMedium,
 					color = MaterialTheme.colorScheme.onSecondaryContainer,
 				)

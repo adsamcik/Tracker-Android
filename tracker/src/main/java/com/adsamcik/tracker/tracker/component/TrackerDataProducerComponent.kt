@@ -13,12 +13,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
 internal abstract class TrackerDataProducerComponent(
     private val changeReceiver: TrackerDataProducerObserver,
     dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+    private val enabledFlow: Flow<Boolean>? = null,
 ) {
     private val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
     private val preferenceScope = CoroutineScope(SupervisorJob() + mainImmediate)
@@ -35,7 +38,8 @@ internal abstract class TrackerDataProducerComponent(
 	fun onAttach(context: Context) {
 		// Flow emits initial value immediately, no need for separate sync read
 		preferenceJob?.cancel()
-		preferenceJob = PreferenceFlows.boolean(context, preferenceKey, preferenceDefault)
+		preferenceJob = (enabledFlow ?: PreferenceFlows.boolean(context, preferenceKey, preferenceDefault))
+			.distinctUntilChanged()
 			.onEach { changeReceiver.onStateChange(it, this) }
 			.launchIn(preferenceScope)
 	}

@@ -22,10 +22,9 @@ internal fun NavGraphBuilder.statsGraph(
                     launchSingleTop = true
                 }
             },
-            onTripViewOnMap = {
-                navController.navigate(Map) {
+            onTripViewOnMap = { tripId, startMs, endMs ->
+                navController.navigate(MapTripContext(tripId = tripId, startMs = startMs, endMs = endMs)) {
                     launchSingleTop = true
-                    restoreState = true
                 }
             },
             onNavigateToHistory = {
@@ -51,6 +50,11 @@ internal fun NavGraphBuilder.statsGraph(
                     launchSingleTop = true
                 }
             },
+            onNavigateToMap = { tripId, startMs, endMs ->
+                navController.navigate(MapTripContext(tripId = tripId, startMs = startMs, endMs = endMs)) {
+                    launchSingleTop = true
+                }
+            },
         )
     }
 
@@ -67,6 +71,11 @@ internal fun NavGraphBuilder.statsGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                }
+            },
+            onViewOnMap = { tripId, startMs, endMs ->
+                navController.navigate(MapTripContext(tripId = tripId, startMs = startMs, endMs = endMs)) {
+                    launchSingleTop = true
                 }
             },
         )

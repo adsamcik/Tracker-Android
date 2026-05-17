@@ -169,6 +169,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
+				if (!isRobolectricUnitTest()) {
+					initializeModules()
+				}
 			} catch (t: Throwable) {
 				Log.e("App", "Background startup initialization failed", t)
 			} finally {
@@ -176,6 +179,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 			}
 		}
 	}
+
+	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
 
 	fun startDeferredStartupIfNeeded() {
 		if (!deferredStartupStarted.compareAndSet(false, true)) return
@@ -186,7 +191,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 					launch { warmUp() }
 				}
 				initializeClasses()
-				initializeModules()
 				initializeFeatures()
 			} catch (t: Throwable) {
 				Log.e("App", "Deferred startup initialization failed", t)

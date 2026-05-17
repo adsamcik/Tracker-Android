@@ -25,6 +25,8 @@ import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -64,6 +66,7 @@ class DashboardViewModel @Inject constructor(
 	private val dailyPointsProviderFactory: Provider<DailyPointsProvider>,
 	private val goalProgressProviderFactory: Provider<GoalProgressProvider>,
 	private val activeChallengesProviderFactory: Provider<ActiveChallengesProvider>,
+	trackingParamsRepository: TrackingParamsRepository,
 ) : ViewModel() {
 
 	private val dailyPointsProvider by lazy(LazyThreadSafetyMode.NONE) {
@@ -87,6 +90,8 @@ class DashboardViewModel @Inject constructor(
 
 	val dashboardLayout: StateFlow<DashboardLayout> = layoutRepository.layout
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardLayout())
+	val trackingParams: StateFlow<TrackingParamsState> = trackingParamsRepository.data
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TrackingParamsState())
 
 	val isTracking: StateFlow<Boolean> = trackerController.isServiceRunningFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)

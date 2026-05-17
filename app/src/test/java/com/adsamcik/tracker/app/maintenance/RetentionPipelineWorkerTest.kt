@@ -160,4 +160,5 @@ class RetentionPipelineWorkerTest {
 			assertEquals(7, c.legacySessionRetentionDays)
 		}
 	}
+
 }

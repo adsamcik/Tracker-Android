@@ -44,6 +44,7 @@ import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.bridge.boundsOrNull
 import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
@@ -286,6 +287,35 @@ fun MapScreen(
 
     val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
 
+    val selectedTripBounds = remember(state.selectedTripContext, state.layerConfig) {
+        if (state.selectedTripContext != null) {
+            state.layerConfig?.boundsOrNull()
+        } else {
+            null
+        }
+    }
+
+    LaunchedEffect(selectedTripBounds, isMapLoading) {
+        val bounds = selectedTripBounds ?: return@LaunchedEffect
+        if (isMapLoading) return@LaunchedEffect
+        try {
+            cameraState.animateTo(
+                boundingBox = BoundingBox(
+                    west = bounds.left,
+                    south = bounds.bottom,
+                    east = bounds.right,
+                    north = bounds.top,
+                ),
+                padding = PaddingValues(48.dp),
+                duration = 500.milliseconds,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.report(e)
+        }
+    }
+
     val gestureOptions = remember(overlayMode) {
         if (overlayMode) {
             GestureOptions(
@@ -347,7 +377,10 @@ fun MapScreen(
                 MapDataLayers(layerConfig = state.layerConfig)
                 MapActiveTrackingLayer(path = activeTrackingPath)
                 // Declarative user overlays
-                MapUserOverlays(overlays = state.overlays.toList())
+                MapUserOverlays(
+                    overlays = state.overlays.toList(),
+                    metersPerDp = cameraState.metersPerDpAtTarget,
+                )
             }
         } else if (baseStyle == null && basemapLoadError != null) {
             Surface(
@@ -731,7 +764,10 @@ private fun MapActiveTrackingLayer(path: List<LatLngModel>) {
  * Each overlay gets a unique layer ID for stable Compose keys.
  */
 @Composable
-private fun MapUserOverlays(overlays: List<MapOverlayState>) {
+private fun MapUserOverlays(
+    overlays: List<MapOverlayState>,
+    metersPerDp: Double,
+) {
     overlays.forEachIndexed { index, overlay ->
         when (overlay) {
             is MapOverlayState.UserMarker -> {
@@ -758,7 +794,11 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                         GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
                     )
                 )
-                val radiusDp = overlay.radiusM.toFloat().coerceIn(10f, 200f).dp
+                val radiusDp = if (metersPerDp > 0.0) {
+                    (overlay.radiusM / metersPerDp).toFloat().coerceIn(1f, 512f).dp
+                } else {
+                    1.dp
+                }
                 CircleLayer(
                     id = "accuracy-$index",
                     source = src,

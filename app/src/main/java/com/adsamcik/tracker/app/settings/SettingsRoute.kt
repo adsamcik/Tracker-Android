@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.data.DataSettingsScreen
@@ -34,6 +35,7 @@ import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
 
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
+import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens.
 // Thin navigation shell — screen implementations live in per-screen packages.
@@ -44,9 +46,10 @@ fun SettingsRoute(
     onNavigateToDebug: () -> Unit = {},
     onNavigateToActivities: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    initialScreen: SettingsScreen = SettingsScreen.Root,
 ) {
     val vm: SettingsViewModel = hiltViewModel()
-    var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
+    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) }
 
     BackHandler(enabled = currentScreen != SettingsScreen.Root) {
         currentScreen = SettingsScreen.Root
@@ -74,17 +77,18 @@ fun SettingsRoute(
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
+            val navigationTransitionSpec = ridgelineSettle<IntOffset>()
             AnimatedContent(
                 targetState = currentScreen,
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
                     val isForward = targetState != SettingsScreen.Root
                     if (isForward) {
-                        slideInHorizontally { it } togetherWith
-                                slideOutHorizontally { -it / 3 }
+                        slideInHorizontally(animationSpec = navigationTransitionSpec) { it } togetherWith
+                            slideOutHorizontally(animationSpec = navigationTransitionSpec) { -it / 3 }
                     } else {
-                        slideInHorizontally { -it / 3 } togetherWith
-                                slideOutHorizontally { it }
+                        slideInHorizontally(animationSpec = navigationTransitionSpec) { -it / 3 } togetherWith
+                            slideOutHorizontally(animationSpec = navigationTransitionSpec) { it }
                     }
                 },
                 label = "SettingsNavigation"

@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.shared.utils.style.compose.tweenQuick
 
 private val NavBarShape = RoundedCornerShape(32.dp)
 private val NavRailShape = RoundedCornerShape(28.dp)
@@ -182,18 +183,22 @@ private fun FloatingNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorAnimationSpec = tweenQuick<Color>()
     val iconTint by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = colorAnimationSpec,
         label = "iconTint"
     )
 
     val indicatorColor by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        animationSpec = colorAnimationSpec,
         label = "indicatorColor"
     )
 
     val labelColor by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = colorAnimationSpec,
         label = "labelColor"
     )
 

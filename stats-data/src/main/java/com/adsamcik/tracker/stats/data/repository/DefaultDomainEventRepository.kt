@@ -31,7 +31,7 @@ class DefaultDomainEventRepository @Inject constructor(
 	}
 
 	override fun observeEvents(since: EpochMs): Flow<List<DomainEvent>> {
-		return dao.observeSince(since.raw).map { entities ->
+		return dao.observeSinceLimited(since.raw, MAX_OBSERVED_EVENTS).map { entities ->
 			entities.mapNotNull { it.toDomain() }
 		}
 	}
@@ -49,6 +49,10 @@ class DefaultDomainEventRepository @Inject constructor(
 	}
 
 	// region serialization
+
+	private companion object {
+		const val MAX_OBSERVED_EVENTS = 1_000
+	}
 
 	private fun DomainEvent.toEntity(): DomainEventEntity {
 		val (type, payload) = when (this) {

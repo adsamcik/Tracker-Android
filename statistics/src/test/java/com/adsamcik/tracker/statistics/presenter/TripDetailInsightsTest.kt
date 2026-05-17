@@ -12,6 +12,7 @@ import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.doubles.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -304,6 +305,22 @@ class TripDetailInsightsTest {
 			val insights = buildInsights(trip, null, samples)
 
 			insights.routePoints.size shouldBe 2
+		}
+
+		@Test
+		fun `large route preview is simplified before exposure`() {
+			val samples = (0 until 3_000).map { index ->
+				makeSample(
+					latE7 = 500000000 + index * 120,
+					lonE7 = 140000000 + if (index % 2 == 0) 0 else 1_200,
+				)
+			}
+			val trip = makeTripSummary()
+			val insights = buildInsights(trip, null, samples)
+
+			insights.routePoints.size.shouldBeLessThanOrEqual(1_500)
+			insights.routePoints.first().lat shouldBe 50.0
+			insights.routePoints.last().lat.shouldBeGreaterThan(50.0)
 		}
 
 		@Test

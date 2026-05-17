@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,6 +23,7 @@ data class MiniGameEntry(
     val descriptionRes: Int,
     val unlockLevel: Int,
     val isUnlocked: Boolean,
+    val isAvailable: Boolean = false,
 )
 
 /** Provides reactive game state (points today, step goals, active challenges). */
@@ -85,6 +87,7 @@ class GameViewModel @Inject constructor(
                     descriptionRes = game.descriptionRes,
                     unlockLevel = game.unlockLevel,
                     isUnlocked = playerLevel >= game.unlockLevel,
+                    isAvailable = false,
                 )
             }
         }
@@ -103,6 +106,9 @@ class GameViewModel @Inject constructor(
     private val _leaderboardState = MutableStateFlow<LeaderboardState?>(null)
     val leaderboardState: StateFlow<LeaderboardState?> = _leaderboardState
 
+    private val _leaderboardError = MutableStateFlow(false)
+    val leaderboardError: StateFlow<Boolean> = _leaderboardError
+
     private var currentMetric: LeaderboardMetric = LeaderboardMetric.DISTANCE
 
     init {
@@ -115,10 +121,22 @@ class GameViewModel @Inject constructor(
         loadLeaderboard()
     }
 
+    fun retryLeaderboard() {
+        loadLeaderboard()
+    }
+
     private fun loadLeaderboard() {
         viewModelScope.launch {
-            val state = ghostLeaderboardProvider.getLeaderboard(currentMetric)
-            _leaderboardState.value = state
+            try {
+                val state = ghostLeaderboardProvider.getLeaderboard(currentMetric)
+                _leaderboardState.value = state
+                _leaderboardError.value = false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                _leaderboardState.value = null
+                _leaderboardError.value = true
+            }
         }
     }
 }

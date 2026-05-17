@@ -10,8 +10,8 @@ import androidx.compose.animation.core.tween
  * Ridgeline Design System — Motion Tokens
  *
  * 6 named springs, each encoding a personality trait.
- * Use RidgelineMotion springs for app-specific animations.
- * Use MaterialTheme.motionScheme for standard M3 component transitions.
+ * Use RidgelineMotion springs for app-specific animations and route transitions.
+ * Do not call MaterialTheme.motionScheme until it becomes public in the resolved Material 3 dependency.
  */
 object RidgelineMotion {
 

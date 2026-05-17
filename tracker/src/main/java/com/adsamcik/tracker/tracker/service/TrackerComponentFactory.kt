@@ -50,6 +50,7 @@ internal class TrackerComponentFactory(
 	private val trackingParamsRepository: TrackingParamsRepository,
 	private val trackerSettingsRepository: TrackerSettingsRepository,
 	private val dispatchers: DispatchersProvider,
+	private val enableNotifications: Boolean = true,
 ) {
 
 	/**
@@ -77,6 +78,7 @@ internal class TrackerComponentFactory(
 		val sessionComponent = SessionTrackerComponent(
 			isSessionUserInitiated,
 			appDatabase.sessionSegmentDao(),
+			trackingParamsRepository,
 		).apply {
 			onEnable(context)
 		}
@@ -85,8 +87,10 @@ internal class TrackerComponentFactory(
 		val dataComponents = buildDataComponents(context, tier)
 		val errorCollector = DefaultPersistenceErrorCollector()
 
-		// Enable notification component directly (no longer in generic list)
-		notificationComponent.onEnable(context)
+		// Enable notification component directly (no longer in generic list).
+		if (enableNotifications) {
+			notificationComponent.onEnable(context)
+		}
 
 		// Build and enable ski components (if ski detection is enabled)
 		val (skiTracking, skiWriter) = buildSkiComponents(
@@ -125,9 +129,12 @@ internal class TrackerComponentFactory(
 	): List<PreTrackerComponent> {
 		val components = mutableListOf<PreTrackerComponent>().apply {
 			trackingPolicyManager?.let { policyMgr ->
-				add(PolicyAwareLocationPreTrackerComponent(policyMgr.currentPolicy))
+				add(PolicyAwareLocationPreTrackerComponent(
+					policyFlow = policyMgr.currentPolicy,
+					trackingParamsRepository = trackingParamsRepository,
+				))
 			} ?: run {
-				add(LocationPreTrackerComponent())
+				add(LocationPreTrackerComponent(trackingParamsRepository = trackingParamsRepository))
 			}
 		}
 		for (component in components) { component.onEnable(context) }

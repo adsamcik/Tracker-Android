@@ -50,6 +50,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.SettingsScreen
 import com.adsamcik.tracker.app.settings.SettingsViewModel
 import com.adsamcik.tracker.app.settings.components.DialogListPreference
+import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -59,7 +60,6 @@ import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
-import com.adsamcik.tracker.app.settings.privacypolicy.PrivacyPolicyDialog
 import java.util.Locale
 import android.content.res.Configuration
 

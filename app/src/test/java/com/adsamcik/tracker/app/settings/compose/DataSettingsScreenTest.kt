@@ -54,6 +54,7 @@ class DataSettingsScreenTest {
     @Composable
     private fun DataSettingsTestLayout(
         autoCleanupEnabled: Boolean = false,
+        dataRetentionYears: Int = 1,
         incrementalBackupsEnabled: Boolean = true,
         smartGoalNotificationsEnabled: Boolean = true,
         onExportClick: () -> Unit = {},
@@ -110,8 +111,15 @@ class DataSettingsScreenTest {
             // Data management section
             item { SectionHeader("Data Management") }
             item {
+                val autoCleanupSummary = if (dataRetentionYears == 0) {
+                    "Keep data forever; auto-cleanup will not delete old data"
+                } else {
+                    "Automatically remove data older than $dataRetentionYears " +
+                        if (dataRetentionYears == 1) "year" else "years"
+                }
                 SwitchSettingsItem(
                     title = "Auto cleanup old data",
+                    subtitle = autoCleanupSummary,
                     checked = autoCleanupEnabled,
                     onCheckedChange = onAutoCleanupChanged,
                 )
@@ -184,6 +192,22 @@ class DataSettingsScreenTest {
         }
         composeTestRule.onNodeWithText("Data Management").assertIsDisplayed()
         composeTestRule.onNodeWithText("Auto cleanup old data").assertIsDisplayed()
+    }
+
+    @Test
+    fun autoCleanupSummaryReflectsSelectedYears() {
+        composeTestRule.setContent {
+            AppTheme { DataSettingsTestLayout(dataRetentionYears = 3) }
+        }
+        composeTestRule.onNodeWithText("Automatically remove data older than 3 years").assertIsDisplayed()
+    }
+
+    @Test
+    fun autoCleanupSummaryReflectsKeepForever() {
+        composeTestRule.setContent {
+            AppTheme { DataSettingsTestLayout(dataRetentionYears = 0) }
+        }
+        composeTestRule.onNodeWithText("Keep data forever", substring = true).assertIsDisplayed()
     }
 
     @Test

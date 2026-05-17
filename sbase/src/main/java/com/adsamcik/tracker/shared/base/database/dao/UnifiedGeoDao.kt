@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.entity.GeoCellSignalFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
 
 /**
@@ -40,4 +41,7 @@ interface UnifiedGeoDao {
     fun queryWifiWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
     @RawQuery(observedEntities = [CellSample::class])
     fun queryCellsWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
+
+    @RawQuery(observedEntities = [CellSample::class])
+    fun queryCellSignals(query: SupportSQLiteQuery): Flow<List<GeoCellSignalFeatureEntity>>
 }

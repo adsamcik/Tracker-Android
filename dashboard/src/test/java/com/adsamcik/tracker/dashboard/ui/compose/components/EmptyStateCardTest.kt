@@ -26,7 +26,9 @@ class EmptyStateCardTest {
 		}
 
 		composeRule.onNodeWithText("Your Journey Starts Here").assertIsDisplayed()
-		composeRule.onNodeWithText("Tap the button below to begin tracking your first adventure").assertIsDisplayed()
+		composeRule.onNodeWithText(
+			"Use the Ready card below to grant location access when needed and start your first adventure",
+		).assertIsDisplayed()
 		composeRule.onNodeWithText("Privacy").assertIsDisplayed()
 	}
 }

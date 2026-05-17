@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.base.database.converter.SessionlessTypeConverter
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -26,6 +27,11 @@ class SessionlessEnumsTest {
 			SampleQuality.entries.forEach { q ->
 				SampleQuality.valueOf(q.name) shouldBe q
 			}
+		}
+
+		@Test
+		fun `converter maps unknown quality to coarse fallback`() {
+			SessionlessTypeConverter().toSampleQuality("FUTURE_QUALITY") shouldBe SampleQuality.COARSE
 		}
 	}
 

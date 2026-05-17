@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.maintenance
 
 import android.content.Context
+import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -15,7 +16,7 @@ import javax.inject.Singleton
 
 /**
  * Hilt singleton that observes the data-retention preference and keeps the
- * [DataRetentionWorker] WorkManager schedule in sync.
+ * [RetentionPipelineWorker] WorkManager schedule in sync.
  *
  * Replaces the mutable companion-object approach that used static [Job] and
  * [CoroutineScope] fields.  Call [initialize] once from [Application.onCreate].
@@ -36,15 +37,15 @@ class DataRetentionScheduler @Inject constructor(
     fun initialize() {
         observationJob?.cancel()
         observationJob = retentionConfigStore.config
-            .map { it.autoCleanupEnabled }
+            .map { it.autoCleanupEnabled || it.autoPurgeEnabled }
             .onEach { enabled -> syncScheduling(enabled) }
             .launchIn(appScope)
     }
 
     private fun syncScheduling(enabled: Boolean) {
         try {
-            if (enabled) DataRetentionWorker.ensureScheduled(context)
-            else DataRetentionWorker.cancel(context)
+            if (enabled) RetentionPipelineWorker.ensureScheduled(context)
+            else RetentionPipelineWorker.cancel(context)
         } catch (e: IllegalStateException) {
             Reporter.report(e)
         }

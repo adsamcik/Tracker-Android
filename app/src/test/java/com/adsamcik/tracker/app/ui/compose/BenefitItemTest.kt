@@ -3,7 +3,11 @@ package com.adsamcik.tracker.app.ui.compose
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.adsamcik.tracker.app.onboarding.ui.components.BenefitItem
@@ -49,6 +53,42 @@ class BenefitItemTest {
         }
         composeTestRule.onNodeWithText("Privacy First").assertIsDisplayed()
         composeTestRule.onNodeWithText("All data stays on your device").assertIsDisplayed()
+    }
+
+    @Test
+    fun decorativeIcon_isHiddenFromAccessibilityTree() {
+        composeTestRule.setContent {
+            AppTheme {
+                BenefitItem(
+                    icon = Icons.Default.Shield,
+                    title = "Privacy First",
+                    description = "All data stays on your device",
+                )
+            }
+        }
+
+        composeTestRule.onAllNodes(
+            matcher = SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription),
+            useUnmergedTree = true,
+        ).assertCountEquals(0)
+    }
+
+    @Test
+    fun titleAndDescription_mergeIntoSingleAccessibilityNode() {
+        composeTestRule.setContent {
+            AppTheme {
+                BenefitItem(
+                    icon = Icons.Default.LocationOn,
+                    title = "Track Routes",
+                    description = "Record your walking and cycling routes",
+                )
+            }
+        }
+
+        composeTestRule.onAllNodes(
+            matcher = hasText("Track Routes") and hasText("Record your walking and cycling routes"),
+            useUnmergedTree = false,
+        ).assertCountEquals(1)
     }
 
     @Test

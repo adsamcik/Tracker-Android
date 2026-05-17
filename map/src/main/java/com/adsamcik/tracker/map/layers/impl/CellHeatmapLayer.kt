@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
@@ -11,24 +10,19 @@ import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.graphics.GridAggregator
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.shared.base.data.CellType
 import kotlinx.coroutines.flow.first
 
 /**
  * Heatmap layer showing cell tower signal strength.
- * Queries ASU-weighted cell data and produces GeoJSON for MapLibre's native heatmap.
+ * Queries ASU cell data and normalizes it by radio technology for MapLibre's native heatmap.
  */
-class CellHeatmapLayer(
+open class CellHeatmapLayer(
     private val repo: GeoRepository,
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
-    override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to Color.rgb(68, 1, 84),     // Low: Dark purple (viridis)
-        0.25f to Color.rgb(59, 82, 139),   // Medium-low
-        0.5f to Color.rgb(33, 145, 140),   // Medium
-        0.75f to Color.rgb(94, 201, 98),   // Medium-high
-        1.0f to Color.rgb(253, 231, 37)    // High: Yellow (viridis)
-    )
+    override fun colorStops(): List<Pair<Float, Int>> = HeatmapColorRamps.CellSignal
 
     override fun geoJsonFrom(processed: String): String = processed
 
@@ -44,7 +38,14 @@ class CellHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "asu"
         )
-        return repo.queryWeighted(query, "asu").first()
+        return repo.queryCellSignals(query).first().map { feature ->
+            WeightedGeoFeature(
+                lat = feature.lat,
+                lon = feature.lon,
+                time = feature.time,
+                weight = feature.asu.toCellSignalWeight(feature.networkType),
+            )
+        }
     }
 
     override fun processData(
@@ -66,4 +67,25 @@ class CellHeatmapLayer(
         }
         return GeoJsonConverter.pointsToFeatureCollection(processed)
     }
+
+}
+
+private const val GSM_MAX_ASU: Double = 31.0
+private const val CDMA_MAX_ASU: Double = 16.0
+private const val WCDMA_MAX_ASU: Double = 31.0
+private const val LTE_NR_MAX_ASU: Double = 97.0
+
+private fun Double.toCellSignalWeight(networkType: Int): Double {
+    if (this <= 0.0) return 0.0
+    val maxAsu = when (CellType.values().getOrNull(networkType)) {
+        CellType.GSM -> GSM_MAX_ASU
+        CellType.CDMA -> CDMA_MAX_ASU
+        CellType.WCDMA -> WCDMA_MAX_ASU
+        CellType.LTE,
+        CellType.NR -> LTE_NR_MAX_ASU
+        CellType.Unknown,
+        CellType.None,
+        null -> LTE_NR_MAX_ASU
+    }
+    return (this / maxAsu).coerceIn(0.0, 1.0)
 }

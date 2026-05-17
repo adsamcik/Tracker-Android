@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.presentation.bridge
 
 import androidx.compose.runtime.Immutable
+import com.adsamcik.tracker.map.shared.CoordinateBounds
 
 /**
  * Sealed interface replacing Google Maps TileProvider in the rendering pipeline.
@@ -23,11 +24,20 @@ sealed interface MapLibreLayerConfig {
         val geoJson: String,
         val colorArgb: Int,
         val widthDp: Float = 4f,
-        val opacity: Float = 1f
+        val opacity: Float = 1f,
+        val bounds: CoordinateBounds? = null,
     ) : MapLibreLayerConfig
 
     @Immutable
     data class Composite(
         val layers: List<MapLibreLayerConfig>
     ) : MapLibreLayerConfig
+}
+
+fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
+    is MapLibreLayerConfig.Line -> bounds
+    is MapLibreLayerConfig.Heatmap -> null
+    is MapLibreLayerConfig.Composite -> layers.asSequence()
+        .mapNotNull { it.boundsOrNull() }
+        .firstOrNull()
 }

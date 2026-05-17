@@ -22,4 +22,15 @@ internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
             },
         )
     }
+
+    composable<MapTripContext> {
+        val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        com.adsamcik.tracker.map.ui.MapRoute(
+            contentPadding = if (useSideRail) {
+                PaddingValues()
+            } else {
+                PaddingValues(bottom = 96.dp + navBarPad)
+            },
+        )
+    }
 }

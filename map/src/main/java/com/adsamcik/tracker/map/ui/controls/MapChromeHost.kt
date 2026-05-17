@@ -155,10 +155,13 @@ fun MapChromeHost(
 		context.getString(qualityLabelRes(state.quality))
 	}
 
-	val dateRangeLabel = remember(state.dateRange) {
-		matchingMapDateRangePreset(state.dateRange)
-			?.let { context.getString(it.labelRes) }
-			?: context.getString(R.string.map_date_preset_custom)
+	val dateRangeLabel = remember(state.dateRange, state.selectedTripContext) {
+		when {
+			state.selectedTripContext != null -> context.getString(R.string.map_date_range_selected_trip)
+			else -> matchingMapDateRangePreset(state.dateRange)
+				?.let { context.getString(it.labelRes) }
+				?: context.getString(R.string.map_date_preset_custom)
+		}
 	}
 
 	Box(modifier = modifier.fillMaxSize()) {

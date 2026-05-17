@@ -286,8 +286,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 		cleanupScope.launch {
 			try {
-				kotlinx.coroutines.withTimeoutOrNull(4_000L) {
+				val shutdownResult = kotlinx.coroutines.withTimeoutOrNull(4_000L) {
 					orchestrator.shutdown(context) { timerRef.onDisable(context) }
+				}
+				if (shutdownResult == null) {
+					Reporter.log("Tracker shutdown cleanup timed out; enqueueing daily summary fallback")
+					orchestrator.enqueueDailySummaryFallback(context)
 				}
 			} finally {
 				orchestrator.resetMetadata()

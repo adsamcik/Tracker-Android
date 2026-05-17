@@ -145,8 +145,10 @@ internal object GoalTracker : CoroutineScope {
 	internal suspend fun onNewDay() {
 		val context = requireContext()
 		val time = Time.now
-		mLastSessionId = -1
-		goalList.forEach { it.onNewDay(context, time) }
+		mutex.withLock {
+			mLastSessionId = -1
+			goalList.forEach { it.onNewDay(context, time) }
+		}
 		Logger.log(LogData(message = "New day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 

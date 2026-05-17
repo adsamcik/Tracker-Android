@@ -18,6 +18,13 @@ data object Stats : AppRoute
 data object Map : AppRoute
 
 @Serializable
+data class MapTripContext(
+    val tripId: Long,
+    val startMs: Long,
+    val endMs: Long,
+) : AppRoute
+
+@Serializable
 data object Game : AppRoute
 
 @Serializable
@@ -36,6 +43,7 @@ data object Debug : AppRoute
 data class Settings(
     val origin: SettingsOrigin = SettingsOrigin.DASHBOARD,
     val nonce: Long = 0L,
+    val section: SettingsSection = SettingsSection.ROOT,
 ) : AppRoute
 
 @Serializable
@@ -47,6 +55,12 @@ enum class SettingsOrigin {
     STATS,
     MAP,
     GAME,
+}
+
+@Serializable
+enum class SettingsSection {
+    ROOT,
+    DATA,
 }
 
 @Serializable

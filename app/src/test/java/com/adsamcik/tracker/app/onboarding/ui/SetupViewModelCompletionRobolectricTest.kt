@@ -1,0 +1,112 @@
+package com.adsamcik.tracker.app.onboarding.ui
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
+import com.adsamcik.tracker.maintenance.DataRetentionScheduler
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
+import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class SetupViewModelCompletionRobolectricTest {
+	private val testDispatcher = UnconfinedTestDispatcher()
+	private lateinit var appContext: Context
+	private val paramsFlow = MutableStateFlow(TrackingParamsState())
+	private val trackingParamsRepository: TrackingParamsRepository = mockk()
+	private val onboardingRepository: OnboardingRepository = mockk(relaxed = true)
+	private val activityWatcherController: ActivityWatcherServiceController = mockk(relaxed = true)
+	private val dataRetentionScheduler: DataRetentionScheduler = mockk(relaxed = true)
+
+	private val dispatchers = object : DispatchersProvider {
+		override val main: CoroutineDispatcher = testDispatcher
+		override val default: CoroutineDispatcher = testDispatcher
+		override val io: CoroutineDispatcher = testDispatcher
+		override val unconfined: CoroutineDispatcher = testDispatcher
+	}
+
+	@Before
+	fun setUp() {
+		Dispatchers.setMain(testDispatcher)
+		appContext = ApplicationProvider.getApplicationContext()
+		paramsFlow.value = TrackingParamsState()
+		mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+		every { appContext.hasSelfPermission(any()) } returns true
+		every { trackingParamsRepository.data } returns paramsFlow
+		coEvery { trackingParamsRepository.update(any()) } answers {
+			@Suppress("UNCHECKED_CAST")
+			val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
+			paramsFlow.value = block(paramsFlow.value)
+		}
+		coEvery { onboardingRepository.markCompleted() } returns Unit
+		every { dataRetentionScheduler.initialize() } returns Unit
+	}
+
+	@After
+	fun tearDown() {
+		Dispatchers.resetMain()
+		unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+	}
+
+	@Test
+	fun `completeSetup writes tracking parameters to repository`() = runTest(testDispatcher) {
+		val vm = SetupViewModel(
+			appContext = appContext,
+			dispatchers = dispatchers,
+			onboardingRepository = onboardingRepository,
+			activityWatcherController = activityWatcherController,
+			dataRetentionScheduler = dataRetentionScheduler,
+			trackingParamsRepository = trackingParamsRepository,
+		)
+		vm.setTrackingPreset(TrackingPolicyPreset.HIGH_PRECISION)
+		vm.setWifiEnabled(true)
+		vm.setCellEnabled(true)
+		vm.setAutoTrackingMode(2)
+		vm.onActivityPermissionResult(true)
+
+		vm.completeSetup { }
+		advanceUntilIdle()
+
+		val state = paramsFlow.value
+		state.locationEnabled shouldBe true
+		state.activityEnabled shouldBe true
+		state.stepsEnabled shouldBe true
+		state.wifiEnabled shouldBe true
+		state.wifiNetworkEnabled shouldBe true
+		state.wifiLocationCountEnabled shouldBe true
+		state.cellEnabled shouldBe true
+		state.autoTrackingMode shouldBe 2
+		state.transitionDetectionEnabled shouldBe false
+		state.minDistanceMeters shouldBe 5
+		state.minTimeSeconds shouldBe 5
+		state.requiredAccuracyMeters shouldBe 20
+		state.preset shouldBe TrackingPreset.HIGH_ACCURACY
+	}
+}

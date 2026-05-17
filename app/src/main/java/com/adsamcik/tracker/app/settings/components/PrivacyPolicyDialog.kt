@@ -1,6 +1,6 @@
-package com.adsamcik.tracker.app.settings.privacypolicy
+package com.adsamcik.tracker.app.settings.components
 
-import android.content.Context
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,39 +20,45 @@ fun PrivacyPolicyDialog(
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
-    val privacyText = remember(context) { loadPrivacyPolicyText(context) }
+    val privacyText = remember(context) {
+        readBundledPrivacyPolicy(context.resources)
+    }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.settings_privacy_policy_title)) },
         text = {
-            if (privacyText != null) {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (privacyText != null) {
                     MarkdownText(markdown = privacyText)
+                } else {
+                    Text(stringResource(R.string.settings_privacy_policy_unavailable))
                 }
-            } else {
-                Text(stringResource(R.string.privacy_policy_load_error))
             }
         },
         confirmButton = {
             TextButton(onClick = onDismissRequest) {
                 Text(stringResource(android.R.string.ok))
             }
-        }
+        },
     )
 }
 
-private fun loadPrivacyPolicyText(context: Context): String? = runCatching {
-    context.resources.openRawResource(R.raw.privacy_policy)
+internal fun readBundledPrivacyPolicy(resources: Resources): String? = try {
+    resources.openRawResource(R.raw.privacy_policy)
         .bufferedReader()
         .use { it.readText() }
-        .trimStart()
-        .let { trimmed ->
-            val firstNewline = trimmed.indexOf('\n')
-            if (firstNewline > 0 && trimmed.startsWith("# ")) {
-                trimmed.substring(firstNewline + 1).trimStart()
-            } else {
-                trimmed
-            }
-        }
-}.getOrNull()
+        .let(::stripLeadingMarkdownHeading)
+} catch (_: Exception) {
+    null
+}
+
+private fun stripLeadingMarkdownHeading(raw: String): String {
+    val trimmed = raw.trimStart()
+    val firstNewline = trimmed.indexOf('\n')
+    return if (firstNewline > 0 && trimmed.startsWith("# ")) {
+        trimmed.substring(firstNewline + 1).trimStart()
+    } else {
+        trimmed
+    }
+}

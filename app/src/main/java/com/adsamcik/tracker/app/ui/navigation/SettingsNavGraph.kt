@@ -13,6 +13,10 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
     composable<Settings> { backStackEntry ->
         val settingsRoute = backStackEntry.toRoute<Settings>()
         com.adsamcik.tracker.app.settings.SettingsRoute(
+            initialScreen = when (settingsRoute.section) {
+                SettingsSection.ROOT -> com.adsamcik.tracker.app.settings.SettingsScreen.Root
+                SettingsSection.DATA -> com.adsamcik.tracker.app.settings.SettingsScreen.Data
+            },
             onNavigateBack = {
                 if (!navController.popBackStack()) {
                     navController.navigate(settingsRoute.origin.toAppRoute()) {

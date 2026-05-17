@@ -59,8 +59,8 @@ object CrashExporter {
             crashFiles.forEachIndexed { index, file ->
                 writer.write("FILE CRASH #${index + 1}\n")
                 writer.write("-".repeat(40) + "\n")
-                writer.write("Source File: ${file.name}\n")
-                writer.write(file.readText())
+                writer.write("Source File: ${PiiRedactor.redact(file.name)}\n")
+                writer.write(PiiRedactor.redact(file.readText()))
                 writer.write("\n\n")
             }
             

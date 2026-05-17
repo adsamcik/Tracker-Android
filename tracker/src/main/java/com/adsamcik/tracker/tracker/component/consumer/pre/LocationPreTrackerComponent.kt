@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -14,6 +15,7 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
@@ -21,6 +23,7 @@ import kotlin.coroutines.CoroutineContext
 
 internal class LocationPreTrackerComponent(
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : PreTrackerComponent, CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
 		TrackerComponentRequirement.LOCATION
@@ -35,17 +38,25 @@ internal class LocationPreTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			requiredAccuracy = Preferences(context).fetchInt(
-				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
-				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
-			)
 			accuracyJob?.cancel()
-			accuracyJob = PreferenceFlows.int(
-				context,
-				PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
-				PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
-			).onEach { requiredAccuracy = it }
-				.launchIn(this@LocationPreTrackerComponent)
+			val repository = trackingParamsRepository
+			if (repository != null) {
+				requiredAccuracy = repository.data.first().requiredAccuracyMeters
+				accuracyJob = repository.data
+					.onEach { requiredAccuracy = it.requiredAccuracyMeters }
+					.launchIn(this@LocationPreTrackerComponent)
+			} else {
+				requiredAccuracy = Preferences(context).fetchInt(
+					PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+					PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+				)
+				accuracyJob = PreferenceFlows.int(
+					context,
+					PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
+					PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+				).onEach { requiredAccuracy = it }
+					.launchIn(this@LocationPreTrackerComponent)
+			}
 		}
 	}
 

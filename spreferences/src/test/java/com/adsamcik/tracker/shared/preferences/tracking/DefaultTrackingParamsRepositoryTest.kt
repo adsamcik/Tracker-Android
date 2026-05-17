@@ -53,4 +53,46 @@ class DefaultTrackingParamsRepositoryTest {
         assertTrue(state.skiDetectionEnabled)
         assertFalse(state.wifiEnabled)
     }
+
+    @Test
+    fun `migration imports tracking knobs used by onboarding settings and runtime`() = runTest {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putBoolean(PreferenceKeys.WIFI_ENABLED, true)
+            .putBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, true)
+            .putBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, true)
+            .putBoolean(PreferenceKeys.CELL_ENABLED, true)
+            .putInt(PreferenceKeys.TRACKING_MIN_DISTANCE, 42)
+            .putInt(PreferenceKeys.TRACKING_MIN_TIME, 9)
+            .putInt(PreferenceKeys.TRACKING_REQUIRED_ACCURACY, 25)
+            .putBoolean(PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED, false)
+            .putString("tracking_preset", TrackingPreset.HIGH_ACCURACY.name)
+            .commit()
+
+        val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+        val state = repo.data.first()
+
+        assertTrue(state.wifiEnabled)
+        assertTrue(state.wifiNetworkEnabled)
+        assertTrue(state.wifiLocationCountEnabled)
+        assertTrue(state.cellEnabled)
+        assertEquals(42, state.minDistanceMeters)
+        assertEquals(9, state.minTimeSeconds)
+        assertEquals(25, state.requiredAccuracyMeters)
+        assertFalse(state.transitionDetectionEnabled)
+        assertEquals(TrackingPreset.HIGH_ACCURACY, state.preset)
+    }
+
+    @Test
+    fun `active write performs legacy migration before updating repository`() = runTest {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putInt(PreferenceKeys.TRACKING_MIN_DISTANCE, 77)
+            .commit()
+
+        val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+        repo.setWifiEnabled(true)
+
+        val state = repo.data.first()
+        assertEquals(77, state.minDistanceMeters)
+        assertTrue(state.wifiEnabled)
+    }
 }

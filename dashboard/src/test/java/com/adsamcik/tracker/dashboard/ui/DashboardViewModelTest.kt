@@ -24,6 +24,8 @@ import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
@@ -77,6 +79,7 @@ class DashboardViewModelTest {
 	private lateinit var goalProgressProviderFactory: Provider<GoalProgressProvider>
 	private lateinit var activeChallengesProvider: ActiveChallengesProvider
 	private lateinit var activeChallengesProviderFactory: Provider<ActiveChallengesProvider>
+	private lateinit var trackingParamsRepository: TrackingParamsRepository
 
 	@BeforeEach
 	fun setup() {
@@ -132,6 +135,8 @@ class DashboardViewModelTest {
 		activeChallengesProvider = mockk(relaxed = true)
 		activeChallengesProviderFactory = mockk(relaxed = true)
 		every { activeChallengesProviderFactory.get() } returns activeChallengesProvider
+		trackingParamsRepository = mockk(relaxed = true)
+		every { trackingParamsRepository.data } returns flowOf(TrackingParamsState())
 
 		mockkStatic(androidx.core.content.ContextCompat::class)
 		every {
@@ -151,7 +156,8 @@ class DashboardViewModelTest {
 			layoutRepository, sessionInsightsGenerator, widgetRegistry,
 			trackerController, lockManager,
 			dailySummaryProviderFactory, dailyPointsProviderFactory,
-			goalProgressProviderFactory, activeChallengesProviderFactory
+			goalProgressProviderFactory, activeChallengesProviderFactory,
+			trackingParamsRepository
 		)
 	}
 

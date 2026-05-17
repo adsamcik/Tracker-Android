@@ -58,6 +58,18 @@ class BackgroundTrackingApiLogicTest {
 		}
 
 		@Test
+		fun `returns true when wifi scanning is enabled`() {
+			val params = TrackingParamsState(
+				locationEnabled = false,
+				cellEnabled = false,
+				wifiEnabled = true,
+				wifiLocationCountEnabled = false,
+				wifiNetworkEnabled = false,
+			)
+			hasAnythingToTrack(params) shouldBe true
+		}
+
+		@Test
 		fun `returns false when nothing is enabled`() {
 			val params = TrackingParamsState(
 				locationEnabled = false,

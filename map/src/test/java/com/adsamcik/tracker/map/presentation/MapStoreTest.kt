@@ -7,6 +7,9 @@ import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SheetStateModel
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
+import com.adsamcik.tracker.map.shared.MapLegend
+import com.adsamcik.tracker.map.shared.MapLegendValue
+import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -79,6 +82,46 @@ class MapStoreTest {
         initialState.dateRange shouldBe 0L..Long.MAX_VALUE
         // layerLoadingProgress may be non-zero due to default layer auto-apply
         initialState.layerConfig.shouldBeNull()
+    }
+
+    @Test
+    fun `initializes selected trip context from navigation saved state`() = runTest {
+        val tripStore = MapStore(
+            SavedStateHandle(
+                mapOf(
+                    "tripId" to 42L,
+                    "startMs" to 1_700_000_000_000L,
+                    "endMs" to 1_700_000_900_000L,
+                )
+            ),
+            mockTrackerController,
+            TestDispatchersProvider(testDispatcher),
+        )
+
+        val state = tripStore.state.first()
+
+        state.dateRange shouldBe 1_700_000_000_000L..1_700_000_900_000L
+        state.selectedTripContext.shouldNotBeNull()
+        state.selectedTripContext!!.tripId shouldBe 42L
+        state.activeLayerIds shouldBe persistentSetOf("location_polyline")
+    }
+
+    @Test
+    fun `selected trip context opens route layer even when another layer was previously selected`() = runTest {
+        val tripStore = MapStore(
+            SavedStateHandle(
+                mapOf(
+                    "selected_layer_id" to "speed_heatmap",
+                    "tripId" to 42L,
+                    "startMs" to 1_700_000_000_000L,
+                    "endMs" to 1_700_000_900_000L,
+                )
+            ),
+            mockTrackerController,
+            TestDispatchersProvider(testDispatcher),
+        )
+
+        tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
     }
 
     @Test
@@ -187,6 +230,49 @@ class MapStoreTest {
         val state = mapStore.state.first()
         state.dateRange shouldBe newRange
         coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(1f), eq(newRange), any(), any()) }
+    }
+
+    @Test
+    fun `date range update clears selected trip context`() = runTest {
+        val tripStore = MapStore(
+            SavedStateHandle(
+                mapOf(
+                    "tripId" to 42L,
+                    "startMs" to 1_700_000_000_000L,
+                    "endMs" to 1_700_000_900_000L,
+                )
+            ),
+            mockTrackerController,
+            TestDispatchersProvider(testDispatcher),
+        )
+        tripStore.setLayerEngine(mockLayerEngine)
+
+        tripStore.dispatch(MapEvent.SetDateRange(100L..200L))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        tripStore.state.first().selectedTripContext.shouldBeNull()
+    }
+
+    @Test
+    fun `active legend preserves per-stop labels`() = runTest {
+        every { mockLayerEngine.activeLegend() } returns MapLayerData(
+            info = MapLayerInfo("CellHeatmapLayer", com.adsamcik.tracker.map.R.string.map_layer_cell_heatmap_title),
+            colorList = emptyList(),
+            legend = MapLegend(
+                valueList = listOf(
+                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_signal_weak, 0xFF440154.toInt()),
+                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_signal_excellent, 0xFFFDE725.toInt()),
+                )
+            )
+        )
+
+        mapStore.dispatch(MapEvent.SelectLayer("cell_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val legend = mapStore.state.first().legend
+        legend shouldHaveSize 2
+        legend[0].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_signal_weak
+        legend[1].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_signal_excellent
     }
 
     @Test

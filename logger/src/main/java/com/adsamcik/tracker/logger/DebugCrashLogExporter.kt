@@ -11,7 +11,6 @@ import com.adsamcik.tracker.logger.concurrency.LoggerDispatchers
 import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
-import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,13 +64,13 @@ object DebugCrashLogExporter {
                 }
             }
 
-            Log.i(TAG, "Crash log exported to: ${crashFile.absolutePath}")
+            Log.i(TAG, "Redacted crash log exported to: ${crashFile.absolutePath}")
             
             // Clean up old crash files to avoid filling storage
             cleanupOldCrashFiles(crashLogsDir)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to export crash log", e)
+            Log.e(TAG, "Failed to export crash log", PiiRedactor.redactThrowable(e))
         }
     }
 
@@ -99,11 +98,11 @@ object DebugCrashLogExporter {
         writer.println("-".repeat(40))
         writer.println("EXCEPTION INFO")
         writer.println("-".repeat(40))
-        writer.println("Thread: ${thread.name}")
+        writer.println("Thread: ${PiiRedactor.redact(thread.name)}")
         writer.println("Exception: ${exception.javaClass.name}")
-        writer.println("Message: ${exception.message ?: "No message"}")
+        writer.println("Message: ${PiiRedactor.redact(exception.message ?: "No message")}")
         exception.cause?.let { cause ->
-            writer.println("Cause: ${cause.javaClass.name}: ${cause.message}")
+            writer.println("Cause: ${cause.javaClass.name}: ${PiiRedactor.redact(cause.message.orEmpty())}")
         }
         writer.println()
     }
@@ -129,9 +128,7 @@ object DebugCrashLogExporter {
         writer.println("STACK TRACE")
         writer.println("-".repeat(40))
         
-        val stringWriter = StringWriter()
-        exception.printStackTrace(PrintWriter(stringWriter))
-        writer.println(stringWriter.toString())
+        writer.println(PiiRedactor.redactThrowableToString(exception))
         writer.println()
     }
 
@@ -151,7 +148,7 @@ object DebugCrashLogExporter {
                 writer.println("Timeout retrieving recent logs")
                 null
             } catch (e: Exception) {
-                writer.println("Failed to retrieve logs: ${e.message}")
+                writer.println("Failed to retrieve logs: ${PiiRedactor.redact(e.message.orEmpty())}")
                 null
             }
 
@@ -162,15 +159,15 @@ object DebugCrashLogExporter {
                     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
                     recentLogs.reversed().forEach { log ->
                         val time = dateFormat.format(Date(log.timeStamp))
-                        writer.println("[$time] [${log.source}] ${log.message}")
+                        writer.println("[$time] [${PiiRedactor.redact(log.source)}] ${PiiRedactor.redact(log.message)}")
                         if (log.data.isNotEmpty()) {
-                            writer.println("  Data: ${log.data}")
+                            writer.println("  Data: ${PiiRedactor.redact(log.data)}")
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            writer.println("Failed to retrieve logs: ${e.message}")
+            writer.println("Failed to retrieve logs: ${PiiRedactor.redact(e.message.orEmpty())}")
         }
         writer.println()
     }
@@ -187,12 +184,12 @@ object DebugCrashLogExporter {
                 
                 filesToDelete.forEach { file ->
                     if (!file.delete()) {
-                        Log.w(TAG, "Failed to delete old crash file: ${file.name}")
+                        Log.w(TAG, "Failed to delete old crash file: ${PiiRedactor.redact(file.name)}")
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to cleanup old crash files", e)
+            Log.e(TAG, "Failed to cleanup old crash files", PiiRedactor.redactThrowable(e))
         }
     }
 }

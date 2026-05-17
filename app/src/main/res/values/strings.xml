@@ -130,6 +130,7 @@
     <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
     <string name="privacy_policy_load_error">Privacy policy could not be loaded. Please reinstall the app or contact support.</string>
+    <string name="settings_privacy_policy_unavailable">The bundled privacy policy could not be opened. Please try again after restarting the app.</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>
     <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
@@ -230,7 +231,7 @@
 
     <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Track Your Journeys Privately</string>
-    <string name="onboarding_streamlined_subtitle">All data stays on your device. No cloud, no tracking.</string>
+    <string name="onboarding_streamlined_subtitle">All data stays on your device. No cloud sync or third-party tracking.</string>
     <string name="onboarding_benefit_privacy_title">Privacy-first</string>
     <string name="onboarding_benefit_privacy_desc">All tracking data remains on your device. No servers, no cloud sync, complete control.</string>
     <string name="onboarding_benefit_insights_title">Activity insights</string>
@@ -239,6 +240,8 @@
     <string name="onboarding_benefit_gamification_desc">Complete challenges, earn achievements, and make tracking fun.</string>
     <string name="onboarding_get_started">GET STARTED</string>
     <string name="onboarding_learn_more">Learn more</string>
+    <string name="onboarding_privacy_policy_button">Read Privacy Policy</string>
+    <string name="onboarding_state_read_error_message">We could not verify whether setup was already completed, so setup is shown to keep your data private. You can continue safely.</string>
 
     <!-- Contextual Permission Rationales (shown before system prompt) -->
     <string name="permission_location_rationale_title">Location Access Needed</string>
@@ -350,6 +353,11 @@
     <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
     <string name="settings_auto_cleanup_old_data_summary">Automatically remove data older than 1 year</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Keep data forever; auto-cleanup will not delete old data</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Automatically remove data older than %1$d year</item>
+        <item quantity="other">Automatically remove data older than %1$d years</item>
+    </plurals>
     <string name="settings_auto_cleanup_old_data_default" translatable="false">false</string>
 
     <!-- Data retention period options -->
@@ -358,6 +366,7 @@
     <string name="settings_data_retention_years_default" translatable="false">1</string>
 
     <string-array name="settings_data_retention_years_titles">
+        <item>Keep forever</item>
         <item>1 year</item>
         <item>2 years</item>
         <item>3 years</item>
@@ -365,6 +374,7 @@
         <item>10 years</item>
     </string-array>
     <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
         <item>1</item>
         <item>2</item>
         <item>3</item>
@@ -752,7 +762,7 @@
     <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
     <string name="setup_preset_title">Tracking Detail</string>
     <string name="setup_what_to_collect_title">What to Collect</string>
-    <string name="setup_what_to_collect_subtitle">Choose what data to record. Each source may need a permission — we\'ll explain why.</string>
+    <string name="setup_what_to_collect_subtitle">More options below. Start exploring without permissions or grant them later. Data stays on this device.</string>
     <string name="setup_source_location">Location</string>
     <string name="setup_source_location_desc">Record your routes and positions on a map.</string>
     <string name="setup_source_activity">Activity</string>
@@ -767,14 +777,26 @@
     <string name="setup_perm_location_bg_why">Allows tracking to continue when the app is in the background.</string>
     <string name="setup_perm_activity_why">Needed to detect your movement type (walking, driving, etc.).</string>
     <string name="setup_perm_notification_why">Needed to show tracking status in notifications.</string>
+    <string name="setup_perm_wifi_why">Wi-Fi scans can reveal nearby networks and infer location. Grant this only if you want Wi-Fi radio data collected for local accuracy.</string>
+    <string name="setup_perm_cell_why">Cell tower data can be combined with your route. Grant phone state and precise location only if you want cell radio data collected locally.</string>
     <string name="setup_perm_grant">Grant</string>
-    <string name="setup_perm_granted">Permission granted ✓</string>
+    <string name="setup_perm_grant_location_content_description">Grant location permission</string>
+    <string name="setup_perm_grant_background_location_content_description">Grant background location permission</string>
+    <string name="setup_perm_grant_activity_content_description">Grant activity recognition permission</string>
+    <string name="setup_perm_grant_notification_content_description">Grant notification permission</string>
+    <string name="setup_perm_grant_wifi_content_description">Grant Wi-Fi permission</string>
+    <string name="setup_perm_grant_cell_content_description">Grant cell radio permission</string>
+    <string name="setup_perm_granted">Granted ✓</string>
     <string name="permission_grant_in_settings">Allow in Settings →</string>
     <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
     <string name="setup_failed_message">Setup failed: %1$s. Please try again.</string>
     <string name="setup_background_location_title">Background Location</string>
     <string name="setup_background_location_desc">Needed for In Motion auto-tracking so Tracker can keep recording while the app is not open.</string>
-    <string name="setup_start_exploring">START EXPLORING</string>
+    <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. No Wi-Fi radio data is collected until you grant it.</string>
+    <string name="settings_cell_permission_required">Requires phone state and precise location permission. No cell radio data is collected until you grant both.</string>
+    <string name="settings_wifi_privacy_summary">Collect nearby Wi-Fi radio data locally for improved location context.</string>
+    <string name="settings_cell_privacy_summary">Collect cell tower radio data locally for improved location context.</string>
+    <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 
 </resources>

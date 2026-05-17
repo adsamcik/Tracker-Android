@@ -15,4 +15,10 @@ class DataRetentionCutoffTest {
             assertEquals("cutoff for $y years", expected, actual)
         }
     }
+
+    @Test
+    fun `computeCutoffMillis returns minimum value for keep forever`() {
+        val now = 1_700_000_000_000L
+        assertEquals(Long.MIN_VALUE, DataRetentionWorker.computeCutoffMillis(0, now))
+    }
 }

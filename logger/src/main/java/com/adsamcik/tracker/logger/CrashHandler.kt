@@ -16,7 +16,6 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
-import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,7 +28,7 @@ import kotlinx.coroutines.runBlocking
  * Uses file-based storage as fallback to ensure crash data is preserved
  */
 class CrashHandler(private val application: Application) : Thread.UncaughtExceptionHandler {
-    
+
     private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -54,43 +53,49 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
              }
         }
     }
-    
+
     // Remove init block as logic is moved to lazy property
 
-    
+
     fun initialize() {
         Thread.setDefaultUncaughtExceptionHandler(this)
-        
+
         // Clean up old crash files periodically
         cleanupOldCrashes()
-        
+
         // Try to move file-based crashes to database when app starts normally
         migrateCrashesToDatabase()
     }
-    
+
     override fun uncaughtException(thread: Thread, exception: Throwable) {
         try {
-            Log.e(TAG, "Uncaught exception in thread ${thread.name}", exception)
-            
+            val sanitizedException = PiiRedactor.redactThrowable(exception)
+            Log.e(
+                TAG,
+                "Uncaught exception in thread ${redactPii(thread.name)}: " +
+                        "${exception.javaClass.simpleName}: ${sanitizedException.message.orEmpty()}",
+                sanitizedException
+            )
+
             // Export logs to external directory in debug mode for easy access
             if (BuildConfig.DEBUG) {
                 DebugCrashLogExporter.exportOnCrash(application, thread, exception)
             }
-            
+
             // Store crash data with fallback strategy
             val crashData = createCrashDataSafely(thread, exception)
-            
+
             // Try database first, fallback to file if it fails
             val stored = storeCrashSafely(crashData)
-            
+
             if (stored) {
                 Log.i(TAG, "Crash data stored successfully")
             } else {
                 Log.e(TAG, "Failed to store crash data")
             }
-            
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error in crash handler", e)
+            Log.e(TAG, "Error in crash handler", PiiRedactor.redactThrowable(e))
             // Even if our crash handler fails, we should try to store minimal info
             storeMinimalCrashInfo(thread, exception)
         } finally {
@@ -98,11 +103,11 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             defaultHandler?.uncaughtException(thread, exception)
         }
     }
-    
+
     private fun createCrashDataSafely(thread: Thread, exception: Throwable): CrashData? {
         return try {
             val context = application.applicationContext
-            
+
             CrashData(
                 exceptionName = exception.javaClass.simpleName,
                 exceptionMessage = PiiRedactor.redact(exception.message ?: "No message"),
@@ -121,24 +126,24 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                 isInBackground = isAppInBackgroundSafely()
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create crash data", e)
+            Log.e(TAG, "Failed to create crash data", PiiRedactor.redactThrowable(e))
             null
         }
     }
-    
+
     private fun storeCrashSafely(crashData: CrashData?): Boolean {
         if (crashData == null) return false
-        
+
         // Try database first
         val databaseSuccess = storeCrashToDatabase(crashData)
         if (databaseSuccess) {
             return true
         }
-        
+
         // Fallback to file storage
         return storeCrashToFile(crashData)
     }
-    
+
     private fun storeCrashToDatabase(crashData: CrashData): Boolean {
         return try {
             // Use a separate thread with timeout for database operations
@@ -161,23 +166,23 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     }
                     true
                 } catch (e: Exception) {
-                    Log.e(TAG, "Database storage failed", e)
+                    Log.e(TAG, "Database storage failed", PiiRedactor.redactThrowable(e))
                     false
                 }
             }
-            
+
             future.get(CRASH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: Exception) {
-            Log.e(TAG, "Database storage timed out or failed", e)
+            Log.e(TAG, "Database storage timed out or failed", PiiRedactor.redactThrowable(e))
             false
         }
     }
-    
+
     private fun storeCrashToFile(crashData: CrashData): Boolean {
         return try {
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
             val crashFile = File(crashDir, "crash_$timestamp.txt")
-            
+
             FileOutputStream(crashFile).use { fos ->
                 PrintWriter(fos).use { writer ->
                     writer.println("CRASH REPORT")
@@ -200,20 +205,20 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     writer.flush()
                 }
             }
-            
+
             Log.i(TAG, "Crash stored to file: ${crashFile.absolutePath}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "File storage failed", e)
+            Log.e(TAG, "File storage failed", PiiRedactor.redactThrowable(e))
             false
         }
     }
-    
+
     private fun storeMinimalCrashInfo(thread: Thread, exception: Throwable) {
         try {
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
             val crashFile = File(crashDir, "minimal_crash_$timestamp.txt")
-            
+
             FileOutputStream(crashFile).use { fos ->
                 PrintWriter(fos).use { writer ->
                     writer.println("MINIMAL CRASH REPORT")
@@ -228,19 +233,19 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Even minimal crash storage failed", e)
+            Log.e(TAG, "Even minimal crash storage failed", PiiRedactor.redactThrowable(e))
         }
     }
-    
+
     private fun migrateCrashesToDatabase() {
         executor.execute {
             try {
                 val crashFiles = crashDir.listFiles { _, name ->
                     name.startsWith("crash_") && name.endsWith(".txt")
                 } ?: return@execute
-                
+
                 val crashDao = LogDatabase.database(application).crashDataDao()
-                
+
                 for (file in crashFiles) {
                     try {
                         // Parse crash file and convert to CrashData
@@ -253,15 +258,15 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                             file.delete() // Remove file after successful migration
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to migrate crash file: ${file.name}", e)
+                        Log.e(TAG, "Failed to migrate crash file: ${redactPii(file.name)}", PiiRedactor.redactThrowable(e))
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to migrate crashes to database", e)
+                Log.e(TAG, "Failed to migrate crashes to database", PiiRedactor.redactThrowable(e))
             }
         }
     }
-    
+
     private fun parseCrashFile(file: File): CrashData? {
         // Simple parsing - in production you might want more robust parsing
         return try {
@@ -271,10 +276,10 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             var threadName = "Unknown"
             var appVersion = "Unknown"
             var stackTrace = ""
-            
+
             var inStackTrace = false
             val stackTraceLines = mutableListOf<String>()
-            
+
             for (line in lines) {
                 when {
                     line.startsWith("Exception: ") -> exceptionName = line.substring(11)
@@ -285,14 +290,14 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     inStackTrace -> stackTraceLines.add(line)
                 }
             }
-            
+
             stackTrace = stackTraceLines.joinToString("\n")
-            
+
             CrashData(
                 exceptionName = exceptionName,
-                exceptionMessage = exceptionMessage,
-                stackTrace = stackTrace,
-                threadName = threadName,
+                exceptionMessage = redactPii(exceptionMessage),
+                stackTrace = redactPii(stackTrace),
+                threadName = redactPii(threadName),
                 appVersion = appVersion,
                 androidVersion = Build.VERSION.RELEASE,
                 deviceModel = Build.MODEL,
@@ -305,50 +310,48 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                 isInBackground = false
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse crash file", e)
+            Log.e(TAG, "Failed to parse crash file", PiiRedactor.redactThrowable(e))
             null
         }
     }
-    
+
     private fun cleanupOldCrashes() {
         executor.execute {
             try {
                 val crashFiles = crashDir.listFiles() ?: return@execute
-                
+
                 if (crashFiles.size > MAX_CRASH_FILES) {
                     // Sort by last modified and delete oldest
                     val sortedFiles = crashFiles.sortedBy { it.lastModified() }
                     val filesToDelete = sortedFiles.take(crashFiles.size - MAX_CRASH_FILES)
-                    
+
                     for (file in filesToDelete) {
                         file.delete()
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to cleanup old crashes", e)
+                Log.e(TAG, "Failed to cleanup old crashes", PiiRedactor.redactThrowable(e))
             }
         }
     }
-    
+
     // Safe utility methods that won't throw exceptions
     private fun getStackTraceStringSafely(throwable: Throwable): String {
         return try {
-            val writer = StringWriter()
-            throwable.printStackTrace(PrintWriter(writer))
-            writer.toString()
+            PiiRedactor.redactThrowableToString(throwable)
         } catch (e: Exception) {
-            "Failed to get stack trace: ${e.message}"
+            "Failed to get stack trace: ${redactPii(e.message.orEmpty())}"
         }
     }
-    
+
     private fun getCauseSafely(throwable: Throwable): String? {
         return try {
-            throwable.cause?.let { "${it.javaClass.simpleName}: ${it.message}" }
+            throwable.cause?.let { "${it.javaClass.simpleName}: ${redactPii(it.message.orEmpty())}" }
         } catch (e: Exception) {
             "Failed to get cause"
         }
     }
-    
+
     private fun getAppVersionSafely(context: Context): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -357,7 +360,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             "Unknown"
         }
     }
-    
+
     private fun getAvailableMemorySafely(context: Context): Long {
         return try {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -368,7 +371,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             -1L
         }
     }
-    
+
     private fun getTotalMemorySafely(context: Context): Long {
         return try {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -383,7 +386,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             -1L
         }
     }
-    
+
     private fun getBatteryLevelSafely(context: Context): Float {
         return try {
             val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -398,7 +401,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             -1f
         }
     }
-    
+
     private fun isChargingSafely(context: Context): Boolean {
         return try {
             val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -408,7 +411,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             false
         }
     }
-    
+
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun getNetworkTypeSafely(context: Context): String {
         return try {
@@ -425,7 +428,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             "Unknown"
         }
     }
-    
+
     private fun isAppInBackgroundSafely(): Boolean {
         return try {
             !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(

@@ -159,7 +159,8 @@ fun TrackerRoute(
             hasLocationPermission = hasLocationPermission,
             pathPoints = relevantPathPoints,
             policyTier = policyTier,
-            precisionModePreset = precisionModePreset
+            precisionModePreset = precisionModePreset,
+            trackingParams = trackingParams,
         ),
         dailyPointsProvider = viewModel.dailyPointsProvider,
         dailySummaryProvider = viewModel.dailySummaryProvider,

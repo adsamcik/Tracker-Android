@@ -19,19 +19,27 @@ import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
+import kotlinx.coroutines.flow.map
 import java.util.ArrayList
 
-internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
-    TrackerDataProducerComponent(changeReceiver) {
+internal class CellDataProducer(
+	changeReceiver: TrackerDataProducerObserver,
+	trackingParamsRepository: TrackingParamsRepository? = null,
+) : TrackerDataProducerComponent(
+	changeReceiver,
+	enabledFlow = trackingParamsRepository?.data?.map { it.cellEnabled },
+) {
 	override val preferenceKey: String = PreferenceKeys.CELL_ENABLED
 	override val preferenceDefault: Boolean = PreferenceKeys.CELL_ENABLED_DEFAULT
 
@@ -46,6 +54,12 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val context = requireNotNull(context)
+		if (!context.hasCellScanPermission) {
+			lastCellScanData = null
+			lastCellScanElapsedRealtimeMillis = -1L
+			return
+		}
+
 		// If airplane mode is enabled do not provide stale data.
 		if (Assist.isAirplaneModeEnabled(context)) {
 			lastCellScanData = null

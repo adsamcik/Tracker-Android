@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
@@ -24,14 +23,7 @@ open class LocationHeatmapLayer(
 
     // Five-stop ramp: transparent-blue → green → yellow → orange → red. Gives perceptual headroom so
     // that moderate-density areas stay cool rather than jumping straight to red.
-    override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to Color.argb(0, 0, 0, 255),
-        0.2f to Color.rgb(0, 120, 255),
-        0.45f to Color.rgb(0, 200, 120),
-        0.7f to Color.YELLOW,
-        0.9f to Color.rgb(255, 140, 0),
-        1.0f to Color.RED
-    )
+    override fun colorStops(): List<Pair<Float, Int>> = HeatmapColorRamps.LocationDensity
 
     override fun geoJsonFrom(processed: String): String = processed
 

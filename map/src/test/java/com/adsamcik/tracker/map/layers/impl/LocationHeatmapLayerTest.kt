@@ -60,16 +60,19 @@ class LocationHeatmapLayerTest {
     inner class ColorStops {
 
         @Test
-        fun `returns exactly 3 stops`() {
-            layer.testColorStops() shouldHaveSize 3
+        fun `returns shared density ramp stops`() {
+            layer.testColorStops() shouldBe HeatmapColorRamps.LocationDensity
         }
 
         @Test
-        fun `positions are 0, 0_5, 1`() {
+        fun `positions span 0 to 1 in ascending order`() {
             val stops = layer.testColorStops()
-            stops[0].first shouldBe 0.0f
-            stops[1].first shouldBe 0.5f
-            stops[2].first shouldBe 1.0f
+            stops shouldHaveSize 6
+            stops.first().first shouldBe 0.0f
+            stops.last().first shouldBe 1.0f
+            for (i in 1 until stops.size) {
+                (stops[i].first > stops[i - 1].first) shouldBe true
+            }
         }
     }
 
@@ -91,7 +94,8 @@ class LocationHeatmapLayerTest {
             val result = layer.testLoadData(ctx)
 
             result shouldHaveSize 2
-            result[0].weight shouldBe 5.0
+            result[0].weight shouldBe 0.9
+            result[1].weight shouldBe 0.8
         }
 
         @Test

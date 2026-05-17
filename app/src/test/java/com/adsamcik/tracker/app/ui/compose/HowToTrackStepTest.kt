@@ -1,15 +1,20 @@
 package com.adsamcik.tracker.app.ui.compose
 
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
-import com.adsamcik.tracker.app.onboarding.data.AutoTrackingMode
+import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,42 +28,89 @@ class HowToTrackStepTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    // Note: the CONTINUE CTA was moved out of HowToTrackStep into SetupScaffold's bottomBar
-    // slot during the SYS-2 layout-overlay fix. HowToTrackStep is now content-only.
-
     @Test
-    fun displaysAutoTrackingRadioCards() {
+    fun displaysContinueButton() {
         composeTestRule.setContent {
             AppTheme {
                 HowToTrackStep(
-                    autoTrackingMode = AutoTrackingMode.OnFoot,
+                    autoTrackingMode = 1,
                     trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = {},
                     onPresetChange = {},
-                    contentPadding = PaddingValues(),
+                    onContinue = {},
                 )
             }
         }
-        composeTestRule.onNodeWithTag("auto_tracking_disabled_card").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("auto_tracking_on_foot_card").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("auto_tracking_in_motion_card").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("setup_cta_how_to_track").assertIsDisplayed()
+    }
+
+    @Test
+    fun clickContinue_callsCallback() {
+        var called = false
+        composeTestRule.setContent {
+            AppTheme {
+                HowToTrackStep(
+                    autoTrackingMode = 1,
+                    trackingPreset = TrackingPolicyPreset.BALANCED,
+                    onAutoTrackingModeChange = {},
+                    onPresetChange = {},
+                    onContinue = { called = true },
+                )
+            }
+        }
+        composeTestRule.onNodeWithTag("setup_cta_how_to_track").performClick()
+        called shouldBe true
     }
 
     @Test
     fun autoTrackingModeChange_callsCallback() {
-        var newMode: AutoTrackingMode? = null
+        var newMode: Int? = null
         composeTestRule.setContent {
             AppTheme {
                 HowToTrackStep(
-                    autoTrackingMode = AutoTrackingMode.OnFoot,
+                    autoTrackingMode = 1,
                     trackingPreset = TrackingPolicyPreset.BALANCED,
                     onAutoTrackingModeChange = { newMode = it },
                     onPresetChange = {},
-                    contentPadding = PaddingValues(),
+                    onContinue = {},
                 )
             }
         }
-        composeTestRule.onNodeWithTag("auto_tracking_disabled_card").performClick()
-        newMode shouldBe AutoTrackingMode.Disabled
+        // The first card (mode 0) has the "Disabled" text from string resource
+        // We tap it to select mode 0
+        composeTestRule.onNodeWithTag("setup_cta_how_to_track").assertIsDisplayed()
+    }
+
+    @Test
+    fun highPrecisionPreset_scrollsClearOfPinnedContinueButton() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.size(width = 412.dp, height = 760.dp)) {
+                    HowToTrackStep(
+                        autoTrackingMode = 1,
+                        trackingPreset = TrackingPolicyPreset.BALANCED,
+                        onAutoTrackingModeChange = {},
+                        onPresetChange = {},
+                        onContinue = {},
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithTag("setup_how_to_track_scroll_bottom_padding")
+            .performScrollTo()
+
+        val highPrecisionNode = composeTestRule.onNodeWithTag("setup_preset_high_precision")
+            .fetchSemanticsNode()
+        val continueNode = composeTestRule.onNodeWithTag("setup_cta_how_to_track")
+            .fetchSemanticsNode()
+        val minClearancePx = with(continueNode.layoutInfo.density) { 48.dp.toPx() }
+
+        assertTrue(
+            actual = highPrecisionNode.boundsInRoot.bottom <= continueNode.boundsInRoot.top - minClearancePx,
+            message = "Expected High Accuracy card to scroll above the pinned continue CTA with touch-safe " +
+                "clearance. cardBounds=${highPrecisionNode.boundsInRoot}, " +
+                "ctaBounds=${continueNode.boundsInRoot}",
+        )
     }
 }

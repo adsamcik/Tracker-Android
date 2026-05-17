@@ -10,15 +10,19 @@ import com.adsamcik.tracker.app.onboarding.ui.SetupRoute
  */
 internal fun NavGraphBuilder.setupGraph(
     navController: NavHostController,
+    showOnboardingReadError: Boolean = false,
+    onSetupComplete: () -> Unit = {},
 ) {
     composable<Setup> {
         SetupRoute(
             onSetupComplete = {
+                onSetupComplete()
                 navController.navigate(Dashboard) {
                     popUpTo<Setup> { inclusive = true }
                     launchSingleTop = true
                 }
             },
+            showOnboardingReadError = showOnboardingReadError,
         )
     }
 }
