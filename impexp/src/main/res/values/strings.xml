@@ -13,6 +13,9 @@
     <string name="export_file_name_error">File names cannot contain \/:"*?&lt;&gt;|</string>
     <string name="export_gpx_description">Export of location data from %1$s to %2$s tracked with Advention.</string>
     <string name="export_gpx_error">GPX export failed with error: %s</string>
+    <string name="export_sensitivity_title">Export precise location data?</string>
+    <string name="export_sensitivity_message">This export/share contains full-precision location data and may include raw radio metadata in database exports. Only continue if you trust the destination.</string>
+    <string name="export_sensitivity_confirm">Continue</string>
     <string name="export_share_button">Share</string>
 
     <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
