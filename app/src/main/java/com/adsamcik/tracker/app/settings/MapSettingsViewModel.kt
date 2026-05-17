@@ -15,8 +15,11 @@ import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -39,6 +42,10 @@ class MapSettingsViewModel @Inject constructor(
     // Basemap state (file-system, not in proto)
     private val _basemapPath = MutableStateFlow(basemapManager.customBasemapPath())
     val basemapPath: StateFlow<String?> = _basemapPath.asStateFlow()
+
+    // One-shot import errors surfaced to the UI as toasts.
+    private val _basemapImportError = MutableSharedFlow<BasemapImportFailure>(extraBufferCapacity = 1)
+    val basemapImportError: SharedFlow<BasemapImportFailure> = _basemapImportError.asSharedFlow()
 
     // Ski infrastructure state (file-system, not in proto)
     private val _skiInfraLoaded = MutableStateFlow(skiInfrastructureManager.isAvailable())
@@ -73,8 +80,12 @@ class MapSettingsViewModel @Inject constructor(
                     prefs.edit { setString(basemapPathKey, result.path) }
                     _basemapPath.value = result.path
                 }
-                is BasemapImportResult.SourceOpenFailed,
-                is BasemapImportResult.CopyFailed -> Unit
+                is BasemapImportResult.SourceOpenFailed ->
+                    _basemapImportError.tryEmit(BasemapImportFailure.SourceOpenFailed)
+                is BasemapImportResult.CopyFailed ->
+                    _basemapImportError.tryEmit(BasemapImportFailure.CopyFailed)
+                is BasemapImportResult.InvalidFormat ->
+                    _basemapImportError.tryEmit(BasemapImportFailure.InvalidFormat(result.reason))
             }
         }
     }

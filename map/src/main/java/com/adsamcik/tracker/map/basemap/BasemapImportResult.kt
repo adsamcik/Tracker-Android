@@ -7,4 +7,6 @@ sealed class BasemapImportResult {
     data class SourceOpenFailed(val uri: Uri) : BasemapImportResult()
 
     data class CopyFailed(val cause: Throwable) : BasemapImportResult()
+
+    data class InvalidFormat(val reason: String) : BasemapImportResult()
 }

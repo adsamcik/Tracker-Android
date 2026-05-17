@@ -4,13 +4,14 @@ import android.content.Context
 import android.net.Uri
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
  * Manages user-imported PMTiles basemap files.
  *
- * Import flow: SAF picker -> copy to internal storage -> return file path.
+ * Import flow: SAF picker -> copy to internal storage -> validate magic + version -> return file path.
  * The same flow supports a future companion tile downloader app that exposes
  * files via FileProvider -- zero changes needed in Tracker.
  */
@@ -28,6 +29,8 @@ class BasemapManager(
 
         val input = try {
             context.contentResolver.openInputStream(uri)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return@withContext BasemapImportResult.SourceOpenFailed(uri)
         } ?: return@withContext BasemapImportResult.SourceOpenFailed(uri)
@@ -38,12 +41,19 @@ class BasemapManager(
                     source.copyTo(output)
                 }
             }
-
-            BasemapImportResult.Success(target.absolutePath)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             target.delete()
-            BasemapImportResult.CopyFailed(e)
+            return@withContext BasemapImportResult.CopyFailed(e)
         }
+
+        validatePmtilesHeader(target)?.let { reason ->
+            target.delete()
+            return@withContext BasemapImportResult.InvalidFormat(reason)
+        }
+
+        BasemapImportResult.Success(target.absolutePath)
     }
 
     /** Delete the custom basemap and revert to bundled default. */
@@ -95,13 +105,30 @@ class BasemapManager(
         if (!target.exists() || target.length() < PMTILES_HEADER_PREFIX_LENGTH) {
             return true
         }
+        return validatePmtilesHeader(target) != null
+    }
 
-        return !target.inputStream().use { input ->
+    /**
+     * Returns null if the file's PMTiles v3 header is well-formed,
+     * or a short human-readable reason string if it is malformed.
+     * Used both to detect when the bundled asset must be re-extracted
+     * and to validate user-imported PMTiles files.
+     */
+    private fun validatePmtilesHeader(target: File): String? {
+        if (!target.exists()) return "File missing after copy"
+        if (target.length() < PMTILES_HEADER_PREFIX_LENGTH) return "File too short to be a PMTiles archive"
+        return target.inputStream().use { input ->
             val header = ByteArray(PMTILES_HEADER_PREFIX_LENGTH)
             val bytesRead = input.read(header)
-            bytesRead == PMTILES_HEADER_PREFIX_LENGTH &&
-                header.copyOfRange(0, PMTILES_MAGIC.size).contentEquals(PMTILES_MAGIC) &&
-                header[PMTILES_MAGIC.size].toInt() == PMTILES_VERSION
+            when {
+                bytesRead != PMTILES_HEADER_PREFIX_LENGTH ->
+                    "Could not read PMTiles header"
+                !header.copyOfRange(0, PMTILES_MAGIC.size).contentEquals(PMTILES_MAGIC) ->
+                    "File is not a PMTiles archive (wrong magic bytes)"
+                header[PMTILES_MAGIC.size].toInt() != PMTILES_VERSION ->
+                    "Unsupported PMTiles version (expected v3)"
+                else -> null
+            }
         }
     }
 }

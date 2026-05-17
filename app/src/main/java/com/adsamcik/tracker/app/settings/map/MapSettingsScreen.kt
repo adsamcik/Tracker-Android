@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.settings.map
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,14 +18,22 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.adsamcik.tracker.app.settings.BasemapImportFailure
 import com.adsamcik.tracker.app.settings.MapSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -40,6 +49,26 @@ fun MapSettingsScreen(
     val maxHeat by viewModel.maxHeat.collectAsState()
     val visitThreshold by viewModel.visitThreshold.collectAsState()
 
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.basemapImportError.collect { failure ->
+            val message = when (failure) {
+                BasemapImportFailure.SourceOpenFailed ->
+                    context.getString(com.adsamcik.tracker.map.R.string.basemap_import_error_source_open)
+                BasemapImportFailure.CopyFailed ->
+                    context.getString(com.adsamcik.tracker.map.R.string.basemap_import_error_copy)
+                is BasemapImportFailure.InvalidFormat ->
+                    context.getString(
+                        com.adsamcik.tracker.map.R.string.basemap_import_error_invalid_format,
+                        failure.reason,
+                    )
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
@@ -195,6 +224,15 @@ fun MapSettingsScreen(
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
                 )
             }
+        }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+        ) { data ->
+            Snackbar(snackbarData = data)
         }
     }
 }
