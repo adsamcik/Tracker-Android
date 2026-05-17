@@ -1022,7 +1022,6 @@ class MigrationTest {
 						distance_m,
 						max_speed_mps,
 						avg_speed_mps,
-						lift_type,
 						created_at
 					) VALUES (
 						1,
@@ -1035,7 +1034,6 @@ class MigrationTest {
 						1800.0,
 						22.2,
 						12.3,
-						'CHAIRLIFT',
 						1700000000000
 					)
 				""".trimIndent()
@@ -1055,7 +1053,7 @@ class MigrationTest {
 
 			val skiRunCursor = query(
 				"""
-					SELECT session_id, segment_type, vertical_m, lift_type
+					SELECT session_id, segment_type, vertical_m
 					FROM ski_run_segment
 					WHERE id = 1
 				""".trimIndent()
@@ -1065,7 +1063,6 @@ class MigrationTest {
 				assertEquals(42, getInt(0))
 				assertEquals("DOWNHILL", getString(1))
 				assertEquals(450.5, getDouble(2), 0.00001)
-				assertEquals("CHAIRLIFT", getString(3))
 				assertFalse(moveToNext())
 			}
 			skiRunCursor.close()
