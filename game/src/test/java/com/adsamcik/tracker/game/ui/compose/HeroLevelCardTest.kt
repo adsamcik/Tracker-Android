@@ -34,7 +34,7 @@ class HeroLevelCardTest {
 		}
 
 		composeRule.onNodeWithText("Start tracking to level up!").assertIsDisplayed()
-		composeRule.onNodeWithText("Start Tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Open Dashboard to start").assertIsDisplayed()
 	}
 
 	@Test
