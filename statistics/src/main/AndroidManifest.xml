@@ -10,9 +10,7 @@
         <dist:fusing dist:include="false" />
     </dist:module>
 
-    <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
-        <activity android:name="com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity" />
-        <activity android:name="com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity" />
-    </application>
+    <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon" />
+
 
 </manifest>

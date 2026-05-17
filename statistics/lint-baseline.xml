@@ -2,28 +2,6 @@
 <issues format="6" by="lint 9.1.0" type="baseline" client="gradle" dependencies="false" name="AGP (9.1.0)" variant="all" version="9.1.0">
 
     <issue
-        id="MissingClass"
-        message="Class referenced in the manifest, `com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity`, was not found in the project or the libraries"
-        errorLine1="        &lt;activity android:name=&quot;com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity&quot; />"
-        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="14"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="MissingClass"
-        message="Class referenced in the manifest, `com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity`, was not found in the project or the libraries"
-        errorLine1="        &lt;activity android:name=&quot;com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity&quot; />"
-        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="15"
-            column="33"/>
-    </issue>
-
-    <issue
         id="LocalContextResourcesRead"
         message="Reading Resources using LocalContext.current.resources"
         errorLine1=" val resources = context.resources"

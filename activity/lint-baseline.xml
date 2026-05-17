@@ -2,17 +2,6 @@
 <issues format="6" by="lint 9.1.0" type="baseline" client="gradle" dependencies="false" name="AGP (9.1.0)" variant="all" version="9.1.0">
 
     <issue
-        id="MissingClass"
-        message="Class referenced in the manifest, `com.adsamcik.tracker.app.activity.debug.LogViewerActivity`, was not found in the project or the libraries"
-        errorLine1="        &lt;activity android:name=&quot;com.adsamcik.tracker.app.activity.debug.LogViewerActivity&quot; />"
-        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="12"
-            column="33"/>
-    </issue>
-
-    <issue
         id="LocalContextGetResourceValueCall"
         message="Querying resource values using LocalContext.current"
         errorLine1="                    message = context.getString(R.string.settings_activity_snackbar_message, activity.name),"
