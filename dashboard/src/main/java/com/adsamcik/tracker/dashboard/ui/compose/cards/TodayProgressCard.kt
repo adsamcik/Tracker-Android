@@ -49,11 +49,13 @@ internal fun TodayProgressCard(
 	val settings = TrackerSettingsQuick.snapshot(context)
 	val summary = state.todaySummary
 	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-	val contentPadding = if (isLandscape) 16.dp else 20.dp
-	val metricSpacing = if (isLandscape) 12.dp else 16.dp
-	val metricRowSpacing = if (isLandscape) 8.dp else 12.dp
+	// Tighter in landscape: phone landscape viewport is short, so the hero must
+	// not crowd out the streak/challenges/last-session widgets below the fold.
+	val contentPadding = if (isLandscape) 12.dp else 20.dp
+	val metricSpacing = if (isLandscape) 10.dp else 16.dp
+	val metricRowSpacing = if (isLandscape) 6.dp else 12.dp
 	val primaryMetricStyle = if (isLandscape) {
-		MaterialTheme.typography.headlineMedium
+		MaterialTheme.typography.titleLarge
 	} else {
 		MaterialTheme.typography.displaySmall
 	}
@@ -112,7 +114,7 @@ internal fun TodayProgressCard(
 						color = MaterialTheme.colorScheme.onSurface,
 					)
 
-					Spacer(Modifier.height(if (isLandscape) 6.dp else 8.dp))
+					Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
 
 					// Secondary metrics
 					FlowRow(
