@@ -6,7 +6,6 @@ import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.tracker.data.store.TrackingTogglesDataStore
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -36,7 +35,6 @@ class TrackingSettingsViewModelTest {
     // Backing state for the fake repository
     private val paramsFlow = MutableStateFlow(TrackingParamsState())
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
-    private val trackingTogglesDataStore: TrackingTogglesDataStore = mockk(relaxed = true)
 
     @BeforeEach
     fun setUp() {
@@ -103,7 +101,7 @@ class TrackingSettingsViewModelTest {
 
     private fun createViewModel(): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
-        return TrackingSettingsViewModel(context, trackingParamsRepository, trackingTogglesDataStore)
+        return TrackingSettingsViewModel(context, trackingParamsRepository)
     }
 
     // =========================================================================

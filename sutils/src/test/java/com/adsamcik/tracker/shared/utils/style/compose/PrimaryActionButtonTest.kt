@@ -27,13 +27,13 @@ class PrimaryActionButtonTest {
 	val composeRule = createComposeRule()
 
 	@Test
-	fun displaysUppercasedText() {
+	fun displaysText() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				PrimaryActionButton(text = "Start", onClick = {})
 			}
 		}
-		composeRule.onNodeWithText("START").assertIsDisplayed()
+		composeRule.onNodeWithText("Start").assertIsDisplayed()
 	}
 
 	@Test
@@ -100,7 +100,7 @@ class PrimaryActionButtonTest {
 				)
 			}
 		}
-		composeRule.onNodeWithText("ADD").assertIsDisplayed()
+		composeRule.onNodeWithText("Add").assertIsDisplayed()
 	}
 
 	@Test
@@ -110,7 +110,7 @@ class PrimaryActionButtonTest {
 				PrimaryActionButton(text = "No Icon", onClick = {})
 			}
 		}
-		composeRule.onNodeWithText("NO ICON").assertIsDisplayed()
+		composeRule.onNodeWithText("No Icon").assertIsDisplayed()
 	}
 
 	@Test

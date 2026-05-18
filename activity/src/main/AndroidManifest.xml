@@ -9,8 +9,6 @@
             android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity android:name="com.adsamcik.tracker.app.activity.debug.LogViewerActivity" />
-
         <receiver
             android:name=".receiver.ActivityReceiver"
             android:exported="false"

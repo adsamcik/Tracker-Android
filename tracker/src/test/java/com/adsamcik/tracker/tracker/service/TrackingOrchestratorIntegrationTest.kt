@@ -120,7 +120,6 @@ class TrackingOrchestratorIntegrationTest {
 				elapsedRealtimeNanos = 1_000_000_000L,
 				location = LocationData(listOf(first), previousLocation = null, distance = null),
 			),
-			scope = backgroundScope,
 		)
 		val second = location(timeMs = 2_000L, latitude = 50.0001, longitude = 14.0001)
 		orchestrator.onCycleUpdate(
@@ -130,7 +129,6 @@ class TrackingOrchestratorIntegrationTest {
 				elapsedRealtimeNanos = 2_000_000_000L,
 				location = LocationData(listOf(second), previousLocation = first, distance = 13f),
 			),
-			scope = backgroundScope,
 		)
 
 		val shutdownResult = orchestrator.shutdown(context)

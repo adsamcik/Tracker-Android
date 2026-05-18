@@ -823,7 +823,6 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
 					distance_m REAL NOT NULL,
 					max_speed_mps REAL NOT NULL,
 					avg_speed_mps REAL NOT NULL,
-					lift_type TEXT,
 					created_at INTEGER NOT NULL
 				)
 			""".trimIndent())
@@ -836,15 +835,21 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
 }
 
 /**
- * Migration 18 → 19: Add raw_gps_alt_m column to location_sample.
+ * Migration 18 → 19: Add raw_gps_alt_m to location_sample and lift_type to ski_run_segment.
  *
- * Preserves the original GPS altitude (before geoid correction and Kalman fusion)
+ * raw_gps_alt_m preserves the original GPS altitude (before geoid correction and Kalman fusion)
  * alongside the processed altitude for diagnostics and potential re-processing.
+ *
+ * lift_type tags LIFT_UP ski_run_segment rows with the OSM lift type (chairlift, gondola, etc.).
  */
 val MIGRATION_18_19: Migration = object : Migration(18, 19) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("ALTER TABLE location_sample ADD COLUMN raw_gps_alt_m REAL")
-		android.util.Log.i("AppDatabase", "Migration 18->19: Added raw_gps_alt_m column to location_sample")
+		db.execSQL("ALTER TABLE ski_run_segment ADD COLUMN lift_type TEXT")
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 18->19: Added raw_gps_alt_m to location_sample and lift_type to ski_run_segment"
+		)
 	}
 }
 
