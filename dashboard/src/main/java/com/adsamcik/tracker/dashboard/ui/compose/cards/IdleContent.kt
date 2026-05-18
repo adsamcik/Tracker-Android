@@ -66,6 +66,11 @@ internal fun IdleContent(
 			item(key = "motivational") {
 				MotivationalText(state = state)
 			}
+			if (!state.hasLocationPermission) {
+				item(key = "permission_banner") {
+					LocationPermissionBanner(onRequestPermission = onRequestPermission)
+				}
+			}
 			renderWidgets(
 				widgets = widgets,
 				state = state,
@@ -90,6 +95,14 @@ internal fun IdleContent(
 				span = { GridItemSpan(columns) },
 			) {
 				MotivationalText(state = state)
+			}
+			if (!state.hasLocationPermission) {
+				item(
+					key = "permission_banner",
+					span = { GridItemSpan(columns) },
+				) {
+					LocationPermissionBanner(onRequestPermission = onRequestPermission)
+				}
 			}
 			renderGridWidgets(
 				widgets = widgets,
