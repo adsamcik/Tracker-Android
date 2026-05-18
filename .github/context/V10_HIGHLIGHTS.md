@@ -18,7 +18,7 @@ landing on the branch. Update it when major themes shift.
 ## 2. Map: Zero-Telemetry Rendering
 - Replaced **Google Maps with MapLibre GL Native**; bundled offline z0–z6 basemap tiles.
 - Added on-the-fly **vector tile generation** system, **zoom-adaptive LOD**, **viewport-bounded heatmap queries**, allocation perf passes.
-- Geocoder migrated to callback API on Android 13+ with offline fallback.
+- Geocoder removed entirely; place-name search now surfaces a format-hint snackbar instead of network/system geocoding.
 - Heatmap data cache, async normalization, tile provider hardening.
 - Replaced bottom sheet with a tiered chrome card; calmed location/speed heatmap saturation.
 
@@ -36,7 +36,7 @@ landing on the branch. Update it when major themes shift.
 - **SharedPreferences → Proto DataStore** across settings, retention, tracking params, developer prefs, lock manager.
 - **AppGraph service-locator → pure Hilt DI**: `@HiltViewModel` per screen, `@HiltWorker` for 8 workers, `DispatchersProvider` injected (no raw `Dispatchers.IO`).
 - Removed mutable companion-object singletons (Preferences, ActivityWatcherService static bridge, etc.); ViewModels split per screen.
-- Room schema bumped to **v17 / 27 entities** with **migration tests for every step**, missing indices added (schema bumps to v23/v26 along the way), `LIMIT` safety nets on unbounded queries, `BaseDao` CRUD methods made `suspend`.
+- Room schema bumped to **v26 / 26 entities** with **migration tests for every step**, missing indices added, `LIMIT` safety nets on unbounded queries, `BaseDao` CRUD methods made `suspend`.
 - Hilt modules organized as `AppGraphModule` / `RepositoryModule` / `InfrastructureModule`; CompositionLocals replaced with Hilt ViewModel injection.
 
 ## 5. New Feature Surface
@@ -49,23 +49,23 @@ landing on the branch. Update it when major themes shift.
 - **Smart goal notifications**, session insights cards, calendar, charts, LeakCanary, fitness tests.
 
 ## 6. Privacy & Safety Hardening
-- Centralized **PII redaction** in Logger; non-throwing `Reporter`.
+- Centralized **PII redaction** in Logger; `Reporter` / `ReporterFacade` route errors through the structured logger.
 - Removed all remote URLs, Firebase scaffolding, analytics terminology.
 - **Sealed `*Result` types** replace cross-module exceptions (no throwing across module boundaries).
-- All production `runBlocking` calls eliminated; `CopyOnWriteArrayList` / mutexes for thread safety; SQL injection fix in `SafeQueryBuilder`; KML coordinate validation.
+- Most production `runBlocking` calls eliminated; remaining sites (`PagedLocationSequence`, `CrashHandler`, `DebugCrashLogExporter`, `TrackerSettingsAccess`, `LegacyPreferenceStore`) are explicit and isolated to lifecycle/IO entry points. `CopyOnWriteArrayList` / mutexes for thread safety; SQL injection fix in `SafeQueryBuilder`; KML coordinate validation.
 
 ## 7. Testing Explosion
-- Hundreds of new unit tests: sbase **131**, app module **89 Compose UI tests**, game **49**, statistics **29**, activity **29**, plus tracker / stats-api / stats-data / map / sutils / sbase / dashboard.
+- Hundreds of new unit tests across all modules. The `:app` module alone has **~25 Compose UI test files (~168 `@Test` methods)** exercising real composables; sbase, game, statistics, activity, tracker, stats-*, map, sutils, dashboard all gained substantial coverage.
 - **Compose UI tests** verify real composables with real assertions.
 - Room **migration tests** for every schema step, integration tests for streaming aggregator, ski detection, retention, repositories.
 - Test fakes consolidated into `:testing-common` (`FakeLocationSource`, `FakeTrackerSettingsRepository`, `TestAppGraphBuilder`).
 - Robolectric tests migrated from JUnit 4 to JUnit 5 extension where applicable.
 
 ## 8. Build & Tooling
-- **AGP 9.1**, **JDK 21** toolchain auto-provisioning via Foojay, **KSP-only** (no KAPT).
+- **AGP 9.1.0**, **Gradle 9.3.1**, **Kotlin 2.2.20**, **JDK 17** toolchain via Foojay auto-provisioning, **KSP-only** (no KAPT). compileSdk/targetSdk 36, minSdk 26.
 - All versions live in `gradle/libs.versions.toml`; Jetifier disabled.
 - Removed `macrobenchmark` module; lint baselines for all modules.
-- `:smap` merged into `:map`; `:logger` decoupled from `:sbase` via `logging-api` module.
+- `:smap` retired (a stub `smap/` directory remains with only `build.gradle.kts` + `.gitignore` and is not in `settings.gradle.kts`); `:logger` decoupled from `:sbase` via the `:logging-api` module; `:dashboard` extracted as its own module. Current module count: **18**.
 - Photo geotagger and QC testing utilities under `tools/`; comprehensive architecture docs (`docs/ARCHITECTURE_OVERVIEW.md`, `docs/STATS_PIPELINE_ARCHITECTURE.md`).
 
 ---
