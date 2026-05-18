@@ -6,6 +6,9 @@ At time of writing: **449 commits ahead, 0 behind**, ~262k insertions / ~39k del
 This file is **not auto-managed** — it is a hand-curated orientation note for LLMs and contributors
 landing on the branch. Update it when major themes shift.
 
+For the **remaining work** on this branch (predicted bugs not yet fixed, doc/process notes for the
+next agent, recommended next-step ordering), see [`V10_FOLLOWUPS.md`](V10_FOLLOWUPS.md).
+
 ---
 
 ## 1. UI Modernization → Pure Compose + Material 3 Expressive
