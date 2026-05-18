@@ -211,6 +211,7 @@ class ArchitecturalFitnessTest {
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTriggerTest.kt:",
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTriggerTest.kt:",
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycleTest.kt:",
+			"tracker/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt:",
 			"map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt:",
 		)
 	}
