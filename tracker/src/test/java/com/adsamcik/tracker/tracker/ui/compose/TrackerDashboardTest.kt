@@ -90,7 +90,7 @@ class TrackerDashboardTest {
 			}
 		}
 
-		composeRule.onNodeWithContentDescription("Start tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Start tracking button").assertIsDisplayed()
 		composeRule.onNodeWithTag("tracking_fab").assertIsDisplayed()
 	}
 
@@ -107,7 +107,7 @@ class TrackerDashboardTest {
 			}
 		}
 
-		composeRule.onNodeWithContentDescription("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Stop tracking button").assertIsDisplayed()
 	}
 
 	@Test

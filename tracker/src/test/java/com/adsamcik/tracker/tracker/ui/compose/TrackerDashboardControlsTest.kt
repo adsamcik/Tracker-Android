@@ -39,7 +39,7 @@ class TrackerDashboardControlsTest {
 		}
 
 		composeRule.onNodeWithTag("tracking_fab").assertIsDisplayed()
-		composeRule.onNodeWithContentDescription("Start tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Start tracking button").assertIsDisplayed()
 	}
 
 	@Test
@@ -56,7 +56,7 @@ class TrackerDashboardControlsTest {
 		}
 
 		composeRule.onNodeWithTag("tracking_fab").assertIsDisplayed()
-		composeRule.onNodeWithContentDescription("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Stop tracking button").assertIsDisplayed()
 	}
 
 	@Test
@@ -72,7 +72,7 @@ class TrackerDashboardControlsTest {
 			}
 		}
 
-		composeRule.onNodeWithContentDescription("Start tracking - permission required")
+		composeRule.onNodeWithContentDescription("Start tracking — permission required")
 			.assertIsDisplayed()
 	}
 
