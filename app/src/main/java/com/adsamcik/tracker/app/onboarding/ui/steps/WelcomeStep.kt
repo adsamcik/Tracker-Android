@@ -3,10 +3,14 @@ package com.adsamcik.tracker.app.onboarding.ui.steps
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,10 +26,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,12 +49,23 @@ fun WelcomeStep(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val scrollState = rememberScrollState()
+    // At large font scales the value-prop list overflows the first viewport.
+    // A bottom fade gradient hints at scrollable content below; the fade is
+    // hidden once the user reaches the bottom so it doesn't compete with the CTA.
+    val fadeAlpha by animateFloatAsState(
+        targetValue = if (scrollState.canScrollForward) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "welcome_scroll_fade",
+    )
+    val fadeColor = MaterialTheme.colorScheme.background
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding)
             .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.height(48.dp))
@@ -115,5 +134,23 @@ fun WelcomeStep(
         )
 
         Spacer(modifier = Modifier.height(48.dp))
+    }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(48.dp)
+                .drawWithCache {
+                    val brush = Brush.verticalGradient(
+                        colors = listOf(
+                            fadeColor.copy(alpha = 0f),
+                            fadeColor.copy(alpha = fadeAlpha),
+                        ),
+                    )
+                    onDrawBehind {
+                        drawRect(brush = brush, blendMode = BlendMode.SrcOver)
+                    }
+                },
+        )
     }
 }
