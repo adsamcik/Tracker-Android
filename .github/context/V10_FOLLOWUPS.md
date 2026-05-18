@@ -4,6 +4,12 @@ Status snapshot at HEAD `b3882a3f4` (Merge docs/v10-drift-fixes, on top of
 `93ff4d4f1` Merge fix/v10-runtime-crashes). Use this file alongside
 [`V10_HIGHLIGHTS.md`](V10_HIGHLIGHTS.md) when landing on the branch.
 
+Companion: [`V10_RC_MERGE_FOLLOWUPS.md`](V10_RC_MERGE_FOLLOWUPS.md) covers the
+**RC-merge integration decisions** (which side won for tracking toggles,
+onboarding, map controls, dashboard, impexp, TrackingOrchestrator,
+PrivacyPolicyDialog) and release-gate validation status. This file
+focuses on **what's still broken** in the merged tree.
+
 This file is **hand-curated**. The underlying findings come from the
 internal `.github/v10-validation/` reports (gitignored — local-only;
 121 reviewer-approved task reports across 17 area folders), the
