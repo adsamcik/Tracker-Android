@@ -6,6 +6,14 @@ At time of writing: **449 commits ahead, 0 behind**, ~262k insertions / ~39k del
 This file is **not auto-managed** — it is a hand-curated orientation note for LLMs and contributors
 landing on the branch. Update it when major themes shift.
 
+For the **remaining work** on this branch:
+
+- [`V10_FOLLOWUPS.md`](V10_FOLLOWUPS.md) — predicted bugs not yet fixed, doc/process notes for the
+  next agent, recommended next-step ordering.
+- [`V10_RC_MERGE_FOLLOWUPS.md`](V10_RC_MERGE_FOLLOWUPS.md) — architectural decisions made during
+  the `feature/v10-rc-fixes` Phase B merge, release-gate validation status, and parallel-agent
+  coordination notes.
+
 ---
 
 ## 1. UI Modernization → Pure Compose + Material 3 Expressive
