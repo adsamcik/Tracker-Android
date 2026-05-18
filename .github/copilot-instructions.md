@@ -11,7 +11,7 @@ Privacy-first, fully local location & activity tracker for Android. No backend, 
 ---
 
 ## 2. Architecture
-Multi-module Gradle project (17 modules). See `docs/ARCHITECTURE_OVERVIEW.md` for full component maps.
+Multi-module Gradle project (18 modules). See `docs/ARCHITECTURE_OVERVIEW.md` for full component maps.
 
 | Module | Purpose |
 |--------|---------|
@@ -19,14 +19,15 @@ Multi-module Gradle project (17 modules). See `docs/ARCHITECTURE_OVERVIEW.md` fo
 | `tracker` | Core tracking: `TrackerService`, component pipeline, producers |
 | `map` | MapLibre visualization, heatmaps, layers (UDF via MapStore) |
 | `statistics` | Session list, trip detail views, analytics |
+| `dashboard` | Tracker dashboard, live stats, milestones, widgets |
 | `game` | Challenges, goals, gamification |
 | `activity` | Activity recognition (Google Play Services) |
 | `impexp` | Import/export (GPX, KML, JSON, SQLite), streaming writers |
-| `sbase` | Room database (v17, 27 entities), DAOs |
+| `sbase` | Room database (v26, 26 entities), DAOs |
 | `sutils` | Shared utilities, formatters, `AppTheme` |
-| `smap` | Shared map utilities |
 | `spreferences` | Typed preferences, settings repos, retention |
 | `logger` | Structured logging with privacy-aware redaction |
+| `logging-api` | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) decoupling `:logger` from `:sbase` |
 | `points` | Points calculation |
 | `stats-api` | API contracts (achievements, policies, trips) |
 | `stats-engine` | Processing algorithms (aggregation, place detection) |
@@ -67,9 +68,9 @@ Data flow: `Sensors -> Producers -> TempData -> Pre/Data/Post-Components -> Room
 ---
 
 ## 6. Data Layer
-- Room v17 (27 entities). Paging/window queries only. Explicit SQL for hot paths.
+- Room v26 (26 entities). Paging/window queries only. Explicit SQL for hot paths.
 - **Every schema change requires migration + test.**
-- **DataStore (proto) for new key-value storage.** No new SharedPreferences.
+- **DataStore (proto) for new key-value storage.** No new SharedPreferences. Legacy SharedPreferences (`LegacyPreferenceStore`, `PreferenceFlows`) is still read for migration compatibility — do not add new writes through it.
 
 ---
 

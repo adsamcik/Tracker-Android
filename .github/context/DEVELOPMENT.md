@@ -13,14 +13,14 @@ Reference for building, testing, and debugging Tracker Android.
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Android Studio | Latest stable | Ladybug or newer |
-| JDK | 17+ | Bundled with Android Studio |
-| Kotlin | 2.2.20-RC | Via version catalog (K2 compiler) |
-| KSP | 2.2.20-RC-2.0.2 | No KAPT for new code |
-| AGP | 8.13.1 | Android Gradle Plugin |
+| JDK | 17 | Toolchain auto-provisioned via Foojay (`jvmToolchain(17)`) |
+| Kotlin | 2.2.20 | Via version catalog (K2 compiler) |
+| KSP | 2.2.20-2.0.2 | No KAPT for new code |
+| AGP | 9.1.0 | Android Gradle Plugin |
 | Compile SDK | 36 (API 36) | Target SDK also 36 |
 | Min SDK | 26 | Android 8.0 Oreo |
 | Build Tools | 36.0.0 | Via version catalog |
-| Gradle | 8.x | Wrapper included |
+| Gradle | 9.3.1 | Wrapper included |
 
 ## Setup
 
@@ -102,14 +102,15 @@ Tracker-Android/
   tracker/          Core tracking engine
   map/              Map visualization (MapLibre)
   statistics/       Session analytics
+  dashboard/        Tracker dashboard, live stats, widgets
   game/             Gamification (challenges, goals)
   activity/         Activity recognition
   impexp/           Import/export
   sbase/            Shared database & entities
   sutils/           Shared utilities & AppTheme
-  smap/             Shared map utilities
   spreferences/     Typed preferences
-  logger/           Logging facade
+  logger/           Logging implementation
+  logging-api/      Logger-facing contracts (ReporterFacade, ErrorReporter)
   points/           Points system
   stats-api/        Stats API contracts
   stats-engine/     Stats processing algorithms

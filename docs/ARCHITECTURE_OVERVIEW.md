@@ -26,7 +26,7 @@
 
 ## 2. Module Architecture
 
-The application is organized into **17 Gradle modules**:
+The application is organized into **18 Gradle modules**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -53,13 +53,13 @@ The application is organized into **17 Gradle modules**:
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        SHARED LIBRARIES                              │
-│  sbase (Database, Data)  │  sutils  │  smap  │  spreferences        │
+│      sbase (Database, Data)  │  sutils  │  spreferences              │
 └─────────────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     SUPPORTING MODULES                               │
-│           logger  │  points  │  testing-common                       │
+│      logger  │  logging-api  │  points  │  testing-common            │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,20 +69,21 @@ The application is organized into **17 Gradle modules**:
 |--------|---------|
 | **app** | Main application: `Application.kt`, `AppGraph.kt`, navigation, settings, onboarding |
 | **tracker** | Core tracking: `TrackerService`, component pipeline, producers/consumers |
-| **map** | Map visualization with layers, heatmaps, and Google Maps integration |
+| **map** | Map visualization with layers and heatmaps via **MapLibre GL Native** (no Google Maps) |
 | **statistics** | Session list, detail views, summary statistics |
+| **dashboard** | Tracker dashboard, live stats, milestones, recent trips, widgets |
 | **game** | Challenges, goals, gamification features |
 | **activity** | Activity recognition via Google Play Services |
 | **impexp** | Import/export in GPX, KML, JSON, SQLite formats |
-| **logger** | Crash handling, logging, error reporting |
+| **logger** | Crash handling, structured logging, PII redaction |
+| **logging-api** | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) that decouple `:logger` from `:sbase` |
 | **points** | Points calculation and scoring |
 | **stats-api** | Stats domain contracts: value classes, SignalProcessor, repositories, domain events (KMP) |
 | **stats-engine** | Stats algorithms: aggregation, segment detection, exploration, achievements (KMP) |
 | **stats-data** | Stats data layer: repository implementations, Hilt DI bindings |
-| **sbase** | Shared base: Room database, data classes, entities, DAOs |
-| **sutils** | Shared utilities: extensions, formatters, helpers |
-| **smap** | Shared map utilities |
-| **spreferences** | Shared preferences and settings |
+| **sbase** | Shared base: Room database (v26, 26 entities), data classes, entities, DAOs |
+| **sutils** | Shared utilities: extensions, formatters, helpers, `AppTheme` |
+| **spreferences** | Shared preferences and settings (Proto DataStore + legacy SharedPreferences read-compat) |
 | **testing-common** | Test utilities, fakes, mocks |
 
 ---

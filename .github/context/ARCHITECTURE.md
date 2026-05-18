@@ -19,18 +19,19 @@ FEATURE MODULES:
   tracker       - TrackerService, Components, Producers, PolicyManager
   map           - MapLibre Compose, Heatmap Layers, UDF MapStore
   statistics    - Sessions/Trips, Summary/Detail, ViewModels
+  dashboard     - Tracker dashboard, live stats, milestones, widgets
   activity      - Recognition, Receivers (OnFoot/Vehicle)
   game          - Challenges, Goals (Steps), ChallengeDB
-  impexp        - GPX/KML/JSON, Streaming Exporter interface
+  impexp        - GPX/KML/JSON/SQLite, Streaming Exporter interface
 
 SHARED LIBRARIES:
-  sbase (Room DB v17) | sutils (AppTheme) | smap | spreferences
+  sbase (Room DB v26) | sutils (AppTheme) | spreferences
 
 DOMAIN/ANALYTICS:
   stats-api (contracts) | stats-engine (algorithms) | stats-data
 
 SUPPORTING:
-  logger | points | testing-common
+  logger | logging-api | points | testing-common
 ```
 
 ## Module Details
@@ -47,7 +48,7 @@ SUPPORTING:
 | Routes | `app/.../ui/navigation/Routes.kt` | `@Serializable` route definitions |
 | Hilt Modules | `app/.../di/` | AppGraphModule, RepositoryModule, InfrastructureModule |
 | Settings | `app/.../settings/` | SettingsRoute, TrackingSettingsViewModel |
-| Onboarding | `app/.../onboarding/` | StreamlinedOnboardingScreen, permission flow |
+| Setup (Onboarding) | `app/.../onboarding/ui/SetupRoute.kt` | 3-step Setup flow (Welcome / HowToTrack / WhatToCollect), permission flow via `SetupViewModel` |
 
 ### Tracker Module - Component Pipeline
 
@@ -119,10 +120,10 @@ TrackerService (Foreground Service + WakeLock)
 
 <!-- context-init:managed -->
 
-- **Version:** 17
-- **27 Entities:** LocationSample, StepInterval, ActivitySnapshot, CellSample, WifiObservation, TrackerRun, SessionSegment, DailySummaryEntity, LiveStatsEntity, FrequentPlaceEntity, InferredTripEntity, TripLegEntity, ExplorationCellEntity, ExplorationStreakEntity, AchievementProgressEntity, PersonalRecordEntity, RouteCacheEntity, ExportLogEntity, StorageSizeSnapshotEntity + legacy entities
+- **Version:** 26
+- **26 Entities:** SessionActivity, NetworkOperator, LocationSample, StepInterval, ActivitySnapshot, CellSample, WifiObservation, TrackerRun, SessionSegment, DailySummaryEntity, LiveStatsEntity, FrequentPlaceEntity, InferredTripEntity, TripLegEntity, ExplorationCellEntity, ExplorationStreakEntity, AchievementProgressEntity, PersonalRecordEntity, RouteCacheEntity, ExportLogEntity, StorageSizeSnapshotEntity, DomainEventEntity, DomainEventCursorEntity, PressureSample, SkiRunSegment, PendingSignalEntity
 - **Type Converters:** CellType, DetectedActivity, GeoFeatureProperties, Sessionless
-- **Key DAOs:** LocationSampleDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, FrequentPlaceDao, ExplorationCellDao
+- **Key DAOs:** LocationSampleDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, FrequentPlaceDao, ExplorationCellDao, SkiRunSegmentDao, PressureSampleDao, DomainEventDao
 
 ### Navigation Graph
 
