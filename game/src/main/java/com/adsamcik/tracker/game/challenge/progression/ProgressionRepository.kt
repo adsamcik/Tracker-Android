@@ -98,7 +98,7 @@ class ProgressionRepository @Inject constructor(
 
 		// 6. Resolve profile (post-award if awarded, else current)
 		val profileSnapshot = awardResult ?: run {
-			val current = database.playerProfileDao().get()
+			val current = database.playerProfileDao().get() ?: PlayerProfileEntity()
 			AwardResult(0, current, false)
 		}
 
@@ -203,7 +203,6 @@ class ProgressionRepository @Inject constructor(
 			result = AwardResult(xpEntry.amount, profile, leveledUp)
 		}
 		return result
-	}
 	}
 
 	private suspend fun checkPersonalRecords(

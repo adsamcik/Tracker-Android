@@ -38,7 +38,7 @@ interface ChallengeProcessor {
 	 * Process a challenge entity using a completed tracking session.
 	 * Default behavior is additive based on [extractProgress].
 	 */
-	fun processEntity(
+	suspend fun processEntity(
 		context: Context,
 		entity: ChallengeEntity,
 		session: TrackerSession,

@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger

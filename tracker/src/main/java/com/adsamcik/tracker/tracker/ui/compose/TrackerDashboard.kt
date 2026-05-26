@@ -639,7 +639,6 @@ private fun TrackingContent(
                 val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 Spacer(Modifier.height(140.dp + navInset))
             }
-            }
         }
     }
 }

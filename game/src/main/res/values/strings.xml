@@ -93,6 +93,7 @@
     <string name="game_trophy_filter_bronze">Bronze</string>
     <string name="game_trophy_xp_earned">+%1$d XP</string>
     <string name="game_trophy_completed_on">Completed %1$s</string>
+    <string name="action_navigate_back">Navigate back</string>
     <string name="game_trophy_expired">Expired</string>
     <string name="game_personal_records_title">Personal Records</string>
     <string name="game_personal_records_empty">No records yet — keep challenging yourself!</string>

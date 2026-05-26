@@ -396,4 +396,3 @@ private fun FilterField(
 		keyboardOptions = keyboardOptions,
 	)
 }
-}

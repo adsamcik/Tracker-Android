@@ -844,12 +844,38 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
  */
 val MIGRATION_18_19: Migration = object : Migration(18, 19) {
 	override fun migrate(db: SupportSQLiteDatabase) {
-		db.execSQL("ALTER TABLE location_sample ADD COLUMN raw_gps_alt_m REAL")
-		db.execSQL("ALTER TABLE ski_run_segment ADD COLUMN lift_type TEXT")
+		addColumnIfMissing(db, "location_sample", "raw_gps_alt_m", "REAL")
+		addColumnIfMissing(db, "ski_run_segment", "lift_type", "TEXT")
 		android.util.Log.i(
 			"AppDatabase",
 			"Migration 18->19: Added raw_gps_alt_m to location_sample and lift_type to ski_run_segment"
 		)
+	}
+}
+
+/**
+ * Adds a column to [table] only when it isn't already present. Defensive against
+ * dev devices whose schema may have drifted from a partially-applied prior build.
+ */
+private fun addColumnIfMissing(
+	db: SupportSQLiteDatabase,
+	table: String,
+	column: String,
+	type: String,
+) {
+	val exists = db.query("PRAGMA table_info($table)").use { cursor ->
+		val nameIndex = cursor.getColumnIndex("name").takeIf { it >= 0 } ?: return@use false
+		var found = false
+		while (cursor.moveToNext()) {
+			if (cursor.getString(nameIndex) == column) {
+				found = true
+				break
+			}
+		}
+		found
+	}
+	if (!exists) {
+		db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
 	}
 }
 

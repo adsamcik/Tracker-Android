@@ -35,7 +35,7 @@ class ConsistencyChallengeProcessor @Inject constructor() : ChallengeProcessor {
 	 * Update entity with the new session's calendar day.
 	 * Returns the updated entity with new currentValue = distinct day count.
 	 */
-	override fun processEntity(
+	override suspend fun processEntity(
 		context: Context,
 		entity: ChallengeEntity,
 		session: TrackerSession,

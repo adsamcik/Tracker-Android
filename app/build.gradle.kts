@@ -154,12 +154,14 @@ android {
 			signingConfig = signingConfigs.getByName("debug")
 			isDebuggable = false
 			isMinifyEnabled = false
+			isShrinkResources = false
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 
 		create("release_nominify") {
 			initWith(release)
 			isMinifyEnabled = false
+			isShrinkResources = false
 		}
 	}
 

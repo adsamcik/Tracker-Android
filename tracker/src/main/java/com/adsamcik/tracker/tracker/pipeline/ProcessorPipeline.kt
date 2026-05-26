@@ -43,6 +43,7 @@ class ProcessorPipeline(
 ) {
 	private companion object {
 		const val TAG = "ProcessorPipeline"
+		const val MAX_CONSECUTIVE_FAILURES = 5
 	}
 
 	private val mutex = Mutex()
@@ -316,10 +317,5 @@ class ProcessorPipeline(
 		}
 		pendingJobs.forEach { it.join() }
 		supervisorJob.cancelAndJoin()
-	}
-
-	companion object {
-		private const val TAG = "ProcessorPipeline"
-		private const val MAX_CONSECUTIVE_FAILURES = 5
 	}
 }
