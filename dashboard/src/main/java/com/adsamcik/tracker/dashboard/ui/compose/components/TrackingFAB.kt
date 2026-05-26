@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R as DashboardR
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineDurations
 import com.adsamcik.tracker.tracker.R
 
 /**
@@ -69,7 +70,7 @@ internal fun TrackingFAB(
 
 	val cornerRadius by animateFloatAsState(
 		targetValue = if (isTracking) 50f else 28f,
-		animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+		animationSpec = tween(durationMillis = RidgelineDurations.EMPHASIZED_MS, easing = FastOutSlowInEasing),
 		label = "corner_radius",
 	)
 
@@ -81,7 +82,7 @@ internal fun TrackingFAB(
 			initialValue = 1f,
 			targetValue = if (isTracking) 1.04f else 1f,
 			animationSpec = infiniteRepeatable(
-				animation = tween(1200, easing = FastOutSlowInEasing),
+				animation = tween(RidgelineDurations.AMBIENT_MS / 2, easing = FastOutSlowInEasing),
 				repeatMode = RepeatMode.Reverse,
 			),
 			label = "pulse",
@@ -97,7 +98,7 @@ internal fun TrackingFAB(
 			initialValue = 0f,
 			targetValue = 360f,
 			animationSpec = infiniteRepeatable(
-				animation = tween(3000, easing = LinearEasing),
+				animation = tween(RidgelineDurations.BACKGROUND_LOOP_MS, easing = LinearEasing),
 				repeatMode = RepeatMode.Restart,
 			),
 			label = "glow_rotation",
@@ -107,13 +108,13 @@ internal fun TrackingFAB(
 
 	val glowAlpha by animateFloatAsState(
 		targetValue = if (isTracking) 0.6f else 0f,
-		animationSpec = tween(durationMillis = 500),
+		animationSpec = tween(durationMillis = RidgelineDurations.EMPHASIZED_MS),
 		label = "glow_alpha",
 	)
 
 	val iconScale by animateFloatAsState(
 		targetValue = if (isTracking) 0.9f else 1f,
-		animationSpec = tween(durationMillis = 300),
+		animationSpec = tween(durationMillis = RidgelineDurations.STANDARD_MS),
 		label = "icon_scale",
 	)
 
@@ -209,16 +210,16 @@ internal fun TrackingFAB(
 					targetState = icon,
 					label = "fab_icon",
 					transitionSpec = {
-						(fadeIn(animationSpec = tween(300)) +
+						(fadeIn(animationSpec = tween(RidgelineDurations.STANDARD_MS)) +
 							scaleIn(
 								initialScale = 0.8f,
-								animationSpec = tween(300),
+								animationSpec = tween(RidgelineDurations.STANDARD_MS),
 							))
 							.togetherWith(
-								fadeOut(animationSpec = tween(200)) +
+								fadeOut(animationSpec = tween(RidgelineDurations.QUICK_MS)) +
 									scaleOut(
 										targetScale = 0.8f,
-										animationSpec = tween(200),
+										animationSpec = tween(RidgelineDurations.QUICK_MS),
 									),
 							)
 					},

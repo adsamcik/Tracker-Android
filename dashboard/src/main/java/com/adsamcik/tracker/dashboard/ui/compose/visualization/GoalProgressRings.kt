@@ -24,6 +24,7 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 
@@ -151,7 +152,7 @@ internal fun GoalProgressRings(
 			style = MaterialTheme.typography.labelSmall,
 			fontWeight = FontWeight.Medium,
 			color = statusColor,
-			modifier = Modifier.padding(top = 4.dp),
+			modifier = Modifier.padding(top = RidgelineSpacing.Xs),
 		)
 	}
 }

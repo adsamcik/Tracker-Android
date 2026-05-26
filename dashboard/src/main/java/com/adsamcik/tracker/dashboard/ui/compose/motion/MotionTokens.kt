@@ -3,81 +3,38 @@ package com.adsamcik.tracker.dashboard.ui.compose.motion
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineDurations
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineMotion
 
 /**
- * Motion token system for the Dashboard.
+ * Dashboard motion tokens — delegates to shared [RidgelineMotion] and [RidgelineDurations].
  *
- * Defines 6 named spring configurations and 7 duration tokens that create
- * a consistent motion vocabulary across all dashboard animations.
- *
- * All animations respect the app-level reduced motion preference.
+ * Kept for backward compatibility. New code should import from
+ * `com.adsamcik.tracker.shared.utils.style.compose` directly.
  */
+@Deprecated("Use RidgelineMotion and RidgelineDurations from sutils", ReplaceWith("RidgelineMotion"))
 object MotionTokens {
 
-	// ─── SPRING CONFIGURATIONS ───────────────────────────────────────────
+	// ─── SPRING CONFIGURATIONS (delegate to RidgelineMotion) ─────────────
 
-	/** Immediate response, minimal overshoot. Tap feedback, icon swaps. */
-	val Snappy: SpringSpec<Float> = spring(
-		dampingRatio = 0.7f,
-		stiffness = 1500f,
-	)
+	val Snappy: SpringSpec<Float> get() = RidgelineMotion.Snap
+	val Standard: SpringSpec<Float> get() = RidgelineMotion.Settle
+	val Responsive: SpringSpec<Float> get() = RidgelineMotion.Respond
+	val Bouncy: SpringSpec<Float> get() = RidgelineMotion.Crest
+	val Gentle: SpringSpec<Float> get() = RidgelineMotion.Drift
+	val Dramatic: SpringSpec<Float> get() = RidgelineMotion.Surge
 
-	/** Smooth, no overshoot. General layout shifts, card repositioning. */
-	val Standard: SpringSpec<Float> = spring(
-		dampingRatio = 1.0f,
-		stiffness = Spring.StiffnessMediumLow,
-	)
+	// ─── DURATION TOKENS (delegate to RidgelineDurations) ────────────────
 
-	/** Quick settle, tiny overshoot. Value counters, metric updates. */
-	val Responsive: SpringSpec<Float> = spring(
-		dampingRatio = 0.8f,
-		stiffness = 800f,
-	)
-
-	/** Celebratory, noticeable overshoot. Milestone pops, goal completion. */
-	val Bouncy: SpringSpec<Float> = spring(
-		dampingRatio = Spring.DampingRatioMediumBouncy,
-		stiffness = Spring.StiffnessLow,
-	)
-
-	/** Slow drift, dreamy. Empty state float, background parallax. */
-	val Gentle: SpringSpec<Float> = spring(
-		dampingRatio = 1.0f,
-		stiffness = Spring.StiffnessVeryLow,
-	)
-
-	/** Slow + bouncy, theatrical. State transitions (idle↔tracking), FAB morph. */
-	val Dramatic: SpringSpec<Float> = spring(
-		dampingRatio = 0.6f,
-		stiffness = 200f,
-	)
-
-	// ─── DURATION TOKENS ─────────────────────────────────────────────────
-
-	/** Immediate visual feedback (press highlight). */
-	const val INSTANT_MS = 50
-
-	/** Fade out on exit, icon swap crossfade. */
-	const val QUICK_MS = 150
-
-	/** Card entrance fade, content crossfade. */
-	const val STANDARD_MS = 300
-
-	/** State transition emphasis, FAB morph. */
-	const val EMPHASIZED_MS = 500
-
-	/** Path drawing, goal ring fill. */
-	const val EXPRESSIVE_MS = 800
-
-	/** Continuous loops: pulse, float, recording dot. */
-	const val AMBIENT_MS = 2000
-
-	/** Glow rotation, wave pattern. */
-	const val BACKGROUND_LOOP_MS = 4000
+	const val INSTANT_MS = RidgelineDurations.INSTANT_MS
+	const val QUICK_MS = RidgelineDurations.QUICK_MS
+	const val STANDARD_MS = RidgelineDurations.STANDARD_MS
+	const val EMPHASIZED_MS = RidgelineDurations.EMPHASIZED_MS
+	const val EXPRESSIVE_MS = RidgelineDurations.EXPRESSIVE_MS
+	const val AMBIENT_MS = RidgelineDurations.AMBIENT_MS
+	const val BACKGROUND_LOOP_MS = RidgelineDurations.BACKGROUND_LOOP_MS
 
 	/** Stagger interval between sequential card entrances. */
 	const val STAGGER_MS = 60
