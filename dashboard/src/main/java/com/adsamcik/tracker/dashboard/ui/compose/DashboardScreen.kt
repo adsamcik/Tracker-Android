@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.dashboard.ui.compose.cards.IdleContent
 import com.adsamcik.tracker.dashboard.ui.compose.components.CustomizeDashboardSheet
 import com.adsamcik.tracker.dashboard.ui.compose.components.DashboardTopBar
+import com.adsamcik.tracker.dashboard.ui.compose.cards.LocationPermissionBanner
 import com.adsamcik.tracker.dashboard.ui.compose.components.EmptyStateCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.EmptyStateStartHintCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.GettingStartedCard
@@ -270,6 +271,11 @@ private fun EmptyStateContent(
 		verticalArrangement = Arrangement.spacedBy(16.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
+		if (!hasPermission) {
+			item(key = "permission_banner") {
+				LocationPermissionBanner(onRequestPermission = onRequestPermission)
+			}
+		}
 		item {
 			EmptyStateCard(
 				onExploreClick = onMapClick,
