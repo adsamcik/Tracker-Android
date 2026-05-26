@@ -68,6 +68,7 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSectionHeader
 import android.content.pm.PackageManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -227,7 +228,7 @@ fun GameScreen(
                     )
                 }
             }
-            item { SectionHeader(text = stringResource(R.string.game_active_challenges)) }
+            item { RidgelineSectionHeader(title = stringResource(R.string.game_active_challenges)) }
             item {
                 if (isLoadingChallenges || challenges == null) {
                     ChallengesLoadingState()
@@ -239,7 +240,7 @@ fun GameScreen(
                     )
                 }
             }
-            item { SectionHeader(text = stringResource(R.string.minigame_section_title)) }
+            item { RidgelineSectionHeader(title = stringResource(R.string.minigame_section_title)) }
             item {
                 if (miniGameEntries == null) {
                     LoadingGameCard()
@@ -399,16 +400,6 @@ internal fun ChallengePickerDialog(
 			}
 		},
 	)
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(horizontal = 16.dp)
-    )
 }
 
 @Composable
