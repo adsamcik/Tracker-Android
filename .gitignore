@@ -148,8 +148,7 @@ __pycache__/
 .agent/
 .claude/
 .copilot_crops/
-fix-build.ps1
-run-phase2-tests.ps1
+*.ps1
 run_test.bat
 /.worktrees
 .github/v10-validation/
