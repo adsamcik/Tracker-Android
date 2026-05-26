@@ -69,6 +69,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSectionHeader
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import android.content.pm.PackageManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -159,10 +160,10 @@ fun GameScreen(
                 .padding(innerPadding)
                 .padding(start = horizontalInsetStart, end = horizontalInsetEnd),
             contentPadding = PaddingValues(
-                top = 16.dp,
+                top = RidgelineSpacing.Lg,
                 bottom = bottomClearance,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg)
         ) {
             item {
                 if (heroLevelState == null) {
