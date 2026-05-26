@@ -315,7 +315,6 @@ private fun WifiFilterDialog(
 		)
 	}
 
-<<<<<<< HEAD
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		containerColor = MaterialTheme.colorScheme.surface,
