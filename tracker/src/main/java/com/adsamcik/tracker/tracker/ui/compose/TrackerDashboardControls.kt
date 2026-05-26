@@ -138,13 +138,13 @@ internal fun TrackingFAB(
     
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(buttonSize + 16.dp) // Extra space for glow
+        modifier = Modifier.size(buttonSize + 28.dp) // Extra space for glow + stroke
     ) {
         // Outer glow ring when tracking
         if (isTracking) {
             Canvas(
                 modifier = Modifier
-                    .size(buttonSize + 12.dp)
+                    .size(buttonSize + 20.dp)
                     .alpha(glowAlpha)
                     .graphicsLayer { rotationZ = glowRotation }
             ) {
