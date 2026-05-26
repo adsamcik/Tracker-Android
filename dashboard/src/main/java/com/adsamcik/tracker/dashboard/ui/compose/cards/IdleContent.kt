@@ -25,6 +25,7 @@ import com.adsamcik.tracker.dashboard.data.DashboardWidget
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.MotivationalText
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.rememberContentColumnCount
 
 /**
@@ -53,8 +54,8 @@ internal fun IdleContent(
 ) {
 	val configuration = LocalConfiguration.current
 	val columns = rememberContentColumnCount()
-	val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomClearance)
-	val itemSpacing = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 8.dp else 12.dp
+	val contentPadding = PaddingValues(start = RidgelineSpacing.Lg, end = RidgelineSpacing.Lg, bottom = bottomClearance)
+	val itemSpacing = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) RidgelineSpacing.Sm else RidgelineSpacing.Md
 
 	if (columns == 1) {
 		LazyColumn(

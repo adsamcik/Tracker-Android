@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.ui.compose.CalendarHeatmap
@@ -265,12 +266,12 @@ private fun ContentState(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 16.dp, // Increased top padding
+            top = RidgelineSpacing.Lg,
             bottom = bottomClearance,
-            start = 16.dp,
-            end = 16.dp
+            start = RidgelineSpacing.Lg,
+            end = RidgelineSpacing.Lg
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md)
     ) {
         item(key = "header_actions") { 
                 HeaderActions(

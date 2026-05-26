@@ -51,6 +51,7 @@ import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R as TrackerR
@@ -75,9 +76,9 @@ internal fun TrackingContent(
 		LazyColumn(
 			modifier = Modifier
 				.fillMaxSize()
-				.padding(horizontal = 16.dp),
+				.padding(horizontal = RidgelineSpacing.Lg),
 			contentPadding = PaddingValues(bottom = bottomClearance),
-			verticalArrangement = Arrangement.spacedBy(16.dp),
+			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 		) {
 			item(key = "map_hero") {
 				MapHeroCard(
