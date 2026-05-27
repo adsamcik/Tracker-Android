@@ -72,8 +72,6 @@ internal class ChallengeWorker @AssistedInject constructor(
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
 
-		challengeSession.isChallengeProcessed = true
-		challengeDatabase.sessionDao().update(challengeSession)
 		try {
 			challengeManager.processSession(applicationContext, trackerSession) {
 				val title = "Completed challenge ${it.getTitle(applicationContext)}"
@@ -107,10 +105,18 @@ internal class ChallengeWorker @AssistedInject constructor(
 				)
 			}
 		} catch (e: Exception) {
-			challengeSession.isChallengeProcessed = false
-			challengeDatabase.sessionDao().update(challengeSession)
+			// processSession threw — leave isChallengeProcessed = false so WorkManager retries.
+			// (We deliberately do NOT roll back partial writes from inside processSession; the
+			// next-phase ChallengeEngine consolidates writes into a single transaction.)
 			return Result.retry()
 		}
+
+		// Ack only AFTER successful processing. A process kill mid-loop will retry the work,
+		// but partial entity updates inside processSession are still committed individually —
+		// idempotency for those is the responsibility of Phase 1.4 (partial unique index on
+		// challenge_history(original_challenge_id) WHERE outcome='COMPLETED').
+		challengeSession.isChallengeProcessed = true
+		challengeDatabase.sessionDao().update(challengeSession)
 
 		logGame(
 				LogData(

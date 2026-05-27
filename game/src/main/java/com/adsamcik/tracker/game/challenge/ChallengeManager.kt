@@ -80,6 +80,7 @@ class ChallengeManager @Inject constructor(
 		}
 	}
 
+	@WorkerThread
 	suspend fun processSession(
 		context: Context,
 		session: TrackerSession,
@@ -228,12 +229,15 @@ class ChallengeManager @Inject constructor(
 	 * Calculates difficulty based on the player's recent challenge completion rate.
 	 * High success rate → harder challenges; low success rate → easier ones.
 	 * Falls back to MEDIUM when no history is available.
+	 *
+	 * Uses an SQL aggregate over the last [DIFFICULTY_HISTORY_WINDOW] history rows
+	 * (returns null if history is empty).
 	 */
 	private suspend fun calculateDifficulty(context: Context): ChallengeDifficulty {
-		val outcomes = ChallengeDatabase.database(context)
+		val rate = ChallengeDatabase.database(context)
 			.challengeHistoryDao()
-			.getRecentOutcomes(DIFFICULTY_HISTORY_WINDOW)
-		return difficultyFromCompletionRate(outcomes)
+			.getRecentCompletionRate(DIFFICULTY_HISTORY_WINDOW)
+		return difficultyFromCompletionRate(rate)
 	}
 
 	companion object {
@@ -242,7 +246,8 @@ class ChallengeManager @Inject constructor(
 
 		/**
 		 * Pure function: determines difficulty from a list of outcome strings.
-		 * Takes the last [DIFFICULTY_HISTORY_WINDOW] outcomes and calculates completion rate.
+		 * Kept for backwards compatibility with [DifficultyCalculationTest]; new
+		 * call-sites should use the [Double] overload backed by the SQL aggregate.
 		 */
 		internal fun difficultyFromCompletionRate(outcomes: List<String>): ChallengeDifficulty {
 			if (outcomes.isEmpty()) return ChallengeDifficulty.MEDIUM
@@ -251,11 +256,20 @@ class ChallengeManager @Inject constructor(
 			val completedCount = recent.count { it == "COMPLETED" }
 			val completionRate = completedCount.toDouble() / recent.size
 
+			return difficultyFromCompletionRate(completionRate)
+		}
+
+		/**
+		 * Pure function: determines difficulty from a precomputed completion rate.
+		 * Null (no history) collapses to MEDIUM for parity with the [List] overload.
+		 */
+		internal fun difficultyFromCompletionRate(rate: Double?): ChallengeDifficulty {
+			if (rate == null) return ChallengeDifficulty.MEDIUM
 			return when {
-				completionRate >= 0.8 -> ChallengeDifficulty.VERY_HARD
-				completionRate >= 0.6 -> ChallengeDifficulty.HARD
-				completionRate >= 0.4 -> ChallengeDifficulty.MEDIUM
-				completionRate >= 0.2 -> ChallengeDifficulty.EASY
+				rate >= 0.8 -> ChallengeDifficulty.VERY_HARD
+				rate >= 0.6 -> ChallengeDifficulty.HARD
+				rate >= 0.4 -> ChallengeDifficulty.MEDIUM
+				rate >= 0.2 -> ChallengeDifficulty.EASY
 				else -> ChallengeDifficulty.VERY_EASY
 			}
 		}

@@ -57,6 +57,11 @@ data class StepsSummaryData(
 
 /**
  * Data class for challenge information.
+ *
+ * [endTimeMs] is the absolute wall-clock end of the challenge window — UI layers should
+ * prefer this with a local ticker (`produceState { while(true) { delay(60_000); value = Time.nowMillis } }`)
+ * over [timeRemainingMs], which is a snapshot captured at flow emission and goes stale
+ * until the next active-challenges emission.
  */
 data class ChallengeData(
     val id: Long,
@@ -65,6 +70,7 @@ data class ChallengeData(
     val progress: Float,
     val difficulty: String = "",
     val timeRemainingMs: Long = 0L,
+    val endTimeMs: Long = 0L,
 )
 
 /**

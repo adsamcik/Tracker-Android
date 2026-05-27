@@ -17,6 +17,20 @@ interface ChallengeHistoryDao : BaseDao<ChallengeHistoryEntity> {
 	@Query("SELECT outcome FROM challenge_history ORDER BY id DESC LIMIT :limit")
 	fun getRecentOutcomes(limit: Int = 10): List<String>
 
+	/**
+	 * Completion ratio (0.0..1.0) over the last [limit] history rows, computed in SQL.
+	 * Returns null if no history exists.
+	 */
+	@Query(
+		"""
+		SELECT AVG(CASE WHEN outcome = 'COMPLETED' THEN 1.0 ELSE 0.0 END)
+		FROM (
+		  SELECT outcome FROM challenge_history ORDER BY id DESC LIMIT :limit
+		)
+		"""
+	)
+	suspend fun getRecentCompletionRate(limit: Int = 10): Double?
+
 	@Query("SELECT * FROM challenge_history WHERE id = :id")
 	suspend fun get(id: Long): ChallengeHistoryEntity?
 

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.challenge.data
 import android.content.Context
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.processor.ChallengeProcessor
+import com.adsamcik.tracker.shared.base.Time
 
 /**
  * Runtime representation of an active challenge.
@@ -22,7 +23,7 @@ data class ChallengeInstanceNew(
 
 	val isCompleted: Boolean get() = entity.isCompleted
 
-	val isExpired: Boolean get() = entity.endTime <= System.currentTimeMillis()
+	val isExpired: Boolean get() = entity.endTime <= Time.nowMillis
 
 	fun getTitle(context: Context): String = context.getString(processor.titleRes)
 

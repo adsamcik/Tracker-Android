@@ -43,7 +43,10 @@ class DefaultGameRepository @Inject constructor(
     init {
         // Initialize game managers (idempotent)
         GoalTracker.initialize(application, sessionChannel)
-        runCatching { challengeManager.initialize(application) }
+        // ChallengeManager.initialize launches into its own scope and reports failures
+        // internally via tryWithResultAndReport. Wrapping the launch in runCatching only
+        // catches synchronous DI throws, which would also fail Hilt graph creation upstream.
+        challengeManager.initialize(application)
     }
     
     private fun startOfDay(now: Long): Long {
@@ -80,6 +83,7 @@ class DefaultGameRepository @Inject constructor(
     override fun getActiveChallenges(): StateFlow<List<ChallengeData>> {
         return challengeManager.activeChallenges
             .map { list ->
+                val now = Time.nowMillis
                 list.map { inst ->
                     ChallengeData(
                         id = inst.entity.id,
@@ -87,7 +91,8 @@ class DefaultGameRepository @Inject constructor(
                         description = inst.getDescription(application),
                         progress = inst.progress.toFloat(),
                         difficulty = inst.entity.difficulty.name,
-                        timeRemainingMs = (inst.entity.endTime - Time.nowMillis).coerceAtLeast(0L),
+                        timeRemainingMs = (inst.entity.endTime - now).coerceAtLeast(0L),
+                        endTimeMs = inst.entity.endTime,
                     )
                 }
             }

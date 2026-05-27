@@ -35,7 +35,7 @@ internal class ChallengeExpiredWorker @AssistedInject constructor(
 		 * Schedules the next replacement of the expired challenges for the set time
 		 */
 		fun schedule(context: Context, nextExpiryTime: Long) {
-			val delay = nextExpiryTime - Time.nowMillis
+			val delay = (nextExpiryTime - Time.nowMillis).coerceAtLeast(0L)
 			val workManager = WorkManager.getInstance(context)
 			val workRequest = OneTimeWorkRequestBuilder<ChallengeExpiredWorker>()
 					.setInitialDelay(delay, TimeUnit.MILLISECONDS)
