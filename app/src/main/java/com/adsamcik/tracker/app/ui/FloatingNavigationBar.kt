@@ -73,11 +73,17 @@ fun FloatingNavigationBar(
     modifier: Modifier = Modifier,
     hazeState: HazeState? = null
 ) {
-    // Horizontal inset to keep the pill inset from screen edges; vertical padding above is supplied by
-    // the caller via `navigationBarsPadding()` so we don't double up with the system nav-bar clearance.
+    // Horizontal inset keeps the pill inset from screen edges; only a top
+    // gap is added internally so the pill has breathing room above its
+    // shadow / glass border. Bottom clearance against the system navigation
+    // bar is owned by the caller via `navigationBarsPadding()` — adding it
+    // again here used to push the bar ~12dp higher than expected, which
+    // looked correct on the dashboard (where content scrolled behind it)
+    // but visibly floated too high on screens like the map where nothing
+    // anchored it.
     Box(
         modifier = modifier
-            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .padding(start = 24.dp, end = 24.dp, top = 12.dp)
             .fillMaxWidth(),
         contentAlignment = Alignment.BottomCenter
     ) {
