@@ -55,77 +55,79 @@ class ConsistencyChallengeProcessorTest {
 	}
 
 	@Nested
-	@DisplayName("updateEntity")
-	inner class UpdateEntity {
+	@DisplayName("processEntity")
+	inner class ProcessEntity {
+		private val context: Context = mockk()
+
 		@Test
-		fun `adds unique day from session`() {
+		fun `adds unique day from session`() = runTest {
 			val entity = createEntity()
 			val session = createSession(start = 86_400_000L * 100, collections = 5)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 1.0
 			updated.extraJson!! shouldContain "100"
 		}
 
 		@Test
-		fun `ignores session with fewer than 2 collections`() {
+		fun `ignores session with fewer than 2 collections`() = runTest {
 			val entity = createEntity()
 			val session = createSession(start = 86_400_000L * 100, collections = 1)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 0.0
 		}
 
 		@Test
-		fun `exactly 2 collections are accepted`() {
+		fun `exactly 2 collections are accepted`() = runTest {
 			val entity = createEntity()
 			val session = createSession(start = 86_400_000L * 100, collections = 2)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 1.0
 		}
 
 		@Test
-		fun `does not double count same day`() {
+		fun `does not double count same day`() = runTest {
 			val entity = createEntity()
 			val session1 = createSession(start = 86_400_000L * 100, collections = 5)
-			val updated1 = processor.updateEntity(entity, session1)
+			val updated1 = processor.processEntity(context, entity, session1)
 			val session2 = createSession(start = 86_400_000L * 100 + 3600_000, collections = 5)
-			val updated2 = processor.updateEntity(updated1, session2)
+			val updated2 = processor.processEntity(context, updated1, session2)
 			updated2.currentValue shouldBe 1.0
 		}
 
 		@Test
-		fun `counts multiple distinct days`() {
+		fun `counts multiple distinct days`() = runTest {
 			var entity = createEntity()
 			for (day in 100L..104L) {
 				val session = createSession(start = 86_400_000L * day, collections = 5)
-				entity = processor.updateEntity(entity, session)
+				entity = processor.processEntity(context, entity, session)
 			}
 			entity.currentValue shouldBe 5.0
 		}
 
 		@Test
-		fun `handles pre-existing extraJson`() {
+		fun `handles pre-existing extraJson`() = runTest {
 			val entity = createEntity().copy(
 				currentValue = 2.0,
 				extraJson = """{"trackedDays":[100,101]}""",
 			)
 			val session = createSession(start = 86_400_000L * 102, collections = 3)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 3.0
 		}
 
 		@Test
-		fun `handles null extraJson`() {
+		fun `handles null extraJson`() = runTest {
 			val entity = createEntity().copy(extraJson = null)
 			val session = createSession(start = 86_400_000L * 200, collections = 3)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 1.0
 		}
 
 		@Test
-		fun `handles empty extraJson`() {
+		fun `handles empty extraJson`() = runTest {
 			val entity = createEntity().copy(extraJson = "")
 			val session = createSession(start = 86_400_000L * 200, collections = 3)
-			val updated = processor.updateEntity(entity, session)
+			val updated = processor.processEntity(context, entity, session)
 			updated.currentValue shouldBe 1.0
 		}
 	}

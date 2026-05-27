@@ -45,7 +45,7 @@ class NewProcessorTest {
 	}
 
 	@Test
-	fun `consistency adds unique day from session`() {
+	fun `consistency adds unique day from session`() = runTest {
 		val processor = ConsistencyChallengeProcessor()
 		val context: Context = mockk()
 		val entity = createEntity(type = ChallengeType.Consistency, required = 7.0)
@@ -59,7 +59,7 @@ class NewProcessorTest {
 	}
 
 	@Test
-	fun `consistency ignores session with less than 2 collections`() {
+	fun `consistency ignores session with less than 2 collections`() = runTest {
 		val processor = ConsistencyChallengeProcessor()
 		val context: Context = mockk()
 		val entity = createEntity(type = ChallengeType.Consistency, required = 7.0)
@@ -69,7 +69,7 @@ class NewProcessorTest {
 	}
 
 	@Test
-	fun `consistency does not double count same day`() {
+	fun `consistency does not double count same day`() = runTest {
 		val processor = ConsistencyChallengeProcessor()
 		val context: Context = mockk()
 		val entity = createEntity(type = ChallengeType.Consistency, required = 7.0)
@@ -83,7 +83,7 @@ class NewProcessorTest {
 	}
 
 	@Test
-	fun `consistency counts multiple distinct days`() {
+	fun `consistency counts multiple distinct days`() = runTest {
 		val processor = ConsistencyChallengeProcessor()
 		val context: Context = mockk()
 		var entity = createEntity(type = ChallengeType.Consistency, required = 7.0)
