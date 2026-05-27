@@ -318,7 +318,7 @@ private fun ContentState(
                         Spacer(Modifier.height(8.dp))
                         CalendarHeatmap(
                             data = heatmapData,
-                            weeks = 26,
+                            weeks = 18,
                         )
                     }
                 }
