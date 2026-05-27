@@ -165,76 +165,93 @@ internal fun DashboardScreen(
 		}
 	}
 
-	Scaffold(
-		modifier = modifier,
-		// Consume no insets here: the outer NavHost/MainRoot reserves the floating nav-bar
-		// clearance itself, and we want the dashboard's background surface to extend all the
-		// way to the bottom of the screen rather than stopping above the system nav bar.
-		contentWindowInsets = WindowInsets(0, 0, 0, 0),
-		topBar = {
-			DashboardTopBar(
-				isTracking = state.isTracking,
-				isLocked = state.isLocked,
-				policyTier = state.policyTier,
-				pointsToday = state.pointsToday,
-				onSettingsClick = onSettingsClick,
-				onGameClick = onGameClick,
-				onCustomizeClick = if (state.dashboardMode == DashboardMode.IDLE) onCustomizeClick else null,
-			)
-		},
-		snackbarHost = { SnackbarHost(snackbarHostState) },
-		// Sticky tracking pill owns the floatingActionButton slot so M3 handles its position
-		// consistently above the Scaffold's content + bottom system insets. The pill itself
-		// carries its own visibility animation.
-		floatingActionButton = {
-			Box(modifier = Modifier.padding(bottom = floatingActionBottomPadding)) {
-				TrackingPill(
-					visible = showPill,
+	Box(modifier = modifier.fillMaxSize()) {
+		Scaffold(
+			modifier = Modifier.fillMaxSize(),
+			// Consume no insets here: the outer NavHost/MainRoot reserves the floating nav-bar
+			// clearance itself, and we want the dashboard's background surface to extend all the
+			// way to the bottom of the screen rather than stopping above the system nav bar.
+			contentWindowInsets = WindowInsets(0, 0, 0, 0),
+			topBar = {
+				DashboardTopBar(
 					isTracking = state.isTracking,
-					hasPermission = state.hasLocationPermission,
-					sessionData = state.sessionData,
-					onToggleTracking = wrappedToggle,
-					onRequestPermission = wrappedPermission,
-				)
-			}
-		},
-		floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
-	) { paddingValues ->
-		Box(
-			modifier = Modifier
-				.fillMaxSize()
-				.padding(paddingValues),
-		) {
-			when (state.dashboardMode) {
-				DashboardMode.EMPTY -> EmptyStateContent(
-					bottomClearance = bottomClearance,
+					isLocked = state.isLocked,
+					policyTier = state.policyTier,
+					pointsToday = state.pointsToday,
 					onSettingsClick = onSettingsClick,
-					onMapClick = onMapClick,
 					onGameClick = onGameClick,
-					onToggleTracking = wrappedToggle,
-					onRequestPermission = wrappedPermission,
-					isTracking = state.isTracking,
-					hasPermission = state.hasLocationPermission,
+					onCustomizeClick = if (state.dashboardMode == DashboardMode.IDLE) onCustomizeClick else null,
 				)
-				DashboardMode.IDLE -> IdleContent(
-					state = state,
-					widgets = visibleWidgets,
-					listState = idleListState,
-					bottomClearance = bottomClearance,
-					onMapClick = onMapClick,
-					onGameClick = onGameClick,
-					onChallengesClick = onChallengesClick,
-					onSessionDetailClick = onSessionDetailClick,
-					onToggleTracking = wrappedToggle,
-					onRequestPermission = wrappedPermission,
-				)
-				DashboardMode.TRACKING -> TrackingContent(
-					state = state,
-					bottomClearance = bottomClearance,
-					onMapClick = onMapClick,
-				)
+			},
+		) { paddingValues ->
+			Box(
+				modifier = Modifier
+					.fillMaxSize()
+					.padding(paddingValues),
+			) {
+				when (state.dashboardMode) {
+					DashboardMode.EMPTY -> EmptyStateContent(
+						bottomClearance = bottomClearance,
+						onSettingsClick = onSettingsClick,
+						onMapClick = onMapClick,
+						onGameClick = onGameClick,
+						onToggleTracking = wrappedToggle,
+						onRequestPermission = wrappedPermission,
+						isTracking = state.isTracking,
+						hasPermission = state.hasLocationPermission,
+					)
+					DashboardMode.IDLE -> IdleContent(
+						state = state,
+						widgets = visibleWidgets,
+						listState = idleListState,
+						bottomClearance = bottomClearance,
+						onMapClick = onMapClick,
+						onGameClick = onGameClick,
+						onChallengesClick = onChallengesClick,
+						onSessionDetailClick = onSessionDetailClick,
+						onToggleTracking = wrappedToggle,
+						onRequestPermission = wrappedPermission,
+					)
+					DashboardMode.TRACKING -> TrackingContent(
+						state = state,
+						bottomClearance = bottomClearance,
+						onMapClick = onMapClick,
+					)
+				}
 			}
 		}
+
+		// Sticky tracking pill overlay. We bypass Scaffold's floatingActionButton slot
+		// because that slot composes the FAB inside a fixed FabPlacement region whose
+		// effective Y depends on safeDrawing insets even when contentWindowInsets=0 —
+		// which, combined with the outer floating nav bar, made the pill float halfway
+		// up the screen instead of sitting just above the nav bar. Anchoring directly
+		// to BottomEnd of the dashboard surface gives us deterministic placement.
+		Box(
+			modifier = Modifier
+				.align(Alignment.BottomEnd)
+				.padding(
+					end = DashboardLayoutDefaults.FloatingActionEndMargin,
+					bottom = floatingActionBottomPadding,
+				),
+		) {
+			TrackingPill(
+				visible = showPill,
+				isTracking = state.isTracking,
+				hasPermission = state.hasLocationPermission,
+				sessionData = state.sessionData,
+				onToggleTracking = wrappedToggle,
+				onRequestPermission = wrappedPermission,
+			)
+		}
+
+		// Snackbar host — anchored above the floating nav bar so messages don't hide behind it.
+		SnackbarHost(
+			hostState = snackbarHostState,
+			modifier = Modifier
+				.align(Alignment.BottomCenter)
+				.padding(bottom = floatingActionBottomPadding),
+		)
 	}
 
 	// Customize dashboard bottom sheet

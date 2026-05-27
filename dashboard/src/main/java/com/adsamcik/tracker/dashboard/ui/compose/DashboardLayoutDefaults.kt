@@ -11,6 +11,12 @@ internal object DashboardLayoutDefaults {
 	private val LandscapeBottomBarClearance = 96.dp
 	private val FloatingActionMargin = 16.dp
 
+	/**
+	 * Trailing inset for the pill at [androidx.compose.ui.Alignment.BottomEnd].
+	 * Keeps the pill clear of the screen edge so the elevation shadow reads cleanly.
+	 */
+	val FloatingActionEndMargin = FloatingActionMargin
+
 	fun contentBottomClearance(
 		navigationLayout: MainNavigationLayout,
 		bottomInset: Dp = 0.dp,
@@ -29,16 +35,33 @@ internal object DashboardLayoutDefaults {
 		}
 	}
 
+	/**
+	 * Bottom padding for the floating tracking pill when it is rendered as an overlay
+	 * inside the dashboard surface.
+	 *
+	 * The outer `MainRoot` already reserves `bottomPadding = 96.dp + navBarInset` at the
+	 * NavHost level for the floating navigation bar, so the dashboard surface ends just
+	 * above that bar. The pill only needs a small margin from the bottom edge of that
+	 * surface — adding `FloatingNavBarClearance` here would double-count the reservation
+	 * and push the pill halfway up the screen.
+	 *
+	 * In landscape the bottom bar is shorter and the outer reservation matches, so the
+	 * same margin applies. In SideRail layouts the nav rail is on the side rather than
+	 * the bottom, so the pill anchors directly above the system nav inset (which the
+	 * NavHost padding does not reserve in that mode).
+	 */
+	@Suppress("UnusedParameter")
 	fun floatingActionBottomPadding(
 		bottomInset: Dp = 0.dp,
 		isLandscape: Boolean = false,
 		navigationLayout: MainNavigationLayout = MainNavigationLayout.BottomBar,
-	): Dp = when {
-		isLandscape -> LandscapeBottomBarClearance + bottomInset
-		navigationLayout == MainNavigationLayout.SideRail -> FloatingActionMargin + bottomInset
-		// Pill anchors to screen bottom (Scaffold uses contentWindowInsets = WindowInsets(0)
-		// so its content Box extends below the system nav bar). Stack: system nav inset
-		// (bottomInset) + floating nav-bar clearance (120dp) + margin above it (16dp).
-		else -> AppDimensions.FloatingNavBarClearance + FloatingActionMargin + bottomInset
+	): Dp = when (navigationLayout) {
+		MainNavigationLayout.SideRail -> FloatingActionMargin + bottomInset
+		// Outer NavHost padding already accounts for the floating nav bar (96dp +
+		// systemNavInset). The dashboard's overlay Box ends just above that bar, so
+		// we only need a small margin to sit cleanly above the bar instead of
+		// touching it. Landscape uses the same value since the outer reservation in
+		// landscape also collapses to the bar's footprint.
+		else -> FloatingActionMargin
 	}
 }

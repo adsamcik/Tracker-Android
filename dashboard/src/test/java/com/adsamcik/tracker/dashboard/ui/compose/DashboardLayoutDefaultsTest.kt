@@ -58,22 +58,35 @@ class DashboardLayoutDefaultsTest {
 	@DisplayName("floatingActionBottomPadding")
 	inner class FloatingActionTest {
 		@Test
-		fun `landscape returns landscape clearance plus inset`() {
+		fun `SideRail returns floating action margin plus inset`() {
 			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
 				bottomInset = 8.dp,
-				isLandscape = true,
+				navigationLayout = MainNavigationLayout.SideRail,
 			)
-			// LandscapeBottomBarClearance = 96.dp
-			result shouldBe 96.dp + 8.dp
+			// In SideRail layouts the nav rail is on the side, not bottom, so the pill
+			// only needs to clear the system nav inset.
+			result shouldBe 16.dp + 8.dp
 		}
 
 		@Test
-		fun `portrait returns nav clearance plus floating action margin plus inset`() {
+		fun `BottomBar portrait returns the floating action margin`() {
 			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
 				bottomInset = 8.dp,
 				isLandscape = false,
 			)
-			result shouldBe AppDimensions.FloatingNavBarClearance + 16.dp + 8.dp
+			// The outer MainRoot NavHost already reserves the floating nav bar +
+			// system nav inset, so the overlay pill only needs the small margin
+			// from the bottom edge of the dashboard surface.
+			result shouldBe 16.dp
+		}
+
+		@Test
+		fun `BottomBar landscape returns the floating action margin`() {
+			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
+				bottomInset = 8.dp,
+				isLandscape = true,
+			)
+			result shouldBe 16.dp
 		}
 	}
 }
