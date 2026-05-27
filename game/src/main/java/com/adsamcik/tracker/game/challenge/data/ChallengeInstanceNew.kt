@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.game.challenge.data
 
 import android.content.Context
+import com.adsamcik.tracker.game.challenge.catalog.CatalogBackedProcessor
+import com.adsamcik.tracker.game.challenge.catalog.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.processor.ChallengeProcessor
 import com.adsamcik.tracker.shared.base.Time
@@ -28,4 +30,22 @@ data class ChallengeInstanceNew(
 	fun getTitle(context: Context): String = context.getString(processor.titleRes)
 
 	fun getDescription(context: Context): String = processor.formatDescription(context, entity)
+
+	companion object {
+		/**
+		 * Build an instance from an entity + catalog definition. Used by
+		 * [com.adsamcik.tracker.game.challenge.engine.ChallengeEngine] which is
+		 * catalog-driven and doesn't need the legacy `ChallengeProcessor` map.
+		 *
+		 * Internally pairs the entity with a no-op shim processor
+		 * ([CatalogBackedProcessor]) so existing UI code that reads
+		 * `instance.processor.titleRes` keeps working.
+		 */
+		fun fromDefinition(
+			entity: ChallengeEntity,
+			def: ChallengeDefinition,
+		): ChallengeInstanceNew {
+			return ChallengeInstanceNew(entity, CatalogBackedProcessor(def))
+		}
+	}
 }

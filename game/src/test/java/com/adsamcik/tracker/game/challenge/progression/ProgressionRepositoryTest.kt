@@ -31,7 +31,7 @@ class ProgressionRepositoryTest {
 		repository = ProgressionRepository(
 			xpCalculator = XpCalculator(),
 			streakManager = StreakManager(),
-			databaseProvider = { database },
+			challengeDatabase = database,
 		)
 	}
 
@@ -58,10 +58,10 @@ class ProgressionRepositoryTest {
 
 	@Test
 	fun `tracking session xp is deduped and capped per day`() = runTest {
-		repository.onTrackingSession(context, highValueSession(id = 1L))
-		repository.onTrackingSession(context, highValueSession(id = 1L))
-		repository.onTrackingSession(context, highValueSession(id = 2L))
-		repository.onTrackingSession(context, highValueSession(id = 3L))
+		repository.onTrackingSession(highValueSession(id = 1L))
+		repository.onTrackingSession(highValueSession(id = 1L))
+		repository.onTrackingSession(highValueSession(id = 2L))
+		repository.onTrackingSession(highValueSession(id = 3L))
 
 		database.xpLedgerDao().getTotalXp() shouldBe XpCalculator.DAILY_CAP.toLong()
 		database.xpLedgerDao().getRecent(limit = 10).size shouldBe 2

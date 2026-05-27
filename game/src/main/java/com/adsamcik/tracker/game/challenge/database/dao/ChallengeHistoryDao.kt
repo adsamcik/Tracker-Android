@@ -54,4 +54,35 @@ interface ChallengeHistoryDao : BaseDao<ChallengeHistoryEntity> {
 
 	@Query("SELECT COUNT(*) FROM challenge_history WHERE medal = :medal")
 	fun observeMedalCount(medal: String): Flow<Int>
+
+	/**
+	 * Aggregate lifetime stats in a single query. Replaces `observeAll().map { count/sum/filter }`
+	 * patterns that materialize the whole history list every emission (p5-1).
+	 */
+	@Query(
+		"""
+		SELECT
+		  COUNT(*) AS totalChallenges,
+		  COALESCE(SUM(CASE WHEN outcome = 'COMPLETED' THEN 1 ELSE 0 END), 0) AS completedCount,
+		  COALESCE(SUM(CASE WHEN medal = 'GOLD'   THEN 1 ELSE 0 END), 0) AS goldCount,
+		  COALESCE(SUM(CASE WHEN medal = 'SILVER' THEN 1 ELSE 0 END), 0) AS silverCount,
+		  COALESCE(SUM(CASE WHEN medal = 'BRONZE' THEN 1 ELSE 0 END), 0) AS bronzeCount,
+		  COALESCE(SUM(xp_awarded), 0) AS totalXpEarned
+		FROM challenge_history
+		"""
+	)
+	fun observeLifetimeStats(): Flow<LifetimeStatsRow>
 }
+
+/**
+ * Row projection for [ChallengeHistoryDao.observeLifetimeStats]. Mirrors the fields of
+ * `LifetimeStatsUi` so the repository can map directly without re-aggregating in Kotlin.
+ */
+data class LifetimeStatsRow(
+	val totalChallenges: Int,
+	val completedCount: Int,
+	val goldCount: Int,
+	val silverCount: Int,
+	val bronzeCount: Int,
+	val totalXpEarned: Long,
+)

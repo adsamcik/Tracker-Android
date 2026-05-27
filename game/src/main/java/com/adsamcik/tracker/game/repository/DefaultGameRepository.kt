@@ -35,10 +35,10 @@ class DefaultGameRepository @Inject constructor(
     private val sessionChannel: TrackerSessionChannel,
     private val dispatchers: DispatchersProvider,
     private val challengeManager: ChallengeManager,
+    private val challengeDb: ChallengeDatabase,
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
-    private val challengeDb by lazy { ChallengeDatabase.database(application) }
     
     init {
         // Initialize game managers (idempotent)
@@ -179,21 +179,17 @@ class DefaultGameRepository @Inject constructor(
     }
 
     override fun getLifetimeStats(): Flow<LifetimeStatsUi> {
-        return challengeDb.challengeHistoryDao().observeAll().map { allHistory ->
-            val total = allHistory.size
-            val completed = allHistory.count { it.outcome == "COMPLETED" }
-            val gold = allHistory.count { it.medal == "GOLD" }
-            val silver = allHistory.count { it.medal == "SILVER" }
-            val bronze = allHistory.count { it.medal == "BRONZE" }
-            val totalXp = allHistory.sumOf { it.xpAwarded.toLong() }
+        return challengeDb.challengeHistoryDao().observeLifetimeStats().map { row ->
             LifetimeStatsUi(
-                totalChallenges = total,
-                completedCount = completed,
-                completionRate = if (total > 0) completed.toFloat() / total else 0f,
-                goldCount = gold,
-                silverCount = silver,
-                bronzeCount = bronze,
-                totalXpEarned = totalXp,
+                totalChallenges = row.totalChallenges,
+                completedCount = row.completedCount,
+                completionRate = if (row.totalChallenges > 0) {
+                    row.completedCount.toFloat() / row.totalChallenges
+                } else 0f,
+                goldCount = row.goldCount,
+                silverCount = row.silverCount,
+                bronzeCount = row.bronzeCount,
+                totalXpEarned = row.totalXpEarned,
             )
         }.flowOn(dispatchers.io)
     }

@@ -13,7 +13,10 @@ import androidx.room.PrimaryKey
 	tableName = "challenge_history",
 	indices = [
 		Index(value = ["outcome"]),
-		Index(value = ["medal"])
+		Index(value = ["medal"]),
+		// p5-2: completed_at is the dominant ORDER BY in observeAll / getCompleted / getByMedal.
+		// Index materially speeds up trophy case + history list scrolling once history grows.
+		Index(value = ["completed_at"])
 	]
 )
 data class ChallengeHistoryEntity(

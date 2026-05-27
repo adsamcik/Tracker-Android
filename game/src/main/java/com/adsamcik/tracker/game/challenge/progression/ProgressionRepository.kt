@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.game.challenge.progression
 
-import android.content.Context
 import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.data.ChallengeOutcome
@@ -26,18 +25,8 @@ import javax.inject.Singleton
 class ProgressionRepository @Inject constructor(
 	private val xpCalculator: XpCalculator,
 	private val streakManager: StreakManager,
+	private val challengeDatabase: ChallengeDatabase,
 ) {
-	private var databaseProvider: (Context) -> ChallengeDatabase = { context ->
-		ChallengeDatabase.database(context)
-	}
-
-	internal constructor(
-		xpCalculator: XpCalculator,
-		streakManager: StreakManager,
-		databaseProvider: (Context) -> ChallengeDatabase,
-	) : this(xpCalculator, streakManager) {
-		this.databaseProvider = databaseProvider
-	}
 
 	/**
 	 * Called when a challenge is completed.
@@ -52,10 +41,9 @@ class ProgressionRepository @Inject constructor(
 	 * @return Summary of progression events
 	 */
 	suspend fun onChallengeCompleted(
-		context: Context,
 		instance: ChallengeInstanceNew,
 	): CompletionResult {
-		val database = databaseProvider(context)
+		val database = challengeDatabase
 		val now = Time.nowMillis
 		val entity = instance.entity
 
@@ -128,10 +116,9 @@ class ProgressionRepository @Inject constructor(
 	 * Records history for each, updates streak (freeze or break).
 	 */
 	suspend fun onChallengesExpired(
-		context: Context,
 		expired: List<ChallengeInstanceNew>,
 	): ExpiryResult {
-		val database = databaseProvider(context)
+		val database = challengeDatabase
 		val now = Time.nowMillis
 
 		// Record each expired challenge in history
@@ -168,11 +155,10 @@ class ProgressionRepository @Inject constructor(
 	 * Called after a tracking session to award passive XP.
 	 */
 	suspend fun onTrackingSession(
-		context: Context,
 		session: TrackerSession,
 		isVehicleOrStill: Boolean = false,
 	) {
-		val database = databaseProvider(context)
+		val database = challengeDatabase
 		val xpAward = xpCalculator.calculateSessionXp(session, isVehicleOrStill)
 		if (xpAward.amount <= 0) return
 

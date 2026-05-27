@@ -7,13 +7,20 @@ import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 
 /**
- * Encapsulates all type-specific challenge logic.
- * One implementation per [ChallengeType]. Registered via Hilt multibinding.
+ * UI-facing read shim for an active challenge.
  *
- * Adding a new challenge type requires:
- * 1. Add enum entry to [ChallengeType]
- * 2. Implement this interface
- * 3. Add @Binds @IntoMap binding in ChallengeProcessorModule
+ * Historically this interface drove the imperative challenge pipeline (one impl per
+ * [ChallengeType], multi-bound via Hilt). After p2-3 the [com.adsamcik.tracker.game.challenge.engine.ChallengeEngine]
+ * is catalog-driven — defaults, metrics and progress live on
+ * [com.adsamcik.tracker.game.challenge.catalog.ChallengeDefinition].
+ *
+ * One implementation remains:
+ *  - [com.adsamcik.tracker.game.challenge.catalog.CatalogBackedProcessor] — generic
+ *    catalog adapter consumed by UI code that reads `instance.processor.titleRes`
+ *    and `instance.processor.formatDescription`.
+ *
+ * Do not add new implementations. New challenge types belong in `ChallengeCatalog`.
+ * Phase 6 will collapse this interface into the UI layer directly.
  */
 interface ChallengeProcessor {
 	/** The challenge type this processor handles. */
@@ -27,40 +34,16 @@ interface ChallengeProcessor {
 	fun formatDescription(context: Context, entity: ChallengeEntity): String
 
 	/**
-	 * Extract progress delta from a completed tracking session.
-	 * Called on a background thread.
+	 * Mutate the entity in response to a finished session.
 	 *
-	 * @return The amount to add to [ChallengeEntity.currentValue]
-	 */
-	suspend fun extractProgress(context: Context, session: TrackerSession): Double
-
-	/**
-	 * Process a challenge entity using a completed tracking session.
-	 * Default behavior is additive based on [extractProgress].
+	 * Default no-op. [com.adsamcik.tracker.game.challenge.catalog.CatalogBackedProcessor]
+	 * does not override this — catalog-driven progress is recomputed from the
+	 * `WindowedMetricsProvider` over the challenge's full interval window inside
+	 * [com.adsamcik.tracker.game.challenge.engine.ChallengeEngine].
 	 */
 	suspend fun processEntity(
 		context: Context,
 		entity: ChallengeEntity,
 		session: TrackerSession,
-	): ChallengeEntity {
-		val delta = extractProgress(context, session)
-		if (delta <= 0.0) return entity
-		val updatedValue = entity.currentValue + delta
-		return entity.copy(
-			currentValue = updatedValue,
-			isCompleted = updatedValue >= entity.requiredValue,
-		)
-	}
-
-	/** Default required value for this challenge type at base difficulty. */
-	val defaultRequiredValue: Double
-
-	/** Default duration in milliseconds. */
-	val defaultDurationMs: Long
-
-	/** Minimum duration multiplier for random generation. */
-	val minDurationMultiplier: Double get() = 0.25
-
-	/** Maximum duration multiplier for random generation. */
-	val maxDurationMultiplier: Double get() = 3.0
+	): ChallengeEntity = entity
 }
