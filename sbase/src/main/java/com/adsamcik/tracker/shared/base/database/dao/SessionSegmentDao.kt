@@ -173,6 +173,30 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun countByActivity(activityType: Int): Long
 
 	/**
+	 * Count segments by a set of primary activities.
+	 */
+	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	suspend fun countByActivities(activityTypes: List<Int>): Long
+
+	/**
+	 * Count segments by a set of primary activities inside a closed time interval.
+	 */
+	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes) AND start_time_ms >= :fromMs AND end_time_ms <= :toMs")
+	suspend fun countByActivitiesBetween(fromMs: Long, toMs: Long, activityTypes: List<Int>): Long
+
+	/**
+	 * Sum distance for a set of primary activities (meters).
+	 */
+	@Query("SELECT CAST(COALESCE(SUM(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	suspend fun sumDistanceByActivities(activityTypes: List<Int>): Long
+
+	/**
+	 * Sum distance for a set of primary activities inside a closed time interval (meters).
+	 */
+	@Query("SELECT CAST(COALESCE(SUM(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes) AND start_time_ms >= :fromMs AND end_time_ms <= :toMs")
+	suspend fun sumDistanceByActivitiesBetween(fromMs: Long, toMs: Long, activityTypes: List<Int>): Long
+
+	/**
 	 * Find the maximum single-segment distance in meters.
 	 */
 	@Query("SELECT COALESCE(MAX(distance_m), 0) FROM session_segment")

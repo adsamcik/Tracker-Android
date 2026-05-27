@@ -33,6 +33,9 @@ interface ExplorationCellDao {
 	@Query("SELECT COUNT(*) FROM exploration_cell WHERE first_discovered_at >= :sinceMs AND level = :level")
 	suspend fun countDiscoveredSince(sinceMs: Long, level: Int): Int
 
+	@Query("SELECT COUNT(*) FROM exploration_cell WHERE first_discovered_at BETWEEN :fromMs AND :toMs AND level = :level")
+	suspend fun countDiscoveredBetween(fromMs: Long, toMs: Long, level: Int): Long
+
 	@Query("""
 		UPDATE exploration_cell
 		SET quality = :quality,

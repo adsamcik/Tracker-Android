@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
+import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
@@ -23,6 +24,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
@@ -94,6 +96,12 @@ abstract class StatsDataModule {
 	abstract fun bindAchievementMetricsProvider(
 		impl: DefaultAchievementMetricsProvider,
 	): AchievementMetricsProvider
+
+	@Binds
+	@Singleton
+	abstract fun bindWindowedMetricsProvider(
+		impl: DefaultWindowedMetricsProvider,
+	): WindowedMetricsProvider
 
 	@Binds
 	@Singleton
