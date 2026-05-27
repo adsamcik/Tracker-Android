@@ -42,6 +42,13 @@ class ProgressionRepository @Inject constructor(
 	/**
 	 * Called when a challenge is completed.
 	 * Assigns medal, records history, awards XP, updates streak, checks records.
+	 *
+	 * All side effects (streak / XP ledger / profile / history / personal records) are
+	 * committed inside a single Room transaction so a mid-flight crash leaves the database
+	 * either fully updated or unchanged. The inner [streakManager] / [awardXpAndUpdateProfile]
+	 * / [checkPersonalRecords] each call `withTransaction` again; Room's reentrant transaction
+	 * support means they observe and join the outer transaction rather than opening their own.
+	 *
 	 * @return Summary of progression events
 	 */
 	suspend fun onChallengeCompleted(
@@ -52,64 +59,68 @@ class ProgressionRepository @Inject constructor(
 		val now = Time.nowMillis
 		val entity = instance.entity
 
-		// 1. Assign medal based on completion timing
-		val medal = Medal.fromCompletion(
-			completedAt = now,
-			startTime = entity.startTime,
-			endTime = entity.endTime,
-		)
+		var resultHolder: CompletionResult? = null
+		database.withTransaction {
+			// 1. Assign medal based on completion timing (pure)
+			val medal = Medal.fromCompletion(
+				completedAt = now,
+				startTime = entity.startTime,
+				endTime = entity.endTime,
+			)
 
-		// 2. Update streak
-		val streak = streakManager.onChallengeCompleted(database, now)
+			// 2. Update streak (joins this transaction)
+			val streak = streakManager.onChallengeCompleted(database, now)
 
-		// 3. Calculate and award XP
-		val xpAward = xpCalculator.calculateChallengeXp(
-			difficulty = entity.difficulty,
-			medal = medal,
-			streakCount = streak.currentCount,
-		)
-		val xpEntry = XpLedgerEntity(
-			amount = xpAward.amount,
-			source = XpSource.CHALLENGE.name,
-			sourceId = entity.id,
-			earnedAt = now,
-		)
-		val awardResult = awardXpAndUpdateProfile(database, xpEntry)
-		val awardedXp = awardResult?.awardedXp ?: 0
+			// 3. Calculate and award XP (joins this transaction)
+			val xpAward = xpCalculator.calculateChallengeXp(
+				difficulty = entity.difficulty,
+				medal = medal,
+				streakCount = streak.currentCount,
+			)
+			val xpEntry = XpLedgerEntity(
+				amount = xpAward.amount,
+				source = XpSource.CHALLENGE.name,
+				sourceId = entity.id,
+				earnedAt = now,
+			)
+			val awardResult = awardXpAndUpdateProfile(database, xpEntry)
+			val awardedXp = awardResult?.awardedXp ?: 0
 
-		// 4. Record in history
-		val historyEntry = ChallengeHistoryEntity(
-			challengeType = entity.type.name,
-			difficulty = entity.difficulty.name,
-			startTime = entity.startTime,
-			endTime = entity.endTime,
-			outcome = ChallengeOutcome.COMPLETED.name,
-			completedAt = now,
-			progressValue = entity.currentValue,
-			targetValue = entity.requiredValue,
-			medal = medal.name,
-			xpAwarded = awardedXp,
-			originalChallengeId = entity.id,
-		)
-		val historyId = database.challengeHistoryDao().insert(historyEntry)
+			// 4. Record in history
+			val historyEntry = ChallengeHistoryEntity(
+				challengeType = entity.type.name,
+				difficulty = entity.difficulty.name,
+				startTime = entity.startTime,
+				endTime = entity.endTime,
+				outcome = ChallengeOutcome.COMPLETED.name,
+				completedAt = now,
+				progressValue = entity.currentValue,
+				targetValue = entity.requiredValue,
+				medal = medal.name,
+				xpAwarded = awardedXp,
+				originalChallengeId = entity.id,
+			)
+			val historyId = database.challengeHistoryDao().insert(historyEntry)
 
-		// 5. Check personal records
-		val newRecords = checkPersonalRecords(database, entity.type.name, entity, historyId, now)
+			// 5. Check personal records (joins this transaction)
+			val newRecords = checkPersonalRecords(database, entity.type.name, entity, historyId, now)
 
-		// 6. Resolve profile (post-award if awarded, else current)
-		val profileSnapshot = awardResult ?: run {
-			val current = database.playerProfileDao().get() ?: PlayerProfileEntity()
-			AwardResult(0, current, false)
+			// 6. Resolve profile snapshot
+			val profileSnapshot = awardResult ?: run {
+				val current = database.playerProfileDao().get() ?: PlayerProfileEntity()
+				AwardResult(0, current, false)
+			}
+
+			resultHolder = CompletionResult(
+				medal = medal,
+				xpAwarded = awardedXp,
+				streakCount = streak.currentCount,
+				newRecords = newRecords,
+				leveledUp = profileSnapshot.leveledUp,
+				newLevel = profileSnapshot.profile.level,
+			)
 		}
-
-		return CompletionResult(
-			medal = medal,
-			xpAwarded = awardedXp,
-			streakCount = streak.currentCount,
-			newRecords = newRecords,
-			leveledUp = profileSnapshot.leveledUp,
-			newLevel = profileSnapshot.profile.level,
-		)
+		return resultHolder!!
 	}
 
 	/**
@@ -182,7 +193,7 @@ class ProgressionRepository @Inject constructor(
 			)
 			val insertId = database.xpLedgerDao().insertOrIgnore(xpEntry)
 			if (insertId == -1L) return@withTransaction
-			updatePlayerProfile(database)
+			updatePlayerProfile(database, addedXp = cappedAmount.toLong())
 		}
 	}
 
@@ -199,7 +210,7 @@ class ProgressionRepository @Inject constructor(
 		database.withTransaction {
 			val insertId = database.xpLedgerDao().insertOrIgnore(xpEntry)
 			if (insertId == -1L) return@withTransaction
-			val (profile, leveledUp) = updatePlayerProfile(database)
+			val (profile, leveledUp) = updatePlayerProfile(database, addedXp = xpEntry.amount.toLong())
 			result = AwardResult(xpEntry.amount, profile, leveledUp)
 		}
 		return result
@@ -257,15 +268,32 @@ class ProgressionRepository @Inject constructor(
 	}
 
 	/**
-	 * Recomputes player profile from XP ledger total.
-	 * @return Pair of (profile, didLevelUp)
+	 * Updates player profile incrementally without scanning the XP ledger.
+	 *
+	 * [addedXp] is the amount of XP just credited (in the same transaction); the new total
+	 * is `current.totalXp + addedXp`. This eliminates the O(N) `SUM(amount) FROM xp_ledger`
+	 * scan that previously ran on every grant and made completion latency grow with history.
+	 *
+	 * Self-heals on first call if [PlayerProfileEntity.totalXp] is 0 but the ledger has
+	 * existing rows (legacy upgrade path): we reconcile via SUM once, then stay incremental.
+	 *
+	 * @return Pair of (updated profile, didLevelUp)
 	 */
-	private suspend fun updatePlayerProfile(database: ChallengeDatabase): Pair<PlayerProfileEntity, Boolean> {
+	private suspend fun updatePlayerProfile(
+		database: ChallengeDatabase,
+		addedXp: Long,
+	): Pair<PlayerProfileEntity, Boolean> {
 		val profileDao = database.playerProfileDao()
 		profileDao.ensureExists()
 		val current = profileDao.get() ?: PlayerProfileEntity()
 
-		val totalXp = database.xpLedgerDao().getTotalXp()
+		val baseXp = if (current.totalXp == 0L) {
+			// First call (or post-upgrade) — reconcile against ledger once.
+			database.xpLedgerDao().getTotalXp()
+		} else {
+			current.totalXp
+		}
+		val totalXp = baseXp + addedXp
 		val snapshot = XpCurve.computeProfile(totalXp)
 		val didLevelUp = snapshot.level > current.level
 
