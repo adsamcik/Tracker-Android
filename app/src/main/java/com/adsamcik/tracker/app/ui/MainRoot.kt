@@ -313,7 +313,15 @@ fun MainRoot(
     val showBottomNavigation = !hideTopLevelNavigation && effectiveRouteObj != null && !useSideRail
     // 72 bar + 24 padding above bar = 96dp; add system nav-bar inset so content clears gesture handle on gesture-nav devices.
     val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomPadding = if (showBottomNavigation) 96.dp + navBarInset else 0.dp
+    val bottomPaddingTarget = if (showBottomNavigation) 96.dp + navBarInset else 0.dp
+    // Spring the content's bottom padding so the inset shrink/grow matches the
+    // bar's enter/exit slide. Otherwise the content would jump while the bar
+    // smoothly slides off-screen.
+    val bottomPadding by animateDpAsState(
+        targetValue = bottomPaddingTarget,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+        label = "navBottomPadding",
+    )
 
     fun openSettings(origin: AppRoute) {
         settingsLaunchNonce += 1
@@ -416,10 +424,43 @@ fun MainRoot(
                 }
             }
 
-            if (showBottomNavigation) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showBottomNavigation,
+                enter = androidx.compose.animation.slideInVertically(
+                    initialOffsetY = { fullHeight -> fullHeight },
+                    animationSpec = spring(
+                        dampingRatio = 0.82f,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                ) + androidx.compose.animation.fadeIn(
+                    animationSpec = spring(
+                        dampingRatio = 1f,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                ),
+                exit = androidx.compose.animation.slideOutVertically(
+                    targetOffsetY = { fullHeight -> fullHeight },
+                    animationSpec = spring(
+                        dampingRatio = 1f,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                ) + androidx.compose.animation.fadeOut(
+                    animationSpec = spring(
+                        dampingRatio = 1f,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding(),
+            ) {
+                // Inside the exit transition the route may briefly be null; fall back
+                // to the first item so the bar can finish its slide-out animation
+                // without a NPE. The indicator is hidden behind the slide anyway.
+                val selectedItem = effectiveRouteObj ?: navItems.first()
                 FloatingNavigationBar(
                     items = navItems,
-                    selectedItem = effectiveRouteObj,
+                    selectedItem = selectedItem,
                     onItemClick = { item ->
                         navController.navigate(item.id) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -427,9 +468,6 @@ fun MainRoot(
                             restoreState = true
                         }
                     },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding(), // Avoid overlap with system navigation
                     hazeState = hazeState
                 )
             }
