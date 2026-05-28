@@ -30,6 +30,7 @@ class ChallengeEngineTest {
 	private lateinit var engine: ChallengeEngine
 	private lateinit var database: ChallengeDatabase
 	private lateinit var challengeDao: ChallengeDao
+	private lateinit var registry: ChallengeRuleRegistry
 	private lateinit var metrics: WindowedMetricsProvider
 	private lateinit var progression: ProgressionRepository
 
@@ -47,7 +48,25 @@ class ChallengeEngineTest {
 			@Suppress("UNCHECKED_CAST")
 			(secondArg<suspend () -> Any?>()).invoke()
 		}
-		engine = ChallengeEngine(database, metrics, progression)
+		// Use a REAL registry over the stubbed DAO so the test fixture matches the
+		// production code path: registry.allInstances() reads the DAO, the engine then
+		// re-fetches each entity by id inside evaluateOne. The existing
+		// `coEvery { challengeDao.getActive(...) } returns [entities]` stubs feed both
+		// reads via stubActiveEntities().
+		registry = ChallengeRuleRegistry(database)
+		engine = ChallengeEngine(database, registry, metrics, progression)
+	}
+
+	/**
+	 * Stub `challengeDao.getActive` AND `challengeDao.get(id)` together so the engine's
+	 * registry pass and per-instance refetch both see the same data.
+	 */
+	private fun stubActiveEntities(entities: List<ChallengeEntity>) {
+		coEvery { challengeDao.getActive(any()) } returns entities
+		val byId = entities.associateBy { it.id }
+		coEvery { challengeDao.get(any()) } answers {
+			byId[firstArg<Long>()]
+		}
 	}
 
 	@AfterEach
@@ -57,7 +76,7 @@ class ChallengeEngineTest {
 
 	@Test
 	fun `empty active set returns empty result and still awards session xp`() = runTest {
-		coEvery { challengeDao.getActive(any()) } returns emptyList()
+		stubActiveEntities(emptyList())
 
 		val result = engine.applySession(sampleSession())
 
@@ -70,7 +89,7 @@ class ChallengeEngineTest {
 	@Test
 	fun `windowed metric below target updates currentValue but does not complete`() = runTest {
 		val entity = stepEntity(required = 50_000.0, current = 0.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+		stubActiveEntities(listOf(entity))
 		coEvery { metrics.collect(MetricKeys.STEPS, any()) } returns 30_000L
 
 		val result = engine.applySession(sampleSession())
@@ -86,7 +105,7 @@ class ChallengeEngineTest {
 	@Test
 	fun `windowed metric crossing target marks completed and triggers progression`() = runTest {
 		val entity = stepEntity(required = 50_000.0, current = 49_999.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+		stubActiveEntities(listOf(entity))
 		coEvery { metrics.collect(MetricKeys.STEPS, any()) } returns 50_500L
 
 		val result = engine.applySession(sampleSession())
@@ -99,7 +118,7 @@ class ChallengeEngineTest {
 	@Test
 	fun `consistency uses ACTIVE_DAYS metric via WindowedMetricsProvider`() = runTest {
 		val entity = consistencyEntity(required = 7.0, current = 2.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+		stubActiveEntities(listOf(entity))
 		coEvery { metrics.collect(MetricKeys.ACTIVE_DAYS, any()) } returns 4L
 
 		val result = engine.applySession(sampleSession())
@@ -113,7 +132,7 @@ class ChallengeEngineTest {
 	@Test
 	fun `no-change entity is not written`() = runTest {
 		val entity = stepEntity(required = 50_000.0, current = 10_000.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+		stubActiveEntities(listOf(entity))
 		coEvery { metrics.collect(MetricKeys.STEPS, any()) } returns 10_000L
 
 		val result = engine.applySession(sampleSession())
@@ -128,7 +147,7 @@ class ChallengeEngineTest {
 	@Test
 	fun `consistency unchanged entity is not written`() = runTest {
 		val entity = consistencyEntity(required = 7.0, current = 2.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+		stubActiveEntities(listOf(entity))
 		coEvery { metrics.collect(MetricKeys.ACTIVE_DAYS, any()) } returns 2L
 
 		val result = engine.applySession(sampleSession())
@@ -141,7 +160,7 @@ class ChallengeEngineTest {
 	fun `multiple active challenges are evaluated independently`() = runTest {
 		val a = stepEntity(id = 1L, required = 50_000.0, current = 0.0)
 		val b = stepEntity(id = 2L, required = 100_000.0, current = 0.0)
-		coEvery { challengeDao.getActive(any()) } returns listOf(a, b)
+		stubActiveEntities(listOf(a, b))
 		coEvery { metrics.collect(MetricKeys.STEPS, any()) } returns 60_000L
 
 		val result = engine.applySession(sampleSession())
