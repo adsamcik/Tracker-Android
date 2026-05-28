@@ -5,6 +5,7 @@ import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
@@ -56,7 +57,7 @@ class GameDomainEventConsumerTest {
 		@Test
 		fun `does nothing when no events`() = runTest {
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -65,7 +66,7 @@ class GameDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -87,18 +88,19 @@ class GameDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
-			} returnsMany listOf(listOf(event), emptyList())
+			} returnsMany listOf(listOf(UnconsumedEvent(event, persistedId = 100L)), emptyList())
 
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,
 					timestamp,
+					100L,
 				)
 			}
 			io.mockk.verify(exactly = 1) { achievementEvaluationScheduler.scheduleEvaluation() }
@@ -119,18 +121,19 @@ class GameDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
-			} returnsMany listOf(listOf(event), emptyList())
+			} returnsMany listOf(listOf(UnconsumedEvent(event, persistedId = 200L)), emptyList())
 
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,
 					timestamp,
+					200L,
 				)
 			}
 		}
@@ -141,28 +144,34 @@ class GameDomainEventConsumerTest {
 			val earlyTimestamp = EpochMs(1_700_000_000_000L)
 			val lateTimestamp = EpochMs(1_700_000_005_000L)
 			val events = listOf(
-				DomainEvent.CellDiscovered(
-					timestampMs = earlyTimestamp,
-					processorId = "test-processor",
-					cellToken = "cell-1",
-					level = 3,
-					centerLatE7 = 0,
-					centerLonE7 = 0,
-					quality = 0,
-					seasonBit = 1,
+				UnconsumedEvent(
+					event = DomainEvent.CellDiscovered(
+						timestampMs = earlyTimestamp,
+						processorId = "test-processor",
+						cellToken = "cell-1",
+						level = 3,
+						centerLatE7 = 0,
+						centerLonE7 = 0,
+						quality = 0,
+						seasonBit = 1,
+					),
+					persistedId = 10L,
 				),
-				DomainEvent.SessionEnded(
-					timestampMs = lateTimestamp,
-					processorId = "test-processor",
-					sessionId = 10L,
-					totalDistance = DistanceM(500f),
-					totalSteps = StepCount(1000),
-					duration = DurationMs(300_000L),
+				UnconsumedEvent(
+					event = DomainEvent.SessionEnded(
+						timestampMs = lateTimestamp,
+						processorId = "test-processor",
+						sessionId = 10L,
+						totalDistance = DistanceM(500f),
+						totalSteps = StepCount(1000),
+						duration = DurationMs(300_000L),
+					),
+					persistedId = 11L,
 				),
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -171,9 +180,10 @@ class GameDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,
 					lateTimestamp,
+					11L,
 				)
 			}
 		}
@@ -184,30 +194,36 @@ class GameDomainEventConsumerTest {
 			val firstTimestamp = EpochMs(1_700_000_000_000L)
 			val secondTimestamp = EpochMs(1_700_000_005_000L)
 			val firstBatch = listOf(
-				DomainEvent.SessionEnded(
-					timestampMs = firstTimestamp,
-					processorId = "test-processor",
-					sessionId = 11L,
-					totalDistance = DistanceM(500f),
-					totalSteps = StepCount(1000),
-					duration = DurationMs(300_000L),
+				UnconsumedEvent(
+					event = DomainEvent.SessionEnded(
+						timestampMs = firstTimestamp,
+						processorId = "test-processor",
+						sessionId = 11L,
+						totalDistance = DistanceM(500f),
+						totalSteps = StepCount(1000),
+						duration = DurationMs(300_000L),
+					),
+					persistedId = 20L,
 				),
 			)
 			val secondBatch = listOf(
-				DomainEvent.CellDiscovered(
-					timestampMs = secondTimestamp,
-					processorId = "test-processor",
-					cellToken = "cell-2",
-					level = 3,
-					centerLatE7 = 0,
-					centerLonE7 = 0,
-					quality = 0,
-					seasonBit = 1,
+				UnconsumedEvent(
+					event = DomainEvent.CellDiscovered(
+						timestampMs = secondTimestamp,
+						processorId = "test-processor",
+						cellToken = "cell-2",
+						level = 3,
+						centerLatE7 = 0,
+						centerLonE7 = 0,
+						quality = 0,
+						seasonBit = 1,
+					),
+					persistedId = 21L,
 				),
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					GameDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -216,8 +232,8 @@ class GameDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerifyOrder {
-				domainEventRepository.markConsumed(GameDomainEventConsumer.CONSUMER_ID, firstTimestamp)
-				domainEventRepository.markConsumed(GameDomainEventConsumer.CONSUMER_ID, secondTimestamp)
+				domainEventRepository.markBatchConsumed(GameDomainEventConsumer.CONSUMER_ID, firstTimestamp, 20L)
+				domainEventRepository.markBatchConsumed(GameDomainEventConsumer.CONSUMER_ID, secondTimestamp, 21L)
 			}
 		}
 	}
