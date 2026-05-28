@@ -110,16 +110,19 @@ class PersonalRecordDaoTest {
 	} }
 
 	@Test
-	fun deleteOlderThanRemovesOldRecords()  { runTest {
+	fun deleteOlderThanIsNoOpBecausePersonalRecordsAreLifetime()  { runTest {
+		// Personal records are by definition lifetime user accomplishments — a "best
+		// ever" cannot be retention-aged. The DAO's deleteOlderThan is now a no-op so
+		// the retention worker can call it for symmetry without nuking actual records.
 		dao.upsert(createRecord(metric = "old", updatedAt = 100L))
 		dao.upsert(createRecord(metric = "medium", updatedAt = 500L))
 		dao.upsert(createRecord(metric = "new", updatedAt = 1000L))
 
 		val deleted = dao.deleteOlderThan(600L)
-		deleted shouldBe 2
+		deleted shouldBe 0
 
-		dao.getByMetric("old").shouldBeNull()
-		dao.getByMetric("medium").shouldBeNull()
+		dao.getByMetric("old").shouldNotBeNull()
+		dao.getByMetric("medium").shouldNotBeNull()
 		dao.getByMetric("new").shouldNotBeNull()
 	} }
 

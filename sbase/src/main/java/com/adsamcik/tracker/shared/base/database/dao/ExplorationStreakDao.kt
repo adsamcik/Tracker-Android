@@ -41,6 +41,13 @@ interface ExplorationStreakDao {
 
 	@Query("DELETE FROM exploration_streak")
 	fun deleteAll()
-    @Query("DELETE FROM exploration_streak WHERE updated_at < :beforeMs")
-    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+	/**
+	 * Lifetime streak bests (best_count) are user accomplishments — never retention-aged.
+	 * This sweep only clears stale rows whose best_count is 0 (never had a streak), so
+	 * abandoned/empty rows can still be garbage-collected without nuking the personal
+	 * best. Use [deleteAll] for an explicit user-initiated reset.
+	 */
+	@Query("DELETE FROM exploration_streak WHERE updated_at < :beforeMs AND best_count = 0")
+	suspend fun deleteOlderThan(beforeMs: Long): Int
 }

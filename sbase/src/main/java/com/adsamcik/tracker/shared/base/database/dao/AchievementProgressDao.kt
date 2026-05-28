@@ -77,6 +77,12 @@ interface AchievementProgressDao {
 	@Query("DELETE FROM achievement_progress")
 	fun deleteAll()
 
-	@Query("DELETE FROM achievement_progress WHERE updated_at < :beforeMs")
+	/**
+	 * Retention sweep: purge stale progress rows BUT preserve already-unlocked achievements.
+	 * Unlocked achievements are lifetime user accomplishments; deleting them after a
+	 * retention window would let the user 're-earn' them on the next small activity,
+	 * which is wrong. Only locked/in-progress rows (`unlocked_at IS NULL`) are removed.
+	 */
+	@Query("DELETE FROM achievement_progress WHERE updated_at < :beforeMs AND unlocked_at IS NULL")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 }

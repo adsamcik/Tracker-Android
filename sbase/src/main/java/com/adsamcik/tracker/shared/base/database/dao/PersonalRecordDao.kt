@@ -19,6 +19,13 @@ interface PersonalRecordDao {
 
 	@Query("DELETE FROM personal_record")
 	fun deleteAll()
-    @Query("DELETE FROM personal_record WHERE updated_at < :beforeMs")
-    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+	/**
+	 * Personal records are lifetime user accomplishments — a "best ever" by definition
+	 * cannot be retention-aged. This query intentionally never matches (`WHERE 1 = 0`)
+	 * so calls from the retention worker are safe no-ops. Use [deleteAll] for an
+	 * explicit user-initiated reset.
+	 */
+	@Query("DELETE FROM personal_record WHERE 1 = 0 AND :beforeMs = :beforeMs")
+	suspend fun deleteOlderThan(beforeMs: Long): Int
 }

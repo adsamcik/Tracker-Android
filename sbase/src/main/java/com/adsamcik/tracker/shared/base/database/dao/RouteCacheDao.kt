@@ -25,9 +25,12 @@ interface RouteCacheDao {
 	suspend fun getBySessionId(sessionId: Long): List<RouteCacheEntity>
 
 	/**
-	 * Get the cached route for a session segment.
+	 * Get the cached route for a session segment. Prefers the most recently created row
+	 * if duplicates exist (which they shouldn't, but `segment_id` lacks a UNIQUE index,
+	 * so an algorithm-version churn could leave two rows for the same segment). The
+	 * `ORDER BY created_at DESC` makes the result deterministic.
 	 */
-	@Query("SELECT * FROM route_cache WHERE segment_id = :segmentId LIMIT 1")
+	@Query("SELECT * FROM route_cache WHERE segment_id = :segmentId ORDER BY created_at DESC LIMIT 1")
 	suspend fun getBySegmentId(segmentId: Long): RouteCacheEntity?
 
 	/**
