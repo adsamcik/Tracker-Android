@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.engine.processor
 
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
@@ -15,10 +16,19 @@ import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
  * Tracks in-memory progress for live UI updates during a tracking session.
  * Emits [DomainEvent.AchievementUnlocked] when a tier increases and
  * [DomainEvent.AchievementProgress] when the value changes within the same tier.
+ *
+ * **Battery optimization (p6-3 / p6-7):** when a [MetricDirtyTracker] is provided and
+ * no pre-aggregated table has been written to since the previous flush, [onFlush] returns
+ * an empty list IMMEDIATELY without calling [metricsProvider] — so 0 DB queries, 0
+ * snapshots, 0 events. This makes the 60s achievement flush essentially free on idle
+ * AMBIENT-tier passes (the common case during stationary tracking).
+ *
+ * Legacy callers that don't pass a dirty tracker get the old always-evaluate behaviour.
  */
 class AchievementProcessor(
 	private val evaluator: AchievementEvaluator = AchievementEvaluator(),
 	private val metricsProvider: () -> Map<String, Long> = { emptyMap() },
+	private val dirtyTracker: MetricDirtyTracker? = null,
 ) : SignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -39,6 +49,15 @@ class AchievementProcessor(
 	}
 
 	override suspend fun onFlush(): List<DomainEvent> {
+		// Battery-critical short-circuit: if no pre-aggregated table has changed since the
+		// previous flush, we KNOW every metric value is stable, so achievements can't have
+		// moved. Skip the full evaluation. consumeDirty() is an atomic swap so writes that
+		// race this check land in the NEXT flush window — never lost.
+		val tracker = dirtyTracker
+		if (tracker != null && tracker.consumeDirty().isEmpty()) {
+			return emptyList()
+		}
+
 		val metrics = metricsProvider()
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		val events = mutableListOf<DomainEvent>()

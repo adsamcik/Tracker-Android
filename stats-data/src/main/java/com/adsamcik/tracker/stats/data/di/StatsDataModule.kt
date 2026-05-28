@@ -105,6 +105,12 @@ abstract class StatsDataModule {
 
 	@Binds
 	@Singleton
+	abstract fun bindMetricDirtyTracker(
+		impl: com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker,
+	): com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+
+	@Binds
+	@Singleton
 	abstract fun bindAchievementEvaluationScheduler(
 		impl: WorkManagerAchievementEvaluationScheduler,
 	): AchievementEvaluationScheduler

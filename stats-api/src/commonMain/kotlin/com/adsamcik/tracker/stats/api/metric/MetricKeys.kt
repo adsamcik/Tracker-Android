@@ -41,4 +41,60 @@ object MetricKeys {
 
 	/** Minimum trips in a day for it to count toward [ACTIVE_DAYS]. */
 	const val MIN_DAILY_TRIPS = 1
+
+	// ── Source-table mapping (p6-2) ─────────────────────────────────────────────
+	// Maps each metric to the pre-aggregated tables that back it. The
+	// MetricDirtyTracker uses this in reverse: when a writer marks a table dirty,
+	// the registry resolves "which rules depend on this table" and only those are
+	// re-evaluated. Battery win: idle flushes are a single set-difference, not 15+
+	// SUM aggregates.
+
+	/** Canonical pre-aggregated table names. Plain strings to keep stats-api KMP-friendly. */
+	const val TABLE_DAILY_SUMMARY = "daily_summary"
+	const val TABLE_SESSION_SEGMENT = "session_segment"
+	const val TABLE_EXPLORATION_CELL = "exploration_cell"
+	const val TABLE_EXPLORATION_STREAK = "exploration_streak"
+	const val TABLE_EXPORT_LOG = "export_log"
+
+	private val SOURCE_TABLES: Map<String, Set<String>> = mapOf(
+		STEPS to setOf(TABLE_DAILY_SUMMARY),
+		TOTAL_STEPS to setOf(TABLE_DAILY_SUMMARY),
+		BEST_DAILY_STEPS to setOf(TABLE_DAILY_SUMMARY),
+		DISTANCE_M to setOf(TABLE_DAILY_SUMMARY),
+		TOTAL_DISTANCE_KM to setOf(TABLE_DAILY_SUMMARY),
+		ACTIVE_MINUTES to setOf(TABLE_DAILY_SUMMARY),
+		TOTAL_TRIPS to setOf(TABLE_DAILY_SUMMARY),
+		ACTIVE_DAYS to setOf(TABLE_DAILY_SUMMARY),
+
+		DISTANCE_ON_FOOT_M to setOf(TABLE_SESSION_SEGMENT),
+		WALKING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
+		CYCLING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
+		LONGEST_TRIP_KM to setOf(TABLE_SESSION_SEGMENT),
+		TRANSPORT_MODE_COUNT to setOf(TABLE_SESSION_SEGMENT),
+
+		CELLS_DISCOVERED to setOf(TABLE_EXPLORATION_CELL),
+		UNIQUE_AREAS to setOf(TABLE_EXPLORATION_CELL),
+		SEASONS_EXPLORED to setOf(TABLE_EXPLORATION_CELL),
+
+		DAILY_STREAK to setOf(TABLE_EXPLORATION_STREAK),
+		WEEKLY_STREAK to setOf(TABLE_EXPLORATION_STREAK),
+
+		TOTAL_EXPORTS to setOf(TABLE_EXPORT_LOG),
+	)
+
+	/**
+	 * Tables whose mutation invalidates the value of [metric]. The dirty tracker uses this to
+	 * answer "is rule X affected by a write?" in O(1) per metric.
+	 *
+	 * Returns the empty set for unknown metrics. Empty set means the metric never changes
+	 * (rare — e.g. constant) OR the metric is unmapped and should be conservatively
+	 * re-evaluated on every flush. Callers should treat empty as "always dirty".
+	 */
+	fun sourceTables(metric: String): Set<String> = SOURCE_TABLES[metric] ?: emptySet()
+
+	/**
+	 * All known metric keys, in declaration order. Useful for tests + audit logging.
+	 * NOT call this on the flush hot path — it allocates.
+	 */
+	fun all(): Set<String> = SOURCE_TABLES.keys
 }

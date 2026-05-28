@@ -69,6 +69,14 @@ internal class TrackingOrchestrator(
 	trackerSettingsRepository: TrackerSettingsRepository,
 	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
 	private val enableNotifications: Boolean = true,
+	/**
+	 * Optional callback invoked AFTER the in-orchestrator `DailySummaryAggregator` writes a row.
+	 * The unified rule engine injects a callback that marks the `daily_summary` table dirty in
+	 * the `MetricDirtyTracker` so the signal processor's next flush re-evaluates only metrics
+	 * backed by daily_summary, not the whole catalog (p6-3). Default no-op keeps tests + legacy
+	 * call sites working without DI churn.
+	 */
+	private val onDailySummaryWritten: () -> Unit = {},
 ) {
 	private companion object {
 		const val TAG = "TrackingOrchestrator"
@@ -495,6 +503,7 @@ internal class TrackingOrchestrator(
 			val aggregator = DailySummaryAggregator(
 				dailySummaryDao = appDatabase.dailySummaryDao(),
 				sessionSegmentDao = appDatabase.sessionSegmentDao(),
+				onDailySummaryWritten = onDailySummaryWritten,
 			)
 			aggregator.materializeToday()
 			true

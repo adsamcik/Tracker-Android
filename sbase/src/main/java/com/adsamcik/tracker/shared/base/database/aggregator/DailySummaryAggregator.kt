@@ -18,10 +18,17 @@ import java.time.ZoneId
  * The aggregator reads all [SessionSegment] rows for a given calendar day,
  * computes totals, and upserts a single [DailySummaryEntity] row. This is
  * idempotent — calling it multiple times for the same day produces the same result.
+ *
+ * [onDailySummaryWritten] is invoked after every successful upsert. The unified rule
+ * engine (`:stats-data`'s `DefaultMetricDirtyTracker`) injects a callback that marks
+ * the `daily_summary` table dirty, so downstream signal processors can short-circuit
+ * idle flushes. Defaults to a no-op so the aggregator stays usable without the unified
+ * rule engine and avoids a circular dependency on `:stats-api`.
  */
 class DailySummaryAggregator(
 	private val dailySummaryDao: DailySummaryDao,
 	private val sessionSegmentDao: SessionSegmentDao,
+	private val onDailySummaryWritten: (() -> Unit)? = null,
 ) {
 	/**
 	 * Materialize daily summary for a specific epoch day by aggregating
@@ -51,6 +58,7 @@ class DailySummaryAggregator(
 				activeTrackingMs = existing?.activeTrackingMs ?: 0L,
 				lastUpdatedMs = now,
 			)
+			onDailySummaryWritten?.invoke()
 		}
 	}
 

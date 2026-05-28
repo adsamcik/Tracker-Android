@@ -58,9 +58,13 @@ object ProcessorPipelineModule {
 
 	@Provides
 	@IntoSet
-	fun provideAchievementProcessor(aggregator: AggregatorProcessor): SignalProcessor {
+	fun provideAchievementProcessor(
+		aggregator: AggregatorProcessor,
+		dirtyTracker: com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker,
+	): SignalProcessor {
 		return AchievementProcessor(
 			metricsProvider = { aggregator.snapshotMetrics() },
+			dirtyTracker = dirtyTracker,
 		)
 	}
 

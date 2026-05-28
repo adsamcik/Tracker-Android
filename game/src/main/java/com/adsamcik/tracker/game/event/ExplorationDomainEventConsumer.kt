@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -23,11 +25,16 @@ import javax.inject.Singleton
  * exploration_cell table).
  *
  * Uses consumer-offset tracking for crash-safe, ordered delivery.
+ *
+ * On every write to `exploration_cell` or `exploration_streak`, marks the
+ * corresponding table dirty in [dirtyTracker] so the unified rule signal processor
+ * can short-circuit idle flushes (p6-3).
  */
 @Singleton
 class ExplorationDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
+	private val dirtyTracker: MetricDirtyTracker,
 ) {
 	private val streakTracker = ExplorationStreakTracker()
 
@@ -85,6 +92,9 @@ class ExplorationDomainEventConsumer @Inject constructor(
 		val insertedId = cellDao.insert(entity)
 		if (insertedId != -1L) {
 			streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
+			dirtyTracker.markDirty(
+				setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK)
+			)
 			Logger.log(
 				LogData(
 					message = "Cell discovered: ${event.cellToken} (level ${event.level})",
@@ -99,6 +109,7 @@ class ExplorationDomainEventConsumer @Inject constructor(
 				lastVisitedAt = now,
 				seasonBit = event.seasonBit,
 			)
+			dirtyTracker.markDirty(MetricKeys.TABLE_EXPLORATION_CELL)
 		}
 	}
 

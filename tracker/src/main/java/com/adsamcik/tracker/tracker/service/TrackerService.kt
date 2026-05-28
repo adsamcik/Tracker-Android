@@ -88,6 +88,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	@Inject
 	lateinit var batteryAwarePolicy: BatteryAwarePolicy
 
+	@Inject
+	lateinit var metricDirtyTracker: com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+
 	private lateinit var orchestrator: TrackingOrchestrator
 
 	private var lockObservationJob: Job? = null
@@ -116,6 +119,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
+			onDailySummaryWritten = {
+				metricDirtyTracker.markDirty(
+					com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
+				)
+			},
 		)
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {

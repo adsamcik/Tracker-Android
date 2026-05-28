@@ -94,7 +94,10 @@ class DomainEventTest {
 
 		@Test
 		fun `CellDiscovered preserves token and level`() {
-			val event = DomainEvent.CellDiscovered(ts, pid, cellToken = "h3_abc123", level = 7)
+			val event = DomainEvent.CellDiscovered(
+				ts, pid, cellToken = "h3_abc123", level = 7,
+				centerLatE7 = 0, centerLonE7 = 0, quality = 0, seasonBit = 0,
+			)
 			event.cellToken shouldBe "h3_abc123"
 			event.level shouldBe 7
 		}
@@ -147,7 +150,7 @@ class DomainEventTest {
 				DomainEvent.TierChanged(ts, pid, PolicyTier.OFF, PolicyTier.AMBIENT, "init"),
 				DomainEvent.TripStarted(ts, pid, null),
 				DomainEvent.TripCompleted(ts, pid, ts, DistanceM.ZERO, StepCount.ZERO, DurationMs.ZERO, TransportMode.UNKNOWN),
-				DomainEvent.CellDiscovered(ts, pid, "token", 5),
+				DomainEvent.CellDiscovered(ts, pid, "token", 5, 0, 0, 0, 0),
 				DomainEvent.AchievementUnlocked(ts, pid, "a1", "Bronze"),
 				DomainEvent.AchievementProgress(ts, pid, "a1", 0L, 10L),
 				DomainEvent.DailySummaryUpdated(ts, pid, 0L, DistanceM.ZERO, StepCount.ZERO, DurationMs.ZERO, 0),
@@ -158,7 +161,7 @@ class DomainEventTest {
 
 		@Test
 		fun `when expression covers all subtypes`() {
-			val event: DomainEvent = DomainEvent.CellDiscovered(ts, pid, "t", 1)
+			val event: DomainEvent = DomainEvent.CellDiscovered(ts, pid, "t", 1, 0, 0, 0, 0)
 			val label = when (event) {
 				is DomainEvent.SessionStarted -> "ss"
 				is DomainEvent.SessionEnded -> "se"
