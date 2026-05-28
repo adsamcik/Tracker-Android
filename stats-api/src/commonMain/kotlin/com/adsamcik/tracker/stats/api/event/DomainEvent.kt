@@ -86,6 +86,42 @@ sealed interface DomainEvent {
 		val targetValue: Long,
 	) : DomainEvent
 
+	/**
+	 * Emitted when a challenge's progress value moves within its target window.
+	 *
+	 * The future unified rule signal processor emits this during tracking so UI can show
+	 * live progress bars without polling. GameDomainEventConsumer translates these to
+	 * UI-layer state updates (separate from ChallengeManager's StateFlow which is updated
+	 * at session-end by ChallengeEngine.applySession).
+	 *
+	 * @property challengeId The challenge row id (matches ChallengeEntity.id).
+	 * @property type ChallengeType.name — kept as String so :stats-api stays
+	 *   ChallengeType-free.
+	 */
+	data class ChallengeProgress(
+		override val timestampMs: EpochMs,
+		override val processorId: String,
+		val challengeId: Long,
+		val type: String,
+		val currentValue: Double,
+		val targetValue: Double,
+	) : DomainEvent
+
+	/**
+	 * Emitted when a challenge crosses its [targetValue] target. The session-end
+	 * ChallengeEngine still owns the canonical write (history + xp + streak) — this event
+	 * is purely a UX hook for notifications/animations during tracking, idempotent via
+	 * the same UNIQUE(original_challenge_id) partial index that protects the engine path.
+	 */
+	data class ChallengeCompleted(
+		override val timestampMs: EpochMs,
+		override val processorId: String,
+		val challengeId: Long,
+		val type: String,
+		val currentValue: Double,
+		val targetValue: Double,
+	) : DomainEvent
+
 	// --- Analytics context ---
 	data class DailySummaryUpdated(
 		override val timestampMs: EpochMs,

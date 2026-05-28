@@ -98,6 +98,18 @@ class DefaultDomainEventRepository @Inject constructor(
 				put("currentValue", currentValue)
 				put("targetValue", targetValue)
 			}
+			is DomainEvent.ChallengeProgress -> "ChallengeProgress" to JSONObject().apply {
+				put("challengeId", challengeId)
+				put("type", type)
+				put("currentValue", currentValue)
+				put("targetValue", targetValue)
+			}
+			is DomainEvent.ChallengeCompleted -> "ChallengeCompleted" to JSONObject().apply {
+				put("challengeId", challengeId)
+				put("type", type)
+				put("currentValue", currentValue)
+				put("targetValue", targetValue)
+			}
 			is DomainEvent.DailySummaryUpdated -> "DailySummaryUpdated" to JSONObject().apply {
 				put("dayEpoch", dayEpoch)
 				put("totalDistance", totalDistance.raw)
@@ -180,6 +192,22 @@ class DefaultDomainEventRepository @Inject constructor(
 				achievementId = json.getString("achievementId"),
 				currentValue = json.getLong("currentValue"),
 				targetValue = json.getLong("targetValue"),
+			)
+			"ChallengeProgress" -> DomainEvent.ChallengeProgress(
+				timestampMs = ts,
+				processorId = pid,
+				challengeId = json.getLong("challengeId"),
+				type = json.getString("type"),
+				currentValue = json.getDouble("currentValue"),
+				targetValue = json.getDouble("targetValue"),
+			)
+			"ChallengeCompleted" -> DomainEvent.ChallengeCompleted(
+				timestampMs = ts,
+				processorId = pid,
+				challengeId = json.getLong("challengeId"),
+				type = json.getString("type"),
+				currentValue = json.getDouble("currentValue"),
+				targetValue = json.getDouble("targetValue"),
 			)
 			"DailySummaryUpdated" -> DomainEvent.DailySummaryUpdated(
 				timestampMs = ts,

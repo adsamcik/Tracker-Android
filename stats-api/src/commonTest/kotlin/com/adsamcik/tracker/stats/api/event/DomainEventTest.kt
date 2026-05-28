@@ -119,6 +119,28 @@ class DomainEventTest {
 			event.currentValue shouldBe 45_000L
 			event.targetValue shouldBe 50_000L
 		}
+
+		@Test
+		fun `ChallengeProgress preserves values`() {
+			val event = DomainEvent.ChallengeProgress(
+				ts, pid, challengeId = 42L, type = "Step",
+				currentValue = 12_500.0, targetValue = 50_000.0,
+			)
+			event.challengeId shouldBe 42L
+			event.type shouldBe "Step"
+			event.currentValue shouldBe 12_500.0
+		}
+
+		@Test
+		fun `ChallengeCompleted preserves values`() {
+			val event = DomainEvent.ChallengeCompleted(
+				ts, pid, challengeId = 17L, type = "Speed",
+				currentValue = 2_100.0, targetValue = 2_000.0,
+			)
+			event.challengeId shouldBe 17L
+			event.type shouldBe "Speed"
+			event.currentValue shouldBe 2_100.0
+		}
 	}
 
 	@Nested
@@ -153,10 +175,12 @@ class DomainEventTest {
 				DomainEvent.CellDiscovered(ts, pid, "token", 5, 0, 0, 0, 0),
 				DomainEvent.AchievementUnlocked(ts, pid, "a1", "Bronze"),
 				DomainEvent.AchievementProgress(ts, pid, "a1", 0L, 10L),
+				DomainEvent.ChallengeProgress(ts, pid, 1L, "Step", 0.0, 10.0),
+				DomainEvent.ChallengeCompleted(ts, pid, 1L, "Step", 10.0, 10.0),
 				DomainEvent.DailySummaryUpdated(ts, pid, 0L, DistanceM.ZERO, StepCount.ZERO, DurationMs.ZERO, 0),
 			)
 			events.forEach { it.shouldBeInstanceOf<DomainEvent>() }
-			events.size shouldBe 9
+			events.size shouldBe 11
 		}
 
 		@Test
@@ -171,6 +195,8 @@ class DomainEventTest {
 				is DomainEvent.CellDiscovered -> "cd"
 				is DomainEvent.AchievementUnlocked -> "au"
 				is DomainEvent.AchievementProgress -> "ap"
+				is DomainEvent.ChallengeProgress -> "cp"
+				is DomainEvent.ChallengeCompleted -> "cc"
 				is DomainEvent.DailySummaryUpdated -> "dsu"
 			}
 			label shouldBe "cd"

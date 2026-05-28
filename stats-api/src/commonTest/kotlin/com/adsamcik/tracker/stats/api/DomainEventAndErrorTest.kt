@@ -88,6 +88,8 @@ class DomainEventAndErrorTest {
 		is DomainEvent.CellDiscovered -> "CellDiscovered"
 		is DomainEvent.AchievementUnlocked -> "AchievementUnlocked"
 		is DomainEvent.AchievementProgress -> "AchievementProgress"
+		is DomainEvent.ChallengeProgress -> "ChallengeProgress"
+		is DomainEvent.ChallengeCompleted -> "ChallengeCompleted"
 		is DomainEvent.DailySummaryUpdated -> "DailySummaryUpdated"
 	}
 
