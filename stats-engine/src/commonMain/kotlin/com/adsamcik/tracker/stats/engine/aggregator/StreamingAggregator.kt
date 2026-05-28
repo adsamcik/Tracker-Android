@@ -8,8 +8,11 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
  * In-memory accumulator for real-time tracking statistics.
  * Receives per-cycle sensor signals and maintains running session and day totals.
  *
- * Thread safety: Not thread-safe. Designed to be called from a single
- * component pipeline thread (TrackerService's componentMutex).
+ * **Thread safety:** every public method synchronizes on a private monitor. The
+ * `ProcessorPipeline` delivers signals under its own mutex but releases that mutex
+ * before slow-path flush/snapshot calls, so an aggregator method can race a signal
+ * arriving on another coroutine. Without per-method `@Synchronized` we'd see torn
+ * snapshots or `ConcurrentModificationException` while iterating `activityVotes`.
  *
  * Lifecycle:
  * 1. [start] - initialize for new session
@@ -22,6 +25,8 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 class StreamingAggregator(
 	private val clock: () -> Long = System::currentTimeMillis,
 ) {
+	private val lock = Any()
+
 	// Session state
 	private var active = false
 	private var sessionStartMs = 0L
@@ -48,19 +53,19 @@ class StreamingAggregator(
 	private var priorDayDurationMs = 0L
 	private var tripCount = 0
 
-	val isActive: Boolean get() = active
+	val isActive: Boolean get() = synchronized(lock) { active }
 
 	/**
 	 * Initialize for a new tracking session.
 	 *
 	 * @param sessionStartMs Session start timestamp
 	 */
-	fun start(sessionStartMs: Long) {
+	fun start(sessionStartMs: Long) = synchronized(lock) {
 		require(!active) { "Cannot start: aggregator already active" }
 		active = true
 		this.sessionStartMs = sessionStartMs
 		lastSignalMs = sessionStartMs
-		clearSessionAccumulators()
+		clearSessionAccumulatorsLocked()
 	}
 
 	/**
@@ -72,7 +77,7 @@ class StreamingAggregator(
 	 * @param durationMs Total duration from prior sessions today
 	 * @param trips Number of trips completed today
 	 */
-	fun seedDayTotals(distanceM: Float, steps: Int, durationMs: Long, trips: Int) {
+	fun seedDayTotals(distanceM: Float, steps: Int, durationMs: Long, trips: Int) = synchronized(lock) {
 		priorDayDistanceM = distanceM
 		priorDaySteps = steps
 		priorDayDurationMs = durationMs
@@ -83,7 +88,7 @@ class StreamingAggregator(
 	 * Process a per-cycle sensor signal.
 	 * Accumulates distance, steps, speed, activity, and duration.
 	 */
-	fun onSignal(signal: AggregatorSignal) {
+	fun onSignal(signal: AggregatorSignal) = synchronized(lock) {
 		check(active) { "Cannot process signal: aggregator not active" }
 
 		// Duration: time since last signal (or since session start for first signal)
@@ -121,11 +126,11 @@ class StreamingAggregator(
 	 * Get current accumulated state as immutable snapshot.
 	 * Non-destructive: does not modify internal state.
 	 */
-	fun snapshot(): AggregatorSnapshot {
+	fun snapshot(): AggregatorSnapshot = synchronized(lock) {
 		val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
 		val dominant = activityVotes.maxByOrNull { it.value }?.key
 
-		return AggregatorSnapshot(
+		AggregatorSnapshot(
 			sessionStartMs = sessionStartMs,
 			lastUpdateMs = lastSignalMs,
 			sessionDistanceM = sessionDistanceM,
@@ -146,7 +151,7 @@ class StreamingAggregator(
 	/**
 	 * Record a trip completion for the day counter.
 	 */
-	fun onTripCompleted() {
+	fun onTripCompleted() = synchronized(lock) {
 		tripCount++
 	}
 
@@ -154,21 +159,21 @@ class StreamingAggregator(
 	 * Finalize the current session. Returns final snapshot.
 	 * After this call, [isActive] returns false and [start] can be called again.
 	 */
-	fun stop(): AggregatorSnapshot {
+	fun stop(): AggregatorSnapshot = synchronized(lock) {
 		check(active) { "Cannot stop: aggregator not active" }
-		val finalSnapshot = snapshot()
+		val finalSnapshot = snapshotLocked()
 		active = false
-		clearSessionAccumulators()
-		return finalSnapshot
+		clearSessionAccumulatorsLocked()
+		finalSnapshot
 	}
 
 	/**
 	 * Reset all state including day-level totals.
 	 * Call on day rollover or when clearing all data.
 	 */
-	fun reset() {
+	fun reset() = synchronized(lock) {
 		active = false
-		clearSessionAccumulators()
+		clearSessionAccumulatorsLocked()
 		priorDayDistanceM = 0f
 		priorDaySteps = 0
 		priorDayDurationMs = 0L
@@ -177,7 +182,7 @@ class StreamingAggregator(
 		lastSignalMs = 0L
 	}
 
-	private fun clearSessionAccumulators() {
+	private fun clearSessionAccumulatorsLocked() {
 		sessionDistanceM = 0f
 		sessionSteps = 0
 		sessionDurationMs = 0L
@@ -189,8 +194,29 @@ class StreamingAggregator(
 		activityVotes.clear()
 	}
 
+	private fun snapshotLocked(): AggregatorSnapshot {
+		val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
+		val dominant = activityVotes.maxByOrNull { it.value }?.key
+		return AggregatorSnapshot(
+			sessionStartMs = sessionStartMs,
+			lastUpdateMs = lastSignalMs,
+			sessionDistanceM = sessionDistanceM,
+			sessionSteps = sessionSteps,
+			sessionDurationMs = sessionDurationMs,
+			dayTotalDistanceM = priorDayDistanceM + sessionDistanceM,
+			dayTotalSteps = priorDaySteps + sessionSteps,
+			dayTotalDurationMs = priorDayDurationMs + sessionDurationMs,
+			currentSpeedMps = currentSpeedMps,
+			avgSpeedMps = avgSpeed,
+			maxSpeedMps = maxSpeedMps,
+			sampleCount = sampleCount,
+			dominantActivity = dominant,
+			tripCount = tripCount,
+		)
+	}
+
 	/** Serialize all mutable state for crash-recovery checkpointing. */
-	fun serialize(): ByteArray {
+	fun serialize(): ByteArray = synchronized(lock) {
 		val baos = java.io.ByteArrayOutputStream()
 		val dos = java.io.DataOutputStream(baos)
 		dos.writeBoolean(active)
@@ -214,11 +240,11 @@ class StreamingAggregator(
 			dos.writeInt(count)
 		}
 		dos.flush()
-		return baos.toByteArray()
+		baos.toByteArray()
 	}
 
 	/** Restore mutable state from a checkpoint produced by [serialize]. */
-	fun deserialize(data: ByteArray) {
+	fun deserialize(data: ByteArray) = synchronized(lock) {
 		val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(data))
 		active = dis.readBoolean()
 		sessionStartMs = dis.readLong()
