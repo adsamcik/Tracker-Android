@@ -42,7 +42,7 @@ object MetricKeys {
 	/** Minimum trips in a day for it to count toward [ACTIVE_DAYS]. */
 	const val MIN_DAILY_TRIPS = 1
 
-	// ── Source-table mapping (p6-2) ─────────────────────────────────────────────
+	// ── Source-table mapping ─────────────────────────────────────────────────────
 	// Maps each metric to the pre-aggregated tables that back it. The
 	// MetricDirtyTracker uses this in reverse: when a writer marks a table dirty,
 	// the registry resolves "which rules depend on this table" and only those are
@@ -63,23 +63,32 @@ object MetricKeys {
 	 * deltas during tracking it marks this dirty, and the downstream
 	 * `AchievementProcessor` then evaluates as normal. During heartbeat-only signals
 	 * with no movement, nothing marks this and the short-circuit fires.
+	 *
+	 * Only metrics that `AggregatorProcessor.snapshotMetrics()` actually publishes are
+	 * dual-sourced with this pseudo-table: [TOTAL_DISTANCE_KM], [TOTAL_STEPS],
+	 * [TOTAL_TRIPS], [LONGEST_TRIP_KM], [BEST_DAILY_STEPS]. Adding more keys to the
+	 * snapshot requires extending the source map.
 	 */
 	const val TABLE_AGGREGATOR_STATE = "aggregator_state"
 
 	private val SOURCE_TABLES: Map<String, Set<String>> = mapOf(
-		STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		// Streaming-snapshot keys: dual-sourced so live aggregator changes and
+		// daily_summary materialization both invalidate the short-circuit.
 		TOTAL_STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
 		BEST_DAILY_STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
-		DISTANCE_M to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
 		TOTAL_DISTANCE_KM to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
-		ACTIVE_MINUTES to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
 		TOTAL_TRIPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		LONGEST_TRIP_KM to setOf(TABLE_SESSION_SEGMENT, TABLE_AGGREGATOR_STATE),
+
+		// Pre-aggregated keys NOT in the live snapshot — table-only.
+		STEPS to setOf(TABLE_DAILY_SUMMARY),
+		DISTANCE_M to setOf(TABLE_DAILY_SUMMARY),
+		ACTIVE_MINUTES to setOf(TABLE_DAILY_SUMMARY),
 		ACTIVE_DAYS to setOf(TABLE_DAILY_SUMMARY),
 
-		DISTANCE_ON_FOOT_M to setOf(TABLE_SESSION_SEGMENT, TABLE_AGGREGATOR_STATE),
+		DISTANCE_ON_FOOT_M to setOf(TABLE_SESSION_SEGMENT),
 		WALKING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
 		CYCLING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
-		LONGEST_TRIP_KM to setOf(TABLE_SESSION_SEGMENT, TABLE_AGGREGATOR_STATE),
 		TRANSPORT_MODE_COUNT to setOf(TABLE_SESSION_SEGMENT),
 
 		CELLS_DISCOVERED to setOf(TABLE_EXPLORATION_CELL),

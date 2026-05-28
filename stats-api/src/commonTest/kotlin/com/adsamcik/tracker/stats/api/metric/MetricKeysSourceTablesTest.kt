@@ -51,15 +51,34 @@ class MetricKeysSourceTablesTest {
 	}
 
 	@Test
-	fun `daily_summary metrics include STEPS and ACTIVE_DAYS`() {
-		// STEPS is dual-sourced after p6-7-fix: daily_summary (for catch-up evaluation
-		// after a session ends) AND aggregator_state (for live in-session evaluation).
-		// ACTIVE_DAYS is daily_summary-only because the aggregator doesn't track distinct
-		// active days — that concept only exists in the daily_summary row.
-		MetricKeys.sourceTables(MetricKeys.STEPS) shouldBe setOf(
+	fun `STEPS is daily_summary-only — live aggregator publishes only the cumulative total_steps key`() {
+		// The live AggregatorProcessor.snapshotMetrics() publishes "total_steps" (cumulative)
+		// but NOT "steps" (raw daily). So STEPS should NOT be aggregator-state-backed;
+		// only TOTAL_STEPS is. ACTIVE_DAYS is daily_summary-only because the aggregator
+		// doesn't track distinct active days — that concept only exists per daily_summary row.
+		MetricKeys.sourceTables(MetricKeys.STEPS) shouldBe setOf(MetricKeys.TABLE_DAILY_SUMMARY)
+		MetricKeys.sourceTables(MetricKeys.TOTAL_STEPS) shouldBe setOf(
 			MetricKeys.TABLE_DAILY_SUMMARY, MetricKeys.TABLE_AGGREGATOR_STATE,
 		)
 		MetricKeys.sourceTables(MetricKeys.ACTIVE_DAYS) shouldBe setOf(MetricKeys.TABLE_DAILY_SUMMARY)
+	}
+
+	@Test
+	fun `aggregator_state only dual-sources snapshotMetrics keys`() {
+		// Round-3 R2 fix: keys NOT in AggregatorProcessor.snapshotMetrics() must NOT
+		// be aggregator-state-backed — otherwise a heartbeat that doesn't change them
+		// could still be wrongly invalidated, or a live-snapshot read would miss them.
+		val snapshotKeys = setOf(
+			MetricKeys.TOTAL_DISTANCE_KM,
+			MetricKeys.TOTAL_STEPS,
+			MetricKeys.TOTAL_TRIPS,
+			MetricKeys.LONGEST_TRIP_KM,
+			MetricKeys.BEST_DAILY_STEPS,
+		)
+		val aggregatorBacked = MetricKeys.all().filter {
+			MetricKeys.TABLE_AGGREGATOR_STATE in MetricKeys.sourceTables(it)
+		}.toSet()
+		aggregatorBacked shouldBe snapshotKeys
 	}
 
 	@Test

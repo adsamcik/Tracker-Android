@@ -19,12 +19,18 @@ import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
  * SignalProcessor wrapping [StreamingAggregator].
  * Accumulates session/day statistics and emits DailySummaryUpdated events on flush.
  *
- * When a [dirtyTracker] is provided, [onSignal] calls `markDirty(AGGREGATOR_STATE)`
- * whenever its in-memory accumulators move. Achievement evaluation reads these in-memory
- * totals via [snapshotMetrics] (NOT a pre-aggregated table), so without this hook the
- * achievement processor's dirty-aware short-circuit would suppress real progress events
- * for steps / distance / active time. With the hook in place, AMBIENT heartbeat signals
- * with zero deltas leave the aggregator clean and the short-circuit can correctly fire.
+ * When a [dirtyTracker] is provided, every mutation to the in-memory accumulators
+ * marks [MetricKeys.TABLE_AGGREGATOR_STATE] dirty. Achievement evaluation reads
+ * the live totals via [snapshotMetrics] (NOT a pre-aggregated table), so without
+ * full coverage the achievement processor's dirty-aware short-circuit would
+ * suppress real progress events for steps / distance / trip count. The mutating
+ * surface is exactly:
+ *  - [onSignal] when a non-zero distance/step delta or activity sample arrives.
+ *  - [notifyTripCompleted] when a trip is closed (mutates `total_trips`).
+ *  - [seedDayTotals] when prior-session totals are restored on session start.
+ *
+ * Heartbeat signals with zero deltas leave the aggregator clean and the
+ * short-circuit can correctly fire.
  */
 class AggregatorProcessor(
 	private val aggregator: StreamingAggregator = StreamingAggregator(),
@@ -63,17 +69,14 @@ class AggregatorProcessor(
 			),
 		)
 		// Mark the aggregator's in-memory state dirty when its accumulators actually
-		// moved. Pure-heartbeat signals (no distance or step deltas) don't mark dirty,
-		// which is what lets the downstream AchievementProcessor short-circuit during
-		// AMBIENT idle. Activity-only signals also count — they can flip metric values
-		// like `total_trips` indirectly through aggregator bookkeeping.
-		if (dirtyTracker != null) {
-			val moved = (distanceDelta != null && distanceDelta != 0f) ||
-				stepDelta != 0 ||
-				signal.activity != null
-			if (moved) {
-				dirtyTracker.markDirty(MetricKeys.TABLE_AGGREGATOR_STATE)
-			}
+		// moved. Pure-heartbeat signals (no distance or step deltas, no activity)
+		// don't mark dirty, which is what lets the downstream AchievementProcessor
+		// short-circuit during AMBIENT idle.
+		val moved = (distanceDelta != null && distanceDelta != 0f) ||
+			stepDelta != 0 ||
+			signal.activity != null
+		if (moved) {
+			markStateDirty()
 		}
 	}
 
@@ -108,10 +111,25 @@ class AggregatorProcessor(
 
 	fun notifyTripCompleted() {
 		aggregator.onTripCompleted()
+		// `tripCount` is part of snapshotMetrics() ("total_trips"), so closing a trip
+		// must invalidate the achievement short-circuit even when no signal accompanies
+		// the trip-end (e.g. trip closed by inactivity timeout, not movement).
+		markStateDirty()
 	}
 
 	fun seedDayTotals(distanceM: Float, steps: Int, durationMs: Long, trips: Int) {
 		aggregator.seedDayTotals(distanceM, steps, durationMs, trips)
+		// Pre-session totals feed `total_distance_km`, `total_steps`, `total_trips`,
+		// and `best_daily_steps` in snapshotMetrics(). If any of them are non-zero,
+		// the in-memory snapshot changed without any sensor signal — mark dirty so
+		// the first achievement flush after session start re-evaluates them.
+		if (distanceM != 0f || steps != 0 || durationMs != 0L || trips != 0) {
+			markStateDirty()
+		}
+	}
+
+	private fun markStateDirty() {
+		dirtyTracker?.markDirty(MetricKeys.TABLE_AGGREGATOR_STATE)
 	}
 
 	/**

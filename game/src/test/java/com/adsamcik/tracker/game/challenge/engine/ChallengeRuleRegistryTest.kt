@@ -12,7 +12,6 @@ import com.adsamcik.tracker.stats.api.rule.RuleKind
 import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -65,12 +64,12 @@ class ChallengeRuleRegistryTest {
 	@Test
 	fun `instancesAffectedByTables returns only rules reading dirty tables`() = runTest {
 		coEvery { challengeDao.getActive(any()) } returns listOf(
-			stepEntity(id = 1L, required = 1_000.0),                             // metric = STEPS (daily_summary + aggregator_state)
-			consistencyEntity(id = 2L, required = 7.0),                          // metric = ACTIVE_DAYS (daily_summary only)
+			stepEntity(id = 1L, required = 1_000.0),                             // metric = STEPS (daily_summary)
+			consistencyEntity(id = 2L, required = 7.0),                          // metric = ACTIVE_DAYS (daily_summary)
 			explorerEntity(id = 3L, required = 5.0),                             // metric = CELLS_DISCOVERED (exploration_cell)
 		)
 
-		// Daily summary dirty: catches step (dual-source) + consistency (single-source).
+		// Daily summary dirty: catches step and consistency, both daily-summary-backed.
 		registry.instancesAffectedByTables(setOf(MetricKeys.TABLE_DAILY_SUMMARY))
 			.map { it.contextId }
 			.toSet() shouldBe setOf(1L, 2L)
@@ -80,10 +79,11 @@ class ChallengeRuleRegistryTest {
 			.map { it.contextId }
 			.toSet() shouldBe setOf(3L)
 
-		// Aggregator state dirty: catches step (live in-session evaluation), not consistency or explorer.
+		// Aggregator state dirty: no current challenge metric is backed by the live
+		// snapshot (STEPS is daily-summary-only — only the cumulative TOTAL_STEPS
+		// is dual-sourced, and no challenge uses TOTAL_STEPS).
 		registry.instancesAffectedByTables(setOf(MetricKeys.TABLE_AGGREGATOR_STATE))
-			.map { it.contextId }
-			.toSet() shouldBe setOf(1L)
+			.shouldBeEmpty()
 	}
 
 	@Test
@@ -103,11 +103,30 @@ class ChallengeRuleRegistryTest {
 	}
 
 	@Test
-	fun `ruleId and parseEntityId round-trip cleanly`() {
-		ChallengeRuleRegistry.parseEntityId(ChallengeRuleRegistry.ruleId(42L)) shouldBe 42L
-		ChallengeRuleRegistry.parseEntityId("achievement:foo").shouldBeNull()
-		ChallengeRuleRegistry.parseEntityId("challenge:not-a-number").shouldBeNull()
-		ChallengeRuleRegistry.parseEntityId("challenge:").shouldBeNull()
+	fun `allInstances returns empty when DAO has no active rows`() = runTest {
+		coEvery { challengeDao.getActive(any()) } returns emptyList()
+		registry.allInstances().shouldBeEmpty()
+	}
+
+	@Test
+	fun `instancesAffectedByTables returns empty when DAO has no active rows even with dirty tables`() = runTest {
+		coEvery { challengeDao.getActive(any()) } returns emptyList()
+		registry.instancesAffectedByTables(setOf(MetricKeys.TABLE_DAILY_SUMMARY)).shouldBeEmpty()
+	}
+
+	@Test
+	fun `instance carries entity attachment so engine avoids per-rule refetch`() = runTest {
+		val entity = stepEntity(id = 99L, required = 5_000.0)
+		coEvery { challengeDao.getActive(any()) } returns listOf(entity)
+
+		val instance = registry.allInstances().single()
+		instance.attachment shouldBe entity
+	}
+
+	@Test
+	fun `ruleId is stable for repeated calls`() {
+		ChallengeRuleRegistry.ruleId(42L) shouldBe "challenge:42"
+		ChallengeRuleRegistry.ruleId(42L) shouldBe "challenge:42"
 	}
 
 	// ── helpers ────────────────────────────────────────────────────────────────
