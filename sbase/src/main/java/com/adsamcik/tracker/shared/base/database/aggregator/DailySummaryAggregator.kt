@@ -3,6 +3,8 @@ package com.adsamcik.tracker.shared.base.database.aggregator
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -18,6 +20,12 @@ import java.time.ZoneId
  * The aggregator reads all [SessionSegment] rows for a given calendar day,
  * computes totals, and upserts a single [DailySummaryEntity] row. This is
  * idempotent — calling it multiple times for the same day produces the same result.
+ *
+ * **Concurrency:** writes are serialized per epoch-day by a process-wide [perDayMutex].
+ * The periodic and one-shot workers can otherwise run concurrently, both reading
+ * different snapshots of session_segment and racing to upsert — last-writer-wins of
+ * stale data. The per-day lock guarantees one read-compute-write cycle finishes
+ * before another starts for the same day.
  *
  * [onDailySummaryWritten] is invoked after every successful upsert. The unified rule
  * engine injects a callback that marks the `daily_summary` table dirty in the
@@ -54,6 +62,15 @@ class DailySummaryAggregator(
 	 * @param epochDay the [LocalDate.toEpochDay] identifier for the local calendar day
 	 */
 	suspend fun materializeDayFromSegments(epochDay: Long) {
+		// Process-wide per-day serialization. Any concurrent caller (periodic worker +
+		// one-shot session-end materialization) waits its turn so the read snapshot
+		// matches the upsert, not a stale view.
+		mutexForDay(epochDay).withLock {
+			materializeDayFromSegmentsLocked(epochDay)
+		}
+	}
+
+	private suspend fun materializeDayFromSegmentsLocked(epochDay: Long) {
 		val startOfDayMs = startOfLocalDayMs(epochDay)
 		val endOfDayMs = startOfLocalDayMs(epochDay + 1)
 
@@ -106,5 +123,18 @@ class DailySummaryAggregator(
 			.atStartOfDay(ZoneId.systemDefault())
 			.toInstant()
 			.toEpochMilli()
+	}
+
+	companion object {
+		// Process-wide per-day write serialization. Workers create new
+		// DailySummaryAggregator instances per run, so the mutex MUST live in the
+		// companion to be shared across all instances. Keyed by epochDay so different
+		// days can materialize concurrently — the race only matters for the same day.
+		private val perDayMutexes = mutableMapOf<Long, Mutex>()
+		private val perDayMutexesLock = Any()
+
+		private fun mutexForDay(epochDay: Long): Mutex = synchronized(perDayMutexesLock) {
+			perDayMutexes.getOrPut(epochDay) { Mutex() }
+		}
 	}
 }

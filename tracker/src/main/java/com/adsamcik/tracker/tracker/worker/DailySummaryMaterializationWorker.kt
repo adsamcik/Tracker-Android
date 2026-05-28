@@ -54,8 +54,13 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 	}
 
 	companion object {
-		private const val UNIQUE_PERIODIC_ID = "APP.DAILY_SUMMARY_MATERIALIZATION"
-		private const val UNIQUE_ONESHOT_ID = "APP.DAILY_SUMMARY_MATERIALIZATION_ONESHOT"
+		// Single unique work name for BOTH periodic + one-shot materialization so
+		// WorkManager serializes them at the queue level (APPEND policy chains the
+		// one-shot after any currently-running or queued periodic run). The
+		// DailySummaryAggregator also serializes per-day in-process for defense in
+		// depth, but the work-name unification stops two RUNNERS from starting in
+		// the first place when the system is under load.
+		private const val UNIQUE_WORK_ID = "APP.DAILY_SUMMARY_MATERIALIZATION"
 
 		/**
 		 * Schedule the periodic 24-hour materialization worker.
@@ -66,7 +71,7 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 				24, TimeUnit.HOURS
 			)
 			workManager.enqueueUniquePeriodicWork(
-				UNIQUE_PERIODIC_ID,
+				UNIQUE_WORK_ID,
 				ExistingPeriodicWorkPolicy.KEEP,
 				builder.build()
 			)
@@ -75,12 +80,16 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 		/**
 		 * Enqueue a one-shot materialization. Called when a tracking session ends
 		 * to ensure the daily_summary row is immediately up-to-date.
+		 *
+		 * Uses APPEND_OR_REPLACE so it chains after any currently-executing periodic
+		 * run instead of starting concurrently — eliminating the upsert race where
+		 * both workers compute totals from different segment snapshots.
 		 */
 		fun runOnce(context: Context) {
 			val workManager = WorkManager.getInstance(context)
 			workManager.enqueueUniqueWork(
-				UNIQUE_ONESHOT_ID,
-				ExistingWorkPolicy.REPLACE,
+				UNIQUE_WORK_ID,
+				ExistingWorkPolicy.APPEND_OR_REPLACE,
 				OneTimeWorkRequestBuilder<DailySummaryMaterializationWorker>().build(),
 			)
 		}
