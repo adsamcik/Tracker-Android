@@ -94,6 +94,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var orchestrator: TrackingOrchestrator
 
 	private var lockObservationJob: Job? = null
+	private var initializationJob: Job? = null
 	private var timerComponent: CollectionTriggerComponent = NoTimer()
 
 	// Kept here for intent recovery and power-save check
@@ -182,6 +183,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updateSessionInfo(this.sessionInfo)
 
 		if (!isUserInitiated) {
+			// Cancel any prior lock observer so a second START intent (e.g. Android
+			// re-delivers START_STICKY while the first one is still mid-init) doesn't
+			// leak a second collector that races stopSelf() against the new session.
+			lockObservationJob?.cancel()
 			lockObservationJob = launch {
 				lockManager.isLockedFlow.collect { isLocked ->
 					if (isLocked) stopSelf()
@@ -191,7 +196,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		activityWatcherController.poke(trackerRunning = true)
 
-		launch {
+		// Re-entrancy guard: a second onStartCommand arriving while the first
+		// initialization coroutine is still suspended would race the orchestrator's
+		// component teardown/setup. Cancel the previous init before starting a new
+		// one so only one initialization is in flight at a time.
+		initializationJob?.cancel()
+		initializationJob = launch {
 			if (initialTier != PolicyTier.AMBIENT) {
 				timerComponent = TrackerTimerManager.getSelected(this@TrackerService)
 			}
