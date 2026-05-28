@@ -71,14 +71,19 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			return 0L
 		}
 
+		// Daily-summary queries use the epoch_day primary index, NOT the wall-clock ms.
+		// Compute the day bounds once so each metric branch hits the index directly.
+		val fromDay = com.adsamcik.tracker.shared.base.database.dao.fromMsToFromDay(fromMs)
+		val toDay = com.adsamcik.tracker.shared.base.database.dao.toMsToToDay(toMs)
+
 		return when (metric) {
 			MetricKeys.STEPS,
 			MetricKeys.TOTAL_STEPS,
-			-> dailySummaryDao.sumStepsBetween(fromMs, toMs)
+			-> dailySummaryDao.sumStepsBetween(fromDay, toDay)
 
-			MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistanceBetween(fromMs, toMs)
-			MetricKeys.TOTAL_DISTANCE_KM -> dailySummaryDao.sumTotalDistanceBetween(fromMs, toMs) / METERS_PER_KM
-			MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutesBetween(fromMs, toMs)
+			MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
+			MetricKeys.TOTAL_DISTANCE_KM -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay) / METERS_PER_KM
+			MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutesBetween(fromDay, toDay)
 			MetricKeys.CELLS_DISCOVERED -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, EXPLORATION_CELL_LEVEL)
 			MetricKeys.UNIQUE_AREAS -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, AREA_CELL_LEVEL)
 			MetricKeys.DISTANCE_ON_FOOT_M -> sessionSegmentDao.sumDistanceByActivitiesBetween(
@@ -96,8 +101,8 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 				toMs = toMs,
 				activityTypes = CYCLING_ACTIVITY_IDS,
 			)
-			MetricKeys.TOTAL_TRIPS -> dailySummaryDao.sumTripsBetween(fromMs, toMs)
-			MetricKeys.ACTIVE_DAYS -> dailySummaryDao.countActiveDaysBetween(fromMs, toMs, MetricKeys.MIN_DAILY_TRIPS)
+			MetricKeys.TOTAL_TRIPS -> dailySummaryDao.sumTripsBetween(fromDay, toDay)
+			MetricKeys.ACTIVE_DAYS -> dailySummaryDao.countActiveDaysBetween(fromDay, toDay, MetricKeys.MIN_DAILY_TRIPS)
 
 			MetricKeys.BEST_DAILY_STEPS,
 			MetricKeys.LONGEST_TRIP_KM,

@@ -86,10 +86,12 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	suspend fun sumTotalSteps(): Long
 
 	/**
-	 * Sum total steps between timestamps using epoch-day buckets.
+	 * Sum total steps across all days whose epoch-day falls within [[fromDay], [toDay]].
+	 * Inclusive on both ends. Callers convert wall-clock ms → epoch-day via
+	 * [fromMsToFromDay]/[toMsToToDay] so the SQLite index on `date_epoch_day` is used.
 	 */
-	@Query("SELECT COALESCE(SUM(total_steps), 0) FROM daily_summary WHERE date_epoch_day * 86400000 BETWEEN :fromMs AND :toMs")
-	suspend fun sumStepsBetween(fromMs: Long, toMs: Long): Long
+	@Query("SELECT COALESCE(SUM(total_steps), 0) FROM daily_summary WHERE date_epoch_day BETWEEN :fromDay AND :toDay")
+	suspend fun sumStepsBetween(fromDay: Long, toDay: Long): Long
 
 	/**
 	 * Sum total trip count across all days.
@@ -98,16 +100,16 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	suspend fun sumTotalTrips(): Long
 
 	/**
-	 * Sum total trip count between timestamps using epoch-day buckets.
+	 * Sum total trip count across days within [[fromDay], [toDay]].
 	 */
-	@Query("SELECT COALESCE(SUM(trip_count), 0) FROM daily_summary WHERE date_epoch_day * 86400000 BETWEEN :fromMs AND :toMs")
-	suspend fun sumTripsBetween(fromMs: Long, toMs: Long): Long
+	@Query("SELECT COALESCE(SUM(trip_count), 0) FROM daily_summary WHERE date_epoch_day BETWEEN :fromDay AND :toDay")
+	suspend fun sumTripsBetween(fromDay: Long, toDay: Long): Long
 
 	/**
-	 * Sum total distance between timestamps using epoch-day buckets (meters).
+	 * Sum total distance (meters) across days within [[fromDay], [toDay]].
 	 */
-	@Query("SELECT CAST(COALESCE(SUM(total_distance_m), 0) AS INTEGER) FROM daily_summary WHERE date_epoch_day * 86400000 BETWEEN :fromMs AND :toMs")
-	suspend fun sumTotalDistanceBetween(fromMs: Long, toMs: Long): Long
+	@Query("SELECT CAST(COALESCE(SUM(total_distance_m), 0) AS INTEGER) FROM daily_summary WHERE date_epoch_day BETWEEN :fromDay AND :toDay")
+	suspend fun sumTotalDistanceBetween(fromDay: Long, toDay: Long): Long
 
 	/**
 	 * Sum active tracking time across all days and return minutes.
@@ -116,10 +118,10 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	suspend fun sumActiveMinutes(): Long
 
 	/**
-	 * Sum active tracking time between timestamps and return minutes.
+	 * Sum active tracking minutes across days within [[fromDay], [toDay]].
 	 */
-	@Query("SELECT COALESCE(SUM(active_tracking_ms), 0) / 60000 FROM daily_summary WHERE date_epoch_day * 86400000 BETWEEN :fromMs AND :toMs")
-	suspend fun sumActiveMinutesBetween(fromMs: Long, toMs: Long): Long
+	@Query("SELECT COALESCE(SUM(active_tracking_ms), 0) / 60000 FROM daily_summary WHERE date_epoch_day BETWEEN :fromDay AND :toDay")
+	suspend fun sumActiveMinutesBetween(fromDay: Long, toDay: Long): Long
 
 	/**
 	 * Best single-day step count.
@@ -141,16 +143,32 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	suspend fun countActiveDays(minTripsPerDay: Int): Long
 
 	/**
-	 * Count days in the range whose epoch-day falls within [fromMs, toMs] and that recorded
-	 * at least [minTripsPerDay] trips.
+	 * Count days in the range whose epoch-day falls within [[fromDay], [toDay]] and that
+	 * recorded at least [minTripsPerDay] trips.
 	 * Used as the windowed [MetricKeys.ACTIVE_DAYS][com.adsamcik.tracker.stats.api.metric.MetricKeys.ACTIVE_DAYS] value.
 	 */
 	@Query(
 		"""
 		SELECT COUNT(*) FROM daily_summary
-		WHERE date_epoch_day * 86400000 BETWEEN :fromMs AND :toMs
+		WHERE date_epoch_day BETWEEN :fromDay AND :toDay
 		  AND trip_count >= :minTripsPerDay
 		"""
 	)
-	suspend fun countActiveDaysBetween(fromMs: Long, toMs: Long, minTripsPerDay: Int): Long
+	suspend fun countActiveDaysBetween(fromDay: Long, toDay: Long, minTripsPerDay: Int): Long
 }
+
+/** Milliseconds per (UTC) day. */
+private const val MS_PER_DAY: Long = 86_400_000L
+
+/**
+ * Convert a window-start epoch-millis to the inclusive epoch-day lower bound:
+ * the first day whose midnight is at or after [fromMs]. Used by [DailySummaryDao]
+ * range queries so the `date_epoch_day` index is usable.
+ */
+fun fromMsToFromDay(fromMs: Long): Long = (fromMs + MS_PER_DAY - 1) / MS_PER_DAY
+
+/**
+ * Convert a window-end epoch-millis to the inclusive epoch-day upper bound:
+ * the last day whose midnight is at or before [toMs].
+ */
+fun toMsToToDay(toMs: Long): Long = toMs / MS_PER_DAY

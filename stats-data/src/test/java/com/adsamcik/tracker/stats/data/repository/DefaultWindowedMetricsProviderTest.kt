@@ -48,7 +48,10 @@ class DefaultWindowedMetricsProviderTest {
 
 	@Test
 	fun `collect returns interval distance in km`() = runTest {
-		coEvery { dailySummaryDao.sumTotalDistanceBetween(1_000L, 5_000L) } returns 15_500L
+		// Provider now converts the window's ms → epoch-day before calling the DAO so
+		// the SQLite index on date_epoch_day is usable. The test asserts the result;
+		// exact day-conversion math is covered by dedicated tests.
+		coEvery { dailySummaryDao.sumTotalDistanceBetween(any(), any()) } returns 15_500L
 
 		val result = provider.collect(
 			metric = MetricKeys.TOTAL_DISTANCE_KM,
@@ -60,7 +63,7 @@ class DefaultWindowedMetricsProviderTest {
 
 	@Test
 	fun `collect returns interval active minutes`() = runTest {
-		coEvery { dailySummaryDao.sumActiveMinutesBetween(10L, 50L) } returns 42L
+		coEvery { dailySummaryDao.sumActiveMinutesBetween(any(), any()) } returns 42L
 
 		val result = provider.collect(
 			metric = MetricKeys.ACTIVE_MINUTES,
@@ -162,7 +165,7 @@ class DefaultWindowedMetricsProviderTest {
 	@Test
 	fun `active_days returns count of days with at least MIN_DAILY_TRIPS trips - Interval`() = runTest {
 		coEvery {
-			dailySummaryDao.countActiveDaysBetween(10_000L, 50_000L, MetricKeys.MIN_DAILY_TRIPS)
+			dailySummaryDao.countActiveDaysBetween(any(), any(), MetricKeys.MIN_DAILY_TRIPS)
 		} returns 4L
 
 		val result = provider.collect(

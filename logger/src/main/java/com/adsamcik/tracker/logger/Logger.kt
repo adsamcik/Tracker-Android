@@ -46,12 +46,24 @@ object Logger : CoroutineScope {
     // Buffer for logs that come in before initialization completes
     private val logBuffer = java.util.concurrent.ConcurrentLinkedQueue<LogData>()
 
+    // Cached gate so log() can return early without paying for PiiRedactor on every call
+    // when logging is disabled. Updated atomically by [updateEnabledState] (called once at
+    // init + on preference change). Volatile read is single-load fast path.
+    @Volatile
+    private var logEnabled = GLOBAL_LOG_ENABLED_DEFAULT
+
     fun initialize(context: Context) {
         if (isInitialized) return
         
         launch(LoggerDispatchers.io) {
             preferences = Preferences(context)
             genericDao = LogDatabase.database(context).genericLogDao()
+            // Hydrate the gate from preferences BEFORE flushing the buffer so the
+            // flushed calls observe the same enabled flag as live calls.
+            @Suppress("DEPRECATION")
+            logEnabled = preferences?.getBoolean(
+                GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT,
+            ) ?: GLOBAL_LOG_ENABLED_DEFAULT
             isInitialized = true
             initDeferred.complete(Unit)
             
@@ -64,8 +76,23 @@ object Logger : CoroutineScope {
         }
     }
 
+    /**
+     * Refresh the cached enabled flag. Call after toggling the user preference so
+     * the next [log] call sees the change without paying preference lookup per-call.
+     */
+    @AnyThread
+    fun refreshEnabledState() {
+        val prefs = preferences ?: return
+        @Suppress("DEPRECATION")
+        logEnabled = prefs.getBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)
+    }
+
     @AnyThread
     fun log(data: LogData) {
+        // Battery-fast gate: skip PiiRedactor allocation + regex scan when logging is
+        // off in release. We still log to debug logcat for developer visibility.
+        if (!BuildConfig.DEBUG && !logEnabled) return
+
         val sanitized = data.copy(
             message = PiiRedactor.redact(data.message),
             data = PiiRedactor.redact(data.data)
@@ -84,13 +111,9 @@ object Logger : CoroutineScope {
     }
     
     private fun logInternal(data: LogData) {
-        val prefs = preferences ?: return
-        // Sync read acceptable: called after async initialization; latency not critical for log gating
-        @Suppress("DEPRECATION")
-        if (prefs.getBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)) {
-            launch {
-                genericDao?.insert(data)
-            }
+        if (!logEnabled) return
+        launch {
+            genericDao?.insert(data)
         }
     }
 

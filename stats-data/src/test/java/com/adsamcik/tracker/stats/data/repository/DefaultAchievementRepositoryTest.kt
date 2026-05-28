@@ -115,12 +115,14 @@ class DefaultAchievementRepositoryTest {
 
 		@Test
 		fun `returns only unlocked achievements`() = runTest {
+			// Production uses getRecentUnlockedFlow() which SQL-filters WHERE unlocked_at IS
+			// NOT NULL — so the mock should return only already-unlocked rows. (Sending in
+			// locked rows would be a test mistake masking the production filter.)
 			val entities = listOf(
 				createEntity(id = 1, achievementId = "a", unlockedAt = 100L),
-				createEntity(id = 2, achievementId = "b", unlockedAt = null),
 				createEntity(id = 3, achievementId = "c", unlockedAt = 200L),
 			)
-			every { dao.getAllFlow() } returns flowOf(entities)
+			every { dao.getRecentUnlockedFlow() } returns flowOf(entities)
 
 			val result = repository.observeRecent().first()
 			result shouldHaveSize 2
@@ -130,14 +132,16 @@ class DefaultAchievementRepositoryTest {
 
 		@Test
 		fun `limits to 10 results`() = runTest {
-			val entities = (1..15).map { i ->
+			// SQL LIMIT 10 is enforced by getRecentUnlockedFlow's query. Repository is a
+			// pass-through map. Mock returns 10 entities (what SQL would have returned).
+			val entities = (1..10).map { i ->
 				createEntity(
 					id = i.toLong(),
 					achievementId = "ach_$i",
 					unlockedAt = i.toLong() * 100,
 				)
 			}
-			every { dao.getAllFlow() } returns flowOf(entities)
+			every { dao.getRecentUnlockedFlow() } returns flowOf(entities)
 
 			val result = repository.observeRecent().first()
 			result shouldHaveSize 10
@@ -145,11 +149,8 @@ class DefaultAchievementRepositoryTest {
 
 		@Test
 		fun `returns empty when none unlocked`() = runTest {
-			val entities = listOf(
-				createEntity(id = 1, unlockedAt = null),
-				createEntity(id = 2, unlockedAt = null),
-			)
-			every { dao.getAllFlow() } returns flowOf(entities)
+			// SQL WHERE filter excludes all locked rows -> empty list.
+			every { dao.getRecentUnlockedFlow() } returns flowOf(emptyList())
 
 			val result = repository.observeRecent().first()
 			result.shouldBeEmpty()
@@ -157,7 +158,7 @@ class DefaultAchievementRepositoryTest {
 
 		@Test
 		fun `returns empty when no entities`() = runTest {
-			every { dao.getAllFlow() } returns flowOf(emptyList())
+			every { dao.getRecentUnlockedFlow() } returns flowOf(emptyList())
 
 			val result = repository.observeRecent().first()
 			result.shouldBeEmpty()
