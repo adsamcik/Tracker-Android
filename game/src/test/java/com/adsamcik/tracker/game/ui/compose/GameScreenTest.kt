@@ -92,8 +92,13 @@ class GameScreenTest {
 		composeRule.waitForIdle()
 		scrollTo("Steps goals")
 		composeRule.onNodeWithText("Steps goals").assertIsDisplayed()
-		composeRule.onNodeWithText("5000 / 10000").assertIsDisplayed()
-		composeRule.onNodeWithText("30000 / 70000").assertIsDisplayed()
+		// Production formats with locale-aware thousand separators via "%,d"; in en-US
+		// that's "5,000 / 10,000" not "5000 / 10000". Format the expected strings the
+		// same way to match whichever default locale the test JVM is running.
+		val expectedDay = "%,d / %,d".format(5000, 10000)
+		val expectedWeek = "%,d / %,d".format(30000, 70000)
+		composeRule.onNodeWithText(expectedDay).assertIsDisplayed()
+		composeRule.onNodeWithText(expectedWeek).assertIsDisplayed()
 	}
 
 	@Test
