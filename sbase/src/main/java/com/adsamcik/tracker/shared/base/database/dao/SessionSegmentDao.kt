@@ -63,9 +63,28 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	
 	/**
 	 * Get all session segments within time range, ordered by start time.
+	 *
+	 * Strict containment: `start_time_ms >= :fromMs AND end_time_ms <= :toMs`. Use
+	 * [getOverlapping] when you also need segments that cross the boundary (e.g.
+	 * a run from 23:50 to 00:10 for daily-summary aggregation).
 	 */
 	@Query("SELECT * FROM session_segment WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs ORDER BY start_time_ms")
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<SessionSegment>
+
+	/**
+	 * Get session segments that overlap the range `[fromMs, toMs)` (start exclusive
+	 * end exclusive). Includes segments fully inside the range AND segments that
+	 * straddle either boundary. Used by daily-summary aggregation to prorate
+	 * cross-midnight runs that would otherwise be dropped from every day.
+	 */
+	@Query(
+		"""
+		SELECT * FROM session_segment
+		WHERE start_time_ms < :toMs AND end_time_ms > :fromMs
+		ORDER BY start_time_ms
+		"""
+	)
+	suspend fun getOverlapping(fromMs: Long, toMs: Long): List<SessionSegment>
 
 	@Query(
 		"""

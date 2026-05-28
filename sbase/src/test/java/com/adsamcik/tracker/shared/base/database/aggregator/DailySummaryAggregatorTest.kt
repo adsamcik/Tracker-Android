@@ -316,6 +316,43 @@ class DailySummaryAggregatorTest {
 		}
 	}
 
+	@Test
+	fun materializeDayProratesCrossMidnightSegmentByDuration() = runBlocking {
+		val dayA = 19000L
+		val dayB = 19001L
+		val dayBStartMs = startOfDayMs(dayB)
+		// Run crosses midnight: 11:50 PM day A → 12:10 AM day B (20 minutes total,
+		// 10 min on each side). Distance 6000 m, steps 4000.
+		val startMs = dayBStartMs - 10L * 60_000L
+		val endMs = dayBStartMs + 10L * 60_000L
+		database.sessionSegmentDao().insert(
+			createSegment(
+				startTimeMs = startMs,
+				endTimeMs = endMs,
+				distanceM = 6000f,
+				steps = 4000,
+			)
+		)
+
+		aggregator.materializeDayFromSegments(dayA)
+		aggregator.materializeDayFromSegments(dayB)
+
+		val resultA = database.dailySummaryDao().getByDay(dayA)
+		val resultB = database.dailySummaryDao().getByDay(dayB)
+		assertNotNull(resultA)
+		assertNotNull(resultB)
+		// Each day gets ~half the duration. Constant-speed approximation: ~half distance + steps.
+		assertEquals(10L * 60_000L, resultA!!.totalDurationMs)
+		assertEquals(10L * 60_000L, resultB!!.totalDurationMs)
+		assertEquals(3000f, resultA.totalDistanceM, 0.5f)
+		assertEquals(3000f, resultB.totalDistanceM, 0.5f)
+		assertEquals(2000, resultA.totalSteps)
+		assertEquals(2000, resultB.totalSteps)
+		// Trip is counted on the day it STARTED (day A) — not double-counted.
+		assertEquals(1, resultA.tripCount)
+		assertEquals(0, resultB.tripCount)
+	}
+
 	private fun startOfDayMs(epochDay: Long): Long {
 		return LocalDate.ofEpochDay(epochDay)
 			.atStartOfDay(ZoneId.systemDefault())
