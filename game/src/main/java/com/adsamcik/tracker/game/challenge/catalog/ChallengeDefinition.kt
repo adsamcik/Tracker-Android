@@ -6,27 +6,25 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 
 /**
- * Declarative description of a challenge type. Replaces the imperative
- * `ChallengeProcessor` interface (which remains the runtime source of truth until
- * the engine in p2-3 / demotion in p2-4 lands).
+ * Declarative description of a challenge type. Single source of truth for the
+ * challenge engine's per-type configuration — there are no imperative per-type
+ * processor classes anymore; the engine reads a [ChallengeDefinition] and asks
+ * the shared `WindowedMetricsProvider` for the metric value over the active
+ * challenge's window, then compares to `requiredValue`.
  *
- * A [ChallengeDefinition] is a pure value: metric × window × target × payoff. The
- * future engine (`ChallengeEngine`, p2-3) evaluates each active challenge against
- * the shared `WindowedMetricsProvider`, with no per-type code paths.
+ * A [ChallengeDefinition] is a pure value: metric × window × target × payoff.
  *
- * @property type Stable identifier matching the legacy [ChallengeType] enum so
- *   existing DB rows still map correctly.
+ * @property type Stable identifier matching the [ChallengeType] enum so existing
+ *   DB rows still map correctly. Catalog is total over [ChallengeType].
  * @property titleRes String resource for the UI title.
  * @property descriptionTemplateRes String resource for the description, with one
  *   `%s` slot for the formatted target value.
  * @property metric Shared metric key from `:stats-api` `MetricKeys`. The engine
- *   collects the metric value over [windowFor] `(entity)` and compares it to
- *   `requiredValue`. The Consistency type uses a sentinel key (see
- *   [ChallengeCatalog]) — engines that don't recognise it should fall back to the
- *   legacy `ConsistencyChallengeProcessor`.
+ *   collects the metric value over [windowFor]`(entity)` and compares it to
+ *   `requiredValue`.
  * @property unit How to format the target for UI display.
  * @property defaultRequiredValue Base target before [difficultyTargetMultiplier]
- *   and random duration multipliers are applied at activation time.
+ *   and random duration/target multipliers are applied at activation time.
  * @property defaultDurationMs Base challenge duration. Actual durations vary by a
  *   random factor inside `[minDurationMultiplier, maxDurationMultiplier]` at
  *   activation.
@@ -36,8 +34,8 @@ import com.adsamcik.tracker.stats.api.metric.TimeWindow
  *   multiplier sampled at activation. Must be strictly greater than
  *   [minDurationMultiplier].
  * @property difficultyTargetMultiplier Function mapping difficulty band → target
- *   multiplier. Defaults to no-op (returns 1.0) so existing balance is preserved
- *   during scaffold; p2-8 wires meaningful multipliers per type.
+ *   multiplier; defaults to 1.0 everywhere so MEDIUM produces the canonical
+ *   `defaultRequiredValue` (× target randomness).
  */
 data class ChallengeDefinition(
 	val type: ChallengeType,

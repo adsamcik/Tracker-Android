@@ -108,12 +108,10 @@ object ChallengeCatalog {
 			descriptionTemplateRes = R.string.challenge_explorer_description,
 			metric = MetricKeys.CELLS_DISCOVERED,
 			unit = ChallengeUnit.CELLS,
-			// NOTE: switching from the legacy raw 20m-rounded points (default 100)
-			// to exploration_cell S2 L14 (~565m wide) — see plan.md Phase 1 deferred
-			// item P1.1. Retuned conservatively to 5 fresh L14 cells, which is
-			// roughly equivalent challenge difficulty in city-walk semantics. The
-			// legacy ExplorerChallengeProcessor is still the runtime source of
-			// truth until p2-3 / p2-4.
+			// Explorer counts distinct S2 L14 cells (~565 m wide) the user has just
+			// discovered within the challenge window. 5 fresh cells over a week is roughly
+			// equivalent to the legacy "100 distinct 20m grid points" challenge in
+			// city-walk semantics — picked to keep the difficulty curve familiar.
 			defaultRequiredValue = 5.0,
 			defaultDurationMs = 7L * 24 * 60 * 60 * 1000L,
 			// Tighter bottom (`0.6` would mean 3 cells over 7 days, too easy).

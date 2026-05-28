@@ -17,11 +17,12 @@ import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
  * Emits [DomainEvent.AchievementUnlocked] when a tier increases and
  * [DomainEvent.AchievementProgress] when the value changes within the same tier.
  *
- * **Battery optimization (p6-3 / p6-7):** when a [MetricDirtyTracker] is provided and
- * no pre-aggregated table has been written to since the previous flush, [onFlush] returns
- * an empty list IMMEDIATELY without calling [metricsProvider] — so 0 DB queries, 0
- * snapshots, 0 events. This makes the 60s achievement flush essentially free on idle
- * AMBIENT-tier passes (the common case during stationary tracking).
+ * **Battery optimization:** when a [MetricDirtyTracker] is provided and no
+ * pre-aggregated table (or the streaming aggregator state) has been written to
+ * since the previous flush, [onFlush] returns an empty list IMMEDIATELY without
+ * calling [metricsProvider] — so 0 DB queries, 0 snapshots, 0 events. This makes
+ * the 60s achievement flush essentially free on idle AMBIENT-tier passes (the
+ * common case during stationary tracking).
  *
  * Legacy callers that don't pass a dirty tracker get the old always-evaluate behaviour.
  */

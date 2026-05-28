@@ -73,7 +73,7 @@ internal class TrackingOrchestrator(
 	 * Optional callback invoked AFTER the in-orchestrator `DailySummaryAggregator` writes a row.
 	 * The unified rule engine injects a callback that marks the `daily_summary` table dirty in
 	 * the `MetricDirtyTracker` so the signal processor's next flush re-evaluates only metrics
-	 * backed by daily_summary, not the whole catalog (p6-3). Default no-op keeps tests + legacy
+	 * backed by daily_summary, not the whole catalog. Default no-op keeps tests + legacy
 	 * call sites working without DI churn.
 	 */
 	private val onDailySummaryWritten: () -> Unit = {},

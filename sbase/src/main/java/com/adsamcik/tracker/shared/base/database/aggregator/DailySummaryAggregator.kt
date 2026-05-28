@@ -20,15 +20,20 @@ import java.time.ZoneId
  * idempotent — calling it multiple times for the same day produces the same result.
  *
  * [onDailySummaryWritten] is invoked after every successful upsert. The unified rule
- * engine (`:stats-data`'s `DefaultMetricDirtyTracker`) injects a callback that marks
- * the `daily_summary` table dirty, so downstream signal processors can short-circuit
- * idle flushes. Defaults to a no-op so the aggregator stays usable without the unified
- * rule engine and avoids a circular dependency on `:stats-api`.
+ * engine injects a callback that marks the `daily_summary` table dirty in the
+ * `MetricDirtyTracker` so downstream signal processors can short-circuit idle flushes.
+ * Defaults to a no-op for legacy/test call sites and to avoid a circular dependency
+ * on `:stats-api`.
+ *
+ * The callback MUST NOT throw — exceptions inside it propagate up through
+ * `materializeDayFromSegments` and the orchestrator will report the materialization
+ * as failed (potentially scheduling a fallback worker run). Keep callback work to
+ * setting a bit, not blocking I/O.
  */
 class DailySummaryAggregator(
 	private val dailySummaryDao: DailySummaryDao,
 	private val sessionSegmentDao: SessionSegmentDao,
-	private val onDailySummaryWritten: (() -> Unit)? = null,
+	private val onDailySummaryWritten: () -> Unit = {},
 ) {
 	/**
 	 * Materialize daily summary for a specific epoch day by aggregating
@@ -58,7 +63,7 @@ class DailySummaryAggregator(
 				activeTrackingMs = existing?.activeTrackingMs ?: 0L,
 				lastUpdatedMs = now,
 			)
-			onDailySummaryWritten?.invoke()
+			onDailySummaryWritten()
 		}
 	}
 

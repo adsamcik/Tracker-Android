@@ -25,6 +25,32 @@ class MetricKeysSourceTablesTest {
 	}
 
 	@Test
+	fun `isKnown discriminates known from unknown metrics`() {
+		MetricKeys.isKnown(MetricKeys.STEPS) shouldBe true
+		MetricKeys.isKnown(MetricKeys.CELLS_DISCOVERED) shouldBe true
+		MetricKeys.isKnown("unknown_metric_xyz") shouldBe false
+		MetricKeys.isKnown("") shouldBe false
+	}
+
+	@Test
+	fun `every metric maps to at least one of the canonical TABLE constants`() {
+		val canonical = setOf(
+			MetricKeys.TABLE_DAILY_SUMMARY,
+			MetricKeys.TABLE_SESSION_SEGMENT,
+			MetricKeys.TABLE_EXPLORATION_CELL,
+			MetricKeys.TABLE_EXPLORATION_STREAK,
+			MetricKeys.TABLE_EXPORT_LOG,
+			MetricKeys.TABLE_AGGREGATOR_STATE,
+		)
+		MetricKeys.all().forEach { metric ->
+			val tables = MetricKeys.sourceTables(metric)
+			tables.forEach { t ->
+				(t in canonical) shouldBe true
+			}
+		}
+	}
+
+	@Test
 	fun `daily_summary metrics include STEPS and ACTIVE_DAYS`() {
 		// STEPS is dual-sourced after p6-7-fix: daily_summary (for catch-up evaluation
 		// after a session ends) AND aggregator_state (for live in-session evaluation).

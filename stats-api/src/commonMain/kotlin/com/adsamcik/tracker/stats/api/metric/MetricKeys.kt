@@ -96,11 +96,16 @@ object MetricKeys {
 	 * Tables whose mutation invalidates the value of [metric]. The dirty tracker uses this to
 	 * answer "is rule X affected by a write?" in O(1) per metric.
 	 *
-	 * Returns the empty set for unknown metrics. Empty set means the metric never changes
-	 * (rare — e.g. constant) OR the metric is unmapped and should be conservatively
-	 * re-evaluated on every flush. Callers should treat empty as "always dirty".
+	 * Returns the empty set for UNKNOWN metrics. The caller is responsible for distinguishing
+	 * "unknown metric" from "metric is genuinely table-less" via [isKnown] first when that
+	 * distinction matters. Most call sites — the dirty-aware signal processor in particular —
+	 * treat empty as "no rule is affected by this write", which is correct because an unknown
+	 * metric key by definition isn't backed by any of our known tables.
 	 */
 	fun sourceTables(metric: String): Set<String> = SOURCE_TABLES[metric] ?: emptySet()
+
+	/** True iff [metric] is registered with at least one source table. */
+	fun isKnown(metric: String): Boolean = metric in SOURCE_TABLES
 
 	/**
 	 * All known metric keys, in declaration order. Useful for tests + audit logging.

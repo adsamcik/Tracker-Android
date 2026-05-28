@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.worker
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -10,6 +11,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
 
 /**
@@ -20,10 +25,17 @@ import java.util.concurrent.TimeUnit
  *
  * Reads completed session segments for today and writes/updates the
  * daily_summary row with aggregated totals via [DailySummaryAggregator].
+ *
+ * Marks `daily_summary` dirty after each successful materialization so the unified
+ * rule engine's next flush re-evaluates daily_summary-backed metrics — needed
+ * because this worker is the catch-up path when the in-orchestrator materialization
+ * fails or runs out-of-band of a tracking session.
  */
-class DailySummaryMaterializationWorker(
-	context: Context,
-	workerParams: WorkerParameters
+@HiltWorker
+class DailySummaryMaterializationWorker @AssistedInject constructor(
+	@Assisted context: Context,
+	@Assisted workerParams: WorkerParameters,
+	private val dirtyTracker: MetricDirtyTracker,
 ) : CoroutineWorker(context, workerParams) {
 
 	override suspend fun doWork(): Result {
@@ -31,6 +43,9 @@ class DailySummaryMaterializationWorker(
 		val aggregator = DailySummaryAggregator(
 			dailySummaryDao = database.dailySummaryDao(),
 			sessionSegmentDao = database.sessionSegmentDao(),
+			onDailySummaryWritten = {
+				dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
+			},
 		)
 
 		aggregator.materializeToday()
