@@ -25,6 +25,14 @@ import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
  * common case during stationary tracking).
  *
  * Legacy callers that don't pass a dirty tracker get the old always-evaluate behaviour.
+ *
+ * **Migration status:** still uses the legacy [AchievementEvaluator] rather than
+ * the unified `RuleEvaluator`. The unified evaluator's
+ * `RuleEvaluationResult.TierUnlocked` / `ProgressUpdated` variants do not yet
+ * carry the snapshot data (`nextTierTarget`, current/next tier ids) this processor
+ * emits in [DomainEvent.AchievementProgress]. Migration requires either extending
+ * the unified result contract or moving snapshot lookup into a per-domain result
+ * handler.
  */
 class AchievementProcessor(
 	private val evaluator: AchievementEvaluator = AchievementEvaluator(),

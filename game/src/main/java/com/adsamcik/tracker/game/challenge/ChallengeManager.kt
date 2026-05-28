@@ -37,18 +37,15 @@ import kotlin.random.Random
  * [activeChallenges] `StateFlow`, the cold/loading/ready initialization state machine,
  * and the challenge lifecycle (activation + expiry scheduling).
  *
- * **Façade decision (p2-7):** kept as a thin coordinator instead of being deleted.
+ * **Façade role:** kept as a thin coordinator instead of being folded into the engine.
  *  - The engine is per-session evaluation only — it doesn't own activation, expiry, or UI state.
  *  - Splitting `activeChallenges: StateFlow` out into a separate `ActiveChallengesProvider`
  *    would just move three methods to a new class; the existing class is already small.
  *  - `awaitReady()` state machine is the right home here, not in the engine.
- * Future: if `ChallengeSignalProcessor` (p4-1) ships live progress, this façade should
- * forward `DomainEvent.ChallengeProgress` into the same StateFlow so UI sees a single
- * source of truth — no other refactor needed.
  *
  * All write side-effects (entity updates, history, XP, streak, personal records) live in
- * [ChallengeEngine] inside one Room transaction (see p2-3). This class never writes
- * directly to the database except for activation (new rows).
+ * [ChallengeEngine] inside one Room transaction. This class never writes directly to the
+ * database except for activation (new rows).
  */
 @Singleton
 class ChallengeManager @Inject constructor(

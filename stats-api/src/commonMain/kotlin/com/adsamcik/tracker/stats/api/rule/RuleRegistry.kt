@@ -6,13 +6,14 @@ package com.adsamcik.tracker.stats.api.rule
  * Implementations expose two views:
  *  1. [allInstances] — full enumeration, used at startup or for a forced reconciliation.
  *  2. [instancesAffectedByTables] — fast-path lookup keyed by which pre-aggregated
- *     tables have changed since the last flush. Used by the dirty-aware signal processor
- *     so a write to (say) `daily_summary` only re-evaluates rules whose metric reads
- *     `daily_summary`, NOT the entire catalog.
+ *     tables have changed since the last flush. Used so a write to (say)
+ *     `daily_summary` only re-evaluates rules whose metric reads `daily_summary`,
+ *     NOT the entire catalog.
  *
- * The registry is composite-friendly: a top-level registry can compose
- * `AchievementRuleRegistry` (static catalog) and `ChallengeRuleRegistry` (dynamic from DB)
- * without either side knowing about the other.
+ * The registry is composite-friendly: once the achievement engine migrates onto this
+ * API, a top-level registry can compose `AchievementRuleRegistry` (static catalog) and
+ * `ChallengeRuleRegistry` (dynamic from DB) — for example via Hilt multibinding — without
+ * either side knowing about the other.
  */
 interface RuleRegistry {
 	/**
@@ -29,6 +30,9 @@ interface RuleRegistry {
 	 *
 	 * Implementations resolve metric → tables via
 	 * [com.adsamcik.tracker.stats.api.metric.MetricKeys.sourceTables].
+	 *
+	 * **Performance contract:** safe to call once per flush. Not a per-signal hot-path
+	 * primitive — implementations may read the underlying source table on every call.
 	 */
 	suspend fun instancesAffectedByTables(dirtyTables: Set<String>): List<RuleInstance>
 }

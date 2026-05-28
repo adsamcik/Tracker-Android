@@ -32,29 +32,11 @@ class ChallengeCatalogTest {
 
 	@Test
 	fun `all definitions reference known MetricKeys`() {
-		val knownMetrics = setOf(
-			MetricKeys.STEPS,
-			MetricKeys.DISTANCE_M,
-			MetricKeys.DISTANCE_ON_FOOT_M,
-			MetricKeys.ACTIVE_MINUTES,
-			MetricKeys.CELLS_DISCOVERED,
-			MetricKeys.UNIQUE_AREAS,
-			MetricKeys.TOTAL_DISTANCE_KM,
-			MetricKeys.TOTAL_STEPS,
-			MetricKeys.DAILY_STREAK,
-			MetricKeys.WEEKLY_STREAK,
-			MetricKeys.WALKING_TRIPS,
-			MetricKeys.CYCLING_TRIPS,
-			MetricKeys.BEST_DAILY_STEPS,
-			MetricKeys.LONGEST_TRIP_KM,
-			MetricKeys.TOTAL_TRIPS,
-			MetricKeys.TRANSPORT_MODE_COUNT,
-			MetricKeys.SEASONS_EXPLORED,
-			MetricKeys.TOTAL_EXPORTS,
-			MetricKeys.ACTIVE_DAYS,
-		)
+		// Uses MetricKeys.isKnown() so adding a new metric key to MetricKeys doesn't
+		// require touching this test, and adding an unknown metric to the catalog
+		// trips both this guard and the ChallengeCatalog init-time check.
 		ChallengeCatalog.definitions.forEach { def ->
-			(def.metric in knownMetrics) shouldBe true
+			MetricKeys.isKnown(def.metric) shouldBe true
 		}
 	}
 

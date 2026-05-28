@@ -5,13 +5,14 @@ import com.adsamcik.tracker.stats.api.AchievementTier
 /**
  * Pure stateless evaluator of [RuleInstance]s.
  *
- * Subsumes [com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator] and the
- * per-instance loop body of `ChallengeEngine.evaluateOne`. Centralising the comparison
- * logic in one place means:
- *  1. Adding a new rule kind (e.g. goal, mini-game score) only requires extending
- *     [RuleTarget] and one match branch here.
- *  2. The dirty-aware signal processor calls a single method per affected instance — no
- *     duplicate flush paths.
+ * Subsumes [com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator] for
+ * challenge-kind rules and is the comparison primitive shared with the (still pending)
+ * achievement migration. Centralising the value-vs-target comparison in one place means
+ * the dirty-aware signal processor and the session-end engine both call the same logic.
+ *
+ * Adding a new rule kind requires editing [RuleKind], [RuleTarget], [RuleEvaluationResult],
+ * the [evaluate] dispatch, and every exhaustive consumer; it is not the plug-in extension
+ * the older KDoc implied. See [Rule] KDoc for the extensibility caveat.
  *
  * Thread-safety: stateless; safe from any thread.
  */

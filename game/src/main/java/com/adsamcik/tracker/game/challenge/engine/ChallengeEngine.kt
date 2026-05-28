@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
 import com.adsamcik.tracker.stats.api.rule.RuleInstance
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,7 +19,9 @@ import javax.inject.Singleton
  * Declarative challenge evaluator.
  *
  * Composes three building blocks:
- *  - [ChallengeRuleRegistry] enumerates the active challenge rows as [RuleInstance]s.
+ *  - [RuleRegistry] (bound to [ChallengeRuleRegistry]) enumerates the active challenge
+ *    rows as [RuleInstance]s, packing each row's [ChallengeEntity] into
+ *    `RuleInstance.attachment` so this engine doesn't refetch them by id.
  *  - [WindowedMetricsProvider] collects the current metric value over each rule's window.
  *  - [RuleEvaluator] (stateless, shared with the achievement engine) compares the
  *    collected value to the rule's target and returns a typed result.
@@ -38,11 +41,13 @@ import javax.inject.Singleton
 @Singleton
 class ChallengeEngine @Inject constructor(
 	private val challengeDatabase: ChallengeDatabase,
-	private val registry: ChallengeRuleRegistry,
+	private val registry: RuleRegistry,
 	private val metrics: WindowedMetricsProvider,
 	private val progression: ProgressionRepository,
-	private val ruleEvaluator: RuleEvaluator = RuleEvaluator(),
 ) {
+
+	// Stateless and allocation-free in steady state — instantiated once, shared across calls.
+	private val ruleEvaluator: RuleEvaluator = RuleEvaluator()
 
 	/**
 	 * Apply a finished [session] to all currently active, not-yet-completed challenges.
@@ -101,13 +106,16 @@ class ChallengeEngine @Inject constructor(
 	/**
 	 * Collect the metric for [instance]'s window and delegate the value-vs-target decision
 	 * to [RuleEvaluator]. Returns null when no DB write is needed (no progress AND no
-	 * completion-flag flip).
+	 * completion-flag flip). Uses the entity carried in `instance.attachment` so no
+	 * per-rule DAO refetch is needed.
 	 */
 	private suspend fun evaluateOne(instance: RuleInstance): ProposedUpdate? {
-		val entityId = instance.contextId
-			?: error("ChallengeRuleRegistry must populate RuleInstance.contextId with the entity id")
-		val entity = challengeDatabase.challengeDao().get(entityId)
-			?: return null  // row vanished between registry enumeration and now — nothing to do
+		val entity = instance.attachment as? ChallengeEntity
+			?: error(
+				"ChallengeEngine requires RuleInstance.attachment to be a ChallengeEntity. " +
+					"Registry binding is wrong — only ChallengeRuleRegistry should produce " +
+					"rules of kind Challenge."
+			)
 
 		val collected = metrics.collect(instance.rule.metric, instance.window)
 

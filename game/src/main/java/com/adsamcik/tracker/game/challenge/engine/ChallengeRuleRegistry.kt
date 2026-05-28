@@ -25,16 +25,20 @@ import javax.inject.Singleton
  *  - `rule.target = RuleTarget.Single(entity.requiredValue)`
  *  - `window = TimeWindow.Interval(entity.startTime, min(now, entity.endTime))`
  *  - `previousValue = entity.currentValue.toLong()` (what's already persisted)
- *  - `contextId = entity.id` (so the consumer can correlate evaluations back to the row)
+ *  - `contextId = entity.id`
+ *  - `attachment = entity` — opaque to the abstract evaluator, lets [ChallengeEngine]
+ *    skip a per-rule DAO refetch.
  *
- * Used by [ChallengeEngine] at session-end and by the unified rule signal processor
- * (future) for live in-session evaluation. Both consumers feed the resulting
- * `RuleInstance` to the shared [com.adsamcik.tracker.stats.api.rule.RuleEvaluator].
- *
+ * Used by [ChallengeEngine] at session-end via the [RuleRegistry] interface.
  * [instancesAffectedByTables] is the battery-fast lookup: when only one or two
  * pre-aggregated tables have changed since the last flush, only the subset of
  * challenges whose metric reads one of those tables is returned — the rest of the
  * catalog is skipped.
+ *
+ * **Catalog validity:** every active row's metric must appear in
+ * [MetricKeys.isKnown]. Unknown metrics throw — that's a catalog bug, not a
+ * runtime corner case, and the dirty-table path would silently drop the rule
+ * otherwise.
  */
 @Singleton
 class ChallengeRuleRegistry @Inject constructor(
@@ -76,6 +80,11 @@ class ChallengeRuleRegistry @Inject constructor(
 		if (windowEnd <= entity.startTime) return null
 
 		val def = ChallengeCatalog.byType(entity.type)
+		check(MetricKeys.isKnown(def.metric)) {
+			"Challenge type ${entity.type} declares unknown metric '${def.metric}' " +
+				"(not in MetricKeys). Add it to MetricKeys.SOURCE_TABLES or fix the " +
+				"catalog — silent unknown metrics would be dropped by the dirty-table path."
+		}
 		val rule = Rule(
 			id = ruleId(entity.id),
 			kind = RuleKind.Challenge,
@@ -87,19 +96,15 @@ class ChallengeRuleRegistry @Inject constructor(
 			window = TimeWindow.Interval(entity.startTime, windowEnd),
 			previousValue = entity.currentValue.toLong(),
 			contextId = entity.id,
+			attachment = entity,
 		)
 	}
 
 	companion object {
 		/**
 		 * Stable id format for challenge-kind rules. Stable across re-loads because it's
-		 * derived from the persisted entity id. Consumers can parse the suffix back to a
-		 * challenge entity id with [parseEntityId].
+		 * derived from the persisted entity id.
 		 */
 		fun ruleId(entityId: Long): String = "challenge:$entityId"
-
-		/** Inverse of [ruleId]. Returns null if [id] isn't a challenge-rule id. */
-		fun parseEntityId(id: String): Long? =
-			id.removePrefix("challenge:").takeIf { it.length < id.length }?.toLongOrNull()
 	}
 }

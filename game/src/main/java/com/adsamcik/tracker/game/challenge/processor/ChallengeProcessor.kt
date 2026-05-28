@@ -10,8 +10,8 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
  * UI-facing read shim for an active challenge.
  *
  * Historically this interface drove the imperative challenge pipeline (one impl per
- * [ChallengeType], multi-bound via Hilt). After p2-3 the [com.adsamcik.tracker.game.challenge.engine.ChallengeEngine]
- * is catalog-driven — defaults, metrics and progress live on
+ * [ChallengeType], multi-bound via Hilt). The catalog-driven [com.adsamcik.tracker.game.challenge.engine.ChallengeEngine]
+ * now owns evaluation — defaults, metrics, and progress live on
  * [com.adsamcik.tracker.game.challenge.catalog.ChallengeDefinition].
  *
  * One implementation remains:
@@ -20,7 +20,6 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
  *    and `instance.processor.formatDescription`.
  *
  * Do not add new implementations. New challenge types belong in `ChallengeCatalog`.
- * Phase 6 will collapse this interface into the UI layer directly.
  */
 interface ChallengeProcessor {
 	/** The challenge type this processor handles. */

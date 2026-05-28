@@ -141,6 +141,19 @@ object ChallengeCatalog {
 	private val byTypeMap: Map<ChallengeType, ChallengeDefinition> =
 		definitions.associateBy { it.type }
 
+	init {
+		// Catalog validity: every challenge metric must be a known MetricKeys key so the
+		// dirty-table fast path resolves to a real source table. Unknown keys would be
+		// silently dropped by ChallengeRuleRegistry.instancesAffectedByTables(),
+		// causing stale progress instead of a loud failure. Fail at class init.
+		for (def in definitions) {
+			check(MetricKeys.isKnown(def.metric)) {
+				"ChallengeDefinition for ${def.type} declares unknown metric '${def.metric}'. " +
+					"Add it to MetricKeys.SOURCE_TABLES or use an existing key."
+			}
+		}
+	}
+
 	/**
 	 * Lookup by type. Throws [IllegalStateException] for unknown types — the
 	 * catalog is total over [ChallengeType].

@@ -17,6 +17,10 @@ import com.adsamcik.tracker.stats.api.metric.TimeWindow
  *   `achievement_progress`). Null means "no tier yet".
  * @property contextId Optional identifier the engine uses to correlate an evaluation back
  *   to its persistent row (e.g. the `ChallengeEntity.id` for a challenge instance).
+ * @property attachment Opaque payload the registry carries through to its caller without
+ *   the abstract evaluator caring about it. Typed `Any?` so `:stats-api` stays domain-free;
+ *   the consuming engine downcasts to its own domain entity to avoid an N+1 DAO refetch
+ *   pattern. Never read by [RuleEvaluator].
  */
 data class RuleInstance(
 	val rule: Rule,
@@ -24,4 +28,5 @@ data class RuleInstance(
 	val previousValue: Long? = null,
 	val previousTier: com.adsamcik.tracker.stats.api.AchievementTier? = null,
 	val contextId: Long? = null,
+	val attachment: Any? = null,
 )

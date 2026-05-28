@@ -27,8 +27,9 @@ import javax.inject.Singleton
  * Uses consumer-offset tracking for crash-safe, ordered delivery.
  *
  * On every write to `exploration_cell` or `exploration_streak`, marks the
- * corresponding table dirty in [dirtyTracker] so the unified rule signal processor
- * can short-circuit idle flushes (p6-3).
+ * corresponding table dirty in [dirtyTracker] so the achievement processor's
+ * flush short-circuit doesn't skip a flush where exploration data genuinely
+ * changed.
  */
 @Singleton
 class ExplorationDomainEventConsumer @Inject constructor(

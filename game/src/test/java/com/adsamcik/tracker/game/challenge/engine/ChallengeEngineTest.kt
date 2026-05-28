@@ -49,17 +49,20 @@ class ChallengeEngineTest {
 			(secondArg<suspend () -> Any?>()).invoke()
 		}
 		// Use a REAL registry over the stubbed DAO so the test fixture matches the
-		// production code path: registry.allInstances() reads the DAO, the engine then
-		// re-fetches each entity by id inside evaluateOne. The existing
-		// `coEvery { challengeDao.getActive(...) } returns [entities]` stubs feed both
-		// reads via stubActiveEntities().
+		// production code path: registry.allInstances() reads the DAO and packs the
+		// entity into RuleInstance.attachment, then ChallengeEngine.evaluateOne reads
+		// the entity directly from attachment (no per-rule refetch). The existing
+		// `coEvery { challengeDao.getActive(...) } returns [entities]` stub feeds the
+		// only DAO read via stubActiveEntities().
 		registry = ChallengeRuleRegistry(database)
 		engine = ChallengeEngine(database, registry, metrics, progression)
 	}
 
 	/**
-	 * Stub `challengeDao.getActive` AND `challengeDao.get(id)` together so the engine's
-	 * registry pass and per-instance refetch both see the same data.
+	 * Stub `challengeDao.getActive` so the engine's registry pass sees the test entities.
+	 * After the N+1 fix, the engine no longer refetches per id — entities ride along on
+	 * `RuleInstance.attachment` — but stubbing `get(...)` defensively in case a refactor
+	 * accidentally re-introduces the refetch.
 	 */
 	private fun stubActiveEntities(entities: List<ChallengeEntity>) {
 		coEvery { challengeDao.getActive(any()) } returns entities

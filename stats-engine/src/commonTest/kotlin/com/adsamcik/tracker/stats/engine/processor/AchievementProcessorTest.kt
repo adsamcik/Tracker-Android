@@ -89,7 +89,7 @@ class AchievementProcessorTest {
 		assert(events.single() is DomainEvent.AchievementUnlocked)
 	}
 
-	// --- p6-3 / p6-7: dirty-aware flush short-circuit ---
+	// --- Dirty-aware flush short-circuit ---
 
 	private class StubDirtyTracker(initialDirty: Set<String> = emptySet()) : MetricDirtyTracker {
 		private var dirty = initialDirty
@@ -166,7 +166,7 @@ class AchievementProcessorTest {
 
 	@Test
 	fun `consumed dirty is re-marked if metricsProvider throws — battery vs correctness`() = runTest {
-		// p6-7 dirty-loss bug regression test.
+		// Dirty-loss bug regression test.
 		// Without the catch-and-restore in onFlush, a metricsProvider exception would
 		// "swallow" the dirty mark and the NEXT flush would short-circuit even though
 		// the underlying table had genuinely changed.
