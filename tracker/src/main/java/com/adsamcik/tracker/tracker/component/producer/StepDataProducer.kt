@@ -70,8 +70,13 @@ internal class StepDataProducer(
 		val sensor = event.sensor
 		if (sensor.type == Sensor.TYPE_STEP_COUNTER) {
 			val stepCount = event.values.first().toInt()
-			if (lastStepCount >= 0 && stepCount > 0) {
-				synchronized(lockObject) {
+			// Hold the same monitor used by onDataRequest for BOTH the read of lastStepCount
+			// (used in the overflow comparison) AND the write back. The previous version
+			// wrote outside the synchronized block, so the collection thread could observe
+			// stale lastStepCount under the lock while the sensor thread published a new
+			// value without memory barrier — corrupting delta math after an actual reset.
+			synchronized(lockObject) {
+				if (lastStepCount >= 0 && stepCount > 0) {
 					//In case sensor would overflow and reset to 0 at some point
 					if (lastStepCount > stepCount) {
 						this.stepCountSinceLastCollection += stepCount
@@ -80,9 +85,8 @@ internal class StepDataProducer(
 						this.stepCountSinceLastCollection += stepCount - lastStepCount
 					}
 				}
+				lastStepCount = stepCount
 			}
-
-			lastStepCount = stepCount
 		}
 	}
 

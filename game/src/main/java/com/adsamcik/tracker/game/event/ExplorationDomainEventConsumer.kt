@@ -13,6 +13,8 @@ import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,9 +40,14 @@ class ExplorationDomainEventConsumer @Inject constructor(
 	private val dirtyTracker: MetricDirtyTracker,
 ) {
 	private val streakTracker = ExplorationStreakTracker()
+	// Single-flight guard: this consumer is a @Singleton and processUnconsumed() can be
+	// called concurrently from session-end + WorkManager catch-ups. Without a per-consumer
+	// mutex, both callers fetch the same batch, both run handlers (double-counting visits +
+	// duplicate streak/dirty marks), then both ack the same timestamp.
+	private val processMutex = Mutex()
 
 	/** Process any unconsumed CellDiscovered events. */
-	suspend fun processUnconsumed() {
+	suspend fun processUnconsumed() = processMutex.withLock {
 		val database = AppDatabase.database(context)
 		val cellDao = database.explorationCellDao()
 		val streakDao = database.explorationStreakDao()
@@ -50,9 +57,9 @@ class ExplorationDomainEventConsumer @Inject constructor(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (events.isEmpty()) return
+			if (events.isEmpty()) return@withLock
 
-			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
+			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return@withLock
 			events.forEach { event ->
 				handleEvent(event, cellDao, streakDao)
 			}

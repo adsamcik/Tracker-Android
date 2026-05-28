@@ -57,30 +57,55 @@ class AchievementProcessor(
 		// Achievement processor doesn't process raw signals
 	}
 
-	override suspend fun onFlush(): List<DomainEvent> {
+	override suspend fun onFlush(): List<DomainEvent> = runEvaluation(force = false)
+
+	/**
+	 * Stop-time final evaluation: bypass the dirty short-circuit so a periodic flush
+	 * consuming the dirty bit moments before stop doesn't suppress final session
+	 * achievement/progress events.
+	 */
+	override suspend fun onStop(): List<DomainEvent> = runEvaluation(force = true)
+
+	private suspend fun runEvaluation(force: Boolean): List<DomainEvent> {
 		// Battery-critical short-circuit: if no pre-aggregated table has changed since the
 		// previous flush, we KNOW every metric value is stable, so achievements can't have
 		// moved. Skip the full evaluation. consumeDirty() is an atomic swap so writes that
 		// race this check land in the NEXT flush window — never lost.
+		// `force = true` is used by onStop() so the final session evaluation doesn't
+		// short-circuit when a periodic flush just consumed the dirty bit moments earlier.
 		val tracker = dirtyTracker
-		val consumed: Set<String>? = if (tracker != null) {
+		val consumed: Set<String>? = if (tracker != null && !force) {
 			val set = tracker.consumeDirty()
 			if (set.isEmpty()) return emptyList()
 			set
+		} else if (tracker != null && force) {
+			// In force mode we still drain the dirty set so the next flush starts clean,
+			// but we do NOT early-return on empty.
+			tracker.consumeDirty()
 		} else {
 			null
 		}
 
-		// Re-mark consumed tables on failure so we don't silently drop the next update.
-		// Without this guard, a metricsProvider() exception (DB unavailable, transient I/O,
-		// etc.) would leave the dirty set empty and the next ordinary flush would
-		// short-circuit even though the underlying tables had changed.
-		val metrics = try {
-			metricsProvider()
+		// Re-mark consumed tables on ANY non-cancellation failure so we don't silently
+		// drop the next update. Without this, an exception in metricsProvider() or
+		// anywhere inside the evaluation loop would leave the dirty set empty and the
+		// next ordinary flush would short-circuit even though the underlying tables had
+		// changed. Cancellation must still propagate (structured concurrency).
+		val events = try {
+			evaluateAllMetrics()
+		} catch (e: kotlinx.coroutines.CancellationException) {
+			throw e
 		} catch (t: Throwable) {
-			if (tracker != null && consumed != null) tracker.markDirty(consumed)
+			if (tracker != null && consumed != null && consumed.isNotEmpty()) {
+				tracker.markDirty(consumed)
+			}
 			throw t
 		}
+		return events
+	}
+
+	private fun evaluateAllMetrics(): List<DomainEvent> {
+		val metrics = metricsProvider()
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		val events = mutableListOf<DomainEvent>()
 
@@ -121,8 +146,6 @@ class AchievementProcessor(
 
 		return events
 	}
-
-	override suspend fun onStop(): List<DomainEvent> = onFlush()
 
 	override fun checkpoint(): ByteArray {
 		val baos = java.io.ByteArrayOutputStream()

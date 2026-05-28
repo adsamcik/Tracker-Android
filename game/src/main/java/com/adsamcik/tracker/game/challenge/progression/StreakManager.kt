@@ -79,10 +79,14 @@ class StreakManager @Inject constructor() {
 
 	/**
 	 * Observe current streak state reactively.
+	 *
+	 * Safe to call from any thread (including main). The `.map` handles the row-missing
+	 * case by emitting a fresh [ChallengeStreakEntity]; the actual `INSERT OR IGNORE`
+	 * happens lazily inside the suspending [onChallengeCompleted]/[onChallengesExpired]
+	 * paths, so this observer never triggers a synchronous Room write.
 	 */
 	fun observeStreak(database: ChallengeDatabase): Flow<StreakState> {
 		val dao = database.challengeStreakDao()
-		dao.ensureExists()
 		return dao.observe().map { entity ->
 			val e = entity ?: ChallengeStreakEntity()
 			StreakState(

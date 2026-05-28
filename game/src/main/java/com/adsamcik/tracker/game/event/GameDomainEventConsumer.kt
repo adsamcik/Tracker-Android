@@ -24,6 +24,8 @@ import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,16 +41,22 @@ class GameDomainEventConsumer @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val preferences: Preferences,
 ) {
+	// Single-flight guard: this consumer is a @Singleton and processUnconsumed() can be
+	// called concurrently from session-end emission + WorkManager catch-ups. Without a
+	// per-consumer mutex, both callers fetch the same batch and double-enqueue worker
+	// jobs, double-notify achievements, and double-bump cumulative steps.
+	private val processMutex = Mutex()
+
 	/** Process any unconsumed events for the game module. */
-	suspend fun processUnconsumed() {
+	suspend fun processUnconsumed() = processMutex.withLock {
 		while (true) {
 			val events = domainEventRepository.getUnconsumedBatch(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (events.isEmpty()) return
+			if (events.isEmpty()) return@withLock
 
-			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
+			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return@withLock
 			events.forEach { event ->
 				try {
 					handleEvent(event)

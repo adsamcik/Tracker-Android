@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Default implementation of TrackerServiceController.
@@ -82,26 +83,30 @@ class DefaultTrackerServiceController : TrackerServiceController {
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
         val currentSession = _sessionFlow.value
-        
-        val location = data?.location
-        if (currentSession != null && location != null) {
-            val newLocation = location
-            val currentPath = _pathPointsFlow.value
-            
-            if (currentPath == null || currentPath.first != currentSession.id) {
-                _pathPointsFlow.value = currentSession.id to mutableListOf(newLocation)
+        val location = data?.location ?: return
+        if (currentSession == null) return
+
+        // Atomic read-modify-write via StateFlow.update so concurrent collection cycles
+        // can't lose path points. Previously: two cycles would both read the same
+        // currentPath, both append, then the last assignment would win, silently
+        // dropping a point from the live UI route.
+        _pathPointsFlow.update { current ->
+            if (current == null || current.first != currentSession.id) {
+                currentSession.id to mutableListOf(location)
             } else {
-                val points = currentPath.second
+                val points = current.second
                 val lastLocation = points.last()
                 val results = FloatArray(1)
                 android.location.Location.distanceBetween(
                     lastLocation.latitude, lastLocation.longitude,
-                    newLocation.latitude, newLocation.longitude,
-                    results
+                    location.latitude, location.longitude,
+                    results,
                 )
                 if (results[0] > 10) {
                     // Publish a new list instance so StateFlow detects the change
-                    _pathPointsFlow.value = currentSession.id to (points + newLocation)
+                    currentSession.id to (points + location)
+                } else {
+                    current
                 }
             }
         }
