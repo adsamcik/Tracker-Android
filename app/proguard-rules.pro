@@ -18,13 +18,10 @@
 
 -keep class com.adsamcik.tracker.**
 
-# Crashlytics
+# Keep stack traces useful for on-device crash logging (no Crashlytics — privacy rule).
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
 -keep public class * extends java.lang.Exception
-
--keep class com.crashlytics.** { *; }
--dontwarn com.crashlytics.**
 
 -assumenosideeffects class android.util.Log {
     public static *** d(...);

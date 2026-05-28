@@ -115,11 +115,29 @@ class TrackerNotificationManager(
 			val resources = context.resources
 			val intent =
 				requireNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
+			// Lock-screen safety: notification components are user-configurable and can
+			// include latitude/longitude, current speed, transport mode, etc. Show a
+			// redacted "Tracker is active" payload on the lock screen via publicVersion,
+			// and hide the real content (VISIBILITY_PRIVATE) so coordinates can't be
+			// glimpsed from a locked device. The full content is only revealed after
+			// authentication.
+			val publicVersion = NotificationCompat.Builder(
+				context,
+				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id),
+			)
+				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
+				.setCategory(NotificationCompat.CATEGORY_SERVICE)
+				.setPriority(NotificationCompat.PRIORITY_LOW)
+				.setContentTitle(resources.getString(R.string.notification_tracker_active_ticker))
+				.setOngoing(true)
+				.build()
+
 			return NotificationCompat.Builder(
 				context,
 				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 			)
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+				.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+				.setPublicVersion(publicVersion)
 				.setCategory(NotificationCompat.CATEGORY_SERVICE)
 				.setPriority(NotificationCompat.PRIORITY_LOW)
 				.setOnlyAlertOnce(true)
