@@ -38,7 +38,10 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	}
 
 	private fun isLocationValid(location: Location): Boolean {
-		return location.latitude >= CoordinateConstants.MIN_LATITUDE &&
+		// Reject NaN/infinite coordinates plus out-of-range values. Fused/native
+		// providers can deliver NaN on cold start before the first real fix is ready.
+		return location.latitude.isFinite() && location.longitude.isFinite() &&
+				location.latitude >= CoordinateConstants.MIN_LATITUDE &&
 				location.latitude <= CoordinateConstants.MAX_LATITUDE &&
 				location.longitude >= CoordinateConstants.MIN_LONGITUDE &&
 				location.longitude <= CoordinateConstants.MAX_LONGITUDE
@@ -49,13 +52,16 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		newDataLock.withLock {
 			val receiver = receiver ?: return
 
-			val lastLocation = locations.last()
-			if (isLocationFreshEnough(lastLocation) && isLocationValid(lastLocation)) {
-				val cycle = createTrackingCycle(locations)
-				receiver.onUpdate(cycle)
+			// Filter every location, not just the last. A batched delivery whose final
+			// fix is valid but containing earlier NaN/cold-start samples would otherwise
+			// poison persistence with garbage coordinates.
+			val filtered = locations.filter { isLocationFreshEnough(it) && isLocationValid(it) }
+			if (filtered.isEmpty()) return
 
-				previousLocation = lastLocation
-			}
+			val cycle = createTrackingCycle(filtered)
+			receiver.onUpdate(cycle)
+
+			previousLocation = filtered.last()
 		}
 	}
 

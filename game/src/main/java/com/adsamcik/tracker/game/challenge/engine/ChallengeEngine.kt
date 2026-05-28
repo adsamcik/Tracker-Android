@@ -6,6 +6,8 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
@@ -106,16 +108,26 @@ class ChallengeEngine @Inject constructor(
 	/**
 	 * Collect the metric for [instance]'s window and delegate the value-vs-target decision
 	 * to [RuleEvaluator]. Returns null when no DB write is needed (no progress AND no
-	 * completion-flag flip). Uses the entity carried in `instance.attachment` so no
-	 * per-rule DAO refetch is needed.
+	 * completion-flag flip) OR when the instance is mis-shaped — the latter is logged
+	 * with redacted context so a single bad row never crashes the whole engine pass.
+	 * Uses the entity carried in `instance.attachment` so no per-rule DAO refetch is needed.
 	 */
 	private suspend fun evaluateOne(instance: RuleInstance): ProposedUpdate? {
 		val entity = instance.attachment as? ChallengeEntity
-			?: error(
-				"ChallengeEngine requires RuleInstance.attachment to be a ChallengeEntity. " +
-					"Registry binding is wrong — only ChallengeRuleRegistry should produce " +
-					"rules of kind Challenge."
+		if (entity == null) {
+			// Shouldn't happen — only ChallengeRuleRegistry should produce Challenge-kind
+			// rules — but if a future composite registry mis-binds we skip this rule
+			// instead of crashing the whole applySession pass. Redact the rule id
+			// (which encodes the entity id).
+			Logger.log(
+				LogData(
+					message = "Skipping challenge rule with no entity attachment",
+					source = "ChallengeEngine",
+					data = "kind=${instance.rule.kind}, metric=${instance.rule.metric}",
+				)
 			)
+			return null
+		}
 
 		val collected = metrics.collect(instance.rule.metric, instance.window)
 
@@ -146,9 +158,18 @@ class ChallengeEngine @Inject constructor(
 				ProposedUpdate(updated, justCompleted = false)
 			}
 			is RuleEvaluationResult.TierUnlocked,
-			is RuleEvaluationResult.ProgressUpdated -> error(
-				"Unexpected achievement-kind result for challenge rule ${instance.rule.id}"
-			)
+			is RuleEvaluationResult.ProgressUpdated -> {
+				// Achievement-kind result for a challenge-kind rule means the evaluator
+				// went off the rails. Skip the rule, log with redacted context.
+				Logger.log(
+					LogData(
+						message = "Skipping rule: evaluator returned achievement-kind result for Challenge-kind rule",
+						source = "ChallengeEngine",
+						data = "metric=${instance.rule.metric}",
+					)
+				)
+				null
+			}
 		}
 	}
 

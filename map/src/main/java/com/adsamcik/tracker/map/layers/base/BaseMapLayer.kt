@@ -89,8 +89,15 @@ abstract class BaseMapLayer<I, P>(
                         }
                     }
                 }
-            } catch (t: Throwable) {
-                onPipelineError(t)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Structured concurrency: cancellation MUST propagate up. Catching
+                // Throwable below would otherwise eat it, leaving supervisors thinking
+                // the layer completed normally when in fact it was cancelled.
+                throw e
+            } catch (e: Exception) {
+                // Recoverable rendering/loading failure. OOM and other Errors are
+                // intentionally NOT caught here — they should crash and report.
+                onPipelineError(e)
             }
         }
         synchronized(this@BaseMapLayer) {

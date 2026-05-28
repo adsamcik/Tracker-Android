@@ -61,15 +61,27 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 		val minDistanceInMeters = BackgroundTrackingApi.cachedParams.minDistanceMeters
 
 		val locationManager = context.locationManager
-		//It is checked by the component system
-		@Suppress("MissingPermission")
-		locationManager.requestLocationUpdates(
-				LocationManager.GPS_PROVIDER,
-				minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS,
-				minDistanceInMeters.toFloat(),
-				locationListener,
-				Looper.getMainLooper()
-		)
+		// Permission is checked by the component system before we get here, but the user
+		// can revoke FINE_LOCATION between that check and this call (or during a dynamic
+		// interval restart). Surface as a recoverable error instead of crashing the
+		// foreground service.
+		try {
+			@Suppress("MissingPermission")
+			locationManager.requestLocationUpdates(
+					LocationManager.GPS_PROVIDER,
+					minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS,
+					minDistanceInMeters.toFloat(),
+					locationListener,
+					Looper.getMainLooper()
+			)
+		} catch (_: SecurityException) {
+			receiver.onError(
+				TrackerTimerErrorData(
+					TrackerTimerErrorSeverity.STOP_SERVICE,
+					R.string.notification_looking_for_gps,
+				)
+			)
+		}
 	}
 
 	override fun onDisable(context: Context) {
@@ -83,14 +95,24 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 		val locationManager = context.locationManager
 		locationManager.removeUpdates(locationListener)
 
-		// checked by component system
-		@Suppress("MissingPermission")
-		locationManager.requestLocationUpdates(
-			LocationManager.GPS_PROVIDER,
-			intervalSeconds * Time.SECOND_IN_MILLISECONDS,
-			minDistanceMeters.toFloat(),
-			locationListener,
-			Looper.getMainLooper()
-		)
+		// Same SecurityException race as onEnable — permission may be revoked between
+		// the original check and this restart on a policy/quality change.
+		try {
+			@Suppress("MissingPermission")
+			locationManager.requestLocationUpdates(
+				LocationManager.GPS_PROVIDER,
+				intervalSeconds * Time.SECOND_IN_MILLISECONDS,
+				minDistanceMeters.toFloat(),
+				locationListener,
+				Looper.getMainLooper()
+			)
+		} catch (_: SecurityException) {
+			receiver?.onError(
+				TrackerTimerErrorData(
+					TrackerTimerErrorSeverity.STOP_SERVICE,
+					R.string.notification_looking_for_gps,
+				)
+			)
+		}
 	}
 }
