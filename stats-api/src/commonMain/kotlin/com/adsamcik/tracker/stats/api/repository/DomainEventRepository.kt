@@ -27,11 +27,17 @@ interface DomainEventRepository {
 	fun observeEvents(since: EpochMs): Flow<List<DomainEvent>>
 
 	/**
-	 * Legacy id-less unconsumed batch fetch. Kept for backward compatibility with code
-	 * that doesn't need to ack via composite cursor. Prefer [getUnconsumedBatchWithIds]
-	 * for new consumers — it returns persisted ids so [markBatchConsumed] can advance
-	 * the cursor precisely past the last processed event.
+	 * Legacy id-less unconsumed batch fetch. Same-millisecond rows beyond [limit] are
+	 * lost when paired with [markConsumed] because that ack writes [Long.MAX_VALUE]
+	 * for `last_processed_id` and advances past every id at that timestamp.
+	 *
+	 * Use [getUnconsumedBatchWithIds] + [markBatchConsumed] for new consumers.
 	 */
+	@Deprecated(
+		message = "Same-ms event-skip risk when paired with timestamp-only ack. " +
+			"Use getUnconsumedBatchWithIds + markBatchConsumed for precise composite-cursor consumption.",
+		replaceWith = ReplaceWith("getUnconsumedBatchWithIds(consumerId, limit)"),
+	)
 	suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent>
 
 	/**
@@ -42,10 +48,18 @@ interface DomainEventRepository {
 	suspend fun getUnconsumedBatchWithIds(consumerId: String, limit: Int): List<UnconsumedEvent>
 
 	/**
-	 * Legacy timestamp-only ack. Equivalent to `markBatchConsumed(consumerId, ts, Long.MAX_VALUE)`
-	 * for back-compat — but new consumers should call [markBatchConsumed] with the actual
-	 * persisted id of the last event processed.
+	 * Legacy timestamp-only ack. Pairs unsafely with [getUnconsumedBatch]: when a
+	 * bounded batch leaves same-millisecond rows on the table, this ack writes
+	 * [Long.MAX_VALUE] for `last_processed_id` and skips every leftover row at that
+	 * timestamp.
+	 *
+	 * Use [markBatchConsumed] with the actual persisted id of the last event processed.
 	 */
+	@Deprecated(
+		message = "Same-ms event-skip risk: ack writes Long.MAX_VALUE id sentinel. " +
+			"Use markBatchConsumed(consumerId, ts, lastEventId) instead.",
+		replaceWith = ReplaceWith("markBatchConsumed(consumerId, upToTimestamp, Long.MAX_VALUE)"),
+	)
 	suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs)
 
 	/**

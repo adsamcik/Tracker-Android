@@ -56,14 +56,15 @@ object Logger : CoroutineScope {
         if (isInitialized) return
         
         launch(LoggerDispatchers.io) {
-            preferences = Preferences(context)
+            val prefs = Preferences(context)
+            preferences = prefs
             genericDao = LogDatabase.database(context).genericLogDao()
             // Hydrate the gate from preferences BEFORE flushing the buffer so the
             // flushed calls observe the same enabled flag as live calls.
             @Suppress("DEPRECATION")
-            logEnabled = preferences?.getBoolean(
+            logEnabled = prefs.getBoolean(
                 GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT,
-            ) ?: GLOBAL_LOG_ENABLED_DEFAULT
+            )
             isInitialized = true
             initDeferred.complete(Unit)
             
@@ -74,11 +75,20 @@ object Logger : CoroutineScope {
                 log = logBuffer.poll()
             }
         }
+        // Subscribe to preference changes so the cached gate updates when the user
+        // toggles the setting. Without this the cache stays stale until process
+        // restart; manual refreshEnabledState() calls aren't required.
+        launch(LoggerDispatchers.io) {
+            initDeferred.await()
+            preferences?.observeBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)
+                ?.collect { newValue -> logEnabled = newValue }
+        }
     }
 
     /**
-     * Refresh the cached enabled flag. Call after toggling the user preference so
-     * the next [log] call sees the change without paying preference lookup per-call.
+     * Force-refresh the cached enabled flag. Normally not needed: the Logger
+     * subscribes to the preference Flow during [initialize] and auto-updates on
+     * toggle. Exposed for tests or paths that bypass the Flow.
      */
     @AnyThread
     fun refreshEnabledState() {

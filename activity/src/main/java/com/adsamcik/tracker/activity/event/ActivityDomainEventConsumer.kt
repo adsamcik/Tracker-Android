@@ -10,6 +10,8 @@ import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,18 +24,28 @@ class ActivityDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
 ) {
+	// Single-flight guard so concurrent triggers (worker catch-up + session-end emission)
+	// can't double-handle the same events.
+	private val processMutex = Mutex()
+
 	/** Process any unconsumed events for the activity module. */
-	suspend fun processUnconsumed() {
+	suspend fun processUnconsumed() = processMutex.withLock {
 		while (true) {
-			val events = domainEventRepository.getUnconsumedBatch(
+			val batch = domainEventRepository.getUnconsumedBatchWithIds(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (events.isEmpty()) return
+			if (batch.isEmpty()) return@withLock
 
-			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
-			events.forEach(::handleEvent)
-			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
+			batch.forEach { handleEvent(it.event) }
+			// Ack the LAST event by composite (timestamp, id) so same-millisecond rows
+			// outside the bounded batch are NOT skipped on the next fetch.
+			val last = batch.last()
+			domainEventRepository.markBatchConsumed(
+				consumerId = CONSUMER_ID,
+				upToTimestamp = last.event.timestampMs,
+				upToEventId = last.persistedId,
+			)
 		}
 	}
 
