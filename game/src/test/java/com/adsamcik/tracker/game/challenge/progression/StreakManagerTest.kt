@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.challenge.progression
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.dao.ChallengeStreakDao
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
@@ -8,6 +9,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
@@ -29,6 +31,19 @@ class StreakManagerTest {
 		database = mockk(relaxed = true)
 		streakDao = mockk(relaxed = true)
 		every { database.challengeStreakDao() } returns streakDao
+		// onChallengeCompleted runs its body inside `database.withTransaction { }`. The
+		// extension lives in RoomDatabaseKt; mockk can't auto-invoke the suspending lambda
+		// without an explicit static stub. Without this, the inner block never runs:
+		// `result` stays null, and the dangling suspend lambda triggers
+		// `UncompletedCoroutinesError` in runTest. Mirrors the pattern used by
+		// ChallengeEngineTest.
+		mockkStatic("androidx.room.RoomDatabaseKt")
+		coEvery {
+			database.withTransaction(any<suspend () -> Any?>())
+		} coAnswers {
+			@Suppress("UNCHECKED_CAST")
+			(secondArg<suspend () -> Any?>()).invoke()
+		}
 	}
 
 	@AfterEach
