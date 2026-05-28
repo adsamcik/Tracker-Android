@@ -47,6 +47,14 @@ class ProcessorPipeline(
 	}
 
 	private val mutex = Mutex()
+	// Slow-path flush + dispatch serializer: stop() acquires this AFTER setting
+	// isRunning=false but BEFORE calling processor.onStop(), so an in-flight slow
+	// flush always finishes before stop tears down processor state. Without it,
+	// processor.onStop() could mutate aggregator state mid-flush, causing torn
+	// snapshots or final-event loss. Acquiring this also serializes concurrent
+	// slow-path flushes from multiple onSignal callers — a small cost in exchange
+	// for guaranteed correctness against the now-thread-safe StreamingAggregator.
+	private val slowPathSerializer = Mutex()
 	private val sortedProcessors = processors.sortedBy { it.descriptor.priority }
 	private var currentTier: PolicyTier = PolicyTier.OFF
 
@@ -175,18 +183,23 @@ class ProcessorPipeline(
 			processorsToFlush = flushCandidates.toList()
 		}
 
-		// Slow path: flush outside mutex so signal delivery isn't blocked by I/O
+		// Slow path: flush outside the signal-delivery mutex so signal delivery isn't
+		// blocked by I/O. Serialized via slowPathSerializer so stop() can guarantee no
+		// flush is in flight when it tears down processor state.
 		if (processorsToFlush.isEmpty()) return
 		val events = mutableListOf<DomainEvent>()
-		for (processor in processorsToFlush) {
-			val id = processor.descriptor.id
-			try {
-				events.addAll(processor.onFlush())
-				mutex.withLock { resetFailureCount(id) }
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				mutex.withLock { recordFailure(id, "flush", e) }
+		slowPathSerializer.withLock {
+			if (!isRunning) return  // stop() set the flag before we acquired the lock
+			for (processor in processorsToFlush) {
+				val id = processor.descriptor.id
+				try {
+					events.addAll(processor.onFlush())
+					mutex.withLock { resetFailureCount(id) }
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					mutex.withLock { recordFailure(id, "flush", e) }
+				}
 			}
 		}
 
@@ -240,21 +253,26 @@ class ProcessorPipeline(
 			toStop = oldActive - newActive
 		}
 
-		// Stop de-escalated processors outside mutex
+		// Stop de-escalated processors outside mutex but inside slow-path serializer
+		// so a concurrent slow flush (or stop()) doesn't race the processor.onStop()
+		// state mutation.
 		if (toStop.isEmpty()) return
 		val events = mutableListOf<DomainEvent>()
-		for (processor in toStop) {
-			val id = processor.descriptor.id
-			try {
-				events.addAll(processor.onStop())
-				mutex.withLock {
-					lastFlushTime.remove(id)
-					resetFailureCount(id)
+		slowPathSerializer.withLock {
+			if (!isRunning) return
+			for (processor in toStop) {
+				val id = processor.descriptor.id
+				try {
+					events.addAll(processor.onStop())
+					mutex.withLock {
+						lastFlushTime.remove(id)
+						resetFailureCount(id)
+					}
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					mutex.withLock { recordFailure(id, "de-escalation-stop", e) }
 				}
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				mutex.withLock { recordFailure(id, "de-escalation-stop", e) }
 			}
 		}
 
@@ -273,31 +291,48 @@ class ProcessorPipeline(
 
 	/**
 	 * Stop the pipeline. Final flush of all processors.
-	 * Awaits completion of in-flight domain event dispatches before returning.
+	 *
+	 * Drain order (carefully sequenced to prevent torn-snapshot/lost-event races):
+	 * 1. Set `isRunning=false` under [mutex] so no new onSignal-driven slow flush
+	 *    enters the slow path (it checks the flag again after acquiring its mutex).
+	 * 2. Acquire [slowPathSerializer] — waits for any in-flight slow flush to finish
+	 *    so processor state is stable when we call onStop on each one.
+	 * 3. Call `processor.onStop()` on each active processor and collect final events.
+	 * 4. Dispatch the final event batch.
+	 * 5. Join in-flight event-dispatch jobs.
+	 * 6. Cancel the supervisor.
 	 */
 	suspend fun stop() {
 		val events = mutableListOf<DomainEvent>()
 
+		// Step 1: stop accepting new flushes.
 		mutex.withLock {
 			if (!isRunning) return
 			isRunning = false
-
-			for (processor in cachedActiveProcessors) {
-				val id = processor.descriptor.id
-				try {
-					events.addAll(processor.onStop())
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					recordFailure(id, "stop", e)
-				}
-			}
-
-			lastFlushTime.clear()
-			cachedActiveProcessors = emptyList()
 		}
 
-		// Deliver final events BEFORE cancelling the supervisor job
+		// Step 2: wait for any in-flight slow flush to drain before mutating processors.
+		// Step 3: call onStop sequentially while holding the serializer so no slow flush
+		// can sneak in. We acquire mutex again only to keep failure-tracking access safe.
+		slowPathSerializer.withLock {
+			mutex.withLock {
+				for (processor in cachedActiveProcessors) {
+					val id = processor.descriptor.id
+					try {
+						events.addAll(processor.onStop())
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordFailure(id, "stop", e)
+					}
+				}
+
+				lastFlushTime.clear()
+				cachedActiveProcessors = emptyList()
+			}
+		}
+
+		// Step 4: deliver final events BEFORE cancelling the supervisor job
 		if (events.isNotEmpty()) {
 			try {
 				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
@@ -310,7 +345,7 @@ class ProcessorPipeline(
 			}
 		}
 
-		// Join in-flight event dispatches, then cancel the supervisor
+		// Step 5: join in-flight event dispatches, then step 6: cancel the supervisor.
 		val pendingJobs: List<Job>
 		synchronized(inFlightDispatches) {
 			pendingJobs = inFlightDispatches.toList()
