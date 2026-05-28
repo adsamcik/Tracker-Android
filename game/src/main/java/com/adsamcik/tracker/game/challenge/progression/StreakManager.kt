@@ -60,21 +60,32 @@ class StreakManager @Inject constructor() {
 	 * Call when one or more challenges expire in a batch.
 	 * If a freeze is available, consumes one (covers the entire batch).
 	 * Otherwise, resets the streak to 0.
+	 *
+	 * Read-modify-write is wrapped in [database.withTransaction] so a racing
+	 * [onChallengeCompleted] can't slip an increment between this read and write
+	 * and lose the user's completion bump. If a caller (e.g. `ProgressionRepository`)
+	 * has already opened an outer transaction, Room nests reentrantly and this
+	 * inner transaction joins it.
+	 *
 	 * @return Pair of (updated streak, wasFreezed)
 	 */
 	suspend fun onChallengesExpired(database: ChallengeDatabase): Pair<ChallengeStreakEntity, Boolean> {
-		val dao = database.challengeStreakDao()
-		dao.ensureExists()
-		val current = dao.get() ?: ChallengeStreakEntity()
+		var result: Pair<ChallengeStreakEntity, Boolean>? = null
+		database.withTransaction {
+			val dao = database.challengeStreakDao()
+			dao.ensureExists()
+			val current = dao.get() ?: ChallengeStreakEntity()
 
-		val (updated, froze) = if (current.freezeCount > 0) {
-			current.copy(freezeCount = current.freezeCount - 1) to true
-		} else {
-			current.copy(currentCount = 0) to false
+			val (updated, froze) = if (current.freezeCount > 0) {
+				current.copy(freezeCount = current.freezeCount - 1) to true
+			} else {
+				current.copy(currentCount = 0) to false
+			}
+
+			dao.update(updated)
+			result = updated to froze
 		}
-
-		dao.update(updated)
-		return updated to froze
+		return result!!
 	}
 
 	/**

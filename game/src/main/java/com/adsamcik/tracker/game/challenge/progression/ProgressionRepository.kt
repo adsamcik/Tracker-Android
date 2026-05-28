@@ -8,6 +8,7 @@ import com.adsamcik.tracker.game.challenge.data.XpSource
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeHistoryEntity
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengePersonalRecordEntity
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
 import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
 import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
@@ -114,35 +115,44 @@ class ProgressionRepository @Inject constructor(
 	/**
 	 * Called when challenges expire (batch).
 	 * Records history for each, updates streak (freeze or break).
+	 *
+	 * Wrapped in a single Room transaction so the history inserts and the streak read-
+	 * modify-write commit atomically. Without this, a concurrent `onChallengeCompleted`
+	 * could interleave between the streak read and write and silently lose its increment.
 	 */
 	suspend fun onChallengesExpired(
 		expired: List<ChallengeInstanceNew>,
 	): ExpiryResult {
 		val database = challengeDatabase
-		val now = Time.nowMillis
 
-		// Record each expired challenge in history
-		expired.forEach { instance ->
-			val entity = instance.entity
-			val historyEntry = ChallengeHistoryEntity(
-				challengeType = entity.type.name,
-				difficulty = entity.difficulty.name,
-				startTime = entity.startTime,
-				endTime = entity.endTime,
-				outcome = ChallengeOutcome.EXPIRED.name,
-				completedAt = null,
-				progressValue = entity.currentValue,
-				targetValue = entity.requiredValue,
-				medal = null,
-				xpAwarded = 0,
-				originalChallengeId = entity.id,
-			)
-			database.challengeHistoryDao().insert(historyEntry)
+		var streakResult: Pair<ChallengeStreakEntity, Boolean> =
+			ChallengeStreakEntity() to false
+		database.withTransaction {
+			// Record each expired challenge in history
+			expired.forEach { instance ->
+				val entity = instance.entity
+				val historyEntry = ChallengeHistoryEntity(
+					challengeType = entity.type.name,
+					difficulty = entity.difficulty.name,
+					startTime = entity.startTime,
+					endTime = entity.endTime,
+					outcome = ChallengeOutcome.EXPIRED.name,
+					completedAt = null,
+					progressValue = entity.currentValue,
+					targetValue = entity.requiredValue,
+					medal = null,
+					xpAwarded = 0,
+					originalChallengeId = entity.id,
+				)
+				database.challengeHistoryDao().insert(historyEntry)
+			}
+
+			// Update streak inside the same transaction so a racing onChallengeCompleted
+			// can't slip an increment between this read-modify-write.
+			streakResult = streakManager.onChallengesExpired(database)
 		}
 
-		// Update streak (one freeze covers entire batch)
-		val (streak, froze) = streakManager.onChallengesExpired(database)
-
+		val (streak, froze) = streakResult
 		return ExpiryResult(
 			expiredCount = expired.size,
 			streakBroken = !froze && expired.isNotEmpty(),
