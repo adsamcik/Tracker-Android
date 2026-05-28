@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 26,
-    "identityHash": "06208e34b54012e2154891ec9274eddb",
+    "identityHash": "1fdc69e65166bbcf9b2521693bdc6a54",
     "entities": [
       {
         "tableName": "activity",
@@ -710,6 +710,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          },
+          {
+            "name": "idx_session_segment_end_time_ms",
+            "unique": false,
+            "columnNames": [
+              "end_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_end_time_ms` ON `${TABLE_NAME}` (`end_time_ms`)"
           },
           {
             "name": "idx_session_segment_source",
@@ -1819,13 +1828,14 @@
         },
         "indices": [
           {
-            "name": "index_domain_event_timestamp_ms",
+            "name": "index_domain_event_timestamp_ms_id",
             "unique": false,
             "columnNames": [
-              "timestamp_ms"
+              "timestamp_ms",
+              "id"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_domain_event_timestamp_ms` ON `${TABLE_NAME}` (`timestamp_ms`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_domain_event_timestamp_ms_id` ON `${TABLE_NAME}` (`timestamp_ms`, `id`)"
           },
           {
             "name": "index_domain_event_event_type_processor_id",
@@ -2097,7 +2107,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '06208e34b54012e2154891ec9274eddb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1fdc69e65166bbcf9b2521693bdc6a54')"
     ]
   }
 }

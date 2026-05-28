@@ -1108,10 +1108,20 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			// no prior migration created it — fresh installs had it, upgrades
 			// did not. Backfill here while v26 is still unreleased.
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
+			// Index end_time_ms so the cross-midnight overlap query (introduced in
+			// commit 415f7ff4f) can choose the more selective predicate when
+			// materializing today's daily summary against a large segment history.
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_end_time_ms ON session_segment(end_time_ms)")
 			// Composite domain-event cursor: timestamp alone could skip events that
 			// share a millisecond with the last-acked one. Existing rows get 0 as
 			// the default last_processed_id, which is safely below any real event id.
 			execSQL("ALTER TABLE domain_event_cursor ADD COLUMN last_processed_id INTEGER NOT NULL DEFAULT 0")
+			// Composite (timestamp_ms, id) index for the cursor seek query — replaces
+			// the standalone timestamp_ms index (Room recreates implicitly). Without
+			// this the cursor predicate falls back to an ordered scan over the
+			// timestamp_ms index, O(rows) per fetch.
+			execSQL("DROP INDEX IF EXISTS index_domain_event_timestamp_ms")
+			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_timestamp_ms_id ON domain_event(timestamp_ms, id)")
 			android.util.Log.i(
 				"AppDatabase",
 				"Migration 25->26: Added analytics and export query indices",

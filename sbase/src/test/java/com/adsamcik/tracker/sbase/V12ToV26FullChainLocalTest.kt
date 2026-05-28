@@ -770,7 +770,7 @@ class V12ToV26FullChainLocalTest {
 			"tracker_run" to setOf("idx_tracker_run_time_range"),
 			"session_segment" to setOf(
 				"idx_session_segment_time_range", "idx_session_segment_source",
-				"idx_session_segment_primary_activity"
+				"idx_session_segment_primary_activity", "idx_session_segment_end_time_ms"
 			),
 			"daily_summary" to setOf("index_daily_summary_date_epoch_day"),
 			"frequent_place" to setOf(
@@ -801,7 +801,7 @@ class V12ToV26FullChainLocalTest {
 			),
 			"storage_size_snapshot" to setOf("index_storage_size_snapshot_epoch_day"),
 			"domain_event" to setOf(
-				"index_domain_event_timestamp_ms",
+				"index_domain_event_timestamp_ms_id",
 				"index_domain_event_event_type_processor_id"
 			),
 			"pressure_sample" to setOf(

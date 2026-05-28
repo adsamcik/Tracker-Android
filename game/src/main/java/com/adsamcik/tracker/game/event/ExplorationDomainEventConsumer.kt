@@ -60,9 +60,36 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			)
 			if (batch.isEmpty()) return@withLock
 
-			batch.forEach { unconsumed ->
-				handleEvent(unconsumed.event, database, cellDao, streakDao)
+			// One transaction per BATCH instead of per event. During backlog/replay
+			// (100 cell events × 100 BEGIN+COMMIT+fsync = 100-400 ms of write I/O)
+			// this drops to ONE transaction. Atomicity per event is still preserved
+			// because all cell+streak writes inside the loop roll back together if
+			// any fail. We collect dirty/log effects and apply them outside the
+			// transaction (mark-after-commit contract).
+			val dirtyTables = mutableSetOf<String>()
+			val newCellLogCount = mutableListOf<Int>() // captured event.level for new cells
+			database.withTransaction {
+				batch.forEach { unconsumed ->
+					val effects = handleEvent(
+						event = unconsumed.event,
+						cellDao = cellDao,
+						streakDao = streakDao,
+					)
+					dirtyTables += effects.dirty
+					if (effects.newCellLevel != null) newCellLogCount += effects.newCellLevel
+				}
 			}
+
+			if (dirtyTables.isNotEmpty()) dirtyTracker.markDirty(dirtyTables)
+			newCellLogCount.forEach { level ->
+				Logger.log(
+					LogData(
+						message = "Cell discovered: level=$level isNew=true",
+						source = GAME_LOG_SOURCE,
+					),
+				)
+			}
+
 			// Ack the LAST event by (timestamp, id) so a future event sharing the same
 			// timestamp as our boundary doesn't get silently skipped by the next fetch.
 			val last = batch.last()
@@ -74,24 +101,26 @@ class ExplorationDomainEventConsumer @Inject constructor(
 		}
 	}
 
+	/** Side effects to apply AFTER the transaction commits (mark-after-commit). */
+	private data class EventEffects(
+		val dirty: Set<String>,
+		val newCellLevel: Int?,
+	)
+
 	private suspend fun handleEvent(
 		event: DomainEvent,
-		database: AppDatabase,
 		cellDao: ExplorationCellDao,
 		streakDao: ExplorationStreakDao,
-	) {
-		when (event) {
-			is DomainEvent.CellDiscovered -> onCellDiscovered(event, database, cellDao, streakDao)
-			else -> Unit
-		}
+	): EventEffects = when (event) {
+		is DomainEvent.CellDiscovered -> onCellDiscovered(event, cellDao, streakDao)
+		else -> EventEffects(dirty = emptySet(), newCellLevel = null)
 	}
 
 	private suspend fun onCellDiscovered(
 		event: DomainEvent.CellDiscovered,
-		database: AppDatabase,
 		cellDao: ExplorationCellDao,
 		streakDao: ExplorationStreakDao,
-	) {
+	): EventEffects {
 		val now = event.timestampMs.raw
 		val entity = ExplorationCellEntity(
 			cellToken = event.cellToken,
@@ -106,52 +135,35 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			createdAt = now,
 		)
 
-		// Wrap cell + streak handling in one transaction so a crash between them can't
-		// leave the cell committed without the streak update. On redelivery after such
-		// a crash, the previously-committed cell row has firstDiscoveredAt == event.ts,
-		// which we use to detect "this event discovered this cell" regardless of which
-		// side committed first. ExplorationStreakTracker is already day-idempotent
-		// (epochDay <= lastIncrementDay → no-op), so re-calling it after a successful
-		// prior streak update is also safe.
-		var wasNewCell = false
-		database.withTransaction {
-			val insertedId = cellDao.insert(entity)
-			val isFreshInsert = insertedId != -1L
-			val isRecoveredFirstDiscovery = !isFreshInsert &&
-				cellDao.getByToken(event.cellToken)?.firstDiscoveredAt == now
-			wasNewCell = isFreshInsert || isRecoveredFirstDiscovery
+		// Runs inside the caller's batched transaction. Recovery detection (cell row
+		// committed by a prior crashed attempt) uses firstDiscoveredAt == event.ts so
+		// the streak update still happens on redelivery. ExplorationStreakTracker
+		// is day-idempotent so re-calling it is safe.
+		val insertedId = cellDao.insert(entity)
+		val isFreshInsert = insertedId != -1L
+		val isRecoveredFirstDiscovery = !isFreshInsert &&
+			cellDao.getByToken(event.cellToken)?.firstDiscoveredAt == now
+		val wasNewCell = isFreshInsert || isRecoveredFirstDiscovery
 
-			if (wasNewCell) {
-				// Update streak inside the SAME transaction so crash now would roll back
-				// the cell insert too (clean retry on redelivery).
-				streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
-			} else {
-				// Cell already exists and not a recovery — just bump visit metadata.
-				cellDao.updateVisit(
-					token = event.cellToken,
-					quality = event.quality,
-					lastVisitedAt = now,
-					seasonBit = event.seasonBit,
-				)
-			}
-		}
-
-		// Mark tables dirty + log AFTER the transaction commits, per the contract
-		// in MetricDirtyTracker (mark-after-commit). Logging is outside the transaction
-		// so a slow log can't lengthen the write lock window.
 		if (wasNewCell) {
-			dirtyTracker.markDirty(
-				setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK)
+			streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
+			return EventEffects(
+				dirty = setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK),
+				newCellLevel = event.level,
 			)
-			Logger.log(
-				LogData(
-					message = "Cell discovered: level=${event.level} isNew=true",
-					source = GAME_LOG_SOURCE,
-				),
-			)
-		} else {
-			dirtyTracker.markDirty(MetricKeys.TABLE_EXPLORATION_CELL)
 		}
+
+		// Cell already exists and not a recovery — just bump visit metadata.
+		cellDao.updateVisit(
+			token = event.cellToken,
+			quality = event.quality,
+			lastVisitedAt = now,
+			seasonBit = event.seasonBit,
+		)
+		return EventEffects(
+			dirty = setOf(MetricKeys.TABLE_EXPLORATION_CELL),
+			newCellLevel = null,
+		)
 	}
 
 	companion object {

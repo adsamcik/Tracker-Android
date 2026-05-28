@@ -13,6 +13,11 @@ import androidx.room.PrimaryKey
 	tableName = "session_segment",
 	indices = [
 		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_session_segment_time_range"),
+		// Single-column end_time_ms index — needed by the cross-midnight overlap
+		// query (`start_time_ms < toMs AND end_time_ms > fromMs`) so SQLite can
+		// pick the more selective predicate. Without it the planner only seeks
+		// the leading start_time_ms column and scans everything before toMs.
+		Index(value = ["end_time_ms"], name = "idx_session_segment_end_time_ms"),
 		Index(value = ["source"], name = "idx_session_segment_source"),
 		Index(value = ["primary_activity"], name = "idx_session_segment_primary_activity")
 	]
