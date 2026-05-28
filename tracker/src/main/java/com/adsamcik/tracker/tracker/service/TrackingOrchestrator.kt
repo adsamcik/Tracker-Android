@@ -190,6 +190,26 @@ internal class TrackingOrchestrator(
 		// Cleanup previous managers if re-initializing
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
+		// Stop the prior ProcessorPipeline (if any) before overwriting the field —
+		// otherwise a re-entrant initialize would leave the old pipeline's supervisor
+		// + processors running until full service shutdown, racing the new pipeline
+		// for processor state. processorPipeline.stop() drains in-flight flushes
+		// before tearing down.
+		processorPipeline?.let { existing ->
+			try {
+				existing.stop()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to stop prior ProcessorPipeline on re-init: ${e.message}")
+			}
+			processorPipeline = null
+			// tierEscalationHandler is `lateinit` and only assigned later in this
+			// method — clear its pipeline pointer only if it's already initialized.
+			if (::tierEscalationHandler.isInitialized) {
+				tierEscalationHandler.processorPipeline = null
+			}
+		}
 
 		dataProducerManager = DataProducerManager(
 			context = context,

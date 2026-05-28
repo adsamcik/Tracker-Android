@@ -198,9 +198,19 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun countByActivities(activityTypes: List<Int>): Long
 
 	/**
-	 * Count segments by a set of primary activities inside a closed time interval.
+	 * Count segments by a set of primary activities that OVERLAP the closed time
+	 * interval `[fromMs, toMs]`. Includes segments fully inside the interval AND
+	 * segments that straddle either boundary — matches the daily_summary cross-
+	 * midnight overlap semantics so windowed walking/cycling counts no longer
+	 * silently drop boundary-crossing trips.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes) AND start_time_ms >= :fromMs AND end_time_ms <= :toMs")
+	@Query(
+		"""
+		SELECT COUNT(*) FROM session_segment
+		WHERE primary_activity IN (:activityTypes)
+			AND start_time_ms < :toMs AND end_time_ms > :fromMs
+		"""
+	)
 	suspend fun countByActivitiesBetween(fromMs: Long, toMs: Long, activityTypes: List<Int>): Long
 
 	/**
@@ -210,9 +220,28 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun sumDistanceByActivities(activityTypes: List<Int>): Long
 
 	/**
-	 * Sum distance for a set of primary activities inside a closed time interval (meters).
+	 * Sum distance for a set of primary activities that OVERLAP `[fromMs, toMs]`,
+	 * prorated by the fraction of each segment's duration that falls inside the
+	 * interval. Constant-speed approximation — same compromise as
+	 * `DailySummaryAggregator.materializeDayFromSegments`. Without prorating,
+	 * cross-midnight (or boundary-crossing) segments would either be dropped
+	 * (strict containment) or double-counted (overlap with full distance).
 	 */
-	@Query("SELECT CAST(COALESCE(SUM(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes) AND start_time_ms >= :fromMs AND end_time_ms <= :toMs")
+	@Query(
+		"""
+		SELECT CAST(
+			COALESCE(SUM(
+				distance_m * (
+					CAST(MIN(end_time_ms, :toMs) - MAX(start_time_ms, :fromMs) AS REAL)
+					/ CAST(MAX(end_time_ms - start_time_ms, 1) AS REAL)
+				)
+			), 0) AS INTEGER
+		)
+		FROM session_segment
+		WHERE primary_activity IN (:activityTypes)
+			AND start_time_ms < :toMs AND end_time_ms > :fromMs
+		"""
+	)
 	suspend fun sumDistanceByActivitiesBetween(fromMs: Long, toMs: Long, activityTypes: List<Int>): Long
 
 	/**
