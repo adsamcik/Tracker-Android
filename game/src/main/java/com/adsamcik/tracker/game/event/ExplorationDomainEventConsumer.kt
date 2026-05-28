@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.game.event
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.game.GAME_LOG_SOURCE
@@ -61,7 +62,7 @@ class ExplorationDomainEventConsumer @Inject constructor(
 
 			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return@withLock
 			events.forEach { event ->
-				handleEvent(event, cellDao, streakDao)
+				handleEvent(event, database, cellDao, streakDao)
 			}
 			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 		}
@@ -69,17 +70,19 @@ class ExplorationDomainEventConsumer @Inject constructor(
 
 	private suspend fun handleEvent(
 		event: DomainEvent,
+		database: AppDatabase,
 		cellDao: ExplorationCellDao,
 		streakDao: ExplorationStreakDao,
 	) {
 		when (event) {
-			is DomainEvent.CellDiscovered -> onCellDiscovered(event, cellDao, streakDao)
+			is DomainEvent.CellDiscovered -> onCellDiscovered(event, database, cellDao, streakDao)
 			else -> Unit
 		}
 	}
 
 	private suspend fun onCellDiscovered(
 		event: DomainEvent.CellDiscovered,
+		database: AppDatabase,
 		cellDao: ExplorationCellDao,
 		streakDao: ExplorationStreakDao,
 	) {
@@ -97,16 +100,43 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			createdAt = now,
 		)
 
-		val insertedId = cellDao.insert(entity)
-		if (insertedId != -1L) {
-			streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
+		// Wrap cell + streak handling in one transaction so a crash between them can't
+		// leave the cell committed without the streak update. On redelivery after such
+		// a crash, the previously-committed cell row has firstDiscoveredAt == event.ts,
+		// which we use to detect "this event discovered this cell" regardless of which
+		// side committed first. ExplorationStreakTracker is already day-idempotent
+		// (epochDay <= lastIncrementDay → no-op), so re-calling it after a successful
+		// prior streak update is also safe.
+		var wasNewCell = false
+		database.withTransaction {
+			val insertedId = cellDao.insert(entity)
+			val isFreshInsert = insertedId != -1L
+			val isRecoveredFirstDiscovery = !isFreshInsert &&
+				cellDao.getByToken(event.cellToken)?.firstDiscoveredAt == now
+			wasNewCell = isFreshInsert || isRecoveredFirstDiscovery
+
+			if (wasNewCell) {
+				// Update streak inside the SAME transaction so crash now would roll back
+				// the cell insert too (clean retry on redelivery).
+				streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
+			} else {
+				// Cell already exists and not a recovery — just bump visit metadata.
+				cellDao.updateVisit(
+					token = event.cellToken,
+					quality = event.quality,
+					lastVisitedAt = now,
+					seasonBit = event.seasonBit,
+				)
+			}
+		}
+
+		// Mark tables dirty + log AFTER the transaction commits, per the contract
+		// in MetricDirtyTracker (mark-after-commit). Logging is outside the transaction
+		// so a slow log can't lengthen the write lock window.
+		if (wasNewCell) {
 			dirtyTracker.markDirty(
 				setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK)
 			)
-			// Don't log the cell token in release builds — it is a coarse geographic
-			// identifier derived from the user's location and the project's rule is to
-			// never expose coordinates (or anything derived from them) in release logs.
-			// Level + isNew is enough for diagnostics.
 			Logger.log(
 				LogData(
 					message = "Cell discovered: level=${event.level} isNew=true",
@@ -114,13 +144,6 @@ class ExplorationDomainEventConsumer @Inject constructor(
 				),
 			)
 		} else {
-			// Cell already exists — update visit metadata
-			cellDao.updateVisit(
-				token = event.cellToken,
-				quality = event.quality,
-				lastVisitedAt = now,
-				seasonBit = event.seasonBit,
-			)
 			dirtyTracker.markDirty(MetricKeys.TABLE_EXPLORATION_CELL)
 		}
 	}
