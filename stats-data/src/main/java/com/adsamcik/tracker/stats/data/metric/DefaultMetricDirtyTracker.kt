@@ -44,9 +44,4 @@ class DefaultMetricDirtyTracker @Inject constructor() : MetricDirtyTracker {
 	override fun consumeDirty(): Set<String> {
 		return state.getAndSet(emptySet())
 	}
-
-	override fun markAllDirty() {
-		// Conservative: caller code that legitimately needs "everything"
-		// (e.g. boot reconciliation) will pass an explicit table set instead.
-	}
 }

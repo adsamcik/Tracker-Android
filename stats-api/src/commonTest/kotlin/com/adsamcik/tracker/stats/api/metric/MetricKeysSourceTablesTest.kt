@@ -26,7 +26,13 @@ class MetricKeysSourceTablesTest {
 
 	@Test
 	fun `daily_summary metrics include STEPS and ACTIVE_DAYS`() {
-		MetricKeys.sourceTables(MetricKeys.STEPS) shouldBe setOf(MetricKeys.TABLE_DAILY_SUMMARY)
+		// STEPS is dual-sourced after p6-7-fix: daily_summary (for catch-up evaluation
+		// after a session ends) AND aggregator_state (for live in-session evaluation).
+		// ACTIVE_DAYS is daily_summary-only because the aggregator doesn't track distinct
+		// active days — that concept only exists in the daily_summary row.
+		MetricKeys.sourceTables(MetricKeys.STEPS) shouldBe setOf(
+			MetricKeys.TABLE_DAILY_SUMMARY, MetricKeys.TABLE_AGGREGATOR_STATE,
+		)
 		MetricKeys.sourceTables(MetricKeys.ACTIVE_DAYS) shouldBe setOf(MetricKeys.TABLE_DAILY_SUMMARY)
 	}
 

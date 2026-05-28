@@ -56,20 +56,30 @@ object MetricKeys {
 	const val TABLE_EXPLORATION_STREAK = "exploration_streak"
 	const val TABLE_EXPORT_LOG = "export_log"
 
+	/**
+	 * Pseudo-source for in-memory streaming aggregator state (not a real table). Used so
+	 * achievement evaluation can correctly short-circuit during AMBIENT idle without
+	 * suppressing legitimate progress: when `AggregatorProcessor` accumulates non-zero
+	 * deltas during tracking it marks this dirty, and the downstream
+	 * `AchievementProcessor` then evaluates as normal. During heartbeat-only signals
+	 * with no movement, nothing marks this and the short-circuit fires.
+	 */
+	const val TABLE_AGGREGATOR_STATE = "aggregator_state"
+
 	private val SOURCE_TABLES: Map<String, Set<String>> = mapOf(
-		STEPS to setOf(TABLE_DAILY_SUMMARY),
-		TOTAL_STEPS to setOf(TABLE_DAILY_SUMMARY),
-		BEST_DAILY_STEPS to setOf(TABLE_DAILY_SUMMARY),
-		DISTANCE_M to setOf(TABLE_DAILY_SUMMARY),
-		TOTAL_DISTANCE_KM to setOf(TABLE_DAILY_SUMMARY),
-		ACTIVE_MINUTES to setOf(TABLE_DAILY_SUMMARY),
-		TOTAL_TRIPS to setOf(TABLE_DAILY_SUMMARY),
+		STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		TOTAL_STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		BEST_DAILY_STEPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		DISTANCE_M to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		TOTAL_DISTANCE_KM to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		ACTIVE_MINUTES to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
+		TOTAL_TRIPS to setOf(TABLE_DAILY_SUMMARY, TABLE_AGGREGATOR_STATE),
 		ACTIVE_DAYS to setOf(TABLE_DAILY_SUMMARY),
 
-		DISTANCE_ON_FOOT_M to setOf(TABLE_SESSION_SEGMENT),
+		DISTANCE_ON_FOOT_M to setOf(TABLE_SESSION_SEGMENT, TABLE_AGGREGATOR_STATE),
 		WALKING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
 		CYCLING_TRIPS to setOf(TABLE_SESSION_SEGMENT),
-		LONGEST_TRIP_KM to setOf(TABLE_SESSION_SEGMENT),
+		LONGEST_TRIP_KM to setOf(TABLE_SESSION_SEGMENT, TABLE_AGGREGATOR_STATE),
 		TRANSPORT_MODE_COUNT to setOf(TABLE_SESSION_SEGMENT),
 
 		CELLS_DISCOVERED to setOf(TABLE_EXPLORATION_CELL),

@@ -20,8 +20,13 @@ package com.adsamcik.tracker.stats.api.metric
 interface MetricDirtyTracker {
 	/**
 	 * Mark [table] as having been written to. Idempotent — multiple calls in the same
-	 * window collapse to a single entry. Call from inside the write transaction so
-	 * a rollback also rolls back the dirty flag observably.
+	 * window collapse to a single entry. Call from inside the write transaction so the
+	 * dirty mark is observable to the next flush.
+	 *
+	 * NOTE: this is in-memory state, not transactional. If the surrounding SQLite
+	 * transaction rolls back, the dirty mark stays set, and the next flush re-reads
+	 * the (already-correct) value from the pre-aggregated table — wasted work, no
+	 * incorrect unlock.
 	 */
 	fun markDirty(table: String)
 
@@ -37,12 +42,9 @@ interface MetricDirtyTracker {
 	 * writes during a flush are NEVER lost — they become part of the next flush window.
 	 *
 	 * Returns the empty set if nothing was marked since the last call.
+	 *
+	 * Callers that fail mid-flush after consuming the set should re-mark via
+	 * [markDirty] in their catch block so the next flush still observes the changes.
 	 */
 	fun consumeDirty(): Set<String>
-
-	/**
-	 * Mark ALL known tables as dirty. Use sparingly — typically only on engine startup
-	 * to force a one-shot reconciliation, or when an unknown writer is suspected.
-	 */
-	fun markAllDirty()
 }

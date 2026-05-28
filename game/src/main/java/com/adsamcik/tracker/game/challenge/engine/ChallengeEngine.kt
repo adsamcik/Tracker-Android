@@ -10,6 +10,12 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
+import com.adsamcik.tracker.stats.api.rule.Rule
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleInstance
+import com.adsamcik.tracker.stats.api.rule.RuleKind
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,16 +26,22 @@ import javax.inject.Singleton
  * [com.adsamcik.tracker.game.challenge.processor.ChallengeProcessor]
  * imperative loop with: lookup
  * [com.adsamcik.tracker.game.challenge.catalog.ChallengeDefinition] -> call
- * [WindowedMetricsProvider] -> compare to target -> emit updated entity. All write
- * side-effects (entity updates + progression history / xp / streak / personal records via
- * [ProgressionRepository]) commit inside ONE Room transaction so a mid-flight crash
- * leaves the database fully consistent.
+ * [WindowedMetricsProvider] -> compare to target via [RuleEvaluator] -> emit updated entity.
+ * All write side-effects (entity updates + progression history / xp / streak / personal
+ * records via [ProgressionRepository]) commit inside ONE Room transaction so a mid-flight
+ * crash leaves the database fully consistent.
+ *
+ * **Unified evaluation path (p6-8):** comparison logic lives in [RuleEvaluator] — the same
+ * stateless evaluator the achievement signal processor uses. This file owns only the
+ * session-end "load active rows → propose updates → commit" choreography; the actual
+ * "did a metric cross a target" decision is one method call away.
  */
 @Singleton
 class ChallengeEngine @Inject constructor(
 	private val challengeDatabase: ChallengeDatabase,
 	private val metrics: WindowedMetricsProvider,
 	private val progression: ProgressionRepository,
+	private val ruleEvaluator: RuleEvaluator = RuleEvaluator(),
 ) {
 
 	/**
@@ -94,6 +106,14 @@ class ChallengeEngine @Inject constructor(
 		)
 	}
 
+	/**
+	 * Build a [RuleInstance] for the given challenge row + query its metric for the row's
+	 * `[startTime, min(now, endTime)]` window, then ask [RuleEvaluator] whether anything
+	 * changed. Returns null when no DB write is needed (no progress AND no completion flip).
+	 *
+	 * The metric collected is the ABSOLUTE value over the window, not a delta — so
+	 * `previousValue` for the instance is what's already stored in the DB row.
+	 */
 	private suspend fun evaluateOne(
 		entity: ChallengeEntity,
 		now: Long,
@@ -104,22 +124,59 @@ class ChallengeEngine @Inject constructor(
 		if (windowEnd <= entity.startTime) return null
 
 		val window = TimeWindow.Interval(entity.startTime, windowEnd)
-		val collected = metrics.collect(def.metric, window).toDouble()
+		val collected = metrics.collect(def.metric, window)
 
-		// The catalog-driven metric query returns the ABSOLUTE value over the challenge
-		// window, so progress == collected (no per-session deltas to accumulate). This is
-		// a clean improvement over the legacy processor model where each extractProgress
-		// returned a delta and required correct accumulation.
-		val newCurrent = collected
-		val newCompleted = newCurrent >= entity.requiredValue
-		if (newCurrent == entity.currentValue && newCompleted == entity.isCompleted) return null
-
-		val updated = entity.copy(
-			currentValue = newCurrent,
-			isCompleted = newCompleted,
+		// Adapt the catalog row to a unified RuleInstance. The contextId carries the
+		// entity id so the signal-processor variant (future) can correlate evaluations
+		// back to the underlying row without a side table.
+		val rule = Rule(
+			id = "challenge:${entity.id}",
+			kind = RuleKind.Challenge,
+			metric = def.metric,
+			target = RuleTarget.Single(entity.requiredValue),
 		)
-		val justCompleted = !entity.isCompleted && newCompleted
-		return ProposedUpdate(updated, justCompleted)
+		val instance = RuleInstance(
+			rule = rule,
+			window = window,
+			previousValue = entity.currentValue.toLong(),
+			contextId = entity.id,
+		)
+
+		return when (val result = ruleEvaluator.evaluate(instance, collected)) {
+			is RuleEvaluationResult.Unchanged -> {
+				// Value didn't move; nothing to write. But if the persisted completion
+				// flag is out of sync with the (unchanged) value vs target (e.g. we're
+				// re-applying after a partial crash), re-sync the flag.
+				val shouldBeCompleted = entity.currentValue >= entity.requiredValue
+				if (shouldBeCompleted != entity.isCompleted) {
+					val resync = entity.copy(isCompleted = shouldBeCompleted)
+					ProposedUpdate(resync, justCompleted = shouldBeCompleted && !entity.isCompleted)
+				} else {
+					null
+				}
+			}
+			is RuleEvaluationResult.Completed -> {
+				val updated = entity.copy(
+					currentValue = result.currentValue.toDouble(),
+					isCompleted = true,
+				)
+				ProposedUpdate(updated, justCompleted = !entity.isCompleted)
+			}
+			is RuleEvaluationResult.ChallengeProgress -> {
+				val updated = entity.copy(
+					currentValue = result.currentValue.toDouble(),
+					// isCompleted stays whatever it was — challenge progress without crossing target.
+					isCompleted = entity.isCompleted,
+				)
+				ProposedUpdate(updated, justCompleted = false)
+			}
+			// Achievement-kind results are not possible here — the catalog only produces
+			// RuleKind.Challenge rules. Defensive branch keeps the when exhaustive.
+			is RuleEvaluationResult.TierUnlocked,
+			is RuleEvaluationResult.ProgressUpdated -> error(
+				"Unexpected achievement-kind result for challenge rule ${rule.id}"
+			)
+		}
 	}
 
 	private data class ProposedUpdate(val updated: ChallengeEntity, val justCompleted: Boolean)

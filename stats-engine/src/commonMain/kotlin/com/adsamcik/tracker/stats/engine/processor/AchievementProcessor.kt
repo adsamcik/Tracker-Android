@@ -54,11 +54,24 @@ class AchievementProcessor(
 		// moved. Skip the full evaluation. consumeDirty() is an atomic swap so writes that
 		// race this check land in the NEXT flush window — never lost.
 		val tracker = dirtyTracker
-		if (tracker != null && tracker.consumeDirty().isEmpty()) {
-			return emptyList()
+		val consumed: Set<String>? = if (tracker != null) {
+			val set = tracker.consumeDirty()
+			if (set.isEmpty()) return emptyList()
+			set
+		} else {
+			null
 		}
 
-		val metrics = metricsProvider()
+		// Re-mark consumed tables on failure so we don't silently drop the next update.
+		// Without this guard, a metricsProvider() exception (DB unavailable, transient I/O,
+		// etc.) would leave the dirty set empty and the next ordinary flush would
+		// short-circuit even though the underlying tables had changed.
+		val metrics = try {
+			metricsProvider()
+		} catch (t: Throwable) {
+			if (tracker != null && consumed != null) tracker.markDirty(consumed)
+			throw t
+		}
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		val events = mutableListOf<DomainEvent>()
 

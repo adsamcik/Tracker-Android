@@ -95,9 +95,13 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			dirtyTracker.markDirty(
 				setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK)
 			)
+			// Don't log the cell token in release builds — it is a coarse geographic
+			// identifier derived from the user's location and the project's rule is to
+			// never expose coordinates (or anything derived from them) in release logs.
+			// Level + isNew is enough for diagnostics.
 			Logger.log(
 				LogData(
-					message = "Cell discovered: ${event.cellToken} (level ${event.level})",
+					message = "Cell discovered: level=${event.level} isNew=true",
 					source = GAME_LOG_SOURCE,
 				),
 			)

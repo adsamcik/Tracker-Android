@@ -100,7 +100,6 @@ class AchievementProcessorTest {
 			consumeCalls += 1
 			val out = dirty; dirty = emptySet(); return out
 		}
-		override fun markAllDirty() {}
 	}
 
 	@Test
@@ -163,5 +162,40 @@ class AchievementProcessorTest {
 		metricValue = 25_000L  // would unlock another tier if evaluated
 		val events = processor.onFlush()
 		events.shouldBeEmpty()
+	}
+
+	@Test
+	fun `consumed dirty is re-marked if metricsProvider throws — battery vs correctness`() = runTest {
+		// p6-7 dirty-loss bug regression test.
+		// Without the catch-and-restore in onFlush, a metricsProvider exception would
+		// "swallow" the dirty mark and the NEXT flush would short-circuit even though
+		// the underlying table had genuinely changed.
+		val tracker = StubDirtyTracker()
+		var providerCalls = 0
+		val processor = AchievementProcessor(
+			evaluator = AchievementEvaluator(),
+			metricsProvider = {
+				providerCalls += 1
+				if (providerCalls == 1) throw RuntimeException("transient DB error")
+				mapOf("total_steps" to 15_000L)
+			},
+			dirtyTracker = tracker,
+		)
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
+
+		tracker.markDirty("daily_summary")
+		// First flush throws — dirty mark MUST be restored.
+		try {
+			processor.onFlush()
+			error("expected the provider exception to propagate")
+		} catch (e: RuntimeException) {
+			e.message shouldBe "transient DB error"
+		}
+		// Verify the dirty mark survived the failed flush.
+		// (Without the fix the next flush would short-circuit and miss the achievement.)
+		val events = processor.onFlush()
+		providerCalls shouldBe 2
+		events.shouldHaveSize(1)
+		assert(events.single() is DomainEvent.AchievementUnlocked)
 	}
 }

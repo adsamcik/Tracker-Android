@@ -32,8 +32,14 @@ object ProcessorPipelineModule {
 
 	@Provides
 	@Singleton
-	fun provideAggregatorProcessorInstance(): AggregatorProcessor {
-		return AggregatorProcessor()
+	fun provideAggregatorProcessorInstance(
+		dirtyTracker: com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker,
+	): AggregatorProcessor {
+		// Inject the dirty tracker so the aggregator marks `aggregator_state` dirty when
+		// its in-memory accumulators move. Without this, the downstream
+		// AchievementProcessor's short-circuit would suppress real progress because
+		// snapshot metrics change without any backing table write (R2 review fix).
+		return AggregatorProcessor(dirtyTracker = dirtyTracker)
 	}
 
 	@Provides
