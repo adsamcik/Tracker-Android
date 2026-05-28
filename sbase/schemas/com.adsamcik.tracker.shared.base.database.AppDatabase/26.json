@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 26,
-    "identityHash": "9718d19de7ac4c66b75a690789a3a19a",
+    "identityHash": "06208e34b54012e2154891ec9274eddb",
     "entities": [
       {
         "tableName": "activity",
@@ -1841,7 +1841,7 @@
       },
       {
         "tableName": "domain_event_cursor",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`consumer_id` TEXT NOT NULL, `last_processed_ms` INTEGER NOT NULL, PRIMARY KEY(`consumer_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`consumer_id` TEXT NOT NULL, `last_processed_ms` INTEGER NOT NULL, `last_processed_id` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`consumer_id`))",
         "fields": [
           {
             "fieldPath": "consumerId",
@@ -1854,6 +1854,13 @@
             "columnName": "last_processed_ms",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "lastProcessedId",
+            "columnName": "last_processed_id",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -2090,7 +2097,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9718d19de7ac4c66b75a690789a3a19a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '06208e34b54012e2154891ec9274eddb')"
     ]
   }
 }

@@ -54,17 +54,23 @@ class ExplorationDomainEventConsumer @Inject constructor(
 		val streakDao = database.explorationStreakDao()
 
 		while (true) {
-			val events = domainEventRepository.getUnconsumedBatch(
+			val batch = domainEventRepository.getUnconsumedBatchWithIds(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (events.isEmpty()) return@withLock
+			if (batch.isEmpty()) return@withLock
 
-			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return@withLock
-			events.forEach { event ->
-				handleEvent(event, database, cellDao, streakDao)
+			batch.forEach { unconsumed ->
+				handleEvent(unconsumed.event, database, cellDao, streakDao)
 			}
-			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
+			// Ack the LAST event by (timestamp, id) so a future event sharing the same
+			// timestamp as our boundary doesn't get silently skipped by the next fetch.
+			val last = batch.last()
+			domainEventRepository.markBatchConsumed(
+				consumerId = CONSUMER_ID,
+				upToTimestamp = last.event.timestampMs,
+				upToEventId = last.persistedId,
+			)
 		}
 	}
 

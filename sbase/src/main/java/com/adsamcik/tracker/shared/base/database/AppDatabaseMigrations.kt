@@ -1108,6 +1108,10 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			// no prior migration created it — fresh installs had it, upgrades
 			// did not. Backfill here while v26 is still unreleased.
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
+			// Composite domain-event cursor: timestamp alone could skip events that
+			// share a millisecond with the last-acked one. Existing rows get 0 as
+			// the default last_processed_id, which is safely below any real event id.
+			execSQL("ALTER TABLE domain_event_cursor ADD COLUMN last_processed_id INTEGER NOT NULL DEFAULT 0")
 			android.util.Log.i(
 				"AppDatabase",
 				"Migration 25->26: Added analytics and export query indices",

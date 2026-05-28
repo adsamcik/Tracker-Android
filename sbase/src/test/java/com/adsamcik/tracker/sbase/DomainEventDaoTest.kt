@@ -87,6 +87,49 @@ class DomainEventDaoTest {
 		timestamps shouldContainExactly listOf(3_000L, 4_000L)
 	}
 
+	@Test
+	fun `composite cursor returns same-ms event after timestamp-only ack would have skipped it`() = runTest {
+		// Insert two events sharing timestamp 1000ms — typical batch case (e.g.
+		// session-end emits SessionEnded + DailySummaryUpdated at the same millis).
+		dao.insertAll(listOf(eventAt(1_000L), eventAt(1_000L), eventAt(2_000L)))
+		val all = dao.observeSince(0L).first().sortedBy { it.id }
+		all.size shouldBe 3
+		val firstAt1000 = all[0]
+		val secondAt1000 = all[1]
+
+		// Consumer ack the first event by (timestamp, id). Under the OLD timestamp-only
+		// cursor this would have set lastProcessedMs = 1000 and the next fetch's
+		// `timestamp_ms > 1000` predicate would have skipped the second event at 1000.
+		dao.upsertCursor(
+			DomainEventCursorEntity(
+				consumerId = "c1",
+				lastProcessedMs = firstAt1000.timestampMs,
+				lastProcessedId = firstAt1000.id,
+			)
+		)
+
+		// New composite-cursor query MUST return the second 1000ms event (id > lastId).
+		val nextBatch = dao.getUnconsumedBatchFor(consumerId = "c1", boundaryOffset = 99)
+		nextBatch.map { it.id } shouldContainExactly listOf(secondAt1000.id, all[2].id)
+	}
+
+	@Test
+	fun `composite cursor stops a fully consumed same-ms boundary from being re-delivered`() = runTest {
+		dao.insertAll(listOf(eventAt(1_000L), eventAt(1_000L)))
+		val all = dao.observeSince(0L).first().sortedBy { it.id }
+		val secondAt1000 = all[1]
+		dao.upsertCursor(
+			DomainEventCursorEntity(
+				consumerId = "c1",
+				lastProcessedMs = secondAt1000.timestampMs,
+				lastProcessedId = secondAt1000.id,
+			)
+		)
+
+		val next = dao.getUnconsumedBatchFor(consumerId = "c1", boundaryOffset = 99)
+		next shouldBe emptyList()
+	}
+
 	private suspend fun DomainEventDao.remainingTimestamps(): List<Long> =
 		observeSince(0L).first().map(DomainEventEntity::timestampMs)
 

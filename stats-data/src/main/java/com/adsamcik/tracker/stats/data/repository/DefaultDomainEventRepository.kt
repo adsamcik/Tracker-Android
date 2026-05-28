@@ -44,8 +44,34 @@ class DefaultDomainEventRepository @Inject constructor(
 		).mapNotNull { it.toDomain() }
 	}
 
+	override suspend fun getUnconsumedBatchWithIds(
+		consumerId: String,
+		limit: Int,
+	): List<com.adsamcik.tracker.stats.api.repository.UnconsumedEvent> {
+		require(limit > 0) { "limit must be greater than zero" }
+		return dao.getUnconsumedBatchFor(
+			consumerId = consumerId,
+			boundaryOffset = limit - 1,
+		).mapNotNull { entity ->
+			entity.toDomain()?.let { domain ->
+				com.adsamcik.tracker.stats.api.repository.UnconsumedEvent(domain, entity.id)
+			}
+		}
+	}
+
 	override suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs) {
-		dao.upsertCursor(DomainEventCursorEntity(consumerId, upToTimestamp.raw))
+		// Legacy timestamp-only ack: use Long.MAX_VALUE as the id sentinel so any event
+		// with timestamp_ms <= upToTimestamp is considered consumed regardless of id.
+		// Prefer markBatchConsumed for new code.
+		dao.upsertCursor(DomainEventCursorEntity(consumerId, upToTimestamp.raw, Long.MAX_VALUE))
+	}
+
+	override suspend fun markBatchConsumed(
+		consumerId: String,
+		upToTimestamp: EpochMs,
+		upToEventId: Long,
+	) {
+		dao.upsertCursor(DomainEventCursorEntity(consumerId, upToTimestamp.raw, upToEventId))
 	}
 
 	// region serialization

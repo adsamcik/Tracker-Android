@@ -21,30 +21,43 @@ interface DomainEventDao {
 	/**
 	 * Get the next bounded batch of events not yet processed by the given consumer.
 	 *
-	 * The boundary is chosen using the timestamp of the Nth event, then expanded to include
-	 * all events sharing that timestamp so timestamp-based cursors remain safe across batches.
+	 * Cursor is composite `(last_processed_ms, last_processed_id)`: events are returned
+	 * where `(timestamp_ms > lastMs) OR (timestamp_ms = lastMs AND id > lastId)`. This
+	 * prevents the "same-millisecond skip" bug — two events sharing a timestamp would
+	 * have been silently dropped by the previous timestamp-only `>` predicate after the
+	 * first one was acked.
+	 *
+	 * The boundary is chosen using the (timestamp, id) of the Nth event, then expanded
+	 * to include all events whose (timestamp, id) is at-or-below that boundary so a
+	 * caller acking the last returned event always advances the cursor strictly.
 	 */
 	@Query(
 		"""
 		WITH cursor_value AS (
-			SELECT COALESCE(
-				(SELECT last_processed_ms FROM domain_event_cursor WHERE consumer_id = :consumerId),
-				0
-			) AS last_processed_ms
+			SELECT
+				COALESCE((SELECT last_processed_ms FROM domain_event_cursor WHERE consumer_id = :consumerId), 0) AS last_ms,
+				COALESCE((SELECT last_processed_id FROM domain_event_cursor WHERE consumer_id = :consumerId), 0) AS last_id
 		),
 		batch_boundary AS (
-			SELECT timestamp_ms
+			SELECT timestamp_ms AS boundary_ms, id AS boundary_id
 			FROM domain_event
-			WHERE timestamp_ms > (SELECT last_processed_ms FROM cursor_value)
+			WHERE
+				timestamp_ms > (SELECT last_ms FROM cursor_value)
+				OR (timestamp_ms = (SELECT last_ms FROM cursor_value) AND id > (SELECT last_id FROM cursor_value))
 			ORDER BY timestamp_ms ASC, id ASC
 			LIMIT 1 OFFSET :boundaryOffset
 		)
 		SELECT *
 		FROM domain_event
-		WHERE timestamp_ms > (SELECT last_processed_ms FROM cursor_value)
+		WHERE
+			(
+				timestamp_ms > (SELECT last_ms FROM cursor_value)
+				OR (timestamp_ms = (SELECT last_ms FROM cursor_value) AND id > (SELECT last_id FROM cursor_value))
+			)
 			AND (
-				(SELECT timestamp_ms FROM batch_boundary) IS NULL
-				OR timestamp_ms <= (SELECT timestamp_ms FROM batch_boundary)
+				(SELECT boundary_ms FROM batch_boundary) IS NULL
+				OR timestamp_ms < (SELECT boundary_ms FROM batch_boundary)
+				OR (timestamp_ms = (SELECT boundary_ms FROM batch_boundary) AND id <= (SELECT boundary_id FROM batch_boundary))
 			)
 		ORDER BY timestamp_ms ASC, id ASC
 		"""

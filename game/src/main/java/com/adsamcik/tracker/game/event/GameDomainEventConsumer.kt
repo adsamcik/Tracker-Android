@@ -50,26 +50,32 @@ class GameDomainEventConsumer @Inject constructor(
 	/** Process any unconsumed events for the game module. */
 	suspend fun processUnconsumed() = processMutex.withLock {
 		while (true) {
-			val events = domainEventRepository.getUnconsumedBatch(
+			val batch = domainEventRepository.getUnconsumedBatchWithIds(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (events.isEmpty()) return@withLock
+			if (batch.isEmpty()) return@withLock
 
-			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return@withLock
-			events.forEach { event ->
+			batch.forEach { unconsumed ->
 				try {
-					handleEvent(event)
+					handleEvent(unconsumed.event)
 				} catch (e: Exception) {
 					Logger.log(
 						LogData(
-							message = "Failed to process event ${event::class.simpleName}: ${e.message}",
+							message = "Failed to process event ${unconsumed.event::class.simpleName}: ${e.message}",
 							source = CHALLENGE_LOG_SOURCE,
 						),
 					)
 				}
 			}
-			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
+			// Ack the LAST event by (timestamp, id) so a future event sharing the same
+			// timestamp as our boundary doesn't get silently skipped by the next fetch.
+			val last = batch.last()
+			domainEventRepository.markBatchConsumed(
+				consumerId = CONSUMER_ID,
+				upToTimestamp = last.event.timestampMs,
+				upToEventId = last.persistedId,
+			)
 		}
 	}
 
