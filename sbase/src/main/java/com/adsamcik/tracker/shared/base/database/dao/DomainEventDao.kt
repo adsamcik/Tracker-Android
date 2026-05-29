@@ -23,23 +23,52 @@ interface DomainEventDao {
 	suspend fun getCursor(consumerId: String): DomainEventCursorEntity?
 
 	/**
-	 * Seek-style batch fetch using the composite `(timestamp_ms, id)` index.
+	 * Seek-style batch fetch using the composite `(timestamp_ms, id)` index, expressed as
+	 * a UNION ALL of two bounded SEARCH branches.
 	 *
-	 * Caller resolves the cursor first (cheap PK lookup via [getCursor]), then passes
-	 * the two scalar values here. SQLite can evaluate
-	 * `timestamp_ms > :lastMs OR (timestamp_ms = :lastMs AND id > :lastId)` as a
-	 * range seek on `index_domain_event_timestamp_ms_id` rather than a full scan,
-	 * which the old double-CTE form prevented.
+	 * The obvious scalar form
+	 *   `WHERE timestamp_ms > :lastMs OR (timestamp_ms = :lastMs AND id > :lastId)`
+	 * is *logically* a clean seek on `(timestamp_ms, id)`, but the SQLite planner
+	 * collapses the OR disjunction and plans it as a full `SCAN` of
+	 * `index_domain_event_timestamp_ms_id` rather than two `SEARCH` ranges. With 50k–200k
+	 * retained events and multiple lagging consumers each draining in batches, that scan
+	 * burns CPU and wakelock on every poll.
 	 *
-	 * EXPLAIN QUERY PLAN: `SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms>?)`
+	 * The natural row-value form `WHERE (timestamp_ms, id) > (:lastMs, :lastId)` is
+	 * accepted by SQLite ≥ 3.15 and would yield the same clean seek, but Room's `@Query`
+	 * parser rejects tuple comparisons and refuses to generate the DAO impl.
+	 *
+	 * UNION ALL of the two halves is the next-best alternative — each branch is
+	 * individually SEARCH-able, and the outer wrapper re-applies the global ORDER/LIMIT
+	 * to merge them deterministically. Each branch also carries its own LIMIT so the
+	 * planner can stop early.
+	 *
+	 * EXPLAIN QUERY PLAN (expected):
+	 *   SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms=? AND id>?)
+	 *   SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms>?)
+	 * (Plus a compound merge step. Crucially: no SCAN of `domain_event`.)
+	 *
+	 * Regression-guarded by `DomainEventDaoTest.seek query plans as SEARCH not SCAN…`.
 	 */
 	@Query(
 		"""
-		SELECT *
-		FROM domain_event
-		WHERE
-			timestamp_ms > :lastMs
-			OR (timestamp_ms = :lastMs AND id > :lastId)
+		SELECT * FROM (
+			SELECT * FROM (
+				SELECT *
+				FROM domain_event
+				WHERE timestamp_ms = :lastMs AND id > :lastId
+				ORDER BY id ASC
+				LIMIT :limit
+			)
+			UNION ALL
+			SELECT * FROM (
+				SELECT *
+				FROM domain_event
+				WHERE timestamp_ms > :lastMs
+				ORDER BY timestamp_ms ASC, id ASC
+				LIMIT :limit
+			)
+		)
 		ORDER BY timestamp_ms ASC, id ASC
 		LIMIT :limit
 		"""

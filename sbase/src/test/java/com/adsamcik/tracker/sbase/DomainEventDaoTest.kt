@@ -1,12 +1,15 @@
 package com.adsamcik.tracker.sbase
 
 import android.app.Application
+import android.database.Cursor
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldHaveAtLeastSize
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
@@ -141,6 +144,138 @@ class DomainEventDaoTest {
 		next shouldBe emptyList()
 	}
 
+	// region seek-query planner regression
+	// These tests guard against the SQLite planner regressing the seek query back to
+	// a full index SCAN. The fix wraps two SEARCH-able halves in a UNION ALL, and the
+	// EQP test below asserts that EXPLAIN QUERY PLAN never emits SCAN of `domain_event`.
+
+	@Test
+	fun `seek across same-ms clusters returns every event without skipping or duplication`() = runTest {
+		// Build SEEK_CLUSTER_COUNT clusters each sharing a single timestamp. This is
+		// the worst case for a same-ms boundary skip — drains MUST include every event
+		// across batch boundaries, not just one per cluster.
+		val events = buildList(SEEK_CLUSTER_COUNT * SEEK_EVENTS_PER_CLUSTER) {
+			for (cluster in 0 until SEEK_CLUSTER_COUNT) {
+				val ms = (cluster + 1) * SEEK_CLUSTER_STEP_MS
+				repeat(SEEK_EVENTS_PER_CLUSTER) { add(eventAt(ms)) }
+			}
+		}
+		dao.insertAll(events)
+
+		val total = SEEK_CLUSTER_COUNT * SEEK_EVENTS_PER_CLUSTER
+		val drained = mutableListOf<DomainEventEntity>()
+		var lastMs = 0L
+		var lastId = 0L
+		var iterations = 0
+		while (true) {
+			iterations++
+			check(iterations < total) {
+				"seek drain failed to terminate after $iterations iterations (lastMs=$lastMs lastId=$lastId)"
+			}
+			val batch = dao.getUnconsumedBatchSeek(lastMs, lastId, SEEK_BATCH_LIMIT)
+			if (batch.isEmpty()) break
+			batch shouldHaveAtLeastSize 1
+			drained += batch
+			val tail = batch.last()
+			lastMs = tail.timestampMs
+			lastId = tail.id
+		}
+
+		drained shouldHaveSize total
+		drained.map { it.id }.toSet() shouldHaveSize total
+
+		// Drain must be in strict (timestamp_ms, id) ascending order.
+		drained.zipWithNext { a, b ->
+			val ordered = a.timestampMs < b.timestampMs ||
+				(a.timestampMs == b.timestampMs && a.id < b.id)
+			check(ordered) {
+				"drain out of order at id=${a.id} -> id=${b.id} (ms ${a.timestampMs} -> ${b.timestampMs})"
+			}
+		}
+
+		// Terminal seek: cursor at the very last event returns nothing.
+		val terminal = drained.last()
+		dao.getUnconsumedBatchSeek(terminal.timestampMs, terminal.id, SEEK_BATCH_LIMIT) shouldBe emptyList()
+	}
+
+	@Test
+	fun `seek query plans as SEARCH not SCAN on the composite index`() = runTest {
+		// Insert enough rows for the planner to actually consider the index. With < 8
+		// rows SQLite may decide a SCAN of the table is cheaper than walking the
+		// index, masking the regression we are guarding against.
+		dao.insertAll(
+			buildList(PLAN_PROBE_ROW_COUNT) {
+				repeat(PLAN_PROBE_ROW_COUNT) { idx -> add(eventAt(idx * 100L + 1L)) }
+			}
+		)
+
+		// Re-use the exact SQL Room generates for getUnconsumedBatchSeek. If the @Query
+		// is reformulated to a form SQLite cannot decompose into SEARCH-able branches
+		// (e.g. the OR predicate), this test fires.
+		val explainSql = """
+			EXPLAIN QUERY PLAN
+			SELECT * FROM (
+				SELECT * FROM (
+					SELECT *
+					FROM domain_event
+					WHERE timestamp_ms = ? AND id > ?
+					ORDER BY id ASC
+					LIMIT ?
+				)
+				UNION ALL
+				SELECT * FROM (
+					SELECT *
+					FROM domain_event
+					WHERE timestamp_ms > ?
+					ORDER BY timestamp_ms ASC, id ASC
+					LIMIT ?
+				)
+			)
+			ORDER BY timestamp_ms ASC, id ASC
+			LIMIT ?
+		""".trimIndent()
+
+		val raw = database.openHelper.readableDatabase
+		val args = arrayOf<Any>(
+			0L,
+			0L,
+			PLAN_PROBE_LIMIT,
+			0L,
+			PLAN_PROBE_LIMIT,
+			PLAN_PROBE_LIMIT,
+		)
+		val planLines = mutableListOf<String>()
+		raw.query(explainSql, args).use { cursor: Cursor ->
+			val detailColumn = cursor.getColumnIndexOrThrow("detail")
+			while (cursor.moveToNext()) {
+				planLines += cursor.getString(detailColumn)
+			}
+		}
+
+		check(planLines.isNotEmpty()) { "EXPLAIN QUERY PLAN returned no rows" }
+
+		// Hard regression guard: any SCAN of the domain_event table means the planner
+		// regressed off the composite index.
+		val scanOfTable = planLines.filter { line ->
+			line.contains("SCAN") && line.contains("domain_event") &&
+				!line.contains("USING INDEX")
+		}
+		check(scanOfTable.isEmpty()) {
+			"Query plan regressed to SCAN of domain_event:\n${planLines.joinToString("\n")}"
+		}
+
+		// And it must SEARCH using the composite index for the bounded halves.
+		val searchUsingComposite = planLines.count { line ->
+			line.contains("SEARCH") && line.contains("domain_event") &&
+				line.contains("index_domain_event_timestamp_ms_id")
+		}
+		check(searchUsingComposite >= 2) {
+			"Expected ≥2 SEARCH steps on index_domain_event_timestamp_ms_id, got $searchUsingComposite:\n${planLines.joinToString("\n")}"
+		}
+	}
+
+	// endregion seek-query planner regression
+
 	private suspend fun DomainEventDao.remainingTimestamps(): List<Long> =
 		observeSince(0L).first().map(DomainEventEntity::timestampMs)
 
@@ -151,4 +286,13 @@ class DomainEventDaoTest {
 			timestampMs = timestampMs,
 			payload = "{}",
 		)
+
+	private companion object {
+		const val SEEK_CLUSTER_COUNT = 10
+		const val SEEK_EVENTS_PER_CLUSTER = 100
+		const val SEEK_CLUSTER_STEP_MS = 1_000L
+		const val SEEK_BATCH_LIMIT = 50
+		const val PLAN_PROBE_ROW_COUNT = 64
+		const val PLAN_PROBE_LIMIT = 32
+	}
 }
