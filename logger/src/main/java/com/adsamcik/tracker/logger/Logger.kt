@@ -10,7 +10,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -57,37 +60,58 @@ object Logger : CoroutineScope {
     // cancelled on [shutdown] (test isolation) or before re-launching on re-init.
     private var preferenceCollectionJob: Job? = null
 
+    // Tracks the wrapper coroutine spawned by [initialize]. Stored so [shutdown]
+    // can cancel a still-running init job before resetting globals, preventing
+    // the wrapper from repopulating state AFTER the reset (R3 round-5 race #1).
+    @Volatile
+    private var initializationJob: Job? = null
+
+    // Serialises the init body with shutdown's reset so they can never interleave.
+    // Concurrent [initialize] calls also queue on this mutex; the in-mutex
+    // [isInitialized] re-check makes the body idempotent (R3 round-5 race #2).
+    private val lifecycleMutex = Mutex()
+
     fun initialize(context: Context) {
+        // Cheap best-effort dedup: if a recent init wrapper is still running, drop
+        // this call without paying for a coroutine launch. Mutex re-check below
+        // catches anything that slips through this non-synchronised read.
         if (isInitialized) return
-        
-        launch(LoggerDispatchers.io) {
-            val prefs = Preferences(context)
-            preferences = prefs
-            genericDao = LogDatabase.database(context).genericLogDao()
-            // Hydrate the gate from preferences BEFORE flushing the buffer so the
-            // flushed calls observe the same enabled flag as live calls.
-            @Suppress("DEPRECATION")
-            logEnabled = prefs.getBoolean(
-                GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT,
-            )
-            isInitialized = true
-            initDeferred.complete(Unit)
-            
-            // Flush buffer
-            var log: LogData? = logBuffer.poll()
-            while (log != null) {
-                logInternal(log)
-                log = logBuffer.poll()
+        if (initializationJob?.isActive == true) return
+
+        initializationJob = launch(LoggerDispatchers.io) {
+            lifecycleMutex.withLock {
+                // Re-check inside the mutex: a parallel initialize() may have
+                // already populated state while we were queued on the lock.
+                if (isInitialized) return@withLock
+
+                val prefs = Preferences(context)
+                preferences = prefs
+                genericDao = LogDatabase.database(context).genericLogDao()
+                // Hydrate the gate from preferences BEFORE flushing the buffer so the
+                // flushed calls observe the same enabled flag as live calls.
+                @Suppress("DEPRECATION")
+                logEnabled = prefs.getBoolean(
+                    GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT,
+                )
+                isInitialized = true
+                initDeferred.complete(Unit)
+
+                // Flush buffer
+                var log: LogData? = logBuffer.poll()
+                while (log != null) {
+                    logInternal(log)
+                    log = logBuffer.poll()
+                }
+
+                // Subscribe to preference changes so the cached gate updates when the user
+                // toggles the setting. Without this the cache stays stale until process
+                // restart; manual refreshEnabledState() calls aren't required.
+                preferenceCollectionJob?.cancel()
+                preferenceCollectionJob = launch(LoggerDispatchers.io) {
+                    prefs.observeBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)
+                        .collect { newValue -> logEnabled = newValue }
+                }
             }
-        }
-        // Subscribe to preference changes so the cached gate updates when the user
-        // toggles the setting. Without this the cache stays stale until process
-        // restart; manual refreshEnabledState() calls aren't required.
-        preferenceCollectionJob?.cancel()
-        preferenceCollectionJob = launch(LoggerDispatchers.io) {
-            initDeferred.await()
-            preferences?.observeBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)
-                ?.collect { newValue -> logEnabled = newValue }
         }
     }
 
@@ -97,16 +121,29 @@ object Logger : CoroutineScope {
      * **Test-only / cleanup.** Logger is initialized once per process in production.
      * In Robolectric or same-JVM test suites, call this in `@After` so each test's
      * `@Before` call to [initialize] starts from a clean slate with no leaked collectors.
+     *
+     * Suspends to deterministically join the in-flight init wrapper (cancelling it
+     * if still running) BEFORE resetting globals, so a late wrapper cannot
+     * repopulate `isInitialized`/`preferences`/`genericDao` after this returns.
      */
-    fun shutdown() {
-        preferenceCollectionJob?.cancel()
-        preferenceCollectionJob = null
-        isInitialized = false
-        initDeferred = CompletableDeferred()
-        preferences = null
-        genericDao = null
-        logBuffer.clear()
-        logEnabled = GLOBAL_LOG_ENABLED_DEFAULT
+    suspend fun shutdown() {
+        // Snapshot + null + cancel the init wrapper outside the mutex so any wrapper
+        // parked at `mutex.lock()` is cancelled before it ever runs its body.
+        val pendingInit = initializationJob
+        initializationJob = null
+        pendingInit?.cancel()
+
+        lifecycleMutex.withLock {
+            pendingInit?.join()
+            preferenceCollectionJob?.cancelAndJoin()
+            preferenceCollectionJob = null
+            isInitialized = false
+            initDeferred = CompletableDeferred()
+            preferences = null
+            genericDao = null
+            logBuffer.clear()
+            logEnabled = GLOBAL_LOG_ENABLED_DEFAULT
+        }
     }
 
     /**

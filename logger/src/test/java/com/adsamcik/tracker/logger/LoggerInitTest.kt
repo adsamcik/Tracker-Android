@@ -42,6 +42,7 @@ class LoggerInitTest {
 		setField("initDeferred", CompletableDeferred<Unit>())
 		setField("preferences", null)
 		setField("genericDao", null)
+		setField("initializationJob", null)
 		getField<java.util.concurrent.ConcurrentLinkedQueue<*>>("logBuffer").clear()
 	}
 
