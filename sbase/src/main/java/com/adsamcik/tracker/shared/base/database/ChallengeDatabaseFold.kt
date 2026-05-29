@@ -31,6 +31,17 @@ enum class ChallengeDatabaseFoldResult {
 
 /**
  * One-time fold of the old standalone ChallengeDatabase into AppDatabase v27.
+ *
+ * **Sequencing guarantee:** data is copied inside a Room `withTransaction`, the old
+ * database is closed and renamed to `.bak`, and ONLY THEN is the completion marker set.
+ * If the data copy throws, the marker is never set and the next cold start retries.
+ * A failed rename is non-fatal (the data is safe in AppDatabase) — a warning is logged
+ * and the fold is marked complete anyway so the retry loop terminates.
+ *
+ * **Idempotency:** if a prior run copied data but crashed before writing the marker,
+ * the next cold start detects existing rows in the `challenge` table and skips the copy,
+ * proceeding directly to rename + mark. This prevents duplicate inserts from a partial
+ * re-run.
  */
 class ChallengeDatabaseFold(
 	context: Context,
@@ -47,6 +58,16 @@ class ChallengeDatabaseFold(
 
 		val legacyFile = appContext.getDatabasePath(DATABASE_NAME)
 		if (!legacyFile.exists()) return ChallengeDatabaseFoldResult.NO_LEGACY_DATABASE
+
+		// Idempotency guard: if a prior run copied data but crashed before marking
+		// complete, rows already exist in AppDatabase. Skip the copy and just
+		// rename + mark so the retry loop terminates without duplicate inserts.
+		if (appDatabase.challengeDao().countAll() > 0L) {
+			Log.i(TAG, "Challenge rows already present in AppDatabase; skipping copy")
+			renameToBackup(legacyFile)
+			marker.markComplete()
+			return ChallengeDatabaseFoldResult.COPIED
+		}
 
 		var oldDb: SQLiteDatabase? = null
 		return try {

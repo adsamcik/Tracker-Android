@@ -10,6 +10,7 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
+import com.adsamcik.tracker.stats.api.rule.ChallengeRules
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
 import com.adsamcik.tracker.stats.api.rule.RuleInstance
@@ -43,7 +44,7 @@ import javax.inject.Singleton
 @Singleton
 class ChallengeEngine @Inject constructor(
 	private val challengeDatabase: AppDatabase,
-	private val registry: RuleRegistry,
+	@ChallengeRules private val registry: RuleRegistry,
 	private val metrics: WindowedMetricsProvider,
 	private val progression: ProgressionRepository,
 ) {

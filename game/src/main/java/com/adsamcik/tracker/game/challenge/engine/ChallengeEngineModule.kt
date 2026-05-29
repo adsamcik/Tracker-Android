@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.challenge.engine
 
+import com.adsamcik.tracker.stats.api.rule.ChallengeRules
 import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import dagger.Binds
 import dagger.Module
@@ -8,11 +9,10 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Binds [ChallengeRuleRegistry] to the abstract [RuleRegistry] contract so consumers
- * inject the interface rather than the concrete implementation. Concrete-only injection
- * would lock challenge enumeration to the engine and prevent a future composite registry
- * (e.g. `@JvmSuppressWildcards Set<RuleRegistry>` multibinding) from being introduced
- * when the achievement side migrates onto the same shared rule API.
+ * Binds [ChallengeRuleRegistry] to the [RuleRegistry] interface, qualified with
+ * [ChallengeRules] so injection sites are explicit and a future composite registry
+ * (or achievement side injecting [com.adsamcik.tracker.stats.api.rule.AchievementRules])
+ * cannot accidentally receive the wrong implementation.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -20,5 +20,6 @@ abstract class ChallengeEngineModule {
 
 	@Binds
 	@Singleton
+	@ChallengeRules
 	abstract fun bindChallengeRuleRegistry(impl: ChallengeRuleRegistry): RuleRegistry
 }

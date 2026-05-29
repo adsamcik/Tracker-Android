@@ -6,3 +6,8 @@ import javax.inject.Qualifier
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class AchievementRules
+
+/** Qualifies the challenge-backed [RuleRegistry] binding. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ChallengeRules

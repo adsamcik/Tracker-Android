@@ -21,6 +21,9 @@ interface ChallengeDao : BaseDao<ChallengeEntity> {
 
 	@Query("SELECT COUNT(*) FROM challenge WHERE end_time > :now AND is_completed = 0")
 	fun getActiveCount(now: Long): Int
+	@Query("SELECT COUNT(*) FROM challenge")
+	suspend fun countAll(): Long
+
 	@Query("DELETE FROM challenge")
 	fun deleteAll()
 

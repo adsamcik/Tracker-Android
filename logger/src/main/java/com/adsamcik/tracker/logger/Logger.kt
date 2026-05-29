@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.logger.concurrency.LoggerDispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
@@ -52,6 +53,10 @@ object Logger : CoroutineScope {
     @Volatile
     private var logEnabled = GLOBAL_LOG_ENABLED_DEFAULT
 
+    // Job for the long-running preference-observation coroutine. Stored so it can be
+    // cancelled on [shutdown] (test isolation) or before re-launching on re-init.
+    private var preferenceCollectionJob: Job? = null
+
     fun initialize(context: Context) {
         if (isInitialized) return
         
@@ -78,11 +83,30 @@ object Logger : CoroutineScope {
         // Subscribe to preference changes so the cached gate updates when the user
         // toggles the setting. Without this the cache stays stale until process
         // restart; manual refreshEnabledState() calls aren't required.
-        launch(LoggerDispatchers.io) {
+        preferenceCollectionJob?.cancel()
+        preferenceCollectionJob = launch(LoggerDispatchers.io) {
             initDeferred.await()
             preferences?.observeBoolean(GLOBAL_LOG_ENABLED_KEY, GLOBAL_LOG_ENABLED_DEFAULT)
                 ?.collect { newValue -> logEnabled = newValue }
         }
+    }
+
+    /**
+     * Cancel the preference-watching coroutine and reset all Logger state.
+     *
+     * **Test-only / cleanup.** Logger is initialized once per process in production.
+     * In Robolectric or same-JVM test suites, call this in `@After` so each test's
+     * `@Before` call to [initialize] starts from a clean slate with no leaked collectors.
+     */
+    fun shutdown() {
+        preferenceCollectionJob?.cancel()
+        preferenceCollectionJob = null
+        isInitialized = false
+        initDeferred = CompletableDeferred()
+        preferences = null
+        genericDao = null
+        logBuffer.clear()
+        logEnabled = GLOBAL_LOG_ENABLED_DEFAULT
     }
 
     /**

@@ -99,6 +99,69 @@ class SessionSegmentDaoTest {
 		)
 	}
 
+	@Test
+	fun `sumDistanceByActivitiesBetween returns full distance for segment fully inside window`() = runBlocking {
+		// Segment [100, 300] fully inside window [0, 400]: fraction = 200/200 = 1.0
+		dao.insert(createSegment(100L, 300L, 200f, DetectedActivity.WALKING.value))
+
+		val result = dao.sumDistanceByActivitiesBetween(0L, 400L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(200L, result)
+	}
+
+	@Test
+	fun `sumDistanceByActivitiesBetween prorates segment straddling from boundary`() = runBlocking {
+		// Segment [0, 200], window [100, 300]: overlap = 100, duration = 200, fraction = 0.5
+		dao.insert(createSegment(0L, 200L, 200f, DetectedActivity.WALKING.value))
+
+		val result = dao.sumDistanceByActivitiesBetween(100L, 300L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(100L, result)
+	}
+
+	@Test
+	fun `sumDistanceByActivitiesBetween prorates segment straddling to boundary`() = runBlocking {
+		// Segment [200, 400], window [100, 300]: overlap = 100, duration = 200, fraction = 0.5
+		dao.insert(createSegment(200L, 400L, 200f, DetectedActivity.WALKING.value))
+
+		val result = dao.sumDistanceByActivitiesBetween(100L, 300L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(100L, result)
+	}
+
+	@Test
+	fun `sumDistanceByActivitiesBetween prorates segment that fully encloses window`() = runBlocking {
+		// Segment [0, 400], window [100, 300]: overlap = 200, duration = 400, fraction = 0.5
+		dao.insert(createSegment(0L, 400L, 400f, DetectedActivity.WALKING.value))
+
+		val result = dao.sumDistanceByActivitiesBetween(100L, 300L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(200L, result)
+	}
+
+	@Test
+	fun `sumDistanceByActivitiesBetween returns zero for segment fully outside window`() = runBlocking {
+		// Segment [400, 600] is entirely after window [0, 300]: WHERE clause excludes it
+		dao.insert(createSegment(400L, 600L, 100f, DetectedActivity.WALKING.value))
+
+		val result = dao.sumDistanceByActivitiesBetween(0L, 300L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(0L, result)
+	}
+
+	@Test
+	fun `countByActivitiesBetween counts each overlapping segment as one regardless of overlap fraction`() = runBlocking {
+		// Fully inside, straddles from, straddles to — all counted as 1 each
+		dao.insert(createSegment(150L, 250L, 50f, DetectedActivity.WALKING.value))   // fully inside [100, 300]
+		dao.insert(createSegment(0L, 150L, 50f, DetectedActivity.WALKING.value))     // straddles from
+		dao.insert(createSegment(250L, 400L, 50f, DetectedActivity.WALKING.value))   // straddles to
+		dao.insert(createSegment(500L, 600L, 50f, DetectedActivity.WALKING.value))   // fully outside
+
+		val result = dao.countByActivitiesBetween(100L, 300L, ON_FOOT_ACTIVITY_TYPES)
+
+		assertEquals(3L, result)
+	}
+
 	private companion object {
 		val ON_FOOT_ACTIVITY_TYPES = listOf(
 			DetectedActivity.WALKING.value,
