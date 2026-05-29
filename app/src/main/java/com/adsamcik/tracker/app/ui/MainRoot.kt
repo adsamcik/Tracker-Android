@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideogameAsset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -317,9 +318,18 @@ fun MainRoot(
     // Spring the content's bottom padding so the inset shrink/grow matches the
     // bar's enter/exit slide. Otherwise the content would jump while the bar
     // smoothly slides off-screen.
+    // Use DampingRatioNoBouncy (critically damped, 1.0f) instead of an
+    // under-damped spring: layout values must never overshoot below zero,
+    // since Compose's padding() rejects negative dp with
+    // IllegalArgumentException. A critically damped spring still feels smooth
+    // — the visual difference vs. 0.9f is imperceptible — but it eliminates
+    // the transient negative-value frame at the source.
     val bottomPadding by animateDpAsState(
         targetValue = bottomPaddingTarget,
-        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "navBottomPadding",
     )
 
@@ -369,11 +379,11 @@ fun MainRoot(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(state = hazeState)
-                    // Coerce: animateDpAsState with the under-damped spring above
-                    // overshoots when bottomPadding transitions 96.dp → 0.dp
-                    // (e.g. opening a destination that hides the bottom nav),
-                    // producing a transient negative value that crashes padding().
-                    .padding(bottom = bottomPadding.coerceAtLeast(0.dp))
+                    // Defense-in-depth: even though the spring above is now
+                    // critically damped, [toSafeBottomPadding] guarantees no
+                    // negative value ever reaches padding() if a future change
+                    // reintroduces an under-damped spring or a different anim.
+                    .padding(bottom = bottomPadding.toSafeBottomPadding())
             ) {
                 setupGraph(
                     navController = navController,
@@ -478,3 +488,11 @@ fun MainRoot(
         }
     }
 }
+
+/**
+ * Compose's [Modifier.padding] rejects negative values with
+ * IllegalArgumentException. Animated padding values (especially from
+ * springs) can transiently dip below zero during interpolation, so all
+ * animated padding inputs in this file flow through this coerce.
+ */
+internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
