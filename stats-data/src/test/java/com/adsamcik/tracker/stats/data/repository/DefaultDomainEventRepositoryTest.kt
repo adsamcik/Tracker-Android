@@ -49,12 +49,12 @@ class DefaultDomainEventRepositoryTest {
 		coEvery { dao.getCursor(any()) } returns null
 		coEvery { dao.getUnconsumedBatchSeek(any(), any(), any()) } returns entitySlot.captured
 
-		val result = repo.getUnconsumedBatch(
+		val result = repo.getUnconsumedBatchWithIds(
 			consumerId = "test-consumer",
 			limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 		)
 		result shouldHaveSize 1
-		result.first() shouldBe event
+		result.first().event shouldBe event
 	}
 
 	@Test

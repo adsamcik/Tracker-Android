@@ -43,6 +43,7 @@ interface DomainEventRepository {
 		message = "Same-ms event-skip risk when paired with timestamp-only ack. " +
 			"Use getUnconsumedBatchWithIds + markBatchConsumed for precise composite-cursor consumption.",
 		replaceWith = ReplaceWith("getUnconsumedBatchWithIds(consumerId, limit).map { it.event }"),
+		level = DeprecationLevel.ERROR,
 	)
 	suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent>
 
@@ -66,6 +67,7 @@ interface DomainEventRepository {
 			"skipping every same-ms event beyond the batch limit. " +
 			"No safe drop-in replacement exists — migrate the full fetch+ack pair: " +
 			"getUnconsumedBatchWithIds then markBatchConsumed with the last event's actual id.",
+		level = DeprecationLevel.ERROR,
 	)
 	suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs)
 

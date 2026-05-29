@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
@@ -197,8 +198,15 @@ class TrackingOrchestratorIntegrationTest {
 		}
 
 		override fun observeEvents(since: EpochMs): Flow<List<DomainEvent>> = emptyFlow()
-		override suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent> = emptyList()
-		override suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs) = Unit
+		override suspend fun getUnconsumedBatchWithIds(
+			consumerId: String,
+			limit: Int,
+		): List<UnconsumedEvent> = emptyList()
+		override suspend fun markBatchConsumed(
+			consumerId: String,
+			upToTimestamp: EpochMs,
+			upToEventId: Long,
+		) = Unit
 	}
 
 	private class FakeTrackingParamsRepository(

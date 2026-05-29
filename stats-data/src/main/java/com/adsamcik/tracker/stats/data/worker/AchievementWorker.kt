@@ -8,10 +8,11 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
+import com.adsamcik.tracker.stats.api.rule.AchievementRules
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import com.adsamcik.tracker.stats.api.rule.RuleTarget
-import com.adsamcik.tracker.stats.data.achievement.AchievementRuleRegistry
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -35,14 +36,14 @@ class AchievementWorker @AssistedInject constructor(
 	@Assisted params: WorkerParameters,
 	private val metricsProvider: AchievementMetricsProvider,
 	private val achievementDao: AchievementProgressDao,
-	private val achievementRuleRegistry: AchievementRuleRegistry,
+	@AchievementRules private val registry: RuleRegistry,
 ) : CoroutineWorker(context, params) {
 
 	private val ruleEvaluator = RuleEvaluator()
 
 	override suspend fun doWork(): Result {
 		val metrics = metricsProvider.collect()
-		val instances = achievementRuleRegistry.allInstances()
+		val instances = registry.allInstances()
 		val now = System.currentTimeMillis()
 
 		for (instance in instances) {
