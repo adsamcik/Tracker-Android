@@ -94,16 +94,25 @@ fun MapChromeHost(
 		}
 	)
 
-	// Inset handling: keyboard (ime) can be larger than the nav bar, take the max so the
-	// control bar lifts above whichever is showing.
+	// Inset handling. The caller (MapNavGraph) already accounts for the floating bottom
+	// nav bar AND the system navigation-bar inset in `bottomInsetPx` (see MapNavGraph:
+	// PaddingValues(bottom = 96.dp + navBarPad)). Re-adding `systemBottomDp` here would
+	// push the chrome ~navInset+nav-bar-height above where it should sit, which is what
+	// produced the visible "map controls float halfway up the screen" bug.
+	//
+	// We only need to override that when the IME is taller than what the caller reserved
+	// (keyboard open) so the search field doesn't disappear under the keyboard.
 	val imeBottom = WindowInsets.ime.getBottom(density)
 	val navBottom = WindowInsets.navigationBars.getBottom(density)
 	val systemBottomPx = maxOf(imeBottom, navBottom)
 	val systemBottomDp = with(density) { systemBottomPx.toDp() }
 	val extraBottomDp = with(density) { bottomInsetPx.toDp() }
 	// Sit just above the global floating nav bar. Only 4dp gap — the card and the nav pill
-	// read as a stacked pair rather than two disconnected islands.
-	val controlStripBottomDp = extraBottomDp + systemBottomDp + 4.dp
+	// read as a stacked pair rather than two disconnected islands. When the IME pushes
+	// higher than the caller-provided inset, lift above the IME by that delta.
+	val imeOverflowPx = (imeBottom - bottomInsetPx).coerceAtLeast(0)
+	val imeOverflowDp = with(density) { imeOverflowPx.toDp() }
+	val controlStripBottomDp = imeOverflowDp + 4.dp
 
 	// Report the height the map should keep clear so map attribution/content doesn't sit
 	// behind the chrome. Stack is: search pill 56dp + 8dp gap + chip row 40dp = ~104dp,
