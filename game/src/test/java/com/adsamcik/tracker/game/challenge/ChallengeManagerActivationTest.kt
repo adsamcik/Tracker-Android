@@ -4,6 +4,8 @@ import android.content.Context
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFoldResult
 import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
 import com.adsamcik.tracker.shared.base.database.dao.ChallengeHistoryDao
 import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
@@ -47,6 +49,7 @@ class ChallengeManagerActivationTest {
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var historyDao: ChallengeHistoryDao
 	private lateinit var engine: ChallengeEngine
+	private lateinit var challengeDatabaseFold: ChallengeDatabaseFold
 	private lateinit var mockContext: Context
 	private lateinit var inserted: MutableList<ChallengeEntity>
 
@@ -55,6 +58,8 @@ class ChallengeManagerActivationTest {
 		mockContext = mockk(relaxed = true)
 		progressionRepository = mockk(relaxed = true)
 		engine = mockk(relaxed = true)
+		challengeDatabaseFold = mockk(relaxed = true)
+		coEvery { challengeDatabaseFold.awaitComplete() } returns ChallengeDatabaseFoldResult.NO_LEGACY_DATABASE
 		inserted = mutableListOf()
 		val idSeq = AtomicLong(1L)
 
@@ -88,6 +93,7 @@ class ChallengeManagerActivationTest {
 		dispatchers = TestDispatchersProvider(StandardTestDispatcher(scheduler)),
 		challengeDatabase = challengeDatabase,
 		engine = engine,
+		challengeDatabaseFold = challengeDatabaseFold,
 	)
 
 	@Test

@@ -171,7 +171,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
-				challengeDatabaseFoldProvider.get().foldIfNeeded()
+				challengeDatabaseFoldProvider.get().awaitComplete()
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}

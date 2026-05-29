@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFoldResult
 import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
 import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
@@ -33,6 +35,7 @@ class ChallengeEngineTest {
 	private lateinit var registry: ChallengeRuleRegistry
 	private lateinit var metrics: WindowedMetricsProvider
 	private lateinit var progression: ProgressionRepository
+	private lateinit var challengeDatabaseFold: ChallengeDatabaseFold
 
 	@BeforeEach
 	fun setup() {
@@ -40,6 +43,8 @@ class ChallengeEngineTest {
 		challengeDao = mockk(relaxed = true)
 		metrics = mockk(relaxed = true)
 		progression = mockk(relaxed = true)
+		challengeDatabaseFold = mockk(relaxed = true)
+		coEvery { challengeDatabaseFold.awaitComplete() } returns ChallengeDatabaseFoldResult.NO_LEGACY_DATABASE
 		every { database.challengeDao() } returns challengeDao
 		mockkStatic("androidx.room.RoomDatabaseKt")
 		coEvery {
@@ -55,7 +60,7 @@ class ChallengeEngineTest {
 		// `coEvery { challengeDao.getActive(...) } returns [entities]` stub feeds the
 		// only DAO read via stubActiveEntities().
 		registry = ChallengeRuleRegistry(database)
-		engine = ChallengeEngine(database, registry, metrics, progression)
+		engine = ChallengeEngine(database, registry, metrics, progression, challengeDatabaseFold)
 	}
 
 	/**

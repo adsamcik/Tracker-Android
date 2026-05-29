@@ -113,24 +113,24 @@ class ProgressionRepository @Inject constructor(
 	}
 
 	/**
-	 * Called when challenges expire (batch).
-	 * Records history for each, updates streak (freeze or break).
+	 * Called when challenges expire.
 	 *
-	 * Wrapped in a single Room transaction so the history inserts and the streak read-
-	 * modify-write commit atomically. Without this, a concurrent `onChallengeCompleted`
-	 * could interleave between the streak read and write and silently lose its increment.
+	 * Reads the expired rows inside the same Room transaction that writes expiry history
+	 * and streak state. That fresh transactional read is the claim step: challenges that
+	 * completed before the transaction starts are excluded, and claimed expired rows are
+	 * deleted after history is written so a retry cannot emit duplicate expiry effects.
 	 */
-	suspend fun onChallengesExpired(
-		expired: List<ChallengeInstanceNew>,
-	): ExpiryResult {
+	suspend fun onActiveChallengesExpiredAt(now: Long): ExpiryResult {
 		val database = challengeDatabase
 
-		var streakResult: Pair<ChallengeStreakEntity, Boolean> =
-			ChallengeStreakEntity() to false
+		var expiredCount = 0
+		var streakResult: Pair<ChallengeStreakEntity, Boolean> = ChallengeStreakEntity() to false
 		database.withTransaction {
-			// Record each expired challenge in history
-			expired.forEach { instance ->
-				val entity = instance.entity
+			val expired = database.challengeDao().getActiveExpiredAt(now)
+			expiredCount = expired.size
+			if (expired.isEmpty()) return@withTransaction
+
+			expired.forEach { entity ->
 				val historyEntry = ChallengeHistoryEntity(
 					challengeType = entity.type.name,
 					difficulty = entity.difficulty.name,
@@ -147,19 +147,19 @@ class ProgressionRepository @Inject constructor(
 				database.challengeHistoryDao().insert(historyEntry)
 			}
 
-			// Update streak inside the same transaction so a racing onChallengeCompleted
-			// can't slip an increment between this read-modify-write.
 			streakResult = streakManager.onChallengesExpired(database)
+			expired.forEach { entity -> database.challengeDao().deleteById(entity.id) }
 		}
 
 		val (streak, froze) = streakResult
 		return ExpiryResult(
-			expiredCount = expired.size,
-			streakBroken = !froze && expired.isNotEmpty(),
+			expiredCount = expiredCount,
+			streakBroken = !froze && expiredCount > 0,
 			freezeUsed = froze,
 			currentStreak = streak.currentCount,
 		)
 	}
+
 
 	/**
 	 * Called after a tracking session to award passive XP.

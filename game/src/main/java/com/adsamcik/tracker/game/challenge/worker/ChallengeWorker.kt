@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.extension.notificationManager
@@ -24,6 +25,7 @@ internal class ChallengeWorker @AssistedInject constructor(
 		@Assisted workerParams: WorkerParameters,
 		private val appDatabase: AppDatabase,
 		private val challengeManager: ChallengeManager,
+		private val challengeDatabaseFold: ChallengeDatabaseFold,
 ) : CoroutineWorker(
 		context,
 		workerParams,
@@ -34,6 +36,7 @@ internal class ChallengeWorker @AssistedInject constructor(
 		val applicationContext = applicationContext
 
 		logGame(LogData(message = "Started Challenge Worker", source = CHALLENGE_LOG_SOURCE))
+		challengeDatabaseFold.awaitComplete()
 
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()

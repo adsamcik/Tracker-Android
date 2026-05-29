@@ -7,6 +7,7 @@ import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
 import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.engine.ChallengeEngine
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
@@ -53,6 +54,7 @@ class ChallengeManager @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val challengeDatabase: AppDatabase,
 	private val engine: ChallengeEngine,
+	private val challengeDatabaseFold: ChallengeDatabaseFold,
 ) {
 	private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 
@@ -89,6 +91,7 @@ class ChallengeManager @Inject constructor(
 	 */
 	@AnyThread
 	suspend fun awaitReady(context: Context) {
+		challengeDatabaseFold.awaitComplete()
 		while (true) {
 			val loadingJob = stateMutex.withLock {
 				when (val s = state) {
@@ -232,17 +235,9 @@ class ChallengeManager @Inject constructor(
 		awaitReady(context)
 		val now = Time.nowMillis
 
-		// Snapshot the expired list under the lock so we have a stable view,
-		// then release the lock for the progression write (which has its own
-		// transaction, see ProgressionRepository.onChallengesExpired). Re-acquire
-		// only for the in-memory list update + slot refill. This keeps unrelated
-		// processSession callers from stalling on a multi-second progression batch.
-		val expired = lock.withLock {
-			activeChallengeList.filter { it.entity.endTime <= now && !it.isCompleted }
-		}
-		if (expired.isEmpty()) return
+		val result = progressionRepository.onActiveChallengesExpiredAt(now)
+		if (result.expiredCount == 0) return
 
-		val result = progressionRepository.onChallengesExpired(expired)
 		logGame(
 			LogData(
 				message = "Expired ${result.expiredCount} challenges. Streak broken=${result.streakBroken}, freeze used=${result.freezeUsed}",
@@ -250,11 +245,10 @@ class ChallengeManager @Inject constructor(
 			)
 		)
 
+		val refreshed = loadFromDb()
 		lock.withLock {
-			// Re-filter under the lock in case completion/expiry state moved between
-			// snapshot and re-acquire (processSession could have completed one of them).
-			val stillExpired = activeChallengeList.filter { it.entity.endTime <= now && !it.isCompleted }
-			activeChallengeList.removeAll((expired + stillExpired).toSet())
+			activeChallengeList.clear()
+			activeChallengeList.addAll(refreshed)
 			fillEmptyChallengeSlotsLocked(context)
 			_activeChallenges.value = activeChallengeList.toList()
 		}

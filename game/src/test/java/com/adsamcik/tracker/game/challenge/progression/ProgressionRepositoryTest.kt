@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.game.challenge.data.XpSource
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeDifficulty
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.data.ChallengeType
 import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -66,6 +69,48 @@ class ProgressionRepositoryTest {
 		database.xpLedgerDao().getTotalXp() shouldBe XpCalculator.DAILY_CAP.toLong()
 		database.xpLedgerDao().getRecent(limit = 10).size shouldBe 2
 	}
+
+	@Test
+	fun `expiry claim is idempotent and deletes processed active rows`() = runTest {
+		val now = Time.nowMillis
+		val id = database.challengeDao().insert(expiredChallenge(now))
+
+		val first = repository.onActiveChallengesExpiredAt(now)
+		val second = repository.onActiveChallengesExpiredAt(now)
+
+		first.expiredCount shouldBe 1
+		first.streakBroken shouldBe true
+		second.expiredCount shouldBe 0
+		database.challengeDao().get(id) shouldBe null
+		val history = database.challengeHistoryDao().getAll()
+		history.size shouldBe 1
+		history.single().originalChallengeId shouldBe id
+		history.single().outcome shouldBe "EXPIRED"
+	}
+
+	@Test
+	fun `expiry claim ignores challenge completed before transaction read`() = runTest {
+		val now = Time.nowMillis
+		val id = database.challengeDao().insert(expiredChallenge(now))
+		val completed = database.challengeDao().get(id)!!.copy(isCompleted = true, currentValue = 100.0)
+		database.challengeDao().update(completed)
+
+		val result = repository.onActiveChallengesExpiredAt(now)
+
+		result.expiredCount shouldBe 0
+		database.challengeHistoryDao().getAll() shouldBe emptyList()
+		database.challengeDao().get(id)!!.isCompleted shouldBe true
+	}
+
+	private fun expiredChallenge(now: Long): ChallengeEntity = ChallengeEntity(
+		type = ChallengeType.Step,
+		startTime = now - 10_000L,
+		endTime = now - 1_000L,
+		difficulty = ChallengeDifficulty.MEDIUM,
+		requiredValue = 100.0,
+		currentValue = 10.0,
+		isCompleted = false,
+	)
 
 	private fun highValueSession(id: Long): TrackerSession = TrackerSession(
 		id = id,

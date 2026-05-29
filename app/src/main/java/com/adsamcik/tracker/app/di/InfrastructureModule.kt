@@ -138,6 +138,15 @@ object InfrastructureModule {
             override suspend fun markComplete() {
                 preferences.editSuspend { setBoolean(ChallengeDatabaseFold.MARKER_KEY, true) }
             }
+
+            override suspend fun isLegacyDataUnrecoverable(): Boolean =
+                preferences.fetchBoolean(ChallengeDatabaseFold.UNRECOVERABLE_MARKER_KEY, default = false)
+
+            override suspend fun markLegacyDataUnrecoverable() {
+                preferences.editSuspend {
+                    setBoolean(ChallengeDatabaseFold.UNRECOVERABLE_MARKER_KEY, true)
+                }
+            }
         }
 
     @Provides

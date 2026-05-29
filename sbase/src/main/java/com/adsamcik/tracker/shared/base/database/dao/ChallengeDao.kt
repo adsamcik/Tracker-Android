@@ -10,6 +10,9 @@ interface ChallengeDao : BaseDao<ChallengeEntity> {
 	@Query("SELECT * FROM challenge WHERE end_time > :now AND is_completed = 0")
 	suspend fun getActive(now: Long): List<ChallengeEntity>
 
+	@Query("SELECT * FROM challenge WHERE end_time <= :now AND is_completed = 0")
+	suspend fun getActiveExpiredAt(now: Long): List<ChallengeEntity>
+
 	@Query("SELECT * FROM challenge WHERE id = :id")
 	suspend fun get(id: Long): ChallengeEntity?
 

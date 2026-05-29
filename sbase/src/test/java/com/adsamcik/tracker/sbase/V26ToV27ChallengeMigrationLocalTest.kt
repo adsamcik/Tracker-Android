@@ -166,19 +166,74 @@ class V26ToV27ChallengeMigrationLocalTest {
 	}
 
 	@Test
-	fun fold_abortsWhenLegacyTablesAreNonEmpty() = runTest {
+	fun fold_copiesPreV8LegacyTypedTables() = runTest {
 		appDatabase = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
 			.allowMainThreadQueries()
 			.build()
 		val marker = FakeFoldMarker()
-		seedLegacyChallengeDatabaseWithNonEmptyDeadTables()
+		seedPreV8LegacyChallengeDatabase()
 
-		val result = ChallengeDatabaseFold(application, appDatabase!!, marker).foldIfNeeded()
+		val fold = ChallengeDatabaseFold(application, appDatabase!!, marker)
+		val result = fold.foldIfNeeded()
 
-		assertEquals(ChallengeDatabaseFoldResult.LEGACY_TABLES_NOT_EMPTY, result)
-		assertFalse(marker.complete)
-		assertTrue(application.getDatabasePath(ChallengeDatabaseFold.DATABASE_NAME).exists())
-		assertFalse(legacyBackupFile().exists())
+		assertEquals(ChallengeDatabaseFoldResult.COPIED, result, fold.lastFailure?.stackTraceToString())
+		assertTrue(marker.complete)
+		assertFalse(marker.unrecoverable)
+		assertFalse(application.getDatabasePath(ChallengeDatabaseFold.DATABASE_NAME).exists())
+		assertTrue(legacyBackupFile().exists())
+
+		val rows = queryRows(
+			"SELECT id, type, difficulty, required_value, current_value, is_completed FROM challenge ORDER BY type"
+		)
+		assertEquals(4, rows.size)
+		val byType = rows.associateBy { it.getString("type") }
+		assertEquals(5.0, byType.getValue("Explorer").getDouble("required_value"), 0.0)
+		assertEquals(5.0, byType.getValue("Explorer").getDouble("current_value"), 0.0)
+		assertEquals(1L, byType.getValue("Explorer").getLong("is_completed"))
+		assertEquals(1000.0, byType.getValue("Step").getDouble("required_value"), 0.0)
+		assertEquals(250.0, byType.getValue("Step").getDouble("current_value"), 0.0)
+		assertEquals(5000.0, byType.getValue("WalkDistance").getDouble("required_value"), 0.0)
+		assertEquals(1200.0, byType.getValue("WalkDistance").getDouble("current_value"), 0.0)
+		assertEquals(60.0, byType.getValue("ActiveTime").getDouble("required_value"), 0.0)
+		assertEquals(30.0, byType.getValue("ActiveTime").getDouble("current_value"), 0.0)
+		assertEquals("EASY", byType.getValue("Explorer").getString("difficulty"))
+		assertEquals("MEDIUM", byType.getValue("Step").getString("difficulty"))
+
+		val history = queryRows(
+			"SELECT challenge_type, outcome, completed_at, progress_value, target_value, original_challenge_id FROM challenge_history ORDER BY challenge_type"
+		)
+		assertEquals(2, history.size)
+		val historyByType = history.associateBy { it.getString("challenge_type") }
+		assertEquals("EXPIRED", historyByType.getValue("ActiveTime").getString("outcome"))
+		assertEquals("COMPLETED", historyByType.getValue("Explorer").getString("outcome"))
+		assertEquals(byType.getValue("Explorer").getLong("id"), historyByType.getValue("Explorer").getLong("original_challenge_id"))
+
+		SQLiteDatabase.openDatabase(legacyBackupFile().absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { backup ->
+			LEGACY_TABLES.forEach { table ->
+				assertFalse(backup.tableExists(table), "Expected legacy table $table to be dropped before backup")
+			}
+		}
+	}
+
+	@Test
+	fun fold_copiesPreV8RowsEvenWhenUnifiedChallengeTableHasRows() = runTest {
+		appDatabase = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
+			.allowMainThreadQueries()
+			.build()
+		val marker = FakeFoldMarker()
+		seedMixedUnifiedAndPreV8LegacyChallengeDatabase()
+
+		val fold = ChallengeDatabaseFold(application, appDatabase!!, marker)
+		val result = fold.foldIfNeeded()
+
+		assertEquals(ChallengeDatabaseFoldResult.COPIED, result, fold.lastFailure?.stackTraceToString())
+		val byType = queryRows(
+			"SELECT type, required_value, current_value FROM challenge ORDER BY type"
+		).associateBy { it.getString("type") }
+		assertEquals(setOf("Step", "WalkDistance"), byType.keys)
+		assertEquals(123.0, byType.getValue("Step").getDouble("current_value"), 0.0)
+		assertEquals(9000.0, byType.getValue("WalkDistance").getDouble("required_value"), 0.0)
+		assertTrue(marker.complete)
 	}
 
 	@Test
@@ -321,15 +376,76 @@ class V26ToV27ChallengeMigrationLocalTest {
 		}
 	}
 
-	private fun seedLegacyChallengeDatabaseWithNonEmptyDeadTables() {
+	private fun seedPreV8LegacyChallengeDatabase() {
 		val file = application.getDatabasePath(ChallengeDatabaseFold.DATABASE_NAME)
 		file.parentFile?.mkdirs()
 		SQLiteDatabase.openOrCreateDatabase(file, null).use { legacy ->
-			createLegacyDeadTables(legacy)
+			createPreV8LegacyTables(legacy)
 			legacy.execSQL(
 				"""
-				INSERT INTO entry (type, start_time, end_time, difficulty)
-				VALUES ('Step', 1, 2, 'MEDIUM')
+				INSERT INTO challenge_session_data (id, challenge_processed)
+				VALUES (99, 1)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO entry (id, type, start_time, end_time, difficulty) VALUES
+				(1, 0, 100, 200, 1),
+				(2, 1, 100, 4102444800000, 3),
+				(3, 2, 100, 4102444800000, 2),
+				(4, 3, 100, 200, 4)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge_explorer (required_location_count, location_count, entry_id, completed)
+				VALUES (5, 5, 1, 1)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge_walk_distance (required_distance, distance, entry_id, completed)
+				VALUES (5000.0, 1200.0, 2, 0)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge_step (requiredStepCount, stepCount, entry_id, completed)
+				VALUES (1000, 250, 3, 0)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge_active_time (activeTimeInMinutes, requiredActiveTimeInMinutes, entry_id, completed)
+				VALUES (30, 60, 4, 0)
+				""".trimIndent()
+			)
+		}
+	}
+
+	private fun seedMixedUnifiedAndPreV8LegacyChallengeDatabase() {
+		val file = application.getDatabasePath(ChallengeDatabaseFold.DATABASE_NAME)
+		file.parentFile?.mkdirs()
+		SQLiteDatabase.openOrCreateDatabase(file, null).use { legacy ->
+			createLegacyActiveTables(legacy)
+			createPreV8LegacyTables(legacy)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge (id, type, start_time, end_time, difficulty, required_value,
+				current_value, is_completed, extra_json)
+				VALUES (5, 'Step', 100, 4102444800000, 'MEDIUM', 200.0, 123.0, 0, NULL)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO entry (id, type, start_time, end_time, difficulty)
+				VALUES (10, 1, 100, 4102444800000, 2)
+				""".trimIndent()
+			)
+			legacy.execSQL(
+				"""
+				INSERT INTO challenge_walk_distance (required_distance, distance, entry_id, completed)
+				VALUES (9000.0, 4500.0, 10, 0)
 				""".trimIndent()
 			)
 		}
@@ -424,6 +540,15 @@ class V26ToV27ChallengeMigrationLocalTest {
 		db.execSQL("CREATE TABLE challenge_active_time (activeTimeInMinutes INTEGER NOT NULL, requiredActiveTimeInMinutes INTEGER NOT NULL, entry_id INTEGER NOT NULL, completed INTEGER NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)")
 	}
 
+	private fun createPreV8LegacyTables(db: SQLiteDatabase) {
+		db.execSQL("CREATE TABLE challenge_session_data (id INTEGER NOT NULL, challenge_processed INTEGER NOT NULL, PRIMARY KEY(id))")
+		db.execSQL("CREATE TABLE entry (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type INTEGER NOT NULL, start_time INTEGER NOT NULL, end_time INTEGER NOT NULL, difficulty INTEGER NOT NULL)")
+		db.execSQL("CREATE TABLE challenge_explorer (required_location_count INTEGER NOT NULL, location_count INTEGER NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, entry_id INTEGER NOT NULL, completed INTEGER NOT NULL)")
+		db.execSQL("CREATE TABLE challenge_walk_distance (required_distance REAL NOT NULL, distance REAL NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, entry_id INTEGER NOT NULL, completed INTEGER NOT NULL)")
+		db.execSQL("CREATE TABLE challenge_step (requiredStepCount INTEGER NOT NULL, stepCount INTEGER NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, entry_id INTEGER NOT NULL, completed INTEGER NOT NULL)")
+		db.execSQL("CREATE TABLE challenge_active_time (activeTimeInMinutes INTEGER NOT NULL, requiredActiveTimeInMinutes INTEGER NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, entry_id INTEGER NOT NULL, completed INTEGER NOT NULL)")
+	}
+
 	private fun tableExists(table: String): Boolean =
 		db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", arrayOf<Any?>(table))
 			.use { cursor -> cursor.moveToFirst() }
@@ -459,18 +584,24 @@ class V26ToV27ChallengeMigrationLocalTest {
 		}
 
 	private fun querySingleRow(sql: String): Row =
+		queryRows(sql).also { rows -> assertTrue(rows.isNotEmpty(), "Expected one row for $sql") }.first()
+
+	private fun queryRows(sql: String): List<Row> =
 		appDatabase!!.openHelper.writableDatabase.query(sql).use { cursor ->
-			assertTrue(cursor.moveToFirst(), "Expected one row for $sql")
-			val values = (0 until cursor.columnCount).associate { index ->
-				cursor.getColumnName(index) to when (cursor.getType(index)) {
-					android.database.Cursor.FIELD_TYPE_INTEGER -> cursor.getLong(index)
-					android.database.Cursor.FIELD_TYPE_FLOAT -> cursor.getDouble(index)
-					android.database.Cursor.FIELD_TYPE_STRING -> cursor.getString(index)
-					android.database.Cursor.FIELD_TYPE_NULL -> null
-					else -> cursor.getBlob(index)
+			buildList {
+				while (cursor.moveToNext()) {
+					val values = (0 until cursor.columnCount).associate { index ->
+						cursor.getColumnName(index) to when (cursor.getType(index)) {
+							android.database.Cursor.FIELD_TYPE_INTEGER -> cursor.getLong(index)
+							android.database.Cursor.FIELD_TYPE_FLOAT -> cursor.getDouble(index)
+							android.database.Cursor.FIELD_TYPE_STRING -> cursor.getString(index)
+							android.database.Cursor.FIELD_TYPE_NULL -> null
+							else -> cursor.getBlob(index)
+						}
+					}
+					add(Row(values))
 				}
 			}
-			Row(values)
 		}
 
 	private fun deleteLegacyChallengeFiles() {
@@ -495,12 +626,19 @@ class V26ToV27ChallengeMigrationLocalTest {
 
 	private class FakeFoldMarker(
 		var complete: Boolean = false,
+		var unrecoverable: Boolean = false,
 	) : ChallengeDatabaseFoldMarker {
 
 		override suspend fun isComplete(): Boolean = complete
 
 		override suspend fun markComplete() {
 			complete = true
+		}
+
+		override suspend fun isLegacyDataUnrecoverable(): Boolean = unrecoverable
+
+		override suspend fun markLegacyDataUnrecoverable() {
+			unrecoverable = true
 		}
 	}
 

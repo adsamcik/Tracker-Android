@@ -2,8 +2,11 @@ package com.adsamcik.tracker.game.challenge
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFoldResult
 import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
 import com.adsamcik.tracker.game.challenge.engine.ChallengeEngine
+import com.adsamcik.tracker.game.challenge.progression.ExpiryResult
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
@@ -39,6 +42,7 @@ class ChallengeManagerStateMachineTest {
 	private lateinit var challengeDatabase: AppDatabase
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var engine: ChallengeEngine
+	private lateinit var challengeDatabaseFold: ChallengeDatabaseFold
 	private lateinit var mockContext: Context
 
 	@BeforeEach
@@ -50,6 +54,9 @@ class ChallengeManagerStateMachineTest {
 			every { challengeDao() } returns challengeDao
 		}
 		engine = mockk(relaxed = true)
+		challengeDatabaseFold = mockk(relaxed = true)
+		coEvery { challengeDatabaseFold.awaitComplete() } returns ChallengeDatabaseFoldResult.NO_LEGACY_DATABASE
+		coEvery { progressionRepository.onActiveChallengesExpiredAt(any()) } returns ExpiryResult(0, false, false, 0)
 		// Activation now goes through the catalog (post p2-4), so the manager fills
 		// empty slots and schedules a WorkManager job. Stub the static schedule call
 		// so tests don't need a real WorkManager.
@@ -67,6 +74,7 @@ class ChallengeManagerStateMachineTest {
 		dispatchers = TestDispatchersProvider(dispatcher),
 		challengeDatabase = challengeDatabase,
 		engine = engine,
+		challengeDatabaseFold = challengeDatabaseFold,
 	)
 
 	private fun makeSession() = TrackerSession(
@@ -185,6 +193,37 @@ class ChallengeManagerStateMachineTest {
 		advanceUntilIdle()
 
 		// DB should only be queried once across all calls
+		coVerify(exactly = 1) { challengeDao.getActive(any()) }
+	}
+
+	@Test
+	@DisplayName("awaitReady waits for challenge database fold")
+	fun `awaitReady waits for challenge database fold`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val manager = makeManager(dispatcher)
+
+		val gate = CompletableDeferred<Unit>()
+		coEvery { challengeDatabaseFold.awaitComplete() } coAnswers {
+			gate.await()
+			ChallengeDatabaseFoldResult.NO_LEGACY_DATABASE
+		}
+		coEvery { challengeDao.getActive(any()) } returns emptyList()
+
+		var awaitReadyCompleted = false
+		val job = launch {
+			manager.awaitReady(mockContext)
+			awaitReadyCompleted = true
+		}
+
+		advanceUntilIdle()
+		awaitReadyCompleted shouldBe false
+		coVerify(exactly = 0) { challengeDao.getActive(any()) }
+
+		gate.complete(Unit)
+		advanceUntilIdle()
+		job.join()
+
+		awaitReadyCompleted shouldBe true
 		coVerify(exactly = 1) { challengeDao.getActive(any()) }
 	}
 

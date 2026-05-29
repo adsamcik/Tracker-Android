@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
 import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.logger.LogData
@@ -47,6 +48,7 @@ class ChallengeEngine @Inject constructor(
 	@ChallengeRules private val registry: RuleRegistry,
 	private val metrics: WindowedMetricsProvider,
 	private val progression: ProgressionRepository,
+	private val challengeDatabaseFold: ChallengeDatabaseFold,
 ) {
 
 	// Stateless and allocation-free in steady state — instantiated once, shared across calls.
@@ -67,6 +69,7 @@ class ChallengeEngine @Inject constructor(
 	suspend fun applySession(
 		session: TrackerSession,
 	): EngineResult {
+		challengeDatabaseFold.awaitComplete()
 		val instances = registry.allInstances()
 
 		if (instances.isEmpty()) {
