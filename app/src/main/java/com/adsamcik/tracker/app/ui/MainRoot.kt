@@ -369,7 +369,11 @@ fun MainRoot(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(state = hazeState)
-                    .padding(bottom = bottomPadding)
+                    // Coerce: animateDpAsState with the under-damped spring above
+                    // overshoots when bottomPadding transitions 96.dp → 0.dp
+                    // (e.g. opening a destination that hides the bottom nav),
+                    // producing a transient negative value that crashes padding().
+                    .padding(bottom = bottomPadding.coerceAtLeast(0.dp))
             ) {
                 setupGraph(
                     navController = navController,
