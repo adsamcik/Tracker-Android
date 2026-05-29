@@ -1,11 +1,7 @@
 package com.adsamcik.tracker.statistics.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +12,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,8 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.AlertDialog
@@ -373,11 +366,7 @@ private fun TripOverview(
 			elevationGain = elevationGainText,
 			elevationLoss = elevationLossText,
 			maxAltitude = maxAltitudeText,
-		)
-		DeveloperMetrics(
-			trip = trip,
-			insights = insights,
-			maxAltitudeText = maxAltitudeText,
+			sampleCount = trip.sampleCount,
 		)
 
 		if (skiSegments.isNotEmpty()) {
@@ -474,6 +463,7 @@ private fun TripFactsCard(
 	elevationGain: String,
 	elevationLoss: String,
 	maxAltitude: String,
+	sampleCount: Int,
 ) {
 	GlassCard(modifier = Modifier.fillMaxWidth()) {
 		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -505,6 +495,10 @@ private fun TripFactsCard(
 				label = stringResource(R.string.trip_detail_max_altitude),
 				value = maxAltitude,
 			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_samples),
+				value = sampleCount.toString(),
+			)
 		}
 	}
 }
@@ -526,61 +520,6 @@ private fun FactRow(
 			style = MaterialTheme.typography.bodyLarge,
 			color = MaterialTheme.colorScheme.onSurface
 		)
-	}
-}
-
-@Composable
-private fun DeveloperMetrics(
-	trip: TripSummary,
-	insights: TripDetailInsights,
-	maxAltitudeText: String,
-) {
-	var expanded by remember { mutableStateOf(false) }
-
-	Row(
-		modifier = Modifier
-			.fillMaxWidth()
-			.heightIn(min = 48.dp)
-			.clickable { expanded = !expanded }
-			.padding(horizontal = 8.dp, vertical = 4.dp),
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.Center
-	) {
-		Text(
-			text = stringResource(
-				if (expanded) R.string.trip_detail_hide_details
-				else R.string.trip_detail_show_details
-			),
-			style = MaterialTheme.typography.labelMedium,
-			color = MaterialTheme.colorScheme.onSurface
-		)
-		Icon(
-			imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-			contentDescription = null,
-			modifier = Modifier.size(20.dp),
-			tint = MaterialTheme.colorScheme.onSurface
-		)
-	}
-
-	AnimatedVisibility(
-		visible = expanded,
-		enter = expandVertically(),
-		exit = shrinkVertically()
-	) {
-		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-			MetricRow(
-				firstLabel = stringResource(R.string.trip_detail_samples),
-				firstValue = trip.sampleCount.toString(),
-				secondLabel = stringResource(R.string.trip_detail_source),
-				secondValue = insights.sourceLabel,
-			)
-			MetricRow(
-				firstLabel = stringResource(R.string.trip_detail_activity_type),
-				firstValue = insights.activityType,
-				secondLabel = stringResource(R.string.trip_detail_max_altitude),
-				secondValue = maxAltitudeText,
-			)
-		}
 	}
 }
 

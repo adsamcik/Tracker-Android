@@ -140,8 +140,6 @@
     <string name="trip_detail_delete_confirm_message">This trip will be permanently deleted.</string>
     <string name="trip_detail_delete_confirm">Delete</string>
     <string name="trip_detail_cancel">Cancel</string>
-    <string name="trip_detail_show_details">Show details</string>
-    <string name="trip_detail_hide_details">Hide details</string>
     <string name="trip_detail_more_options">More options</string>
 
     <!-- Ski session detail -->
