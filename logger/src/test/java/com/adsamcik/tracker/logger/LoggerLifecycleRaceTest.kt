@@ -102,7 +102,7 @@ class LoggerLifecycleRaceTest {
 
 		@Test
 		@DisplayName("leaves state fully reset and does not repopulate globals")
-		fun shutdownDuringInitLeavesStateReset() = runBlocking {
+		fun shutdownDuringInitLeavesStateReset(): Unit = runBlocking {
 			stubInitDependencies()
 			val ctx = mockk<Context>(relaxed = true)
 
@@ -137,7 +137,7 @@ class LoggerLifecycleRaceTest {
 
 		@Test
 		@DisplayName("second initialize after shutdown succeeds with fresh state")
-		fun reinitAfterShutdownSucceeds() = runBlocking {
+		fun reinitAfterShutdownSucceeds(): Unit = runBlocking {
 			stubInitDependencies()
 			val ctx = mockk<Context>(relaxed = true)
 
@@ -162,7 +162,7 @@ class LoggerLifecycleRaceTest {
 
 		@Test
 		@DisplayName("runs the init body exactly once under 16-way contention")
-		fun concurrentInitRunsBodyExactlyOnce() = runBlocking {
+		fun concurrentInitRunsBodyExactlyOnce(): Unit = runBlocking {
 			stubInitDependencies()
 			val ctx = mockk<Context>(relaxed = true)
 
@@ -192,7 +192,7 @@ class LoggerLifecycleRaceTest {
 
 		@Test
 		@DisplayName("post-init calls short-circuit on the volatile flag")
-		fun postInitCallsShortCircuit() = runBlocking {
+		fun postInitCallsShortCircuit(): Unit = runBlocking {
 			stubInitDependencies()
 			val ctx = mockk<Context>(relaxed = true)
 
