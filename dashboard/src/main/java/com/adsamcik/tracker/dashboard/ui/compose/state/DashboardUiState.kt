@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 
 /**
@@ -42,7 +43,7 @@ data class DashboardUiState(
 	// ─── Gamification ────────────────────────────────────────────────
 	val pointsToday: Int = 0,
 	val goalProgress: GoalProgressState = GoalProgressState(),
-	val activeChallenges: List<ChallengeUiModel> = emptyList(),
+	val latestAchievement: LatestAchievementUi? = null,
 	val streakState: StreakState = StreakState(),
 
 	// ─── Exploration ─────────────────────────────────────────────────
@@ -104,7 +105,7 @@ enum class DashboardMode {
 	/** First-time user, no tracking history */
 	EMPTY,
 
-	/** Not tracking — show daily summary, history, challenges */
+	/** Not tracking — show daily summary, history, achievements */
 	IDLE,
 
 	/** Active tracking session — show map, live metrics, real-time data */
@@ -122,19 +123,12 @@ data class GoalProgressState(
 	val weeklyProgress: Float = 0f,
 )
 
-/**
- * UI model for an active challenge displayed on the dashboard.
- */
 @Immutable
-data class ChallengeUiModel(
-	val id: Long,
-	val title: String,
-	val description: String,
-	val progress: Float,
-	val iconResName: String,
-	val difficulty: String,
-	val timeRemainingMs: Long,
-	val rewardPoints: Int,
+data class LatestAchievementUi(
+	val id: String,
+	val nameRes: String,
+	val tier: AchievementTier,
+	val unlockedAt: Long,
 )
 
 @Immutable

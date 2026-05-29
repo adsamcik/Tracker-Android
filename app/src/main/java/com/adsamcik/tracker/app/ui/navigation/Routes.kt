@@ -31,7 +31,7 @@ data class MapTripContext(
 data object Game : AppRoute
 
 @Serializable
-data object TrophyCase : AppRoute
+data object Achievements : AppRoute
 
 @Serializable
 data class TripDetail(val tripId: Long) : AppRoute

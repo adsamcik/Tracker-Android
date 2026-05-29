@@ -8,8 +8,6 @@ import androidx.room.TypeConverters
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
-import com.adsamcik.tracker.shared.base.database.converter.ChallengeDifficultyStringTypeConverter
-import com.adsamcik.tracker.shared.base.database.converter.ChallengeTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
 import com.adsamcik.tracker.shared.base.database.converter.SessionlessTypeConverter
@@ -17,10 +15,6 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeHistoryDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengePersonalRecordDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
@@ -38,10 +32,6 @@ import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
-import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
-import com.adsamcik.tracker.shared.base.database.data.ChallengeHistoryEntity
-import com.adsamcik.tracker.shared.base.database.data.ChallengePersonalRecordEntity
-import com.adsamcik.tracker.shared.base.database.data.ChallengeStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
 import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
@@ -85,11 +75,11 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 27 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 28 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 27,
+		version = 28,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -125,11 +115,7 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 			SkiRunSegment::class,
 			// Durable write-ahead log for tracking signals
 			PendingSignalEntity::class,
-			// Challenge progression and minigames (folded from ChallengeDatabase v8)
-			ChallengeEntity::class,
-			ChallengeHistoryEntity::class,
-			ChallengeStreakEntity::class,
-			ChallengePersonalRecordEntity::class,
+			// Game progression and minigames,
 			XpLedgerEntity::class,
 			PlayerProfileEntity::class,
 			MiniGameScoreEntity::class,
@@ -137,8 +123,6 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 )
 @TypeConverters(
 	CellTypeConverter::class,
-	ChallengeTypeConverter::class,
-	ChallengeDifficultyStringTypeConverter::class,
 	DetectedActivityTypeConverter::class,
 	GeoFeaturePropertiesConverter::class,
 	SessionlessTypeConverter::class
@@ -299,26 +283,6 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun pendingSignalDao(): PendingSignalDao
 
 	/**
-	 * Provides access to active challenge rows.
-	 */
-	abstract fun challengeDao(): ChallengeDao
-
-	/**
-	 * Provides access to challenge history rows.
-	 */
-	abstract fun challengeHistoryDao(): ChallengeHistoryDao
-
-	/**
-	 * Provides access to challenge streak state.
-	 */
-	abstract fun challengeStreakDao(): ChallengeStreakDao
-
-	/**
-	 * Provides access to challenge personal records.
-	 */
-	abstract fun challengePersonalRecordDao(): ChallengePersonalRecordDao
-
-	/**
 	 * Provides access to XP ledger entries.
 	 */
 	abstract fun xpLedgerDao(): XpLedgerDao
@@ -361,7 +325,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_23_24,
 				MIGRATION_24_25,
 				MIGRATION_25_26,
-				MIGRATION_26_27
+				MIGRATION_26_27,
+				MIGRATION_27_28
 				)
 		}
 
@@ -407,13 +372,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 				// Pending signal WAL
 				database.pendingSignalDao().deleteAll()
-
-				// Challenge progression and minigames
-				database.challengePersonalRecordDao().deleteAll()
+				// Game progression and minigames
 				database.xpLedgerDao().deleteAll()
-				database.challengeHistoryDao().deleteAll()
-				database.challengeDao().deleteAll()
-				database.challengeStreakDao().deleteAll()
 				database.playerProfileDao().deleteAll()
 				database.miniGameScoreDao().deleteAll()
 			}

@@ -4,17 +4,11 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
-import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFoldMarker
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeHistoryDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengePersonalRecordDao
-import com.adsamcik.tracker.shared.base.database.dao.ChallengeStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
@@ -46,7 +40,6 @@ import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.SystemClock
-import com.adsamcik.tracker.shared.preferences.Preferences
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -127,35 +120,6 @@ object InfrastructureModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         AppDatabase.database(context)
-
-    @Provides
-    @Singleton
-    fun provideChallengeDatabaseFoldMarker(preferences: Preferences): ChallengeDatabaseFoldMarker =
-        object : ChallengeDatabaseFoldMarker {
-            override suspend fun isComplete(): Boolean =
-                preferences.fetchBoolean(ChallengeDatabaseFold.MARKER_KEY, default = false)
-
-            override suspend fun markComplete() {
-                preferences.editSuspend { setBoolean(ChallengeDatabaseFold.MARKER_KEY, true) }
-            }
-
-            override suspend fun isLegacyDataUnrecoverable(): Boolean =
-                preferences.fetchBoolean(ChallengeDatabaseFold.UNRECOVERABLE_MARKER_KEY, default = false)
-
-            override suspend fun markLegacyDataUnrecoverable() {
-                preferences.editSuspend {
-                    setBoolean(ChallengeDatabaseFold.UNRECOVERABLE_MARKER_KEY, true)
-                }
-            }
-        }
-
-    @Provides
-    @Singleton
-    fun provideChallengeDatabaseFold(
-        @ApplicationContext context: Context,
-        database: AppDatabase,
-        marker: ChallengeDatabaseFoldMarker,
-    ): ChallengeDatabaseFold = ChallengeDatabaseFold(context, database, marker)
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.
     // DAOs are lightweight proxies to the singleton database and do not need @Singleton scoping.
@@ -243,19 +207,6 @@ object InfrastructureModule {
 
     @Provides
     fun providePendingSignalDao(database: AppDatabase): PendingSignalDao = database.pendingSignalDao()
-
-    @Provides
-    fun provideChallengeDao(database: AppDatabase): ChallengeDao = database.challengeDao()
-
-    @Provides
-    fun provideChallengeHistoryDao(database: AppDatabase): ChallengeHistoryDao = database.challengeHistoryDao()
-
-    @Provides
-    fun provideChallengeStreakDao(database: AppDatabase): ChallengeStreakDao = database.challengeStreakDao()
-
-    @Provides
-    fun provideChallengePersonalRecordDao(database: AppDatabase): ChallengePersonalRecordDao =
-        database.challengePersonalRecordDao()
 
     @Provides
     fun provideXpLedgerDao(database: AppDatabase): XpLedgerDao = database.xpLedgerDao()

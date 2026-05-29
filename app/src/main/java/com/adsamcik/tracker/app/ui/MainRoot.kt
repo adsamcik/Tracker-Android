@@ -63,7 +63,7 @@ import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.MapTripContext
 import com.adsamcik.tracker.app.ui.navigation.Game
-import com.adsamcik.tracker.app.ui.navigation.TrophyCase
+import com.adsamcik.tracker.app.ui.navigation.Achievements
 import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
@@ -122,7 +122,6 @@ fun MainRoot(
     }
     var settingsLaunchNonce by remember { mutableStateOf(0L) }
     var tripDetailFallbackRoute by remember { mutableStateOf<AppRoute>(Stats) }
-    var gameChallengePickerRequest by remember { mutableStateOf(0L) }
     
     // Phase 2: Precision upgrade prompt state
     val context = LocalContext.current
@@ -158,7 +157,7 @@ fun MainRoot(
                 destination.hasRoute<Map>() -> Map
                 destination.hasRoute<MapTripContext>() -> Map
                 destination.hasRoute<Game>() -> Game
-                destination.hasRoute<TrophyCase>() -> TrophyCase
+                destination.hasRoute<Achievements>() -> Achievements
                 destination.hasRoute<TripDetail>() -> Stats
                 destination.hasRoute<History>() -> Stats
                 destination.hasRoute<Debug>() -> Debug
@@ -302,7 +301,7 @@ fun MainRoot(
                 destination.hasRoute<ActivitySettings>() ||
                 destination.hasRoute<TripDetail>() ||
                 destination.hasRoute<History>() ||
-                destination.hasRoute<TrophyCase>()
+                destination.hasRoute<Achievements>()
     } == true
     val effectiveRouteObj = currentRouteObj ?: navItems.find { it.id == lastTopLevelRoute }
     val isDashboard = effectiveRouteObj?.id == Dashboard
@@ -395,10 +394,6 @@ fun MainRoot(
                     useSideRail = useSideRail,
                     onOpenSettings = { openSettings(Dashboard) },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
-                    onOpenChallenges = {
-                        gameChallengePickerRequest += 1L
-                        navController.navigate(Game) { launchSingleTop = true }
-                    },
                 )
                 mapGraph(useSideRail = useSideRail)
                 statsGraph(
@@ -408,7 +403,6 @@ fun MainRoot(
                 )
                 gameGraph(
                     navController = navController,
-                    openChallengePickerRequest = gameChallengePickerRequest,
                     onOpenSettings = { openSettings(Game) },
                 )
                 settingsGraph(navController = navController)

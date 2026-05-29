@@ -63,8 +63,7 @@ import com.adsamcik.tracker.tracker.R as TrackerR
  * Structure:
  * 1. Map Hero — Canvas path preview with metric overlay (speed, distance, duration)
  * 2. Stats Grid — 3-column secondary metrics
- * 3. Challenge Progress — Active challenge bars (if any)
- * 4. Milestone Celebration — Auto-dismissing overlay on milestones
+ * 3. Milestone Celebration — Auto-dismissing overlay on milestones
  */
 @Composable
 internal fun TrackingContent(
@@ -136,12 +135,6 @@ internal fun TrackingContent(
 						}
 					}
 				}
-			}
-
-			item(key = "challenges") {
-				LiveChallengeProgress(
-					challenges = state.activeChallenges,
-				)
 			}
 
 			item(key = "sensor_details") {

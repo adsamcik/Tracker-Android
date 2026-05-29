@@ -16,22 +16,29 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.data.DashboardWidget
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.MotivationalText
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.rememberContentColumnCount
 
 /**
  * Idle dashboard content shown when the user is NOT tracking.
  *
- * Displays daily summary, streaks, challenges, last session,
+ * Displays daily summary, streaks, achievements, last session,
  * recent trips, and exploration in a scrollable column.
  *
  * Widget ordering and visibility is driven by [DashboardWidgetRegistry]
@@ -46,7 +53,6 @@ internal fun IdleContent(
 	bottomClearance: Dp = DashboardLayoutDefaults.PillClearance,
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
-	onChallengesClick: (() -> Unit)? = onGameClick,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
@@ -77,7 +83,6 @@ internal fun IdleContent(
 				state = state,
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
-				onChallengesClick = onChallengesClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
@@ -111,7 +116,6 @@ internal fun IdleContent(
 				state = state,
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
-				onChallengesClick = onChallengesClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
@@ -128,7 +132,6 @@ private fun LazyListScope.renderWidgets(
 	state: DashboardUiState,
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
-	onChallengesClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
@@ -140,7 +143,6 @@ private fun LazyListScope.renderWidgets(
 				state = state,
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
-				onChallengesClick = onChallengesClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
@@ -159,7 +161,6 @@ private fun LazyGridScope.renderGridWidgets(
 	state: DashboardUiState,
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
-	onChallengesClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
@@ -167,7 +168,7 @@ private fun LazyGridScope.renderGridWidgets(
 	widgets.forEach { widget ->
 		val span = when (widget) {
 			DashboardWidget.TodayProgress,
-			DashboardWidget.Challenges,
+			DashboardWidget.LatestAchievement,
 			-> GridItemSpan(columns)
 			else -> GridItemSpan(1)
 		}
@@ -177,7 +178,6 @@ private fun LazyGridScope.renderGridWidgets(
 				state = state,
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
-				onChallengesClick = onChallengesClick,
 				onSessionDetailClick = onSessionDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
@@ -196,7 +196,6 @@ private fun WidgetContent(
 	state: DashboardUiState,
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
-	onChallengesClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
@@ -214,11 +213,7 @@ private fun WidgetContent(
 			onClick = onGameClick,
 			modifier = modifier,
 		)
-		DashboardWidget.Challenges -> ChallengeCardsRow(
-			challenges = state.activeChallenges,
-			onChallengeClick = onChallengesClick,
-			modifier = modifier,
-		)
+		DashboardWidget.LatestAchievement -> LatestAchievementCard(state = state, modifier = modifier)
 		DashboardWidget.LastSession -> {
 			val session = state.sessionData
 			if (session != null) {
@@ -251,3 +246,30 @@ private fun WidgetContent(
 		)
 	}
 }
+@Composable
+private fun LatestAchievementCard(state: DashboardUiState, modifier: Modifier = Modifier) {
+	GlassCard(modifier = modifier) {
+		Column {
+			Text(
+				text = stringResource(R.string.dashboard_latest_achievement_title),
+				style = MaterialTheme.typography.titleMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Spacer(modifier = Modifier.height(8.dp))
+			val latest = state.latestAchievement
+			Text(
+				text = latest?.let { resolveStringResource(it.nameRes) } ?: stringResource(R.string.dashboard_latest_achievement_empty),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+		}
+	}
+}
+
+@Composable
+private fun resolveStringResource(name: String): String {
+	val context = LocalContext.current
+	val resId = remember(name, context) { context.resources.getIdentifier(name, "string", context.packageName) }
+	return if (resId != 0) stringResource(resId) else name
+}
+

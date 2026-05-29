@@ -6,6 +6,9 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
+import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,13 +53,26 @@ class ExplorationViewModel @Inject constructor(
 		val silverCount: Int = 0,
 		val goldCount: Int = 0,
 		val diamondCount: Int = 0,
+		val mythicCount: Int = 0,
 		val totalUnlocked: Int = 0,
-		val nextClosest: NextAchievement? = null,
+		val recentUnlocks: List<AchievementListItem> = emptyList(),
+		val nextUp: List<NextAchievement> = emptyList(),
+	) { val nextClosest: NextAchievement? get() = nextUp.firstOrNull() }
+
+	data class AchievementListItem(
+		val id: String,
+		val nameRes: String,
+		val tier: AchievementTier,
+		val unlockedAt: Long,
 	)
 
 	data class NextAchievement(
 		val id: String,
+		val nameRes: String,
+		val tier: AchievementTier,
 		val progress: Float,
+		val currentValue: Double,
+		val threshold: Double,
 	)
 
 	val explorationState: StateFlow<ExplorationState?> = combine(
@@ -81,35 +97,43 @@ class ExplorationViewModel @Inject constructor(
 
 	val achievementState: StateFlow<AchievementSummaryState?> =
 		achievementProgressDao.getAllFlow()
-			.map { allProgress ->
-				val unlocked = allProgress.filter { it.unlockedAt != null }
-				val nextClosest = allProgress
-					.filter { it.unlockedAt == null && it.targetValue > 0 }
-					.maxByOrNull { it.currentValue.toFloat() / it.targetValue }
-					?.let { entity ->
-						NextAchievement(
-							id = entity.achievementId,
-							progress = (entity.currentValue.toFloat() / entity.targetValue)
-								.coerceIn(0f, 1f),
-						)
+			.map { progressRows ->
+				val progressByMetric = progressRows.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row } }.toMap()
+				val unlocked = AchievementCatalog.definitions.filter { definition -> (progressByMetric[definition.metric]?.lastTierIndex ?: -1) >= definition.tierIndex }
+				val recentUnlocks = progressRows.asSequence()
+					.filter { it.lastTierIndex >= 0 }
+					.sortedByDescending { it.updatedAt }
+					.mapNotNull { row ->
+						val metric = MetricKey.fromStorageKey(row.metricKey) ?: return@mapNotNull null
+						val definition = AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex) ?: return@mapNotNull null
+						AchievementListItem(definition.id, definition.nameRes, definition.tier, row.updatedAt)
 					}
+					.take(3)
+					.toList()
+				val nextUp = AchievementCatalog.definitions.asSequence()
+					.filter { definition -> (progressByMetric[definition.metric]?.lastTierIndex ?: -1) < definition.tierIndex }
+					.map { definition ->
+						val currentValue = progressByMetric[definition.metric]?.lastValue ?: 0.0
+						NextAchievement(definition.id, definition.nameRes, definition.tier, if (definition.threshold <= 0.0) 0f else (currentValue / definition.threshold).toFloat().coerceIn(0f, 1f), currentValue, definition.threshold)
+					}
+					.sortedByDescending { it.progress }
+					.take(5)
+					.toList()
 				AchievementSummaryState(
-					bronzeCount = unlocked.count { it.tier == TIER_BRONZE },
-					silverCount = unlocked.count { it.tier == TIER_SILVER },
-					goldCount = unlocked.count { it.tier == TIER_GOLD },
-					diamondCount = unlocked.count { it.tier == TIER_DIAMOND },
+					bronzeCount = unlocked.count { it.tier == AchievementTier.BRONZE },
+					silverCount = unlocked.count { it.tier == AchievementTier.SILVER },
+					goldCount = unlocked.count { it.tier == AchievementTier.GOLD },
+					diamondCount = unlocked.count { it.tier == AchievementTier.DIAMOND },
+					mythicCount = unlocked.count { it.tier == AchievementTier.MYTHIC },
 					totalUnlocked = unlocked.size,
-					nextClosest = nextClosest,
+					recentUnlocks = recentUnlocks,
+					nextUp = nextUp,
 				)
 			}
 			.map { it as AchievementSummaryState? }
 			.catch { emit(null) }
 			.flowOn(dispatchers.io)
-			.stateIn(
-				scope = viewModelScope,
-				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
-				initialValue = null,
-			)
+			.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
 	/** Intermediate data holder for streak + season + recent cell loading. */
 	private data class StreakData(
@@ -149,11 +173,5 @@ class ExplorationViewModel @Inject constructor(
 		private const val RECENT_LIMIT = 5
 		private const val STATE_STOP_TIMEOUT_MS = 5_000L
 		private const val STREAK_TYPE_DAILY = "DAILY_DISCOVERY"
-
-		// Achievement tier constants matching AchievementProgressEntity.tier values
-		private const val TIER_BRONZE = 0
-		private const val TIER_SILVER = 1
-		private const val TIER_GOLD = 2
-		private const val TIER_DIAMOND = 3
 	}
 }

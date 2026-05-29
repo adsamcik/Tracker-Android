@@ -258,4 +258,19 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 */
 	@Query("SELECT COALESCE(MAX(distance_m), 0) FROM session_segment")
 	suspend fun maxSegmentDistance(): Long
+
+	@Query("SELECT COALESCE(MAX(end_time_ms - start_time_ms), 0) FROM session_segment")
+	suspend fun maxSegmentDurationMs(): Long
+
+	@Query("SELECT COALESCE(MAX(CASE WHEN end_time_ms > start_time_ms THEN distance_m / ((end_time_ms - start_time_ms) / 1000.0) ELSE 0 END), 0) FROM session_segment")
+	suspend fun maxAverageSpeedMps(): Double
+
+	@Query("SELECT COUNT(DISTINCT strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime')) FROM session_segment")
+	suspend fun countDistinctStartHours(): Long
+
+	@Query("SELECT COUNT(DISTINCT primary_activity) FROM session_segment WHERE primary_activity IS NOT NULL AND start_time_ms < :toMs AND end_time_ms > :fromMs")
+	suspend fun countDistinctActivitiesBetween(fromMs: Long, toMs: Long): Long
+
+	@Query("SELECT MIN(start_time_ms) FROM session_segment")
+	suspend fun minStartTime(): Long?
 }

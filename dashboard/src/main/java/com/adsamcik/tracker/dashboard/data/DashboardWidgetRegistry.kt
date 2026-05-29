@@ -25,7 +25,7 @@ data class ResolvedWidget(
  * - User-defined ordering from [DashboardLayout]
  * - User-defined visibility (hidden widgets)
  * - Conditional availability based on [DashboardUiState]
- *   (e.g., Challenges only if challenges data exists, LastSession only if session data exists)
+ *   (e.g., LatestAchievement uses an empty state, LastSession only if session data exists)
  */
 @Singleton
 class DashboardWidgetRegistry @Inject constructor(
@@ -78,30 +78,15 @@ class DashboardWidgetRegistry @Inject constructor(
 			}
 	}
 
-	/**
-	 * Check whether a widget has data available for display.
-	 *
-	 * Matches the conditional inclusion logic from the original IdleContent:
-	 * - Challenges: shown when activeChallenges is not empty
-	 * - LastSession: shown when sessionData is not null
-	 * - Exploration: shown when explorationState has data
-	 * - All others: always available
-	 */
 	internal fun isAvailable(
 		widget: DashboardWidget,
 		state: DashboardUiState,
 	): Boolean = when (widget) {
-		DashboardWidget.Challenges ->
-			state.activeChallenges.isNotEmpty()
-
-		DashboardWidget.LastSession ->
-			state.sessionData != null
-
-		DashboardWidget.Exploration ->
-			state.explorationState.hasExplorationData
-
+		DashboardWidget.LastSession -> state.sessionData != null
+		DashboardWidget.Exploration -> state.explorationState.hasExplorationData
 		DashboardWidget.TodayProgress,
 		DashboardWidget.Streak,
+		DashboardWidget.LatestAchievement,
 		DashboardWidget.RecentTrips,
 		-> true
 	}

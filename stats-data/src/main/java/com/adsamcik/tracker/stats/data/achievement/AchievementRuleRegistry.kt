@@ -3,9 +3,8 @@ package com.adsamcik.tracker.stats.data.achievement
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementDefinition
-import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.rule.Rule
 import com.adsamcik.tracker.stats.api.rule.RuleInstance
@@ -15,61 +14,31 @@ import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Static achievement [RuleRegistry] backed by [AchievementCatalog] and persisted progress rows.
- *
- * Each catalog definition becomes one cumulative achievement rule. The persisted
- * `achievement_progress` row supplies the previous value/tier used by RuleEvaluator callers
- * for change detection, while the catalog definition is carried in [RuleInstance.attachment]
- * so consumers can use the achievement-specific model without a second lookup.
- */
 @Singleton
-class AchievementRuleRegistry(
-	private val achievementProgressDao: AchievementProgressDao,
-	private val definitions: List<AchievementDefinition>,
+class AchievementRuleRegistry @Inject constructor(
+	private val progressDao: AchievementProgressDao,
 ) : RuleRegistry {
+	override suspend fun allInstances(): List<RuleInstance> = toInstances(AchievementCatalog.definitions, progressDao.getAll())
 
-	@Inject
-	constructor(
-		achievementProgressDao: AchievementProgressDao,
-	) : this(achievementProgressDao, AchievementCatalog.definitions)
-
-	override suspend fun allInstances(): List<RuleInstance> {
-		return toInstances(achievementProgressDao.getAll())
-	}
-
-	override suspend fun instancesAffectedByTables(
-		dirtyTables: Set<String>,
-	): List<RuleInstance> {
+	override suspend fun instancesAffectedByTables(dirtyTables: Set<String>): List<RuleInstance> {
 		if (dirtyTables.isEmpty()) return emptyList()
-		val affectedDefinitions = definitions.filter { definition ->
-			MetricKeys.sourceTables(definition.metric).any { it in dirtyTables }
-		}
-		if (affectedDefinitions.isEmpty()) return emptyList()
-		return toInstances(achievementProgressDao.getAll(), affectedDefinitions)
+		val affected = MetricKey.entries.asSequence()
+			.filter { metric -> metric.sourceTables.any { it in dirtyTables } }
+			.flatMap { metric -> AchievementCatalog.byMetric(metric).asSequence() }
+			.distinctBy { it.id }
+			.toList()
+		return if (affected.isEmpty()) emptyList() else toInstances(affected, progressDao.getAll())
 	}
 
-	private fun toInstances(
-		rows: List<AchievementProgressEntity>,
-		catalog: List<AchievementDefinition> = definitions,
-	): List<RuleInstance> {
-		val previousById = rows.associateBy { it.achievementId }
-		return catalog.map { definition ->
-			check(MetricKeys.isKnown(definition.metric)) {
-				"Achievement ${definition.id} declares unknown metric '${definition.metric}' " +
-					"(not in MetricKeys). Add it to MetricKeys.SOURCE_TABLES or fix the catalog."
-			}
-			val previous = previousById[definition.id]
+	private fun toInstances(definitions: List<AchievementDefinition>, rows: List<AchievementProgressEntity>): List<RuleInstance> {
+		val progressByMetric = rows.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row } }.toMap()
+		return definitions.map { definition ->
+			val progress = progressByMetric[definition.metric]
 			RuleInstance(
-				rule = Rule(
-					id = definition.id,
-					kind = RuleKind.Achievement,
-					metric = definition.metric,
-					target = RuleTarget.Tiered(definition.tiers),
-				),
+				rule = Rule(definition.id, RuleKind.Achievement, definition.metric, RuleTarget.Single(definition.threshold, definition.tier)),
 				window = TimeWindow.Cumulative,
-				previousValue = previous?.currentValue,
-				previousTier = previous?.tier?.let { AchievementTier.entries.getOrNull(it) },
+				previousValue = progress?.lastValue?.toLong(),
+				previousTier = if ((progress?.lastTierIndex ?: -1) >= definition.tierIndex) definition.tier else null,
 				attachment = definition,
 			)
 		}

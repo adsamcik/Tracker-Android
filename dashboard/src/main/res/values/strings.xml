@@ -198,4 +198,7 @@
     <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Session Insights</string>
     <string name="dashboard_cd_insight_item">Insight: %1$s</string>
+    <string name="widget_latest_achievement">Latest achievement</string>
+    <string name="dashboard_latest_achievement_title">Latest achievement</string>
+    <string name="dashboard_latest_achievement_empty">Keep tracking to unlock your first achievement</string>
 </resources>

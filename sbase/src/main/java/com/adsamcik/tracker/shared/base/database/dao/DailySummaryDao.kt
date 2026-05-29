@@ -155,6 +155,30 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 		"""
 	)
 	suspend fun countActiveDaysBetween(fromDay: Long, toDay: Long, minTripsPerDay: Int): Long
+
+	@Query("SELECT COALESCE(SUM(total_duration_ms), 0) FROM daily_summary")
+	suspend fun sumTotalDurationMs(): Long
+
+	@Query("SELECT COALESCE(MAX(total_distance_m), 0) FROM daily_summary")
+	suspend fun maxDailyDistance(): Long
+
+	@Query("SELECT MIN(created_at) FROM daily_summary")
+	suspend fun minCreatedAt(): Long?
+
+	@Query("SELECT date_epoch_day FROM daily_summary WHERE trip_count > 0 ORDER BY date_epoch_day ASC")
+	suspend fun getActiveEpochDays(): List<Long>
+
+	@Query("SELECT COUNT(DISTINCT strftime('%Y-%m', date_epoch_day * 86400, 'unixepoch')) FROM daily_summary WHERE trip_count > 0")
+	suspend fun countDistinctMonths(): Long
+
+	@Query("SELECT COUNT(DISTINCT strftime('%w', date_epoch_day * 86400, 'unixepoch')) FROM daily_summary WHERE trip_count > 0")
+	suspend fun countDistinctWeekdays(): Long
+
+	@Query("SELECT COALESCE(SUM(total_distance_m), 0) FROM daily_summary WHERE date_epoch_day >= :fromEpochDay")
+	suspend fun sumDistanceSinceEpochDay(fromEpochDay: Long): Long
+
+	@Query("SELECT COUNT(*) FROM daily_summary WHERE date_epoch_day >= :fromEpochDay AND trip_count > 0")
+	suspend fun countActiveDaysSinceEpochDay(fromEpochDay: Long): Long
 }
 
 /** Milliseconds per (UTC) day. */

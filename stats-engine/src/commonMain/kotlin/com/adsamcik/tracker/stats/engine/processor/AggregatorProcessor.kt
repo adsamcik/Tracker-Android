@@ -4,7 +4,9 @@ import com.adsamcik.tracker.stats.api.AggregatorSignal
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
@@ -138,18 +140,19 @@ class AggregatorProcessor(
 	 *
 	 * Keys match the [com.adsamcik.tracker.stats.api.achievement.AchievementCatalog] metric names where applicable.
 	 */
-	fun snapshotMetrics(): Map<String, Long> {
-		if (!aggregator.isActive) return emptyMap()
+	fun snapshotMetrics(): MetricSnapshot {
+		if (!aggregator.isActive) return MetricSnapshot.Empty
 		val snap = aggregator.snapshot()
-		return mapOf(
-			"total_distance_km" to (snap.dayTotalDistanceM / 1000f).toLong(),
-			"total_steps" to snap.dayTotalSteps.toLong(),
-			"total_trips" to snap.tripCount.toLong(),
-			"session_distance_m" to snap.sessionDistanceM.toLong(),
-			"session_steps" to snap.sessionSteps.toLong(),
-			"session_duration_ms" to snap.sessionDurationMs,
-			"longest_trip_km" to (snap.sessionDistanceM / 1000f).toLong(),
-			"best_daily_steps" to snap.dayTotalSteps.toLong(),
+		return MetricSnapshot.from(
+			mapOf(
+				MetricKey.DISTANCE_TOTAL_M to snap.dayTotalDistanceM.toDouble(),
+				MetricKey.STEPS_TOTAL to snap.dayTotalSteps.toDouble(),
+				MetricKey.SESSIONS_TOTAL to snap.tripCount.toDouble(),
+				MetricKey.MAX_SESSION_DISTANCE_M to snap.sessionDistanceM.toDouble(),
+				MetricKey.MAX_SESSION_DURATION_MS to snap.sessionDurationMs.toDouble(),
+				MetricKey.BEST_DAILY_STEPS to snap.dayTotalSteps.toDouble(),
+				MetricKey.BEST_DAY_DISTANCE_M to snap.dayTotalDistanceM.toDouble(),
+			)
 		)
 	}
 

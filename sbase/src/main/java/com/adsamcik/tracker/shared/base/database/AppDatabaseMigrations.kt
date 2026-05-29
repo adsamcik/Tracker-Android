@@ -1133,11 +1133,7 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 }
 
 /**
- * Version 26 → 27: Fold ChallengeDatabase v8 active tables into AppDatabase.
- *
- * This migration creates the destination tables only. Existing rows from the
- * legacy side-channel database are copied by ChallengeDatabaseFold after the
- * main database has opened at v27, then the old file is renamed to .bak.
+ * Version 26 → 27: Add game progression tables.
  */
 val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 	override fun migrate(db: SupportSQLiteDatabase) {
@@ -1155,74 +1151,6 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_end_time_ms ON session_segment(end_time_ms)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
 			addColumnIfMissing(this, "domain_event_cursor", "last_processed_id", "INTEGER NOT NULL DEFAULT 0")
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS challenge (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					type TEXT NOT NULL,
-					start_time INTEGER NOT NULL,
-					end_time INTEGER NOT NULL,
-					difficulty TEXT NOT NULL,
-					required_value REAL NOT NULL,
-					current_value REAL NOT NULL,
-					is_completed INTEGER NOT NULL,
-					extra_json TEXT
-				)
-				""".trimIndent(),
-			)
-			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_is_completed_end_time ON challenge(is_completed, end_time)")
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS challenge_history (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					challenge_type TEXT NOT NULL,
-					difficulty TEXT NOT NULL,
-					start_time INTEGER NOT NULL,
-					end_time INTEGER NOT NULL,
-					outcome TEXT NOT NULL,
-					completed_at INTEGER,
-					progress_value REAL NOT NULL,
-					target_value REAL NOT NULL,
-					medal TEXT,
-					xp_awarded INTEGER NOT NULL,
-					original_challenge_id INTEGER
-				)
-				""".trimIndent(),
-			)
-			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_outcome ON challenge_history(outcome)")
-			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_medal ON challenge_history(medal)")
-			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_completed_at ON challenge_history(completed_at)")
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS challenge_streak (
-					id INTEGER NOT NULL,
-					current_count INTEGER NOT NULL,
-					best_count INTEGER NOT NULL,
-					last_completion_time INTEGER NOT NULL,
-					freeze_count INTEGER NOT NULL,
-					PRIMARY KEY(id)
-				)
-				""".trimIndent(),
-			)
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS challenge_personal_record (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					challenge_type TEXT NOT NULL,
-					metric TEXT NOT NULL,
-					value REAL NOT NULL,
-					history_id INTEGER,
-					achieved_at INTEGER NOT NULL,
-					FOREIGN KEY(history_id) REFERENCES challenge_history(id) ON UPDATE NO ACTION ON DELETE SET NULL
-				)
-				""".trimIndent(),
-			)
-			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_challenge_personal_record_challenge_type_metric ON challenge_personal_record(challenge_type, metric)")
-			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_personal_record_history_id ON challenge_personal_record(history_id)")
 
 			execSQL(
 				"""
@@ -1263,8 +1191,36 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 			)
 			android.util.Log.i(
 				"AppDatabase",
-				"Migration 26->27: Created challenge progression and minigame tables",
+				"Migration 26->27: Created game progression and minigame tables",
 			)
+		}
+	}
+}
+
+/**
+ * Version 27 → 28: Drop challenges and convert achievement progress to per-metric state.
+ */
+val MIGRATION_27_28: Migration = object : Migration(27, 28) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("DROP TABLE IF EXISTS challenge")
+			execSQL("DROP TABLE IF EXISTS challenge_history")
+			execSQL("DROP TABLE IF EXISTS challenge_streak")
+			execSQL("DROP TABLE IF EXISTS challenge_personal_record")
+			execSQL("DROP TABLE IF EXISTS achievement_progress")
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS achievement_progress (
+					metric_key TEXT NOT NULL,
+					last_tier_index INTEGER NOT NULL DEFAULT -1,
+					last_value REAL NOT NULL DEFAULT 0,
+					updated_at INTEGER NOT NULL,
+					PRIMARY KEY(metric_key)
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_metric_key ON achievement_progress(metric_key)")
+			android.util.Log.i("AppDatabase", "Migration 27->28: Dropped challenge tables and rebuilt achievement_progress")
 		}
 	}
 }

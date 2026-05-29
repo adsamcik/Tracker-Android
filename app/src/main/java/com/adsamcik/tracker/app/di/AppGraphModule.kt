@@ -2,7 +2,6 @@ package com.adsamcik.tracker.app.di
 
 import android.content.Context
 import com.adsamcik.tracker.app.Application
-import com.adsamcik.tracker.game.di.DefaultActiveChallengesProvider
 import com.adsamcik.tracker.game.di.DefaultDailyPointsProvider
 import com.adsamcik.tracker.game.di.DefaultGoalProgressProvider
 import com.adsamcik.tracker.game.repository.GameRepository
@@ -12,7 +11,6 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
-import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
@@ -94,13 +92,6 @@ object AppGraphModule {
         gameRepository: GameRepository,
         @ApplicationScope appScope: CoroutineScope,
     ): GoalProgressProvider = DefaultGoalProgressProvider(context, gameRepository, appScope)
-
-    @Provides
-    @Singleton
-    fun provideActiveChallengesProvider(
-        gameRepository: GameRepository,
-        @ApplicationScope appScope: CoroutineScope,
-    ): ActiveChallengesProvider = DefaultActiveChallengesProvider(gameRepository, appScope)
 
     @Provides
     @Singleton

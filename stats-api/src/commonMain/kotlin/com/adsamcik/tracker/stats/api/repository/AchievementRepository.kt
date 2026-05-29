@@ -1,16 +1,11 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import com.adsamcik.tracker.stats.api.AchievementSnapshot
+import com.adsamcik.tracker.stats.api.AchievementSummary
 import kotlinx.coroutines.flow.Flow
 
-data class AchievementProgressData(
-	val achievementId: String,
-	val currentValue: Long,
-	val targetValue: Long,
-	val tier: String?,
-	val isUnlocked: Boolean,
-)
-
 interface AchievementRepository {
-	fun observeAll(): Flow<List<AchievementProgressData>>
-	fun observeRecent(): Flow<List<AchievementProgressData>>
+	fun observeSummary(): Flow<AchievementSummary>
+	fun observeRecentUnlocks(limit: Int = 5): Flow<List<AchievementSnapshot>>
+	suspend fun getAllSnapshots(): List<AchievementSnapshot>
 }

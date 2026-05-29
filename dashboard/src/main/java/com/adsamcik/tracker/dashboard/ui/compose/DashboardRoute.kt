@@ -23,7 +23,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
@@ -46,7 +45,6 @@ fun DashboardRoute(
 	onOpenSettings: () -> Unit = {},
 	onOpenMap: () -> Unit = {},
 	onOpenGame: (() -> Unit)? = null,
-	onOpenChallenges: (() -> Unit)? = onOpenGame,
 	onSessionDetailClick: ((Long) -> Unit)? = null,
 	contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -92,19 +90,14 @@ fun DashboardRoute(
 			gamificationEnabled = false,
 		)
 	}
-	val emptyChallenges = remember { emptyList<ActiveChallengeInfo>() }
 	val pointsTodayFlow = remember(viewModel, deferredDashboardDataEnabled) {
 		if (deferredDashboardDataEnabled) viewModel.pointsTodayFlow else flowOf(0)
 	}
 	val goalProgressFlow = remember(viewModel, deferredDashboardDataEnabled) {
 		if (deferredDashboardDataEnabled) viewModel.goalProgressFlow else flowOf(defaultGoalProgress)
 	}
-	val activeChallengesFlow = remember(viewModel, deferredDashboardDataEnabled, emptyChallenges) {
-		if (deferredDashboardDataEnabled) viewModel.activeChallengesFlow else flowOf(emptyChallenges)
-	}
 	val pointsToday by pointsTodayFlow.collectAsState(initial = 0)
 	val goalProgress by goalProgressFlow.collectAsState(initial = defaultGoalProgress)
-	val activeChallengeInfos by activeChallengesFlow.collectAsState(initial = emptyChallenges)
 
 	// Historical data from ViewModel
 	val todaySummary by viewModel.todaySummary.collectAsState()
@@ -113,6 +106,7 @@ fun DashboardRoute(
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
 	val sessionInsights by viewModel.sessionInsights.collectAsState()
+	val latestAchievement by viewModel.latestAchievement.collectAsState()
 
 	// Dashboard layout and customize sheet state
 	val dashboardLayout by viewModel.dashboardLayout.collectAsState()
@@ -196,10 +190,6 @@ fun DashboardRoute(
 		else -> DashboardMode.EMPTY
 	}
 
-	val challengeModels = remember(activeChallengeInfos) {
-		viewModel.mapChallenges(activeChallengeInfos)
-	}
-
 	LaunchedEffect(deferredDashboardDataEnabled, isTracking, displaySession?.id, displaySession?.end) {
 		if (!deferredDashboardDataEnabled) return@LaunchedEffect
 		viewModel.refreshSessionInsights(isTracking, displaySession)
@@ -222,7 +212,7 @@ fun DashboardRoute(
 			dailyGoalSteps = goalProgress.goalSteps,
 			dailyProgress = goalProgress.progress,
 		),
-		activeChallenges = challengeModels,
+		latestAchievement = latestAchievement,
 		recentTrips = recentTrips,
 		explorationState = explorationState,
 		streakState = streakState,
@@ -301,7 +291,6 @@ fun DashboardRoute(
 		},
 		onRequestPermission = { viewModel.requestPermission() },
 		onGameClick = onOpenGame,
-		onChallengesClick = onOpenChallenges,
 		onSessionDetailClick = onSessionDetailClick,
 		onCustomizeClick = { showCustomizeSheet = true },
 		onReorderWidgets = { viewModel.reorderWidgets(it) },

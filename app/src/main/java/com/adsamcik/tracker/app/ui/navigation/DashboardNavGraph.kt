@@ -17,7 +17,6 @@ internal fun NavGraphBuilder.dashboardGraph(
     useSideRail: Boolean,
     onOpenSettings: () -> Unit,
     onSetTripDetailFallback: (AppRoute) -> Unit,
-    onOpenChallenges: () -> Unit,
 ) {
     composable<Dashboard> {
         com.adsamcik.tracker.dashboard.ui.compose.DashboardRoute(
@@ -34,7 +33,6 @@ internal fun NavGraphBuilder.dashboardGraph(
                     restoreState = true
                 }
             },
-            onOpenChallenges = onOpenChallenges,
             onSessionDetailClick = { sessionId ->
                 onSetTripDetailFallback(Dashboard)
                 navController.navigate(TripDetail(sessionId)) {

@@ -4,6 +4,7 @@ import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
@@ -35,9 +36,9 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
  */
 class AchievementProcessor(
 	private val registry: RuleRegistry,
-	private val metricsProvider: () -> Map<String, Long> = { emptyMap() },
+	private val metricsProvider: () -> MetricSnapshot = { MetricSnapshot.Empty },
 	private val dirtyTracker: MetricDirtyTracker? = null,
-	private val ruleEvaluator: RuleEvaluator = RuleEvaluator(),
+	private val ruleEvaluator: RuleEvaluator = RuleEvaluator,
 ) : SignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -86,13 +87,20 @@ class AchievementProcessor(
 			null
 		}
 
+		val instances = if (consumed != null && consumed.isNotEmpty() && !force) {
+			registry.instancesAffectedByTables(consumed)
+		} else {
+			registry.allInstances()
+		}
+		if (instances.isEmpty()) return emptyList()
+
 		// Re-mark consumed tables on ANY non-cancellation failure so we don't silently
 		// drop the next update. Without this, an exception in metricsProvider() or
 		// anywhere inside the evaluation loop would leave the dirty set empty and the
 		// next ordinary flush would short-circuit even though the underlying tables had
 		// changed. Cancellation must still propagate (structured concurrency).
 		val events = try {
-			evaluateAllMetrics()
+			evaluateAllMetrics(instances)
 		} catch (e: kotlinx.coroutines.CancellationException) {
 			throw e
 		} catch (t: Throwable) {
@@ -104,17 +112,15 @@ class AchievementProcessor(
 		return events
 	}
 
-	private suspend fun evaluateAllMetrics(): List<DomainEvent> {
+	private fun evaluateAllMetrics(instances: List<RuleInstance>): List<DomainEvent> {
 		val metrics = metricsProvider()
-		if (metrics.isEmpty()) return emptyList()
+		if (metrics.asMap().isEmpty()) return emptyList()
 
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		val events = mutableListOf<DomainEvent>()
 
-		for (instance in registry.allInstances()) {
-			// Live aggregator snapshots are sparse: absent means "not published by this path",
-			// not a true zero. The background worker evaluates the full persisted metric set.
-			if (instance.rule.metric !in metrics) continue
+		for (instance in instances) {
+			if (instance.rule.metric !in metrics.asMap()) continue
 			evaluateOne(instance, metrics, now)?.let(events::add)
 		}
 
@@ -123,7 +129,7 @@ class AchievementProcessor(
 
 	private fun evaluateOne(
 		instance: RuleInstance,
-		metrics: Map<String, Long>,
+		metrics: MetricSnapshot,
 		now: EpochMs,
 	): DomainEvent? {
 		val cached = previousProgress[instance.rule.id]
@@ -132,7 +138,7 @@ class AchievementProcessor(
 		} else {
 			instance
 		}
-		val currentValue = metrics[instance.rule.metric] ?: 0L
+		val currentValue = metrics.valueOf(instance.rule.metric).toLong()
 		return when (val result = ruleEvaluator.evaluate(effectiveInstance, currentValue)) {
 			is RuleEvaluationResult.Unchanged -> null
 			is RuleEvaluationResult.TierUnlocked -> {
@@ -157,18 +163,17 @@ class AchievementProcessor(
 					targetValue = result.nextTierTarget ?: result.currentValue,
 				)
 			}
-			is RuleEvaluationResult.Completed,
-			is RuleEvaluationResult.ChallengeProgress -> null
 		}
 	}
 
 	private fun highestUnlockedTier(instance: RuleInstance, currentValue: Long): AchievementTier? {
-		val target = instance.rule.target
-		if (target !is RuleTarget.Tiered) return null
-		return target.tiers.entries
-			.sortedBy { it.key.ordinal }
-			.lastOrNull { (_, threshold) -> currentValue >= threshold }
-			?.key
+		return when (val target = instance.rule.target) {
+			is RuleTarget.Single -> if (currentValue.toDouble() >= target.value) target.tier else null
+			is RuleTarget.Tiered -> target.tiers.entries
+				.sortedBy { it.key.ordinal }
+				.lastOrNull { (_, threshold) -> currentValue >= threshold }
+				?.key
+		}
 	}
 
 	override fun checkpoint(): ByteArray {

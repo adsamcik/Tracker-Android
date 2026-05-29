@@ -34,10 +34,10 @@ sealed interface DashboardWidget {
 	}
 
 	@Immutable
-	data object Challenges : DashboardWidget {
-		override val id: String = "challenges"
+	data object LatestAchievement : DashboardWidget {
+		override val id: String = "latest_achievement"
 		override val defaultPriority: Int = 20
-		override val titleRes: Int = R.string.widget_challenges
+		override val titleRes: Int = R.string.widget_latest_achievement
 	}
 
 	@Immutable
@@ -66,7 +66,7 @@ sealed interface DashboardWidget {
 		val all: List<DashboardWidget> = listOf(
 			TodayProgress,
 			Streak,
-			Challenges,
+			LatestAchievement,
 			LastSession,
 			RecentTrips,
 			Exploration,

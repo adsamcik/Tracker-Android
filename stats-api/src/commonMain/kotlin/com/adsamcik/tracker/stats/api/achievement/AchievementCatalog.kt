@@ -3,317 +3,65 @@ package com.adsamcik.tracker.stats.api.achievement
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 
-/**
- * Static catalog of all achievement definitions.
- *
- * Contains ~18 achievements across 6 categories with sensible tier thresholds.
- * Definitions are immutable and loaded eagerly. Runtime progress is layered on top
- * by repositories and the unified rule engine.
- *
- * Thread-safety: Immutable after initialization. Safe to read from any thread.
- */
 object AchievementCatalog {
-
-	/** All achievement definitions in the catalog. */
 	val definitions: List<AchievementDefinition> = buildList {
-		// ── EXPLORATION ─────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "explorer_cells",
-				category = AchievementCategory.EXPLORATION,
-				titleRes = "achievement_explorer_cells_title",
-				descriptionRes = "achievement_explorer_cells_desc",
-				metric = "cells_discovered",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 10L,
-					AchievementTier.SILVER to 50L,
-					AchievementTier.GOLD to 200L,
-					AchievementTier.DIAMOND to 1000L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "explorer_areas",
-				category = AchievementCategory.EXPLORATION,
-				titleRes = "achievement_explorer_areas_title",
-				descriptionRes = "achievement_explorer_areas_desc",
-				metric = "unique_areas",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 3L,
-					AchievementTier.SILVER to 10L,
-					AchievementTier.GOLD to 30L,
-					AchievementTier.DIAMOND to 100L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "seasonal_explorer",
-				category = AchievementCategory.EXPLORATION,
-				titleRes = "achievement_seasonal_explorer_title",
-				descriptionRes = "achievement_seasonal_explorer_desc",
-				metric = "seasons_explored",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 1L,
-					AchievementTier.SILVER to 2L,
-					AchievementTier.GOLD to 3L,
-					AchievementTier.DIAMOND to 4L,
-				),
-			)
-		)
-
-		// ── DISTANCE ────────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "distance_total",
-				category = AchievementCategory.DISTANCE,
-				titleRes = "achievement_distance_total_title",
-				descriptionRes = "achievement_distance_total_desc",
-				metric = "total_distance_km",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 10L,
-					AchievementTier.SILVER to 100L,
-					AchievementTier.GOLD to 1000L,
-					AchievementTier.DIAMOND to 10000L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "distance_single_trip",
-				category = AchievementCategory.DISTANCE,
-				titleRes = "achievement_distance_single_trip_title",
-				descriptionRes = "achievement_distance_single_trip_desc",
-				metric = "longest_trip_km",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 5L,
-					AchievementTier.SILVER to 20L,
-					AchievementTier.GOLD to 50L,
-					AchievementTier.DIAMOND to 200L,
-				),
-			)
-		)
-
-		// ── STEPS ───────────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "steps_total",
-				category = AchievementCategory.STEPS,
-				titleRes = "achievement_steps_total_title",
-				descriptionRes = "achievement_steps_total_desc",
-				metric = "total_steps",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 10_000L,
-					AchievementTier.SILVER to 100_000L,
-					AchievementTier.GOLD to 1_000_000L,
-					AchievementTier.DIAMOND to 10_000_000L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "steps_daily_best",
-				category = AchievementCategory.STEPS,
-				titleRes = "achievement_steps_daily_best_title",
-				descriptionRes = "achievement_steps_daily_best_desc",
-				metric = "best_daily_steps",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 5_000L,
-					AchievementTier.SILVER to 10_000L,
-					AchievementTier.GOLD to 20_000L,
-					AchievementTier.DIAMOND to 50_000L,
-				),
-			)
-		)
-
-		// ── STREAKS ─────────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "streak_daily",
-				category = AchievementCategory.STREAKS,
-				titleRes = "achievement_streak_daily_title",
-				descriptionRes = "achievement_streak_daily_desc",
-				metric = "daily_streak",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 3L,
-					AchievementTier.SILVER to 7L,
-					AchievementTier.GOLD to 30L,
-					AchievementTier.DIAMOND to 100L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "streak_weekly",
-				category = AchievementCategory.STREAKS,
-				titleRes = "achievement_streak_weekly_title",
-				descriptionRes = "achievement_streak_weekly_desc",
-				metric = "weekly_streak",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 2L,
-					AchievementTier.SILVER to 4L,
-					AchievementTier.GOLD to 12L,
-					AchievementTier.DIAMOND to 52L,
-				),
-			)
-		)
-
-		// ── MODES ───────────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "mode_variety",
-				category = AchievementCategory.MODES,
-				titleRes = "achievement_mode_variety_title",
-				descriptionRes = "achievement_mode_variety_desc",
-				metric = "transport_mode_count",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 2L,
-					AchievementTier.SILVER to 3L,
-					AchievementTier.GOLD to 4L,
-					AchievementTier.DIAMOND to 5L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "mode_walking_trips",
-				category = AchievementCategory.MODES,
-				titleRes = "achievement_mode_walking_trips_title",
-				descriptionRes = "achievement_mode_walking_trips_desc",
-				metric = "walking_trips",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 5L,
-					AchievementTier.SILVER to 20L,
-					AchievementTier.GOLD to 100L,
-					AchievementTier.DIAMOND to 500L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "mode_cycling_trips",
-				category = AchievementCategory.MODES,
-				titleRes = "achievement_mode_cycling_trips_title",
-				descriptionRes = "achievement_mode_cycling_trips_desc",
-				metric = "cycling_trips",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 5L,
-					AchievementTier.SILVER to 20L,
-					AchievementTier.GOLD to 100L,
-					AchievementTier.DIAMOND to 500L,
-				),
-			)
-		)
-
-		// ── MILESTONES ──────────────────────────────────────────────
-		add(
-			AchievementDefinition(
-				id = "first_cell",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_first_cell_title",
-				descriptionRes = "achievement_first_cell_desc",
-				metric = "cells_discovered",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 1L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "first_trip",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_first_trip_title",
-				descriptionRes = "achievement_first_trip_desc",
-				metric = "total_trips",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 1L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "first_streak",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_first_streak_title",
-				descriptionRes = "achievement_first_streak_desc",
-				metric = "daily_streak",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 2L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "century_cells",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_century_cells_title",
-				descriptionRes = "achievement_century_cells_desc",
-				metric = "cells_discovered",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 100L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "first_export",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_first_export_title",
-				descriptionRes = "achievement_first_export_desc",
-				metric = "total_exports",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 1L,
-				),
-			)
-		)
-		add(
-			AchievementDefinition(
-				id = "distance_first_km",
-				category = AchievementCategory.MILESTONES,
-				titleRes = "achievement_distance_first_km_title",
-				descriptionRes = "achievement_distance_first_km_desc",
-				metric = "total_distance_km",
-				tiers = mapOf(
-					AchievementTier.BRONZE to 1L,
-				),
-			)
-		)
+		series(MetricKey.DISTANCE_TOTAL_M, AchievementCategory.DISTANCE, "total_distance", listOf(1_000.0, 5_000.0, 10_000.0, 50_000.0, 100_000.0, 500_000.0, 1_000_000.0, 5_000_000.0, 10_000_000.0, 50_000_000.0, 100_000_000.0))
+		series(MetricKey.STEPS_TOTAL, AchievementCategory.STEPS, "total_steps", listOf(1_000.0, 10_000.0, 100_000.0, 1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0))
+		series(MetricKey.ACTIVE_DAYS_TOTAL, AchievementCategory.STREAKS, "active_days", listOf(1.0, 7.0, 30.0, 90.0, 180.0, 365.0, 730.0, 1825.0, 3650.0))
+		series(MetricKey.SESSIONS_TOTAL, AchievementCategory.MILESTONES, "sessions_total", listOf(1.0, 10.0, 100.0, 1_000.0, 10_000.0))
+		series(MetricKey.CELLS_DISTINCT_LIFETIME, AchievementCategory.EXPLORATION, "distinct_cells", listOf(10.0, 100.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0))
+		series(MetricKey.MAX_SESSION_DISTANCE_M, AchievementCategory.DISTANCE, "max_session_distance", listOf(1_000.0, 5_000.0, 10_000.0, 50_000.0, 100_000.0, 500_000.0))
+		series(MetricKey.MAX_SESSION_DURATION_MS, AchievementCategory.TIME, "max_session_duration", listOf(1_800_000.0, 3_600_000.0, 14_400_000.0, 43_200_000.0, 86_400_000.0, 604_800_000.0))
+		series(MetricKey.MAX_SPEED_MPS, AchievementCategory.DISTANCE, "max_speed", listOf(1.4, 3.0, 5.5, 28.0, 50.0, 100.0))
+		series(MetricKey.STREAK_DAYS_CURRENT, AchievementCategory.STREAKS, "current_streak", listOf(3.0, 7.0, 30.0, 100.0, 365.0, 1000.0))
+		series(MetricKey.STREAK_DAYS_MAX, AchievementCategory.STREAKS, "best_streak", listOf(7.0, 30.0, 100.0, 365.0, 1000.0, 3650.0))
+		series(MetricKey.COUNTRIES_VISITED, AchievementCategory.EXPLORATION, "countries_visited", listOf(1.0, 3.0, 5.0, 10.0, 25.0, 50.0, 100.0))
+		series(MetricKey.ACTIVITY_TYPES_USED, AchievementCategory.MODES, "activity_types", listOf(1.0, 2.0, 3.0, 4.0, 5.0))
+		series(MetricKey.MONTHS_ACTIVE, AchievementCategory.CALENDAR, "months_active", listOf(1.0, 3.0, 6.0, 12.0, 24.0, 60.0))
+		series(MetricKey.HOURS_OF_DAY_TRACKED, AchievementCategory.TIME, "hours_of_day", listOf(6.0, 12.0, 18.0, 24.0))
+		series(MetricKey.DAYS_OF_WEEK_TRACKED, AchievementCategory.CALENDAR, "days_of_week", listOf(7.0))
+		series(MetricKey.APP_AGE_DAYS, AchievementCategory.MILESTONES, "app_age", listOf(30.0, 100.0, 365.0, 730.0, 1825.0, 3650.0))
+		series(MetricKey.COMEBACK_GAP_DAYS, AchievementCategory.MILESTONES, "comeback", listOf(30.0, 90.0, 365.0))
+		series(MetricKey.CALENDAR_NEW_YEAR, AchievementCategory.CALENDAR, "calendar_new_year", listOf(1.0))
+		series(MetricKey.CALENDAR_LEAP_DAY, AchievementCategory.CALENDAR, "calendar_leap_day", listOf(1.0))
+		series(MetricKey.CALENDAR_SUMMER_SOLSTICE, AchievementCategory.CALENDAR, "calendar_summer_solstice", listOf(1.0))
+		series(MetricKey.CALENDAR_WINTER_SOLSTICE, AchievementCategory.CALENDAR, "calendar_winter_solstice", listOf(1.0))
+		series(MetricKey.WEEK_DISTANCE_M, AchievementCategory.DISTANCE, "week_distance", listOf(10_000.0, 50_000.0, 100_000.0, 500_000.0))
+		series(MetricKey.WEEK_ACTIVE_DAYS, AchievementCategory.STREAKS, "week_active_days", listOf(3.0, 5.0, 7.0))
+		series(MetricKey.WEEK_ALL_DAYS_TRACKED, AchievementCategory.STREAKS, "week_all_days", listOf(1.0), isCompound = true)
+		series(MetricKey.WEEK_ACTIVITY_TYPES, AchievementCategory.MODES, "week_activity_types", listOf(3.0), isCompound = true)
+		series(MetricKey.LIFETIME_WALK_CYCLE_DRIVE, AchievementCategory.MODES, "walk_cycle_drive", listOf(1.0), isCompound = true)
+		series(MetricKey.ACTIVE_MINUTES_TOTAL, AchievementCategory.TIME, "active_minutes", listOf(10.0, 60.0, 600.0, 6_000.0, 60_000.0, 600_000.0))
+		series(MetricKey.DISTANCE_ON_FOOT_M, AchievementCategory.MODES, "on_foot_distance", listOf(1_000.0, 10_000.0, 42_195.0, 100_000.0, 500_000.0, 1_000_000.0, 5_000_000.0))
+		series(MetricKey.CYCLING_DISTANCE_M, AchievementCategory.MODES, "cycling_distance", listOf(1_000.0, 10_000.0, 50_000.0, 100_000.0, 500_000.0, 1_000_000.0))
+		series(MetricKey.VEHICLE_DISTANCE_M, AchievementCategory.MODES, "vehicle_distance", listOf(10_000.0, 100_000.0, 1_000_000.0, 10_000_000.0))
+		series(MetricKey.BEST_DAILY_STEPS, AchievementCategory.STEPS, "best_daily_steps", listOf(5_000.0, 10_000.0, 20_000.0, 40_000.0, 60_000.0))
+		series(MetricKey.BEST_DAY_DISTANCE_M, AchievementCategory.DISTANCE, "best_day_distance", listOf(1_000.0, 10_000.0, 42_195.0, 100_000.0, 500_000.0))
+		series(MetricKey.EXPORTS_TOTAL, AchievementCategory.MILESTONES, "exports_total", listOf(1.0, 5.0, 25.0, 100.0))
+		series(MetricKey.SEASONS_EXPLORED, AchievementCategory.EXPLORATION, "seasons_explored", listOf(1.0, 2.0, 3.0, 4.0))
 	}
-
-	private val byIdMap: Map<String, AchievementDefinition> =
-		definitions.associateBy { it.id }
-
-	private val byCategoryMap: Map<AchievementCategory, List<AchievementDefinition>> =
-		definitions.groupBy { it.category }
-
-	private val byMetricMap: Map<String, List<AchievementDefinition>> =
-		definitions.groupBy { it.metric }
-
-	/**
-	 * Look up an achievement definition by its unique [id].
-	 *
-	 * @return The definition, or null if no achievement with this ID exists.
-	 */
+	private val byIdMap = definitions.associateBy { it.id }
+	private val byCategoryMap = definitions.groupBy { it.category }
+	val byMetric: Map<MetricKey, List<AchievementDefinition>> = definitions.groupBy { it.metric }.mapValues { (_, v) -> v.sortedBy { it.threshold } }
+	val compoundRules: List<AchievementDefinition> = definitions.filter { it.isCompound }
 	fun byId(id: String): AchievementDefinition? = byIdMap[id]
-
-	/**
-	 * Return all achievements in the given [category].
-	 *
-	 * @return List of definitions, or empty list if no achievements in this category.
-	 */
-	fun byCategory(category: AchievementCategory): List<AchievementDefinition> =
-		byCategoryMap[category].orEmpty()
-
-	/**
-	 * Return all achievements that track the given [metric] key.
-	 *
-	 * Multiple achievements may share a metric (e.g. "cells_discovered" is used
-	 * by both "explorer_cells" and "first_cell").
-	 *
-	 * @return List of definitions, or empty list if no achievements use this metric.
-	 */
-	fun byMetric(metric: String): List<AchievementDefinition> =
-		byMetricMap[metric].orEmpty()
+	fun byCategory(category: AchievementCategory): List<AchievementDefinition> = byCategoryMap[category].orEmpty()
+	fun byMetric(metric: MetricKey): List<AchievementDefinition> = byMetric[metric].orEmpty()
+	fun byMetric(metric: String): List<AchievementDefinition> = MetricKey.fromStorageKey(metric)?.let(::byMetric).orEmpty()
+	private fun MutableList<AchievementDefinition>.series(metric: MetricKey, category: AchievementCategory, baseId: String, thresholds: List<Double>, isCompound: Boolean = false) {
+		thresholds.forEachIndexed { index, threshold ->
+			val id = "${baseId}_${threshold.token()}"
+			add(AchievementDefinition(id, category, "achievement_${id}_title", "achievement_${id}_desc", metric, threshold, tierFor(index, thresholds.size), index, isCompound))
+		}
+	}
+	private fun tierFor(index: Int, count: Int): AchievementTier = when ((index * 5) / count.coerceAtLeast(1)) {
+		0 -> AchievementTier.BRONZE
+		1 -> AchievementTier.SILVER
+		2 -> AchievementTier.GOLD
+		3 -> AchievementTier.DIAMOND
+		else -> AchievementTier.MYTHIC
+	}
+	private fun Double.token(): String = toLong().takeIf { kotlin.math.abs(this - it.toDouble()) < 0.0001 }?.toString() ?: toString().replace('.', '_')
 }

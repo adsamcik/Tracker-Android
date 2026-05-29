@@ -56,8 +56,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLay
  *
  * Delegates to [DashboardTopBar] and mode-specific content:
  * - EMPTY → [EmptyStateContent]
- * - IDLE → [IdleContent] (daily summary, challenges, streaks, trips, exploration)
- * - TRACKING → [TrackingContent] (live stats, map hero, milestones, challenges)
+ * - IDLE → [IdleContent] (daily summary, achievements, streaks, trips, exploration)
+ * - TRACKING → [TrackingContent] (live stats, map hero, milestones)
  */
 @Composable
 internal fun DashboardScreen(
@@ -70,7 +70,6 @@ internal fun DashboardScreen(
 	onToggleTracking: (Boolean) -> Unit,
 	onRequestPermission: () -> Unit,
 	onGameClick: (() -> Unit)?,
-	onChallengesClick: (() -> Unit)? = onGameClick,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onCustomizeClick: () -> Unit = {},
 	onReorderWidgets: (List<String>) -> Unit = {},
@@ -207,7 +206,6 @@ internal fun DashboardScreen(
 						bottomClearance = bottomClearance,
 						onMapClick = onMapClick,
 						onGameClick = onGameClick,
-						onChallengesClick = onChallengesClick,
 						onSessionDetailClick = onSessionDetailClick,
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,

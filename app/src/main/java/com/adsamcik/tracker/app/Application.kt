@@ -25,7 +25,6 @@ import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.ChallengeDatabaseFold
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -79,9 +78,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var precisionUpgradeConsumerProvider: Provider<PrecisionUpgradeDomainEventConsumer>
-
-	@Inject
-	lateinit var challengeDatabaseFoldProvider: Provider<ChallengeDatabaseFold>
 
 	@Volatile
 	var isStartupReady: Boolean = false
@@ -171,7 +167,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
-				challengeDatabaseFoldProvider.get().awaitComplete()
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}

@@ -2,141 +2,44 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.adsamcik.tracker.game.leaderboard.GhostLeaderboardProvider
-import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
-import com.adsamcik.tracker.game.leaderboard.LeaderboardState
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class MiniGameEntry(
-    val id: String,
-    val nameRes: Int,
-    val descriptionRes: Int,
-    val unlockLevel: Int,
-    val isUnlocked: Boolean,
-    val isAvailable: Boolean = false,
+	val id: String,
+	val nameRes: Int,
+	val descriptionRes: Int,
+	val unlockLevel: Int,
+	val isUnlocked: Boolean,
+	val isAvailable: Boolean = false,
 )
 
-/** Provides reactive game state (points today, step goals, active challenges). */
 @HiltViewModel
 class GameViewModel @Inject constructor(
-    private val gameRepository: GameRepository,
-    private val miniGameRegistry: MiniGameRegistry,
-    private val ghostLeaderboardProvider: GhostLeaderboardProvider,
+	private val gameRepository: GameRepository,
+	private val miniGameRegistry: MiniGameRegistry,
 ) : ViewModel() {
+	val pointsToday: StateFlow<Int?> = gameRepository.getPointsToday()
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
-    val pointsToday: StateFlow<Int?> = gameRepository.getPointsToday()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
-            initialValue = null,
-        )
+	val stepsSummary: StateFlow<StepsSummaryUi?> = gameRepository.getStepsSummary()
+		.map { it?.let { data -> StepsSummaryUi(data.stepsToday, data.stepsWeek, data.goalDay, data.goalWeek) } }
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
-    val stepsSummary: StateFlow<StepsSummaryUi?> = gameRepository.getStepsSummary()
-        .map { data -> 
-            data?.let {
-                StepsSummaryUi(
-                    stepsToday = it.stepsToday,
-                    stepsWeek = it.stepsWeek,
-                    goalDay = it.goalDay,
-                    goalWeek = it.goalWeek
-                )
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
-            initialValue = null,
-        )
+	val miniGameEntries: StateFlow<List<MiniGameEntry>?> = gameRepository.getPlayerProfile()
+		.map { profile ->
+			val playerLevel = profile?.level ?: 1
+			miniGameRegistry.allSorted().map { game ->
+				MiniGameEntry(game.id, game.nameRes, game.descriptionRes, game.unlockLevel, playerLevel >= game.unlockLevel)
+			}
+		}
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
-    val challenges: StateFlow<List<ChallengeUi>?> = gameRepository.getActiveChallenges()
-        .map { dataList ->
-            dataList.map { data ->
-                ChallengeUi(
-                    id = data.id,
-                    title = data.title,
-                    description = data.description,
-                    progress = data.progress,
-                    difficulty = data.difficulty,
-                    timeRemainingMs = data.timeRemainingMs,
-                )
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
-            initialValue = null,
-        )
-
-    val miniGameEntries: StateFlow<List<MiniGameEntry>?> = gameRepository.getPlayerProfile()
-        .map { profile ->
-            val playerLevel = profile?.level ?: 1
-            miniGameRegistry.allSorted().map { game ->
-                MiniGameEntry(
-                    id = game.id,
-                    nameRes = game.nameRes,
-                    descriptionRes = game.descriptionRes,
-                    unlockLevel = game.unlockLevel,
-                    isUnlocked = playerLevel >= game.unlockLevel,
-                    isAvailable = false,
-                )
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
-            initialValue = null,
-        )
-
-    private companion object {
-        const val STATE_STOP_TIMEOUT_MS = 5_000L
-    }
-
-    // --- Weekly Ghost Leaderboard ---
-
-    private val _leaderboardState = MutableStateFlow<LeaderboardState?>(null)
-    val leaderboardState: StateFlow<LeaderboardState?> = _leaderboardState
-
-    private val _leaderboardError = MutableStateFlow(false)
-    val leaderboardError: StateFlow<Boolean> = _leaderboardError
-
-    private var currentMetric: LeaderboardMetric = LeaderboardMetric.DISTANCE
-
-    init {
-        loadLeaderboard()
-    }
-
-    fun selectLeaderboardMetric(metric: LeaderboardMetric) {
-        if (metric == currentMetric) return
-        currentMetric = metric
-        loadLeaderboard()
-    }
-
-    fun retryLeaderboard() {
-        loadLeaderboard()
-    }
-
-    private fun loadLeaderboard() {
-        viewModelScope.launch {
-            try {
-                val state = ghostLeaderboardProvider.getLeaderboard(currentMetric)
-                _leaderboardState.value = state
-                _leaderboardError.value = false
-            } catch (e: CancellationException) {
-                throw e
-            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                _leaderboardState.value = null
-                _leaderboardError.value = true
-            }
-        }
-    }
+	private companion object { const val STATE_STOP_TIMEOUT_MS = 5_000L }
 }

@@ -10,7 +10,6 @@ import com.adsamcik.tracker.dashboard.data.DashboardLayout
 import com.adsamcik.tracker.dashboard.data.DashboardLayoutRepository
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
@@ -19,8 +18,6 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.Trip
-import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
-import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
@@ -43,6 +40,9 @@ import kotlinx.coroutines.withContext
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Provider
+import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import kotlin.LazyThreadSafetyMode
 
 /**
@@ -65,7 +65,6 @@ class DashboardViewModel @Inject constructor(
 	private val dailySummaryProvider: Provider<DailySummaryProvider>,
 	private val dailyPointsProviderFactory: Provider<DailyPointsProvider>,
 	private val goalProgressProviderFactory: Provider<GoalProgressProvider>,
-	private val activeChallengesProviderFactory: Provider<ActiveChallengesProvider>,
 	trackingParamsRepository: TrackingParamsRepository,
 ) : ViewModel() {
 
@@ -75,18 +74,12 @@ class DashboardViewModel @Inject constructor(
 	private val goalProgressProvider by lazy(LazyThreadSafetyMode.NONE) {
 		goalProgressProviderFactory.get()
 	}
-	private val activeChallengesProvider by lazy(LazyThreadSafetyMode.NONE) {
-		activeChallengesProviderFactory.get()
-	}
 
 	val pointsTodayFlow: StateFlow<Int>
 		get() = dailyPointsProvider.pointsTodayFlow
 
 	val goalProgressFlow: StateFlow<com.adsamcik.tracker.shared.base.di.GoalProgress>
 		get() = goalProgressProvider.goalProgressFlow
-
-	val activeChallengesFlow: StateFlow<List<ActiveChallengeInfo>>
-		get() = activeChallengesProvider.activeChallengesFlow
 
 	val dashboardLayout: StateFlow<DashboardLayout> = layoutRepository.layout
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardLayout())
@@ -112,6 +105,9 @@ class DashboardViewModel @Inject constructor(
 
 	private val _streakState = MutableStateFlow(StreakState())
 	val streakState: StateFlow<StreakState> = _streakState.asStateFlow()
+
+	private val _latestAchievement = MutableStateFlow<LatestAchievementUi?>(null)
+	val latestAchievement: StateFlow<LatestAchievementUi?> = _latestAchievement.asStateFlow()
 
 	private val _sessionInsights = MutableStateFlow<List<SessionInsight>>(emptyList())
 	val sessionInsights: StateFlow<List<SessionInsight>> = _sessionInsights.asStateFlow()
@@ -158,6 +154,7 @@ class DashboardViewModel @Inject constructor(
 
 					loadExplorationData(appDatabase)
 					loadStreakData(appDatabase)
+					loadLatestAchievement(appDatabase)
 				} catch (e: Exception) {
 					Reporter.report(e)
 					// DB errors are non-fatal — cards simply won't show
@@ -246,18 +243,20 @@ class DashboardViewModel @Inject constructor(
 		)
 	}
 
-	fun mapChallenges(infos: List<ActiveChallengeInfo>): List<ChallengeUiModel> {
-		return infos.map { info ->
-			ChallengeUiModel(
-				id = info.id,
-				title = info.title,
-				description = info.description,
-				progress = info.progress,
-				iconResName = DEFAULT_CHALLENGE_ICON_RES_NAME,
-				difficulty = info.difficulty,
-				timeRemainingMs = info.timeRemainingMs,
-				rewardPoints = 0,
+	private suspend fun loadLatestAchievement(db: AppDatabase) {
+		val row = db.achievementProgressDao().getAll()
+			.firstOrNull { it.lastTierIndex >= 0 }
+		val metric = row?.metricKey?.let(MetricKey::fromStorageKey)
+		val definition = if (metric != null) AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex) else null
+		_latestAchievement.value = if (row != null && definition != null) {
+			LatestAchievementUi(
+				id = definition.id,
+				nameRes = definition.nameRes,
+				tier = definition.tier,
+				unlockedAt = row.updatedAt,
 			)
+		} else {
+			null
 		}
 	}
 
@@ -306,8 +305,6 @@ class DashboardViewModel @Inject constructor(
 
 	companion object {
 		private const val DOMAIN_DAILY_DISCOVERY = "DAILY_DISCOVERY"
-		private const val DEFAULT_CHALLENGE_ICON_RES_NAME = "ic_challenge_icon"
-
 		private fun checkLocationPermission(context: Context): Boolean {
 			return ContextCompat.checkSelfPermission(
 				context,
