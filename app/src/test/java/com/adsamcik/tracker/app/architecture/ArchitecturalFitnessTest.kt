@@ -203,7 +203,11 @@ class ArchitecturalFitnessTest {
 	}
 
 	companion object {
-		private val STANDARD_EXCLUDES = listOf("build", ".gradle", ".idea", ".git")
+		// Exclude build artifacts, IDE caches, AND git worktrees (`.worktrees/`) —
+		// worktrees contain other branches' source trees that aren't part of the
+		// current branch's compilation unit but otherwise look like real sources
+		// and trip every fitness check.
+		private val STANDARD_EXCLUDES = listOf("build", ".gradle", ".idea", ".git", ".worktrees")
 		private val LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST = listOf(
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/altitude/AltitudeProcessorTest.kt:",
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt:",

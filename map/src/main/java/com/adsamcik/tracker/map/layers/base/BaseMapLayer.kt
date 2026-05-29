@@ -115,7 +115,9 @@ abstract class BaseMapLayer<I, P>(
             val startTime = System.currentTimeMillis()
             val currentQuality = synchronized(this@BaseMapLayer) {
                 if (!enabled) return@withContext lastConfig
-                this.zoom = zoom
+                // `this` inside withContext is CoroutineScope; use explicit @-qualified
+                // receiver to write the outer class's `zoom` property.
+                this@BaseMapLayer.zoom = zoom
                 quality
             }
 
