@@ -1142,6 +1142,20 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
+			// Defensive index reconciliation: MIGRATION_25_26 was updated in-place to
+			// drop the old single-column timestamp_ms index and create the composite
+			// (timestamp_ms, id) one, add idx_session_segment_end_time_ms, and add a
+			// last_processed_id column on domain_event_cursor. Devs already at v26
+			// (which is unreleased, so this is testers + CI) skip MIGRATION_25_26
+			// entirely, leaving their schema out of sync with the entity declarations.
+			// Run the same DDL here idempotently so the v26→v27 upgrade brings them
+			// up to spec without a destructive migration.
+			execSQL("DROP INDEX IF EXISTS index_domain_event_timestamp_ms")
+			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_timestamp_ms_id ON domain_event(timestamp_ms, id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_end_time_ms ON session_segment(end_time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
+			addColumnIfMissing(this, "domain_event_cursor", "last_processed_id", "INTEGER NOT NULL DEFAULT 0")
+
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS challenge (
