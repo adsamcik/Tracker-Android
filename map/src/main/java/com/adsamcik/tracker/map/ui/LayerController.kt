@@ -16,7 +16,7 @@ import kotlinx.coroutines.CancellationException
  * Layers now produce [MapLibreLayerConfig] data rather than mutating a map.
  */
 class LayerController {
-    private data class ViewportCacheKey(
+    internal data class ViewportCacheKey(
         val bounds: BucketedBounds?,
         val zoom: Int,
         val dateFromMs: Long,
@@ -24,7 +24,7 @@ class LayerController {
         val qualityBucket: Int,
     )
 
-    private data class BucketedBounds(
+    internal data class BucketedBounds(
         val north: Long,
         val east: Long,
         val south: Long,
@@ -36,11 +36,22 @@ class LayerController {
     private var currentLegends: List<MapLayerData> = emptyList()
     private var currentConfig: MapLibreLayerConfig? = null
     private var currentQuality: Float = 1f
-    private val layerConfigCache = mutableMapOf<String, LinkedHashMap<ViewportCacheKey, MapLibreLayerConfig?>>()
+    private val layerConfigCache = mutableMapOf<String, ViewportConfigCache>()
 
     companion object {
         private const val TAG = "LayerController"
-        private const val MAX_CACHE_BUCKETS_PER_LAYER = 5
+
+        /**
+         * Per-layer byte budget for the viewport refresh cache. A single dense (~80k point)
+         * heatmap is ~12 MB UTF-16; 16 MB lets one large payload plus a small recent neighbour
+         * coexist without unbounded retention. With ~5 active heatmap layers the worst-case
+         * retention is ~80 MB (down from ~300 MB with the previous 5-bucket-per-layer cache;
+         * see R2 round 5 finding #3). The single most-recent entry is always retained even
+         * when it alone exceeds the budget, preserving the original perf intent of skipping
+         * the GeoJSON re-encode on rapid back-and-forth pan within the same viewport bucket.
+         */
+        internal const val MAX_CACHE_BYTES_PER_LAYER: Long = 16L * 1024L * 1024L
+
         private const val QUALITY_BUCKET_SCALE = 100
         private const val MIN_BUCKET_DEGREES = 0.000001
     }
@@ -151,7 +162,7 @@ class LayerController {
                 val key = cacheKey(bounds, zoom, dateRange, currentQuality)
                 val cache = layerConfigCache[descriptor.id]
                 val config = if (cache != null && cache.containsKey(key)) {
-                    cache[key]
+                    cache.get(key)
                 } else {
                     layer.reloadData(context, bounds, zoom).also { refreshed ->
                         putCachedConfig(descriptor.id, key, refreshed)
@@ -263,13 +274,9 @@ class LayerController {
 
     private fun putCachedConfig(layerId: String, key: ViewportCacheKey, config: MapLibreLayerConfig?) {
         val cache = layerConfigCache.getOrPut(layerId) {
-            object : LinkedHashMap<ViewportCacheKey, MapLibreLayerConfig?>(MAX_CACHE_BUCKETS_PER_LAYER, 0.75f, true) {
-                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ViewportCacheKey, MapLibreLayerConfig?>): Boolean {
-                    return size > MAX_CACHE_BUCKETS_PER_LAYER
-                }
-            }
+            ViewportConfigCache(MAX_CACHE_BYTES_PER_LAYER)
         }
-        cache[key] = config
+        cache.put(key, config)
     }
 
 }
