@@ -8,8 +8,8 @@ import com.adsamcik.tracker.stats.api.AchievementTier
  * Static catalog of all achievement definitions.
  *
  * Contains ~18 achievements across 6 categories with sensible tier thresholds.
- * Definitions are immutable and loaded eagerly. Runtime progress is evaluated
- * separately by [AchievementEvaluator].
+ * Definitions are immutable and loaded eagerly. Runtime progress is layered on top
+ * by repositories and the unified rule engine.
  *
  * Thread-safety: Immutable after initialization. Safe to read from any thread.
  */

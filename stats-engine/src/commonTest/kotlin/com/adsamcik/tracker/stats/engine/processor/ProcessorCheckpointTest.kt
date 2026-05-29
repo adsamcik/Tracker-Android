@@ -4,6 +4,7 @@ import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
@@ -17,7 +18,11 @@ import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
 import com.adsamcik.tracker.stats.api.value.StepCount
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.rule.Rule
+import com.adsamcik.tracker.stats.api.rule.RuleInstance
+import com.adsamcik.tracker.stats.api.rule.RuleKind
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscoveryEngine
 import com.adsamcik.tracker.stats.engine.segment.SessionSegmentDetector
@@ -189,12 +194,28 @@ class ProcessorCheckpointTest {
 				AchievementTier.SILVER to 50L,
 			),
 		)
-		val evaluator = AchievementEvaluator(catalog = listOf(testDefinition))
+		val registry = object : RuleRegistry {
+			override suspend fun allInstances(): List<RuleInstance> = listOf(
+				RuleInstance(
+					rule = Rule(
+						id = testDefinition.id,
+						kind = RuleKind.Achievement,
+						metric = testDefinition.metric,
+						target = RuleTarget.Tiered(testDefinition.tiers),
+					),
+					window = TimeWindow.Cumulative,
+					attachment = testDefinition,
+				),
+			)
+
+			override suspend fun instancesAffectedByTables(dirtyTables: Set<String>): List<RuleInstance> =
+				if (dirtyTables.isEmpty()) emptyList() else allInstances()
+		}
 		var metricValue = 15L
 
 		// Phase 1: flush to trigger BRONZE unlock, then checkpoint
 		val original = AchievementProcessor(
-			evaluator = evaluator,
+			registry = registry,
 			metricsProvider = { mapOf("test_metric" to metricValue) },
 		)
 		original.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
@@ -207,7 +228,7 @@ class ProcessorCheckpointTest {
 
 		// Phase 2: restore into new instance — same metric value should NOT re-trigger
 		val restored = AchievementProcessor(
-			evaluator = evaluator,
+			registry = registry,
 			metricsProvider = { mapOf("test_metric" to metricValue) },
 		)
 		restored.onStart(ProcessorContext(startTimestamp = EpochMs(2000L)))

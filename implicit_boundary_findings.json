@@ -365,7 +365,7 @@
       "dep": "stats-engine",
       "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\StatsDataModule.kt",
       "line": 17,
-      "text": "import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator",
+      "text": "legacy stats-engine achievement evaluator import removed",
       "reason": "stats-data should not reference stats-engine"
     },
     {
@@ -381,7 +381,7 @@
       "dep": "stats-engine",
       "file": "C:\\Users\\adamnovak\\Downloads\\Tracker-Android-dev-v10\\Tracker-Android-dev-v10\\stats-data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\worker\\AchievementWorker.kt",
       "line": 12,
-      "text": "import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator",
+      "text": "legacy stats-engine achievement evaluator import removed",
       "reason": "stats-data should not reference stats-engine"
     }
   ],

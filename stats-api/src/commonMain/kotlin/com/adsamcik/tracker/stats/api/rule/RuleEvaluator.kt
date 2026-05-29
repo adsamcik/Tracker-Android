@@ -5,10 +5,9 @@ import com.adsamcik.tracker.stats.api.AchievementTier
 /**
  * Pure stateless evaluator of [RuleInstance]s.
  *
- * Subsumes [com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator] for
- * challenge-kind rules and is the comparison primitive shared with the (still pending)
- * achievement migration. Centralising the value-vs-target comparison in one place means
- * the dirty-aware signal processor and the session-end engine both call the same logic.
+ * Comparison primitive shared by achievement and challenge engines. Centralising the
+ * value-vs-target comparison in one place means the dirty-aware signal processor and
+ * the session-end engine both call the same logic.
  *
  * Adding a new rule kind requires editing [RuleKind], [RuleTarget], [RuleEvaluationResult],
  * the [evaluate] dispatch, and every exhaustive consumer; it is not the plug-in extension
@@ -45,11 +44,21 @@ class RuleEvaluator {
 		}
 		val newTier = highestUnlockedTier(target.tiers, currentValue)
 		val prevTier = instance.previousTier
+		val nextTierTarget = nextTierTarget(target.tiers, newTier)
 		val crossedUp = newTier != null && (prevTier == null || newTier.ordinal > prevTier.ordinal)
 		return if (crossedUp) {
-			RuleEvaluationResult.TierUnlocked(instance, currentValue, newTier!!)
+			RuleEvaluationResult.TierUnlocked(
+				instance = instance,
+				currentValue = currentValue,
+				unlocked = newTier!!,
+				nextTierTarget = nextTierTarget,
+			)
 		} else {
-			RuleEvaluationResult.ProgressUpdated(instance, currentValue)
+			RuleEvaluationResult.ProgressUpdated(
+				instance = instance,
+				currentValue = currentValue,
+				nextTierTarget = nextTierTarget,
+			)
 		}
 	}
 
@@ -102,5 +111,17 @@ class RuleEvaluator {
 			}
 		}
 		return highest
+	}
+
+	private fun nextTierTarget(
+		tiers: Map<AchievementTier, Long>,
+		currentTier: AchievementTier?,
+	): Long? {
+		val sorted = tiers.entries.sortedBy { it.key.ordinal }
+		return if (currentTier == null) {
+			sorted.firstOrNull()?.value
+		} else {
+			sorted.firstOrNull { it.key.ordinal > currentTier.ordinal }?.value
+		}
 	}
 }

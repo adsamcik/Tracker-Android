@@ -27,10 +27,8 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationReposito
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import dagger.Binds
 import dagger.Module
-import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -114,10 +112,4 @@ abstract class StatsDataModule {
 	abstract fun bindAchievementEvaluationScheduler(
 		impl: WorkManagerAchievementEvaluationScheduler,
 	): AchievementEvaluationScheduler
-
-	companion object {
-		@Provides
-		@Singleton
-		fun provideAchievementEvaluator(): AchievementEvaluator = AchievementEvaluator()
-	}
 }

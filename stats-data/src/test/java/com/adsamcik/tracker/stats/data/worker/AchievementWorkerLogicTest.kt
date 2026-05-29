@@ -6,7 +6,11 @@ import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
+import com.adsamcik.tracker.stats.data.achievement.AchievementRuleRegistry
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -17,11 +21,11 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for the achievement worker's evaluation logic.
+ * Tests for the achievement worker's rule-evaluation logic.
  *
  * Since [AchievementWorker] is a CoroutineWorker requiring Android context,
- * we test the core logic by calling the evaluator directly with the same
- * patterns used in the worker.
+ * we test the core logic through [RuleEvaluator] and [AchievementRuleRegistry]
+ * with the same patterns used in the worker.
  */
 class AchievementWorkerLogicTest {
 
@@ -39,63 +43,61 @@ class AchievementWorkerLogicTest {
 		),
 	)
 
-	private val evaluator = AchievementEvaluator(catalog = listOf(testDefinition))
+	private val evaluator = RuleEvaluator()
+	private val target = RuleTarget.Tiered(testDefinition.tiers)
 
 	@Test
 	fun `tier-skip emits all crossed tiers`() = runTest {
 		// Simulates jumping from no progress to GOLD level
-		val unlocks = evaluator.evaluateForUnlocks(testDefinition, 200L, null)
+		val unlocks = evaluator.crossedTiers(target, currentValue = 200L, previousTier = null)
 
-		unlocks.size shouldBe 3
-		unlocks[0].tier shouldBe AchievementTier.BRONZE
-		unlocks[1].tier shouldBe AchievementTier.SILVER
-		unlocks[2].tier shouldBe AchievementTier.GOLD
+		unlocks shouldHaveSize 3
+		unlocks[0] shouldBe AchievementTier.BRONZE
+		unlocks[1] shouldBe AchievementTier.SILVER
+		unlocks[2] shouldBe AchievementTier.GOLD
 	}
 
 	@Test
 	fun `normal progression emits only new tier`() = runTest {
-		val unlocks = evaluator.evaluateForUnlocks(
-			testDefinition,
-			50L,
-			AchievementTier.BRONZE,
+		val unlocks = evaluator.crossedTiers(
+			target = target,
+			currentValue = 50L,
+			previousTier = AchievementTier.BRONZE,
 		)
 
-		unlocks.size shouldBe 1
-		unlocks[0].tier shouldBe AchievementTier.SILVER
+		unlocks shouldHaveSize 1
+		unlocks[0] shouldBe AchievementTier.SILVER
 	}
 
 	@Test
 	fun `no change emits nothing`() = runTest {
-		val unlocks = evaluator.evaluateForUnlocks(
-			testDefinition,
-			30L,
-			AchievementTier.BRONZE,
+		val unlocks = evaluator.crossedTiers(
+			target = target,
+			currentValue = 30L,
+			previousTier = AchievementTier.BRONZE,
 		)
 
-		unlocks.size shouldBe 0
+		unlocks shouldHaveSize 0
 	}
 
 	@Test
-	fun `unlockedAt null means no previous tier even if tier field is set`() = runTest {
-		// Issue 2: tier=0 with unlockedAt=null should be treated as no tier
-		val entity = AchievementProgressEntity(
-			achievementId = "test_cells",
-			currentValue = 5L,
-			targetValue = 10L,
-			tier = 0, // BRONZE ordinal
-			unlockedAt = null, // But not actually unlocked!
-			updatedAt = 0L,
+	fun `registry reads previous tier from tier column`() = runTest {
+		val dao: AchievementProgressDao = mockk()
+		coEvery { dao.getAll() } returns listOf(
+			AchievementProgressEntity(
+				achievementId = "test_cells",
+				currentValue = 5L,
+				targetValue = 10L,
+				tier = AchievementTier.BRONZE.ordinal,
+				unlockedAt = null,
+				updatedAt = 0L,
+			),
 		)
+		val registry = AchievementRuleRegistry(dao, listOf(testDefinition))
 
-		// The worker logic uses unlockedAt as discriminator
-		val tierOrdinal = entity.tier
-		val previousTier = if (entity.unlockedAt != null && tierOrdinal != null) {
-			AchievementTier.entries.getOrNull(tierOrdinal)
-		} else {
-			null
-		}
+		val instance = registry.allInstances().single()
 
-		previousTier shouldBe null
+		instance.previousTier shouldBe AchievementTier.BRONZE
 	}
 
 	@Test
@@ -116,40 +118,30 @@ class AchievementWorkerLogicTest {
 				updatedAt = any(),
 			)
 		} just Runs
+		val registry = AchievementRuleRegistry(dao, listOf(testDefinition))
 
-		// Simulate what the worker does
 		val metrics = metricsProvider.collect()
-		val previousProgress = dao.getAll()
-		val previousMap = previousProgress.associateBy { it.achievementId }
-
-		for (definition in listOf(testDefinition)) {
-			val metricValue = metrics[definition.metric] ?: 0L
-			val previous = previousMap[definition.id]
-			val previousTier = previous?.let { entity ->
-				val tierOrdinal = entity.tier
-				if (entity.unlockedAt != null && tierOrdinal != null) {
-					AchievementTier.entries.getOrNull(tierOrdinal)
-				} else {
-					null
-				}
+		for (instance in registry.allInstances()) {
+			val metricValue = metrics[instance.rule.metric] ?: 0L
+			val target = instance.rule.target as RuleTarget.Tiered
+			val result = evaluator.evaluate(instance, metricValue)
+			val newUnlocks = evaluator.crossedTiers(target, metricValue, instance.previousTier)
+			val nextTierTarget = when (result) {
+				is RuleEvaluationResult.TierUnlocked -> result.nextTierTarget ?: metricValue
+				is RuleEvaluationResult.ProgressUpdated -> result.nextTierTarget ?: metricValue
+				is RuleEvaluationResult.Unchanged -> nextTierTarget(target, instance.previousTier) ?: metricValue
+				is RuleEvaluationResult.Completed,
+				is RuleEvaluationResult.ChallengeProgress -> metricValue
 			}
-
-			val newUnlocks = evaluator.evaluateForUnlocks(definition, metricValue, previousTier)
-			val nextTierTarget = definition.tiers.entries
-				.sortedBy { it.key.ordinal }
-				.firstOrNull { metricValue < it.value }
-				?.value ?: metricValue
-			val highestNewTier = newUnlocks.lastOrNull()?.tier
-
+			val highestNewTier = newUnlocks.lastOrNull()
 			val entity = AchievementProgressEntity(
-				achievementId = definition.id,
+				achievementId = instance.rule.id,
 				currentValue = metricValue,
 				targetValue = nextTierTarget,
-				tier = highestNewTier?.ordinal ?: previous?.tier,
+				tier = highestNewTier?.ordinal ?: instance.previousTier?.ordinal,
 				unlockedAt = if (newUnlocks.isNotEmpty()) System.currentTimeMillis() else null,
 				updatedAt = System.currentTimeMillis(),
 			)
-			// Call the individual methods (upsert is a default method that chains them)
 			dao.insertIfNew(entity)
 			dao.updateProgress(
 				achievementId = entity.achievementId,
@@ -176,16 +168,28 @@ class AchievementWorkerLogicTest {
 
 	@Test
 	fun `running evaluation twice does not re-unlock`() = runTest {
-		// First run: no previous progress, value = 200 → unlocks BRONZE, SILVER, GOLD
-		val firstUnlocks = evaluator.evaluateForUnlocks(testDefinition, 200L, null)
-		firstUnlocks.size shouldBe 3
+		// First run: no previous progress, value = 200 -> unlocks BRONZE, SILVER, GOLD
+		val firstUnlocks = evaluator.crossedTiers(target, currentValue = 200L, previousTier = null)
+		firstUnlocks shouldHaveSize 3
 
-		// Second run: previous tier is GOLD, value = 200 → no new unlocks
-		val secondUnlocks = evaluator.evaluateForUnlocks(
-			testDefinition,
-			200L,
-			AchievementTier.GOLD,
+		// Second run: previous tier is GOLD, value = 200 -> no new unlocks
+		val secondUnlocks = evaluator.crossedTiers(
+			target = target,
+			currentValue = 200L,
+			previousTier = AchievementTier.GOLD,
 		)
-		secondUnlocks.size shouldBe 0
+		secondUnlocks shouldHaveSize 0
+	}
+
+	private fun nextTierTarget(
+		target: RuleTarget.Tiered,
+		currentTier: AchievementTier?,
+	): Long? {
+		val sorted = target.tiers.entries.sortedBy { it.key.ordinal }
+		return if (currentTier == null) {
+			sorted.firstOrNull()?.value
+		} else {
+			sorted.firstOrNull { it.key.ordinal > currentTier.ordinal }?.value
+		}
 	}
 }

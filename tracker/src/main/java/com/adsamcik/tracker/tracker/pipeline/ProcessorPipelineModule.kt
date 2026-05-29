@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.pipeline
 
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
+import com.adsamcik.tracker.stats.api.rule.AchievementRules
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import com.adsamcik.tracker.stats.engine.processor.AchievementProcessor
 import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.stats.engine.processor.ExplorationProcessor
@@ -67,8 +69,10 @@ object ProcessorPipelineModule {
 	fun provideAchievementProcessor(
 		aggregator: AggregatorProcessor,
 		dirtyTracker: com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker,
+		@AchievementRules achievementRegistry: RuleRegistry,
 	): SignalProcessor {
 		return AchievementProcessor(
+			registry = achievementRegistry,
 			metricsProvider = { aggregator.snapshotMetrics() },
 			dirtyTracker = dirtyTracker,
 		)

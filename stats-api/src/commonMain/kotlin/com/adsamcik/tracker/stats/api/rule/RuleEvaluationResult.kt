@@ -15,7 +15,7 @@ sealed interface RuleEvaluationResult {
 	val instance: RuleInstance
 	val currentValue: Long
 
-	/** No change from the previous observation. Engine should NOT emit any event or write. */
+	/** No change from the previous observation. Event-producing consumers should not emit. */
 	data class Unchanged(
 		override val instance: RuleInstance,
 		override val currentValue: Long,
@@ -30,15 +30,19 @@ sealed interface RuleEvaluationResult {
 		override val instance: RuleInstance,
 		override val currentValue: Long,
 		val unlocked: AchievementTier,
+		/** Target value of the next tier above [unlocked], or null when [unlocked] is max. */
+		val nextTierTarget: Long?,
 	) : RuleEvaluationResult
 
 	/**
 	 * Achievement-kind rules only. Metric value moved within the same tier (or before any tier).
+	 * [nextTierTarget] is the target for the next tier, or null when already at max tier.
 	 * Use for progress bars in the UI.
 	 */
 	data class ProgressUpdated(
 		override val instance: RuleInstance,
 		override val currentValue: Long,
+		val nextTierTarget: Long?,
 	) : RuleEvaluationResult
 
 	/** Challenge-kind rules only. Metric crossed the single target — challenge is done. */

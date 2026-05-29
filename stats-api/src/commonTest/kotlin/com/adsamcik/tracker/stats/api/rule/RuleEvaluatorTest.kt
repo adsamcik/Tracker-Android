@@ -33,7 +33,9 @@ class RuleEvaluatorTest {
 		val instance = RuleInstance(rule, TimeWindow.Cumulative, previousValue = 50L, previousTier = null)
 		val result = evaluator.evaluate(instance, currentValue = 150L)
 		(result is RuleEvaluationResult.TierUnlocked) shouldBe true
-		(result as RuleEvaluationResult.TierUnlocked).unlocked shouldBe AchievementTier.BRONZE
+		result as RuleEvaluationResult.TierUnlocked
+		result.unlocked shouldBe AchievementTier.BRONZE
+		result.nextTierTarget shouldBe 500L
 	}
 
 	@Test
@@ -48,6 +50,7 @@ class RuleEvaluatorTest {
 		)
 		val result = evaluator.evaluate(instance, currentValue = 300L)
 		(result is RuleEvaluationResult.ProgressUpdated) shouldBe true
+		(result as RuleEvaluationResult.ProgressUpdated).nextTierTarget shouldBe 500L
 	}
 
 	@Test
@@ -63,7 +66,21 @@ class RuleEvaluatorTest {
 		val instance = RuleInstance(rule, TimeWindow.Cumulative, previousValue = 0L, previousTier = null)
 		val result = evaluator.evaluate(instance, currentValue = 1500L)
 		(result is RuleEvaluationResult.TierUnlocked) shouldBe true
-		(result as RuleEvaluationResult.TierUnlocked).unlocked shouldBe AchievementTier.GOLD
+		result as RuleEvaluationResult.TierUnlocked
+		result.unlocked shouldBe AchievementTier.GOLD
+		result.nextTierTarget shouldBe null
+	}
+
+	@Test
+	fun `achievement progress before first tier reports first target`() {
+		val rule = achievement(
+			"steps",
+			mapOf(AchievementTier.BRONZE to 100L, AchievementTier.SILVER to 500L),
+		)
+		val instance = RuleInstance(rule, TimeWindow.Cumulative, previousValue = 10L, previousTier = null)
+		val result = evaluator.evaluate(instance, currentValue = 20L)
+		(result is RuleEvaluationResult.ProgressUpdated) shouldBe true
+		(result as RuleEvaluationResult.ProgressUpdated).nextTierTarget shouldBe 100L
 	}
 
 	@Test

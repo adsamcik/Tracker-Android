@@ -8,8 +8,10 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
-import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
+import com.adsamcik.tracker.stats.data.achievement.AchievementRuleRegistry
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -33,48 +35,44 @@ class AchievementWorker @AssistedInject constructor(
 	@Assisted params: WorkerParameters,
 	private val metricsProvider: AchievementMetricsProvider,
 	private val achievementDao: AchievementProgressDao,
-	private val evaluator: AchievementEvaluator,
+	private val achievementRuleRegistry: AchievementRuleRegistry,
 ) : CoroutineWorker(context, params) {
+
+	private val ruleEvaluator = RuleEvaluator()
 
 	override suspend fun doWork(): Result {
 		val metrics = metricsProvider.collect()
-		val previousProgress = achievementDao.getAll()
-		val previousMap = previousProgress.associateBy { it.achievementId }
+		val instances = achievementRuleRegistry.allInstances()
 		val now = System.currentTimeMillis()
 
-		for (definition in AchievementCatalog.definitions) {
-			val metricValue = metrics[definition.metric] ?: 0L
-
-			// Resolve persisted previous tier (using unlockedAt as discriminator per Issue 2)
-			val previous = previousMap[definition.id]
-			val previousTier = previous?.let { entity ->
-				val tierOrdinal = entity.tier
-				if (entity.unlockedAt != null && tierOrdinal != null) {
-					AchievementTier.entries.getOrNull(tierOrdinal)
-				} else {
-					null
-				}
+		for (instance in instances) {
+			val metricValue = metrics[instance.rule.metric] ?: 0L
+			val target = instance.rule.target
+			check(target is RuleTarget.Tiered) {
+				"Achievement rule ${instance.rule.id} must have RuleTarget.Tiered"
 			}
 
-			// Evaluate ALL newly crossed tiers (fixes tier-skip per Issue 3)
-			val newUnlocks = evaluator.evaluateForUnlocks(definition, metricValue, previousTier)
+			val result = ruleEvaluator.evaluate(instance, metricValue)
+			val newUnlocks = ruleEvaluator.crossedTiers(
+				target = target,
+				currentValue = metricValue,
+				previousTier = instance.previousTier,
+			)
+			val nextTierTarget = when (result) {
+				is RuleEvaluationResult.TierUnlocked -> result.nextTierTarget ?: metricValue
+				is RuleEvaluationResult.ProgressUpdated -> result.nextTierTarget ?: metricValue
+				is RuleEvaluationResult.Unchanged -> nextTierTarget(target, instance.previousTier) ?: metricValue
+				is RuleEvaluationResult.Completed,
+				is RuleEvaluationResult.ChallengeProgress -> metricValue
+			}
+			val highestNewTier = newUnlocks.lastOrNull()
 
-			// Compute next tier target for progress display
-			val nextTierTarget = definition.tiers.entries
-				.sortedBy { it.key.ordinal }
-				.firstOrNull { metricValue < it.value }
-				?.value ?: metricValue
-
-			// Determine the highest newly unlocked tier
-			val highestNewTier = newUnlocks.lastOrNull()?.tier
-
-			// Persist progress (upsert: insert-if-new then update)
 			achievementDao.upsert(
 				AchievementProgressEntity(
-					achievementId = definition.id,
+					achievementId = instance.rule.id,
 					currentValue = metricValue,
 					targetValue = nextTierTarget,
-					tier = highestNewTier?.ordinal ?: previous?.tier,
+					tier = highestNewTier?.ordinal ?: instance.previousTier?.ordinal,
 					unlockedAt = if (newUnlocks.isNotEmpty()) now else null,
 					updatedAt = now,
 				),
@@ -82,6 +80,18 @@ class AchievementWorker @AssistedInject constructor(
 		}
 
 		return Result.success()
+	}
+
+	private fun nextTierTarget(
+		target: RuleTarget.Tiered,
+		currentTier: AchievementTier?,
+	): Long? {
+		val sorted = target.tiers.entries.sortedBy { it.key.ordinal }
+		return if (currentTier == null) {
+			sorted.firstOrNull()?.value
+		} else {
+			sorted.firstOrNull { it.key.ordinal > currentTier.ordinal }?.value
+		}
 	}
 
 	companion object {

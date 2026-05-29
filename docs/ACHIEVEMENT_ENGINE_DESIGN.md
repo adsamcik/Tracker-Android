@@ -17,8 +17,8 @@
 | `AchievementCategory` | `stats-api` | ✅ 6 categories: EXPLORATION, DISTANCE, STEPS, STREAKS, MODES, MILESTONES |
 | `AchievementSnapshot` | `stats-api` | ✅ Runtime snapshot with progress fraction |
 | `AchievementRepository` | `stats-api` (interface), `stats-data` (impl) | ✅ `observeAll()`, `observeRecent()` |
-| `AchievementCatalog` | `stats-engine` | ✅ 18 definitions with tier thresholds |
-| `AchievementEvaluator` | `stats-engine` | ✅ Stateless evaluator, snapshot + diff detection |
+| `AchievementCatalog` | `stats-api` | ✅ 18 definitions with tier thresholds |
+| `RuleEvaluator` | `stats-api` | ✅ Stateless rule evaluator, tier/target comparison |
 | `AchievementProcessor` | `stats-engine` | ✅ SignalProcessor wrapper, emits DomainEvents |
 | `AchievementProgressEntity` | `sbase` | ✅ Room entity with indices |
 | `AchievementProgressDao` | `sbase` | ✅ CRUD + Flow observation |
@@ -62,8 +62,8 @@
 ```
 
 **Rationale:**
-- `stats-engine` already owns `AchievementEvaluator`, `AchievementCatalog`, `AchievementProcessor`.
-- The evaluation logic is pure computation (metric value → tier comparison) — it belongs in the engine.
+- `stats-api` owns the declarative catalog and shared `RuleEvaluator`; `stats-engine` owns live `AchievementProcessor` orchestration.
+- The evaluation logic is pure computation (metric value → tier comparison) — it belongs in the shared rule layer.
 - `game` already owns celebration (notifications, XP awards) via `GameDomainEventConsumer`.
 - Creating a new module would add build complexity for no separation benefit.
 
@@ -71,8 +71,8 @@
 
 | Module | Responsibility |
 |--------|---------------|
-| `stats-api` | Contracts: `AchievementDefinition`, `AchievementTier`, `AchievementSnapshot`, `DomainEvent.*` |
-| `stats-engine` | Evaluation: `AchievementEvaluator`, `AchievementCatalog`, `AchievementProcessor`, **new `AchievementMetricsProvider`** |
+| `stats-api` | Contracts/catalog: `AchievementDefinition`, `AchievementTier`, `AchievementSnapshot`, `AchievementCatalog`, `RuleEvaluator`, `DomainEvent.*` |
+| `stats-engine` | Live evaluation orchestration: `AchievementProcessor` |
 | `stats-data` | Persistence: `DefaultAchievementRepository`, **new `DefaultAchievementMetricsProvider`** |
 | `sbase` | Schema: `AchievementProgressEntity`, `AchievementProgressDao` |
 | `game` | Consumption: `GameDomainEventConsumer`, XP awards, notifications, UI |
@@ -175,13 +175,13 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 
 ### 3.3 Tier Transition Detection
 
-The existing `AchievementEvaluator.evaluate()` already handles this correctly:
+The existing `RuleEvaluator.evaluate()` already handles this correctly:
 
 ```
 Current approach (keep):
-  1. Load previousProgress from AchievementProgressDao
-  2. Compute new snapshots via AchievementEvaluator.snapshot()
-  3. Compare snap.currentTier != previousTier → emit unlock event
+  1. Load previous progress from AchievementProgressDao-backed RuleInstance values
+  2. Evaluate catalog-backed RuleInstance via RuleEvaluator.evaluate()
+  3. Map TierUnlocked / ProgressUpdated to domain events with nextTierTarget
   4. Persist updated progress to AchievementProgressDao
 ```
 
@@ -631,7 +631,7 @@ Phases 1–3 are prerequisites. Phases 4–7 can be parallelized after Phase 3.
 
 | Layer | Test Type | Framework | Key Cases |
 |-------|-----------|-----------|-----------|
-| `AchievementEvaluator` | Unit | JUnit 5 + Kotest | All tier transitions, edge cases (0 value, maxed out, single-tier milestones) |
+| `RuleEvaluator` | Unit | JUnit 5 + Kotest | All tier transitions, edge cases (0 value, maxed out, single-tier milestones) |
 | `AchievementCatalog` | Unit | JUnit 5 | All tiers strictly increasing, all metrics have at least BRONZE, no duplicate IDs |
 | `DefaultAchievementMetricsProvider` | Integration | Robolectric + Room in-memory | Each metric returns correct value from seeded DB |
 | `IncrementalMetricsCache` | Unit | JUnit 5 + Turbine | Dirty-marking, cache hit/miss, concurrent access |

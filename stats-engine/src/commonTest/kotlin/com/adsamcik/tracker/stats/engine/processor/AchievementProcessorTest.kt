@@ -1,14 +1,23 @@
 package com.adsamcik.tracker.stats.engine.processor
 
+import com.adsamcik.tracker.stats.api.AchievementDefinition
+import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
+import com.adsamcik.tracker.stats.api.rule.Rule
+import com.adsamcik.tracker.stats.api.rule.RuleInstance
+import com.adsamcik.tracker.stats.api.rule.RuleKind
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -25,12 +34,52 @@ class AchievementProcessorTest {
 		),
 	)
 
+	private fun processor(
+		metricsProvider: () -> Map<String, Long>,
+		dirtyTracker: MetricDirtyTracker? = null,
+		definitions: List<AchievementDefinition> = AchievementCatalog.definitions,
+		previous: Map<String, Pair<Long, AchievementTier?>> = emptyMap(),
+	): AchievementProcessor = AchievementProcessor(
+		registry = StaticAchievementRegistry(definitions, previous),
+		metricsProvider = metricsProvider,
+		dirtyTracker = dirtyTracker,
+	)
+
+	private class StaticAchievementRegistry(
+		private val definitions: List<AchievementDefinition>,
+		private val previous: Map<String, Pair<Long, AchievementTier?>>,
+	) : RuleRegistry {
+		override suspend fun allInstances(): List<RuleInstance> = definitions.map(::toInstance)
+
+		override suspend fun instancesAffectedByTables(
+			dirtyTables: Set<String>,
+		): List<RuleInstance> {
+			if (dirtyTables.isEmpty()) return emptyList()
+			return definitions
+				.filter { definition -> MetricKeys.sourceTables(definition.metric).any { it in dirtyTables } }
+				.map(::toInstance)
+		}
+
+		private fun toInstance(definition: AchievementDefinition): RuleInstance {
+			val previousProgress = previous[definition.id]
+			return RuleInstance(
+				rule = Rule(
+					id = definition.id,
+					kind = RuleKind.Achievement,
+					metric = definition.metric,
+					target = RuleTarget.Tiered(definition.tiers),
+				),
+				window = TimeWindow.Cumulative,
+				previousValue = previousProgress?.first,
+				previousTier = previousProgress?.second,
+				attachment = definition,
+			)
+		}
+	}
+
 	@Test
 	fun `raw signals are ignored - onSignal is a no-op`() = runTest {
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
-			metricsProvider = { emptyMap() },
-		)
+		val processor = processor(metricsProvider = { emptyMap() })
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		processor.onSignal(testSignal(2000L))
@@ -43,10 +92,7 @@ class AchievementProcessorTest {
 
 	@Test
 	fun `flush with empty metrics produces no events`() = runTest {
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
-			metricsProvider = { emptyMap() },
-		)
+		val processor = processor(metricsProvider = { emptyMap() })
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		val events = processor.onFlush()
@@ -55,10 +101,7 @@ class AchievementProcessorTest {
 
 	@Test
 	fun `onStop delegates to onFlush`() = runTest {
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
-			metricsProvider = { emptyMap() },
-		)
+		val processor = processor(metricsProvider = { emptyMap() })
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		// Feed a signal (should be ignored)
@@ -75,8 +118,7 @@ class AchievementProcessorTest {
 
 	@Test
 	fun `flush with real metrics emits unlock when tier increases`() = runTest {
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
+		val processor = processor(
 			metricsProvider = {
 				mapOf("total_steps" to 15_000L)
 			},
@@ -89,6 +131,21 @@ class AchievementProcessorTest {
 		assert(events.single() is DomainEvent.AchievementUnlocked)
 	}
 
+	@Test
+	fun `progress event uses next tier target from rule evaluator`() = runTest {
+		val processor = processor(
+			metricsProvider = { mapOf("total_steps" to 5_000L) },
+		)
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
+
+		val events = processor.onFlush()
+		events.shouldHaveSize(1)
+		val progress = events.single() as DomainEvent.AchievementProgress
+		progress.achievementId shouldBe "steps_total"
+		progress.currentValue shouldBe 5_000L
+		progress.targetValue shouldBe 10_000L
+	}
+
 	// --- Dirty-aware flush short-circuit ---
 
 	private class StubDirtyTracker(initialDirty: Set<String> = emptySet()) : MetricDirtyTracker {
@@ -98,7 +155,9 @@ class AchievementProcessorTest {
 		override fun markDirty(tables: Set<String>) { dirty = dirty + tables }
 		override fun consumeDirty(): Set<String> {
 			consumeCalls += 1
-			val out = dirty; dirty = emptySet(); return out
+			val out = dirty
+			dirty = emptySet()
+			return out
 		}
 	}
 
@@ -106,8 +165,7 @@ class AchievementProcessorTest {
 	fun `flush short-circuits when dirty tracker reports nothing changed`() = runTest {
 		var providerCalls = 0
 		val tracker = StubDirtyTracker()
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
+		val processor = processor(
 			metricsProvider = {
 				providerCalls += 1
 				mapOf("total_steps" to 50_000L)
@@ -127,8 +185,7 @@ class AchievementProcessorTest {
 	fun `flush proceeds normally when dirty tracker reports a change`() = runTest {
 		var providerCalls = 0
 		val tracker = StubDirtyTracker()
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
+		val processor = processor(
 			metricsProvider = {
 				providerCalls += 1
 				mapOf("total_steps" to 15_000L)
@@ -138,7 +195,7 @@ class AchievementProcessorTest {
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		// Mark a table dirty; the processor should evaluate fully.
-		tracker.markDirty("daily_summary")
+		tracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
 		val events = processor.onFlush()
 		providerCalls shouldBe 1
 		events.shouldHaveSize(1)
@@ -149,17 +206,16 @@ class AchievementProcessorTest {
 	fun `consumed dirty does not leak into next flush`() = runTest {
 		val tracker = StubDirtyTracker()
 		var metricValue = 15_000L
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
+		val processor = processor(
 			metricsProvider = { mapOf("total_steps" to metricValue) },
 			dirtyTracker = tracker,
 		)
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
-		tracker.markDirty("daily_summary")
-		processor.onFlush()  // consumes the dirty set
+		tracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
+		processor.onFlush() // consumes the dirty set
 		// On the next flush nothing has been marked since — short-circuit.
-		metricValue = 25_000L  // would unlock another tier if evaluated
+		metricValue = 25_000L // would unlock another tier if evaluated
 		val events = processor.onFlush()
 		events.shouldBeEmpty()
 	}
@@ -172,8 +228,7 @@ class AchievementProcessorTest {
 		// the underlying table had genuinely changed.
 		val tracker = StubDirtyTracker()
 		var providerCalls = 0
-		val processor = AchievementProcessor(
-			evaluator = AchievementEvaluator(),
+		val processor = processor(
 			metricsProvider = {
 				providerCalls += 1
 				if (providerCalls == 1) throw RuntimeException("transient DB error")
@@ -183,7 +238,7 @@ class AchievementProcessorTest {
 		)
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
-		tracker.markDirty("daily_summary")
+		tracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
 		// First flush throws — dirty mark MUST be restored.
 		try {
 			processor.onFlush()

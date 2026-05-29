@@ -1,17 +1,22 @@
 package com.adsamcik.tracker.stats.engine.processor
 
+import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
+import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
+import com.adsamcik.tracker.stats.api.rule.RuleInstance
+import com.adsamcik.tracker.stats.api.rule.RuleRegistry
+import com.adsamcik.tracker.stats.api.rule.RuleTarget
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
 
 /**
- * SignalProcessor wrapping [AchievementEvaluator].
+ * SignalProcessor backed by the unified achievement [RuleRegistry] and [RuleEvaluator].
  *
  * Tracks in-memory progress for live UI updates during a tracking session.
  * Emits [DomainEvent.AchievementUnlocked] when a tier increases and
@@ -25,19 +30,14 @@ import com.adsamcik.tracker.stats.api.achievement.AchievementEvaluator
  * common case during stationary tracking).
  *
  * Legacy callers that don't pass a dirty tracker get the old always-evaluate behaviour.
- *
- * **Migration status:** still uses the legacy [AchievementEvaluator] rather than
- * the unified `RuleEvaluator`. The unified evaluator's
- * `RuleEvaluationResult.TierUnlocked` / `ProgressUpdated` variants do not yet
- * carry the snapshot data (`nextTierTarget`, current/next tier ids) this processor
- * emits in [DomainEvent.AchievementProgress]. Migration requires either extending
- * the unified result contract or moving snapshot lookup into a per-domain result
- * handler.
+ * The [previousProgress] map remains an in-memory overlay so live session updates do not
+ * re-emit before the background worker has persisted `achievement_progress`.
  */
 class AchievementProcessor(
-	private val evaluator: AchievementEvaluator = AchievementEvaluator(),
+	private val registry: RuleRegistry,
 	private val metricsProvider: () -> Map<String, Long> = { emptyMap() },
 	private val dirtyTracker: MetricDirtyTracker? = null,
+	private val ruleEvaluator: RuleEvaluator = RuleEvaluator(),
 ) : SignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -47,7 +47,7 @@ class AchievementProcessor(
 		priority = 100, // Run after all other processors
 	)
 
-	private val previousProgress = mutableMapOf<String, Pair<Long, com.adsamcik.tracker.stats.api.AchievementTier?>>()
+	private val previousProgress = mutableMapOf<String, Pair<Long, AchievementTier?>>()
 
 	override suspend fun onStart(context: ProcessorContext) {
 		previousProgress.clear()
@@ -104,47 +104,71 @@ class AchievementProcessor(
 		return events
 	}
 
-	private fun evaluateAllMetrics(): List<DomainEvent> {
+	private suspend fun evaluateAllMetrics(): List<DomainEvent> {
 		val metrics = metricsProvider()
+		if (metrics.isEmpty()) return emptyList()
+
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		val events = mutableListOf<DomainEvent>()
 
-		for ((metric, value) in metrics) {
-			val snapshots = evaluator.snapshots(metric, value)
-			for (snap in snapshots) {
-				val previous = previousProgress[snap.definition.id]
-				val previousValue = previous?.first
-				val previousTier = previous?.second
-				val currentTier = snap.currentTier
-
-				previousProgress[snap.definition.id] = Pair(snap.currentValue, currentTier)
-
-				val tierChangedUpward = currentTier != null &&
-					(previousTier == null || currentTier.ordinal > previousTier.ordinal)
-				if (tierChangedUpward) {
-					events.add(
-						DomainEvent.AchievementUnlocked(
-							timestampMs = now,
-							processorId = descriptor.id,
-							achievementId = snap.definition.id,
-							tier = currentTier.name,
-						),
-					)
-				} else if (previousValue == null || snap.currentValue != previousValue) {
-					events.add(
-						DomainEvent.AchievementProgress(
-							timestampMs = now,
-							processorId = descriptor.id,
-							achievementId = snap.definition.id,
-							currentValue = snap.currentValue,
-							targetValue = snap.nextTierTarget ?: snap.currentValue,
-						),
-					)
-				}
-			}
+		for (instance in registry.allInstances()) {
+			// Live aggregator snapshots are sparse: absent means "not published by this path",
+			// not a true zero. The background worker evaluates the full persisted metric set.
+			if (instance.rule.metric !in metrics) continue
+			evaluateOne(instance, metrics, now)?.let(events::add)
 		}
 
 		return events
+	}
+
+	private fun evaluateOne(
+		instance: RuleInstance,
+		metrics: Map<String, Long>,
+		now: EpochMs,
+	): DomainEvent? {
+		val cached = previousProgress[instance.rule.id]
+		val effectiveInstance = if (previousProgress.containsKey(instance.rule.id)) {
+			instance.copy(previousValue = cached?.first, previousTier = cached?.second)
+		} else {
+			instance
+		}
+		val currentValue = metrics[instance.rule.metric] ?: 0L
+		return when (val result = ruleEvaluator.evaluate(effectiveInstance, currentValue)) {
+			is RuleEvaluationResult.Unchanged -> null
+			is RuleEvaluationResult.TierUnlocked -> {
+				previousProgress[instance.rule.id] = Pair(result.currentValue, result.unlocked)
+				DomainEvent.AchievementUnlocked(
+					timestampMs = now,
+					processorId = descriptor.id,
+					achievementId = instance.rule.id,
+					tier = result.unlocked.name,
+				)
+			}
+			is RuleEvaluationResult.ProgressUpdated -> {
+				previousProgress[instance.rule.id] = Pair(
+					result.currentValue,
+					highestUnlockedTier(instance, result.currentValue),
+				)
+				DomainEvent.AchievementProgress(
+					timestampMs = now,
+					processorId = descriptor.id,
+					achievementId = instance.rule.id,
+					currentValue = result.currentValue,
+					targetValue = result.nextTierTarget ?: result.currentValue,
+				)
+			}
+			is RuleEvaluationResult.Completed,
+			is RuleEvaluationResult.ChallengeProgress -> null
+		}
+	}
+
+	private fun highestUnlockedTier(instance: RuleInstance, currentValue: Long): AchievementTier? {
+		val target = instance.rule.target
+		if (target !is RuleTarget.Tiered) return null
+		return target.tiers.entries
+			.sortedBy { it.key.ordinal }
+			.lastOrNull { (_, threshold) -> currentValue >= threshold }
+			?.key
 	}
 
 	override fun checkpoint(): ByteArray {
@@ -169,7 +193,7 @@ class AchievementProcessor(
 			val key = dis.readUTF()
 			val value = dis.readLong()
 			val hasTier = dis.readBoolean()
-			val tier = if (hasTier) com.adsamcik.tracker.stats.api.AchievementTier.entries[dis.readInt()] else null
+			val tier = if (hasTier) AchievementTier.entries[dis.readInt()] else null
 			previousProgress[key] = Pair(value, tier)
 		}
 	}
