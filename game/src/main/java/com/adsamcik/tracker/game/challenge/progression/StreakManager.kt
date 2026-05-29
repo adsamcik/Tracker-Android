@@ -3,8 +3,8 @@ package com.adsamcik.tracker.game.challenge.progression
 import androidx.annotation.StringRes
 import androidx.room.withTransaction
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeStreakEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -27,7 +27,7 @@ class StreakManager @Inject constructor() {
 	 * Increments streak, potentially earns a freeze.
 	 * @return Updated streak state
 	 */
-	suspend fun onChallengeCompleted(database: ChallengeDatabase, now: Long): ChallengeStreakEntity {
+	suspend fun onChallengeCompleted(database: AppDatabase, now: Long): ChallengeStreakEntity {
 		var result: ChallengeStreakEntity? = null
 		database.withTransaction {
 			val dao = database.challengeStreakDao()
@@ -69,7 +69,7 @@ class StreakManager @Inject constructor() {
 	 *
 	 * @return Pair of (updated streak, wasFreezed)
 	 */
-	suspend fun onChallengesExpired(database: ChallengeDatabase): Pair<ChallengeStreakEntity, Boolean> {
+	suspend fun onChallengesExpired(database: AppDatabase): Pair<ChallengeStreakEntity, Boolean> {
 		var result: Pair<ChallengeStreakEntity, Boolean>? = null
 		database.withTransaction {
 			val dao = database.challengeStreakDao()
@@ -96,7 +96,7 @@ class StreakManager @Inject constructor() {
 	 * happens lazily inside the suspending [onChallengeCompleted]/[onChallengesExpired]
 	 * paths, so this observer never triggers a synchronous Room write.
 	 */
-	fun observeStreak(database: ChallengeDatabase): Flow<StreakState> {
+	fun observeStreak(database: AppDatabase): Flow<StreakState> {
 		val dao = database.challengeStreakDao()
 		return dao.observe().map { entity ->
 			val e = entity ?: ChallengeStreakEntity()

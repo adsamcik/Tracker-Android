@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.challenge.progression
 
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -18,7 +18,7 @@ class UnlockRepository @Inject constructor() {
 	/**
 	 * Observe whether a feature is unlocked.
 	 */
-	fun isUnlocked(database: ChallengeDatabase, feature: UnlockableFeature): Flow<Boolean> {
+	fun isUnlocked(database: AppDatabase, feature: UnlockableFeature): Flow<Boolean> {
 		return database.playerProfileDao().observe()
 			.map { profile ->
 				(profile?.level ?: 1) >= feature.requiredLevel
@@ -29,7 +29,7 @@ class UnlockRepository @Inject constructor() {
 	/**
 	 * One-shot check if a feature is unlocked.
 	 */
-	suspend fun isUnlockedSync(database: ChallengeDatabase, feature: UnlockableFeature): Boolean {
+	suspend fun isUnlockedSync(database: AppDatabase, feature: UnlockableFeature): Boolean {
 		val profile = database.playerProfileDao().get()
 		return (profile?.level ?: 1) >= feature.requiredLevel
 	}
@@ -37,7 +37,7 @@ class UnlockRepository @Inject constructor() {
 	/**
 	 * Get all features unlocked at the current level.
 	 */
-	suspend fun getUnlockedFeatures(database: ChallengeDatabase): List<UnlockableFeature> {
+	suspend fun getUnlockedFeatures(database: AppDatabase): List<UnlockableFeature> {
 		val level = database.playerProfileDao().get()?.level ?: 1
 		return UnlockableFeature.entries.filter { it.requiredLevel <= level }
 	}
@@ -53,7 +53,7 @@ class UnlockRepository @Inject constructor() {
 	/**
 	 * Get the next unlock and the level needed for it.
 	 */
-	suspend fun getNextUnlock(database: ChallengeDatabase): Pair<UnlockableFeature, Int>? {
+	suspend fun getNextUnlock(database: AppDatabase): Pair<UnlockableFeature, Int>? {
 		val level = database.playerProfileDao().get()?.level ?: 1
 		return UnlockableFeature.entries
 			.filter { it.requiredLevel > level }

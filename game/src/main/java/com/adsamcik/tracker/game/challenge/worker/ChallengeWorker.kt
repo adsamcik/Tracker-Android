@@ -10,11 +10,9 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeManager
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import dagger.assisted.Assisted
@@ -24,24 +22,12 @@ import dagger.assisted.AssistedInject
 internal class ChallengeWorker @AssistedInject constructor(
 		@Assisted context: Context,
 		@Assisted workerParams: WorkerParameters,
-		private val challengeDatabase: ChallengeDatabase,
 		private val appDatabase: AppDatabase,
 		private val challengeManager: ChallengeManager,
 ) : CoroutineWorker(
 		context,
 		workerParams,
 ) {
-
-	private suspend fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
-		val databaseSession = database.sessionDao().get(id)
-		return if (databaseSession == null) {
-			val newSession = ChallengeSessionData(id, false)
-			database.sessionDao().insert(newSession)
-			newSession
-		} else {
-			databaseSession
-		}
-	}
 
 	@Suppress("ReturnCount")
 	override suspend fun doWork(): Result {
@@ -51,10 +37,6 @@ internal class ChallengeWorker @AssistedInject constructor(
 
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()
-
-		val challengeSession = getSession(challengeDatabase, sessionId)
-
-		if (challengeSession.isChallengeProcessed) return Result.success()
 
 		val trip = appDatabase.tripDao().getById(sessionId)
 			?: return Result.failure()
@@ -105,18 +87,9 @@ internal class ChallengeWorker @AssistedInject constructor(
 				)
 			}
 		} catch (e: Exception) {
-			// processSession threw — leave isChallengeProcessed = false so WorkManager retries.
-			// (We deliberately do NOT roll back partial writes from inside processSession; the
-			// next-phase ChallengeEngine consolidates writes into a single transaction.)
+			// processSession threw — WorkManager retries this session event.
 			return Result.retry()
 		}
-
-		// Ack only AFTER successful processing. A process kill mid-loop will retry the work,
-		// but partial entity updates inside processSession are still committed individually —
-		// idempotency for those is the responsibility of Phase 1.4 (partial unique index on
-		// challenge_history(original_challenge_id) WHERE outcome='COMPLETED').
-		challengeSession.isChallengeProcessed = true
-		challengeDatabase.sessionDao().update(challengeSession)
 
 		logGame(
 				LogData(

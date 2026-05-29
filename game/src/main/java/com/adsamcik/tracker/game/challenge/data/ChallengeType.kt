@@ -1,10 +1,3 @@
 package com.adsamcik.tracker.game.challenge.data
 
-enum class ChallengeType {
-	Explorer,
-	WalkDistance,
-	Step,
-	ActiveTime,
-	Speed,
-	Consistency
-}
+typealias ChallengeType = com.adsamcik.tracker.shared.base.database.data.ChallengeType

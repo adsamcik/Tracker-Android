@@ -3,8 +3,8 @@ package com.adsamcik.tracker.game.challenge.engine
 import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
@@ -42,7 +42,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class ChallengeEngine @Inject constructor(
-	private val challengeDatabase: ChallengeDatabase,
+	private val challengeDatabase: AppDatabase,
 	private val registry: RuleRegistry,
 	private val metrics: WindowedMetricsProvider,
 	private val progression: ProgressionRepository,

@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.game.challenge.engine
 
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
@@ -42,7 +42,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class ChallengeRuleRegistry @Inject constructor(
-	private val challengeDatabase: ChallengeDatabase,
+	private val challengeDatabase: AppDatabase,
 ) : RuleRegistry {
 
 	override suspend fun allInstances(): List<RuleInstance> {

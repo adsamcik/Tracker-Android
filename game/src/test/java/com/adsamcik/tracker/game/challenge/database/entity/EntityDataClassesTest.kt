@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.game.challenge.database.entity
+package com.adsamcik.tracker.shared.base.database.data
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName

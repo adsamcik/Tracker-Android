@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.game.challenge.progression
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeStreakDao
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeStreakDao
+import com.adsamcik.tracker.shared.base.database.data.ChallengeStreakEntity
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test
 class StreakManagerTest {
 
 	private lateinit var streakManager: StreakManager
-	private lateinit var database: ChallengeDatabase
+	private lateinit var database: AppDatabase
 	private lateinit var streakDao: ChallengeStreakDao
 
 	@BeforeEach

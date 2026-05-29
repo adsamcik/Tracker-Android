@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.minigame.database
 
+import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test

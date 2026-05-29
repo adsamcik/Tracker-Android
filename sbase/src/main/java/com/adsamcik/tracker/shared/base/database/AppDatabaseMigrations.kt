@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 27         │ 400         │ 🚧 UNRELEASED - Challenge DB fold       │
+ * │            │             │    (challenge tables + minigame scores)  │
  * │ 26         │ 385         │ 🚧 UNRELEASED - Analytics/export indices │
  * │            │             │    (domain_event, export_log,            │
  * │            │             │    inferred_trip)                        │
@@ -71,8 +73,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *
  * Example workflow:
  * - You're adding a new column to an existing table.
- * - Current DB version is 26 (unreleased, versionCode 385).
- * - Action: Update MIGRATION_25_26 directly (no new migration needed).
+ * - Current DB version is 27 (unreleased, versionCode 400).
+ * - Action: Update MIGRATION_26_27 directly only if that version has not shipped.
  *
  * - You're adding a new table after version 26 ships.
  * - DB version 26 is now RELEASED (versionCode 385).
@@ -1125,6 +1127,129 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			android.util.Log.i(
 				"AppDatabase",
 				"Migration 25->26: Added analytics and export query indices",
+			)
+		}
+	}
+}
+
+/**
+ * Version 26 → 27: Fold ChallengeDatabase v8 active tables into AppDatabase.
+ *
+ * This migration creates the destination tables only. Existing rows from the
+ * legacy side-channel database are copied by ChallengeDatabaseFold after the
+ * main database has opened at v27, then the old file is renamed to .bak.
+ */
+val MIGRATION_26_27: Migration = object : Migration(26, 27) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS challenge (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					type TEXT NOT NULL,
+					start_time INTEGER NOT NULL,
+					end_time INTEGER NOT NULL,
+					difficulty TEXT NOT NULL,
+					required_value REAL NOT NULL,
+					current_value REAL NOT NULL,
+					is_completed INTEGER NOT NULL,
+					extra_json TEXT
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_is_completed_end_time ON challenge(is_completed, end_time)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS challenge_history (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					challenge_type TEXT NOT NULL,
+					difficulty TEXT NOT NULL,
+					start_time INTEGER NOT NULL,
+					end_time INTEGER NOT NULL,
+					outcome TEXT NOT NULL,
+					completed_at INTEGER,
+					progress_value REAL NOT NULL,
+					target_value REAL NOT NULL,
+					medal TEXT,
+					xp_awarded INTEGER NOT NULL,
+					original_challenge_id INTEGER
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_outcome ON challenge_history(outcome)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_medal ON challenge_history(medal)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_history_completed_at ON challenge_history(completed_at)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS challenge_streak (
+					id INTEGER NOT NULL,
+					current_count INTEGER NOT NULL,
+					best_count INTEGER NOT NULL,
+					last_completion_time INTEGER NOT NULL,
+					freeze_count INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS challenge_personal_record (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					challenge_type TEXT NOT NULL,
+					metric TEXT NOT NULL,
+					value REAL NOT NULL,
+					history_id INTEGER,
+					achieved_at INTEGER NOT NULL,
+					FOREIGN KEY(history_id) REFERENCES challenge_history(id) ON UPDATE NO ACTION ON DELETE SET NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_challenge_personal_record_challenge_type_metric ON challenge_personal_record(challenge_type, metric)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_challenge_personal_record_history_id ON challenge_personal_record(history_id)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS xp_ledger (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					amount INTEGER NOT NULL,
+					source TEXT NOT NULL,
+					source_id INTEGER,
+					earned_at INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_xp_ledger_source_source_id ON xp_ledger(source, source_id)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS player_profile (
+					id INTEGER NOT NULL,
+					total_xp INTEGER NOT NULL,
+					level INTEGER NOT NULL,
+					xp_into_current_level INTEGER NOT NULL,
+					xp_for_next_level INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS minigame_score (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					game_id TEXT NOT NULL,
+					score REAL NOT NULL,
+					xp_awarded INTEGER NOT NULL,
+					played_at INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 26->27: Created challenge progression and minigame tables",
 			)
 		}
 	}

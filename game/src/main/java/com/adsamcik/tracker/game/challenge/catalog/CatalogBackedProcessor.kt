@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.challenge.catalog
 
 import android.content.Context
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.processor.ChallengeProcessor
 
 /**

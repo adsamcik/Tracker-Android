@@ -5,12 +5,12 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.data.ChallengeOutcome
 import com.adsamcik.tracker.game.challenge.data.Medal
 import com.adsamcik.tracker.game.challenge.data.XpSource
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeHistoryEntity
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengePersonalRecordEntity
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
-import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
-import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeHistoryEntity
+import com.adsamcik.tracker.shared.base.database.data.ChallengePersonalRecordEntity
+import com.adsamcik.tracker.shared.base.database.data.ChallengeStreakEntity
+import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
+import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import java.time.Instant
@@ -26,7 +26,7 @@ import javax.inject.Singleton
 class ProgressionRepository @Inject constructor(
 	private val xpCalculator: XpCalculator,
 	private val streakManager: StreakManager,
-	private val challengeDatabase: ChallengeDatabase,
+	private val challengeDatabase: AppDatabase,
 ) {
 
 	/**
@@ -199,7 +199,7 @@ class ProgressionRepository @Inject constructor(
 	 * are silently skipped and return null.
 	 */
 	private suspend fun awardXpAndUpdateProfile(
-		database: ChallengeDatabase,
+		database: AppDatabase,
 		xpEntry: XpLedgerEntity,
 	): AwardResult? {
 		var result: AwardResult? = null
@@ -213,9 +213,9 @@ class ProgressionRepository @Inject constructor(
 	}
 
 	private suspend fun checkPersonalRecords(
-		database: ChallengeDatabase,
+		database: AppDatabase,
 		challengeType: String,
-		entity: com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity,
+		entity: com.adsamcik.tracker.shared.base.database.data.ChallengeEntity,
 		historyId: Long,
 		now: Long,
 	): List<String> {
@@ -276,7 +276,7 @@ class ProgressionRepository @Inject constructor(
 	 * @return Pair of (updated profile, didLevelUp)
 	 */
 	private suspend fun updatePlayerProfile(
-		database: ChallengeDatabase,
+		database: AppDatabase,
 		addedXp: Long,
 	): Pair<PlayerProfileEntity, Boolean> {
 		val profileDao = database.playerProfileDao()

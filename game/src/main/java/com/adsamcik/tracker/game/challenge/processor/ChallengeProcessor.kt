@@ -3,7 +3,7 @@ package com.adsamcik.tracker.game.challenge.processor
 import android.content.Context
 import androidx.annotation.StringRes
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 
 /**

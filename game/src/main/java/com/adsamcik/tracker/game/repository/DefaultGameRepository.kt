@@ -2,7 +2,7 @@ package com.adsamcik.tracker.game.repository
 
 import android.app.Application
 import com.adsamcik.tracker.game.challenge.ChallengeManager
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
@@ -35,7 +35,7 @@ class DefaultGameRepository @Inject constructor(
     private val sessionChannel: TrackerSessionChannel,
     private val dispatchers: DispatchersProvider,
     private val challengeManager: ChallengeManager,
-    private val challengeDb: ChallengeDatabase,
+    private val challengeDb: AppDatabase,
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }

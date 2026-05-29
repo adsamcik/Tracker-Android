@@ -3,9 +3,9 @@ package com.adsamcik.tracker.game.challenge.engine
 import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeDao
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test
 class ChallengeEngineTest {
 
 	private lateinit var engine: ChallengeEngine
-	private lateinit var database: ChallengeDatabase
+	private lateinit var database: AppDatabase
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var registry: ChallengeRuleRegistry
 	private lateinit var metrics: WindowedMetricsProvider

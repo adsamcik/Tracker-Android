@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.game.challenge.progression
 
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.PlayerProfileDao
-import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
+import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test
 class UnlockRepositoryTest {
 
 	private lateinit var unlockRepository: UnlockRepository
-	private lateinit var database: ChallengeDatabase
+	private lateinit var database: AppDatabase
 	private lateinit var profileDao: PlayerProfileDao
 
 	@BeforeEach

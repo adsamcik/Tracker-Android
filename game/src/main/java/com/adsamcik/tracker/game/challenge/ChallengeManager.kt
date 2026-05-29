@@ -6,8 +6,8 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.engine.ChallengeEngine
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
@@ -51,7 +51,7 @@ import kotlin.random.Random
 class ChallengeManager @Inject constructor(
 	private val progressionRepository: ProgressionRepository,
 	private val dispatchers: DispatchersProvider,
-	private val challengeDatabase: ChallengeDatabase,
+	private val challengeDatabase: AppDatabase,
 	private val engine: ChallengeEngine,
 ) {
 	private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)

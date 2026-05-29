@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.game.challenge
 
 import android.content.Context
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeDao
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
 import com.adsamcik.tracker.game.challenge.engine.ChallengeEngine
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ChallengeManagerStateMachineTest {
 
 	private lateinit var progressionRepository: ProgressionRepository
-	private lateinit var challengeDatabase: ChallengeDatabase
+	private lateinit var challengeDatabase: AppDatabase
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var engine: ChallengeEngine
 	private lateinit var mockContext: Context

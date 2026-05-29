@@ -2,9 +2,9 @@ package com.adsamcik.tracker.game.challenge.engine
 
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeDao
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test
 @DisplayName("ChallengeRuleRegistry")
 class ChallengeRuleRegistryTest {
 
-	private lateinit var database: ChallengeDatabase
+	private lateinit var database: AppDatabase
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var registry: ChallengeRuleRegistry
 

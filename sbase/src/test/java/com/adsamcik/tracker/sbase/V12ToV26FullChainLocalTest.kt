@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_22_23
 import com.adsamcik.tracker.shared.base.database.MIGRATION_23_24
 import com.adsamcik.tracker.shared.base.database.MIGRATION_24_25
 import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
+import com.adsamcik.tracker.shared.base.database.MIGRATION_26_27
 import androidx.room.migration.Migration
 import org.json.JSONObject
 import org.junit.jupiter.api.AfterEach
@@ -333,7 +334,7 @@ class V12ToV26FullChainLocalTest {
 		MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
 		MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
 		MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
-		MIGRATION_24_25, MIGRATION_25_26
+		MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27
 	)
 
 	private fun runChain() {
@@ -436,7 +437,10 @@ class V12ToV26FullChainLocalTest {
 			"route_cache", "export_log", "storage_size_snapshot",
 			"domain_event", "domain_event_cursor",
 			"pressure_sample", "ski_run_segment",
-			"pending_signal"
+			"pending_signal",
+			"challenge", "challenge_history", "challenge_streak",
+			"challenge_personal_record", "xp_ledger", "player_profile",
+			"minigame_score"
 		)
 		expected.forEach { table ->
 			assertTrue(tableExists(table), "Expected table '$table' to exist after v12→v26 chain")
@@ -810,7 +814,18 @@ class V12ToV26FullChainLocalTest {
 			"ski_run_segment" to setOf(
 				"idx_ski_run_segment_session", "idx_ski_run_segment_start_time"
 			),
-			"pending_signal" to setOf("idx_pending_signal_session_time")
+			"pending_signal" to setOf("idx_pending_signal_session_time"),
+			"challenge" to setOf("index_challenge_is_completed_end_time"),
+			"challenge_history" to setOf(
+				"index_challenge_history_outcome",
+				"index_challenge_history_medal",
+				"index_challenge_history_completed_at"
+			),
+			"challenge_personal_record" to setOf(
+				"index_challenge_personal_record_challenge_type_metric",
+				"index_challenge_personal_record_history_id"
+			),
+			"xp_ledger" to setOf("index_xp_ledger_source_source_id")
 		)
 
 		val missing = mutableListOf<String>()
@@ -848,6 +863,17 @@ class V12ToV26FullChainLocalTest {
 				"INSERT INTO personal_record (metric, value, achieved_at, updated_at) VALUES ('longest_distance', 200.0, 2, 2)"
 			)
 		}
+
+		db.execSQL(
+			"INSERT INTO challenge_personal_record (challenge_type, metric, value, history_id, achieved_at) " +
+				"VALUES ('Step', 'steps', 100.0, NULL, 1)"
+		)
+		assertThrows(SQLiteConstraintException::class.java) {
+			db.execSQL(
+				"INSERT INTO challenge_personal_record (challenge_type, metric, value, history_id, achieved_at) " +
+					"VALUES ('Step', 'steps', 200.0, NULL, 2)"
+			)
+		}
 	}
 
 	@Test
@@ -864,7 +890,8 @@ class V12ToV26FullChainLocalTest {
 			"session_segment" to "has_distance_anomaly",
 			"achievement_progress" to "notified_at",
 			"cell_sample" to "cell_id",
-			"pending_signal" to "signal_json"
+			"pending_signal" to "signal_json",
+			"challenge_personal_record" to "history_id"
 		)
 		columnsByTable.forEach { (table, column) ->
 			db.query("SELECT COUNT(*) FROM pragma_table_info('$table') WHERE name = ?", arrayOf<Any?>(column))
@@ -925,13 +952,13 @@ class V12ToV26FullChainLocalTest {
 				MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
 				MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
 				MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
-				MIGRATION_24_25, MIGRATION_25_26
+				MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27
 			)
 			.build()
 		try {
 			// Force DB open → triggers migrations → triggers validateMigration().
 			val version = runtime.openHelper.writableDatabase.version
-			assertEquals(26, version)
+			assertEquals(27, version)
 
 			// Sanity: the legacy data actually arrived in the sessionless
 			// tables. DAO resolution itself is part of the Room open path

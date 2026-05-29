@@ -3,10 +3,10 @@ package com.adsamcik.tracker.game.challenge
 import android.content.Context
 import com.adsamcik.tracker.game.challenge.catalog.ChallengeCatalog
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeDao
-import com.adsamcik.tracker.game.challenge.database.dao.ChallengeHistoryDao
-import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeDao
+import com.adsamcik.tracker.shared.base.database.dao.ChallengeHistoryDao
+import com.adsamcik.tracker.shared.base.database.data.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.engine.ChallengeEngine
 import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicLong
 class ChallengeManagerActivationTest {
 
 	private lateinit var progressionRepository: ProgressionRepository
-	private lateinit var challengeDatabase: ChallengeDatabase
+	private lateinit var challengeDatabase: AppDatabase
 	private lateinit var challengeDao: ChallengeDao
 	private lateinit var historyDao: ChallengeHistoryDao
 	private lateinit var engine: ChallengeEngine

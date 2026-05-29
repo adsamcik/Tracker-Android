@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_22_23
 import com.adsamcik.tracker.shared.base.database.MIGRATION_23_24
 import com.adsamcik.tracker.shared.base.database.MIGRATION_24_25
 import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
+import com.adsamcik.tracker.shared.base.database.MIGRATION_26_27
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
 import com.adsamcik.tracker.shared.base.database.MIGRATION_5_6
@@ -1820,6 +1821,26 @@ class MigrationTest {
 			assertTrue(indexNames("domain_event").contains("index_domain_event_event_type_processor_id"))
 			assertTrue(indexNames("export_log").contains("index_export_log_started_at"))
 			assertTrue(indexNames("inferred_trip").contains("index_inferred_trip_segment_id"))
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate26To27_createsChallengeTables() {
+		val db = helper.createDatabase(TEST_DB, 26)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, MIGRATION_26_27).apply {
+			fun tableExists(table: String): Boolean =
+				query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1", arrayOf(table))
+					.use { cursor -> cursor.moveToFirst() }
+
+			assertTrue(tableExists("challenge"))
+			assertTrue(tableExists("challenge_history"))
+			assertTrue(tableExists("challenge_personal_record"))
+			assertTrue(tableExists("xp_ledger"))
+			assertTrue(tableExists("player_profile"))
+			assertTrue(tableExists("minigame_score"))
 		}
 	}
 

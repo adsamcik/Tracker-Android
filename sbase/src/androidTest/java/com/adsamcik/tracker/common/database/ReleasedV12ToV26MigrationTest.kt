@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_22_23
 import com.adsamcik.tracker.shared.base.database.MIGRATION_23_24
 import com.adsamcik.tracker.shared.base.database.MIGRATION_24_25
 import com.adsamcik.tracker.shared.base.database.MIGRATION_25_26
+import com.adsamcik.tracker.shared.base.database.MIGRATION_26_27
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
@@ -46,16 +47,16 @@ import java.io.IOException
  * Exhaustive migration coverage for the released → dev/v10 database upgrade path.
  *
  * The released ("master") version of the app ships AppDatabase schema **v12**.
- * The dev/v10 branch bumps that to **v26**. Users upgrading from master will
- * execute the full MIGRATION_12_13 … MIGRATION_25_26 chain against real data.
+ * The dev/v10 branch bumps that to **v27**. Users upgrading from master will
+ * execute the full MIGRATION_12_13 … MIGRATION_26_27 chain against real data.
  *
  * This suite validates every observable property of that upgrade:
  *
- * - Every individual migration 2→3 … 25→26 is exercised inside a full chain
+ * - Every individual migration 2→3 … 26→27 is exercised inside a full chain
  *   so ordering issues surface.
  * - Room's built-in schema validator (`runMigrationsAndValidate`) is invoked
  *   at the final step so any column / index / foreign-key drift against the
- *   exported v26 schema fails loudly.
+ *   exported v27 schema fails loudly.
  * - Representative v12 data (location_data, tracker_session, wifi_data,
  *   cell_location, location_wifi_count, network_operator, activity) is seeded
  *   and verified to be preserved, transformed, or dropped according to the
@@ -84,14 +85,15 @@ class ReleasedV12ToV26MigrationTest {
 		MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
 		MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
 		MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
-		MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26
+		MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
+		MIGRATION_26_27
 	)
 
 	private val v12ToV26Migrations = arrayOf(
 		MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
 		MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
 		MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
-		MIGRATION_24_25, MIGRATION_25_26
+		MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27
 	)
 
 	@After
@@ -114,7 +116,7 @@ class ReleasedV12ToV26MigrationTest {
 		helper.createDatabase(TEST_DB, 12).close()
 
 		// Second arg `true` = validate schema identity and drop-expected tables.
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { _ ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { _ ->
 			// If runMigrationsAndValidate returns, Room already confirmed the
 			// schema matches the exported v26.json identity hash. The block is
 			// left intentionally empty; presence-of-table checks live in
@@ -128,7 +130,7 @@ class ReleasedV12ToV26MigrationTest {
 		// Legacy path: upgrading from a device still on a pre-v300 release.
 		// Dev/v10 must also handle this chain cleanly.
 		helper.createDatabase(TEST_DB, 2).close()
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *allMigrations).close()
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *allMigrations).close()
 	}
 
 	@Test
@@ -136,7 +138,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_allV26TablesPresent() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			val tables = listTables(db)
 			val expected = listOf(
 				"activity",
@@ -180,7 +182,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_legacyTablesAreDropped() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			val tables = listTables(db)
 			listOf(
 				"location_data",
@@ -202,7 +204,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_allDeclaredIndicesPresent() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			// Every index declared on a Room entity at v26. If any of these is
 			// missing, a fresh-install DB and an upgraded DB diverge — Room's
 			// query planner picks different plans and latency regresses silently.
@@ -300,7 +302,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_uniqueIndicesEnforceUniqueness() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			// Known unique indices at v26 (see 26.json `"unique": true`).
 			val uniqueIndices = listOf(
 				"index_daily_summary_date_epoch_day" to "daily_summary",
@@ -333,7 +335,7 @@ class ReleasedV12ToV26MigrationTest {
 		seedV12Dataset(db)
 		db.close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { upgraded ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { upgraded ->
 			// location_data (3 rows) → location_sample, preserving coords as E7.
 			upgraded.query("SELECT COUNT(*) FROM location_sample").use { cursor ->
 				assertTrue(cursor.moveToFirst())
@@ -475,7 +477,7 @@ class ReleasedV12ToV26MigrationTest {
 		}
 		db.close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { upgraded ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { upgraded ->
 			upgraded.query("SELECT COUNT(*) FROM location_sample").use { cursor ->
 				assertTrue(cursor.moveToFirst())
 				assertEquals(50, cursor.getInt(0))
@@ -503,7 +505,7 @@ class ReleasedV12ToV26MigrationTest {
 		)
 		db.close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { upgraded ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { upgraded ->
 			upgraded.query(
 				"SELECT time_ms, lat_e7, lon_e7, quality FROM location_sample ORDER BY time_ms"
 			).use { cursor ->
@@ -545,7 +547,7 @@ class ReleasedV12ToV26MigrationTest {
 		)
 		db.close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { upgraded ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { upgraded ->
 			// After migration to v22 cell_id is effectively Long. Insert a
 			// real 5G-sized NCI and verify it round-trips.
 			upgraded.execSQL(
@@ -583,7 +585,7 @@ class ReleasedV12ToV26MigrationTest {
 		)
 		db.close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { upgraded ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { upgraded ->
 			upgraded.query(
 				"SELECT lat_e7, lon_e7 FROM wifi_observation WHERE bssid = 'AA:BB:CC:DD:EE:00'"
 			).use { cursor ->
@@ -603,7 +605,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_foreignKeyCascadeOnTripLeg() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			// FK enforcement is off by default in Room's raw test database;
 			// enable it before asserting cascade behavior.
 			db.setForeignKeyConstraintsEnabled(true)
@@ -649,7 +651,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_foreignKeyOnDeleteSetNullForInferredTripPlaces() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			db.setForeignKeyConstraintsEnabled(true)
 
 			db.execSQL(
@@ -690,7 +692,7 @@ class ReleasedV12ToV26MigrationTest {
 	fun fullChain_v12_to_v26_uniqueExplorationCellTokenRejectsDuplicates() {
 		helper.createDatabase(TEST_DB, 12).close()
 
-		helper.runMigrationsAndValidate(TEST_DB, 26, true, *v12ToV26Migrations).use { db ->
+		helper.runMigrationsAndValidate(TEST_DB, 27, true, *v12ToV26Migrations).use { db ->
 			db.execSQL(
 				"""
 					INSERT INTO exploration_cell (
@@ -740,7 +742,7 @@ class ReleasedV12ToV26MigrationTest {
 		// Open the underlying SQLite connection. This is what triggers
 		// Room's internal schema validation on first access.
 		val raw = runtime.openHelper.writableDatabase
-		assertEquals(26, raw.version)
+		assertEquals(27, raw.version)
 
 		// A handful of DAOs cover the critical paths: raw sample writes,
 		// segment reads, and event-log writes.

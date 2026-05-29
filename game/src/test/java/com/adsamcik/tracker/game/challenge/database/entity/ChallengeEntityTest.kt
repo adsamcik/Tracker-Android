@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.game.challenge.database.entity
+package com.adsamcik.tracker.shared.base.database.data
 
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType

@@ -3,8 +3,8 @@ package com.adsamcik.tracker.game.challenge.progression
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.game.challenge.data.XpSource
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import io.kotest.matchers.shouldBe
@@ -21,13 +21,13 @@ import org.robolectric.annotation.Config
 class ProgressionRepositoryTest {
 
 	private lateinit var context: Application
-	private lateinit var database: ChallengeDatabase
+	private lateinit var database: AppDatabase
 	private lateinit var repository: ProgressionRepository
 
 	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
-		database = ChallengeDatabase.testDatabase(context)
+		database = AppDatabase.testDatabase(context)
 		repository = ProgressionRepository(
 			xpCalculator = XpCalculator(),
 			streakManager = StreakManager(),

@@ -2,6 +2,8 @@ package com.adsamcik.tracker.game.challenge.database.typeconverter
 
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
+import com.adsamcik.tracker.shared.base.database.converter.ChallengeDifficultyStringTypeConverter
+import com.adsamcik.tracker.shared.base.database.converter.ChallengeTypeConverter
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
