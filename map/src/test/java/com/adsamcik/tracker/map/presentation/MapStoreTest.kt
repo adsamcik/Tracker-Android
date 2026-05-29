@@ -19,22 +19,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.async
 import app.cash.turbine.test
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.collections.shouldHaveSize
-import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
-import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -344,6 +341,30 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.camera shouldBe cameraModel
+    }
+
+    @Test
+    fun `camera moved for bounds-sensitive layer refreshes in place`() = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer("location_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+        val cameraModel = com.adsamcik.tracker.map.presentation.udf.CameraModel(
+            lat = 37.7749,
+            lng = -122.4194,
+            zoom = 15f,
+            tilt = 0f,
+            bearing = 0f
+        )
+
+        mapStore.dispatch(MapEvent.CameraMoved(cameraModel, byGesture = true))
+        testDispatcher.scheduler.advanceTimeBy(499)
+        coVerify(exactly = 0) { mockLayerEngine.refreshLayersInPlace(any(), any(), any()) }
+
+        testDispatcher.scheduler.advanceTimeBy(1)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockLayerEngine.selectLayers(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { mockLayerEngine.refreshLayersInPlace(any(), eq(15f), any()) }
     }
 
     @Test

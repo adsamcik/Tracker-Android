@@ -242,12 +242,12 @@ class MapStore @Inject constructor(
                 savedStateHandle[CAMERA_ZOOM_KEY] = event.position.zoom
                 savedStateHandle[CAMERA_TILT_KEY] = event.position.tilt
                 savedStateHandle[CAMERA_BEARING_KEY] = event.position.bearing
-                // Debounced layer refresh so heatmaps reload with new viewport bounds
+                // Debounced viewport refresh so heatmaps update data without rebuilding layers.
                 if (_state.value.activeLayerIds.any(::isBoundsSensitiveLayer)) {
                     cameraRefreshJob?.cancel()
                     cameraRefreshJob = viewModelScope.launch {
                         delay(cameraRefreshDebounceMs)
-                        applyLayer()
+                        refreshLayerDataInPlace()
                     }
                 }
             }
@@ -344,6 +344,7 @@ class MapStore @Inject constructor(
 
     private fun applyLayer() {
         val engine = layerManager ?: return
+        cameraRefreshJob?.cancel()
         applyLayerJob?.cancel()
         applyLayerJob = viewModelScope.launch {
             _state.update { it.copy(layerLoadingProgress = 50) }
@@ -353,37 +354,7 @@ class MapStore @Inject constructor(
                 withContext(dispatchers.default) {
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
-                val legend = engine.activeLegend()
-                val config = engine.activeLayerConfig()
-                val overlays = engine.overlays()
-                val legendLabel = s.activeLayerIds.joinToString(", ").ifBlank { "Unknown" }
-
-                if (legend != null) {
-                    _state.update { state ->
-                        val mergedOverlays = mergeOverlays(state.overlays, overlays)
-                        state.copy(
-                            legend = persistentListOf(*legend.legend.valueList.map { v ->
-                                LegendItem(
-                                    label = legendLabel,
-                                    color = v.color,
-                                    labelRes = v.nameRes,
-                                )
-                            }.toTypedArray()),
-                            layerConfig = config,
-                            overlays = mergedOverlays,
-                            layerLoadingProgress = 0
-                        )
-                    }
-                } else {
-                    _state.update { state ->
-                        state.copy(
-                            legend = persistentListOf(),
-                            layerConfig = config,
-                            overlays = mergeOverlays(state.overlays, overlays),
-                            layerLoadingProgress = 0
-                        )
-                    }
-                }
+                updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 _state.update {
@@ -393,6 +364,62 @@ class MapStore @Inject constructor(
                         layerLoadingProgress = 0
                     )
                 }
+            }
+        }
+    }
+
+    private fun refreshLayerDataInPlace() {
+        val engine = layerManager ?: return
+        applyLayerJob?.cancel()
+        applyLayerJob = viewModelScope.launch {
+            _state.update { it.copy(layerLoadingProgress = 50) }
+            try {
+                val s = _state.value
+                val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
+                withContext(dispatchers.default) {
+                    engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange)
+                }
+                updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = false)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                _state.update { it.copy(layerLoadingProgress = 0) }
+            }
+        }
+    }
+
+    private fun updateLayerStateFromEngine(
+        engine: LayerEngine,
+        clearLayerOnMissingLegend: Boolean,
+    ) {
+        val legend = engine.activeLegend()
+        val config = engine.activeLayerConfig()
+        val overlays = engine.overlays()
+        val legendLabel = _state.value.activeLayerIds.joinToString(", ").ifBlank { "Unknown" }
+
+        if (legend != null) {
+            _state.update { state ->
+                val mergedOverlays = mergeOverlays(state.overlays, overlays)
+                state.copy(
+                    legend = persistentListOf(*legend.legend.valueList.map { v ->
+                        LegendItem(
+                            label = legendLabel,
+                            color = v.color,
+                            labelRes = v.nameRes,
+                        )
+                    }.toTypedArray()),
+                    layerConfig = config,
+                    overlays = mergedOverlays,
+                    layerLoadingProgress = 0
+                )
+            }
+        } else {
+            _state.update { state ->
+                state.copy(
+                    legend = if (clearLayerOnMissingLegend) persistentListOf() else state.legend,
+                    layerConfig = if (clearLayerOnMissingLegend) config else config ?: state.layerConfig,
+                    overlays = mergeOverlays(state.overlays, overlays),
+                    layerLoadingProgress = 0
+                )
             }
         }
     }

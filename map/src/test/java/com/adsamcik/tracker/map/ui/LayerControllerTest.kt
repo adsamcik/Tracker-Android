@@ -26,13 +26,25 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /** Stub layer for testing controller lifecycle. */
-private class StubMapLayer : BaseMapLayer<Unit, Unit>(PerformanceManager()) {
+private class StubMapLayer(
+    private val configFactory: (loadCount: Int, bounds: Bounds?) -> MapLibreLayerConfig? = { _, _ -> null },
+) : BaseMapLayer<Unit, Unit>(PerformanceManager()) {
     @Volatile
     var disableCalled = false
 
-    override suspend fun loadData(context: Context, bounds: Bounds?) = Unit
+    @Volatile
+    var loadCount = 0
+
+    @Volatile
+    var lastBounds: Bounds? = null
+
+    override suspend fun loadData(context: Context, bounds: Bounds?) {
+        loadCount += 1
+        lastBounds = bounds
+    }
+
     override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
-    override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
+    override fun produceConfig(processed: Unit): MapLibreLayerConfig? = configFactory(loadCount, lastBounds)
     override fun onDisable() {
         disableCalled = true
     }
@@ -56,7 +68,8 @@ private fun stubLegend(name: String = "TestLayer"): MapLayerData = MapLayerData(
 private fun stubDescriptor(
     id: String = "test_layer",
     layer: BaseMapLayer<*, *> = StubMapLayer(),
-    legend: MapLayerData = stubLegend()
+    legend: MapLayerData = stubLegend(),
+    onFactoryCreate: () -> Unit = {},
 ): LayerDescriptor = LayerDescriptor(
     id = id,
     titleRes = 0,
@@ -64,6 +77,7 @@ private fun stubDescriptor(
     capabilities = LayerCapabilities(),
     recipe = LayerRecipe(
         factory = LayerFactory {
+            onFactoryCreate()
             LayerEntry(
                 build = { layer },
                 legend = legend
@@ -233,6 +247,58 @@ class LayerControllerTest {
             // Controller should remain in clean state
             controller.activeLegend().shouldBeNull()
             controller.activeLayerConfig().shouldBeNull()
+        }
+    }
+
+    @Nested
+    @DisplayName("in-place refresh")
+    inner class InPlaceRefresh {
+
+        @Test
+        fun `refreshLayersInPlace reloads existing layer without disabling or recreating`() = runTest {
+            var factoryCreateCount = 0
+            val layer = StubMapLayer { loadCount, _ ->
+                MapLibreLayerConfig.Line(
+                    geoJson = "load-$loadCount",
+                    colorArgb = 0xFF0000FF.toInt(),
+                )
+            }
+            val descriptor = stubDescriptor(
+                id = "location_heatmap",
+                layer = layer,
+                onFactoryCreate = { factoryCreateCount += 1 },
+            )
+            val initialBounds = Bounds(north = 2.0, east = 2.0, south = 1.0, west = 1.0)
+            val refreshedBounds = Bounds(north = 3.0, east = 3.0, south = 2.0, west = 2.0)
+
+            controller.setLayer(context, descriptor, 1.0f, 0L..Long.MAX_VALUE, initialBounds, zoom = 10f)
+            controller.refreshLayersInPlace(context, refreshedBounds, zoom = 11f, dateRange = 0L..Long.MAX_VALUE)
+
+            factoryCreateCount shouldBe 1
+            layer.disableCalled shouldBe false
+            layer.loadCount shouldBe 2
+            layer.lastBounds shouldBe refreshedBounds
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-2"
+        }
+
+        @Test
+        fun `refreshLayersInPlace skips reload when viewport bucket is cached`() = runTest {
+            val layer = StubMapLayer { loadCount, _ ->
+                MapLibreLayerConfig.Line(
+                    geoJson = "load-$loadCount",
+                    colorArgb = 0xFF0000FF.toInt(),
+                )
+            }
+            val descriptor = stubDescriptor(id = "location_heatmap", layer = layer)
+            val initialBounds = Bounds(north = 2.0, east = 2.0, south = 1.0, west = 1.0)
+            val refreshedBounds = Bounds(north = 3.0, east = 3.0, south = 2.0, west = 2.0)
+
+            controller.setLayer(context, descriptor, 1.0f, 0L..Long.MAX_VALUE, initialBounds, zoom = 10f)
+            controller.refreshLayersInPlace(context, refreshedBounds, zoom = 11f, dateRange = 0L..Long.MAX_VALUE)
+            controller.refreshLayersInPlace(context, refreshedBounds, zoom = 11f, dateRange = 0L..Long.MAX_VALUE)
+
+            layer.loadCount shouldBe 2
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-2"
         }
     }
 

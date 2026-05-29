@@ -106,6 +106,49 @@ abstract class BaseMapLayer<I, P>(
         return job
     }
 
+    /**
+     * Refresh data for an already-enabled layer without running enable/disable hooks.
+     * Used for viewport-only camera changes where MapLibre sources/layers should stay stable.
+     */
+    suspend fun reloadData(context: Context, bounds: Bounds? = null, zoom: Float = this.zoom): MapLibreLayerConfig? =
+        withContext(dispatchers.default) {
+            val startTime = System.currentTimeMillis()
+            val currentQuality = synchronized(this@BaseMapLayer) {
+                if (!enabled) return@withContext lastConfig
+                this.zoom = zoom
+                quality
+            }
+
+            try {
+                val loadStartTime = System.currentTimeMillis()
+                val input = loadData(context, bounds)
+                val loadDuration = System.currentTimeMillis() - loadStartTime
+
+                val processStartTime = System.currentTimeMillis()
+                val budgets = performanceManager.budgets(currentQuality, zoom)
+                val processed = processData(input, budgets)
+                val processDuration = System.currentTimeMillis() - processStartTime
+
+                val renderStartTime = System.currentTimeMillis()
+                val config = produceConfig(processed)
+                val renderDuration = System.currentTimeMillis() - renderStartTime
+
+                synchronized(this@BaseMapLayer) {
+                    if (enabled) {
+                        lastConfig = config
+                    }
+                }
+                val totalDuration = System.currentTimeMillis() - startTime
+                onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
+                config
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onPipelineError(e)
+                lastConfig
+            }
+        }
+
     /** Cancel work and reset config. */
     fun disable() {
         synchronized(this@BaseMapLayer) {

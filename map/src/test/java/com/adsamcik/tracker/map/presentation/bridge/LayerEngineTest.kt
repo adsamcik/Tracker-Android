@@ -18,6 +18,7 @@ class LayerEngineTest {
 	private class StubLayerEngine : LayerEngine {
 		var selectedIds: Set<String> = emptySet()
 		var lastDateRange: LongRange = LongRange.EMPTY
+		var refreshCount = 0
 		var cleared = false
 
 		override suspend fun selectLayers(
@@ -28,6 +29,11 @@ class LayerEngineTest {
 			zoom: Float
 		) {
 			selectedIds = ids
+			lastDateRange = dateRange
+		}
+
+		override suspend fun refreshLayersInPlace(bounds: Bounds?, zoom: Float, dateRange: LongRange) {
+			refreshCount += 1
 			lastDateRange = dateRange
 		}
 

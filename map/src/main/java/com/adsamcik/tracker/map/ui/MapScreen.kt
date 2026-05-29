@@ -44,6 +44,7 @@ import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.bridge.renderKey
 import com.adsamcik.tracker.map.presentation.bridge.boundsOrNull
 import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -723,7 +724,7 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
     }
 
     configs.forEachIndexed { index, config ->
-        key(config, index) {
+        key(config.renderKey(index)) {
             when (config) {
             is MapLibreLayerConfig.Heatmap -> {
                 val source = rememberGeoJsonSource(

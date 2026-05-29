@@ -11,6 +11,7 @@ import kotlinx.collections.immutable.ImmutableList
  */
 interface LayerEngine {
     suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f)
+    suspend fun refreshLayersInPlace(bounds: Bounds? = null, zoom: Float = 10f, dateRange: LongRange)
     suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f) {
         selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds, zoom)
     }

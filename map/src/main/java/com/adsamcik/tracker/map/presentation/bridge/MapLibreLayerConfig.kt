@@ -34,6 +34,47 @@ sealed interface MapLibreLayerConfig {
     ) : MapLibreLayerConfig
 }
 
+@Immutable
+data class MapLibreLayerRenderKey(
+    val index: Int,
+    val type: String,
+    val style: Any,
+)
+
+fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (this) {
+    is MapLibreLayerConfig.Heatmap -> MapLibreLayerRenderKey(
+        index = index,
+        type = "heatmap",
+        style = HeatmapStyleKey(colorStops, radiusPx, intensity, opacity, weightProperty),
+    )
+    is MapLibreLayerConfig.Line -> MapLibreLayerRenderKey(
+        index = index,
+        type = "line",
+        style = LineStyleKey(colorArgb, widthDp, opacity),
+    )
+    is MapLibreLayerConfig.Composite -> MapLibreLayerRenderKey(
+        index = index,
+        type = "composite",
+        style = layers.mapIndexed { childIndex, layer -> layer.renderKey(childIndex) },
+    )
+}
+
+@Immutable
+private data class HeatmapStyleKey(
+    val colorStops: List<Pair<Float, Int>>,
+    val radiusPx: Float,
+    val intensity: Float,
+    val opacity: Float,
+    val weightProperty: String,
+)
+
+@Immutable
+private data class LineStyleKey(
+    val colorArgb: Int,
+    val widthDp: Float,
+    val opacity: Float,
+)
+
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.Line -> bounds
     is MapLibreLayerConfig.Heatmap -> null

@@ -72,6 +72,23 @@ class MapLibreLayerConfigTest {
 			val c2 = MapLibreLayerConfig.Heatmap(geoJson = "b", colorStops = stops)
 			c1 shouldNotBe c2
 		}
+
+		@Test
+		fun `render key ignores heatmap geoJson changes`() {
+			val stops = listOf(0.5f to 0xABCDEF)
+			val c1 = MapLibreLayerConfig.Heatmap(geoJson = "a", colorStops = stops)
+			val c2 = MapLibreLayerConfig.Heatmap(geoJson = "b", colorStops = stops)
+
+			c1.renderKey(index = 0) shouldBe c2.renderKey(index = 0)
+		}
+
+		@Test
+		fun `render key changes when heatmap style changes`() {
+			val c1 = MapLibreLayerConfig.Heatmap(geoJson = "a", colorStops = listOf(0.5f to 0xABCDEF))
+			val c2 = MapLibreLayerConfig.Heatmap(geoJson = "a", colorStops = listOf(1.0f to 0xABCDEF))
+
+			c1.renderKey(index = 0) shouldNotBe c2.renderKey(index = 0)
+		}
 	}
 
 	@Nested
