@@ -49,12 +49,15 @@ import kotlin.math.min
 /**
  * GitHub-style contribution calendar heatmap that adapts to the available
  * width: cells are sized so the full `weeks` range fits without horizontal
- * scrolling. A compact day-of-week strip (M / W / F initials) is rendered
- * inside the same canvas so labels never get cropped at the edge.
+ * scrolling. A compact day-of-week strip (all seven narrow initials,
+ * weekend rows muted) is rendered inside the same canvas so labels never
+ * get cropped at the edge.
  *
  * Includes a summary line above the grid and a "Less → More" colour legend
  * below it so the chart reads as a complete, self-contained visualisation
- * inside a dashboard card.
+ * inside a dashboard card. When `data` is empty an overlay invites the
+ * user to start tracking rather than leaving the user to decode a sea of
+ * identically-empty cells.
  *
  * @param data Map of date to intensity (0.0 = no activity, 1.0 = max activity).
  *   Values outside 0–1 are clamped.
@@ -72,10 +75,16 @@ fun CalendarHeatmap(
     baseColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val emptyColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val todayBorderColor = MaterialTheme.colorScheme.primary
+    val emptyOutlineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+    val todayBorderColor = MaterialTheme.colorScheme.tertiary
+    val monthDividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val mutedLabelColor = labelColor.copy(alpha = 0.55f)
+    val emptyStateBackground = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+    val emptyStateColor = MaterialTheme.colorScheme.onSurface
 
     val today = remember { LocalDate.now() }
+    val locale = remember { Locale.getDefault() }
 
     // Compute grid bounds: end on current week's Sunday, start `weeks` weeks before
     val grid = remember(today, weeks) {
@@ -83,6 +92,7 @@ fun CalendarHeatmap(
     }
 
     val activeDays = remember(data) { data.count { it.value > 0f } }
+    val isEmpty = activeDays == 0
     val accessibilityDescription = if (activeDays > 0) {
         "$activeDays active day${if (activeDays != 1) "s" else ""} in the last $weeks weeks"
     } else {
@@ -93,6 +103,33 @@ fun CalendarHeatmap(
     val textMeasurer = rememberTextMeasurer()
     val labelTextStyle = remember(labelColor) {
         TextStyle(color = labelColor, fontSize = 10.sp)
+    }
+    val mutedLabelTextStyle = remember(mutedLabelColor) {
+        TextStyle(color = mutedLabelColor, fontSize = 10.sp)
+    }
+    val monthLabelTextStyle = remember(labelColor) {
+        TextStyle(color = labelColor, fontSize = 11.sp)
+    }
+    val emptyStateTextStyle = remember(emptyStateColor) {
+        TextStyle(color = emptyStateColor, fontSize = 13.sp)
+    }
+
+    // Locale-aware narrow day labels (e.g. en: M T W T F S S; cs: P Ú S Č P S N).
+    // Saturday/Sunday are flagged so their row labels can render muted to
+    // give the eye a weekly rhythm even when all seven labels are visible.
+    val dayLabels = remember(locale) {
+        listOf(
+            DayOfWeek.MONDAY,
+            DayOfWeek.TUESDAY,
+            DayOfWeek.WEDNESDAY,
+            DayOfWeek.THURSDAY,
+            DayOfWeek.FRIDAY,
+            DayOfWeek.SATURDAY,
+            DayOfWeek.SUNDAY,
+        ).map { dow ->
+            val narrow = dow.getDisplayName(JavaTextStyle.NARROW, locale).ifBlank { dow.name.take(1) }
+            DayLabel(initial = narrow, isWeekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY)
+        }
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -108,13 +145,13 @@ fun CalendarHeatmap(
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val availableWidthDp = maxWidth
 
-            // Geometry: reserve a tiny strip on the left for day-of-week
-            // initials, leave a touch of breathing room on the right so the
-            // last column never butts against the card edge.
-            val dayLabelStripDp = 14.dp
+            // Geometry: reserve a left strip wide enough to fit narrow
+            // single-letter day labels comfortably, leave breathing room on
+            // the right so the last column never butts against the card edge.
+            val dayLabelStripDp = 18.dp
             val rightPadDp = 4.dp
             val gapDp = 2.dp
-            val minCellDp = 8.dp
+            val minCellDp = 10.dp
             val maxCellDp = 18.dp
 
             // Choose how many weeks we can actually render at >= minCellDp,
@@ -136,7 +173,7 @@ fun CalendarHeatmap(
                 12.dp
             }
 
-            val monthLabelHeightDp = 14.dp
+            val monthLabelHeightDp = 16.dp
             val totalHeightDp = monthLabelHeightDp + cellSizeDp * 7 + gapDp * 6
 
             val cellSizePx = with(density) { cellSizeDp.toPx() }
@@ -144,6 +181,9 @@ fun CalendarHeatmap(
             val cellStride = cellSizePx + cellGapPx
             val dayLabelStripPx = with(density) { dayLabelStripDp.toPx() }
             val monthLabelHeightPx = with(density) { monthLabelHeightDp.toPx() }
+            val outlineStrokePx = with(density) { 0.75.dp.toPx() }
+            val todayStrokePx = with(density) { 2.dp.toPx() }
+            val monthGapPx = with(density) { 28.dp.toPx() }
 
             // Show only the most recent `renderableWeeks` weeks so the right
             // edge of the chart is always "today" — the part the user cares
@@ -154,15 +194,6 @@ fun CalendarHeatmap(
                 grid.weeks.takeLast(renderableWeeks)
             }
 
-            // Day-label drawing: only every other day to avoid clutter at small
-            // cell sizes; rendered as single-letter initials.
-            val shortWeekdays = java.text.DateFormatSymbols.getInstance().shortWeekdays
-            val dayInitials = listOf(
-                0 to shortWeekdays[java.util.Calendar.MONDAY].take(1),
-                2 to shortWeekdays[java.util.Calendar.WEDNESDAY].take(1),
-                4 to shortWeekdays[java.util.Calendar.FRIDAY].take(1),
-            )
-
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -171,38 +202,61 @@ fun CalendarHeatmap(
                         contentDescription = accessibilityDescription
                     },
             ) {
-                // Day-of-week initials, centred next to their row.
-                dayInitials.forEach { (dayIdx, label) ->
-                    val measured = textMeasurer.measure(label, style = labelTextStyle)
+                // Day-of-week initials, all seven shown. Weekend rows render
+                // in a muted tone so the duplicated narrow letters (T/T and
+                // S/S in en) read as a rhythm rather than a misprint.
+                dayLabels.forEachIndexed { dayIdx, label ->
+                    val style = if (label.isWeekend) mutedLabelTextStyle else labelTextStyle
+                    val measured = textMeasurer.measure(label.initial, style = style)
                     val y = monthLabelHeightPx + dayIdx * cellStride + cellSizePx / 2f - measured.size.height / 2f
+                    val labelX = (dayLabelStripPx - cellGapPx - measured.size.width).coerceAtLeast(0f)
                     drawText(
                         textLayoutResult = measured,
-                        color = labelColor,
-                        topLeft = Offset(0f, y),
+                        topLeft = Offset(labelX, y),
                     )
                 }
 
-                // Month labels — only emitted when there's room for the full
-                // abbreviation; otherwise skipped so we never get a cropped
-                // half-word like "Ma" at the edge.
+                // Month labels — drawn at the first week whose majority of
+                // days (≥4 of 7) fall in the new month, with a faint vertical
+                // divider in the same column so the eye can group weeks. Min
+                // gap prevents adjacent months from overlapping when several
+                // start back-to-back in early-week positions.
                 var lastMonth = -1
+                var lastLabelEndX = Float.NEGATIVE_INFINITY
                 visibleWeeks.forEachIndexed { weekIdx, week ->
-                    val firstDayOfWeek = week.firstOrNull() ?: return@forEachIndexed
-                    val month = firstDayOfWeek.monthValue
-                    if (month != lastMonth) {
-                        lastMonth = month
-                        val monthName = YearMonth.of(firstDayOfWeek.year, month)
-                            .month
-                            .getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-                        val result = textMeasurer.measure(monthName, style = labelTextStyle)
-                        val x = dayLabelStripPx + weekIdx * cellStride
-                        if (x + result.size.width <= size.width) {
-                            drawText(
-                                textLayoutResult = result,
-                                color = labelColor,
-                                topLeft = Offset(x, 0f),
-                            )
-                        }
+                    val dominantMonth = week
+                        .groupingBy { it.monthValue }
+                        .eachCount()
+                        .maxByOrNull { it.value }
+                        ?.key ?: return@forEachIndexed
+                    if (dominantMonth == lastMonth) return@forEachIndexed
+                    lastMonth = dominantMonth
+
+                    val monthName = YearMonth.of(week.first().year, dominantMonth)
+                        .month
+                        .getDisplayName(JavaTextStyle.SHORT, locale)
+                    val result = textMeasurer.measure(monthName, style = monthLabelTextStyle)
+                    val x = dayLabelStripPx + weekIdx * cellStride
+
+                    // Always draw the divider when there's room — it helps
+                    // even when the label itself gets dropped for spacing.
+                    if (x in dayLabelStripPx..size.width && weekIdx > 0) {
+                        drawLine(
+                            color = monthDividerColor,
+                            start = Offset(x - cellGapPx / 2f, monthLabelHeightPx),
+                            end = Offset(x - cellGapPx / 2f, size.height),
+                            strokeWidth = outlineStrokePx,
+                        )
+                    }
+
+                    val labelFits = x + result.size.width <= size.width
+                    val notTooClose = x >= lastLabelEndX + monthGapPx
+                    if (labelFits && notTooClose) {
+                        drawText(
+                            textLayoutResult = result,
+                            topLeft = Offset(x, 0f),
+                        )
+                        lastLabelEndX = x + result.size.width
                     }
                 }
 
@@ -211,33 +265,76 @@ fun CalendarHeatmap(
                     week.forEach { date ->
                         val dayOfWeekIndex = date.dayOfWeek.value - 1 // Monday=0
                         val intensity = (data[date] ?: 0f).coerceIn(0f, 1f)
-                        val cellColor = if (intensity > 0f) {
-                            baseColor.copy(alpha = 0.25f + intensity * 0.75f)
+                        val isFilled = intensity > 0f
+                        val cellColor = if (isFilled) {
+                            baseColor.copy(alpha = 0.35f + intensity * 0.65f)
                         } else {
                             emptyColor
                         }
 
                         val x = dayLabelStripPx + weekIdx * cellStride
                         val y = monthLabelHeightPx + dayOfWeekIndex * cellStride
+                        val cornerRadius = CornerRadius(2.dp.toPx())
 
                         drawRoundRect(
                             color = cellColor,
                             topLeft = Offset(x, y),
                             size = Size(cellSizePx, cellSizePx),
-                            cornerRadius = CornerRadius(2.dp.toPx()),
+                            cornerRadius = cornerRadius,
                         )
 
-                        // Highlight today with a primary-tinted border.
+                        // Faint outline on empty cells so the grid is legible
+                        // even on cards whose container colour blends into
+                        // surfaceContainerHigh (the previous design's
+                        // empty cells were nearly invisible there).
+                        if (!isFilled) {
+                            drawRoundRect(
+                                color = emptyOutlineColor,
+                                topLeft = Offset(x, y),
+                                size = Size(cellSizePx, cellSizePx),
+                                cornerRadius = cornerRadius,
+                                style = Stroke(width = outlineStrokePx),
+                            )
+                        }
+
+                        // Highlight today with a tertiary-tinted border so
+                        // it never reads as "another active day" — the
+                        // primary-tinted fills already use baseColor.
                         if (date == today) {
                             drawRoundRect(
                                 color = todayBorderColor,
                                 topLeft = Offset(x, y),
                                 size = Size(cellSizePx, cellSizePx),
-                                cornerRadius = CornerRadius(2.dp.toPx()),
-                                style = Stroke(width = 1.5.dp.toPx()),
+                                cornerRadius = cornerRadius,
+                                style = Stroke(width = todayStrokePx),
                             )
                         }
                     }
+                }
+
+                // Empty-state overlay: when there is literally nothing to
+                // display, the grid is just a wall of identical cells.
+                // Cover it with a centred call to action so the chart
+                // communicates *something*.
+                if (isEmpty) {
+                    val message = "Start tracking to fill in your calendar"
+                    val measured = textMeasurer.measure(message, style = emptyStateTextStyle)
+                    val pillPadX = with(density) { 12.dp.toPx() }
+                    val pillPadY = with(density) { 6.dp.toPx() }
+                    val pillWidth = measured.size.width + pillPadX * 2f
+                    val pillHeight = measured.size.height + pillPadY * 2f
+                    val pillX = (size.width - pillWidth) / 2f
+                    val pillY = monthLabelHeightPx + (size.height - monthLabelHeightPx - pillHeight) / 2f
+                    drawRoundRect(
+                        color = emptyStateBackground,
+                        topLeft = Offset(pillX, pillY),
+                        size = Size(pillWidth, pillHeight),
+                        cornerRadius = CornerRadius(12.dp.toPx()),
+                    )
+                    drawText(
+                        textLayoutResult = measured,
+                        topLeft = Offset(pillX + pillPadX, pillY + pillPadY),
+                    )
                 }
             }
         }
@@ -246,26 +343,31 @@ fun CalendarHeatmap(
         HeatmapLegend(
             baseColor = baseColor,
             emptyColor = emptyColor,
+            emptyOutlineColor = emptyOutlineColor,
             labelColor = labelColor,
+            todayBorderColor = todayBorderColor,
         )
     }
 }
+
+private data class DayLabel(val initial: String, val isWeekend: Boolean)
 
 @Composable
 private fun HeatmapLegend(
     baseColor: Color,
     emptyColor: Color,
+    emptyOutlineColor: Color,
     labelColor: Color,
+    todayBorderColor: Color,
 ) {
     val swatchSize = 10.dp
     val swatchShape = RoundedCornerShape(2.dp)
-    val swatches = remember(baseColor, emptyColor) {
+    val swatches = remember(baseColor) {
         listOf(
-            emptyColor,
             baseColor.copy(alpha = 0.35f),
             baseColor.copy(alpha = 0.55f),
             baseColor.copy(alpha = 0.75f),
-            baseColor.copy(alpha = 0.95f),
+            baseColor.copy(alpha = 1.0f),
         )
     }
 
@@ -274,12 +376,55 @@ private fun HeatmapLegend(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // "Today" indicator legend swatch — same tertiary border the grid
+        // uses, so users can map it back without trial and error.
+        Box(
+            modifier = Modifier
+                .size(swatchSize)
+                .clip(swatchShape)
+                .background(emptyColor),
+        ) {
+            Canvas(modifier = Modifier.fillMaxWidth().height(swatchSize)) {
+                drawRoundRect(
+                    color = todayBorderColor,
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
+            }
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "Today",
+            style = MaterialTheme.typography.labelSmall,
+            color = labelColor,
+        )
+
+        Spacer(Modifier.width(12.dp))
+
         Text(
             text = "Less",
             style = MaterialTheme.typography.labelSmall,
             color = labelColor,
         )
         Spacer(Modifier.width(6.dp))
+        // Empty swatch first, so the scale clearly starts from "nothing"
+        // and ramps up to "max" without leaving readers to guess where
+        // the bottom of the colour ramp lives.
+        Box(
+            modifier = Modifier
+                .size(swatchSize)
+                .clip(swatchShape)
+                .background(emptyColor),
+        ) {
+            Canvas(modifier = Modifier.fillMaxWidth().height(swatchSize)) {
+                drawRoundRect(
+                    color = emptyOutlineColor,
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                    style = Stroke(width = 0.75.dp.toPx()),
+                )
+            }
+        }
+        Spacer(Modifier.width(2.dp))
         swatches.forEach { color ->
             Box(
                 modifier = Modifier
