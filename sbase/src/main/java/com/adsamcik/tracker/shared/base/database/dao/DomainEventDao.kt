@@ -18,19 +18,42 @@ interface DomainEventDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun insertAll(events: List<DomainEventEntity>)
 
+	/** Look up a consumer's current cursor position. Returns null when the consumer has never acked. */
+	@Query("SELECT * FROM domain_event_cursor WHERE consumer_id = :consumerId")
+	suspend fun getCursor(consumerId: String): DomainEventCursorEntity?
+
 	/**
-	 * Get the next bounded batch of events not yet processed by the given consumer.
+	 * Seek-style batch fetch using the composite `(timestamp_ms, id)` index.
 	 *
-	 * Cursor is composite `(last_processed_ms, last_processed_id)`: events are returned
-	 * where `(timestamp_ms > lastMs) OR (timestamp_ms = lastMs AND id > lastId)`. This
-	 * prevents the "same-millisecond skip" bug — two events sharing a timestamp would
-	 * have been silently dropped by the previous timestamp-only `>` predicate after the
-	 * first one was acked.
+	 * Caller resolves the cursor first (cheap PK lookup via [getCursor]), then passes
+	 * the two scalar values here. SQLite can evaluate
+	 * `timestamp_ms > :lastMs OR (timestamp_ms = :lastMs AND id > :lastId)` as a
+	 * range seek on `index_domain_event_timestamp_ms_id` rather than a full scan,
+	 * which the old double-CTE form prevented.
 	 *
-	 * The boundary is chosen using the (timestamp, id) of the Nth event, then expanded
-	 * to include all events whose (timestamp, id) is at-or-below that boundary so a
-	 * caller acking the last returned event always advances the cursor strictly.
+	 * EXPLAIN QUERY PLAN: `SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms>?)`
 	 */
+	@Query(
+		"""
+		SELECT *
+		FROM domain_event
+		WHERE
+			timestamp_ms > :lastMs
+			OR (timestamp_ms = :lastMs AND id > :lastId)
+		ORDER BY timestamp_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getUnconsumedBatchSeek(lastMs: Long, lastId: Long, limit: Int): List<DomainEventEntity>
+
+	/**
+	 * Legacy CTE batch fetch. Replaced by [getCursor] + [getUnconsumedBatchSeek] which
+	 * allows the SQLite planner to use an index seek rather than an ordered scan.
+	 */
+	@Deprecated(
+		message = "Use getCursor(consumerId) + getUnconsumedBatchSeek(lastMs, lastId, limit) for index-seek performance.",
+		replaceWith = ReplaceWith("getCursor(consumerId).let { c -> getUnconsumedBatchSeek(c?.lastProcessedMs ?: 0L, c?.lastProcessedId ?: 0L, boundaryOffset + 1) }"),
+	)
 	@Query(
 		"""
 		WITH cursor_value AS (

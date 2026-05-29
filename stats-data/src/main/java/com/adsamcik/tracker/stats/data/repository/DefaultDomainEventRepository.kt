@@ -39,9 +39,11 @@ class DefaultDomainEventRepository @Inject constructor(
 	@Suppress("OVERRIDE_DEPRECATION")
 	override suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent> {
 		require(limit > 0) { "limit must be greater than zero" }
-		return dao.getUnconsumedBatchFor(
-			consumerId = consumerId,
-			boundaryOffset = limit - 1,
+		val cursor = dao.getCursor(consumerId)
+		return dao.getUnconsumedBatchSeek(
+			lastMs = cursor?.lastProcessedMs ?: 0L,
+			lastId = cursor?.lastProcessedId ?: 0L,
+			limit = limit,
 		).mapNotNull { it.toDomain() }
 	}
 
@@ -50,9 +52,11 @@ class DefaultDomainEventRepository @Inject constructor(
 		limit: Int,
 	): List<com.adsamcik.tracker.stats.api.repository.UnconsumedEvent> {
 		require(limit > 0) { "limit must be greater than zero" }
-		return dao.getUnconsumedBatchFor(
-			consumerId = consumerId,
-			boundaryOffset = limit - 1,
+		val cursor = dao.getCursor(consumerId)
+		return dao.getUnconsumedBatchSeek(
+			lastMs = cursor?.lastProcessedMs ?: 0L,
+			lastId = cursor?.lastProcessedId ?: 0L,
+			limit = limit,
 		).mapNotNull { entity ->
 			entity.toDomain()?.let { domain ->
 				com.adsamcik.tracker.stats.api.repository.UnconsumedEvent(domain, entity.id)

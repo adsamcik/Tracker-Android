@@ -76,11 +76,20 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 * end exclusive). Includes segments fully inside the range AND segments that
 	 * straddle either boundary. Used by daily-summary aggregation to prorate
 	 * cross-midnight runs that would otherwise be dropped from every day.
+	 *
+	 * `INDEXED BY idx_session_segment_end_time_ms` forces the planner to seek on
+	 * `end_time_ms > :fromMs` first. When materializing today against years of history
+	 * the `start_time_ms < :toMs` predicate covers a huge range (anything before now),
+	 * while `end_time_ms > :fromMs` (start-of-day) is far more selective — the planner
+	 * would otherwise pick the composite `idx_session_segment_time_range (start_time_ms,
+	 * end_time_ms)` and scan everything before today.
+	 *
+	 * EXPLAIN QUERY PLAN: `SEARCH session_segment USING INDEX idx_session_segment_end_time_ms (end_time_ms>?)`
 	 */
 	@Query(
 		"""
-		SELECT * FROM session_segment
-		WHERE start_time_ms < :toMs AND end_time_ms > :fromMs
+		SELECT * FROM session_segment INDEXED BY idx_session_segment_end_time_ms
+		WHERE end_time_ms > :fromMs AND start_time_ms < :toMs
 		ORDER BY start_time_ms
 		"""
 	)

@@ -108,8 +108,14 @@ class DomainEventDaoTest {
 			)
 		)
 
-		// New composite-cursor query MUST return the second 1000ms event (id > lastId).
-		val nextBatch = dao.getUnconsumedBatchFor(consumerId = "c1", boundaryOffset = 99)
+		// New seek-style query: PK-lookup cursor, then direct seek. MUST return the
+		// second 1000ms event (id > lastId).
+		val cursor = dao.getCursor("c1")
+		val nextBatch = dao.getUnconsumedBatchSeek(
+			lastMs = cursor?.lastProcessedMs ?: 0L,
+			lastId = cursor?.lastProcessedId ?: 0L,
+			limit = 99,
+		)
 		nextBatch.map { it.id } shouldContainExactly listOf(secondAt1000.id, all[2].id)
 	}
 
@@ -126,7 +132,12 @@ class DomainEventDaoTest {
 			)
 		)
 
-		val next = dao.getUnconsumedBatchFor(consumerId = "c1", boundaryOffset = 99)
+		val cursor = dao.getCursor("c1")
+		val next = dao.getUnconsumedBatchSeek(
+			lastMs = cursor?.lastProcessedMs ?: 0L,
+			lastId = cursor?.lastProcessedId ?: 0L,
+			limit = 99,
+		)
 		next shouldBe emptyList()
 	}
 

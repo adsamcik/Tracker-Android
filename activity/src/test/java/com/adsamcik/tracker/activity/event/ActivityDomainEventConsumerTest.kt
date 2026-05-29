@@ -6,6 +6,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -22,7 +23,6 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -53,7 +53,7 @@ class ActivityDomainEventConsumerTest {
 		@Test
 		fun `does nothing when no events`() = runTest {
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -62,7 +62,7 @@ class ActivityDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -74,6 +74,7 @@ class ActivityDomainEventConsumerTest {
 		fun `handles SessionEnded and marks consumed`() = runTest {
 			stubWorkManager()
 			val timestamp = EpochMs(1_700_000_000_000L)
+			val persistedId = 20L
 			val event = DomainEvent.SessionEnded(
 				timestampMs = timestamp,
 				processorId = "test-processor",
@@ -84,11 +85,14 @@ class ActivityDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
-			} returnsMany listOf(listOf(event), emptyList())
+			} returnsMany listOf(
+				listOf(UnconsumedEvent(event, persistedId)),
+				emptyList(),
+			)
 
 			consumer.processUnconsumed()
 
@@ -100,9 +104,10 @@ class ActivityDomainEventConsumerTest {
 				)
 			}
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					timestamp,
+					persistedId,
 				)
 			}
 		}
@@ -110,6 +115,7 @@ class ActivityDomainEventConsumerTest {
 		@Test
 		fun `ignores non-SessionEnded events and still marks consumed`() = runTest {
 			val timestamp = EpochMs(1_700_000_000_000L)
+			val persistedId = 21L
 			val event = DomainEvent.CellDiscovered(
 				timestampMs = timestamp,
 				processorId = "test-processor",
@@ -122,18 +128,22 @@ class ActivityDomainEventConsumerTest {
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
-			} returnsMany listOf(listOf(event), emptyList())
+			} returnsMany listOf(
+				listOf(UnconsumedEvent(event, persistedId)),
+				emptyList(),
+			)
 
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					timestamp,
+					persistedId,
 				)
 			}
 		}
@@ -143,40 +153,49 @@ class ActivityDomainEventConsumerTest {
 			stubWorkManager()
 			val earlyTimestamp = EpochMs(1_700_000_000_000L)
 			val lateTimestamp = EpochMs(1_700_000_005_000L)
-			val events = listOf(
-				DomainEvent.CellDiscovered(
-					timestampMs = lateTimestamp,
-					processorId = "test-processor",
-					cellToken = "cell-1",
-					level = 3,
-					centerLatE7 = 0,
-					centerLonE7 = 0,
-					quality = 0,
-					seasonBit = 1,
+			// Batch is ordered ascending by (timestamp_ms, id) as returned by the DAO.
+			val batch = listOf(
+				UnconsumedEvent(
+					DomainEvent.SessionEnded(
+						timestampMs = earlyTimestamp,
+						processorId = "test-processor",
+						sessionId = 10L,
+						totalDistance = DistanceM(500f),
+						totalSteps = StepCount(1000),
+						duration = DurationMs(300_000L),
+					),
+					persistedId = 10L,
 				),
-				DomainEvent.SessionEnded(
-					timestampMs = earlyTimestamp,
-					processorId = "test-processor",
-					sessionId = 10L,
-					totalDistance = DistanceM(500f),
-					totalSteps = StepCount(1000),
-					duration = DurationMs(300_000L),
+				UnconsumedEvent(
+					DomainEvent.CellDiscovered(
+						timestampMs = lateTimestamp,
+						processorId = "test-processor",
+						cellToken = "cell-1",
+						level = 3,
+						centerLatE7 = 0,
+						centerLonE7 = 0,
+						quality = 0,
+						seasonBit = 1,
+					),
+					persistedId = 11L,
 				),
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
-			} returnsMany listOf(events, emptyList())
+			} returnsMany listOf(batch, emptyList())
 
 			consumer.processUnconsumed()
 
+			// markBatchConsumed must ack the LAST event (lateTimestamp, id=11)
 			coVerify(exactly = 1) {
-				domainEventRepository.markConsumed(
+				domainEventRepository.markBatchConsumed(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					lateTimestamp,
+					11L,
 				)
 			}
 		}
@@ -187,30 +206,36 @@ class ActivityDomainEventConsumerTest {
 			val firstTimestamp = EpochMs(1_700_000_000_000L)
 			val secondTimestamp = EpochMs(1_700_000_005_000L)
 			val firstBatch = listOf(
-				DomainEvent.SessionEnded(
-					timestampMs = firstTimestamp,
-					processorId = "test-processor",
-					sessionId = 11L,
-					totalDistance = DistanceM(500f),
-					totalSteps = StepCount(1000),
-					duration = DurationMs(300_000L),
+				UnconsumedEvent(
+					DomainEvent.SessionEnded(
+						timestampMs = firstTimestamp,
+						processorId = "test-processor",
+						sessionId = 11L,
+						totalDistance = DistanceM(500f),
+						totalSteps = StepCount(1000),
+						duration = DurationMs(300_000L),
+					),
+					persistedId = 11L,
 				),
 			)
 			val secondBatch = listOf(
-				DomainEvent.CellDiscovered(
-					timestampMs = secondTimestamp,
-					processorId = "test-processor",
-					cellToken = "cell-2",
-					level = 3,
-					centerLatE7 = 0,
-					centerLonE7 = 0,
-					quality = 0,
-					seasonBit = 1,
+				UnconsumedEvent(
+					DomainEvent.CellDiscovered(
+						timestampMs = secondTimestamp,
+						processorId = "test-processor",
+						cellToken = "cell-2",
+						level = 3,
+						centerLatE7 = 0,
+						centerLonE7 = 0,
+						quality = 0,
+						seasonBit = 1,
+					),
+					persistedId = 12L,
 				),
 			)
 
 			coEvery {
-				domainEventRepository.getUnconsumedBatch(
+				domainEventRepository.getUnconsumedBatchWithIds(
 					ActivityDomainEventConsumer.CONSUMER_ID,
 					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 				)
@@ -219,8 +244,8 @@ class ActivityDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerifyOrder {
-				domainEventRepository.markConsumed(ActivityDomainEventConsumer.CONSUMER_ID, firstTimestamp)
-				domainEventRepository.markConsumed(ActivityDomainEventConsumer.CONSUMER_ID, secondTimestamp)
+				domainEventRepository.markBatchConsumed(ActivityDomainEventConsumer.CONSUMER_ID, firstTimestamp, 11L)
+				domainEventRepository.markBatchConsumed(ActivityDomainEventConsumer.CONSUMER_ID, secondTimestamp, 12L)
 			}
 		}
 	}
@@ -240,3 +265,4 @@ class ActivityDomainEventConsumerTest {
 		}
 	}
 }
+
