@@ -111,6 +111,7 @@ dependencies {
 	testImplementation(libs.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.androidx.work.testing)
 	testImplementation(project(":testing-common"))
 
 	// Instrumented Tests
