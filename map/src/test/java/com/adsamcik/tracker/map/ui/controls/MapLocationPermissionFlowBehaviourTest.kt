@@ -1,16 +1,15 @@
 package com.adsamcik.tracker.map.ui.controls
 
 import android.Manifest
-import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
@@ -28,7 +27,7 @@ class MapLocationPermissionFlowBehaviourTest {
 		)
 
 		resolveMapLocationPermissionRequestDecision(
-			hasPermission = activity.hasFineOrCoarseLocationPermission(),
+			hasPermission = activity.context.hasFineOrCoarseLocationPermission(),
 		) shouldBe MapLocationPermissionDecision.AlreadyGranted
 	}
 
@@ -39,9 +38,9 @@ class MapLocationPermissionFlowBehaviourTest {
 			shouldShowRationale = false,
 		)
 
-		activity.shouldShowAnyMapLocationRationale() shouldBe false
+		activity.shouldShowRationale shouldBe false
 		resolveMapLocationPermissionRequestDecision(
-			hasPermission = activity.hasFineOrCoarseLocationPermission(),
+			hasPermission = activity.context.hasFineOrCoarseLocationPermission(),
 		) shouldBe MapLocationPermissionDecision.RequestSystemDialog
 	}
 
@@ -52,9 +51,9 @@ class MapLocationPermissionFlowBehaviourTest {
 			shouldShowRationale = true,
 		)
 
-		activity.shouldShowAnyMapLocationRationale() shouldBe true
+		activity.shouldShowRationale shouldBe true
 		resolveMapLocationPermissionRequestDecision(
-			hasPermission = activity.hasFineOrCoarseLocationPermission(),
+			hasPermission = activity.context.hasFineOrCoarseLocationPermission(),
 		) shouldBe MapLocationPermissionDecision.RequestSystemDialog
 	}
 
@@ -67,7 +66,7 @@ class MapLocationPermissionFlowBehaviourTest {
 
 		resolveMapLocationPermissionCallbackDecision(
 			granted = false,
-			shouldShowRationale = activity.shouldShowAnyMapLocationRationale(),
+			shouldShowRationale = activity.shouldShowRationale,
 		) shouldBe MapLocationPermissionDecision.RequestSystemDialog
 	}
 
@@ -80,34 +79,39 @@ class MapLocationPermissionFlowBehaviourTest {
 
 		resolveMapLocationPermissionCallbackDecision(
 			granted = false,
-			shouldShowRationale = activity.shouldShowAnyMapLocationRationale(),
+			shouldShowRationale = activity.shouldShowRationale,
 		) shouldBe MapLocationPermissionDecision.OpenSettings
 	}
 
 	private fun permissionActivity(
 		granted: Boolean,
 		shouldShowRationale: Boolean,
-	): Activity {
-		val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+	): PermissionFixture {
+		val context = ApplicationProvider.getApplicationContext<Context>()
 		val permissions = arrayOf(
 			Manifest.permission.ACCESS_FINE_LOCATION,
 			Manifest.permission.ACCESS_COARSE_LOCATION,
 		)
-		val shadowApplication = shadowOf(activity.application)
-		val shadowActivity = shadowOf(activity)
+		val shadowApplication = shadowOf(context.applicationContext as Application)
 		if (granted) {
 			shadowApplication.grantPermissions(*permissions)
-			shadowActivity.grantPermissions(*permissions)
 		} else {
 			shadowApplication.denyPermissions(*permissions)
-			shadowActivity.denyPermissions(*permissions)
 		}
-		val shadowPackageManager = shadowOf(activity.packageManager)
+		val shadowPackageManager = shadowOf(context.packageManager)
 		permissions.forEach { permission ->
 			shadowPackageManager.setShouldShowRequestPermissionRationale(permission, shouldShowRationale)
 		}
-		return activity
+		return PermissionFixture(
+			context = context,
+			shouldShowRationale = shouldShowRationale,
+		)
 	}
+
+	private data class PermissionFixture(
+		val context: Context,
+		val shouldShowRationale: Boolean,
+	)
 
 	private fun Context.hasFineOrCoarseLocationPermission(): Boolean =
 		ContextCompat.checkSelfPermission(
@@ -119,12 +123,4 @@ class MapLocationPermissionFlowBehaviourTest {
 				Manifest.permission.ACCESS_COARSE_LOCATION,
 			) == PackageManager.PERMISSION_GRANTED
 
-	private fun Activity.shouldShowAnyMapLocationRationale(): Boolean =
-		ActivityCompat.shouldShowRequestPermissionRationale(
-			this,
-			Manifest.permission.ACCESS_FINE_LOCATION,
-		) || ActivityCompat.shouldShowRequestPermissionRationale(
-			this,
-			Manifest.permission.ACCESS_COARSE_LOCATION,
-		)
 }
