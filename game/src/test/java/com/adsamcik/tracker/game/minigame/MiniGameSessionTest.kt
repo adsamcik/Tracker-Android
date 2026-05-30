@@ -34,7 +34,7 @@ class MiniGameSessionTest {
 	@Test
 	fun `outrun xp is at least base`() {
 		val session = OutrunSession()
-		assertTrue(session.calculateXp() >= 30)
+		assertTrue(session.calculatePoints() >= 30)
 	}
 
 	// --- Territory ---
@@ -70,7 +70,7 @@ class MiniGameSessionTest {
 	@Test
 	fun `territory xp is at least base`() {
 		val session = TerritorySession()
-		assertTrue(session.calculateXp() >= 20)
+		assertTrue(session.calculatePoints() >= 20)
 	}
 
 	// --- Zen Walk ---
@@ -95,6 +95,6 @@ class MiniGameSessionTest {
 	@Test
 	fun `zen walk xp is at least base`() {
 		val session = ZenWalkSession()
-		assertTrue(session.calculateXp() >= 15)
+		assertTrue(session.calculatePoints() >= 15)
 	}
 }

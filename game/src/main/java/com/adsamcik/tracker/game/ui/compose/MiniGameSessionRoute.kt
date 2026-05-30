@@ -357,10 +357,10 @@ private fun FinishedPanel(
 				color = MaterialTheme.colorScheme.onSurface,
 			)
 			Text(
-				text = if (state.xpEarned > 0) {
-					stringResource(R.string.minigame_session_xp_earned, state.xpEarned)
+				text = if (state.pointsEarned > 0) {
+					stringResource(R.string.minigame_session_points_earned, state.pointsEarned)
 				} else {
-					stringResource(R.string.minigame_session_xp_zero)
+					stringResource(R.string.minigame_session_points_zero)
 				},
 				style = MaterialTheme.typography.titleSmall,
 				color = MaterialTheme.colorScheme.primary,

@@ -122,7 +122,7 @@ class MiniGameScoresViewModelTest {
 						timestampMs: Long,
 					) = Unit
 					override fun onSessionEnd() = Unit
-					override fun calculateXp(): Int = 0
+					override fun calculatePoints(): Int = 0
 				}
 			}
 		}.toSet()

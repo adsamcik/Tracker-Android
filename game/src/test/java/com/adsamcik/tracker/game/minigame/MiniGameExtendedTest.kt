@@ -137,15 +137,15 @@ class OutrunSessionAdvancedTest {
 			session.onLocationUpdate(51.002, 14.0, 2.0f, 10f, 10000L)
 			session.onSessionEnd()
 
-			val xp = session.calculateXp()
-			xp shouldBeGreaterThanOrEqual 30 // at least base
+			val points = session.calculatePoints()
+			points shouldBeGreaterThanOrEqual 30 // at least base
 		}
 
 		@Test
 		fun `xp capped at 200 max`() {
 			val session = OutrunSession()
 			// Even with huge ahead, bonus caps at 170 + 30 base = 200
-			session.calculateXp() shouldBeLessThanOrEqual 200
+			session.calculatePoints() shouldBeLessThanOrEqual 200
 		}
 
 		@Test
@@ -221,7 +221,7 @@ class TerritorySessionAdvancedTest {
 	inner class XpCalculation {
 		@Test
 		fun `base xp with no cells`() {
-			TerritorySession().calculateXp() shouldBe 20
+			TerritorySession().calculatePoints() shouldBe 20
 		}
 
 		@Test
@@ -231,7 +231,7 @@ class TerritorySessionAdvancedTest {
 			for (i in 0 until 5) {
 				session.onLocationUpdate(51.0 + i * 0.01, 14.0, 1.5f, 10f, (i * 3000 + 1000).toLong())
 			}
-			session.calculateXp() shouldBeGreaterThanOrEqual 20
+			session.calculatePoints() shouldBeGreaterThanOrEqual 20
 		}
 	}
 
@@ -304,7 +304,7 @@ class ZenWalkSessionAdvancedTest {
 	inner class XpCalc {
 		@Test
 		fun `base xp is 15`() {
-			ZenWalkSession().calculateXp() shouldBe 15
+			ZenWalkSession().calculatePoints() shouldBe 15
 		}
 
 		@Test
@@ -315,7 +315,7 @@ class ZenWalkSessionAdvancedTest {
 			for (i in 1..120) {
 				session.onLocationUpdate(51.0 + i * 0.000001, 14.0, 1.4f, 10f, (i * 1000).toLong())
 			}
-			session.calculateXp() shouldBeGreaterThanOrEqual 15
+			session.calculatePoints() shouldBeGreaterThanOrEqual 15
 		}
 	}
 

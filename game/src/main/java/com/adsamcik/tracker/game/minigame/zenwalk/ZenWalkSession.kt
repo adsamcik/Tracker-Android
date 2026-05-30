@@ -98,10 +98,10 @@ class ZenWalkSession(
 		_state = MiniGameState.FINISHED
 	}
 
-	override fun calculateXp(): Int {
-		val baseXp = 15
+	override fun calculatePoints(): Int {
+		val basePoints = 15
 		val timeBonus = min(zoneSecondsTotal / 60.0, MAX_TIME_BONUS_MINUTES) * 3
-		return baseXp + timeBonus.toInt()
+		return basePoints + timeBonus.toInt()
 	}
 
 	companion object {

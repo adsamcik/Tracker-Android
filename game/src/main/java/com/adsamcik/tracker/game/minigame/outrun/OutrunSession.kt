@@ -83,10 +83,10 @@ class OutrunSession(
 		_state = MiniGameState.FINISHED
 	}
 
-	override fun calculateXp(): Int {
-		val baseXp = 30
+	override fun calculatePoints(): Int {
+		val basePoints = 30
 		val distanceBonus = min(maxAheadM / 10.0, 170.0).toInt()
-		return baseXp + distanceBonus
+		return basePoints + distanceBonus
 	}
 
 	private fun approximateDistance(

@@ -45,8 +45,8 @@
     <string name="minigame_session_score_label">Score</string>
     <string name="minigame_session_finished_title">Run complete</string>
     <string name="minigame_session_final_score">Final score: %1$s</string>
-    <string name="minigame_session_xp_earned">+%1$d XP</string>
-    <string name="minigame_session_xp_zero">No XP this run</string>
+    <string name="minigame_session_points_earned">+%1$d pts</string>
+    <string name="minigame_session_points_zero">No points this run</string>
     <string name="minigame_session_permission_title">Location needed</string>
     <string name="minigame_session_permission_body">Mini-games use live location to track your run. Nothing is saved beyond the final score.</string>
     <string name="minigame_session_permission_grant">Grant access</string>
@@ -60,7 +60,7 @@
     <string name="minigame_scores_empty_body">Finish a mini-game session to see it appear here.</string>
     <string name="minigame_scores_rank_format">#%1$d</string>
     <string name="minigame_scores_score_format">%1$s pts</string>
-    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_points_format">+%1$d pts</string>
     <string name="minigame_scores_unknown_game">Mini-game</string>
 
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>

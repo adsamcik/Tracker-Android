@@ -37,7 +37,7 @@ const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
  *  - [Idle]:             ready to start, waiting for user CTA
  *  - [PermissionNeeded]: location permission missing — UI must request it
  *  - [Active]:           a session is running; receiving location samples
- *  - [Finished]:         user stopped (or session ended); score + XP persisted
+ *  - [Finished]:         user stopped (or session ended); score + points persisted
  */
 sealed interface MiniGameUiState {
 	data object Idle : MiniGameUiState
@@ -50,7 +50,7 @@ sealed interface MiniGameUiState {
 	) : MiniGameUiState
 	data class Finished(
 		val finalScore: Double,
-		val xpEarned: Int,
+		val pointsEarned: Int,
 	) : MiniGameUiState
 }
 
@@ -65,8 +65,8 @@ sealed interface MiniGameUiState {
  *  4. UI calls [stop] (or [onCleared] cleans up) which:
  *     - cancels the location subscription
  *     - calls [MiniGameSession.onSessionEnd]
- *     - persists score + XP to [MiniGameScoreDao]
- *     - credits XP via [GameRepository.creditMiniGameXp]
+ *     - persists score + points to [MiniGameScoreDao]
+ *     - credits points via [GameRepository.creditMiniGameXp]
  *     - emits [MiniGameUiState.Finished]
  *  5. UI may call [reset] to play again (creates a fresh [MiniGameSession]).
  *
@@ -152,10 +152,10 @@ class MiniGameSessionViewModel @Inject constructor(
 				_uiState.value = MiniGameUiState.PermissionNeeded
 			} catch (error: Throwable) {
 				// Stay defensive — never let a downstream failure throw across module
-				// boundaries; fall back to a clean Finished state with no XP.
+				// boundaries; fall back to a clean Finished state with zero points.
 				_uiState.value = MiniGameUiState.Finished(
 					finalScore = session.score,
-					xpEarned = 0,
+					pointsEarned = 0,
 				)
 				if (error !is RuntimeException && error !is IllegalStateException) {
 					throw error
@@ -165,7 +165,7 @@ class MiniGameSessionViewModel @Inject constructor(
 	}
 
 	/**
-	 * Stop the session, persist score + XP, and transition to [MiniGameUiState.Finished].
+	 * Stop the session, persist score + points, and transition to [MiniGameUiState.Finished].
 	 *
 	 * Safe to call multiple times: only the first call writes to the database
 	 * — subsequent calls are ignored. Cancels the location subscription before
@@ -192,7 +192,7 @@ class MiniGameSessionViewModel @Inject constructor(
 		viewModelScope.launch {
 			activeSession.onSessionEnd()
 			val finalScore = activeSession.score
-			val xp = activeSession.calculateXp().coerceAtLeast(0)
+			val points = activeSession.calculatePoints().coerceAtLeast(0)
 			val finishedAt = Time.nowMillis.coerceAtLeast(startedAt)
 
 			withContext(dispatchers.io) {
@@ -200,16 +200,16 @@ class MiniGameSessionViewModel @Inject constructor(
 					MiniGameScoreEntity(
 						gameId = gameId,
 						score = finalScore,
-						xpAwarded = xp,
+						xpAwarded = points,
 						playedAt = finishedAt,
 					),
 				)
 			}
-			gameRepository.creditMiniGameXp(gameId = gameId, xp = xp, earnedAtMs = finishedAt)
+			gameRepository.creditMiniGameXp(gameId = gameId, xp = points, earnedAtMs = finishedAt)
 
 			_uiState.value = MiniGameUiState.Finished(
 				finalScore = finalScore,
-				xpEarned = xp,
+				pointsEarned = points,
 			)
 		}
 	}

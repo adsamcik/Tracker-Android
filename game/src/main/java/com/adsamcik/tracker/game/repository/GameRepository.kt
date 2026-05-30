@@ -9,17 +9,18 @@ interface GameRepository {
 	fun getPlayerProfile(): Flow<PlayerProfileUi?>
 
 	/**
-	 * Credit a mini-game's XP into the "points earned today" ledger.
+	 * Credit a mini-game's points into the "points earned today" ledger.
 	 *
 	 * Writes a single [com.adsamcik.tracker.points.data.PointsAwarded] row
-	 * via the same DAO as tracking-session XP, so the value flows back into
-	 * the dashboard immediately. Suspending; safe to call from the main thread.
+	 * via the same DAO as tracking-session points, so the value flows back
+	 * into the dashboard immediately. Suspending; safe to call from the main
+	 * thread.
 	 *
-	 * Privacy: no raw location samples are persisted — only XP, timestamp and
-	 * the mini-game id are recorded.
+	 * Privacy: no raw location samples are persisted — only the points
+	 * amount, the timestamp and the mini-game id are recorded.
 	 *
 	 * @param gameId mini-game stable id (used as the source identifier for dedupe)
-	 * @param xp XP amount returned by [com.adsamcik.tracker.game.minigame.MiniGameSession.calculateXp]
+	 * @param xp points amount returned by [com.adsamcik.tracker.game.minigame.MiniGameSession.calculatePoints]
 	 * @param earnedAtMs wall-clock millis when the session ended
 	 */
 	suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long)

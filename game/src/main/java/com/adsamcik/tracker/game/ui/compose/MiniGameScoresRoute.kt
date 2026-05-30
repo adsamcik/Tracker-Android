@@ -179,7 +179,7 @@ private fun ScoreRow(
 			)
 		}
 		Text(
-			text = stringResource(R.string.minigame_scores_xp_format, entry.xpAwarded),
+			text = stringResource(R.string.minigame_scores_points_format, entry.xpAwarded),
 			style = MaterialTheme.typography.labelLarge,
 			color = MaterialTheme.colorScheme.primary,
 		)

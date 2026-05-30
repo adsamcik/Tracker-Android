@@ -51,14 +51,14 @@ class TerritorySession : MiniGameSession() {
 		_state = MiniGameState.FINISHED
 	}
 
-	override fun calculateXp(): Int {
+	override fun calculatePoints(): Int {
 		val cells = claimedCells.size
 		// 20 base + 10 per cell (diminishing after 15)
-		val fullBonus = min(cells, FULL_BONUS_CELLS) * XP_PER_CELL
+		val fullBonus = min(cells, FULL_BONUS_CELLS) * POINTS_PER_CELL
 		val diminishedBonus = if (cells > FULL_BONUS_CELLS) {
-			((cells - FULL_BONUS_CELLS) * XP_PER_CELL_DIMINISHED).toInt()
+			((cells - FULL_BONUS_CELLS) * POINTS_PER_CELL_DIMINISHED).toInt()
 		} else 0
-		return BASE_XP + fullBonus + diminishedBonus
+		return BASE_POINTS + fullBonus + diminishedBonus
 	}
 
 	companion object {
@@ -68,9 +68,9 @@ class TerritorySession : MiniGameSession() {
 		private const val MAX_ACCURACY_M = 30f
 		private const val MAX_ON_FOOT_SPEED_MPS = 8f
 		private const val DEBOUNCE_MS = 2000L
-		private const val BASE_XP = 20
-		private const val XP_PER_CELL = 10
-		private const val XP_PER_CELL_DIMINISHED = 3.0
+		private const val BASE_POINTS = 20
+		private const val POINTS_PER_CELL = 10
+		private const val POINTS_PER_CELL_DIMINISHED = 3.0
 		private const val FULL_BONUS_CELLS = 15
 	}
 }

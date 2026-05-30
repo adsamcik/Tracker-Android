@@ -138,7 +138,7 @@ class MiniGameSessionViewModelTest {
 
 		val finished = vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
 		finished.finalScore shouldBe SAMPLE.speedMps.toDouble()
-		finished.xpEarned shouldBe FakeMiniGame.XP
+		finished.pointsEarned shouldBe FakeMiniGame.XP
 	}
 
 	@Test
@@ -252,7 +252,7 @@ private class FakeMiniGame(override val id: String) : MiniGame {
 		}
 
 		override fun onSessionEnd() { state = MiniGameState.FINISHED }
-		override fun calculateXp(): Int = XP
+		override fun calculatePoints(): Int = XP
 	}
 }
 
