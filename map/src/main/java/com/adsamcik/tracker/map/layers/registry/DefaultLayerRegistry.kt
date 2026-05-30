@@ -10,12 +10,14 @@ import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
 import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
 import com.adsamcik.tracker.map.layers.impl.SpeedHeatmapLayer
+import com.adsamcik.tracker.map.layers.impl.VehicleComplianceLayer
 import com.adsamcik.tracker.map.layers.impl.WifiCountHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.WifiHeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
+import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.map.shared.MapLayerData
@@ -39,6 +41,8 @@ class DefaultLayerRegistry(
         const val LOCATION_PATH_CHUNK_SIZE = 2_000
         const val LOCATION_PATH_MAX_PRE_POINTS = 30_000
         const val DEFAULT_LOCATION_RANGE_MS = 30L * 24 * 60 * 60 * 1_000
+        const val VEHICLE_CHUNK_SIZE = 2_000
+        const val VEHICLE_MAX_PRE_SAMPLES = 30_000
     }
 
     /**
@@ -244,6 +248,121 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_speed_moderate, HeatmapColorRamps.Speed[3].second),
                                     MapLegendValue(R.string.map_layer_speed_fast, HeatmapColorRamps.Speed[4].second),
                                     MapLegendValue(R.string.map_layer_speed_very_fast, HeatmapColorRamps.Speed[5].second)
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Vehicle Speed Compliance
+        add(
+            LayerDescriptor(
+                id = "vehicle_compliance",
+                titleRes = R.string.map_layer_vehicle_compliance_title,
+                iconRes = null,
+                capabilities = LayerCapabilities(isPolyline = true),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao = AppDatabase.database(ctx).locationSampleDao()
+                            val drivingActivityIds = SessionActivityIds.DRIVING.toList()
+                            val speedLimitSource = ctx.speedLimitSource()
+                            VehicleComplianceLayer(
+                                sampleProvider = { range ->
+                                    withContext(dispatchers.io) {
+                                        val now = System.currentTimeMillis()
+                                        val fromMs = if (!range.isEmpty()) {
+                                            range.first
+                                        } else {
+                                            now - DEFAULT_LOCATION_RANGE_MS
+                                        }
+                                        val toMs = if (!range.isEmpty()) range.last else now
+                                        val rows = buildList {
+                                            var afterTimeMs: Long? = null
+                                            var afterId: Long? = null
+
+                                            while (true) {
+                                                val chunk = dao.getDrivingChunkBetweenOrdered(
+                                                    fromMs = fromMs,
+                                                    toMs = toMs,
+                                                    drivingActivities = drivingActivityIds,
+                                                    afterTimeMs = afterTimeMs,
+                                                    afterId = afterId,
+                                                    limit = VEHICLE_CHUNK_SIZE,
+                                                )
+                                                if (chunk.isEmpty()) break
+
+                                                addAll(chunk)
+
+                                                val lastRow = chunk.last()
+                                                afterTimeMs = lastRow.timeMs
+                                                afterId = lastRow.id
+                                                if (chunk.size < VEHICLE_CHUNK_SIZE) break
+                                            }
+                                        }
+                                        if (rows.isEmpty()) {
+                                            emptyList()
+                                        } else {
+                                            val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES).coerceAtLeast(1)
+                                            rows.asSequence()
+                                                .filterIndexed { index, _ -> index % step == 0 }
+                                                .map { row ->
+                                                    val limitMps = speedLimitSource.limitMpsAt(
+                                                        epochMs = row.timeMs,
+                                                        latE7 = row.latE7,
+                                                        lonE7 = row.lonE7,
+                                                    )
+                                                    val ratio = if (limitMps <= 0.0) {
+                                                        Float.NaN
+                                                    } else {
+                                                        (row.speedMps / limitMps).toFloat()
+                                                    }
+                                                    VehicleComplianceLayer.VehicleSpeedSample(
+                                                        latLng = LatLngModel(
+                                                            row.latE7 / 1e7,
+                                                            row.lonE7 / 1e7,
+                                                        ),
+                                                        ratio = ratio,
+                                                    )
+                                                }
+                                                .toList()
+                                        }
+                                    }
+                                },
+                                perf = PerformanceManager(),
+                            )
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo(
+                                "VehicleComplianceLayer",
+                                R.string.map_layer_vehicle_compliance_title,
+                            ),
+                            colorList = HeatmapColorRamps.VehicleCompliance.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_vehicle_compliance_description,
+                                valueList = listOf(
+                                    MapLegendValue(
+                                        R.string.map_layer_vehicle_compliance_way_under,
+                                        HeatmapColorRamps.VehicleCompliance[0].second,
+                                    ),
+                                    MapLegendValue(
+                                        R.string.map_layer_vehicle_compliance_slow,
+                                        HeatmapColorRamps.VehicleCompliance[1].second,
+                                    ),
+                                    MapLegendValue(
+                                        R.string.map_layer_vehicle_compliance_at_limit,
+                                        HeatmapColorRamps.VehicleCompliance[2].second,
+                                    ),
+                                    MapLegendValue(
+                                        R.string.map_layer_vehicle_compliance_slightly_over,
+                                        HeatmapColorRamps.VehicleCompliance[3].second,
+                                    ),
+                                    MapLegendValue(
+                                        R.string.map_layer_vehicle_compliance_speeding,
+                                        HeatmapColorRamps.VehicleCompliance[4].second,
+                                    ),
                                 )
                             )
                         )

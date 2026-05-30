@@ -1,10 +1,9 @@
 package com.adsamcik.tracker.osm.io
 
 import com.adsamcik.tracker.osm.OsmRoadClass
-import de.topobyte.osm4j.core.model.iface.EntityType
-import de.topobyte.osm4j.core.model.iface.OsmNode
-import de.topobyte.osm4j.core.model.iface.OsmWay
-import de.topobyte.osm4j.pbf.seq.PbfIterator
+import crosby.binary.BinaryParser
+import crosby.binary.Osmformat
+import crosby.binary.file.BlockInputStream
 import kotlinx.coroutines.ensureActive
 import java.io.InputStream
 import kotlin.coroutines.coroutineContext
@@ -13,10 +12,10 @@ import kotlin.coroutines.coroutineContext
  * Streaming two-pass parser over an OpenStreetMap PBF file.
  *
  * Pass 1 walks every way and buffers driveable ones (per [OsmRoadClass]) plus
- * the set of node ids they reference. Pass 2 walks every node and keeps lat/lon
- * (in E7 packed into a single Long) for the referenced ids only. The buffered
- * ways are then resolved into [ParsedOsmWay] batches and handed to
- * [onWayBatch] for persistence.
+ * the set of node ids they reference. Pass 2 walks every node (regular and
+ * dense) and keeps lat/lon (in E7, packed into a single Long) for the
+ * referenced ids only. The buffered ways are then resolved into [ParsedOsmWay]
+ * batches and handed to [onWayBatch] for persistence.
  *
  * Strict offline contract: the input stream factory MUST point at a local file
  * — the parser never opens a URL.
@@ -25,7 +24,11 @@ import kotlin.coroutines.coroutineContext
  *  - PBF file size must not exceed [MAX_FILE_SIZE_BYTES] (~100 MB).
  *  - Referenced node count must not exceed [MAX_REFERENCED_NODES].
  *
- * Cancellation: cooperative — the parser polls [coroutineContext] periodically.
+ * Cancellation: cooperative — the parser polls [coroutineContext] and
+ * [CancellationCheck.isCancelled] periodically. Mid-stream cancellation throws
+ * [ParseCancelledMarker] to unwind the synchronous [BlockInputStream.process]
+ * loop, which the outer [parse] catches and re-raises as a
+ * [kotlinx.coroutines.CancellationException] via [ensureActive].
  *
  * Thread safety: a single [parse] invocation is single-threaded; concurrent
  * invocations on one instance are NOT supported.
@@ -36,8 +39,9 @@ class OsmPbfStreamingParser {
 	 * Parses [openInputStream] (called twice — once per pass) and emits
 	 * [ParsedOsmWay] batches of size [wayBatchSize] via [onWayBatch].
 	 *
-	 * Progress callbacks are coarse-grained — one per [PROGRESS_INTERVAL]
-	 * entities — so callers can drive a "parsing X of Y" notification.
+	 * Progress callbacks fire at phase transitions and per emitted batch.
+	 * Intra-pass progress is intentionally coarse because the underlying
+	 * [BlockInputStream.process] loop is synchronous and cannot await.
 	 *
 	 * @return aggregate counts and the overall bounding box of every emitted
 	 *   way's geometry.
@@ -57,55 +61,26 @@ class OsmPbfStreamingParser {
 			throw OsmParseException.FileTooLarge(fileSizeBytes, MAX_FILE_SIZE_BYTES)
 		}
 
+		val cancellation = CancellationCheck()
+
 		// --- Pass 1: scan ways ---
 		val nodeIds = HashSet<Long>(INITIAL_NODE_ID_CAPACITY)
 		val wayBuffer = ArrayList<BufferedWay>(INITIAL_WAY_BUFFER_CAPACITY)
-		var pass1Count = 0L
-		openInputStream().use { input ->
-			val iter = PbfIterator(input, false)
-			while (iter.hasNext()) {
-				val container = iter.next()
-				if (container.type != EntityType.Way) continue
-				val way = container.entity as OsmWay
-				val tags = collectTags(way::getNumberOfTags, way::getTag)
-				val roadClass = OsmRoadClass.fromOsmValue(tags["highway"]) ?: continue
-
-				val nodeCount = way.numberOfNodes
-				if (nodeCount < MIN_NODES_PER_WAY) continue
-				val nodes = LongArray(nodeCount)
-				for (i in 0 until nodeCount) {
-					val id = way.getNodeId(i)
-					nodes[i] = id
-					nodeIds.add(id)
-					if (nodeIds.size > MAX_REFERENCED_NODES) {
-						throw OsmParseException.TooManyNodes(
-							nodeIds.size.toLong(),
-							MAX_REFERENCED_NODES.toLong(),
-						)
-					}
-				}
-
-				val explicitKmh = OsmMaxspeedParser.parseKmh(tags["maxspeed"])
-				wayBuffer.add(
-					BufferedWay(
-						osmId = way.id,
-						name = tags["name"],
-						roadClass = roadClass,
-						maxspeedKmh = explicitKmh ?: roadClass.defaultMaxspeedKmh,
-						maxspeedExplicit = explicitKmh != null,
-						isOneway = parseOneway(tags["oneway"], roadClass),
-						nodeIds = nodes,
-					),
+		val pass1Counter = LongCounter()
+		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_WAYS, 0L))
+		runPass {
+			openInputStream().use { input ->
+				val parser = WayScanParser(
+					cancellation = cancellation,
+					nodeIds = nodeIds,
+					wayBuffer = wayBuffer,
+					counter = pass1Counter,
 				)
-
-				pass1Count++
-				if (pass1Count % PROGRESS_INTERVAL == 0L) {
-					coroutineContext.ensureActive()
-					onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_WAYS, pass1Count))
-				}
+				BlockInputStream(input, parser).process()
 			}
 		}
-		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_WAYS, pass1Count))
+		coroutineContext.ensureActive()
+		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_WAYS, pass1Counter.value))
 
 		if (wayBuffer.isEmpty()) {
 			return OsmParseStats(
@@ -118,28 +93,23 @@ class OsmPbfStreamingParser {
 			)
 		}
 
-		// --- Pass 2: scan nodes ---
+		// --- Pass 2: scan nodes (both dense and regular) ---
 		val nodePositions = HashMap<Long, Long>(nodeIds.size)
-		var pass2Count = 0L
-		openInputStream().use { input ->
-			val iter = PbfIterator(input, false)
-			while (iter.hasNext()) {
-				val container = iter.next()
-				if (container.type != EntityType.Node) continue
-				val node = container.entity as OsmNode
-				if (!nodeIds.contains(node.id)) continue
-				val latE7 = toE7(node.latitude)
-				val lonE7 = toE7(node.longitude)
-				nodePositions[node.id] = packLatLon(latE7, lonE7)
-
-				pass2Count++
-				if (pass2Count % PROGRESS_INTERVAL == 0L) {
-					coroutineContext.ensureActive()
-					onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, pass2Count))
-				}
+		val pass2Counter = LongCounter()
+		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, 0L))
+		runPass {
+			openInputStream().use { input ->
+				val parser = NodeScanParser(
+					cancellation = cancellation,
+					targetIds = nodeIds,
+					positions = nodePositions,
+					counter = pass2Counter,
+				)
+				BlockInputStream(input, parser).process()
 			}
 		}
-		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, pass2Count))
+		coroutineContext.ensureActive()
+		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, pass2Counter.value))
 
 		// --- Emit ---
 		var globalMinLat = Int.MAX_VALUE
@@ -172,7 +142,7 @@ class OsmPbfStreamingParser {
 
 		return if (emittedWays == 0L) {
 			OsmParseStats(
-				nodeCount = pass2Count,
+				nodeCount = pass2Counter.value,
 				wayCount = 0L,
 				minLatE7 = 0,
 				maxLatE7 = 0,
@@ -181,13 +151,30 @@ class OsmPbfStreamingParser {
 			)
 		} else {
 			OsmParseStats(
-				nodeCount = pass2Count,
+				nodeCount = pass2Counter.value,
 				wayCount = emittedWays,
 				minLatE7 = globalMinLat,
 				maxLatE7 = globalMaxLat,
 				minLonE7 = globalMinLon,
 				maxLonE7 = globalMaxLon,
 			)
+		}
+	}
+
+	/**
+	 * Runs [block] and converts a [ParseCancelledMarker] thrown from inside
+	 * the synchronous reader into the canonical CancellationException via
+	 * [ensureActive]. Other exceptions propagate unchanged.
+	 */
+	private suspend inline fun runPass(block: () -> Unit) {
+		try {
+			block()
+		} catch (cancelled: ParseCancelledMarker) {
+			// Force the coroutine to honour cancellation; if the context is
+			// somehow still active (shouldn't happen) we surface the marker
+			// to make the bug visible.
+			coroutineContext.ensureActive()
+			throw cancelled
 		}
 	}
 
@@ -239,18 +226,157 @@ class OsmPbfStreamingParser {
 		)
 	}
 
-	private fun collectTags(
-		count: () -> Int,
-		getter: (Int) -> de.topobyte.osm4j.core.model.iface.OsmTag,
-	): Map<String, String> {
-		val n = count()
-		if (n == 0) return emptyMap()
-		val out = HashMap<String, String>(n)
-		for (i in 0 until n) {
-			val tag = getter(i)
-			out[tag.key] = tag.value
+	/**
+	 * Pass 1 inner parser — scans every Way, keeps driveable ones and records
+	 * referenced node ids in [nodeIds] for the second pass.
+	 */
+	private inner class WayScanParser(
+		private val cancellation: CancellationCheck,
+		private val nodeIds: HashSet<Long>,
+		private val wayBuffer: ArrayList<BufferedWay>,
+		private val counter: LongCounter,
+	) : BinaryParser() {
+
+		override fun parseNodes(nodes: MutableList<Osmformat.Node>?) {
+			checkCancellation()
 		}
-		return out
+
+		override fun parseDense(nodes: Osmformat.DenseNodes?) {
+			checkCancellation()
+		}
+
+		override fun parseRelations(rels: MutableList<Osmformat.Relation>?) {
+			checkCancellation()
+		}
+
+		override fun parse(header: Osmformat.HeaderBlock?) {
+			// Header is currently ignored — bbox is recomputed from observed ways.
+		}
+
+		override fun complete() = Unit
+
+		override fun parseWays(ways: MutableList<Osmformat.Way>?) {
+			if (ways == null) return
+			for (way in ways) {
+				if (cancellation.isCancelled) throw ParseCancelledMarker
+				val tags = collectTags(way.keysCount, way::getKeys, way::getVals)
+				val roadClass = OsmRoadClass.fromOsmValue(tags["highway"]) ?: continue
+
+				val refCount = way.refsCount
+				if (refCount < MIN_NODES_PER_WAY) continue
+				val refs = LongArray(refCount)
+				var acc = 0L
+				for (i in 0 until refCount) {
+					acc += way.getRefs(i)
+					refs[i] = acc
+					nodeIds.add(acc)
+					if (nodeIds.size > MAX_REFERENCED_NODES) {
+						throw OsmParseException.TooManyNodes(
+							nodeIds.size.toLong(),
+							MAX_REFERENCED_NODES.toLong(),
+						)
+					}
+				}
+
+				val explicitKmh = OsmMaxspeedParser.parseKmh(tags["maxspeed"])
+				wayBuffer.add(
+					BufferedWay(
+						osmId = way.id,
+						name = tags["name"],
+						roadClass = roadClass,
+						maxspeedKmh = explicitKmh ?: roadClass.defaultMaxspeedKmh,
+						maxspeedExplicit = explicitKmh != null,
+						isOneway = parseOneway(tags["oneway"], roadClass),
+						nodeIds = refs,
+					),
+				)
+				counter.value++
+			}
+		}
+
+		private fun collectTags(
+			count: Int,
+			keyAt: (Int) -> Int,
+			valAt: (Int) -> Int,
+		): Map<String, String> {
+			if (count == 0) return emptyMap()
+			val out = HashMap<String, String>(count)
+			for (i in 0 until count) {
+				val k = getStringById(keyAt(i)) ?: continue
+				val v = getStringById(valAt(i)) ?: continue
+				out[k] = v
+			}
+			return out
+		}
+
+		private fun checkCancellation() {
+			if (cancellation.isCancelled) throw ParseCancelledMarker
+		}
+	}
+
+	/**
+	 * Pass 2 inner parser — scans every Node and DenseNodes block, keeping
+	 * only those whose id appears in [targetIds]. Coordinates are converted
+	 * to degrees via [parseLat]/[parseLon] (which apply the block-level
+	 * granularity / offset) and then to E7 packed into a single Long.
+	 */
+	private inner class NodeScanParser(
+		private val cancellation: CancellationCheck,
+		private val targetIds: Set<Long>,
+		private val positions: HashMap<Long, Long>,
+		private val counter: LongCounter,
+	) : BinaryParser() {
+
+		override fun parseWays(ways: MutableList<Osmformat.Way>?) {
+			checkCancellation()
+		}
+
+		override fun parseRelations(rels: MutableList<Osmformat.Relation>?) {
+			checkCancellation()
+		}
+
+		override fun parse(header: Osmformat.HeaderBlock?) = Unit
+
+		override fun complete() = Unit
+
+		override fun parseNodes(nodes: MutableList<Osmformat.Node>?) {
+			if (nodes == null) return
+			for (n in nodes) {
+				if (cancellation.isCancelled) throw ParseCancelledMarker
+				counter.value++
+				if (!targetIds.contains(n.id)) continue
+				val latE7 = toE7(parseLat(n.lat))
+				val lonE7 = toE7(parseLon(n.lon))
+				positions[n.id] = packLatLon(latE7, lonE7)
+			}
+		}
+
+		override fun parseDense(nodes: Osmformat.DenseNodes?) {
+			if (nodes == null) return
+			val count = nodes.idCount
+			var idAcc = 0L
+			var latAcc = 0L
+			var lonAcc = 0L
+			for (i in 0 until count) {
+				idAcc += nodes.getId(i)
+				latAcc += nodes.getLat(i)
+				lonAcc += nodes.getLon(i)
+				counter.value++
+				if (counter.value % CANCEL_POLL_INTERVAL == 0L &&
+					cancellation.isCancelled
+				) {
+					throw ParseCancelledMarker
+				}
+				if (!targetIds.contains(idAcc)) continue
+				val latE7 = toE7(parseLat(latAcc))
+				val lonE7 = toE7(parseLon(lonAcc))
+				positions[idAcc] = packLatLon(latE7, lonE7)
+			}
+		}
+
+		private fun checkCancellation() {
+			if (cancellation.isCancelled) throw ParseCancelledMarker
+		}
 	}
 
 	private fun parseOneway(raw: String?, roadClass: OsmRoadClass): Boolean {
@@ -275,14 +401,27 @@ class OsmPbfStreamingParser {
 		val nodeIds: LongArray,
 	)
 
+	/** Mutable long counter passed across inner-parser boundaries. */
+	private class LongCounter {
+		var value: Long = 0L
+	}
+
+	/** Cross-thread cancellation flag set by the outer suspend [parse]. */
+	private class CancellationCheck {
+		@Volatile
+		var isCancelled: Boolean = false
+	}
+
 	companion object {
 		const val MAX_FILE_SIZE_BYTES: Long = 100L * 1024L * 1024L
 		const val MAX_REFERENCED_NODES: Int = 8_000_000
 		const val DEFAULT_WAY_BATCH_SIZE: Int = 1_000
 		private const val MIN_NODES_PER_WAY = 2
-		private const val PROGRESS_INTERVAL: Long = 50_000L
 		private const val INITIAL_NODE_ID_CAPACITY = 1 shl 17
 		private const val INITIAL_WAY_BUFFER_CAPACITY = 1 shl 14
+
+		/** Poll the cancellation flag every N processed dense-node entries. */
+		private const val CANCEL_POLL_INTERVAL: Long = 16_384L
 
 		internal fun toE7(degrees: Double): Int =
 			kotlin.math.round(degrees * 1e7).toInt()
@@ -293,6 +432,20 @@ class OsmPbfStreamingParser {
 		internal fun unpackLat(packed: Long): Int = (packed shr 32).toInt()
 		internal fun unpackLon(packed: Long): Int = packed.toInt()
 	}
+}
+
+/**
+ * Sentinel exception thrown from inside the synchronous PBF reader callbacks
+ * to unwind [crosby.binary.file.BlockInputStream.process] when the outer
+ * coroutine is cancelled. The outer [OsmPbfStreamingParser.parse] catches it
+ * and re-raises as [kotlinx.coroutines.CancellationException] via
+ * [kotlinx.coroutines.ensureActive].
+ */
+internal object ParseCancelledMarker : RuntimeException("OSM parse cancelled") {
+	private fun readResolve(): Any = ParseCancelledMarker
+
+	@Suppress("UNUSED")
+	override fun fillInStackTrace(): Throwable = this
 }
 
 /** Distinct failure modes for [OsmPbfStreamingParser.parse]. */

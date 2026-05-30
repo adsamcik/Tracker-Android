@@ -44,6 +44,13 @@
     <string name="map_layer_speed_very_fast">Very Fast</string>
     <string name="map_layer_speed_extreme">Extreme Speed</string>
     <string name="map_layer_speed_heatmap_title">Speed heatmap</string>
+    <string name="map_layer_vehicle_compliance_title">Vehicle speed compliance</string>
+    <string name="map_layer_vehicle_compliance_description">Polyline of driving samples coloured by how the speed compares to your configured baseline limit.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Way under limit</string>
+    <string name="map_layer_vehicle_compliance_slow">Below limit</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Near limit</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Slightly over</string>
+    <string name="map_layer_vehicle_compliance_speeding">Speeding</string>
     <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_location_polyline_description">Line connecting your recorded locations over time.</string>
     <string name="map_layer_location_polyline_title">Location polyline</string>

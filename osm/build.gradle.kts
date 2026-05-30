@@ -76,10 +76,7 @@ dependencies {
 	implementation(libs.javax.inject)
 
 	// OSM PBF parsing (offline; never touched by network).
-	implementation(libs.osm4j.core)
-	implementation(libs.osm4j.pbf)
-	// osm4j logs via SLF4J – swallow to avoid pulling logback into the APK.
-	implementation(libs.slf4j.nop)
+	implementation(libs.osmpbf)
 
 	// Unit tests
 	testImplementation(platform(libs.junit5.bom))
