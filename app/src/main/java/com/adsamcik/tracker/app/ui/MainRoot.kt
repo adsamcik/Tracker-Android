@@ -73,6 +73,7 @@ import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.SettingsSection
 import com.adsamcik.tracker.app.ui.navigation.ActivitySettings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
+import com.adsamcik.tracker.app.ui.navigation.ROUTES_HIDING_TOP_LEVEL_CHROME
 import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.app.ui.navigation.toSettingsOrigin
 import com.adsamcik.tracker.app.activity.DeepNavigationRequest
@@ -297,15 +298,7 @@ fun MainRoot(
     }
     val currentRouteObj = navItems.find { item -> routeMatches(item.id as AppRoute) }
     val hideTopLevelNavigation = currentDestination?.hierarchy?.any { destination ->
-        destination.hasRoute<Setup>() ||
-                destination.hasRoute<Settings>() ||
-                destination.hasRoute<Debug>() ||
-                destination.hasRoute<ActivitySettings>() ||
-                destination.hasRoute<TripDetail>() ||
-                destination.hasRoute<History>() ||
-                destination.hasRoute<Achievements>() ||
-                destination.hasRoute<MiniGameSession>() ||
-                destination.hasRoute<MiniGameScores>()
+        ROUTES_HIDING_TOP_LEVEL_CHROME.any { kClass -> destination.hasRoute(kClass) }
     } == true
     val effectiveRouteObj = currentRouteObj ?: navItems.find { it.id == lastTopLevelRoute }
     val isDashboard = effectiveRouteObj?.id == Dashboard
