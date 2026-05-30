@@ -280,5 +280,25 @@ class HistoryTypesTest {
 			activityIcon(null) shouldNotBe null
 			activityIcon(99) shouldNotBe null
 		}
+
+		@Test
+		fun `null and unknown values return the same fallback icon`() {
+			// Honest fallback contract: every un-categorised trip uses the same
+			// Route icon, so the timeline never flickers between QuestionMark
+			// and other placeholders for the same "we don't know" state.
+			val nullIcon = activityIcon(null)
+			val unknownIcon = activityIcon(999)
+			nullIcon shouldBe unknownIcon
+		}
+
+		@Test
+		fun `transit placeholder id 4 returns a distinct icon from fallback`() {
+			// 4 = DetectedActivity.UNKNOWN re-used as a transit placeholder.
+			// It must NOT collapse into the generic Route fallback or the
+			// "train" affordance disappears for transit trips.
+			val transitIcon = activityIcon(4)
+			val fallbackIcon = activityIcon(null)
+			transitIcon shouldNotBe fallbackIcon
+		}
 	}
 }

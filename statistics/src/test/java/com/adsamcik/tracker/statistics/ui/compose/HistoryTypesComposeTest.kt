@@ -14,7 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Train
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -86,8 +86,21 @@ class HistoryTypesComposeTest {
 	}
 
 	@Test
-	fun `activityIcon returns question mark for null`() {
-		activityIcon(null) shouldBe Icons.Filled.QuestionMark
+	fun `activityIcon returns route icon for null`() {
+		// Honest fallback: route line replaced the legacy QuestionMark so an
+		// unknown / un-categorised trip still reads as movement, not a bug.
+		activityIcon(null) shouldBe Icons.Filled.Route
+	}
+
+	@Test
+	fun `activityIcon returns route icon for unknown value`() {
+		activityIcon(999) shouldBe Icons.Filled.Route
+	}
+
+	@Test
+	fun `activityIcon returns walk icon for native walking constant`() {
+		// Negative ids are native Tracker ids (see SessionActivityIds).
+		activityIcon(-2) shouldBe Icons.AutoMirrored.Filled.DirectionsWalk
 	}
 
 	// ─── formatDistanceLabel ─────────────────────────────────────────────
