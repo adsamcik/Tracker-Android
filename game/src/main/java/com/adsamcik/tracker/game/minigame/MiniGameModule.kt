@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.game.minigame
 
+import com.adsamcik.tracker.game.minigame.location.FusedMiniGameLocationSource
+import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -27,4 +29,15 @@ abstract class MiniGameModule {
 	@dagger.Binds
 	@dagger.multibindings.IntoSet
 	abstract fun bindZenWalk(impl: com.adsamcik.tracker.game.minigame.zenwalk.ZenWalkGame): MiniGame
+
+	/**
+	 * Live-location feed for mini-game sessions.
+	 * Default impl talks to Fused Location directly so mini-games work without
+	 * the TrackerService — see [FusedMiniGameLocationSource] for details.
+	 */
+	@dagger.Binds
+	abstract fun bindMiniGameLocationSource(
+		impl: FusedMiniGameLocationSource,
+	): MiniGameLocationSource
 }
+

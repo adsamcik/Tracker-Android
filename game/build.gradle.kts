@@ -85,6 +85,7 @@ dependencies {
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.services.location)
 
 	// Compose (Material 3 expressive)
 	implementation(platform(libs.compose.bom))
@@ -142,6 +143,7 @@ dependencies {
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(libs.compose.ui.test.junit4)
 	testImplementation(libs.activity.compose)
+	testImplementation(project(":testing-common"))
 
 	// Instrumented Tests
 	androidTestImplementation(libs.junit4)
