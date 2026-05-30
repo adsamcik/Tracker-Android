@@ -703,7 +703,7 @@
     <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automatic unit switching</string>
     <string name="settings_module_map_subtitle">Heatmap quality and visualization options</string>
-    <string name="settings_module_game_subtitle">Challenges and goals configuration</string>
+    <string name="settings_module_game_subtitle">Goals, achievements, and milestones</string>
     <string name="settings_module_statistics_subtitle">Unit preferences and display options</string>
     <string name="action_navigate_back">Navigate back</string>
     <string name="action_help">Help</string>

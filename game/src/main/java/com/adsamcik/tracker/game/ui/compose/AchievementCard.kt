@@ -29,9 +29,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.ui.achievement.AchievementFormatting
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.NextAchievement
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 
 @Composable
 fun AchievementCard(state: AchievementSummaryState, modifier: Modifier = Modifier, onViewAll: () -> Unit = {}) {
@@ -59,7 +61,7 @@ fun AchievementCard(state: AchievementSummaryState, modifier: Modifier = Modifie
 				if (state.recentUnlocks.isNotEmpty()) {
 					Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
 						Text(stringResource(R.string.game_recent_achievements), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-						state.recentUnlocks.forEach { unlock -> Text(resolveStringResource(unlock.nameRes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface) }
+						state.recentUnlocks.forEach { unlock -> Text(achievementTitleFor(unlock.id, unlock.nameRes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface) }
 					}
 				}
 				if (state.nextUp.isNotEmpty()) {
@@ -77,7 +79,7 @@ fun AchievementCard(state: AchievementSummaryState, modifier: Modifier = Modifie
 private fun NextAchievementRow(next: NextAchievement) {
 	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
 		Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-			Text(resolveStringResource(next.nameRes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+			Text(achievementTitleFor(next.id, next.nameRes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
 			Text("${(next.progress * PERCENTAGE_MULTIPLIER).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
 		}
 		Box(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))) {
@@ -98,10 +100,17 @@ private fun TierBadge(label: String, count: Int, color: Color) {
 }
 
 @Composable
-private fun resolveStringResource(name: String): String {
-	val context = LocalContext.current
-	val resId = remember(name, context) { context.resources.getIdentifier(name, "string", context.packageName) }
-	return if (resId != 0) stringResource(resId) else name
+private fun achievementTitleFor(id: String, fallbackNameRes: String): String {
+	val definition = remember(id) { AchievementCatalog.byId(id) }
+	return if (definition != null) {
+		AchievementFormatting.rememberTitle(definition)
+	} else {
+		// Defensive fallback: try resolving as a legacy string resource so the UI
+		// doesn't show a raw id if the catalog ever drifts. Should be unreachable.
+		val context = LocalContext.current
+		val resId = remember(fallbackNameRes, context) { context.resources.getIdentifier(fallbackNameRes, "string", context.packageName) }
+		if (resId != 0) stringResource(resId) else id
+	}
 }
 
 private val BronzeColor: Color @Composable get() = MaterialTheme.colorScheme.tertiary
