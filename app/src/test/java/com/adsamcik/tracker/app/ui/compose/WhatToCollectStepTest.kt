@@ -214,9 +214,9 @@ class WhatToCollectStepTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("Wi-Fi scans can reveal nearby networks", substring = true)
+        composeTestRule.onNodeWithText("Wi-Fi access points", substring = true)
             .assertExists()
-        composeTestRule.onNodeWithText("Cell tower data can be combined with your route", substring = true)
+        composeTestRule.onNodeWithText("cell tower IDs", substring = true)
             .assertExists()
     }
 }
