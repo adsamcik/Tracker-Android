@@ -96,6 +96,14 @@ class DefaultLayerRegistryTest {
         }
 
         @Test
+        fun `finds vehicle_compliance layer`() {
+            val result = registry.findById("vehicle_compliance")
+
+            result.shouldNotBeNull()
+            result.id shouldBe "vehicle_compliance"
+        }
+
+        @Test
         fun `returns null for unknown id`() {
             val result = registry.findById("does_not_exist")
 
@@ -125,6 +133,7 @@ class DefaultLayerRegistryTest {
                 "wifi_heatmap",
                 "wifi_count_heatmap",
                 "speed_heatmap",
+                "vehicle_compliance",
                 "location_polyline"
             )
         }
