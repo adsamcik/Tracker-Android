@@ -48,7 +48,7 @@ import java.util.Date
  * imported regions, exposes the SAF picker for adding a new region, shows
  * live import progress (with cancel), and lets the user delete a region.
  *
- * The MIME type filter is `*/*` because the standard `.osm.pbf` MIME type
+ * The MIME type filter is &#42;/&#42; (any) because the standard `.osm.pbf` MIME type
  * (`application/x-pbf`) is not widely supported by document providers.
  */
 fun LazyListScope.osmImportSection() {
