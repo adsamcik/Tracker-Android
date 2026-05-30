@@ -1,12 +1,14 @@
 package com.adsamcik.tracker.shared.base.ui.compose
 
+import android.app.Application
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
-import androidx.compose.material3.MaterialTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,6 +23,9 @@ class ContextualPermissionRequestTest {
 	@get:Rule
 	val composeRule = createComposeRule()
 
+	private val context: Application
+		get() = ApplicationProvider.getApplicationContext()
+
 	@Test
 	fun `shows location rationale dialog`() {
 		composeRule.setContent {
@@ -34,9 +39,12 @@ class ContextualPermissionRequestTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Location Access Needed").assertIsDisplayed()
-		composeRule.onNodeWithText("Allow").assertIsDisplayed()
-		composeRule.onNodeWithText("Not Now").assertIsDisplayed()
+		composeRule.onNodeWithText(context.getString(PermissionType.LOCATION_FOREGROUND.rationaleTitle))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(context.getString(com.adsamcik.tracker.shared.base.R.string.permission_allow))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(context.getString(com.adsamcik.tracker.shared.base.R.string.permission_deny))
+			.assertIsDisplayed()
 	}
 
 	@Test
@@ -52,7 +60,8 @@ class ContextualPermissionRequestTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Activity Recognition Needed").assertIsDisplayed()
+		composeRule.onNodeWithText(context.getString(PermissionType.ACTIVITY_RECOGNITION.rationaleTitle))
+			.assertIsDisplayed()
 	}
 
 	@Test
@@ -68,7 +77,8 @@ class ContextualPermissionRequestTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Background Location Access").assertIsDisplayed()
+		composeRule.onNodeWithText(context.getString(PermissionType.LOCATION_BACKGROUND.rationaleTitle))
+			.assertIsDisplayed()
 	}
 
 	@Test
@@ -87,9 +97,38 @@ class ContextualPermissionRequestTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Not Now").performClick()
+		composeRule.onNodeWithText(context.getString(com.adsamcik.tracker.shared.base.R.string.permission_deny))
+			.performClick()
 		composeRule.waitForIdle()
 		assertTrue(dismissCalled)
 		assertTrue(permissionResult == false)
+	}
+
+	@Test
+	fun `background location rationale mentions in the background`() {
+		val rationale = context.getString(PermissionType.LOCATION_BACKGROUND.rationaleMessage)
+
+		assertTrue(rationale.contains("in the background"))
+	}
+
+	@Test
+	fun `background location rationale mentions allow all the time`() {
+		val rationale = context.getString(PermissionType.LOCATION_BACKGROUND.rationaleMessage)
+
+		assertTrue(rationale.contains("Allow all the time"))
+	}
+
+	@Test
+	fun `foreground location rationale says data stays on this device`() {
+		val rationale = context.getString(PermissionType.LOCATION_FOREGROUND.rationaleMessage)
+
+		assertTrue(rationale.contains("stays on this device"))
+	}
+
+	@Test
+	fun `activity recognition rationale says data stays on this device`() {
+		val rationale = context.getString(PermissionType.ACTIVITY_RECOGNITION.rationaleMessage)
+
+		assertTrue(rationale.contains("stays on this device"))
 	}
 }
