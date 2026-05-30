@@ -19,11 +19,13 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
+import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.controller.DefaultLockManager
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.di.DefaultDailySummaryProvider
+import com.adsamcik.tracker.tracker.feed.DefaultTrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import dagger.Module
 import dagger.Provides
@@ -53,6 +55,12 @@ object AppGraphModule {
     fun provideTrackerServiceController(): TrackerServiceController {
         return DefaultTrackerServiceController()
     }
+
+    @Provides
+    @Singleton
+    fun provideTrackerLiveLocationFeed(
+        controller: TrackerServiceController,
+    ): TrackerLiveLocationFeed = DefaultTrackerLiveLocationFeed(controller)
 
     @Provides
     @Singleton
