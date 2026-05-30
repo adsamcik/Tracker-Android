@@ -40,7 +40,7 @@ import kotlinx.coroutines.flow.map
  * which side is currently active.
  */
 @Singleton
-class LiveOrFusedMiniGameLocationSource @Inject constructor(
+internal class LiveOrFusedMiniGameLocationSource @Inject constructor(
 	private val liveFeed: TrackerLiveLocationFeed,
 	private val fusedFallback: FusedMiniGameLocationSource,
 ) : MiniGameLocationSource {

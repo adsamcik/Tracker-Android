@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
  * Mini-game samples are never persisted: they exist only in-flight inside the
  * session VM and are dropped when the user leaves the screen.
  */
-data class MiniGameLocationSample(
+internal data class MiniGameLocationSample(
 	val latitude: Double,
 	val longitude: Double,
 	val speedMps: Float,
@@ -32,7 +32,7 @@ data class MiniGameLocationSample(
  * Throws [SecurityException] inside the flow if the caller does not hold
  * a location permission. Callers must check permission before collecting.
  */
-interface MiniGameLocationSource {
+internal interface MiniGameLocationSource {
 	/**
 	 * Cold flow of location samples honouring [request].
 	 *

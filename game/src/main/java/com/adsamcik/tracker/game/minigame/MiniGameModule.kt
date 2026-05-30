@@ -15,7 +15,7 @@ import dagger.multibindings.Multibinds
  */
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class MiniGameModule {
+internal abstract class MiniGameModule {
 	@Multibinds
 	abstract fun bindMiniGames(): Set<MiniGame>
 

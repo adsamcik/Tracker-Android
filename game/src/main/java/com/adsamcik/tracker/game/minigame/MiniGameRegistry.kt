@@ -7,7 +7,7 @@ import javax.inject.Singleton
  * Holds all registered mini-games from Hilt @IntoSet multibinding.
  */
 @Singleton
-class MiniGameRegistry @Inject constructor(
+internal class MiniGameRegistry @Inject constructor(
 	val games: Set<@JvmSuppressWildcards MiniGame>,
 ) {
 	/** Get game by ID, or null if not found. */

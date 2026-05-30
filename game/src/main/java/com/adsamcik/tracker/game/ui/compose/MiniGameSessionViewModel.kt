@@ -32,7 +32,7 @@ import kotlinx.coroutines.withContext
 /**
  * Argument key used by Compose Navigation to populate the saved-state handle.
  */
-const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
+internal const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
 
 /**
  * UI state for the mini-game session screen.
@@ -42,7 +42,7 @@ const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
  *  - [Active]:           a session is running; receiving location samples
  *  - [Finished]:         user stopped (or session ended); score + points persisted
  */
-sealed interface MiniGameUiState {
+internal sealed interface MiniGameUiState {
 	data object Idle : MiniGameUiState
 	data object PermissionNeeded : MiniGameUiState
 	data class Active(
@@ -76,7 +76,7 @@ sealed interface MiniGameUiState {
  * Raw location samples are never persisted: only the final score row goes to disk.
  */
 @HiltViewModel
-class MiniGameSessionViewModel @Inject constructor(
+internal class MiniGameSessionViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	application: Application,
 	private val miniGameRegistry: MiniGameRegistry,

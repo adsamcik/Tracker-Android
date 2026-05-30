@@ -14,7 +14,7 @@ import javax.inject.Inject
  * BALANCED 5 s cadence is plenty. A 10 m displacement filter cuts wake-ups
  * when the player stops at a crossing without losing zone-time accounting.
  */
-class ZenWalkGame @Inject constructor() : MiniGame {
+internal class ZenWalkGame @Inject constructor() : MiniGame {
 	override val id: String = "zenwalk"
 	override val nameRes: Int = R.string.minigame_zenwalk_name
 	override val descriptionRes: Int = R.string.minigame_zenwalk_description

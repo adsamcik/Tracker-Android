@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.callbackFlow
  * so battery cost matches each game's needs.
  */
 @Singleton
-class FusedMiniGameLocationSource @Inject constructor(
+internal class FusedMiniGameLocationSource @Inject constructor(
 	private val application: Application,
 ) : MiniGameLocationSource {
 

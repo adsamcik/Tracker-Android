@@ -26,7 +26,7 @@ package com.adsamcik.tracker.game.minigame
  * No raw GPS samples are persisted by this class. Only the final score row
  * and points credit reach the database.
  */
-abstract class MiniGameSession {
+internal abstract class MiniGameSession {
 	/** Current game state. */
 	abstract val state: MiniGameState
 
@@ -74,7 +74,7 @@ abstract class MiniGameSession {
 }
 
 /** Mini-game lifecycle states. */
-enum class MiniGameState {
+internal enum class MiniGameState {
 	IDLE,
 	RUNNING,
 	WARNING,

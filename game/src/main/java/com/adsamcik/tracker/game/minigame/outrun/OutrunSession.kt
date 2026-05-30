@@ -10,7 +10,7 @@ import kotlin.math.min
  * Player distance tracked cumulatively from location updates.
  * Score = max distance player was ahead of ghost.
  */
-class OutrunSession(
+internal class OutrunSession(
 	private val ghostPaceMps: Double = DEFAULT_GHOST_PACE_MPS,
 ) : MiniGameSession() {
 

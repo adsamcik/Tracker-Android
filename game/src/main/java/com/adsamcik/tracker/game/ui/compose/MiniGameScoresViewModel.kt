@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.stateIn
  *   removed from the registry but rows still exist on disk.
  * @param entries score rows, sorted by score descending (rank #1 first).
  */
-data class MiniGameScoreGroup(
+internal data class MiniGameScoreGroup(
 	val gameId: String,
 	val nameRes: Int?,
 	val entries: List<MiniGameScoreEntity>,
@@ -36,7 +36,7 @@ data class MiniGameScoreGroup(
  * Empty list is a valid state — UI surfaces an empty-state card.
  */
 @HiltViewModel
-class MiniGameScoresViewModel @Inject constructor(
+internal class MiniGameScoresViewModel @Inject constructor(
 	private val scoreDao: MiniGameScoreDao,
 	private val registry: MiniGameRegistry,
 ) : ViewModel() {

@@ -10,7 +10,7 @@ import kotlin.math.min
  * First 2 minutes auto-detect target pace (median). EMA smoothing α=0.15.
  * Pause handling: speed < 0.3 m/s for >10s → freeze timer.
  */
-class ZenWalkSession(
+internal class ZenWalkSession(
 	private val fixedTargetMps: Double? = null,
 ) : MiniGameSession() {
 

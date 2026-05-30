@@ -15,7 +15,7 @@ import javax.inject.Inject
  * updates smoothly; sub-second cadence would burn battery without changing
  * what the player perceives.
  */
-class OutrunGame @Inject constructor() : MiniGame {
+internal class OutrunGame @Inject constructor() : MiniGame {
 	override val id: String = "outrun"
 	override val nameRes: Int = R.string.minigame_outrun_name
 	override val descriptionRes: Int = R.string.minigame_outrun_description

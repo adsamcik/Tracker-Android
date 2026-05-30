@@ -23,7 +23,7 @@ import com.google.android.gms.location.Priority
  * binding in `MiniGameModule`. Removing one: delete its folder + remove the
  * binding line.
  */
-interface MiniGame {
+internal interface MiniGame {
 	/** Stable identifier used as a foreign-key in the scores table. */
 	val id: String
 

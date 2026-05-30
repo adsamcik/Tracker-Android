@@ -10,7 +10,7 @@ import kotlin.math.min
  * Grid: floor(lat/0.00045), floor(lon/0.00063) — approx 50m at mid-latitudes.
  * Only counts ON_FOOT speeds (< 8 m/s), accuracy < 30m, 2s debounce.
  */
-class TerritorySession : MiniGameSession() {
+internal class TerritorySession : MiniGameSession() {
 
 	private val claimedCells = mutableSetOf<Long>()
 	private var lastUpdateMs: Long = 0L

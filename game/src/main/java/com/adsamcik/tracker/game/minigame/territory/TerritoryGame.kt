@@ -14,7 +14,7 @@ import javax.inject.Inject
  * BALANCED power at 2 s cadence with a 5 m displacement filter is plenty —
  * tighter fixes would not unlock any extra cells.
  */
-class TerritoryGame @Inject constructor() : MiniGame {
+internal class TerritoryGame @Inject constructor() : MiniGame {
 	override val id: String = "territory"
 	override val nameRes: Int = R.string.minigame_territory_name
 	override val descriptionRes: Int = R.string.minigame_territory_description

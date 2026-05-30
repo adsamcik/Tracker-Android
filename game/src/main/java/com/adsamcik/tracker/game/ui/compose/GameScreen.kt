@@ -56,7 +56,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.bottomNavSafeClearance
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import java.text.NumberFormat
 
-data class StepsSummaryUi(
+internal data class StepsSummaryUi(
 	val stepsToday: Int,
 	val stepsWeek: Int,
 	val goalDay: Int,
@@ -65,7 +65,7 @@ data class StepsSummaryUi(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GameScreen(
+internal fun GameScreen(
 	pointsToday: Int? = null,
 	steps: StepsSummaryUi? = null,
 	miniGameEntries: List<MiniGameEntry>? = null,

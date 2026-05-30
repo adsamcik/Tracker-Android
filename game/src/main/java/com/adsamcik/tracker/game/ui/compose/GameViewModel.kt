@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-data class MiniGameEntry(
+internal data class MiniGameEntry(
 	val id: String,
 	val nameRes: Int,
 	val descriptionRes: Int,
@@ -21,7 +21,7 @@ data class MiniGameEntry(
 )
 
 @HiltViewModel
-class GameViewModel @Inject constructor(
+internal class GameViewModel @Inject constructor(
 	private val gameRepository: GameRepository,
 	private val miniGameRegistry: MiniGameRegistry,
 ) : ViewModel() {
