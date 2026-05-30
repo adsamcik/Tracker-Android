@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
+import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
@@ -9,6 +10,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -130,8 +132,12 @@ class VehicleComplianceLayerTest {
 
 		@Test
 		fun `multiple buckets produce one Line per bucket with distinct colours`() = runTest {
+			// First bucket needs >=2 samples to survive the size>=2 filter (subsequent
+			// runs are always stitched to the previous point, so they reach size 2 on
+			// the first sample).
 			val samples = listOf(
-				sample(50.0 to 14.0, 0.2f),   // WAY_UNDER
+				sample(50.0 to 14.0, 0.2f),     // WAY_UNDER
+				sample(50.0005 to 14.0005, 0.2f), // WAY_UNDER (gives run size 2)
 				sample(50.001 to 14.001, 0.7f), // SLOW
 				sample(50.002 to 14.002, 1.0f), // AT_LIMIT
 				sample(50.003 to 14.003, 1.2f), // SLIGHTLY_OVER
@@ -187,13 +193,8 @@ class VehicleComplianceLayerTest {
 	}
 }
 
-/** Hack: VehicleComplianceLayer.loadData takes a Context but never reads it. */
-@Suppress("UNCHECKED_CAST")
-private fun stubContext(): android.content.Context =
-	java.lang.reflect.Proxy.newProxyInstance(
-		android.content.Context::class.java.classLoader,
-		arrayOf(android.content.Context::class.java),
-	) { _, _, _ -> null } as android.content.Context
+/** VehicleComplianceLayer.loadData takes a Context but never reads it. */
+private fun stubContext(): Context = mockk(relaxed = true)
 
 /** Test budgets matching the high bucket. */
 private fun PerformanceManager.acquireBudgets(): PerformanceManager.PerformanceBudgets =
