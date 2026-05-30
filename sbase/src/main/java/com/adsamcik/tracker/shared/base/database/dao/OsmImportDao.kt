@@ -35,6 +35,27 @@ interface OsmImportDao {
 	@Query("SELECT COUNT(*) FROM osm_import")
 	fun observeCount(): Flow<Int>
 
+	/**
+	 * Used by the import worker to finalize the header row after a successful
+	 * parse. The header row is inserted with placeholder counts at the start
+	 * of the import (so child [OsmWayEntity] rows can FK to it), then the
+	 * actual counts and bounding box are written here once parsing finishes.
+	 */
+	@Query(
+		"UPDATE osm_import SET way_count = :wayCount, node_count = :nodeCount, " +
+			"min_lat_e7 = :minLatE7, max_lat_e7 = :maxLatE7, " +
+			"min_lon_e7 = :minLonE7, max_lon_e7 = :maxLonE7 WHERE id = :importId",
+	)
+	suspend fun updateCounts(
+		importId: Long,
+		wayCount: Long,
+		nodeCount: Long,
+		minLatE7: Int,
+		maxLatE7: Int,
+		minLonE7: Int,
+		maxLonE7: Int,
+	)
+
 	/** Cascades to osm_way and osm_way_cell via FK. */
 	@Query("DELETE FROM osm_import WHERE id = :importId")
 	suspend fun delete(importId: Long)
