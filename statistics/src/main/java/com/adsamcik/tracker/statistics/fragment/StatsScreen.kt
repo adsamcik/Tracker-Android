@@ -421,9 +421,14 @@ private fun HeaderActions(
     // Dates is a persistent filter that remains visibly selected while the filter is applied.
     // Using AssistChip for the actions + FilterChip for the filter gives TalkBack and sighted users
     // the correct affordance per Material 3 Expressive.
+    //
+    // Right inset matches the floating settings-cog overlay (rendered by MainRoot at TopEnd:
+    // size 48dp + 8dp end padding ≈ 56dp). Without this, the rightmost chip — currently
+    // History — visibly slides under the cog as the user scrolls the rail to reveal it.
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(end = SettingsCogClearanceEndDp)
             .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -451,6 +456,10 @@ private fun HeaderActions(
         )
     }
 }
+
+// Settings cog overlay in MainRoot.kt is a 48dp icon button with 8dp end padding —
+// reserving ~56dp keeps the chip rail visibly clear of it when fully scrolled right.
+private val SettingsCogClearanceEndDp = 56.dp
 
 @Composable
 private fun ActionAssistChip(
