@@ -54,6 +54,16 @@
     <string name="stats_filter_dialog_title">Choose date range</string>
     <string name="stats_filter_active_label">Showing %1$s</string>
     <string name="stats_filter_clear">Clear filter</string>
+    <string name="stats_date_dialog_title">Date range</string>
+    <string name="stats_date_summary_placeholder">Pick a span to filter sessions</string>
+    <string name="stats_date_preset_today">Today</string>
+    <string name="stats_date_preset_yesterday">Yesterday</string>
+    <string name="stats_date_preset_last_7_days">Last 7 days</string>
+    <string name="stats_date_preset_last_30_days">Last 30 days</string>
+    <string name="stats_date_preset_this_month">This month</string>
+    <string name="stats_date_preset_last_month">Last month</string>
+    <string name="stats_date_preset_this_year">This year</string>
+    <string name="stats_date_preset_all_time">All time</string>
     <string name="stats_sparse_summary_title">This week at a glance</string>
     <string name="stats_sparse_summary_active_days">Active days</string>
     <string name="stats_sparse_summary_week_label">Daily activity</string>
