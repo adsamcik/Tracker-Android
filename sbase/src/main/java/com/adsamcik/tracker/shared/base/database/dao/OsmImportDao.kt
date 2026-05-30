@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface OsmImportDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
-	suspend fun insert(import: OsmImportEntity): Long
+	suspend fun insert(osmImport: OsmImportEntity): Long
 
 	@Query("SELECT * FROM osm_import ORDER BY imported_at DESC")
 	fun observeAll(): Flow<List<OsmImportEntity>>
