@@ -1334,3 +1334,29 @@ val MIGRATION_29_30: Migration = object : Migration(29, 30) {
 		)
 	}
 }
+
+/**
+ * v30 -> v31: Add `idx_minigame_score_played_at` covering the
+ * `getRecent(...) ORDER BY played_at DESC LIMIT ?` query that drives the
+ * dashboard "recent runs" panel. Without this index Room performs a full
+ * SCAN of `minigame_score` plus a temp B-tree sort on every dashboard
+ * recomposition; players who replay mini-games heavily end up with that
+ * scan happening dozens of times per minute.
+ *
+ * IF NOT EXISTS guard so re-running the migration on a database that has
+ * already been touched by Room's schema validator is a no-op.
+ *
+ * R3 round-7 perf review priority 2.
+ */
+val MIGRATION_30_31: Migration = object : Migration(30, 31) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_minigame_score_played_at " +
+				"ON minigame_score(played_at)",
+		)
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 30->31: Added idx_minigame_score_played_at on minigame_score",
+		)
+	}
+}
