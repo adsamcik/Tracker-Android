@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -265,6 +266,9 @@ class HistoryPresenterViewModelTest {
 			every { explorationRepository.observeCellCount(14) } returns cellCountFlow
 
 			val vm = createViewModel()
+			// explorationStats uses SharingStarted.WhileSubscribed; keep upstream active
+			// for the lifetime of the test by collecting on backgroundScope.
+			vm.explorationStats.launchIn(backgroundScope)
 			advanceUntilIdle()
 
 			vm.explorationStats.value.totalCells shouldBe 0
