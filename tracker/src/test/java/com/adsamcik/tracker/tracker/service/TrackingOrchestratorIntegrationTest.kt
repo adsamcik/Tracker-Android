@@ -198,10 +198,18 @@ class TrackingOrchestratorIntegrationTest {
 		}
 
 		override fun observeEvents(since: EpochMs): Flow<List<DomainEvent>> = emptyFlow()
+		override suspend fun getUnconsumedBatch(
+			consumerId: String,
+			limit: Int,
+		): List<DomainEvent> = emptyList()
 		override suspend fun getUnconsumedBatchWithIds(
 			consumerId: String,
 			limit: Int,
 		): List<UnconsumedEvent> = emptyList()
+		override suspend fun markConsumed(
+			consumerId: String,
+			upToTimestamp: EpochMs,
+		) = Unit
 		override suspend fun markBatchConsumed(
 			consumerId: String,
 			upToTimestamp: EpochMs,
@@ -258,6 +266,9 @@ class TrackingOrchestratorIntegrationTest {
 		}
 		override suspend fun setSkiDetectionEnabled(enabled: Boolean) {
 			state.update { it.copy(skiDetectionEnabled = enabled) }
+		}
+		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
+			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
 		}
 	}
 
