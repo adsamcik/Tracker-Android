@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -110,5 +111,105 @@ class CalendarHeatmapComposeTest {
 		val grid = computeHeatmapGrid(today, 4)
 		val allDates = grid.weeks.flatten()
 		assert(allDates.none { it.isAfter(today) })
+	}
+
+	// --- New behaviour added in the "labels + empty-state pill" pass ---
+
+	@Test
+	fun `empty data renders the start-tracking pill copy`() {
+		// The empty-state overlay copy is drawn inside the canvas via
+		// textMeasurer, so it's not exposed as a semantics node.  The grid's
+		// contentDescription still flips to the "no tracked activity" form,
+		// which is the user-visible assertion that the empty branch ran.
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarHeatmap(data = emptyMap(), weeks = 18, modifier = Modifier)
+			}
+		}
+		composeTestRule.onNodeWithContentDescription("No tracked activity in the last 18 weeks")
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun `summary label above the grid mirrors the accessibility description`() {
+		// The compact summary Text uses the same accessibilityDescription
+		// string. Verify it is reachable via the public testing tree (not
+		// the canvas-only labels).
+		val today = LocalDate.now()
+		val data = mapOf(
+			today to 1.0f,
+			today.minusDays(7) to 0.5f,
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarHeatmap(data = data, weeks = 20, modifier = Modifier)
+			}
+		}
+		composeTestRule.onNodeWithText("2 active days in the last 20 weeks")
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun `single active day uses singular noun day`() {
+		val today = LocalDate.now()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarHeatmap(
+					data = mapOf(today to 0.3f),
+					weeks = 4,
+					modifier = Modifier,
+				)
+			}
+		}
+		composeTestRule.onNodeWithText("1 active day in the last 4 weeks")
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun `intensity above 1 is clamped and still counted as active`() {
+		// Public API says values outside 0-1 are clamped. The active-day
+		// count is also based on `value > 0f`, so an over-range value should
+		// register as one active day, not zero.
+		val today = LocalDate.now()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarHeatmap(
+					data = mapOf(today to 2.5f),
+					weeks = 4,
+					modifier = Modifier,
+				)
+			}
+		}
+		composeTestRule.onNodeWithContentDescription("1 active day in the last 4 weeks")
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun `negative intensity is not counted as active`() {
+		val today = LocalDate.now()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarHeatmap(
+					data = mapOf(today to -0.5f),
+					weeks = 4,
+					modifier = Modifier,
+				)
+			}
+		}
+		// Negative is clamped to 0 in cell rendering, but the active-day
+		// count uses the raw map value via `it.value > 0f`. -0.5 fails that
+		// predicate, so the empty-state description should be shown.
+		composeTestRule.onNodeWithContentDescription("No tracked activity in the last 4 weeks")
+			.assertIsDisplayed()
+	}
+
+	@Test
+	fun `computeHeatmapGrid with 4 weeks returns four rows`() {
+		// Sunday: end-of-week boundary so every row is fully in the past.
+		val today = LocalDate.of(2024, 6, 9)
+		val grid = computeHeatmapGrid(today, 4)
+		assertEquals(4, grid.weekCount)
+		// Each week is exactly 7 days because `today` is the last day of its week.
+		assert(grid.weeks.all { it.size == 7 })
 	}
 }
