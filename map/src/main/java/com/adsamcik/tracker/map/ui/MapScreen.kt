@@ -311,20 +311,25 @@ fun MapScreen(
 	}
 
     val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
+    var suppressNextCameraPersistence by remember { mutableStateOf(false) }
+    var hasAppliedEmptyStateZoomCap by rememberSaveable { mutableStateOf(false) }
 
-    // Empty-state secondary guard: even after the restore-time cap, if the active
-    // layer reports no data, animate down to a continent overview so users who
-    // have NO sessions yet see real geography instead of just a basemap colour.
-    // One-shot per session so user-initiated zoom-ins are respected after.
-    var hasCappedEmptyStateZoom by remember { mutableStateOf(false) }
-    LaunchedEffect(hasNoData) {
-        if (hasNoData && !hasCappedEmptyStateZoom && cameraState.position.zoom > MAX_EMPTY_STATE_ZOOM) {
-            cameraState.animateTo(
-                finalPosition = cameraState.position.copy(zoom = MAX_EMPTY_STATE_ZOOM.toDouble()),
-                duration = 400.milliseconds,
-            )
-            hasCappedEmptyStateZoom = true
+    LaunchedEffect(cameraState) {
+        cameraState.position.cappedAt(MAX_RESTORE_ZOOM)?.let { capped ->
+            suppressNextCameraPersistence = true
+            cameraState.position = capped
         }
+    }
+
+    LaunchedEffect(hasNoData, cameraState) {
+        if (!hasNoData || hasAppliedEmptyStateZoomCap) return@LaunchedEffect
+
+        cameraState.awaitProjection()
+        cameraState.position.cappedAt(MAX_EMPTY_STATE_ZOOM)?.let { capped ->
+            suppressNextCameraPersistence = true
+            cameraState.position = capped
+        }
+        hasAppliedEmptyStateZoomCap = true
     }
 
     val selectedTripBounds = remember(state.selectedTripContext, state.layerConfig) {
@@ -672,6 +677,11 @@ fun MapScreen(
         snapshotFlow { cameraState.position }
             .distinctUntilChanged()
             .collect { pos ->
+                if (suppressNextCameraPersistence) {
+                    suppressNextCameraPersistence = false
+                    return@collect
+                }
+
                 store.dispatch(
                     MapEvent.CameraMoved(
                         CameraModel(
@@ -1021,3 +1031,6 @@ private fun findNiceNumber(value: Double): Double {
 
 private fun formatNice(value: Double): String =
     if (value == floor(value)) value.toInt().toString() else "%.1f".format(value)
+
+private fun CameraPosition.cappedAt(maxZoom: Float): CameraPosition? =
+    if (zoom > maxZoom) copy(zoom = maxZoom.toDouble()) else null
