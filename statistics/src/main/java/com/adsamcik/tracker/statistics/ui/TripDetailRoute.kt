@@ -454,8 +454,10 @@ private fun RoutePreviewCard(
 	}
 }
 
+// internal — exposed for compose tests covering the Samples row and the absence
+// of the legacy DeveloperMetrics / Show-Hide affordances.
 @Composable
-private fun TripFactsCard(
+internal fun TripFactsCard(
 	activityType: String,
 	source: String,
 	startTime: String,
