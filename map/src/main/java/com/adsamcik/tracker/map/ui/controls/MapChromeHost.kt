@@ -105,13 +105,15 @@ fun MapChromeHost(
 	val imeBottom = WindowInsets.ime.getBottom(density)
 	val navBottom = WindowInsets.navigationBars.getBottom(density)
 	val systemBottomPx = maxOf(imeBottom, navBottom)
-	// Sit just above the global floating nav bar. Only 4dp gap — the card and the nav pill
-	// read as a stacked pair rather than two disconnected islands. When the IME pushes
-	// higher than the caller-provided inset, lift above the IME by that delta.
+	// Visual breathing room between the chrome strip (search/chips/FAB) and the
+	// floating navigation pill below. Was 4dp ("stacked-pair" design), but in
+	// practice the chrome read as one with the pill — the user perceived it as
+	// the nav cutting off content. 20dp gives a clear visual separation while
+	// still keeping the chrome anchored to the same edge of the screen.
 	val controlStripBottomPx = resolveMapChromeBottomPaddingPx(
 		bottomInsetPx = bottomInsetPx,
 		imeBottomPx = imeBottom,
-		gapPx = with(density) { 4.dp.roundToPx() },
+		gapPx = with(density) { 20.dp.roundToPx() },
 	)
 	val controlStripBottomDp = with(density) { controlStripBottomPx.toDp() }
 

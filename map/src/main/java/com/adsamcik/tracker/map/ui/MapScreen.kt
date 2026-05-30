@@ -103,6 +103,23 @@ import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
 private const val MAP_LOAD_TAG = "MapScreen"
+/**
+ * Maximum initial zoom for a user with no data on the active layer. Above this,
+ * the bundled basemap (z0-z6 PMTiles) has no detail and the user sees only a
+ * solid background colour — a confusing first-frame for someone who just
+ * navigated to the map. Capping to z=4 gives a country/region overview that
+ * always renders real geography. User gestures override immediately after.
+ */
+private const val MAX_EMPTY_STATE_ZOOM = 4f
+
+/**
+ * Maximum zoom to restore from saved camera state. The bundled basemap is z0-z6,
+ * so anything past z=6 renders as solid colour. Capping the restored zoom to z=8
+ * gives the user a recognisable city-level view they can quickly zoom into rather
+ * than a confusing solid-colour first frame. Users with custom imported PMTiles
+ * that support higher zoom can still reach those zooms via the first pinch gesture.
+ */
+private const val MAX_RESTORE_ZOOM = 8f
 
 
 /**
@@ -271,22 +288,44 @@ fun MapScreen(
         )
     }
 
-    val initialCameraPosition = remember {
-        val saved = state.camera
-        if (saved.zoom > 0f) {
-            CameraPosition(
-                // GeoJSON / MapLibre Position is (longitude, latitude) — NOT (lat, lng).
-                target = Position(saved.lng, saved.lat),
-                zoom = saved.zoom.toDouble(),
-                tilt = saved.tilt.toDouble(),
-                bearing = saved.bearing.toDouble(),
-            )
-        } else {
-            CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
-        }
-    }
+	val initialCameraPosition = remember {
+		val saved = state.camera
+		if (saved.zoom > 0f) {
+			// Defensive cap on restored zoom. The bundled basemap is z0-z6 PMTiles
+			// (see MapStyleProvider.DEFAULT_BUNDLE_ZOOM_RANGE), so anything past z=6
+			// renders as solid earth colour on first frame — confusing for users who
+			// reopen the map after previously zooming in for a route view. Cap to z=8
+			// to keep at least city-level context visible while still giving a sense
+			// of "zoomed in"; the user's first gesture restores full zoom control.
+			val cappedZoom = saved.zoom.toDouble().coerceAtMost(MAX_RESTORE_ZOOM.toDouble())
+			CameraPosition(
+				// GeoJSON / MapLibre Position is (longitude, latitude) — NOT (lat, lng).
+				target = Position(saved.lng, saved.lat),
+				zoom = cappedZoom,
+				tilt = saved.tilt.toDouble(),
+				bearing = saved.bearing.toDouble(),
+			)
+		} else {
+			CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
+		}
+	}
 
     val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
+
+    // Empty-state secondary guard: even after the restore-time cap, if the active
+    // layer reports no data, animate down to a continent overview so users who
+    // have NO sessions yet see real geography instead of just a basemap colour.
+    // One-shot per session so user-initiated zoom-ins are respected after.
+    var hasCappedEmptyStateZoom by remember { mutableStateOf(false) }
+    LaunchedEffect(hasNoData) {
+        if (hasNoData && !hasCappedEmptyStateZoom && cameraState.position.zoom > MAX_EMPTY_STATE_ZOOM) {
+            cameraState.animateTo(
+                finalPosition = cameraState.position.copy(zoom = MAX_EMPTY_STATE_ZOOM.toDouble()),
+                duration = 400.milliseconds,
+            )
+            hasCappedEmptyStateZoom = true
+        }
+    }
 
     val selectedTripBounds = remember(state.selectedTripContext, state.layerConfig) {
         if (state.selectedTripContext != null) {
