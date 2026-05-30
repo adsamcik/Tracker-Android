@@ -143,6 +143,26 @@ class MiniGameSessionViewModelTest {
 	}
 
 	@Test
+	fun stop_calledTwice_persistsOnlyOnce() = runTest(dispatcher) {
+		grantLocationPermission()
+		val vm = newViewModel()
+
+		vm.start()
+		advanceUntilIdle()
+		locationSource.emit(SAMPLE)
+		advanceUntilIdle()
+
+		vm.stop()
+		vm.stop()
+		vm.stop()
+		advanceUntilIdle()
+
+		scoreDao.inserted shouldHaveSize 1
+		gameRepository.creditedXp shouldHaveSize 1
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
+	}
+
+	@Test
 	fun stop_withoutActiveFrame_returnsToIdleWithoutWriting() = runTest(dispatcher) {
 		grantLocationPermission()
 		val vm = newViewModel()

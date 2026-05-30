@@ -11,9 +11,10 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 
 /**
@@ -53,8 +54,12 @@ class FusedMiniGameLocationSource @Inject constructor(
 						accuracyM = if (loc.hasAccuracy()) loc.accuracy else Float.MAX_VALUE,
 						timestampMs = loc.time.takeIf { it > 0L } ?: Time.nowMillis,
 					)
-					// Drop frames if downstream is slow — never block the location thread.
-					trySendBlocking(sample)
+					// Non-blocking publish: the UI only ever cares about the latest fix,
+					// so a saturated channel means the previous sample is already stale
+					// and can be safely dropped. trySendBlocking would have parked the
+					// location callback thread behind a slow main-thread collector and
+					// risked an ANR.
+					trySend(sample)
 				}
 			}
 		}
@@ -69,5 +74,5 @@ class FusedMiniGameLocationSource @Inject constructor(
 		awaitClose {
 			client.removeLocationUpdates(callback)
 		}
-	}
+	}.buffer(capacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 }

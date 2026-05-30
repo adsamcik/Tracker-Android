@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -102,6 +105,19 @@ class MiniGameSessionViewModel @Inject constructor(
 	private var sessionStartedAtMs: Long = 0L
 	private var collectionJob: Job? = null
 
+	/**
+	 * Guards [stop]'s finalize path so concurrent callers (Stop button + lifecycle
+	 * teardown + auto-end) cannot each persist their own score row. Cleared by
+	 * [reset] so the next session can finalize once.
+	 */
+	private val hasFinalized = AtomicBoolean(false)
+
+	/**
+	 * Serialises the finalize body so the [hasFinalized] CAS and the DB write
+	 * cannot interleave with [reset] flipping `session` underneath us.
+	 */
+	private val finalizeMutex = Mutex()
+
 	private val _uiState = MutableStateFlow<MiniGameUiState>(MiniGameUiState.Idle)
 	val uiState: StateFlow<MiniGameUiState> = _uiState.asStateFlow()
 
@@ -117,6 +133,10 @@ class MiniGameSessionViewModel @Inject constructor(
 			_uiState.value = MiniGameUiState.PermissionNeeded
 			return
 		}
+
+		// Reset the one-shot finalize latch so this fresh session can persist
+		// exactly once when the player taps Stop (or auto-ends).
+		hasFinalized.set(false)
 
 		// Begin fresh elapsed clock.
 		sessionStartedAtMs = Time.nowMillis
@@ -167,12 +187,18 @@ class MiniGameSessionViewModel @Inject constructor(
 	/**
 	 * Stop the session, persist score + points, and transition to [MiniGameUiState.Finished].
 	 *
-	 * Safe to call multiple times: only the first call writes to the database
-	 * — subsequent calls are ignored. Cancels the location subscription before
-	 * doing any I/O.
+	 * Idempotent and thread-safe: a single-flight [AtomicBoolean] latch combined
+	 * with [finalizeMutex] guarantees that even if the Stop button, lifecycle
+	 * teardown, and the auto-end timer all fire within microseconds, exactly one
+	 * `scoreDao.insert` + `creditMiniGameXp` pair is issued. Subsequent calls are
+	 * silent no-ops. The location subscription is cancelled before any I/O so
+	 * the screen stops updating immediately.
 	 */
 	fun stop() {
 		if (_uiState.value is MiniGameUiState.Finished) return
+
+		// Single-flight latch: only the FIRST stop() proceeds to persist.
+		if (!hasFinalized.compareAndSet(false, true)) return
 
 		// Snapshot the running session so we can cancel + persist atomically.
 		val activeSession = session
@@ -184,33 +210,41 @@ class MiniGameSessionViewModel @Inject constructor(
 
 		if (!wasActive) {
 			// User stopped before any frame ever arrived — just go back to Idle UX
-			// rather than recording a 0/0 row.
+			// rather than recording a 0/0 row. Release the latch so the next
+			// start() can finalize normally.
+			hasFinalized.set(false)
 			_uiState.value = MiniGameUiState.Idle
 			return
 		}
 
 		viewModelScope.launch {
-			activeSession.onSessionEnd()
-			val finalScore = activeSession.score
-			val points = activeSession.calculatePoints().coerceAtLeast(0)
-			val finishedAt = Time.nowMillis.coerceAtLeast(startedAt)
+			finalizeMutex.withLock {
+				activeSession.onSessionEnd()
+				val finalScore = activeSession.score
+				val points = activeSession.calculatePoints().coerceAtLeast(0)
+				val finishedAt = Time.nowMillis.coerceAtLeast(startedAt)
 
-			withContext(dispatchers.io) {
-				scoreDao.insert(
-					MiniGameScoreEntity(
-						gameId = gameId,
-						score = finalScore,
-						xpAwarded = points,
-						playedAt = finishedAt,
-					),
+				withContext(dispatchers.io) {
+					scoreDao.insert(
+						MiniGameScoreEntity(
+							gameId = gameId,
+							score = finalScore,
+							xpAwarded = points,
+							playedAt = finishedAt,
+						),
+					)
+				}
+				gameRepository.creditMiniGameXp(
+					gameId = gameId,
+					xp = points,
+					earnedAtMs = finishedAt,
+				)
+
+				_uiState.value = MiniGameUiState.Finished(
+					finalScore = finalScore,
+					pointsEarned = points,
 				)
 			}
-			gameRepository.creditMiniGameXp(gameId = gameId, xp = points, earnedAtMs = finishedAt)
-
-			_uiState.value = MiniGameUiState.Finished(
-				finalScore = finalScore,
-				pointsEarned = points,
-			)
 		}
 	}
 
@@ -223,6 +257,7 @@ class MiniGameSessionViewModel @Inject constructor(
 		collectionJob = null
 		session = game.createSession()
 		sessionStartedAtMs = 0L
+		hasFinalized.set(false)
 		_uiState.value = MiniGameUiState.Idle
 	}
 
