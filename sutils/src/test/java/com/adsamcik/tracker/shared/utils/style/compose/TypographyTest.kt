@@ -21,8 +21,8 @@ class TypographyTest {
 	inner class FontFamilies {
 
 		@Test
-		fun `DisplayFontFamily is system default`() {
-			DisplayFontFamily shouldBe FontFamily.Default
+		fun `OutfitFontFamily is used for display styles`() {
+			AppTypography.displayLarge.fontFamily shouldBe OutfitFontFamily
 		}
 
 		@Test
@@ -204,10 +204,10 @@ class TypographyTest {
 		}
 
 		@Test
-		fun `uses DisplayFontFamily for display and headline styles`() {
-			AppTypography.displayLarge.fontFamily shouldBe DisplayFontFamily
-			AppTypography.headlineLarge.fontFamily shouldBe DisplayFontFamily
-			AppTypography.titleLarge.fontFamily shouldBe DisplayFontFamily
+			fun `uses OutfitFontFamily for display and headline styles`() {
+				AppTypography.displayLarge.fontFamily shouldBe OutfitFontFamily
+				AppTypography.headlineLarge.fontFamily shouldBe OutfitFontFamily
+				AppTypography.titleLarge.fontFamily shouldBe OutfitFontFamily
 		}
 
 		@Test

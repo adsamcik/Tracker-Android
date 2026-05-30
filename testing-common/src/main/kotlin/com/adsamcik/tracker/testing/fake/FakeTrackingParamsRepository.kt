@@ -95,6 +95,10 @@ class FakeTrackingParamsRepository(
 		_state.update { it.copy(skiDetectionEnabled = enabled) }
 	}
 
+	override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
+		_state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
+	}
+
 	/** Reset to default state (useful between tests). */
 	fun reset() {
 		_state.value = TrackingParamsState()
