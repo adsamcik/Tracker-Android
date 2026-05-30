@@ -21,6 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 29         │ 400         │ 🚧 UNRELEASED - OSM road graph tables   │
+ * │            │             │    (osm_import, osm_way, osm_way_cell)   │
+ * │ 28         │ 400         │ 🚧 UNRELEASED - Drop challenges, rebuild │
+ * │            │             │    achievement_progress per metric       │
  * │ 27         │ 400         │ 🚧 UNRELEASED - Challenge DB fold       │
  * │            │             │    (challenge tables + minigame scores)  │
  * │ 26         │ 385         │ 🚧 UNRELEASED - Analytics/export indices │
@@ -1221,6 +1225,87 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			)
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_metric_key ON achievement_progress(metric_key)")
 			android.util.Log.i("AppDatabase", "Migration 27->28: Dropped challenge tables and rebuilt achievement_progress")
+		}
+	}
+}
+
+/**
+ * Version 28 → 29: Add OSM (OpenStreetMap) road graph tables backing the
+ * Phase 2 "Vehicle speed compliance" feature.
+ *
+ * Three new tables:
+ *
+ *  - `osm_import` — one row per user-imported `.osm.pbf` file. Acts as the
+ *    "is the OSM source active?" signal for `DefaultSpeedLimitSource`.
+ *  - `osm_way` — one row per driveable OSM way; inline-encoded geometry,
+ *    explicit `maxspeed_kmh`, road class, and bbox.
+ *  - `osm_way_cell` — coarse-grid spatial index linking each way to every
+ *    grid cell its bbox overlaps. Cell key is
+ *    `(latE7 / 800_000) << 24 | (lonE7 / 800_000) & 0xFFFFFF`.
+ *
+ * All OSM data is © OpenStreetMap contributors and licensed under ODbL 1.0;
+ * the presence of any row in `osm_import` triggers the in-app attribution UI.
+ *
+ * No data migration needed — these tables are net-new.
+ */
+val MIGRATION_28_29: Migration = object : Migration(28, 29) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS osm_import (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					display_name TEXT NOT NULL,
+					file_uri TEXT NOT NULL,
+					imported_at INTEGER NOT NULL,
+					way_count INTEGER NOT NULL,
+					node_count INTEGER NOT NULL,
+					min_lat_e7 INTEGER NOT NULL,
+					max_lat_e7 INTEGER NOT NULL,
+					min_lon_e7 INTEGER NOT NULL,
+					max_lon_e7 INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS osm_way (
+					id INTEGER PRIMARY KEY NOT NULL,
+					import_id INTEGER NOT NULL,
+					name TEXT,
+					road_class TEXT NOT NULL,
+					maxspeed_kmh INTEGER NOT NULL,
+					maxspeed_explicit INTEGER NOT NULL,
+					is_oneway INTEGER NOT NULL,
+					geom_polyline_e7 BLOB NOT NULL,
+					bbox_min_lat_e7 INTEGER NOT NULL,
+					bbox_max_lat_e7 INTEGER NOT NULL,
+					bbox_min_lon_e7 INTEGER NOT NULL,
+					bbox_max_lon_e7 INTEGER NOT NULL,
+					FOREIGN KEY(import_id) REFERENCES osm_import(id) ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_import ON osm_way(import_id)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS osm_way_cell (
+					cell_key INTEGER NOT NULL,
+					way_id INTEGER NOT NULL,
+					PRIMARY KEY(cell_key, way_id),
+					FOREIGN KEY(way_id) REFERENCES osm_way(id) ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_cell ON osm_way_cell(cell_key)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_way ON osm_way_cell(way_id)")
+
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 28->29: Created OSM road graph tables (osm_import, osm_way, osm_way_cell)",
+			)
 		}
 	}
 }

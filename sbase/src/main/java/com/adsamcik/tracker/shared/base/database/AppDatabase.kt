@@ -22,6 +22,9 @@ import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
@@ -38,6 +41,9 @@ import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
+import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
+import com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity
+import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
@@ -75,11 +81,11 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 28 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 29 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 28,
+		version = 29,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -119,6 +125,10 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 			XpLedgerEntity::class,
 			PlayerProfileEntity::class,
 			MiniGameScoreEntity::class,
+			// OSM road graph (Phase 2 vehicle speed compliance)
+			OsmImportEntity::class,
+			OsmWayEntity::class,
+			OsmWayCellEntity::class,
 		]
 )
 @TypeConverters(
@@ -297,6 +307,27 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun miniGameScoreDao(): MiniGameScoreDao
 
+	// OSM road graph DAOs (Phase 2 vehicle speed compliance)
+
+	/**
+	 * Provides access to OSM import header rows.
+	 *
+	 * The presence of any row here is the runtime signal that the
+	 * `SpeedLimitSource` should snap to imported road geometry instead of
+	 * returning the fixed baseline.
+	 */
+	abstract fun osmImportDao(): OsmImportDao
+
+	/**
+	 * Provides access to OSM way (road segment) rows.
+	 */
+	abstract fun osmWayDao(): OsmWayDao
+
+	/**
+	 * Provides access to the coarse-grid spatial index linking OSM ways to cells.
+	 */
+	abstract fun osmWayCellDao(): OsmWayCellDao
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -326,7 +357,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_24_25,
 				MIGRATION_25_26,
 				MIGRATION_26_27,
-				MIGRATION_27_28
+				MIGRATION_27_28,
+				MIGRATION_28_29
 				)
 		}
 
@@ -376,6 +408,10 @@ abstract class AppDatabase : RoomDatabase() {
 				database.xpLedgerDao().deleteAll()
 				database.playerProfileDao().deleteAll()
 				database.miniGameScoreDao().deleteAll()
+
+				// OSM road graph (user-imported region; not collected data per-se
+				// but covered by the same "delete everything" semantics).
+				database.osmImportDao().deleteAllTables()
 			}
 		}
 	}

@@ -20,6 +20,9 @@ import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
+import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
@@ -216,4 +219,15 @@ object InfrastructureModule {
 
     @Provides
     fun provideMiniGameScoreDao(database: AppDatabase): MiniGameScoreDao = database.miniGameScoreDao()
+
+    // OSM road graph DAOs (Phase 2 vehicle speed compliance)
+
+    @Provides
+    fun provideOsmImportDao(database: AppDatabase): OsmImportDao = database.osmImportDao()
+
+    @Provides
+    fun provideOsmWayDao(database: AppDatabase): OsmWayDao = database.osmWayDao()
+
+    @Provides
+    fun provideOsmWayCellDao(database: AppDatabase): OsmWayCellDao = database.osmWayCellDao()
 }
