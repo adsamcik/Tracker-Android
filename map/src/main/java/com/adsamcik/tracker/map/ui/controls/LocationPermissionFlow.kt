@@ -93,17 +93,20 @@ internal fun rememberMapLocationPermissionFlow(
 			if (context.hasMapLocationPermission()) {
 				updateGranted(true)
 			} else {
-				val shouldShowRationale = context.findActivity()?.shouldShowMapLocationRationale() == true
-				if (shouldShowRationale) {
-					permissionLauncher.launch(
-						arrayOf(
-							Manifest.permission.ACCESS_FINE_LOCATION,
-							Manifest.permission.ACCESS_COARSE_LOCATION,
-						)
+				// Always launch the system permission dialog first. The OS suppresses it
+				// silently when the user has previously selected "Don't ask again" or
+				// when Android 11+ permanent-deny kicks in — the launcher callback then
+				// detects shouldShowRationale==false and opens Settings as a fallback.
+				// The previous code pre-checked shouldShowRationale and short-circuited
+				// to openSettings() when it was false — which is also the value BEFORE
+				// the very first request, so first-time map users got dumped into
+				// Settings without ever seeing the in-context system prompt.
+				permissionLauncher.launch(
+					arrayOf(
+						Manifest.permission.ACCESS_FINE_LOCATION,
+						Manifest.permission.ACCESS_COARSE_LOCATION,
 					)
-				} else {
-					openSettings()
-				}
+				)
 			}
 		}
 	}

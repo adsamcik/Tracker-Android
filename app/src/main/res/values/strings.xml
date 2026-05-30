@@ -243,13 +243,7 @@
     <string name="onboarding_privacy_policy_button">Read Privacy Policy</string>
     <string name="onboarding_state_read_error_message">We could not verify whether setup was already completed, so setup is shown to keep your data private. You can continue safely.</string>
 
-    <!-- Contextual Permission Rationales (shown before system prompt) -->
-    <string name="permission_location_rationale_title">Location Access Needed</string>
-    <string name="permission_location_rationale_message">To track your route, Tracker needs location access. All data stays on your device.</string>
-    <string name="permission_activity_rationale_title">Activity Recognition Needed</string>
-    <string name="permission_activity_rationale_message">Tracker detects walking, running, and cycling to automatically start tracking. Data remains local.</string>
-    <string name="permission_background_location_rationale_title">Background Location Access</string>
-    <string name="permission_background_location_rationale_message">To track automatically when the app is closed, enable "Allow all the time" for location. This enables hands-free tracking.</string>
+    <!-- Contextual Permission Rationales are defined in :sbase strings.xml (the shared module that owns ContextualPermissionRequest). Do not duplicate here. -->
     <string name="permission_allow">Allow</string>
     <string name="permission_deny">Not Now</string>
     <string name="permission_denied_tracking_disabled">Location permission required to start tracking</string>
@@ -796,10 +790,10 @@
     <string name="setup_failed_message">Setup failed: %1$s. Please try again.</string>
     <string name="setup_background_location_title">Background Location</string>
     <string name="setup_background_location_desc">Needed for In Motion auto-tracking so Tracker can keep recording while the app is not open.</string>
-    <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. No Wi-Fi radio data is collected until you grant it.</string>
-    <string name="settings_cell_permission_required">Requires phone state and precise location permission. No cell radio data is collected until you grant both.</string>
-    <string name="settings_wifi_privacy_summary">Collect nearby Wi-Fi radio data locally for improved location context.</string>
-    <string name="settings_cell_privacy_summary">Collect cell tower radio data locally for improved location context.</string>
+    <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
+    <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
+    <string name="settings_wifi_privacy_summary">Records nearby Wi-Fi networks to improve location accuracy. Data stays on this device.</string>
+    <string name="settings_cell_privacy_summary">Records cell tower IDs to improve location accuracy. Data stays on this device.</string>
     <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 

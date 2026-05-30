@@ -129,7 +129,7 @@ object PermissionManager {
         val permissionData = PermissionData(
             android.Manifest.permission.ACTIVITY_RECOGNITION
         ) { ctx ->
-            "Activity recognition helps detect when you're walking, running, or driving."
+            ctx.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_activity)
         }
         
         checkPermissions(
@@ -170,8 +170,9 @@ object PermissionManager {
         permissions: List<PermissionData>,
         onResult: (Boolean) -> Unit
     ) {
+        val res = activity.resources
         val message = buildString {
-            appendLine("This app needs the following permissions:")
+            appendLine(res.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_dialog_intro))
             appendLine()
             permissions.forEach { permissionData ->
                 val rationale = permissionData.getRationale(activity)
@@ -182,12 +183,12 @@ object PermissionManager {
                 }
             }
         }
-        
+
         MaterialAlertDialogBuilder(activity)
-            .setTitle("Permissions Required")
+            .setTitle(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_title)
             .setMessage(message)
-            .setPositiveButton("Continue") { _, _ -> onResult(true) }
-            .setNegativeButton("Cancel") { _, _ -> onResult(false) }
+            .setPositiveButton(com.adsamcik.tracker.shared.base.R.string.generic_continue) { _, _ -> onResult(true) }
+            .setNegativeButton(com.adsamcik.tracker.shared.base.R.string.generic_cancel) { _, _ -> onResult(false) }
             .setCancelable(false)
             .show()
     }
