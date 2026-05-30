@@ -2,7 +2,6 @@ plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.ksp)
-	alias(libs.plugins.protobuf)
 }
 
 android {
@@ -14,16 +13,6 @@ android {
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		consumerProguardFiles("consumer-rules.pro")
-
-		ksp {
-			arg("room.schemaLocation", "$projectDir/schemas")
-			arg("room.incremental", "true")
-			arg("room.generateKotlin", "true")
-		}
-	}
-
-	sourceSets {
-		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
 	}
 
 	compileOptions {
@@ -36,17 +25,13 @@ android {
 	}
 
 	buildTypes {
-		getByName("debug") {
-		}
-
-		create("release_nominify") {
-			isMinifyEnabled = false
-		}
+		getByName("debug") {}
+		create("release_nominify") { isMinifyEnabled = false }
 		getByName("release") {
 			isMinifyEnabled = false
 			proguardFiles(
 				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro"
+				"proguard-rules.pro",
 			)
 		}
 	}
@@ -56,66 +41,65 @@ android {
 		abortOnError = false
 	}
 
-	namespace = "com.adsamcik.tracker.stats.data"
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
+	namespace = "com.adsamcik.tracker.osm"
 }
 
 dependencies {
 	api(project(":stats-api"))
 	implementation(project(":sbase"))
+	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
+	implementation(project(":logging-api"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.core.ktx)
-	implementation(libs.androidx.paging.runtime)
+	implementation(libs.androidx.documentfile)
 
-	// Arrow
-	implementation(libs.arrow.core)
-
-	// Room
+	// Room (read existing osm_* tables via DAO injection)
 	implementation(libs.androidx.room.runtime)
-	ksp(libs.androidx.room.compiler)
 	implementation(libs.androidx.room.ktx)
-	implementation(libs.sqlite.android)
-	androidTestImplementation(libs.androidx.room.testing)
 
-	// DataStore proto (live stats)
-	implementation(libs.androidx.datastore.core)
-	implementation(libs.protobuf.java)
-
-	// Hilt
+	// WorkManager + Hilt worker bridge
+	implementation(libs.androidx.work.runtime.ktx)
 	implementation(libs.hilt.android)
+	implementation(libs.hilt.work)
 	ksp(libs.hilt.compiler)
 	ksp(libs.androidx.hilt.compiler)
-	implementation(libs.hilt.work)
-
-	// WorkManager
-	implementation(libs.androidx.work.runtime.ktx)
 
 	// DI annotations
 	implementation(libs.javax.inject)
 
-	// Unit Tests
+	// OSM PBF parsing (offline; never touched by network).
+	implementation(libs.osm4j.core)
+	implementation(libs.osm4j.pbf)
+	// osm4j logs via SLF4J – swallow to avoid pulling logback into the APK.
+	implementation(libs.slf4j.nop)
+
+	// Unit tests
 	testImplementation(platform(libs.junit5.bom))
 	testImplementation(libs.junit5.jupiter)
 	testImplementation(libs.junit5.jupiter.params)
 	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.turbine)
+	testImplementation(libs.kotest.assertions.core)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.androidx.test.core)
-	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.androidx.work.testing)
+	testImplementation(libs.androidx.room.testing)
 
-	// Instrumented Tests
+	// Instrumented tests
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.androidx.test.ext.junit)
-	androidTestImplementation(libs.espresso)
 	androidTestImplementation(libs.kotlinx.coroutines.test)
 	androidTestImplementation(libs.mockk.android)
 }
@@ -123,5 +107,3 @@ dependencies {
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
-
-configureProtobuf()

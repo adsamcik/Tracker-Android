@@ -67,6 +67,10 @@ licensesdialog = "2.2.0"
 simplify = "1.0.0"
 cardview = "1.0.0"
 
+# OSM PBF parsing (offline, ODbL data shipped by the user via SAF)
+osm4j = "1.5.0"
+slf4jApi = "2.0.13"
+
 # Testing - JUnit 5 (Modern) & JUnit 4 (Android instrumented tests)
 junit5 = "5.11.4"
 junit4 = "4.13.2"
@@ -229,6 +233,11 @@ javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "j
 androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
 licensesdialog = { group = "de.psdev.licensesdialog", name = "licensesdialog", version.ref = "licensesdialog" }
 simplify = { group = "com.goebl", name = "simplify", version.ref = "simplify" }
+
+# OSM PBF parser (osm4j wraps crosby.binary:osmpbf, ASL2 / LGPL; we use the iterator API only).
+osm4j-core = { group = "de.topobyte", name = "osm4j-core", version.ref = "osm4j" }
+osm4j-pbf = { group = "de.topobyte", name = "osm4j-pbf", version.ref = "osm4j" }
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4jApi" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxImmutable" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxTestRules" }

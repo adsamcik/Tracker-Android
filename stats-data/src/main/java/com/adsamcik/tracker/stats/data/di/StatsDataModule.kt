@@ -14,6 +14,7 @@ import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
+import com.adsamcik.tracker.stats.api.speed.SpeedLimitSource
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
@@ -27,6 +28,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationReposito
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
+import com.adsamcik.tracker.stats.data.speed.FixedSpeedLimitSource
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -112,4 +114,8 @@ abstract class StatsDataModule {
 	abstract fun bindAchievementEvaluationScheduler(
 		impl: WorkManagerAchievementEvaluationScheduler,
 	): AchievementEvaluationScheduler
+
+	@Binds
+	@Singleton
+	abstract fun bindSpeedLimitSource(impl: FixedSpeedLimitSource): SpeedLimitSource
 }
