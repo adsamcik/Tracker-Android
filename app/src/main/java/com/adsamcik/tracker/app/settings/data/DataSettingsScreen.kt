@@ -43,6 +43,7 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.launchExportActivity
+import com.adsamcik.tracker.app.settings.osm.osmImportSection
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
 import java.util.Locale
@@ -198,6 +199,9 @@ fun DataSettingsScreen() {
                 }
             )
         }
+
+        // OSM (OpenStreetMap) import
+        osmImportSection()
     }
 
     // Delete data confirmation dialog

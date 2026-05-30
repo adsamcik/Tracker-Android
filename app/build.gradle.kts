@@ -262,6 +262,7 @@ dependencies {
 	implementation(project(":map"))
 	implementation(project(":game"))
 	implementation(project(":dashboard"))
+	implementation(project(":osm"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
