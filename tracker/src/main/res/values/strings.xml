@@ -73,12 +73,12 @@
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS</string>
-    <string name="notification_starting">Starting Tracker</string>
+    <string name="notification_looking_for_gps">Looking for GPS — location in use</string>
+    <string name="notification_starting">Tracker starting — location in use</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>
-    <string name="notification_tracker_active_ticker">Tracker is active</string>
+    <string name="notification_tracker_active_ticker">Recording your route — location in use</string>
     <string name="notification_tracking_active">Tracking</string>
 
     <string name="permissions_tracker_timer_message">%1$s location method requires additional permissions to start tracking</string>
