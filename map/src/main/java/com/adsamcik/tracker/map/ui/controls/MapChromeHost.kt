@@ -105,14 +105,15 @@ fun MapChromeHost(
 	val imeBottom = WindowInsets.ime.getBottom(density)
 	val navBottom = WindowInsets.navigationBars.getBottom(density)
 	val systemBottomPx = maxOf(imeBottom, navBottom)
-	val systemBottomDp = with(density) { systemBottomPx.toDp() }
-	val extraBottomDp = with(density) { bottomInsetPx.toDp() }
 	// Sit just above the global floating nav bar. Only 4dp gap — the card and the nav pill
 	// read as a stacked pair rather than two disconnected islands. When the IME pushes
 	// higher than the caller-provided inset, lift above the IME by that delta.
-	val imeOverflowPx = (imeBottom - bottomInsetPx).coerceAtLeast(0)
-	val imeOverflowDp = with(density) { imeOverflowPx.toDp() }
-	val controlStripBottomDp = imeOverflowDp + 4.dp
+	val controlStripBottomPx = resolveMapChromeBottomPaddingPx(
+		bottomInsetPx = bottomInsetPx,
+		imeBottomPx = imeBottom,
+		gapPx = with(density) { 4.dp.roundToPx() },
+	)
+	val controlStripBottomDp = with(density) { controlStripBottomPx.toDp() }
 
 	// Report the height the map should keep clear so map attribution/content doesn't sit
 	// behind the chrome. Stack is: search pill 56dp + 8dp gap + chip row 40dp = ~104dp,

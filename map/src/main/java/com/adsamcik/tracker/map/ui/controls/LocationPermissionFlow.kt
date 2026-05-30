@@ -71,8 +71,15 @@ internal fun rememberMapLocationPermissionFlow(
 	) { result ->
 		val granted = result.values.any { it }
 		updateGranted(granted)
-		if (!granted && context.findActivity()?.shouldShowMapLocationRationale() == false) {
-			openSettings()
+		when (
+			resolveMapLocationPermissionCallbackDecision(
+				granted = granted,
+				shouldShowRationale = context.findActivity()?.shouldShowMapLocationRationale(),
+			)
+		) {
+			MapLocationPermissionDecision.AlreadyGranted -> Unit
+			MapLocationPermissionDecision.RequestSystemDialog -> Unit
+			MapLocationPermissionDecision.OpenSettings -> openSettings()
 		}
 	}
 
@@ -90,23 +97,17 @@ internal fun rememberMapLocationPermissionFlow(
 
 	val requestLocationAccess = remember(context) {
 		{
-			if (context.hasMapLocationPermission()) {
-				updateGranted(true)
-			} else {
-				// Always launch the system permission dialog first. The OS suppresses it
-				// silently when the user has previously selected "Don't ask again" or
-				// when Android 11+ permanent-deny kicks in — the launcher callback then
-				// detects shouldShowRationale==false and opens Settings as a fallback.
-				// The previous code pre-checked shouldShowRationale and short-circuited
-				// to openSettings() when it was false — which is also the value BEFORE
-				// the very first request, so first-time map users got dumped into
-				// Settings without ever seeing the in-context system prompt.
-				permissionLauncher.launch(
-					arrayOf(
-						Manifest.permission.ACCESS_FINE_LOCATION,
-						Manifest.permission.ACCESS_COARSE_LOCATION,
+			when (resolveMapLocationPermissionRequestDecision(context.hasMapLocationPermission())) {
+				MapLocationPermissionDecision.AlreadyGranted -> updateGranted(true)
+				MapLocationPermissionDecision.OpenSettings -> openSettings()
+				MapLocationPermissionDecision.RequestSystemDialog -> {
+					permissionLauncher.launch(
+						arrayOf(
+							Manifest.permission.ACCESS_FINE_LOCATION,
+							Manifest.permission.ACCESS_COARSE_LOCATION,
+						)
 					)
-				)
+				}
 			}
 		}
 	}
@@ -135,6 +136,30 @@ private fun Activity.shouldShowMapLocationRationale(): Boolean =
 		this,
 		Manifest.permission.ACCESS_COARSE_LOCATION,
 	)
+
+internal enum class MapLocationPermissionDecision {
+	RequestSystemDialog,
+	OpenSettings,
+	AlreadyGranted,
+}
+
+internal fun resolveMapLocationPermissionRequestDecision(
+	hasPermission: Boolean,
+): MapLocationPermissionDecision =
+	if (hasPermission) {
+		MapLocationPermissionDecision.AlreadyGranted
+	} else {
+		MapLocationPermissionDecision.RequestSystemDialog
+	}
+
+internal fun resolveMapLocationPermissionCallbackDecision(
+	granted: Boolean,
+	shouldShowRationale: Boolean?,
+): MapLocationPermissionDecision = when {
+	granted -> MapLocationPermissionDecision.AlreadyGranted
+	shouldShowRationale == false -> MapLocationPermissionDecision.OpenSettings
+	else -> MapLocationPermissionDecision.RequestSystemDialog
+}
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
 	is Activity -> this
