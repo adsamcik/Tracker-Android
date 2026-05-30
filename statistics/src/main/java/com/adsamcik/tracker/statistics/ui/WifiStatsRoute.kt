@@ -62,6 +62,17 @@ fun WifiStatsRoute(
         vm.loadWifiStats()
     }
 
+    WifiStatsRouteContent(state = state, onBack = onBack)
+}
+
+// internal — extracted for compose tests (Hilt-backed entry composable cannot be
+// invoked from a unit test without a Hilt graph, so the stateless body lives here).
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WifiStatsRouteContent(
+    state: WifiStatsLoadState,
+    onBack: () -> Unit,
+) {
     BackHandler(onBack = onBack)
 
     Scaffold(
