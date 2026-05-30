@@ -7,16 +7,14 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Test
+import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@DisplayName("Map location permission flow decisions")
 class MapLocationPermissionFlowBehaviourTest {
 
 	@Test
