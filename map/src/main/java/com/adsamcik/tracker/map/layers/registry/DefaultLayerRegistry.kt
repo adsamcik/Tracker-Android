@@ -335,7 +335,6 @@ class DefaultLayerRegistry(
                                             }
                                             result
                                         }
-                                        }
                                     }
                                 },
                                 perf = PerformanceManager(),
