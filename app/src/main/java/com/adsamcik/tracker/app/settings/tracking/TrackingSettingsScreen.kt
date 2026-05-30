@@ -98,6 +98,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
                 trackingVm.setCellEnabled(enabled)
             }
         },
+        onVehicleSpeedLimitKmhChanged = { trackingVm.setVehicleSpeedLimitKmh(it) },
         onNotificationCustomize = onNavigateToNotificationManagement,
     )
 }
@@ -119,6 +120,7 @@ internal fun TrackingSettingsContent(
     onWifiNetworkEnabledChanged: (Boolean) -> Unit = {},
     onWifiLocationCountEnabledChanged: (Boolean) -> Unit = {},
     onCellEnabledChanged: (Boolean) -> Unit = {},
+    onVehicleSpeedLimitKmhChanged: (Int) -> Unit = {},
     onNotificationCustomize: () -> Unit = {},
 ) {
     if (!uiState.isLoaded) return
@@ -291,6 +293,16 @@ internal fun TrackingSettingsContent(
                     onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
                     enabled = customControlsEnabled,
+                )
+
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_vehicle_speed_limit_baseline_title),
+                    value = uiState.vehicleSpeedLimitKmh.toFloat(),
+                    valueRange = 30f..130f,
+                    steps = 99,
+                    valueLabel = { "${it.toInt()} km/h" },
+                    onValueChange = { onVehicleSpeedLimitKmhChanged(it.toInt()) },
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_vehicle_speed_limit_baseline,
                 )
 
                 // Enable/disable sources

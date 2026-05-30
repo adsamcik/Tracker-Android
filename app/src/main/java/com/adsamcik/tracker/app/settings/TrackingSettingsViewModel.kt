@@ -41,6 +41,7 @@ data class TrackingSettingsUiState(
     val requiredAccuracy: Int = 50,
     val hasValidSources: Boolean = true,
     val skiDetectionEnabled: Boolean = false,
+    val vehicleSpeedLimitKmh: Int = 50,
 )
 
 @HiltViewModel
@@ -83,6 +84,7 @@ class TrackingSettingsViewModel @Inject constructor(
                         hasValidSources = params.locationEnabled || params.activityEnabled ||
                                 params.stepsEnabled || effectiveWifiEnabled || effectiveCellEnabled,
                         skiDetectionEnabled = params.skiDetectionEnabled,
+                        vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
                     )
                 }
                 recalculateBatteryImpact()
@@ -171,6 +173,13 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
+    fun setVehicleSpeedLimitKmh(kmh: Int) {
+        viewModelScope.launch {
+            val mps = kmh / KMH_PER_MPS
+            trackingParamsRepository.setVehicleSpeedLimitBaselineMps(mps)
+        }
+    }
+
     fun setMinDistance(distance: Int) {
         viewModelScope.launch {
             trackingParamsRepository.setMinDistanceMeters(distance)
@@ -239,5 +248,11 @@ class TrackingSettingsViewModel @Inject constructor(
             )
             state.copy(currentBatteryImpact = currentSettings.calculateBatteryImpact())
         }
+    }
+
+    private companion object {
+        const val KMH_PER_MPS = 3.6
+
+        fun mpsToKmh(mps: Double): Int = (mps * KMH_PER_MPS).toInt().coerceIn(30, 130)
     }
 }
