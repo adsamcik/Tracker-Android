@@ -11,6 +11,17 @@ import kotlin.coroutines.coroutineContext
 /**
  * Streaming two-pass parser over an OpenStreetMap PBF file.
  *
+ * **Streaming guarantee (R2 round-6 perf review):** the parser NEVER reads the
+ * entire PBF file into memory. Both passes consume the file via
+ * [crosby.binary.file.BlockInputStream], which decodes one PBF block (typically
+ * 16 MB uncompressed) at a time and discards each block's `Blob` after the
+ * registered [BinaryParser] callbacks return. Pass 1 retains only driveable
+ * ways and the set of referenced node ids; pass 2 retains lat/lon for those
+ * referenced ids (packed into one `Long` each). At no point is the input file's
+ * raw bytes held in memory in their entirety. Combined with the
+ * [MAX_FILE_SIZE_BYTES] up-front guard, this keeps OSM import RSS bounded even
+ * for attacker-supplied .osm.pbf files.
+ *
  * Pass 1 walks every way and buffers driveable ones (per [OsmRoadClass]) plus
  * the set of node ids they reference. Pass 2 walks every node (regular and
  * dense) and keeps lat/lon (in E7, packed into a single Long) for the
@@ -39,6 +50,13 @@ class OsmPbfStreamingParser {
 	 * Parses [openInputStream] (called twice — once per pass) and emits
 	 * [ParsedOsmWay] batches of size [wayBatchSize] via [onWayBatch].
 	 *
+	 * The `openInputStream` factory MUST return a fresh, seekable-from-start
+	 * [InputStream] on every call (use `FileInputStream`, not a cached
+	 * `ByteArrayInputStream`) — each pass walks the file from the beginning
+	 * via [BlockInputStream]. **Do NOT pre-read the file into a `ByteArray` and
+	 * hand back a `ByteArrayInputStream`**: that would defeat the streaming
+	 * guarantee and risk OOM for files near [MAX_FILE_SIZE_BYTES].
+	 *
 	 * Progress callbacks fire at phase transitions and per emitted batch.
 	 * Intra-pass progress is intentionally coarse because the underlying
 	 * [BlockInputStream.process] loop is synchronous and cannot await.
@@ -47,7 +65,9 @@ class OsmPbfStreamingParser {
 	 *   way's geometry.
 	 *
 	 * @throws OsmParseException when the file is too large, has too many
-	 *   referenced nodes, or is structurally invalid.
+	 *   referenced nodes, or is structurally invalid. The size check runs
+	 *   BEFORE [openInputStream] is invoked, so oversize files never touch the
+	 *   parser's IO.
 	 */
 	suspend fun parse(
 		fileSizeBytes: Long,
