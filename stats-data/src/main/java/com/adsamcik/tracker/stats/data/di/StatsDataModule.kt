@@ -28,7 +28,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationReposito
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
-import com.adsamcik.tracker.stats.data.speed.FixedSpeedLimitSource
+import com.adsamcik.tracker.stats.data.speed.DefaultSpeedLimitSource
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -117,5 +117,5 @@ abstract class StatsDataModule {
 
 	@Binds
 	@Singleton
-	abstract fun bindSpeedLimitSource(impl: FixedSpeedLimitSource): SpeedLimitSource
+	abstract fun bindSpeedLimitSource(impl: DefaultSpeedLimitSource): SpeedLimitSource
 }

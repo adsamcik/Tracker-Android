@@ -20,7 +20,7 @@ import com.adsamcik.tracker.map.shared.CoordinateBounds
  * The layer is offline by construction: the [sampleProvider] streams from Room and
  * the bucket lookup is a pure function. No network calls.
  */
-open class VehicleComplianceLayer(
+class VehicleComplianceLayer(
 	private val sampleProvider: suspend (LongRange) -> List<VehicleSpeedSample>,
 	private val perf: PerformanceManager = PerformanceManager(),
 ) : BaseMapLayer<VehicleComplianceLayer.Input, VehicleComplianceLayer.Prepared>(perf),

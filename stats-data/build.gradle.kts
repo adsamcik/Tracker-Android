@@ -63,6 +63,7 @@ dependencies {
 	api(project(":stats-api"))
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
+	implementation(project(":osm"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
