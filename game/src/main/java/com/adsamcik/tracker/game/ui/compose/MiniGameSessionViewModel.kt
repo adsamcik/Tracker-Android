@@ -1,0 +1,251 @@
+package com.adsamcik.tracker.game.ui.compose
+
+import android.app.Application
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.game.minigame.MiniGame
+import com.adsamcik.tracker.game.minigame.MiniGameRegistry
+import com.adsamcik.tracker.game.minigame.MiniGameSession
+import com.adsamcik.tracker.game.minigame.MiniGameState
+import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
+import com.adsamcik.tracker.game.repository.GameRepository
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
+import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Argument key used by Compose Navigation to populate the saved-state handle.
+ */
+const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
+
+/**
+ * UI state for the mini-game session screen.
+ *
+ *  - [Idle]:             ready to start, waiting for user CTA
+ *  - [PermissionNeeded]: location permission missing — UI must request it
+ *  - [Active]:           a session is running; receiving location samples
+ *  - [Finished]:         user stopped (or session ended); score + XP persisted
+ */
+sealed interface MiniGameUiState {
+	data object Idle : MiniGameUiState
+	data object PermissionNeeded : MiniGameUiState
+	data class Active(
+		val score: Double,
+		val state: MiniGameState,
+		val statusText: String,
+		val elapsedMs: Long,
+	) : MiniGameUiState
+	data class Finished(
+		val finalScore: Double,
+		val xpEarned: Int,
+	) : MiniGameUiState
+}
+
+/**
+ * Drives a single mini-game session.
+ *
+ * Lifecycle:
+ *  1. UI calls [start] when the user taps the start CTA.
+ *  2. VM checks location permission; emits [MiniGameUiState.PermissionNeeded] if missing.
+ *  3. VM subscribes to [MiniGameLocationSource], forwards samples to the session,
+ *     and emits [MiniGameUiState.Active] on every fix.
+ *  4. UI calls [stop] (or [onCleared] cleans up) which:
+ *     - cancels the location subscription
+ *     - calls [MiniGameSession.onSessionEnd]
+ *     - persists score + XP to [MiniGameScoreDao]
+ *     - credits XP via [GameRepository.creditMiniGameXp]
+ *     - emits [MiniGameUiState.Finished]
+ *  5. UI may call [reset] to play again (creates a fresh [MiniGameSession]).
+ *
+ * Raw location samples are never persisted: only the final score row goes to disk.
+ */
+@HiltViewModel
+class MiniGameSessionViewModel @Inject constructor(
+	savedStateHandle: SavedStateHandle,
+	application: Application,
+	private val miniGameRegistry: MiniGameRegistry,
+	private val scoreDao: MiniGameScoreDao,
+	private val gameRepository: GameRepository,
+	private val locationSource: MiniGameLocationSource,
+	private val dispatchers: DispatchersProvider,
+) : ViewModel() {
+
+	private val app: Application = application
+
+	/** Stable id of the game being played. Provided via nav arguments. */
+	val gameId: String = checkNotNull(savedStateHandle.get<String>(MINIGAME_SESSION_GAME_ID_ARG)) {
+		"MiniGameSessionViewModel requires '$MINIGAME_SESSION_GAME_ID_ARG' nav argument"
+	}
+
+	/** Resolved [MiniGame]; resolved eagerly so a bad id surfaces immediately. */
+	val game: MiniGame = checkNotNull(miniGameRegistry.findById(gameId)) {
+		"Unknown mini-game id: $gameId"
+	}
+
+	@Volatile
+	private var session: MiniGameSession = game.createSession()
+
+	@Volatile
+	private var sessionStartedAtMs: Long = 0L
+	private var collectionJob: Job? = null
+
+	private val _uiState = MutableStateFlow<MiniGameUiState>(MiniGameUiState.Idle)
+	val uiState: StateFlow<MiniGameUiState> = _uiState.asStateFlow()
+
+	/**
+	 * Begin streaming location to the active session.
+	 * Idempotent: calling while already running is a no-op.
+	 */
+	fun start() {
+		if (collectionJob?.isActive == true) return
+		if (_uiState.value is MiniGameUiState.Active) return
+
+		if (!app.hasLocationPermission) {
+			_uiState.value = MiniGameUiState.PermissionNeeded
+			return
+		}
+
+		// Begin fresh elapsed clock.
+		sessionStartedAtMs = Time.nowMillis
+		// Emit an initial Active frame so the UI can render "00:00" while the
+		// first fix is pending — otherwise the screen would look frozen on Idle.
+		_uiState.value = MiniGameUiState.Active(
+			score = session.score,
+			state = session.state,
+			statusText = session.statusText,
+			elapsedMs = 0L,
+		)
+
+		collectionJob = viewModelScope.launch {
+			try {
+				locationSource.samples().collect { sample ->
+					session.onLocationUpdate(
+						latitude = sample.latitude,
+						longitude = sample.longitude,
+						speedMps = sample.speedMps,
+						accuracyM = sample.accuracyM,
+						timestampMs = sample.timestampMs,
+					)
+					_uiState.value = MiniGameUiState.Active(
+						score = session.score,
+						state = session.state,
+						statusText = session.statusText,
+						elapsedMs = (Time.nowMillis - sessionStartedAtMs).coerceAtLeast(0L),
+					)
+				}
+			} catch (cancellation: CancellationException) {
+				throw cancellation
+			} catch (security: SecurityException) {
+				_uiState.value = MiniGameUiState.PermissionNeeded
+			} catch (error: Throwable) {
+				// Stay defensive — never let a downstream failure throw across module
+				// boundaries; fall back to a clean Finished state with no XP.
+				_uiState.value = MiniGameUiState.Finished(
+					finalScore = session.score,
+					xpEarned = 0,
+				)
+				if (error !is RuntimeException && error !is IllegalStateException) {
+					throw error
+				}
+			}
+		}
+	}
+
+	/**
+	 * Stop the session, persist score + XP, and transition to [MiniGameUiState.Finished].
+	 *
+	 * Safe to call multiple times: only the first call writes to the database
+	 * — subsequent calls are ignored. Cancels the location subscription before
+	 * doing any I/O.
+	 */
+	fun stop() {
+		if (_uiState.value is MiniGameUiState.Finished) return
+
+		// Snapshot the running session so we can cancel + persist atomically.
+		val activeSession = session
+		val startedAt = sessionStartedAtMs
+		val wasActive = collectionJob?.isActive == true || _uiState.value is MiniGameUiState.Active
+
+		collectionJob?.cancel()
+		collectionJob = null
+
+		if (!wasActive) {
+			// User stopped before any frame ever arrived — just go back to Idle UX
+			// rather than recording a 0/0 row.
+			_uiState.value = MiniGameUiState.Idle
+			return
+		}
+
+		viewModelScope.launch {
+			activeSession.onSessionEnd()
+			val finalScore = activeSession.score
+			val xp = activeSession.calculateXp().coerceAtLeast(0)
+			val finishedAt = Time.nowMillis.coerceAtLeast(startedAt)
+
+			withContext(dispatchers.io) {
+				scoreDao.insert(
+					MiniGameScoreEntity(
+						gameId = gameId,
+						score = finalScore,
+						xpAwarded = xp,
+						playedAt = finishedAt,
+					),
+				)
+			}
+			gameRepository.creditMiniGameXp(gameId = gameId, xp = xp, earnedAtMs = finishedAt)
+
+			_uiState.value = MiniGameUiState.Finished(
+				finalScore = finalScore,
+				xpEarned = xp,
+			)
+		}
+	}
+
+	/**
+	 * Discard the finished session and return to Idle with a fresh session
+	 * ready to start. Use this for the "Play again" button.
+	 */
+	fun reset() {
+		collectionJob?.cancel()
+		collectionJob = null
+		session = game.createSession()
+		sessionStartedAtMs = 0L
+		_uiState.value = MiniGameUiState.Idle
+	}
+
+	/**
+	 * Called by the UI after the system permission prompt resolves so the VM
+	 * can re-evaluate state and auto-start when the user granted access.
+	 */
+	fun onPermissionResult(granted: Boolean) {
+		if (granted) {
+			_uiState.value = MiniGameUiState.Idle
+			start()
+		} else {
+			_uiState.value = MiniGameUiState.PermissionNeeded
+		}
+	}
+
+	override fun onCleared() {
+		// Guarantee no rogue location subscription survives the VM. If the user
+		// already pressed Stop, this is a no-op; otherwise we still cancel —
+		// but we do NOT silently write a partial score row, since the user did
+		// not explicitly end the session.
+		collectionJob?.cancel()
+		collectionJob = null
+		super.onCleared()
+	}
+}

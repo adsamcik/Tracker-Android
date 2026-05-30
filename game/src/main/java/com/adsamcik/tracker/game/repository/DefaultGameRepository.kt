@@ -2,6 +2,9 @@ package com.adsamcik.tracker.game.repository
 
 import android.app.Application
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.points.data.AwardSource
+import com.adsamcik.tracker.points.data.Points
+import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 
 @Singleton
 class DefaultGameRepository @Inject constructor(
@@ -58,4 +62,25 @@ class DefaultGameRepository @Inject constructor(
 	override fun getPlayerProfile(): Flow<PlayerProfileUi?> = database.playerProfileDao().observe()
 		.map { entity -> entity?.let { PlayerProfileUi(it.level, it.totalXp, it.xpIntoCurrentLevel, it.xpForNextLevel) } }
 		.flowOn(dispatchers.io)
+
+	override suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long) {
+		if (xp <= 0) return
+		withContext(dispatchers.io) {
+			pointsDao.insert(
+				PointsAwarded(
+					earnedAtMs,
+					Points(xp.toDouble()),
+					AwardSource(MINIGAME_AWARD_SOURCE_PREFIX + gameId),
+				),
+			)
+		}
+	}
+
+	private companion object {
+		// Mini-games share a per-game source label so the points ledger can
+		// distinguish them from regular tracking sessions while still flowing
+		// through countBetweenFlow into the "points earned today" counter.
+		private const val MINIGAME_AWARD_SOURCE_PREFIX = "minigame:"
+	}
 }
+
