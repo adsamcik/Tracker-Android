@@ -6,6 +6,7 @@ const val TABLE_EXPLORATION_CELL_NAME = "exploration_cell"
 const val TABLE_EXPLORATION_STREAK_NAME = "exploration_streak"
 const val TABLE_EXPORT_LOG_NAME = "export_log"
 const val TABLE_AGGREGATOR_STATE_NAME = "aggregator_state"
+const val TABLE_OSM_IMPORT_NAME = "osm_import"
 
 enum class MetricKey(val storageKey: String, private vararg val backingTables: String) {
 	DISTANCE_TOTAL_M("distance_total_m", TABLE_DAILY_SUMMARY_NAME, TABLE_AGGREGATOR_STATE_NAME),
@@ -57,6 +58,7 @@ object MetricKeys {
 	const val TABLE_EXPLORATION_STREAK = TABLE_EXPLORATION_STREAK_NAME
 	const val TABLE_EXPORT_LOG = TABLE_EXPORT_LOG_NAME
 	const val TABLE_AGGREGATOR_STATE = TABLE_AGGREGATOR_STATE_NAME
+	const val TABLE_OSM_IMPORT = TABLE_OSM_IMPORT_NAME
 	const val MIN_DAILY_TRIPS = 1
 	const val STEPS = "steps"
 	const val DISTANCE_M = "distance_m"

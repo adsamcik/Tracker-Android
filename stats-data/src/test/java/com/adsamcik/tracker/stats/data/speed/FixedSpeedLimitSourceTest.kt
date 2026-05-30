@@ -4,6 +4,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.testing.fake.FakeTrackingParamsRepository
 import io.kotest.matchers.doubles.shouldBeBetween
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test
  * `vehicleSpeedLimitBaselineMps` regardless of position or time, and
  * reflects user updates without restart.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FixedSpeedLimitSourceTest {
 
 	@Test
@@ -20,7 +23,8 @@ class FixedSpeedLimitSourceTest {
 		val repo = FakeTrackingParamsRepository(
 			initialState = TrackingParamsState(vehicleSpeedLimitBaselineMps = baselineMps),
 		)
-		val source = FixedSpeedLimitSource(repo)
+		val source = FixedSpeedLimitSource(repo, backgroundScope)
+		advanceUntilIdle()
 
 		source.limitMpsAt(0L, null, null).shouldBeBetween(baselineMps, baselineMps, EPS)
 		source.limitMpsAt(System.currentTimeMillis(), 500_000_000, 144_000_000)
@@ -34,11 +38,13 @@ class FixedSpeedLimitSourceTest {
 		val repo = FakeTrackingParamsRepository(
 			initialState = TrackingParamsState(vehicleSpeedLimitBaselineMps = 30.0 / 3.6),
 		)
-		val source = FixedSpeedLimitSource(repo)
+		val source = FixedSpeedLimitSource(repo, backgroundScope)
+		advanceUntilIdle()
 
 		source.limitMpsAt(0L, null, null).shouldBeBetween(30.0 / 3.6, 30.0 / 3.6, EPS)
 
 		repo.setVehicleSpeedLimitBaselineMps(130.0 / 3.6)
+		advanceUntilIdle()
 
 		source.limitMpsAt(0L, null, null).shouldBeBetween(130.0 / 3.6, 130.0 / 3.6, EPS)
 	}
@@ -46,7 +52,8 @@ class FixedSpeedLimitSourceTest {
 	@Test
 	fun `default repository state surfaces default baseline`() = runTest {
 		val repo = FakeTrackingParamsRepository()
-		val source = FixedSpeedLimitSource(repo)
+		val source = FixedSpeedLimitSource(repo, backgroundScope)
+		advanceUntilIdle()
 
 		val expected = TrackingParamsState().vehicleSpeedLimitBaselineMps
 		source.limitMpsAt(0L, 500_000_000, 144_000_000) shouldBe expected

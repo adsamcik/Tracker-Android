@@ -11,7 +11,14 @@ import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.testing.fake.FakeTrackingParamsRepository
 import io.kotest.matchers.doubles.shouldBeBetween
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -48,6 +55,7 @@ class OsmDispatcherIntegrationTest {
 	private lateinit var osmSource: OsmSpeedLimitSource
 	private lateinit var dispatcher: DefaultSpeedLimitSource
 	private lateinit var trackingParams: FakeTrackingParamsRepository
+	private lateinit var dispatcherScope: CoroutineScope
 
 	@Before
 	fun setUp() {
@@ -59,15 +67,19 @@ class OsmDispatcherIntegrationTest {
 		trackingParams = FakeTrackingParamsRepository(
 			initialState = TrackingParamsState(vehicleSpeedLimitBaselineMps = BASELINE_50_KMH_MPS),
 		)
+		// Owned by this test; cancelled in tearDown.
+		dispatcherScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		dispatcher = DefaultSpeedLimitSource(
-			fixed = FixedSpeedLimitSource(trackingParams),
+			fixed = FixedSpeedLimitSource(trackingParams, dispatcherScope),
 			osm = osmSource,
 			osmImportDao = database.osmImportDao(),
+			appScope = dispatcherScope,
 		)
 	}
 
 	@After
 	fun tearDown() {
+		dispatcherScope.cancel()
 		database.close()
 	}
 
@@ -224,38 +236,47 @@ class OsmDispatcherIntegrationTest {
 	// region dispatcher dynamic behaviour
 
 	@Test
-	fun `deleting OSM import mid-session reverts to fixed for next call`() = runTest {
-		val importId = seedOsmImport()
-		seedDriveableWay(
-			wayId = 1L,
-			importId = importId,
-			maxspeedKmh = 90,
-			latsE7 = intArrayOf(PRAGUE_LAT_E7, PRAGUE_LAT_E7),
-			lonsE7 = intArrayOf(PRAGUE_LON_E7, PRAGUE_LON_E7 + 1_000),
-		)
+	fun `deleting OSM import mid-session reverts to fixed for next call`() {
+		runBlocking {
+			val importId = seedOsmImport()
+			seedDriveableWay(
+				wayId = 1L,
+				importId = importId,
+				maxspeedKmh = 90,
+				latsE7 = intArrayOf(PRAGUE_LAT_E7, PRAGUE_LAT_E7),
+				lonsE7 = intArrayOf(PRAGUE_LON_E7, PRAGUE_LON_E7 + 1_000),
+			)
 
-		// First call: 90 km/h via OSM.
-		val first = dispatcher.limitMpsAt(
-			epochMs = 0L,
-			latE7 = PRAGUE_LAT_E7 + 100,
-			lonE7 = PRAGUE_LON_E7 + 500,
-		)
-		val osmExpected = 90.0 * (1000.0 / 3600.0)
-		first.shouldBeBetween(osmExpected, osmExpected, EPS)
+			// First call: 90 km/h via OSM.
+			val first = dispatcher.limitMpsAt(
+				epochMs = 0L,
+				latE7 = PRAGUE_LAT_E7 + 100,
+				lonE7 = PRAGUE_LON_E7 + 500,
+			)
+			val osmExpected = 90.0 * (1000.0 / 3600.0)
+			first.shouldBeBetween(osmExpected, osmExpected, EPS)
 
-		// User deletes the imported region.
-		database.osmImportDao().delete(importId)
-		// No need to clear the OsmSpeedLimitSource cache: the dispatcher
-		// short-circuits to fixed when osm_import.count() == 0 BEFORE
-		// touching the OSM source at all.
+			// User deletes the imported region.
+			database.osmImportDao().delete(importId)
+			// The dispatcher's snapshot is now stale until Room's observeCount
+			// Flow propagates the deletion. Wait for the upstream Flow to emit 0
+			// before the next call — the snapshot is observable-driven, not
+			// query-driven, so we must let the InvalidationTracker observer pump
+			// propagate. Uses real time (runBlocking, not runTest) because Room's
+			// invalidation executor runs on real threads in Robolectric and a
+			// virtual-time test scheduler would deadlock against it.
+			withTimeout(2_000) {
+				database.osmImportDao().observeCount().first { it == 0 }
+			}
 
-		val second = dispatcher.limitMpsAt(
-			epochMs = 0L,
-			latE7 = PRAGUE_LAT_E7 + 100,
-			lonE7 = PRAGUE_LON_E7 + 500,
-		)
+			val second = dispatcher.limitMpsAt(
+				epochMs = 0L,
+				latE7 = PRAGUE_LAT_E7 + 100,
+				lonE7 = PRAGUE_LON_E7 + 500,
+			)
 
-		second.shouldBeBetween(BASELINE_50_KMH_MPS, BASELINE_50_KMH_MPS, EPS)
+			second.shouldBeBetween(BASELINE_50_KMH_MPS, BASELINE_50_KMH_MPS, EPS)
+		}
 	}
 
 	@Test
