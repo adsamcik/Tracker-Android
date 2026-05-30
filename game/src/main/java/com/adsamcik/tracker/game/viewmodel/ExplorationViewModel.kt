@@ -110,8 +110,18 @@ class ExplorationViewModel @Inject constructor(
 					}
 					.take(3)
 					.toList()
+				// Pick the user's NEXT tier per metric series (lowest tierIndex not yet
+				// unlocked), then surface the top 5 closest-to-completion across DIFFERENT
+				// series. Previously this filtered all unfinished definitions and took 5
+				// by progress descending, which collapsed to "5 tiers of the same metric"
+				// for new users with no progress (e.g. Total Distance 1k / 5k / 10k / 50k
+				// / 100k) — looked like the system was repeating itself. One-per-series
+				// reads like a real to-do list of variety: distance + steps + cells + ….
 				val nextUp = AchievementCatalog.definitions.asSequence()
 					.filter { definition -> (progressByMetric[definition.metric]?.lastTierIndex ?: -1) < definition.tierIndex }
+					.groupBy { it.metric }
+					.values
+					.mapNotNull { tiersForMetric -> tiersForMetric.minByOrNull { it.tierIndex } }
 					.map { definition ->
 						val currentValue = progressByMetric[definition.metric]?.lastValue ?: 0.0
 						NextAchievement(definition.id, definition.nameRes, definition.tier, if (definition.threshold <= 0.0) 0f else (currentValue / definition.threshold).toFloat().coerceIn(0f, 1f), currentValue, definition.threshold)
