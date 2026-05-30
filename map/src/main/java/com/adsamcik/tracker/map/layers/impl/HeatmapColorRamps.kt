@@ -26,4 +26,18 @@ internal object HeatmapColorRamps {
         0.75f to 0xFF5EC962.toInt(),
         1.0f to 0xFFFDE725.toInt(),
     )
+
+    /**
+     * Five-stop ramp for the vehicle speed compliance layer.
+     * Indexes (in bucket order) are: way-under, slow, at-limit, slightly-over, speeding.
+     * Plain hex literals are used so unit tests can read the values without an
+     * Android runtime (where [android.graphics.Color.rgb] returns 0).
+     */
+    val VehicleCompliance: List<Pair<Float, Int>> = listOf(
+        0.0f to 0xFF0D47A1.toInt(),
+        0.25f to 0xFF2196F3.toInt(),
+        0.5f to 0xFF4CAF50.toInt(),
+        0.75f to 0xFFFFC107.toInt(),
+        1.0f to 0xFFF44336.toInt(),
+    )
 }

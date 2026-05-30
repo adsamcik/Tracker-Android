@@ -63,6 +63,7 @@ dependencies {
 	implementation(project(":tracker"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
+	implementation(project(":stats-api"))
 	implementation(project(":logger"))
 
 	// Core
