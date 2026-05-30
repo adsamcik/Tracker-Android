@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -145,16 +147,24 @@ fun StatsScreen(
     sessions: LazyPagingItems<Trip>? = null,
 ){
     val navigationLayout = rememberMainNavigationLayout()
-    // The outer Column below consumes `WindowInsets.safeDrawing` in full, so the
-    // LazyColumn inside `ContentState` no longer sees the system bottom inset.
-    // Passing `0.dp` here keeps the visual output identical to the pre-helper
-    // version while we await the safeDrawing-consumption refactor.
-    val bottomClearance = bottomNavSafeClearance(navigationLayout, 0.dp)
+    // MainRoot reserves `96.dp + navBarInset` for the floating nav pill in BottomBar
+    // mode, but does NOT consume `WindowInsets.safeDrawing` (its NavHost-level
+    // `padding(bottom = ...)` is non-consuming). So we restrict the outer Column
+    // below to the top + horizontal slices of safeDrawing, leaving the bottom slice
+    // to the `bottomNavSafeClearance` helper. Previously the Column consumed the
+    // full safeDrawing (including bottom), AND the LazyColumn added another bottom
+    // contentPadding — silently double-counting the system nav inset on devices
+    // where it is non-zero (3-button nav, gesture-nav handle).
+    val bottomClearance = bottomNavSafeClearance(navigationLayout)
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Horizontal + WindowInsetsSides.Top,
+                ),
+            )
     ) {
         // Nav bar already labels this tab "Statistics" — skip a duplicate screen-level title
         // and let the header action chips sit directly at the top.
