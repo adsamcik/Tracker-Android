@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
@@ -32,25 +31,47 @@ class DashboardLayoutDefaultsTest {
 		}
 
 		@Test
-		fun `BottomBar portrait stacks NavBarClearance and PillClearance plus inset`() {
+		fun `BottomBar portrait clears the tracking pill plus visual margin plus inset`() {
 			val result = DashboardLayoutDefaults.contentBottomClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				bottomInset = 0.dp,
 				isLandscape = false,
 			)
-			val expected = AppDimensions.FloatingNavBarClearance + DashboardLayoutDefaults.PillClearance
+			// MainRoot reserves the floating nav bar (96dp + navBarInset) at the NavHost
+			// level — DashboardLayoutDefaults only needs to reserve the tracking pill
+			// (PillClearance = 112dp) plus a visual margin (28dp matching
+			// bottomNavSafeClearance) plus the system inset (defense in depth).
+			val expected = DashboardLayoutDefaults.PillClearance + 28.dp
 			result shouldBe expected
 		}
 
 		@Test
-		fun `BottomBar landscape uses landscape clearance`() {
+		fun `BottomBar landscape matches portrait`() {
 			val result = DashboardLayoutDefaults.contentBottomClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				bottomInset = 10.dp,
 				isLandscape = true,
 			)
-			val expected = 96.dp + DashboardLayoutDefaults.PillClearance + 10.dp
+			// MainRoot's NavHost reservation is the same in portrait and landscape
+			// (96.dp + navBarInset), so the dashboard's local reservation no longer
+			// branches on orientation.
+			val expected = DashboardLayoutDefaults.PillClearance + 28.dp + 10.dp
 			result shouldBe expected
+		}
+
+		@Test
+		fun `BottomBar portrait and landscape agree for the same inset`() {
+			val portrait = DashboardLayoutDefaults.contentBottomClearance(
+				navigationLayout = MainNavigationLayout.BottomBar,
+				bottomInset = 24.dp,
+				isLandscape = false,
+			)
+			val landscape = DashboardLayoutDefaults.contentBottomClearance(
+				navigationLayout = MainNavigationLayout.BottomBar,
+				bottomInset = 24.dp,
+				isLandscape = true,
+			)
+			portrait shouldBe landscape
 		}
 	}
 
@@ -90,3 +111,4 @@ class DashboardLayoutDefaultsTest {
 		}
 	}
 }
+
