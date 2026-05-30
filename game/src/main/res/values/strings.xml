@@ -255,6 +255,10 @@
     <string name="achievement_empty_state_body">Start tracking — your first achievement is waiting. Flip "Show locked" to preview the whole catalog.</string>
     <string name="achievement_progress_percent">%1$d%%</string>
     <string name="achievement_tier_label">%1$s tier · +%2$d XP</string>
+    <string name="achievement_hero_title">Your trophy cabinet</string>
+    <string name="achievement_hero_points">%1$d XP earned</string>
+    <string name="achievement_unlocked_content_description">Unlocked</string>
+    <string name="achievement_locked_content_description">Locked</string>
 
     <!-- ─────────────────────────────────────────────────────────────────
          Achievement catalog format strings.
