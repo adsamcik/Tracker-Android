@@ -5,12 +5,10 @@ import android.app.Application
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
-import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
@@ -27,6 +25,10 @@ import kotlinx.coroutines.flow.callbackFlow
  *
  * No raw samples are persisted by this class — they are forwarded to the
  * collector and forgotten.
+ *
+ * Cadence/accuracy comes from the per-game [LocationRequest] passed in by the
+ * caller (see [com.adsamcik.tracker.game.minigame.MiniGame.desiredLocationRequest]),
+ * so battery cost matches each game's needs.
  */
 @Singleton
 class FusedMiniGameLocationSource @Inject constructor(
@@ -34,7 +36,7 @@ class FusedMiniGameLocationSource @Inject constructor(
 ) : MiniGameLocationSource {
 
 	@SuppressLint("MissingPermission")
-	override fun samples(): Flow<MiniGameLocationSample> = callbackFlow {
+	override fun samples(request: LocationRequest): Flow<MiniGameLocationSample> = callbackFlow {
 		if (!application.hasLocationPermission) {
 			close(SecurityException("Location permission not granted"))
 			return@callbackFlow
@@ -57,17 +59,6 @@ class FusedMiniGameLocationSource @Inject constructor(
 			}
 		}
 
-		val priority = if (application.hasPreciseLocationPermission) {
-			Priority.PRIORITY_HIGH_ACCURACY
-		} else {
-			Priority.PRIORITY_BALANCED_POWER_ACCURACY
-		}
-		val request = LocationRequest.Builder(UPDATE_INTERVAL_MS)
-			.setPriority(priority)
-			.setMinUpdateIntervalMillis(MIN_INTERVAL_MS)
-			.setMinUpdateDistanceMeters(0f)
-			.build()
-
 		try {
 			client.requestLocationUpdates(request, callback, Looper.getMainLooper())
 		} catch (e: SecurityException) {
@@ -78,10 +69,5 @@ class FusedMiniGameLocationSource @Inject constructor(
 		awaitClose {
 			client.removeLocationUpdates(callback)
 		}
-	}
-
-	private companion object {
-		private const val UPDATE_INTERVAL_MS = 2_000L
-		private const val MIN_INTERVAL_MS = 1_000L
 	}
 }

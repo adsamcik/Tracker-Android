@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.minigame.location
 
+import com.google.android.gms.location.LocationRequest
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -24,14 +25,19 @@ data class MiniGameLocationSample(
  *  - Stop emitting and release sensor handles when the flow is cancelled
  *    (use `callbackFlow { awaitClose { ... } }`).
  *  - Never persist raw samples to disk — mini-games are ephemeral.
+ *  - Honour the per-game [LocationRequest] passed to [samples] so battery
+ *    and accuracy match the game's needs (Outrun wants tight HIGH_ACCURACY
+ *    fixes; Zen Walk is happy with sparse BALANCED ones).
  *
  * Throws [SecurityException] inside the flow if the caller does not hold
  * a location permission. Callers must check permission before collecting.
  */
 interface MiniGameLocationSource {
 	/**
-	 * Cold flow of location samples at roughly the requested cadence.
-	 * Cancellation unsubscribes from the underlying provider.
+	 * Cold flow of location samples honouring [request].
+	 *
+	 * Each new subscriber gets its own update stream; cancellation
+	 * unsubscribes and releases the underlying provider callback.
 	 */
-	fun samples(): Flow<MiniGameLocationSample>
+	fun samples(request: LocationRequest): Flow<MiniGameLocationSample>
 }

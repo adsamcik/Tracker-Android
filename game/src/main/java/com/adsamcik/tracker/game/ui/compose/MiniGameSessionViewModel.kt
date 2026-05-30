@@ -131,7 +131,7 @@ class MiniGameSessionViewModel @Inject constructor(
 
 		collectionJob = viewModelScope.launch {
 			try {
-				locationSource.samples().collect { sample ->
+				locationSource.samples(game.desiredLocationRequest()).collect { sample ->
 					session.onLocationUpdate(
 						latitude = sample.latitude,
 						longitude = sample.longitude,

@@ -16,6 +16,7 @@ import com.adsamcik.tracker.game.repository.StepsSummaryData
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.testing.TestDispatchersProvider
+import com.google.android.gms.location.LocationRequest
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -262,7 +263,12 @@ private class ControllableLocationSource : MiniGameLocationSource {
 	var subscribers: Int = 0
 		private set
 
-	override fun samples(): Flow<MiniGameLocationSample> = flow {
+	@Volatile
+	var lastRequest: LocationRequest? = null
+		private set
+
+	override fun samples(request: LocationRequest): Flow<MiniGameLocationSample> = flow {
+		lastRequest = request
 		subscribers += 1
 		try {
 			sharedFlow.collect { emit(it) }
