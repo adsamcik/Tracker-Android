@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Base template for map layers.
@@ -40,6 +41,21 @@ abstract class BaseMapLayer<I, P>(
     protected var zoom: Float = 10f
 
     private var runningTask: Job? = null
+
+    /**
+     * Monotonic generation counter for [reloadData] calls. When the user pans/zooms
+     * rapidly, multiple reloads can be in flight against the same layer. The
+     * synchronous compute step (processData + produceConfig) has no suspension point,
+     * so an in-progress reload for viewport A can finish AFTER a newer reload for
+     * viewport B and clobber [lastConfig] with stale data — even when the outer
+     * caller has already cancelled A's containing job (cooperative cancellation
+     * cannot preempt the non-suspending synchronized write). Each reloadData call
+     * captures the value returned by [AtomicLong.incrementAndGet]; only the call
+     * whose captured generation still matches when its compute finishes is allowed
+     * to publish to [lastConfig]. Stale calls still return their (correct-for-their-
+     * bounds) config so callers can populate per-bucket caches without re-encoding.
+     */
+    private val reloadGeneration = AtomicLong(0L)
 
     /** The last produced layer config, available for the engine to read. */
     @Volatile
@@ -113,6 +129,10 @@ abstract class BaseMapLayer<I, P>(
     suspend fun reloadData(context: Context, bounds: Bounds? = null, zoom: Float = this.zoom): MapLibreLayerConfig? =
         withContext(dispatchers.default) {
             val startTime = System.currentTimeMillis()
+            // Capture this call's generation BEFORE any work; the latest call wins
+            // even if it finishes first. See [reloadGeneration] field docs for why
+            // structured cancellation alone is insufficient here.
+            val myGeneration = reloadGeneration.incrementAndGet()
             val currentQuality = synchronized(this@BaseMapLayer) {
                 if (!enabled) return@withContext lastConfig
                 // `this` inside withContext is CoroutineScope; use explicit @-qualified
@@ -136,7 +156,10 @@ abstract class BaseMapLayer<I, P>(
                 val renderDuration = System.currentTimeMillis() - renderStartTime
 
                 synchronized(this@BaseMapLayer) {
-                    if (enabled) {
+                    // Only publish if this call is still the latest in-flight reload.
+                    // A stale call (older generation) computes valid data for its OWN
+                    // bounds — fine to return — but must NOT overwrite layer state.
+                    if (enabled && myGeneration == reloadGeneration.get()) {
                         lastConfig = config
                     }
                 }

@@ -10,6 +10,7 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import kotlinx.coroutines.CancellationException
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Controls map layer lifecycle and manages active layer state.
@@ -37,6 +38,18 @@ class LayerController {
     private var currentConfig: MapLibreLayerConfig? = null
     private var currentQuality: Float = 1f
     private val layerConfigCache = mutableMapOf<String, ViewportConfigCache>()
+
+    /**
+     * Monotonic generation counter for [refreshLayersInPlace] calls. Mirrors the
+     * guard in [BaseMapLayer.reloadData]: when the user pans/zooms rapidly, two
+     * refresh coroutines can be in flight, and the synchronous
+     * `currentConfig = combinedConfig(configs)` write at the end is not preempted
+     * by cooperative cancellation. Each call captures its generation up front; only
+     * the call whose generation is still latest when finishing publishes its
+     * combined config. Stale refreshes still populate the per-bucket cache (their
+     * data is correct for the bounds key under which they were issued).
+     */
+    private val refreshGeneration = AtomicLong(0L)
 
     companion object {
         private const val TAG = "LayerController"
@@ -151,6 +164,9 @@ class LayerController {
         dateRange: LongRange,
     ) {
         if (currentLayers.isEmpty()) return
+        // Capture generation up front; only the latest in-flight refresh will be
+        // allowed to publish its combined config. See [refreshGeneration] for why.
+        val myGeneration = refreshGeneration.incrementAndGet()
 
         try {
             val configs = mutableListOf<MapLibreLayerConfig>()
@@ -172,7 +188,9 @@ class LayerController {
                     configs.add(config)
                 }
             }
-            currentConfig = combinedConfig(configs)
+            if (myGeneration == refreshGeneration.get()) {
+                currentConfig = combinedConfig(configs)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
