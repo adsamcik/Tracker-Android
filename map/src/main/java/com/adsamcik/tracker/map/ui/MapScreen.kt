@@ -314,6 +314,20 @@ fun MapScreen(
     var suppressNextCameraPersistence by remember { mutableStateOf(false) }
     var hasAppliedEmptyStateZoomCap by rememberSaveable { mutableStateOf(false) }
 
+    /**
+     * MapLibre Compose's rememberCameraState is backed by rememberSaveable
+     * (CameraStateSaver), so a NavHost re-entry can restore CameraState.position
+     * after ignoring firstPosition. The firstPosition cap alone therefore does not
+     * protect users from a stale z17 camera over the bundled z0-z6 basemap. The
+     * previous animateTo workaround was also unreliable before the map projection
+     * had settled, and it polluted MapStore persistence through the camera
+     * snapshotFlow below. Keep this as an instant, tagged one-shot cap so
+     * legitimate user zooms > z8 still persist after the opening frame.
+     *
+     * History: map-camera-zoom-cap-not-applied (id 96),
+     * r1r7-map-empty-state-cap-persists (id 121),
+     * r3r7-map-zoom-cap-caveat-doc (id 117).
+     */
     LaunchedEffect(cameraState) {
         cameraState.position.cappedAt(MAX_RESTORE_ZOOM)?.let { capped ->
             suppressNextCameraPersistence = true
