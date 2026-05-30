@@ -1309,3 +1309,28 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 		}
 	}
 }
+
+/**
+ * Adds composite `(time_ms, id)` index on `location_sample`.
+ *
+ * The vehicle compliance map layer scans large date ranges with a stable
+ * cursor predicate `(time_ms > :after) OR (time_ms = :after AND id > :afterId)`
+ * and `ORDER BY time_ms, id`. Without the composite index, SQLite can fall
+ * back to a SCAN+sort plan (the same risk the domain-event cursor refactor
+ * addressed). The single-column `idx_location_sample_time` covers range
+ * filtering but cannot fully cover the `(time_ms, id)` ordering.
+ *
+ * R2 round-6 perf review priority 2.
+ */
+val MIGRATION_29_30: Migration = object : Migration(29, 30) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_location_sample_time_id " +
+				"ON location_sample(time_ms, id)",
+		)
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 29->30: Added composite (time_ms, id) index on location_sample",
+		)
+	}
+}

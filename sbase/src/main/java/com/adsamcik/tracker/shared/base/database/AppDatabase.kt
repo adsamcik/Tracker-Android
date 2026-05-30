@@ -85,7 +85,7 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 29,
+		version = 30,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -358,7 +358,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_25_26,
 				MIGRATION_26_27,
 				MIGRATION_27_28,
-				MIGRATION_28_29
+				MIGRATION_28_29,
+				MIGRATION_29_30
 				)
 		}
 

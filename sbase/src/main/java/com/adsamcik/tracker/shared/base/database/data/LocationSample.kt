@@ -14,6 +14,7 @@ import androidx.room.PrimaryKey
 	tableName = "location_sample",
 	indices = [
 		Index(value = ["time_ms"], name = "idx_location_sample_time"),
+		Index(value = ["time_ms", "id"], name = "idx_location_sample_time_id"),
 		Index(value = ["lat_e7", "lon_e7"], name = "idx_location_sample_coords"),
 		Index(value = ["bucket_id"], name = "idx_location_sample_bucket")
 	]

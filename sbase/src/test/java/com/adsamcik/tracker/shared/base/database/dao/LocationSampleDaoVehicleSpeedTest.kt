@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import android.app.Application
+import android.database.Cursor
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -165,6 +166,89 @@ class LocationSampleDaoVehicleSpeedTest {
 		rows.shouldBeEmpty()
 	}
 
+	// region (time_ms, id) composite index planner regression
+	// Guards against the SQLite planner regressing the driving-chunk seek query
+	// off the composite `idx_location_sample_time_id` index (added in v30
+	// in response to R2 round-6 perf review). With a single-column time index
+	// alone, the (time_ms = ? AND id > ?) cursor clause cannot be a full
+	// index seek and SQLite may fall back to a SCAN+sort plan over location_sample.
+
+	@Test
+	fun `driving chunk seek plans as SEARCH not SCAN on location_sample`() = runTest {
+		// Populate with enough rows that the planner actually considers indexes.
+		// SQLite will prefer SCAN over very small tables.
+		insertSegment(0L, Long.MAX_VALUE, DetectedActivity.IN_VEHICLE.value)
+		val rows = buildList(PLAN_PROBE_ROW_COUNT) {
+			repeat(PLAN_PROBE_ROW_COUNT) { idx ->
+				add(createSample(timeMs = (idx + 1) * 100L))
+			}
+		}
+		rows.forEach { sampleDao.insert(it) }
+
+		// Replicate the exact SQL Room generates for getDrivingChunkBetweenOrdered.
+		// If that @Query is reshaped into a form SQLite cannot index-seek (e.g. a
+		// more complex OR, or an unindexed expression on ls.time_ms), this fires.
+		val explainSql = """
+			EXPLAIN QUERY PLAN
+			SELECT ls.time_ms AS time_ms,
+			       ls.id AS id,
+			       ls.lat_e7 AS lat_e7,
+			       ls.lon_e7 AS lon_e7,
+			       ls.speed_mps AS speed_mps
+			FROM location_sample ls
+			INNER JOIN session_segment ss
+				ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
+			WHERE ss.primary_activity IN (?)
+				AND ls.lat_e7 IS NOT NULL
+				AND ls.lon_e7 IS NOT NULL
+				AND ls.speed_mps IS NOT NULL
+				AND ls.time_ms >= ?
+				AND ls.time_ms <= ?
+				AND (
+					? IS NULL
+					OR ls.time_ms > ?
+					OR (ls.time_ms = ? AND ls.id > COALESCE(?, 0))
+				)
+			ORDER BY ls.time_ms ASC, ls.id ASC
+			LIMIT ?
+		""".trimIndent()
+
+		val raw = database.openHelper.readableDatabase
+		val args = arrayOf<Any?>(
+			DetectedActivity.IN_VEHICLE.value,
+			0L,
+			Long.MAX_VALUE,
+			null,
+			0L,
+			0L,
+			null,
+			PLAN_PROBE_LIMIT,
+		)
+		val planLines = mutableListOf<String>()
+		raw.query(explainSql, args).use { cursor: Cursor ->
+			val detailColumn = cursor.getColumnIndexOrThrow("detail")
+			while (cursor.moveToNext()) {
+				planLines += cursor.getString(detailColumn)
+			}
+		}
+
+		check(planLines.isNotEmpty()) { "EXPLAIN QUERY PLAN returned no rows" }
+
+		// Hard regression guard: any SCAN of the location_sample table means the
+		// planner regressed off all indexes. (A SCAN of session_segment may be OK
+		// at small sizes — only the location_sample side carries the perf risk
+		// because location_sample dominates row count in production.)
+		val scanOfTable = planLines.filter { line ->
+			line.contains("SCAN") && line.contains("location_sample") &&
+				!line.contains("USING INDEX") && !line.contains("USING COVERING INDEX")
+		}
+		check(scanOfTable.isEmpty()) {
+			"Query plan regressed to SCAN of location_sample:\n${planLines.joinToString("\n")}"
+		}
+	}
+
+	// endregion (time_ms, id) composite index planner regression
+
 	private fun createSample(
 		timeMs: Long,
 		latE7: Int? = 500_000_000,
@@ -214,5 +298,7 @@ class LocationSampleDaoVehicleSpeedTest {
 		val DRIVING_ACTIVITIES = listOf(
 			DetectedActivity.IN_VEHICLE.value,
 		)
+		const val PLAN_PROBE_ROW_COUNT = 64
+		const val PLAN_PROBE_LIMIT = 32
 	}
 }
