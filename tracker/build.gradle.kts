@@ -49,8 +49,21 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			isMinifyEnabled = true
-			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+			// Library-level R8 is intentionally DISABLED. The app module runs R8 over
+			// the entire classpath (app + every library) with full visibility, which
+			// shrinks more aggressively than per-library R8 ever could and avoids
+			// the consumer-rules.pro coverage trap (where a library's R8 strips an
+			// "internal" class that the app actually references via Hilt/DI/reflection).
+			//
+			// R2 round-6 perf review (P3): re-enabling library R8 here previously
+			// forced `app/proguard-rules.pro` to keep `com.adsamcik.tracker.**`
+			// wholesale, disabling shrinking for 14 modules. Leave this OFF unless
+			// you also fully enumerate the public API surface in `consumer-rules.pro`
+			// AND verify with `:app:minifyReleaseWithR8` that no missing-class
+			// errors appear. The narrow keeps that DO matter for tracker reflection
+			// (notification component class names, Hilt entry points) are already
+			// propagated via `consumer-rules.pro`.
+			isMinifyEnabled = false
 		}
 	}
 

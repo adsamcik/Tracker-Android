@@ -16,7 +16,35 @@
 #   public *;
 #}
 
--keep class com.adsamcik.tracker.**
+# R2 round-6 perf review (P3): the previous catch-all `-keep class com.adsamcik.tracker.**`
+# disabled tree-shaking + obfuscation for the entire app and ballooned the release APK.
+# It has been removed in favour of the narrow, explicit keep rules below. The components
+# that ACTUALLY require keeping are covered by:
+#
+#   * AndroidManifest entries (Application, Activities, Receivers, Services, ContentProviders)
+#     — aapt auto-generates `-keep` rules for every manifest-declared class. This covers
+#     `MainActivityCompose`, `BootReceiver`, the Glance widget receivers, etc.
+#   * Hilt's bundled R8 rules (see hilt-android AAR `proguard.txt`) cover generated
+#     components and `@HiltAndroidApp` / `@AndroidEntryPoint` / `@HiltViewModel`
+#     classes, plus `@EntryPoint` / `@InstallIn` interfaces with `allowobfuscation,
+#     allowshrinking` — class literals get rewritten alongside obfuscation.
+#   * Moshi + kotlinx-serialization rules (below) already keep `@JsonClass`-generated
+#     adapters and `@Serializable` companions / serializers.
+#   * Navigation routes are explicitly kept (see kotlinx-serialization section).
+#
+# The only Tracker-Android reflection paths we found in `app/src/main` are safe under
+# obfuscation: `ModuleInitializerCoordinator` reads `KClass.qualifiedName` purely for
+# deterministic sorting; the value is never used as a class lookup key. If a future
+# change introduces reflection-by-name (e.g. `Class.forName`, `getDeclaredMethod`), add
+# a NARROW keep next to it, not a global catch-all. The `release_nominify` build variant
+# exists for debugging suspected R8 stripping regressions without touching this file.
+#
+# As a safety net for any `@dagger.hilt.EntryPoint` interfaces declared on `app/`
+# classes (e.g. `BootReceiver.BootReceiverEntryPoint`, `TrackerWidgetEntryPoint`),
+# keep them explicitly — Hilt's bundled rules apply globally, this just makes the
+# contract obvious at the app level. `allowshrinking` keeps R8 free to remove unused
+# entry points; `allowobfuscation` keeps it free to rename them.
+-keep,allowshrinking,allowobfuscation @dagger.hilt.EntryPoint interface com.adsamcik.tracker.** { *; }
 
 # Keep stack traces useful for on-device crash logging (no Crashlytics — privacy rule).
 -keepattributes *Annotation*
