@@ -233,4 +233,80 @@ class TimelineContentComposeTest {
 		}
 		composeTestRule.onNodeWithText("Anomaly Trip").assertIsDisplayed()
 	}
+
+	// ─── Plural rendering for trip count ─────────────────────────────────
+	// Replaces the previous pre-formatted "${n} trips" string that produced
+	// "1 trips" on single-trip days. We verify each plural form is selected
+	// correctly from R.plurals.history_trip_count.
+
+	@Test
+	fun `day summary shows singular form for one trip`() {
+		val entries = listOf(
+			TimelineEntry.DaySummaryEntry(
+				epochDay = 19001L,
+				timestampMs = 1_700_000_100_000L,
+				dateLabel = "Tuesday, Nov 15",
+				distanceLabel = "1.0 km",
+				stepsLabel = "1,000 steps",
+				tripCount = 1,
+			),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TimelineContent(
+					state = TimelineState.Content(entries),
+					onTripClick = {},
+				)
+			}
+		}
+		// English plural for count=1 is "1 trip" (no s).
+		composeTestRule.onNodeWithText("1 trip").assertIsDisplayed()
+	}
+
+	@Test
+	fun `day summary shows plural form for zero trips`() {
+		val entries = listOf(
+			TimelineEntry.DaySummaryEntry(
+				epochDay = 19002L,
+				timestampMs = 1_700_000_200_000L,
+				dateLabel = "Wednesday, Nov 16",
+				distanceLabel = "0 m",
+				stepsLabel = "0 steps",
+				tripCount = 0,
+			),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TimelineContent(
+					state = TimelineState.Content(entries),
+					onTripClick = {},
+				)
+			}
+		}
+		// English plural for count=0 uses the "other" form: "0 trips".
+		composeTestRule.onNodeWithText("0 trips").assertIsDisplayed()
+	}
+
+	@Test
+	fun `day summary shows plural form for many trips`() {
+		val entries = listOf(
+			TimelineEntry.DaySummaryEntry(
+				epochDay = 19003L,
+				timestampMs = 1_700_000_300_000L,
+				dateLabel = "Thursday, Nov 17",
+				distanceLabel = "20 km",
+				stepsLabel = "25,000 steps",
+				tripCount = 12,
+			),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TimelineContent(
+					state = TimelineState.Content(entries),
+					onTripClick = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithText("12 trips").assertIsDisplayed()
+	}
 }
