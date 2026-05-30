@@ -1,12 +1,20 @@
 package com.adsamcik.tracker.statistics.ui
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -15,6 +23,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,9 +52,17 @@ import kotlinx.coroutines.launch
 /**
  * Entry composable for the History screen. Hosts a segmented button row
  * for tab selection and animated content for each tab.
+ *
+ * Wrapped in a [Scaffold] with a [TopAppBar] so the user always has a
+ * visible back affordance — History is hidden from the global floating
+ * navigation bar (see MainRoot.hideTopLevelNavigation), so without our
+ * own chrome the user would be stranded with only the system BACK
+ * gesture as an escape route.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryRoute(
+	onBack: () -> Unit = {},
 	onNavigateToTripDetail: (Long) -> Unit,
 	onNavigateToMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
 	modifier: Modifier = Modifier,
@@ -60,8 +78,33 @@ fun HistoryRoute(
 	val deletedMessage = stringResource(R.string.trip_deleted_snackbar)
 	val undoLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_undo)
 
-	Box(modifier = modifier.fillMaxSize()) {
-		Column(modifier = Modifier.fillMaxSize()) {
+	BackHandler(onBack = onBack)
+
+	Scaffold(
+		modifier = modifier.fillMaxSize(),
+		topBar = {
+			TopAppBar(
+				title = { Text(stringResource(R.string.history_screen_title)) },
+				navigationIcon = {
+					IconButton(onClick = onBack) {
+						Icon(
+							imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+							contentDescription = stringResource(R.string.action_navigate_back),
+						)
+					}
+				},
+				colors = TopAppBarDefaults.topAppBarColors(
+					containerColor = MaterialTheme.colorScheme.surface,
+				),
+			)
+		},
+		snackbarHost = { SnackbarHost(snackbarHostState) },
+	) { innerPadding ->
+		Column(
+			modifier = Modifier
+				.fillMaxSize()
+				.padding(innerPadding),
+		) {
 			HistoryTabRow(
 				selectedTab = selectedTab,
 				onTabSelected = viewModel::selectTab,
@@ -110,11 +153,6 @@ fun HistoryRoute(
 				}
 			}
 		}
-
-		SnackbarHost(
-			hostState = snackbarHostState,
-			modifier = Modifier.align(Alignment.BottomCenter),
-		)
 	}
 }
 

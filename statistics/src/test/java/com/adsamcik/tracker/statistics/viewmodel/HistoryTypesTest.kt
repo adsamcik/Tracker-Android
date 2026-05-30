@@ -74,7 +74,7 @@ class HistoryTypesTest {
 				dateLabel = "Mon, Jan 1",
 				distanceLabel = "5.0 km",
 				stepsLabel = "8000",
-				tripsLabel = "3 trips",
+				tripCount = 3,
 			)
 			entry.id shouldBe "day_19800"
 		}

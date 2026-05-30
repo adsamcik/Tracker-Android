@@ -7,7 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DownhillSkiing
 import androidx.compose.material.icons.filled.Flight
-import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.runtime.Immutable
@@ -56,7 +56,11 @@ sealed interface TimelineEntry {
 		val dateLabel: String,
 		val distanceLabel: String,
 		val stepsLabel: String,
-		val tripsLabel: String,
+		// Raw count so the UI layer can pick the right plural form via
+		// `pluralStringResource(R.plurals.history_trip_count, tripCount, tripCount)`.
+		// Previously this was a pre-formatted "${n} trips" string which produced
+		// the ungrammatical "1 trips" on single-trip days.
+		val tripCount: Int,
 	) : TimelineEntry {
 		override val id: String get() = "day_$epochDay"
 	}
@@ -141,7 +145,9 @@ internal fun activityIcon(activity: Int?): ImageVector = when (activity) {
 	in SessionActivityIds.AIR -> Icons.Filled.Flight
 	in SessionActivityIds.SLOPE_SPORTS -> Icons.Filled.DownhillSkiing
 	4 -> Icons.Filled.Train  // UNKNOWN used as transit placeholder
-	else -> Icons.Filled.QuestionMark
+	// Honest fallback: a route line is more descriptive than a question mark,
+	// and the user's screenshot showed the QuestionMark icon felt unfinished.
+	else -> Icons.Filled.Route
 }
 
 /**

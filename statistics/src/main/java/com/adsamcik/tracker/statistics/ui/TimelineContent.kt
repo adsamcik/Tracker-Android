@@ -198,7 +198,11 @@ private fun DaySummaryTimelineCard(
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
 				Text(
-					text = entry.tripsLabel,
+					text = androidx.compose.ui.res.pluralStringResource(
+						R.plurals.history_trip_count,
+						entry.tripCount,
+						entry.tripCount,
+					),
 					style = MaterialTheme.typography.bodySmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)

@@ -160,7 +160,7 @@ class HistoryPresenterViewModel @Inject constructor(
 							summary?.totalDistance?.raw ?: 0f,
 						),
 						stepsLabel = "${summary?.totalSteps?.raw ?: 0} steps",
-						tripsLabel = "${dayTrips.size} trips",
+						tripCount = dayTrips.size,
 					),
 				)
 

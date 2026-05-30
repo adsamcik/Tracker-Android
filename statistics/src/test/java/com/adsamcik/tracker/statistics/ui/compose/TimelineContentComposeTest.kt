@@ -123,7 +123,7 @@ class TimelineContentComposeTest {
 				dateLabel = "Monday, Nov 14",
 				distanceLabel = "5.2 km",
 				stepsLabel = "7,200 steps",
-				tripsLabel = "3 trips",
+				tripCount = 3,
 			),
 		)
 		composeTestRule.setContent {
@@ -178,7 +178,7 @@ class TimelineContentComposeTest {
 				dateLabel = "Summary Day",
 				distanceLabel = "10 km",
 				stepsLabel = "12k steps",
-				tripsLabel = "5 trips",
+				tripCount = 5,
 			),
 			TimelineEntry.TripEntry(
 				tripId = 1L,

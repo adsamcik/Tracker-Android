@@ -66,6 +66,7 @@ internal fun NavGraphBuilder.statsGraph(
 
     composable<History> {
         com.adsamcik.tracker.statistics.ui.HistoryRoute(
+            onBack = { navController.popBackStack() },
             onNavigateToTripDetail = { tripId ->
                 onSetTripDetailFallback(Stats)
                 navController.navigate(TripDetail(tripId)) {

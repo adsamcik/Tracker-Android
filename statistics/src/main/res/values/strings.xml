@@ -184,6 +184,11 @@
     <string name="history_tab_timeline">Timeline</string>
     <string name="history_tab_trips">Trips</string>
     <string name="history_tab_calendar">Calendar</string>
+    <string name="history_screen_title">History</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d trip</item>
+        <item quantity="other">%d trips</item>
+    </plurals>
 
     <!-- Timeline empty -->
     <string name="history_timeline_empty_title">No activity yet</string>
