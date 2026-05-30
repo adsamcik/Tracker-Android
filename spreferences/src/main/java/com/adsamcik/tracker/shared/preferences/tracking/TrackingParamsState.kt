@@ -17,12 +17,23 @@ data class TrackingParamsState(
     val requiredAccuracyMeters: Int = DEFAULT_REQUIRED_ACCURACY,
     val presetName: String = DEFAULT_PRESET,
     val skiDetectionEnabled: Boolean = false,
+    val vehicleSpeedLimitBaselineMps: Double = DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
 ) {
     companion object {
         const val DEFAULT_MIN_DISTANCE = 10
         const val DEFAULT_MIN_TIME = 2
         const val DEFAULT_REQUIRED_ACCURACY = 50
         const val DEFAULT_PRESET = "BALANCED"
+
+        /** Minimum user-configurable baseline speed limit in km/h. */
+        const val MIN_VEHICLE_SPEED_LIMIT_KMH = 30
+        /** Maximum user-configurable baseline speed limit in km/h. */
+        const val MAX_VEHICLE_SPEED_LIMIT_KMH = 130
+        /** Default baseline speed limit in km/h (50 km/h ≈ urban driving). */
+        const val DEFAULT_VEHICLE_SPEED_LIMIT_KMH = 50
+        /** Default baseline speed limit in m/s. */
+        const val DEFAULT_VEHICLE_SPEED_LIMIT_MPS: Double =
+            DEFAULT_VEHICLE_SPEED_LIMIT_KMH / 3.6
     }
 
     val preset: TrackingPreset

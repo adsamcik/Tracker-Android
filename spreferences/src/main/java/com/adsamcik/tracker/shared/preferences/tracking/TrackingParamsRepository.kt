@@ -25,4 +25,12 @@ interface TrackingParamsRepository {
     suspend fun setRequiredAccuracyMeters(meters: Int)
     suspend fun setPreset(preset: TrackingPreset)
     suspend fun setSkiDetectionEnabled(enabled: Boolean)
+
+    /**
+     * Set the user-configured baseline speed limit (m/s) used by the
+     * "Vehicle speed compliance" map layer to colour driving routes.
+     * Values are clamped to [TrackingParamsState.MIN_VEHICLE_SPEED_LIMIT_KMH,
+     * TrackingParamsState.MAX_VEHICLE_SPEED_LIMIT_KMH] converted to m/s.
+     */
+    suspend fun setVehicleSpeedLimitBaselineMps(mps: Double)
 }

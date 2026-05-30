@@ -33,6 +33,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setRequiredAccuracyMeters(PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT)
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
         .setSkiDetectionEnabled(PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT)
+        .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
         .setLegacyMigrated(false)
         .build()
 
@@ -95,6 +96,9 @@ class DefaultTrackingParamsRepository(
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
     override suspend fun setSkiDetectionEnabled(enabled: Boolean) = updateField { setSkiDetectionEnabled(enabled) }
+    override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) = updateField {
+        setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
+    }
 
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
         withContext(io) {
@@ -174,6 +178,7 @@ class DefaultTrackingParamsRepository(
                     .setRequiredAccuracyMeters(requiredAccuracy)
                     .setPresetName(preset)
                     .setSkiDetectionEnabled(skiDetectionEnabled)
+                    .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
                     .setLegacyMigrated(true)
                     .build()
             }
@@ -208,6 +213,10 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         requiredAccuracyMeters = requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
         presetName = TrackingPreset.fromName(presetName).name,
         skiDetectionEnabled = skiDetectionEnabled,
+        vehicleSpeedLimitBaselineMps = vehicleSpeedLimitBaselineMps
+            .takeIf { it > 0.0 }
+            ?.clampVehicleSpeedLimit()
+            ?: TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
     )
 }
 
@@ -228,5 +237,12 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setRequiredAccuracyMeters(requiredAccuracyMeters)
         .setPresetName(presetName)
         .setSkiDetectionEnabled(skiDetectionEnabled)
+        .setVehicleSpeedLimitBaselineMps(vehicleSpeedLimitBaselineMps.clampVehicleSpeedLimit())
         .setLegacyMigrated(true)
         .build()
+
+private fun Double.clampVehicleSpeedLimit(): Double {
+    val minMps = TrackingParamsState.MIN_VEHICLE_SPEED_LIMIT_KMH / 3.6
+    val maxMps = TrackingParamsState.MAX_VEHICLE_SPEED_LIMIT_KMH / 3.6
+    return coerceIn(minMps, maxMps)
+}

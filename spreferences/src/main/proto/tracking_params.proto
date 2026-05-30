@@ -36,6 +36,11 @@ message TrackingParamsProto {
   // Ski detection
   bool ski_detection_enabled = 15;
 
+  // Vehicle speed compliance baseline (m/s).
+  // Used by the "Vehicle speed compliance" map layer to colour driving routes.
+  // 0 means "use default" (50 km/h).
+  double vehicle_speed_limit_baseline_mps = 16;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }
