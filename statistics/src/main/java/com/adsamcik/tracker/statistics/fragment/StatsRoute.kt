@@ -13,8 +13,6 @@ import androidx.paging.LoadState
 import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
-import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
-import com.adsamcik.tracker.statistics.ui.compose.WifiStatsDialog
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -29,25 +27,22 @@ fun StatsRoute(
     onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
     onNavigateToHistory: () -> Unit = {},
     onNavigateToTracker: () -> Unit = {},
+    onNavigateToSummary: () -> Unit = {},
+    onNavigateToWifiStats: () -> Unit = {},
 ) {
     val vm: StatsPresenterViewModel = hiltViewModel()
     val context = LocalContext.current
     val pagingItems = vm.tripsFlow.collectAsLazyPagingItems()
 
-    // Dialog state management
-    var showSummaryDialog by remember { mutableStateOf(false) }
-    var showWifiDialog by remember { mutableStateOf(false) }
+    // Date range remains a dialog because it's a tool that filters this very
+    // screen; Summary and Wi-Fi stats are destination content and are now
+    // dedicated routes (see SummaryRoute / WifiStatsRoute).
     var showDateRangeDialog by remember { mutableStateOf(false) }
 
-    // Collect statistics state from ViewModel
-    val summaryStatsState by vm.summaryStatsState.collectAsState()
-    val wifiStatsState by vm.wifiStatsState.collectAsState()
     val weeklyBars by vm.weeklyBars.collectAsState()
     val heatmapData by vm.heatmapData.collectAsState()
     val activeDateFilter by vm.activeDateFilter.collectAsState()
     val selectedDateRange = activeDateFilter?.let { formatDateRange(it.startMs, it.endMs) }
-    // Only Dates is a persistent filter and should reflect selected state; Summary/Wi-Fi are one-shot
-    // dialog launchers and must not look permanently activated when they're idle.
     val selectedHeaderAction: StatsHeaderAction? = when {
         showDateRangeDialog || activeDateFilter != null -> StatsHeaderAction.Dates
         else -> null
@@ -69,15 +64,9 @@ fun StatsRoute(
         appendState = appendState,
         sessions = pagingItems,
         onRetry = { pagingItems.retry() },
-        onShowSummary = {
-            vm.loadSummaryStats()
-            showSummaryDialog = true
-        },
+        onShowSummary = onNavigateToSummary,
         onShowWeek = { showDateRangeDialog = true },
-        onOpenWifi = {
-            vm.loadWifiStats()
-            showWifiDialog = true
-        },
+        onOpenWifi = onNavigateToWifiStats,
         onNavigateToHistory = onNavigateToHistory,
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
@@ -91,23 +80,6 @@ fun StatsRoute(
         },
         onStartTracking = onNavigateToTracker,
     )
-
-    // Show dialogs when state is true
-    if (showSummaryDialog) {
-        SummaryDialog(
-            visible = showSummaryDialog,
-            state = summaryStatsState,
-            onDismiss = { showSummaryDialog = false }
-        )
-    }
-
-    if (showWifiDialog) {
-        WifiStatsDialog(
-            visible = showWifiDialog,
-            state = wifiStatsState,
-            onDismiss = { showWifiDialog = false }
-        )
-    }
 
     if (showDateRangeDialog) {
         com.adsamcik.tracker.statistics.ui.compose.StatsDateRangeDialog(

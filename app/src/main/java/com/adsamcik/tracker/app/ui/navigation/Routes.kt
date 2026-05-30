@@ -18,6 +18,12 @@ data object Setup : AppRoute
 data object Stats : AppRoute
 
 @Serializable
+data object StatsSummary : AppRoute
+
+@Serializable
+data object StatsWifi : AppRoute
+
+@Serializable
 data object Map : AppRoute
 
 @Serializable

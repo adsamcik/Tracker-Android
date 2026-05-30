@@ -39,6 +39,28 @@ internal fun NavGraphBuilder.statsGraph(
                     restoreState = true
                 }
             },
+            onNavigateToSummary = {
+                navController.navigate(StatsSummary) {
+                    launchSingleTop = true
+                }
+            },
+            onNavigateToWifiStats = {
+                navController.navigate(StatsWifi) {
+                    launchSingleTop = true
+                }
+            },
+        )
+    }
+
+    composable<StatsSummary> {
+        com.adsamcik.tracker.statistics.ui.SummaryRoute(
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable<StatsWifi> {
+        com.adsamcik.tracker.statistics.ui.WifiStatsRoute(
+            onBack = { navController.popBackStack() },
         )
     }
 
