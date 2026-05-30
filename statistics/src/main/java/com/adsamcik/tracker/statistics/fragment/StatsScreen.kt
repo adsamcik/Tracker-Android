@@ -88,10 +88,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
-import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.shared.utils.style.compose.bottomNavSafeClearance
+import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.ui.compose.CalendarHeatmap
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
@@ -145,17 +145,11 @@ fun StatsScreen(
     sessions: LazyPagingItems<Trip>? = null,
 ){
     val navigationLayout = rememberMainNavigationLayout()
-    // MainRoot.kt:316 reserves `96.dp + navBarInset` at the NavHost level for the
-    // floating navigation bar. The pill itself is 80dp tall + 12dp top breathing
-    // padding = 92dp of visible bottom area. The remaining 4dp residual sits at
-    // the bottom of the NavHost. The `windowInsetsPadding(safeDrawing)` below
-    // handles the system nav inset.
-    //
-    // Previously this screen added `AppDimensions.FloatingNavBarClearance` (120dp),
-    // double-counting the NavHost-level reservation. Now we add a 28dp visual
-    // margin so the last list item has clear breathing room above the pill's
-    // haze/border instead of being clipped behind it.
-    val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) 24.dp else 28.dp
+    // The outer Column below consumes `WindowInsets.safeDrawing` in full, so the
+    // LazyColumn inside `ContentState` no longer sees the system bottom inset.
+    // Passing `0.dp` here keeps the visual output identical to the pre-helper
+    // version while we await the safeDrawing-consumption refactor.
+    val bottomClearance = bottomNavSafeClearance(navigationLayout, 0.dp)
     Column(
         modifier = Modifier
             .fillMaxSize()

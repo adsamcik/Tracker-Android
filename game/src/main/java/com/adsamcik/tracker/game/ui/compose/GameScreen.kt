@@ -50,9 +50,9 @@ import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSectionHeader
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
+import com.adsamcik.tracker.shared.utils.style.compose.bottomNavSafeClearance
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import java.text.NumberFormat
 
@@ -84,24 +84,7 @@ fun GameScreen(
 	val horizontalInsetEnd = safeDrawingPadding.calculateEndPadding(layoutDirection)
 	val safeBottomPadding = safeDrawingPadding.calculateBottomPadding()
 	val navigationLayout = rememberMainNavigationLayout()
-	// MainRoot.kt:316 reserves `96.dp + navBarInset` at the NavHost level for the
-	// floating navigation bar. The pill itself is 80dp tall + 12dp top breathing
-	// padding = 92dp of visible bottom area (plus the system nav inset). The
-	// remaining 4dp residual sits at the bottom of the NavHost.
-	//
-	// Previously this screen added `AppDimensions.FloatingNavBarClearance` (120dp)
-	// + system insets on top, triple-counting and producing ~248dp of dead space
-	// below the last item. Now we only add a 28dp visual margin so the last item
-	// (e.g. the tier-badge label row on the achievement card) has clear breathing
-	// room above the pill's haze/border instead of being clipped behind it.
-	//
-	// SideRail layout has no floating bottom nav (rail is on the side), so MainRoot
-	// doesn't reserve anything; we handle the system inset ourselves here.
-	val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) {
-		safeBottomPadding + 24.dp
-	} else {
-		28.dp
-	}
+	val bottomClearance = bottomNavSafeClearance(navigationLayout, safeBottomPadding)
 	Scaffold(
 		modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
 		topBar = {
