@@ -1,9 +1,28 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import kotlinx.coroutines.flow.Flow
+
+/**
+ * Compact projection of a [LocationSample] joined to its driving session segment.
+ * Used by the vehicle speed compliance map layer; carries only the columns needed
+ * for plotting and bucket classification.
+ */
+data class VehicleSpeedSampleRow(
+	@ColumnInfo(name = "time_ms")
+	val timeMs: Long,
+	@ColumnInfo(name = "id")
+	val id: Long,
+	@ColumnInfo(name = "lat_e7")
+	val latE7: Int,
+	@ColumnInfo(name = "lon_e7")
+	val lonE7: Int,
+	@ColumnInfo(name = "speed_mps")
+	val speedMps: Float,
+)
 
 /**
  * DAO for accessing location_sample table.
@@ -40,6 +59,49 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		afterId: Long?,
 		limit: Int,
 	): List<LocationSample>
+
+	/**
+	 * Get the next ordered chunk of location samples within a time range that fall
+	 * inside a driving session segment, filtered to samples with coordinates and
+	 * a known speed. Used by the vehicle speed compliance map layer.
+	 *
+	 * Uses (time_ms, id) as a stable cursor (identical to [getChunkBetweenOrdered])
+	 * and INNER JOINs `session_segment` so the planner can use the segment time
+	 * range and primary_activity indexes.
+	 */
+	@Query(
+		"""
+		SELECT ls.time_ms AS time_ms,
+		       ls.id AS id,
+		       ls.lat_e7 AS lat_e7,
+		       ls.lon_e7 AS lon_e7,
+		       ls.speed_mps AS speed_mps
+		FROM location_sample ls
+		INNER JOIN session_segment ss
+			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
+		WHERE ss.primary_activity IN (:drivingActivities)
+			AND ls.lat_e7 IS NOT NULL
+			AND ls.lon_e7 IS NOT NULL
+			AND ls.speed_mps IS NOT NULL
+			AND ls.time_ms >= :fromMs
+			AND ls.time_ms <= :toMs
+			AND (
+				:afterTimeMs IS NULL
+				OR ls.time_ms > :afterTimeMs
+				OR (ls.time_ms = :afterTimeMs AND ls.id > COALESCE(:afterId, 0))
+			)
+		ORDER BY ls.time_ms ASC, ls.id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getDrivingChunkBetweenOrdered(
+		fromMs: Long,
+		toMs: Long,
+		drivingActivities: List<Int>,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		limit: Int,
+	): List<VehicleSpeedSampleRow>
 
 	/**
 	 * Get location samples within time range as Flow.
