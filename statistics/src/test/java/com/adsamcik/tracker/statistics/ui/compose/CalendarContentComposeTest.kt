@@ -3,9 +3,11 @@ package com.adsamcik.tracker.statistics.ui.compose
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToKey
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.statistics.ui.CalendarContent
@@ -195,7 +197,11 @@ class CalendarContentComposeTest {
 				)
 			}
 		}
-		// The trip card shows "Walk at HH:mm" format
+		// The trip card lives in a LazyColumn below a summary card. In the
+		// constrained Robolectric viewport the trip item is initially out of
+		// the composed range, so scroll the day-detail LazyColumn to the trip
+		// (keyed by trip id) before clicking. The card shows "Walk at HH:mm".
+		composeTestRule.onNode(hasScrollAction()).performScrollToKey(99L)
 		composeTestRule.onNodeWithText("Walk at", substring = true).performClick()
 		assert(navigatedTripId == 99L) { "Expected trip id 99 but got $navigatedTripId" }
 	}
