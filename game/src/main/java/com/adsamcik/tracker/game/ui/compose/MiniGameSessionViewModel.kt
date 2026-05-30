@@ -106,6 +106,23 @@ class MiniGameSessionViewModel @Inject constructor(
 	private var collectionJob: Job? = null
 
 	/**
+	 * `0L` while the session is actively running; otherwise the timestamp at
+	 * which the host activity stopped being visible. Used by [resume] to decide
+	 * between re-subscribing to location updates and auto-finalising the session
+	 * after [AUTO_END_AFTER_PAUSE_MS] of inactivity.
+	 */
+	@Volatile
+	private var pausedAtMs: Long = 0L
+
+	/**
+	 * Accumulated milliseconds spent paused across the lifetime of the current
+	 * session. Subtracted from wall-clock elapsed so the on-screen timer reflects
+	 * actual play time, not real time.
+	 */
+	@Volatile
+	private var totalPausedMs: Long = 0L
+
+	/**
 	 * Guards [stop]'s finalize path so concurrent callers (Stop button + lifecycle
 	 * teardown + auto-end) cannot each persist their own score row. Cleared by
 	 * [reset] so the next session can finalize once.
@@ -137,6 +154,10 @@ class MiniGameSessionViewModel @Inject constructor(
 		// Reset the one-shot finalize latch so this fresh session can persist
 		// exactly once when the player taps Stop (or auto-ends).
 		hasFinalized.set(false)
+		// Reset pause bookkeeping for the fresh session so the elapsed clock
+		// starts at zero and any stale paused-at timestamp is discarded.
+		pausedAtMs = 0L
+		totalPausedMs = 0L
 
 		// Begin fresh elapsed clock.
 		sessionStartedAtMs = Time.nowMillis
@@ -149,6 +170,19 @@ class MiniGameSessionViewModel @Inject constructor(
 			elapsedMs = 0L,
 		)
 
+		startCollection()
+	}
+
+	/**
+	 * Subscribe to the location source and forward each sample into the active
+	 * session, emitting an updated [MiniGameUiState.Active] frame on every fix.
+	 *
+	 * Extracted so [start] and [resume] can share identical collection logic
+	 * without re-emitting the initial Active frame from [start] (which would
+	 * spuriously reset the on-screen score the moment the user backgrounds and
+	 * returns to the app).
+	 */
+	private fun startCollection() {
 		collectionJob = viewModelScope.launch {
 			try {
 				locationSource.samples(game.desiredLocationRequest()).collect { sample ->
@@ -163,7 +197,7 @@ class MiniGameSessionViewModel @Inject constructor(
 						score = session.score,
 						state = session.state,
 						statusText = session.statusText,
-						elapsedMs = (Time.nowMillis - sessionStartedAtMs).coerceAtLeast(0L),
+						elapsedMs = currentElapsedMs(),
 					)
 				}
 			} catch (cancellation: CancellationException) {
@@ -181,6 +215,63 @@ class MiniGameSessionViewModel @Inject constructor(
 					throw error
 				}
 			}
+		}
+	}
+
+	/**
+	 * Compute the player-facing elapsed time, subtracting any pause intervals
+	 * (both already-accumulated and a currently in-flight pause) so the clock
+	 * reflects actual play time rather than wall-clock time.
+	 */
+	private fun currentElapsedMs(): Long {
+		val pausedAt = pausedAtMs
+		val inFlightPauseMs = if (pausedAt > 0L) Time.nowMillis - pausedAt else 0L
+		return (Time.nowMillis - sessionStartedAtMs - totalPausedMs - inFlightPauseMs)
+			.coerceAtLeast(0L)
+	}
+
+	/**
+	 * Suspend the active session: cancel the location subscription to release
+	 * the FusedLocationProviderClient (and the radio) while the screen is not
+	 * visible, and record the pause start so [resume] can either keep playing
+	 * or auto-finalise after [AUTO_END_AFTER_PAUSE_MS]. The UI state stays
+	 * [MiniGameUiState.Active] — the user has not stopped, just stepped away —
+	 * so when they come back within the window they pick up where they left off.
+	 *
+	 * Safe to call from any UI lifecycle event; a no-op when the session is not
+	 * currently running.
+	 */
+	fun pause() {
+		if (_uiState.value !is MiniGameUiState.Active) return
+		if (pausedAtMs > 0L) return
+		pausedAtMs = Time.nowMillis
+		collectionJob?.cancel()
+		collectionJob = null
+	}
+
+	/**
+	 * Reverse of [pause]. Two outcomes depending on how long the screen was
+	 * hidden:
+	 *  - within [AUTO_END_AFTER_PAUSE_MS]: re-subscribe to location updates and
+	 *    add the pause interval to [totalPausedMs] so the elapsed timer is not
+	 *    inflated.
+	 *  - beyond that window: call [stop] to finalise the session automatically
+	 *    so we do not silently bill the player for a five-hour idle session.
+	 *
+	 * A no-op when the session was not paused.
+	 */
+	fun resume() {
+		val pausedAt = pausedAtMs
+		if (pausedAt <= 0L) return
+		val pauseDurationMs = Time.nowMillis - pausedAt
+		pausedAtMs = 0L
+		if (pauseDurationMs > AUTO_END_AFTER_PAUSE_MS) {
+			stop()
+			return
+		}
+		totalPausedMs += pauseDurationMs.coerceAtLeast(0L)
+		if (_uiState.value is MiniGameUiState.Active && collectionJob?.isActive != true) {
+			startCollection()
 		}
 	}
 
@@ -207,6 +298,9 @@ class MiniGameSessionViewModel @Inject constructor(
 
 		collectionJob?.cancel()
 		collectionJob = null
+		// Drop any in-flight pause bookkeeping so a follow-up resume() cannot
+		// accidentally re-subscribe to the location source on a finished session.
+		pausedAtMs = 0L
 
 		if (!wasActive) {
 			// User stopped before any frame ever arrived — just go back to Idle UX
@@ -257,6 +351,8 @@ class MiniGameSessionViewModel @Inject constructor(
 		collectionJob = null
 		session = game.createSession()
 		sessionStartedAtMs = 0L
+		pausedAtMs = 0L
+		totalPausedMs = 0L
 		hasFinalized.set(false)
 		_uiState.value = MiniGameUiState.Idle
 	}
@@ -282,5 +378,15 @@ class MiniGameSessionViewModel @Inject constructor(
 		collectionJob?.cancel()
 		collectionJob = null
 		super.onCleared()
+	}
+
+	companion object {
+		/**
+		 * If a session is paused longer than this window, [resume] will auto-end
+		 * the session instead of resuming. Prevents silent multi-hour idle
+		 * sessions from being credited as a single long run when the user simply
+		 * forgot the screen was open.
+		 */
+		const val AUTO_END_AFTER_PAUSE_MS: Long = 5L * 60L * 1000L
 	}
 }

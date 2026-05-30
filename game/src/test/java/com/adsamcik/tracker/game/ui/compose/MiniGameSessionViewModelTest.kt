@@ -13,6 +13,7 @@ import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.repository.PlayerProfileUi
 import com.adsamcik.tracker.game.repository.StepsSummaryData
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.testing.TestDispatchersProvider
@@ -20,6 +21,9 @@ import com.google.android.gms.location.LocationRequest
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -212,6 +216,114 @@ class MiniGameSessionViewModelTest {
 		vm.onPermissionResult(false)
 		advanceUntilIdle()
 		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.PermissionNeeded>()
+	}
+
+	@Test
+	fun pause_whileActive_cancelsLocationSubscriptionAndStaysActive() = runTest(dispatcher) {
+		grantLocationPermission()
+		val vm = newViewModel()
+
+		vm.start()
+		advanceUntilIdle()
+		locationSource.emit(SAMPLE)
+		advanceUntilIdle()
+		locationSource.subscribers shouldBe 1
+
+		vm.pause()
+		advanceUntilIdle()
+
+		locationSource.subscribers shouldBe 0
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
+		scoreDao.inserted.shouldHaveSize(0)
+		gameRepository.creditedXp.shouldHaveSize(0)
+	}
+
+	@Test
+	fun resume_withinFiveMinutes_resubscribesAndKeepsSession() = runTest(dispatcher) {
+		grantLocationPermission()
+		mockkObject(Time)
+		try {
+			every { Time.nowMillis } returns 1_000L
+			val vm = newViewModel()
+			vm.start()
+			advanceUntilIdle()
+			locationSource.emit(SAMPLE)
+			advanceUntilIdle()
+
+			every { Time.nowMillis } returns 10_000L
+			vm.pause()
+			advanceUntilIdle()
+			locationSource.subscribers shouldBe 0
+
+			// Resume 60 seconds later — well within the 5-minute window.
+			every { Time.nowMillis } returns 70_000L
+			vm.resume()
+			advanceUntilIdle()
+
+			locationSource.subscribers shouldBe 1
+			vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
+			scoreDao.inserted.shouldHaveSize(0)
+			gameRepository.creditedXp.shouldHaveSize(0)
+		} finally {
+			unmockkObject(Time)
+		}
+	}
+
+	@Test
+	fun resume_afterFiveMinutes_autoFinalizesSession() = runTest(dispatcher) {
+		grantLocationPermission()
+		mockkObject(Time)
+		try {
+			every { Time.nowMillis } returns 1_000L
+			val vm = newViewModel()
+			vm.start()
+			advanceUntilIdle()
+			locationSource.emit(SAMPLE)
+			advanceUntilIdle()
+
+			every { Time.nowMillis } returns 10_000L
+			vm.pause()
+			advanceUntilIdle()
+
+			// Resume 6 minutes (360_000 ms) after pause — beyond the 5-min window.
+			every { Time.nowMillis } returns 10_000L + 6L * 60L * 1000L
+			vm.resume()
+			advanceUntilIdle()
+
+			locationSource.subscribers shouldBe 0
+			val finished = vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
+			finished.finalScore shouldBe SAMPLE.speedMps.toDouble()
+			scoreDao.inserted shouldHaveSize 1
+			gameRepository.creditedXp shouldHaveSize 1
+		} finally {
+			unmockkObject(Time)
+		}
+	}
+
+	@Test
+	fun pause_withoutActiveSession_isNoop() = runTest(dispatcher) {
+		val vm = newViewModel()
+
+		vm.pause()
+		advanceUntilIdle()
+
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
+		locationSource.subscribers shouldBe 0
+	}
+
+	@Test
+	fun resume_withoutPriorPause_isNoop() = runTest(dispatcher) {
+		grantLocationPermission()
+		val vm = newViewModel()
+		vm.start()
+		advanceUntilIdle()
+		val priorSubscribers = locationSource.subscribers
+
+		vm.resume()
+		advanceUntilIdle()
+
+		locationSource.subscribers shouldBe priorSubscribers
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
 	}
 
 	private fun newViewModel(): MiniGameSessionViewModel = MiniGameSessionViewModel(

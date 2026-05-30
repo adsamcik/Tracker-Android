@@ -55,6 +55,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.minigame.MiniGameState
@@ -76,6 +79,12 @@ import kotlin.math.roundToInt
  *  - Pressing the close button returns to the previous destination.
  *
  * Lifecycle wiring:
+ *  - A [LifecycleEventObserver] forwards `ON_STOP` to [MiniGameSessionViewModel.pause]
+ *    so the GPS subscription is released as soon as the screen leaves the
+ *    foreground (battery + radio cost). `ON_START` calls
+ *    [MiniGameSessionViewModel.resume], which either re-subscribes or auto-ends
+ *    the session if the player was away longer than
+ *    [MiniGameSessionViewModel.AUTO_END_AFTER_PAUSE_MS].
  *  - [DisposableEffect] guarantees the session stops (and persists score + XP)
  *    when the user navigates away even without tapping the Stop button.
  */
@@ -87,9 +96,21 @@ fun MiniGameSessionRoute(
 ) {
 	val vm: MiniGameSessionViewModel = hiltViewModel()
 	val uiState by vm.uiState.collectAsStateWithLifecycle()
+	val lifecycleOwner = LocalLifecycleOwner.current
 
-	DisposableEffect(vm) {
-		onDispose { vm.stop() }
+	DisposableEffect(lifecycleOwner, vm) {
+		val observer = LifecycleEventObserver { _, event ->
+			when (event) {
+				Lifecycle.Event.ON_STOP -> vm.pause()
+				Lifecycle.Event.ON_START -> vm.resume()
+				else -> Unit
+			}
+		}
+		lifecycleOwner.lifecycle.addObserver(observer)
+		onDispose {
+			lifecycleOwner.lifecycle.removeObserver(observer)
+			vm.stop()
+		}
 	}
 
 	Scaffold(
@@ -286,8 +307,11 @@ private fun ActivePanel(
 				horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
 				verticalAlignment = Alignment.CenterVertically,
 			) {
+				val totalSeconds = (state.elapsedMs / 1000L).coerceAtLeast(0L)
+				val minutes = (totalSeconds / 60L).toInt()
+				val seconds = (totalSeconds % 60L).toInt()
 				Text(
-					text = formatElapsed(state.elapsedMs),
+					text = stringResource(R.string.minigame_session_elapsed_format, minutes, seconds),
 					style = MaterialTheme.typography.titleSmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
@@ -389,11 +413,4 @@ private fun stateColor(state: MiniGameState): Color = when (state) {
 	MiniGameState.RUNNING -> MaterialTheme.colorScheme.primary
 	MiniGameState.WARNING -> MaterialTheme.colorScheme.error
 	MiniGameState.FINISHED -> MaterialTheme.colorScheme.tertiary
-}
-
-private fun formatElapsed(elapsedMs: Long): String {
-	val totalSeconds = (elapsedMs / 1000L).coerceAtLeast(0L)
-	val minutes = totalSeconds / 60L
-	val seconds = totalSeconds % 60L
-	return "%d:%02d".format(minutes, seconds)
 }
