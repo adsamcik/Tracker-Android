@@ -37,6 +37,12 @@ data class MapTripContext(
 data object Game : AppRoute
 
 @Serializable
+data class MiniGameSession(val gameId: String) : AppRoute
+
+@Serializable
+data object MiniGameScores : AppRoute
+
+@Serializable
 data object Achievements : AppRoute
 
 @Serializable

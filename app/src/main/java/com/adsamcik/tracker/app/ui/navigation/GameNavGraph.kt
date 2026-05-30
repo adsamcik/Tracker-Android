@@ -4,6 +4,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 
 internal fun NavGraphBuilder.gameGraph(
 	navController: NavHostController,
@@ -22,6 +23,12 @@ internal fun NavGraphBuilder.gameGraph(
 					restoreState = true
 				}
 			},
+			onPlayMiniGame = { gameId ->
+				navController.navigate(MiniGameSession(gameId)) { launchSingleTop = true }
+			},
+			onViewMiniGameScores = {
+				navController.navigate(MiniGameScores) { launchSingleTop = true }
+			},
 		)
 	}
 
@@ -30,4 +37,22 @@ internal fun NavGraphBuilder.gameGraph(
 			onBack = { navController.popBackStack() },
 		)
 	}
+
+	composable<MiniGameSession> { entry ->
+		// SavedStateHandle on the entry's ViewModel is auto-populated from
+		// the typed nav arguments, so the MiniGameSessionViewModel can read
+		// "gameId" without any glue here.
+		@Suppress("UNUSED_VARIABLE")
+		val args = entry.toRoute<MiniGameSession>()
+		com.adsamcik.tracker.game.ui.compose.MiniGameSessionRoute(
+			onClose = { navController.popBackStack() },
+		)
+	}
+
+	composable<MiniGameScores> {
+		com.adsamcik.tracker.game.ui.compose.MiniGameScoresRoute(
+			onBack = { navController.popBackStack() },
+		)
+	}
 }
+

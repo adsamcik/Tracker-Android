@@ -63,6 +63,8 @@ import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.MapTripContext
 import com.adsamcik.tracker.app.ui.navigation.Game
+import com.adsamcik.tracker.app.ui.navigation.MiniGameScores
+import com.adsamcik.tracker.app.ui.navigation.MiniGameSession
 import com.adsamcik.tracker.app.ui.navigation.Achievements
 import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.History
@@ -301,7 +303,9 @@ fun MainRoot(
                 destination.hasRoute<ActivitySettings>() ||
                 destination.hasRoute<TripDetail>() ||
                 destination.hasRoute<History>() ||
-                destination.hasRoute<Achievements>()
+                destination.hasRoute<Achievements>() ||
+                destination.hasRoute<MiniGameSession>() ||
+                destination.hasRoute<MiniGameScores>()
     } == true
     val effectiveRouteObj = currentRouteObj ?: navItems.find { it.id == lastTopLevelRoute }
     val isDashboard = effectiveRouteObj?.id == Dashboard
