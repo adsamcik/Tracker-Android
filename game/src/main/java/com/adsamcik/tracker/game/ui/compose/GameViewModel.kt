@@ -36,7 +36,17 @@ class GameViewModel @Inject constructor(
 		.map { profile ->
 			val playerLevel = profile?.level ?: 1
 			miniGameRegistry.allSorted().map { game ->
-				MiniGameEntry(game.id, game.nameRes, game.descriptionRes, game.unlockLevel, playerLevel >= game.unlockLevel)
+				MiniGameEntry(
+					id = game.id,
+					nameRes = game.nameRes,
+					descriptionRes = game.descriptionRes,
+					unlockLevel = game.unlockLevel,
+					isUnlocked = playerLevel >= game.unlockLevel,
+					// Engines, score persistence and the session route are wired
+					// for every registered game — the unlock gate is the only
+					// thing standing between the user and play.
+					isAvailable = true,
+				)
 			}
 		}
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)

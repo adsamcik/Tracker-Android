@@ -35,6 +35,34 @@
     <string name="minigame_locked">Unlocks at Level %1$d</string>
     <string name="minigame_coming_soon">Coming soon</string>
 
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">View past scores</string>
+    <string name="minigame_session_close">Close</string>
+    <string name="minigame_session_start_cta">Start</string>
+    <string name="minigame_session_stop_cta">Stop</string>
+    <string name="minigame_session_play_again">Play again</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_score_label">Score</string>
+    <string name="minigame_session_finished_title">Run complete</string>
+    <string name="minigame_session_final_score">Final score: %1$s</string>
+    <string name="minigame_session_xp_earned">+%1$d XP</string>
+    <string name="minigame_session_xp_zero">No XP this run</string>
+    <string name="minigame_session_permission_title">Location needed</string>
+    <string name="minigame_session_permission_body">Mini-games use live location to track your run. Nothing is saved beyond the final score.</string>
+    <string name="minigame_session_permission_grant">Grant access</string>
+    <string name="minigame_session_idle_hint">Tap Start, then keep walking — we\'ll do the rest.</string>
+    <string name="minigame_session_waiting_for_fix">Waiting for first GPS fix…</string>
+
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Past mini-game runs</string>
+    <string name="minigame_scores_back">Back</string>
+    <string name="minigame_scores_empty_title">No runs yet</string>
+    <string name="minigame_scores_empty_body">Finish a mini-game session to see it appear here.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_score_format">%1$s pts</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_unknown_game">Mini-game</string>
+
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>
     <string name="goals_daily_goal">daily</string>
     <string name="goals_weekly_goal">weekly</string>

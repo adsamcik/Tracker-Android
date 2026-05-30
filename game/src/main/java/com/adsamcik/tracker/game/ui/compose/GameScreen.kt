@@ -75,6 +75,8 @@ fun GameScreen(
 	onViewAllAchievements: () -> Unit = {},
 	onOpenSettings: () -> Unit = {},
 	@Suppress("UNUSED_PARAMETER") onNavigateToTracker: () -> Unit = {},
+	onPlayMiniGame: (gameId: String) -> Unit = {},
+	onViewMiniGameScores: () -> Unit = {},
 ) {
 	val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
 	val layoutDirection = LocalLayoutDirection.current
@@ -140,10 +142,30 @@ fun GameScreen(
 						games = miniGameEntries.map { entry ->
 							MiniGameUi(entry.id, stringResource(entry.nameRes), stringResource(entry.descriptionRes), entry.unlockLevel, entry.isUnlocked, entry.isAvailable)
 						},
+						onPlayClick = onPlayMiniGame,
 					)
 				}
 			}
+			item {
+				MiniGameScoresLink(
+					onClick = onViewMiniGameScores,
+					modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+				)
+			}
 		}
+	}
+}
+
+@Composable
+private fun MiniGameScoresLink(
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	androidx.compose.material3.TextButton(
+		onClick = onClick,
+		modifier = modifier,
+	) {
+		Text(stringResource(R.string.minigame_view_past_scores))
 	}
 }
 

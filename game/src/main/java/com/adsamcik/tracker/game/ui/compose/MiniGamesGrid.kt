@@ -49,10 +49,13 @@ data class MiniGameUi(
 /**
  * 2-column grid showing available mini-games.
  * Locked games appear dimmed with level requirement overlay.
+ *
+ * @param onPlayClick invoked with the game id when an unlocked, playable card is tapped.
  */
 @Composable
 fun MiniGamesGrid(
     games: List<MiniGameUi>,
+    onPlayClick: (gameId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val rows = remember(games) { games.chunked(2) }
@@ -68,6 +71,7 @@ fun MiniGamesGrid(
                 row.forEach { game ->
                     MiniGameCard(
                         game = game,
+                        onPlayClick = onPlayClick,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -82,6 +86,7 @@ fun MiniGamesGrid(
 @Composable
 private fun MiniGameCard(
     game: MiniGameUi,
+    onPlayClick: (gameId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -93,23 +98,23 @@ private fun MiniGameCard(
         else -> stringResource(R.string.minigame_coming_soon)
     }
 
+    val clickModifier = when {
+        isPlayable -> Modifier.clickable(role = Role.Button) { onPlayClick(game.id) }
+        !game.isUnlocked -> Modifier.clickable(role = Role.Button) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.minigame_locked, game.unlockLevel),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+        else -> Modifier
+    }
+
     GlassCard(
         modifier = modifier
             .alpha(alphaValue)
             .heightIn(min = 48.dp)
-            .then(
-                if (!game.isUnlocked) {
-                    Modifier.clickable(role = Role.Button) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.minigame_locked, game.unlockLevel),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                } else {
-                    Modifier
-                }
-            )
+            .then(clickModifier)
             .testTag("minigame_card_${game.id}")
             .semantics(mergeDescendants = true) {
                 contentDescription = "${game.name}: $statusText"

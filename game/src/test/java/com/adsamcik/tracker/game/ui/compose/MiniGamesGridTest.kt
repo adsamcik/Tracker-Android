@@ -36,7 +36,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -58,7 +58,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -80,7 +80,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -102,7 +102,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -134,7 +134,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -157,7 +157,7 @@ class MiniGamesGridTest {
 
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
-				MiniGamesGrid(games = games)
+				MiniGamesGrid(games = games, onPlayClick = {})
 			}
 		}
 
@@ -165,3 +165,4 @@ class MiniGamesGridTest {
 		composeRule.onNodeWithText("Coming soon").assertIsDisplayed()
 	}
 }
+

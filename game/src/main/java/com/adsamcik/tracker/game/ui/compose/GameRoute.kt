@@ -11,6 +11,8 @@ fun GameRoute(
 	onNavigateToAchievements: () -> Unit = {},
 	onOpenSettings: () -> Unit = {},
 	onNavigateToTracker: () -> Unit = {},
+	onPlayMiniGame: (gameId: String) -> Unit = {},
+	onViewMiniGameScores: () -> Unit = {},
 ) {
 	val vm: GameViewModel = hiltViewModel()
 	val explorationVm: ExplorationViewModel = hiltViewModel()
@@ -29,5 +31,7 @@ fun GameRoute(
 		onOpenSettings = onOpenSettings,
 		onNavigateToTracker = onNavigateToTracker,
 		onViewAllAchievements = onNavigateToAchievements,
+		onPlayMiniGame = onPlayMiniGame,
+		onViewMiniGameScores = onViewMiniGameScores,
 	)
 }
