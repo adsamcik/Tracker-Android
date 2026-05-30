@@ -279,55 +279,62 @@ class DefaultLayerRegistry(
                                             now - DEFAULT_LOCATION_RANGE_MS
                                         }
                                         val toMs = if (!range.isEmpty()) range.last else now
-                                        val rows = buildList {
-                                            var afterTimeMs: Long? = null
-                                            var afterId: Long? = null
+                                        val rows = mutableListOf<com.adsamcik.tracker.shared.base.database.dao.VehicleSpeedSampleRow>()
+                                        var afterTimeMs: Long? = null
+                                        var afterId: Long? = null
 
-                                            while (true) {
-                                                val chunk = dao.getDrivingChunkBetweenOrdered(
-                                                    fromMs = fromMs,
-                                                    toMs = toMs,
-                                                    drivingActivities = drivingActivityIds,
-                                                    afterTimeMs = afterTimeMs,
-                                                    afterId = afterId,
-                                                    limit = VEHICLE_CHUNK_SIZE,
-                                                )
-                                                if (chunk.isEmpty()) break
+                                        while (true) {
+                                            val chunk = dao.getDrivingChunkBetweenOrdered(
+                                                fromMs = fromMs,
+                                                toMs = toMs,
+                                                drivingActivities = drivingActivityIds,
+                                                afterTimeMs = afterTimeMs,
+                                                afterId = afterId,
+                                                limit = VEHICLE_CHUNK_SIZE,
+                                            )
+                                            if (chunk.isEmpty()) break
 
-                                                addAll(chunk)
+                                            rows.addAll(chunk)
 
-                                                val lastRow = chunk.last()
-                                                afterTimeMs = lastRow.timeMs
-                                                afterId = lastRow.id
-                                                if (chunk.size < VEHICLE_CHUNK_SIZE) break
-                                            }
+                                            val lastRow = chunk.last()
+                                            afterTimeMs = lastRow.timeMs
+                                            afterId = lastRow.id
+                                            if (chunk.size < VEHICLE_CHUNK_SIZE) break
                                         }
                                         if (rows.isEmpty()) {
                                             emptyList()
                                         } else {
                                             val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES).coerceAtLeast(1)
-                                            rows.asSequence()
-                                                .filterIndexed { index, _ -> index % step == 0 }
-                                                .map { row ->
-                                                    val limitMps = speedLimitSource.limitMpsAt(
-                                                        epochMs = row.timeMs,
-                                                        latE7 = row.latE7,
-                                                        lonE7 = row.lonE7,
-                                                    )
-                                                    val ratio = if (limitMps <= 0.0) {
-                                                        Float.NaN
-                                                    } else {
-                                                        (row.speedMps / limitMps).toFloat()
-                                                    }
+                                            // Plain mutable list because limitMpsAt() is a suspend fun and
+                                            // cannot be called from a non-suspending buildList { } lambda.
+                                            // This whole block runs in withContext(dispatchers.io).
+                                            val result = ArrayList<VehicleComplianceLayer.VehicleSpeedSample>(
+                                                rows.size / step + 1,
+                                            )
+                                            for ((index, row) in rows.withIndex()) {
+                                                if (index % step != 0) continue
+                                                val limitMps = speedLimitSource.limitMpsAt(
+                                                    epochMs = row.timeMs,
+                                                    latE7 = row.latE7,
+                                                    lonE7 = row.lonE7,
+                                                )
+                                                val ratio = if (limitMps <= 0.0) {
+                                                    Float.NaN
+                                                } else {
+                                                    (row.speedMps / limitMps).toFloat()
+                                                }
+                                                result.add(
                                                     VehicleComplianceLayer.VehicleSpeedSample(
                                                         latLng = LatLngModel(
                                                             row.latE7 / 1e7,
                                                             row.lonE7 / 1e7,
                                                         ),
                                                         ratio = ratio,
-                                                    )
-                                                }
-                                                .toList()
+                                                    ),
+                                                )
+                                            }
+                                            result
+                                        }
                                         }
                                     }
                                 },
