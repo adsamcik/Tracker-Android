@@ -41,6 +41,12 @@ Used to display foreground service and tracking status notifications while track
 
 Used only when you choose to import or export data through Android's system file picker.
 
+## Map Data (OpenStreetMap)
+
+Tracker Android can optionally use OpenStreetMap data to provide accurate per-road speed limits. When you import a `.osm.pbf` region file through the in-app picker, the file is parsed and stored entirely on your device. No part of the imported map data, your location, or your trips is ever uploaded.
+
+OpenStreetMap data is © OpenStreetMap contributors and licensed under the Open Database License (ODbL) 1.0. See https://www.openstreetmap.org/copyright for details.
+
 ## Exports
 
 Exports are created only when you explicitly request them. Tracker Android can export your data in formats such as GPX, KML, and JSON. Exported data goes only to the file location or app you choose.
