@@ -39,6 +39,10 @@ import com.adsamcik.tracker.R
  * Inputs: title, optional subtitle, optional icon, click callback
  * Outputs: Triggers onClick when tapped
  * Failure modes: None (UI component only)
+ *
+ * M3 list item dimensions: 56dp min for single-line, 72dp min for two-line; we
+ * use 56dp min plus 14dp vertical padding so titles with optional subtitles
+ * read with a comfortable rhythm and the row's hit target meets WCAG 48dp.
  */
 @Composable
 fun SettingsItem(
@@ -51,9 +55,9 @@ fun SettingsItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 56.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = if (subtitle != null) "$title: $subtitle" else title
             }
@@ -82,9 +86,9 @@ fun SettingsItemWithValue(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 56.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "$title: $value"
             }
@@ -118,7 +122,7 @@ fun SwitchSettingsItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 56.dp)
             .toggleable(
                 value = checked,
                 enabled = enabled,
@@ -128,7 +132,7 @@ fun SwitchSettingsItem(
             .semantics {
                 stateDescription = if (checked) switchOnDesc else switchOffDesc
             }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.weight(1f)) {
@@ -162,7 +166,7 @@ fun SliderSettingsItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
             text = title,
@@ -215,6 +219,14 @@ fun SectionHeader(text: String) {
  * Inputs: optional title, content composable (ColumnScope)
  * Outputs: Displays content within a styled Card
  * Failure modes: None (UI component only)
+ *
+ * Visual rhythm:
+ *  - Group title: titleMedium, 16dp horizontal padding, 12dp bottom padding so
+ *    the card has breathing room from the header text instead of touching it.
+ *  - Card content rows separated by full-width hairline dividers (inset to
+ *    align with the title text, leaving the icon column clear). The dividers
+ *    give each row its own visual lane instead of making items run together
+ *    as a wall of text.
  */
 @Composable
 fun SettingsGroupCard(
@@ -229,7 +241,7 @@ fun SettingsGroupCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
-                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)
                     .semantics { heading() }
             )
         }
