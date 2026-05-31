@@ -11,6 +11,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -162,5 +164,33 @@ class DefaultSpeedLimitSourceTest {
 
 		limit.shouldBeBetween(25.0, 25.0, 1e-9)
 		coVerify(atLeast = 1) { importDao.count() }
+	}
+
+	@Test
+	fun `cold start single-flights direct count across parallel callers`() = runTest {
+		// R2 round-6 (round 2): if many hot-path callers race the StateFlow's
+		// first emission, the previous implementation issued one
+		// osmImportDao.count() per caller. The single-flight cold-start cache
+		// must collapse them all into exactly one DAO query.
+		val osm = mockk<OsmSpeedLimitSource>()
+		val importDao = mockk<OsmImportDao>()
+		val pausedFlow = MutableStateFlow(-1)
+		every { importDao.observeCount() } returns pausedFlow
+		coEvery { importDao.count() } returns 2
+		coEvery { osm.findRoadLimitMps(any(), any()) } returns 25.0
+
+		val pausedScope = TestScope().backgroundScope
+		val source = DefaultSpeedLimitSource(newFixed(pausedScope), osm, importDao, pausedScope)
+
+		val callCount = 32
+		val jobs = List(callCount) {
+			async { source.limitMpsAt(0L, 500_000_000, 144_000_000) }
+		}
+		val results = jobs.awaitAll()
+
+		results.forEach { it.shouldBeBetween(25.0, 25.0, 1e-9) }
+		// Exactly one DAO count() across all callers: the cold-start mutex
+		// plus the cached coldStartCount field must ensure single-flight.
+		coVerify(exactly = 1) { importDao.count() }
 	}
 }
