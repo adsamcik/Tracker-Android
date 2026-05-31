@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.di
 
 import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.game.GameModuleInitializer
+import com.adsamcik.tracker.osm.reindex.OsmModuleInitializer
 import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
@@ -37,5 +38,11 @@ object StartupModule {
 	@IntoSet
 	fun providePointsInitializer(
 		initializer: PointsInitializer,
+	): ModuleInitializer = initializer
+
+	@Provides
+	@IntoSet
+	fun provideOsmModuleInitializer(
+		initializer: OsmModuleInitializer,
 	): ModuleInitializer = initializer
 }
