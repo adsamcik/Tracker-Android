@@ -2,6 +2,8 @@ package com.adsamcik.tracker.network
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.collections.shouldContain as shouldContainElement
+import io.kotest.matchers.collections.shouldNotContain as shouldNotContainElement
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -108,33 +110,37 @@ class DefaultNetworkGatewayTest {
 	}
 
 	@Test
-	fun `rate limit triggers RateLimited after bucket drains`() = runTest {
-		// limit=2 means the first two requests succeed (well, fail with InsecureScheme since
-		// MockWebServer is HTTP — but the rate-limit interceptor runs AFTER InsecureScheme
-		// in the gateway's outer guard. So we test rate limit purely via the interceptor
-		// path that throws GatewayInterceptorException via the rejection path: a https URL
-		// to an allowed but nonexistent host.
+	fun `rate limit triggers RateLimited after bucket drains`() {
+		// RateLimit is a NETWORK interceptor (R7 redirect-recheck convergence
+		// fix) so it fires per-hop AFTER ConnectInterceptor. Test against the
+		// MockWebServer (localhost, resolves instantly, connects instantly) so
+		// the rate limiter actually runs on real exchanges. limit=2 means the
+		// first two requests succeed and decrement the bucket; the third
+		// finds the bucket empty and is rejected with RateLimited.
 		val gateway = DefaultNetworkGateway(
 			initialEnabled = true,
 			initialPolicy = NetworkPolicy(
-				allowedHosts = setOf("nonresolvable.example"),
+				allowedHosts = setOf(server.hostName.lowercase()),
 				perHostRateLimit = 2,
 				perHostRateWindowMs = 60_000L,
 			),
 		)
-		val req = NetworkRequest("https://nonresolvable.example/x", timeoutMs = 500L)
+		server.enqueue(MockResponse().setBody("a"))
+		server.enqueue(MockResponse().setBody("b"))
+		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
 
-		// First two: bucket allows them; they then fail with Transport (DNS) or Timeout.
-		repeat(2) {
-			val r = gateway.request(req)
-			r.shouldBeInstanceOf<NetworkResponse.Failure>()
-			(r.error is NetworkError.Transport || r.error is NetworkError.Timeout) shouldBe true
-		}
+		client.newCall(okhttp3.Request.Builder().url(server.url("/1")).build()).execute()
+			.use { it.isSuccessful shouldBe true }
+		client.newCall(okhttp3.Request.Builder().url(server.url("/2")).build()).execute()
+			.use { it.isSuccessful shouldBe true }
 
-		// Third: bucket is empty.
-		val third = gateway.request(req)
-		third.shouldBeInstanceOf<NetworkResponse.Failure>()
-		(third.error as NetworkError.RateLimited).host shouldBe "nonresolvable.example"
+		val ex = runCatching {
+			client.newCall(okhttp3.Request.Builder().url(server.url("/3")).build()).execute()
+		}.exceptionOrNull()
+		ex.shouldBeInstanceOf<com.adsamcik.tracker.network.internal.GatewayInterceptorException>()
+		val err = (ex as com.adsamcik.tracker.network.internal.GatewayInterceptorException).networkError
+		err.shouldBeInstanceOf<NetworkError.RateLimited>()
+		(err as NetworkError.RateLimited).host shouldBe server.hostName.lowercase()
 	}
 
 	@Test
@@ -188,5 +194,75 @@ class DefaultNetworkGatewayTest {
 		val client = factory as okhttp3.OkHttpClient
 		client.followRedirects shouldBe true
 		client.followSslRedirects shouldBe true
+	}
+
+	@Test
+	fun `allowlist runs as BOTH application AND network interceptor (per-hop, including redirects)`() {
+		// Convergence finding (R1+R3 round 7): the pre-fix design only had
+		// application interceptors, so a 302 redirect from an allowed host to a
+		// disallowed host would NOT be re-checked. The fix registers
+		// AllowlistInterceptor at BOTH levels:
+		//  - Application: preserves "no DNS for disallowed hosts" privacy
+		//    contract for the initial URL.
+		//  - Network: catches every redirect hop after ConnectInterceptor
+		//    (DNS leak on disallowed redirect targets is the trade-off until
+		//    we move to manual redirect handling).
+		// RateLimit is network-only so per-host bucket counts each actual hop.
+		// KillSwitch stays application-only — fail-fast before any I/O.
+		val gateway = DefaultNetworkGateway()
+		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
+
+		val appNames = client.interceptors.map { it::class.simpleName }
+		val netNames = client.networkInterceptors.map { it::class.simpleName }
+
+		appNames shouldContainElement "KillSwitchInterceptor"
+		appNames shouldContainElement "AllowlistInterceptor"
+		appNames shouldNotContainElement "RateLimitInterceptor"
+
+		netNames shouldContainElement "AllowlistInterceptor"
+		netNames shouldContainElement "RateLimitInterceptor"
+		netNames shouldNotContainElement "KillSwitchInterceptor"
+	}
+
+	@Test
+	fun `cross-host redirect to a disallowed host is rejected at the redirect hop`() {
+		// End-to-end proof of the R7 convergence fix: AllowlistInterceptor must
+		// fire on every redirect hop, not just the original request. We allow
+		// only server.hostName (typically "localhost") and redirect to the same
+		// loopback address using a DIFFERENT host string ("127.0.0.1") — this
+		// resolves (so ConnectInterceptor succeeds and the network interceptor
+		// runs) but does NOT match the allowlist, proving the gate catches the
+		// hop. Before the fix (Allowlist app-only) this redirect would silently
+		// follow and the second MockResponse below would be served.
+		val allowedHost = server.hostName.lowercase()
+		val disallowedHost = if (allowedHost == "localhost") "127.0.0.1" else "localhost"
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(
+				allowedHosts = setOf(allowedHost),
+				perHostRateLimit = 1_000,
+				perHostRateWindowMs = 60_000L,
+			),
+		)
+		val redirectTarget = "http://$disallowedHost:${server.port}/x"
+		server.enqueue(
+			MockResponse()
+				.setResponseCode(302)
+				.addHeader("Location", redirectTarget),
+		)
+		// Enqueue a body for the redirect target — if the redirect is silently
+		// followed (the pre-fix bug), this is what would be returned.
+		server.enqueue(MockResponse().setBody("should-never-be-reached"))
+
+		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
+		val req = okhttp3.Request.Builder().url(server.url("/r")).build()
+
+		val ex = runCatching { client.newCall(req).execute() }.exceptionOrNull()
+		ex.shouldBeInstanceOf<com.adsamcik.tracker.network.internal.GatewayInterceptorException>()
+		val err = (ex as com.adsamcik.tracker.network.internal.GatewayInterceptorException).networkError
+		err.shouldBeInstanceOf<NetworkError.HostNotAllowed>()
+		(err as NetworkError.HostNotAllowed).host shouldBe disallowedHost
+		// Only the 302 was served; the redirect target was never reached.
+		server.requestCount shouldBe 1
 	}
 }

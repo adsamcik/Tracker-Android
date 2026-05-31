@@ -33,14 +33,29 @@ import kotlin.coroutines.resume
  *
  * # Interceptor chain (in order)
  *
+ *  Application-level (run ONCE per logical call, before redirect follow):
+ *
  *  1. [KillSwitchInterceptor] — rejects with [NetworkError.GatewayDisabled]
- *     when the kill switch is off. First so it fast-fails before allowlist
- *     and rate-limit work.
+ *     when the kill switch is off. First so it fast-fails before any work.
  *  2. [AllowlistInterceptor] — rejects with [NetworkError.HostNotAllowed]
- *     for any host outside [NetworkPolicy.allowedHosts]. Runs before rate
- *     limiting so rejected hosts don't consume their bucket.
- *  3. [RateLimitInterceptor] — per-host token bucket. Rejects with
- *     [NetworkError.RateLimited] when the bucket is empty.
+ *     for any URL whose host is not in [NetworkPolicy.allowedHosts]. Application
+ *     placement keeps the privacy contract "no DNS / TCP for disallowed hosts"
+ *     for the initial URL.
+ *
+ *  Network-level (run for EACH network exchange, including every redirect
+ *  hop — required so cross-host redirects cannot bypass the allowlist):
+ *
+ *  3. [AllowlistInterceptor] — same gate, second instance. Application-level
+ *     only sees the originating request; redirects are issued by
+ *     OkHttp's internal `RetryAndFollowUpInterceptor` and must be re-checked.
+ *     OkHttp's chain runs network interceptors after `ConnectInterceptor`, so
+ *     a redirect target's DNS + TCP cost is incurred before the gate fires;
+ *     the request BODY is still blocked. To eliminate the DNS cost for
+ *     disallowed redirect targets we'd need [okhttp3.OkHttpClient.followRedirects]
+ *     = false and a manual redirect follower — that's a future hardening pass.
+ *  4. [RateLimitInterceptor] — per-host token bucket. Network-level so each
+ *     hop counts against the target host's bucket (redirect-accurate). Rejects
+ *     with [NetworkError.RateLimited] when the bucket is empty.
  *
  * Each interceptor that rejects throws a [GatewayInterceptorException]
  * carrying the correct [NetworkError]; the outer suspend wrapper translates
@@ -74,16 +89,21 @@ class DefaultNetworkGateway(
 		// Redirects are followed by default. Required so the allowlist remains
 		// useful for tile/style providers that legitimately redirect within
 		// their own host (e.g. cache-busting query strings, version pinning).
-		// Each redirect hop re-enters the interceptor chain because we register
-		// our gates as APPLICATION interceptors (run once per call), so the
-		// initial-URL allowlist check still gates the originating request. A
-		// future hardening pass can move the allowlist to a NETWORK interceptor
-		// to gate every hop, accepting the cost of an extra check per redirect.
+		// AllowlistInterceptor is registered as BOTH an application AND a
+		// network interceptor: app-level preserves the "no DNS for disallowed
+		// hosts" privacy contract for the initial URL; network-level catches
+		// every redirect hop (which OkHttp's RetryAndFollowUpInterceptor
+		// issues as fresh requests after the app-level chain). RateLimit is
+		// network-only so its per-host bucket charges the actual hop host,
+		// matching how OkHttp dispatches redirects to potentially different
+		// hosts. KillSwitch is application-only — it fails fast before any
+		// connection work.
 		.followRedirects(true)
 		.followSslRedirects(true)
 		.addInterceptor(KillSwitchInterceptor(enabledSource = { _isEnabled.value }))
 		.addInterceptor(AllowlistInterceptor(policySource = { _policy.value }))
-		.addInterceptor(RateLimitInterceptor(policySource = { _policy.value }))
+		.addNetworkInterceptor(AllowlistInterceptor(policySource = { _policy.value }))
+		.addNetworkInterceptor(RateLimitInterceptor(policySource = { _policy.value }))
 		.build()
 
 	override fun okHttpCallFactory(): okhttp3.Call.Factory = client
