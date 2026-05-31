@@ -186,6 +186,20 @@ internal object AchievementFormatting {
 		}
 	}
 
+	/**
+	 * Test seam: drive formatting against an arbitrary Context without going
+	 * through @Composable wrappers. The contract this seam locks in is the
+	 * one humans care about: every catalog entry produces a non-blank, non-key
+	 * title and description (see `AchievementCatalogStringCoverageTest`).
+	 */
+	@androidx.annotation.VisibleForTesting
+	internal fun formatTitleForTest(context: Context, def: AchievementDefinition): String =
+		formatTitle(context, def)
+
+	@androidx.annotation.VisibleForTesting
+	internal fun formatDescriptionForTest(context: Context, def: AchievementDefinition): String =
+		formatDescription(context, def)
+
 	private const val MS_PER_SECOND = 1_000L
 	private const val SECONDS_PER_MINUTE = 60L
 	private const val MINUTES_PER_HOUR = 60L

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -26,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.unit.Dp
+import android.util.Log
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.data.DashboardWidget
@@ -275,12 +277,24 @@ private fun resolveStringResource(name: String): String {
 		stringResource(resId)
 	} else {
 		// No string resource defined for this achievement id yet (the catalog
-		// auto-generates ~200 ids; localized titles are still being authored).
-		// Show a readable humanized fallback instead of leaking the raw key
-		// like "achievement_sessions_total_1_title" to the user.
+		// auto-generates ~155 ids × 2 (title/desc) = ~310 keys; the project's
+		// canonical formatter is :game/AchievementFormatting which renders
+		// titles programmatically from metric + threshold instead of relying
+		// on per-id resources. The dashboard currently can't use it without
+		// crossing the :dashboard -> :game module boundary; see follow-up
+		// todo `r8-dashboard-use-achievementformatting`. Until the formatter
+		// is hoisted to a shared module, log the miss so we can quantify how
+		// often users hit the fallback in production and prioritise either
+		// the refactor or the missing resource — and show a humanized label
+		// so the user never sees a raw resource key.
+		LaunchedEffect(name) {
+			Log.w(TAG_IDLE_CONTENT, "missing achievement string resource '$name'; humanized fallback in use")
+		}
 		humanizeResourceKey(name)
 	}
 }
+
+private const val TAG_IDLE_CONTENT = "IdleContent"
 
 @VisibleForTesting
 internal fun humanizeResourceKey(name: String): String {
