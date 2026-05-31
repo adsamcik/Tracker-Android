@@ -3,12 +3,17 @@ package com.adsamcik.tracker.stats.data.metric
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
 
 @DisplayName("DefaultPersistentDirtyState")
 class DefaultPersistentDirtyStateTest {
@@ -112,5 +117,24 @@ class DefaultPersistentDirtyStateTest {
 		// We don't assert exact contents — implementation may return what it can
 		// parse OR empty. Critical point: no throw.
 		(loaded.isEmpty() || loaded.isNotEmpty()) // tautology — just asserts the line ran
+	}
+
+	@Test
+	fun `file IO dispatches on the injected ioDispatcher`() = runTest {
+		val dispatchCount = AtomicInteger(0)
+		val trackingDispatcher = object : CoroutineDispatcher() {
+			override fun dispatch(context: CoroutineContext, block: Runnable) {
+				dispatchCount.incrementAndGet()
+				block.run()
+			}
+		}
+
+		val ioState = DefaultPersistentDirtyState(tempDir, trackingDispatcher)
+		ioState.add(setOf("test_table"))
+		dispatchCount.get() shouldBeGreaterThan 0
+
+		val countAfterAdd = dispatchCount.get()
+		ioState.remove(setOf("test_table"))
+		dispatchCount.get() shouldBeGreaterThan countAfterAdd
 	}
 }

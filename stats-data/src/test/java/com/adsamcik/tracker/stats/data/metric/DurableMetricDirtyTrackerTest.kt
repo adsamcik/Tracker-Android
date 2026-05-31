@@ -5,11 +5,12 @@ import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -18,6 +19,9 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /** In-memory fake [PersistentDirtyState] for deterministic test setup. */
 private class FakePersistentDirtyState(
@@ -60,6 +64,7 @@ class DurableMetricDirtyTrackerTest {
 			delegate = DefaultMetricDirtyTracker(),
 			persistentState = persistent,
 			persistenceScope = scope,
+			ioDispatcher = testDispatcher,
 		)
 	}
 
@@ -139,6 +144,7 @@ class DurableMetricDirtyTrackerTest {
 				delegate = DefaultMetricDirtyTracker(),
 				persistentState = sharedStore,
 				persistenceScope = scope,
+				ioDispatcher = testDispatcher,
 			)
 			firstTracker.markDirty(setOf("daily_summary", "exploration_cell"))
 			advanceUntilIdle()
@@ -150,6 +156,7 @@ class DurableMetricDirtyTrackerTest {
 				delegate = DefaultMetricDirtyTracker(),
 				persistentState = sharedStore,
 				persistenceScope = scope,
+				ioDispatcher = testDispatcher,
 			)
 			advanceUntilIdle()
 
@@ -198,6 +205,7 @@ class DurableMetricDirtyTrackerTest {
 			delegate = DefaultMetricDirtyTracker(), // fresh, empty
 			persistentState = sharedStore,
 			persistenceScope = scope,
+			ioDispatcher = testDispatcher,
 		)
 		advanceUntilIdle()
 		// init() rehydrated → in-memory has "preexisting"; consume it.
@@ -209,5 +217,95 @@ class DurableMetricDirtyTrackerTest {
 		tracker.consumeDirty(Consumer.PERSISTENCE).shouldBeEmpty()
 		advanceUntilIdle()
 		sharedStore.snapshot.shouldBeEmpty()
+	}
+
+	@Test
+	fun `consumeDirty PERSISTENCE blocks until async rehydration completes`() {
+		// Use StandardTestDispatcher so the init coroutine does NOT execute
+		// eagerly — we control when it runs via advanceUntilIdle.
+		val standardDispatcher = StandardTestDispatcher()
+		val controlledScope = CoroutineScope(standardDispatcher + SupervisorJob())
+
+		// Gate load behind a CompletableDeferred so we can verify the worker
+		// thread actually blocks on rehydrationComplete.
+		val loadGate = CompletableDeferred<Unit>()
+		val gatedState = object : PersistentDirtyState {
+			override suspend fun load(): Set<String> {
+				loadGate.await()
+				return setOf("recovered")
+			}
+			override suspend fun add(tables: Set<String>) {}
+			override suspend fun remove(tables: Set<String>) {}
+		}
+
+		val tracker = DurableMetricDirtyTracker(
+			delegate = DefaultMetricDirtyTracker(),
+			persistentState = gatedState,
+			persistenceScope = controlledScope,
+			ioDispatcher = standardDispatcher,
+		)
+
+		// Advance so the init coroutine starts — it will suspend on loadGate.
+		standardDispatcher.scheduler.advanceUntilIdle()
+
+		val result = AtomicReference<Set<String>>()
+		val finished = CountDownLatch(1)
+		val workerThread = Thread {
+			result.set(tracker.consumeDirty(Consumer.PERSISTENCE))
+			finished.countDown()
+		}
+		workerThread.start()
+
+		// Worker should be blocked (rehydration not complete yet).
+		finished.await(300, TimeUnit.MILLISECONDS) shouldBe false
+
+		// Complete the gate and advance → rehydration finishes → worker unblocks.
+		loadGate.complete(Unit)
+		standardDispatcher.scheduler.advanceUntilIdle()
+
+		finished.await(2, TimeUnit.SECONDS) shouldBe true
+		result.get() shouldContainExactlyInAnyOrder setOf("recovered")
+
+		controlledScope.cancel()
+	}
+
+	@Test
+	fun `consumeDirty LIVE does NOT block on rehydration`() {
+		// LIVE consumers should never block, even if rehydration hasn't finished.
+		val standardDispatcher = StandardTestDispatcher()
+		val controlledScope = CoroutineScope(standardDispatcher + SupervisorJob())
+
+		val neverCompletingState = object : PersistentDirtyState {
+			override suspend fun load(): Set<String> {
+				// Suspend forever — rehydration never completes.
+				CompletableDeferred<Unit>().await()
+				@Suppress("UNREACHABLE_CODE")
+				return emptySet()
+			}
+			override suspend fun add(tables: Set<String>) {}
+			override suspend fun remove(tables: Set<String>) {}
+		}
+
+		val tracker = DurableMetricDirtyTracker(
+			delegate = DefaultMetricDirtyTracker(),
+			persistentState = neverCompletingState,
+			persistenceScope = controlledScope,
+			ioDispatcher = standardDispatcher,
+		)
+		standardDispatcher.scheduler.advanceUntilIdle()
+
+		// LIVE consume should return immediately (empty, no blocking).
+		val finished = CountDownLatch(1)
+		val result = AtomicReference<Set<String>>()
+		val workerThread = Thread {
+			result.set(tracker.consumeDirty(Consumer.LIVE))
+			finished.countDown()
+		}
+		workerThread.start()
+
+		finished.await(2, TimeUnit.SECONDS) shouldBe true
+		result.get().shouldBeEmpty()
+
+		controlledScope.cancel()
 	}
 }

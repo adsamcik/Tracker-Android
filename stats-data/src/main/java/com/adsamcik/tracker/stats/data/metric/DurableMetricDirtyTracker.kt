@@ -3,7 +3,10 @@ package com.adsamcik.tracker.stats.data.metric
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker.Consumer
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -24,76 +27,101 @@ import kotlinx.coroutines.runBlocking
  *     achievement_progress stays stale.
  *
  * This decorator closes that gap by also writing PERSISTENCE marks to disk on
- * every [markDirty]. On app startup [load] is called once (typically from
- * `Application.onCreate`) to backfill the in-memory PERSISTENCE consumer view
- * with anything left over from the previous process.
+ * every [markDirty]. On app startup the persisted state is asynchronously
+ * loaded (on [ioDispatcher]) and back-filled into the in-memory delegate so
+ * both LIVE and PERSISTENCE consumer views see the rehydrated bits.
  *
  * # Performance contract
  *
  *  - In-memory CAS (fast path) is untouched — every call still goes through
  *    the wrapped delegate first.
- *  - Disk writes are dispatched on [persistenceScope] (typically the app
- *    scope on IO dispatcher) so they NEVER block the markDirty caller.
+ *  - Disk writes are dispatched on [persistenceScope] with [ioDispatcher]
+ *    so they NEVER block the markDirty caller and never starve Default
+ *    dispatcher threads with file I/O.
  *  - LIVE consumer marks are intentionally NOT persisted — they exist only
  *    for the current session and there's no recovery story.
  *
- * # Crash safety
+ * # Crash safety — important caveats
  *
- *  - markDirty + disk write race: in-memory bit set; disk write enqueued but
- *    may not have run when process dies. The next markDirty on the same
- *    table re-enqueues. Worst case: a single SourceTable's bit is lost for
- *    one worker window, AchievementWorker's source-watermark fallback (its
- *    own follow-up todo) catches it on the next run.
+ *  **[markDirty] is best-effort async**: the in-memory bit is set immediately,
+ *  but the disk write is enqueued via `persistenceScope.launch`. If the OS
+ *  hard-kills the process in the microsecond window between the in-memory
+ *  set and the disk commit, that mark is lost. This is a deliberate trade-off:
+ *  blocking the hot path for fsync is too expensive. The recovery path is
+ *  `AchievementWorker`'s source-watermark fallback, which re-evaluates from
+ *  the database if dirty bits are missing.
+ *
+ *  In practice, [DurableMetricDirtyTracker] converts "dirty bits lost forever
+ *  on process death" into "dirty bits lost for at most one worker window per
+ *  crash". It **reduces** but does **not eliminate** dirty-loss risk.
+ *
  *  - consumeDirty + disk remove race: in-memory drained; disk still has bits
  *    that get loaded on next startup, causing one redundant evaluation. Safe.
+ *
+ * # Rehydration coordination
+ *
+ *  The async init completes [rehydrationComplete] once the persisted state has
+ *  been loaded. [consumeDirty] for the [Consumer.PERSISTENCE] consumer awaits
+ *  this deferred (via [runBlocking]) so a worker that runs before rehydration
+ *  finishes will block briefly on the worker thread (never the main thread)
+ *  rather than seeing an empty set and short-circuiting. After the first
+ *  await the deferred returns instantly.
  */
 class DurableMetricDirtyTracker(
 	private val delegate: MetricDirtyTracker,
 	private val persistentState: PersistentDirtyState,
 	private val persistenceScope: CoroutineScope,
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : MetricDirtyTracker {
 
+	/**
+	 * Signals that the async rehydration from [persistentState] has completed.
+	 * [consumeDirty] for [Consumer.PERSISTENCE] awaits this so workers never
+	 * see a stale-empty set during the first few milliseconds after init.
+	 */
+	internal val rehydrationComplete = CompletableDeferred<Unit>()
+
 	init {
-		// Synchronously rehydrate PERSISTENCE marks from disk so any worker
-		// that calls consumeDirty on the singleton's first use sees what the
-		// previous process left behind. runBlocking is safe here because:
-		//   - This is singleton init (off the main thread under Hilt).
-		//   - load() is a small disk read (one file, < 1 KB typically).
-		//   - The cost is bounded and one-time per process.
-		val persisted = runBlocking { persistentState.load() }
-		if (persisted.isNotEmpty()) {
-			// Mark into the delegate so BOTH LIVE and PERSISTENCE consumer
-			// views see the rehydrated state (parity with what the original
-			// markDirty calls did before the process died). The LIVE
-			// consumer's first flush will see the bits, evaluate live state,
-			// and proceed normally; the PERSISTENCE consumer's first
-			// consumeDirty will return them so the worker re-evaluates.
-			delegate.markDirty(persisted)
+		// Asynchronously rehydrate PERSISTENCE marks from disk. Launched on
+		// ioDispatcher so the Hilt singleton init never blocks the calling
+		// thread (which may be main). Workers that call consumeDirty before
+		// this completes will block on rehydrationComplete in consumeDirty,
+		// which is safe because workers always run on background threads.
+		persistenceScope.launch(ioDispatcher) {
+			try {
+				val persisted = persistentState.load()
+				if (persisted.isNotEmpty()) {
+					delegate.markDirty(persisted)
+				}
+			} finally {
+				rehydrationComplete.complete(Unit)
+			}
 		}
 	}
 
 	override fun markDirty(table: String) {
 		delegate.markDirty(table)
-		// Persist only the PERSISTENCE-bound subset. The delegate fans out to
-		// all consumers in-memory, but on disk we only care about marks the
-		// worker needs to recover after a crash.
-		persistenceScope.launch { persistentState.add(setOf(table)) }
+		persistenceScope.launch(ioDispatcher) { persistentState.add(setOf(table)) }
 	}
 
 	override fun markDirty(tables: Set<String>) {
 		if (tables.isEmpty()) return
 		delegate.markDirty(tables)
-		persistenceScope.launch { persistentState.add(tables) }
+		persistenceScope.launch(ioDispatcher) { persistentState.add(tables) }
 	}
 
 	override fun consumeDirty(consumer: Consumer): Set<String> {
+		if (consumer == Consumer.PERSISTENCE) {
+			// Block until rehydration finishes so the worker never sees an
+			// empty set because the init coroutine hasn't loaded yet. This
+			// runBlocking is acceptable because:
+			//   - PERSISTENCE consumers are WorkManager workers on background threads.
+			//   - After the first call the deferred is already complete (instant).
+			runBlocking { rehydrationComplete.await() }
+		}
 		val consumed = delegate.consumeDirty(consumer)
 		if (consumer == Consumer.PERSISTENCE && consumed.isNotEmpty()) {
-			// PERSISTENCE drained — remove these from durable storage so a
-			// subsequent crash doesn't re-process them. The LIVE consumer's
-			// drains do NOT touch disk; their bits remain durable for the
-			// worker until it consumes them itself.
-			persistenceScope.launch { persistentState.remove(consumed) }
+			persistenceScope.launch(ioDispatcher) { persistentState.remove(consumed) }
 		}
 		return consumed
 	}

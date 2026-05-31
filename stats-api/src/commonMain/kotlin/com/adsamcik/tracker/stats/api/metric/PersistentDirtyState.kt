@@ -20,11 +20,19 @@ package com.adsamcik.tracker.stats.api.metric
  * - [remove] is called when the PERSISTENCE consumer drains its in-memory
  *   set. The marks removed are no longer needed for crash recovery.
  *
- * Implementations are NOT required to be transactional w.r.t. crashes — a
- * crash between in-memory CAS and disk write at worst loses a few recent
- * marks (the next worker run will pick them up via the source-watermark
- * fallback in `AchievementWorker`). The goal is "at-most-one missed
- * window per crash", not strict durability.
+ * # Crash-safety limitations
+ *
+ * Implementations are NOT required to be transactional w.r.t. crashes.
+ * [add] and [remove] are called asynchronously after the in-memory state
+ * has already changed. If the OS hard-kills the process between the
+ * in-memory mutation and the enqueued disk write, the disk mutation is
+ * lost. This is a deliberate design trade-off — blocking the hot path for
+ * fsync is too expensive for a best-effort recovery mechanism.
+ *
+ * The safety net is the source-watermark fallback in `AchievementWorker`:
+ * if a mark is lost, the worker re-evaluates from the database on the
+ * next run. The durable tracker converts "lost forever" into "lost for at
+ * most one worker window per crash".
  */
 interface PersistentDirtyState {
 	/**

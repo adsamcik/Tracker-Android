@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.di
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
@@ -42,6 +43,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
 
@@ -147,7 +149,8 @@ abstract class StatsDataModule {
 		@Singleton
 		fun providePersistentDirtyState(
 			@ApplicationContext context: Context,
-		): PersistentDirtyState = DefaultPersistentDirtyState(context.filesDir)
+			@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		): PersistentDirtyState = DefaultPersistentDirtyState(context.filesDir, ioDispatcher)
 	}
 }
 
@@ -175,9 +178,11 @@ internal object DurableMetricDirtyTrackerModule {
 	fun provideMetricDirtyTracker(
 		persistentState: PersistentDirtyState,
 		@ApplicationScope appScope: CoroutineScope,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
 	): MetricDirtyTracker = DurableMetricDirtyTracker(
 		delegate = DefaultMetricDirtyTracker(),
 		persistentState = persistentState,
 		persistenceScope = appScope,
+		ioDispatcher = ioDispatcher,
 	)
 }
