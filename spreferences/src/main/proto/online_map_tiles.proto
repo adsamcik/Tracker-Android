@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.shared.preferences.map;
+
+option java_package = "com.adsamcik.tracker.shared.preferences.map";
+option java_multiple_files = true;
+
+// Proto for online map tile preferences.
+//
+// Default state: enabled=false, provider_id="openfreemap", custom_url="".
+// The user must opt in explicitly via onboarding or settings — see
+// docs/ARCHITECTURE_OVERVIEW.md for the privacy rationale.
+//
+// Extend with new optional fields; never reuse field numbers.
+message OnlineMapTilesProto {
+  // True when the user has opted in to fetching map tiles from a remote
+  // provider. With this false the map renders only the offline bundled
+  // PMTiles basemap — zero network traffic flows.
+  bool enabled = 1;
+
+  // Stable provider identifier (see TileProvider.kt in :map).
+  // Empty string means "use the default" (resolved at read time).
+  string provider_id = 2;
+
+  // User-supplied style.json URL used when provider_id == "custom".
+  // Empty when a built-in provider is selected.
+  string custom_url = 3;
+}

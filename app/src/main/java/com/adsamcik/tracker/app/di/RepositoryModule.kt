@@ -7,7 +7,9 @@ import com.adsamcik.tracker.game.goals.settings.DefaultGoalsSettingsRepository
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.map.DefaultOnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -67,6 +69,21 @@ abstract class RepositoryModule {
 			@ApplicationContext context: Context,
 			dispatchers: DispatchersProvider,
 		): MapSettingsRepository = DefaultMapSettingsRepository(
+			context = context,
+			io = dispatchers.io,
+		)
+
+		/**
+		 * Provides the online-map-tiles preference repository. Defaults are
+		 * fully opt-out (enabled=false, OpenFreeMap as the would-be provider
+		 * when enabled). See `com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository`.
+		 */
+		@Provides
+		@Singleton
+		fun provideOnlineMapTilesRepository(
+			@ApplicationContext context: Context,
+			dispatchers: DispatchersProvider,
+		): OnlineMapTilesRepository = DefaultOnlineMapTilesRepository(
 			context = context,
 			io = dispatchers.io,
 		)
