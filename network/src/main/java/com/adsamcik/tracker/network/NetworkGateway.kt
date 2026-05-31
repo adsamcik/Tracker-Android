@@ -73,6 +73,17 @@ interface NetworkGateway {
 	/**
 	 * Toggle the kill switch.
 	 *
+	 * **Caller contract:** Mutating gateway state directly from feature code
+	 * is an anti-pattern. The
+	 * [com.adsamcik.tracker.network.NetworkPolicyAggregator] is the single
+	 * writer of [setEnabled] and [setPolicy] in normal operation — it
+	 * recomputes the union of every Hilt-registered
+	 * [NetworkPolicyContributor] and re-pushes the result whenever any
+	 * contribution changes, which will overwrite ad-hoc calls on the next
+	 * emission. Implement [NetworkPolicyContributor] in your feature module
+	 * and bind it via `@Binds @IntoSet` instead. Direct calls remain valid
+	 * for tests and the aggregator itself.
+	 *
 	 * Passing `false` does two things:
 	 *  1. **Future requests** entering [request] or the raw [okhttp3.Call.Factory]
 	 *     (used by MapLibre online tiles) are rejected immediately with
@@ -88,10 +99,6 @@ interface NetworkGateway {
 	 * Passing `true` simply re-arms the gateway. No in-flight calls exist at
 	 * that moment (they were cancelled when the switch was flipped off, or
 	 * never started), so there is nothing to resume.
-	 *
-	 * Intended to be wired to a user-facing setting and to system events
-	 * (airplane mode, metered network, low battery -- at the discretion of the
-	 * consumer feature).
 	 */
 	fun setEnabled(enabled: Boolean)
 
@@ -100,6 +107,12 @@ interface NetworkGateway {
 	 * allowlist / rate limit. In-flight requests use the policy that was
 	 * active when they were issued — they do NOT retroactively fail on a
 	 * policy that no longer allows their host.
+	 *
+	 * **Caller contract:** Same as [setEnabled] — the
+	 * [com.adsamcik.tracker.network.NetworkPolicyAggregator] is the single
+	 * writer in production. Direct calls from feature code are silently
+	 * overwritten on the aggregator's next emission. Register a
+	 * [NetworkPolicyContributor] instead.
 	 */
 	fun setPolicy(policy: NetworkPolicy)
 }

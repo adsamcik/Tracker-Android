@@ -20,8 +20,20 @@ import java.io.File
  * delegates to MapLibre's `HttpRequestUtil.setOkHttpClient` (a process-global
  * static). Every MapLibre HTTP request — style.json, sprite, glyph, vector
  * tile — flows through the gateway's interceptor chain (kill switch,
- * allowlist, per-host rate limit). When the user toggles online mode off the
- * gateway's kill switch flips immediately and tile requests fail closed.
+ * allowlist, per-host rate limit).
+ *
+ * The gateway's allowlist and kill switch are NOT driven directly from here.
+ * They are aggregated by
+ * [com.adsamcik.tracker.network.NetworkPolicyAggregator] from every
+ * [com.adsamcik.tracker.network.NetworkPolicyContributor] registered into the
+ * Hilt multibinding `Set<NetworkPolicyContributor>`. For online map tiles
+ * specifically that contribution comes from
+ * [com.adsamcik.tracker.map.network.MapTilesPolicyContributor], which mirrors
+ * the user's `OnlineMapTilesRepository` preference into a
+ * `NetworkPolicyContribution.Active` (with the chosen [TileProvider]'s host
+ * set + a bursty per-host rate limit). When the user toggles online mode off
+ * the contributor publishes `Inactive`, the aggregator recomputes a kill-
+ * switch-off / empty-allowlist policy, and tile requests fail closed.
  */
 object MapStyleProvider {
 
