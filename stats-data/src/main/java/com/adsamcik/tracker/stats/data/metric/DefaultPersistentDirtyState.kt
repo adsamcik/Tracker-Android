@@ -2,7 +2,6 @@ package com.adsamcik.tracker.stats.data.metric
 
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -45,7 +44,10 @@ import java.io.IOException
  */
 internal class DefaultPersistentDirtyState(
 	private val filesDir: File,
-	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+	// Required (not defaulted): direct `Dispatchers.IO` defaults are banned by
+	// ArchitecturalFitnessTest. Hilt injects `@IoDispatcher CoroutineDispatcher`
+	// via StatsDataModule; tests pass a `StandardTestDispatcher`.
+	private val ioDispatcher: CoroutineDispatcher,
 ) : PersistentDirtyState {
 
 	private val file: File = File(filesDir, FILE_NAME)

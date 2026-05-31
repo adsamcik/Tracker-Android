@@ -20,12 +20,14 @@ class DefaultPersistentDirtyStateTest {
 
 	private lateinit var tempDir: File
 	private lateinit var state: PersistentDirtyState
+	private val testIoDispatcher: kotlinx.coroutines.CoroutineDispatcher =
+		kotlinx.coroutines.Dispatchers.Unconfined
 
 	@BeforeEach
 	fun setUp() {
 		tempDir = File(System.getProperty("java.io.tmpdir"), "dirty-state-${System.nanoTime()}")
 		tempDir.mkdirs()
-		state = DefaultPersistentDirtyState(tempDir)
+		state = DefaultPersistentDirtyState(tempDir, testIoDispatcher)
 	}
 
 	@AfterEach
@@ -99,7 +101,7 @@ class DefaultPersistentDirtyStateTest {
 
 		// Simulate process death + restart by constructing a fresh state
 		// against the SAME backing directory.
-		val recreated = DefaultPersistentDirtyState(tempDir)
+		val recreated = DefaultPersistentDirtyState(tempDir, testIoDispatcher)
 		recreated.load() shouldContainExactlyInAnyOrder setOf("daily_summary", "session_segment")
 	}
 

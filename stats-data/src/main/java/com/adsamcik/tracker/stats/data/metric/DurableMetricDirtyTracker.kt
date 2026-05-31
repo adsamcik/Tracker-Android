@@ -6,7 +6,6 @@ import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -71,7 +70,10 @@ class DurableMetricDirtyTracker(
 	private val delegate: MetricDirtyTracker,
 	private val persistentState: PersistentDirtyState,
 	private val persistenceScope: CoroutineScope,
-	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+	// Required (not defaulted): direct `Dispatchers.IO` defaults are banned by
+	// ArchitecturalFitnessTest. Hilt injects `@IoDispatcher CoroutineDispatcher`
+	// via StatsDataModule; tests pass a `StandardTestDispatcher`.
+	private val ioDispatcher: CoroutineDispatcher,
 ) : MetricDirtyTracker {
 
 	/**
