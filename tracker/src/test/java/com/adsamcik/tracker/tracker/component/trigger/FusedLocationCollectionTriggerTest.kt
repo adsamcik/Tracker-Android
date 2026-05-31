@@ -89,26 +89,29 @@ class FusedLocationCollectionTriggerTest {
 	}
 
 	@Test
-	fun `updateInterval removes old location updates before restarting`() {
+	fun `updateInterval re-requests location updates with same callback (no remove gap)`() {
 		// Enable trigger first
 		trigger.onEnable(context, receiver)
-		
+
 		// Clear mock invocations
 		clearMocks(mockClient, answers = false)
 
 		// Update interval
 		trigger.updateInterval(context, intervalSeconds = 30, minDistanceMeters = 15)
 
-		// Verify old updates were removed
-		verify(exactly = 1) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
-		
-		// Verify new updates were requested
-		verify(exactly = 1) { 
+		// Production behavior (see FusedLocationCollectionTrigger.updateInterval KDoc):
+		// re-requesting with the SAME callback atomically updates delivery parameters
+		// without a forced stop/start gap. removeLocationUpdates is NOT called here —
+		// it would only introduce a brief gap where location samples could be missed.
+		verify(exactly = 0) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
+
+		// Verify new updates were requested with the same callback instance.
+		verify(exactly = 1) {
 			mockClient.requestLocationUpdates(
-				any<LocationRequest>(), 
-				any<LocationCallback>(), 
-				any()
-			) 
+				any<LocationRequest>(),
+				any<LocationCallback>(),
+				any(),
+			)
 		}
 	}
 
@@ -222,35 +225,35 @@ class FusedLocationCollectionTriggerTest {
 	}
 
 	@Test
-	fun `multiple updateInterval calls correctly restart location updates each time`() {
+	fun `multiple updateInterval calls each re-request updates without intermediate removes`() {
 		// Enable trigger
 		trigger.onEnable(context, receiver)
-		
+
 		clearMocks(mockClient, answers = false)
 
 		// First update: ACTIVE_MODERATE (30s, 15m)
 		trigger.updateInterval(context, intervalSeconds = 30, minDistanceMeters = 15)
-		
-		// Verify first update
-		verify(exactly = 1) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
+
+		// Verify first update — re-request only, no remove (production avoids stop/start gap).
+		verify(exactly = 0) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
 		verify(exactly = 1) { mockClient.requestLocationUpdates(any<LocationRequest>(), any<LocationCallback>(), any()) }
 
 		clearMocks(mockClient, answers = false)
 
 		// Second update: ACTIVE_ELEVATED (10s, 10m)
 		trigger.updateInterval(context, intervalSeconds = 10, minDistanceMeters = 10)
-		
+
 		// Verify second update
-		verify(exactly = 1) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
+		verify(exactly = 0) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
 		verify(exactly = 1) { mockClient.requestLocationUpdates(any<LocationRequest>(), any<LocationCallback>(), any()) }
 
 		clearMocks(mockClient, answers = false)
 
 		// Third update: PASSIVE_LOW (300s, 50m)
 		trigger.updateInterval(context, intervalSeconds = 300, minDistanceMeters = 50)
-		
+
 		// Verify third update
-		verify(exactly = 1) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
+		verify(exactly = 0) { mockClient.removeLocationUpdates(any<LocationCallback>()) }
 		verify(exactly = 1) { mockClient.requestLocationUpdates(any<LocationRequest>(), any<LocationCallback>(), any()) }
 	}
 
