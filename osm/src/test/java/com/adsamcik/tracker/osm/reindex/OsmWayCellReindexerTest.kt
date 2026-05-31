@@ -82,11 +82,26 @@ class OsmWayCellReindexerTest {
 	}
 
 	@Test
-	fun `reindexIfNeeded is a no-op when osm_way_cell already has rows`() {
+	fun `reindexIfNeeded marks cell_index_built after successful completion`() {
 		runBlocking {
 		val importId = seedImport()
 		seedWay(id = 100L, importId = importId, bbox = Bbox(500_000_000, 500_100_000, 144_000_000, 144_100_000))
-		// Pre-existing cell row → reindex thinks the index is fine.
+
+		database.osmImportDao().hasUnbuiltCellIndex() shouldBe true
+
+		reindexer.reindexIfNeeded()
+
+		database.osmImportDao().hasUnbuiltCellIndex() shouldBe false
+		getCellIndexBuilt(importId) shouldBe 1
+		}
+	}
+
+	@Test
+	fun `reindexIfNeeded is a no-op when cell_index_built is already 1`() {
+		runBlocking {
+		val importId = seedImport(cellIndexBuilt = 1)
+		seedWay(id = 100L, importId = importId, bbox = Bbox(500_000_000, 500_100_000, 144_000_000, 144_100_000))
+		// Pre-existing cell row simulating a completed prior reindex.
 		database.osmWayCellDao().insertAll(listOf(OsmWayCellEntity(cellKey = 42L, wayId = 100L)))
 
 		val rowsWritten = reindexer.reindexIfNeeded()
@@ -94,6 +109,33 @@ class OsmWayCellReindexerTest {
 		rowsWritten shouldBe 0
 		database.osmWayCellDao().count() shouldBe 1
 		cellKeysForWay(100L) shouldContainExactlyInAnyOrder listOf(42L)
+		}
+	}
+
+	@Test
+	fun `reindexIfNeeded recovers from sticky partial reindex (crash mid-batch)`() {
+		runBlocking {
+		// Simulate: import exists with cell_index_built = 0 AND some
+		// pre-existing osm_way_cell rows from a prior interrupted reindex.
+		val importId = seedImport()
+		seedWay(id = 100L, importId = importId, bbox = Bbox(500_000_000, 500_100_000, 144_000_000, 144_100_000))
+		seedWay(id = 200L, importId = importId, bbox = Bbox(500_500_000, 500_700_000, 144_500_000, 144_800_000))
+		// Stale partial cells from interrupted reindex.
+		database.osmWayCellDao().insertAll(listOf(
+			OsmWayCellEntity(cellKey = 42L, wayId = 100L),
+			OsmWayCellEntity(cellKey = 99L, wayId = 200L),
+		))
+		database.osmWayCellDao().count() shouldBe 2
+
+		// cell_index_built = 0 → reindex triggers despite existing cells.
+		val rowsWritten = reindexer.reindexIfNeeded()
+
+		(rowsWritten > 0) shouldBe true
+		database.osmImportDao().hasUnbuiltCellIndex() shouldBe false
+		getCellIndexBuilt(importId) shouldBe 1
+		// Both ways are now fully indexed.
+		val distinctWays = allWayIdsInCellIndex().sorted()
+		distinctWays shouldBe listOf(100L, 200L)
 		}
 	}
 
@@ -138,7 +180,7 @@ class OsmWayCellReindexerTest {
 		}
 	}
 
-	private suspend fun seedImport(): Long {
+	private suspend fun seedImport(cellIndexBuilt: Int = 0): Long {
 		return database.osmImportDao().insert(
 			OsmImportEntity(
 				displayName = "Prague.osm.pbf",
@@ -150,6 +192,7 @@ class OsmWayCellReindexerTest {
 				maxLatE7 = 500_700_000,
 				minLonE7 = 144_000_000,
 				maxLonE7 = 144_800_000,
+				cellIndexBuilt = cellIndexBuilt,
 			),
 		)
 	}
@@ -180,6 +223,17 @@ class OsmWayCellReindexerTest {
 				),
 			),
 		)
+	}
+
+	private fun getCellIndexBuilt(importId: Long): Int {
+		val cursor = database.openHelper.readableDatabase.query(
+			"SELECT cell_index_built FROM osm_import WHERE id = ?",
+			arrayOf(importId),
+		)
+		return cursor.use { c ->
+			c.moveToFirst()
+			c.getInt(0)
+		}
 	}
 
 	private suspend fun cellKeysForWay(wayId: Long): List<Long> {

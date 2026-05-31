@@ -31,17 +31,15 @@ interface OsmWayDao {
 	suspend fun count(): Int
 
 	/**
-	 * Returns a page of way ids + bbox columns ordered by primary key, used by
-	 * the cell-index reindexer to rebuild `osm_way_cell` after a cell-size
-	 * change. Ordering by `id` keeps pagination stable across batches even if
-	 * the table is being written to by an import in another transaction.
+	 * Returns a page of way ids + bbox columns ordered by primary key using
+	 * keyset (seek) pagination for O(n) total cost instead of O(n²) with OFFSET.
 	 *
-	 * Reads only the bbox columns (no polyline blob), so a 5000-row page is
-	 * roughly 120 KB regardless of how big the underlying ways are.
+	 * Pass `afterId = 0` (or any value < the smallest id) for the first page.
+	 * Thread the last id from each page into the next call.
 	 */
 	@Query(
 		"SELECT id, bbox_min_lat_e7, bbox_max_lat_e7, bbox_min_lon_e7, bbox_max_lon_e7 " +
-			"FROM osm_way ORDER BY id LIMIT :limit OFFSET :offset"
+			"FROM osm_way WHERE id > :afterId ORDER BY id LIMIT :limit"
 	)
-	suspend fun pageBboxes(limit: Int, offset: Int): List<OsmWayBbox>
+	suspend fun pageBboxesAfter(afterId: Long, limit: Int): List<OsmWayBbox>
 }

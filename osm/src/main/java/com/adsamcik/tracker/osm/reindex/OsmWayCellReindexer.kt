@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.osm.reindex
 
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.osm.io.OsmGridIndex
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
@@ -17,16 +18,21 @@ import javax.inject.Singleton
  * cleared the table for the new 0.01° [OsmGridIndex] cell size.
  *
  * The reindexer reads only the bbox columns of `osm_way` via
- * [OsmWayDao.pageBboxes], computes cell keys with
+ * [OsmWayDao.pageBboxesAfter], computes cell keys with
  * [OsmGridIndex.cellKeysForBbox] and writes them back into `osm_way_cell` in
  * page-sized batches. The packed polyline blobs and the OSM file the user
  * originally selected are never touched, so the reindex completes in seconds
  * even on multi-million-row imports and works fully offline.
  *
- * Triggering rule: if `osm_import` has at least one row but `osm_way_cell` is
- * empty, the cell index is stale (the v31->v32 migration ran, or the table
- * was manually cleared) and we run a reindex pass. This self-heals across
- * uninstall/restore scenarios without needing an explicit DataStore flag.
+ * Triggering rule: if any `osm_import` row has `cell_index_built = 0`, the
+ * cell index is stale or incomplete (the migration ran, or a previous reindex
+ * was interrupted by a crash). The reindexer clears `osm_way_cell`, rebuilds
+ * from scratch, and marks all imports as built only after successful completion.
+ * This guarantees crash-safety: if the process dies mid-batch, imports remain
+ * flagged 0 and the heuristic re-triggers on next launch.
+ *
+ * Pagination uses keyset (seek) strategy via [OsmWayDao.pageBboxesAfter] for
+ * O(n) total cost, avoiding the O(n²) row scans of OFFSET-based pagination.
  *
  * Concurrency: this is `suspend` and dispatches its IO on
  * [DispatchersProvider.io]; callers should also wrap the call in a
@@ -61,20 +67,48 @@ class OsmWayCellReindexer @Inject constructor(
 	suspend fun reindex(pageSize: Int = DEFAULT_PAGE_SIZE): Int =
 		withContext(dispatchers.io) {
 			require(pageSize > 0) { "pageSize must be > 0 (was $pageSize)" }
-			var offset = 0
+			val startMs = System.currentTimeMillis()
+			var afterId = 0L
 			var totalCellRows = 0
-			while (true) {
-				val page = osmWayDao.pageBboxes(limit = pageSize, offset = offset)
-				if (page.isEmpty()) break
-				val cells = page.flatMap(::cellRowsFor)
-				if (cells.isNotEmpty()) {
-					osmWayCellDao.insertAll(cells)
-					totalCellRows += cells.size
+			var totalWays = 0
+			try {
+				while (true) {
+					val page = osmWayDao.pageBboxesAfter(
+						afterId = afterId,
+						limit = pageSize,
+					)
+					if (page.isEmpty()) break
+					totalWays += page.size
+					val cells = page.flatMap(::cellRowsFor)
+					if (cells.isNotEmpty()) {
+						osmWayCellDao.insertAll(cells)
+						totalCellRows += cells.size
+					}
+					afterId = page.last().id
+					if (page.size < pageSize) break
 				}
-				if (page.size < pageSize) break
-				offset += page.size
+				// Mark all imports as having a complete cell index only after
+				// every batch succeeded. If we crash before this line, imports
+				// keep cell_index_built = 0 and the heuristic re-triggers.
+				osmImportDao.markAllCellIndexBuilt()
+
+				val durationMs = System.currentTimeMillis() - startMs
+				ReporterFacade.log(
+					"OsmWayCellReindex complete: $totalWays ways → $totalCellRows cells in ${durationMs}ms",
+				)
+				totalCellRows
+			} catch (cancellation: kotlinx.coroutines.CancellationException) {
+				throw cancellation
+			} catch (t: Throwable) {
+				val durationMs = System.currentTimeMillis() - startMs
+				ReporterFacade.report(
+					RuntimeException(
+						"OsmWayCellReindex failed after $totalWays ways, $totalCellRows cells, ${durationMs}ms",
+						t,
+					),
+				)
+				throw t
 			}
-			totalCellRows
 		}
 
 	private suspend fun needsReindex(): Boolean {
@@ -82,7 +116,7 @@ class OsmWayCellReindexer @Inject constructor(
 		if (importedRegionCount <= 0) return false
 		val wayCount = osmWayDao.count()
 		if (wayCount <= 0) return false
-		return osmWayCellDao.count() == 0
+		return osmImportDao.hasUnbuiltCellIndex()
 	}
 
 	private fun cellRowsFor(bbox: OsmWayBbox): List<OsmWayCellEntity> {

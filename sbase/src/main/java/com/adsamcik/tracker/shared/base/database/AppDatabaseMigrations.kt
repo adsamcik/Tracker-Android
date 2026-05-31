@@ -21,6 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 33         │ 400         │ 🚧 UNRELEASED - Add cell_index_built    │
+ * │            │             │    column to osm_import for crash-safe   │
+ * │            │             │    reindex progress tracking.            │
  * │ 32         │ 400         │ 🚧 UNRELEASED - Drop osm_way_cell rows  │
  * │            │             │    so the new 0.01° (~1.1 km) OsmGridIndex│
  * │            │             │    cells can be rebuilt by the background │
@@ -1404,6 +1407,29 @@ val MIGRATION_31_32: Migration = object : Migration(31, 32) {
 		android.util.Log.i(
 			"AppDatabase",
 			"Migration 31->32: Cleared osm_way_cell; background reindexer will rebuild it under the 0.01° OsmGridIndex grid",
+		)
+	}
+}
+
+/**
+ * v32 → v33: Add `cell_index_built` progress marker to `osm_import`.
+ *
+ * Fixes the "sticky partial reindex" bug where a crash mid-reindex left some
+ * `osm_way_cell` rows written, making the old `count == 0` heuristic believe
+ * the index was complete. With this column the reindexer checks
+ * `cell_index_built = 0` instead, so it always re-triggers after a crash.
+ *
+ * All existing rows get the default value 0, which correctly forces a full
+ * reindex on next launch — desirable because v32 just cleared the table.
+ */
+val MIGRATION_32_33: Migration = object : Migration(32, 33) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"ALTER TABLE osm_import ADD COLUMN cell_index_built INTEGER NOT NULL DEFAULT 0",
+		)
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 32->33: Added cell_index_built column to osm_import",
 		)
 	}
 }

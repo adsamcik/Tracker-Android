@@ -44,4 +44,15 @@ data class OsmImportEntity(
 	@ColumnInfo(name = "max_lat_e7") val maxLatE7: Int,
 	@ColumnInfo(name = "min_lon_e7") val minLonE7: Int,
 	@ColumnInfo(name = "max_lon_e7") val maxLonE7: Int,
+
+	/**
+	 * Explicit completion marker for the cell-index rebuild. Set to 1 only
+	 * after [OsmWayCellReindexer][com.adsamcik.tracker.osm.reindex.OsmWayCellReindexer]
+	 * successfully finishes rebuilding `osm_way_cell` rows for this import.
+	 *
+	 * If a reindex is interrupted (OOM, force-stop, OS kill), this stays 0 and
+	 * the self-healing heuristic re-triggers the rebuild on next launch.
+	 */
+	@ColumnInfo(name = "cell_index_built", defaultValue = "0")
+	val cellIndexBuilt: Int = 0,
 )

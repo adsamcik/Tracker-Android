@@ -32,6 +32,22 @@ interface OsmImportDao {
 	@Query("SELECT COUNT(*) FROM osm_import")
 	suspend fun count(): Int
 
+	/**
+	 * Returns true when at least one import exists whose cell index has not
+	 * been fully built (or was interrupted mid-build). The reindexer uses this
+	 * instead of `osm_way_cell.count == 0` so a crash mid-reindex is always
+	 * detected.
+	 */
+	@Query("SELECT EXISTS(SELECT 1 FROM osm_import WHERE cell_index_built = 0)")
+	suspend fun hasUnbuiltCellIndex(): Boolean
+
+	/**
+	 * Marks all imports as having a complete cell index. Called by the
+	 * reindexer after a successful full rebuild.
+	 */
+	@Query("UPDATE osm_import SET cell_index_built = 1")
+	suspend fun markAllCellIndexBuilt()
+
 	@Query("SELECT COUNT(*) FROM osm_import")
 	fun observeCount(): Flow<Int>
 
