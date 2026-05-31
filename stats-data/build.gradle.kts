@@ -62,6 +62,7 @@ android {
 dependencies {
 	api(project(":stats-api"))
 	implementation(project(":sbase"))
+	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":osm"))
 

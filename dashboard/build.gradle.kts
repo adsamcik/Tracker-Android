@@ -57,6 +57,7 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":tracker"))
 	implementation(project(":stats-api"))
+	implementation(project(":stats-data"))
 	implementation(project(":points"))
 
 	// Core

@@ -37,6 +37,8 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.rememberContentColumnCount
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.data.achievement.AchievementFormatting
 
 /**
  * Idle dashboard content shown when the user is NOT tracking.
@@ -260,8 +262,27 @@ private fun LatestAchievementCard(state: DashboardUiState, modifier: Modifier = 
 			)
 			Spacer(modifier = Modifier.height(8.dp))
 			val latest = state.latestAchievement
+			// Resolve the live AchievementDefinition from the id so we can
+			// render through the canonical AchievementFormatting (now in
+			// :stats-data). This produces correctly localised titles like
+			// "First session" / "Travel 5 km" / "%d-day streak" instead of
+			// falling through resolveStringResource to humanizeResourceKey
+			// (R8 r8-dashboard-use-achievementformatting).
+			val title = latest?.let { ui ->
+				val definition = AchievementCatalog.byId(ui.id)
+				if (definition != null) {
+					val context = LocalContext.current
+					remember(definition.id, context) {
+						AchievementFormatting.formatTitle(context, definition)
+					}
+				} else {
+					// Fallback path retained for catalog/persistence drift
+					// (e.g. a stale row referring to an id that was removed).
+					resolveStringResource(ui.nameRes)
+				}
+			} ?: stringResource(R.string.dashboard_latest_achievement_empty)
 			Text(
-				text = latest?.let { resolveStringResource(it.nameRes) } ?: stringResource(R.string.dashboard_latest_achievement_empty),
+				text = title,
 				style = MaterialTheme.typography.bodyMedium,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
@@ -276,19 +297,15 @@ private fun resolveStringResource(name: String): String {
 	return if (resId != 0) {
 		stringResource(resId)
 	} else {
-		// No string resource defined for this achievement id yet (the catalog
-		// auto-generates ~155 ids × 2 (title/desc) = ~310 keys; the project's
-		// canonical formatter is :game/AchievementFormatting which renders
-		// titles programmatically from metric + threshold instead of relying
-		// on per-id resources. The dashboard currently can't use it without
-		// crossing the :dashboard -> :game module boundary; see follow-up
-		// todo `r8-dashboard-use-achievementformatting`. Until the formatter
-		// is hoisted to a shared module, log the miss so we can quantify how
-		// often users hit the fallback in production and prioritise either
-		// the refactor or the missing resource — and show a humanized label
-		// so the user never sees a raw resource key.
+		// Reached only when AchievementCatalog.byId(...) returns null for the
+		// stored achievement id — meaning the catalog changed since the row
+		// was persisted. Log so we can detect catalog drift, and show a
+		// humanized label so the user never sees a raw resource key.
 		LaunchedEffect(name) {
-			Log.w(TAG_IDLE_CONTENT, "missing achievement string resource '$name'; humanized fallback in use")
+			Log.w(
+				TAG_IDLE_CONTENT,
+				"achievement id not in catalog; missing string resource '$name'; humanized fallback in use",
+			)
 		}
 		humanizeResourceKey(name)
 	}

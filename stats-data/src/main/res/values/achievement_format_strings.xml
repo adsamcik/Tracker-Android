@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Achievement catalog format strings.
+
+    Titles and descriptions are derived programmatically from metric +
+    threshold (see AchievementFormatting.kt), so adding a new tier doesn't
+    require new per-row strings — only the metric-family format here.
+
+    Moved here from :game in commit (r8-dashboard-use-achievementformatting)
+    so :dashboard (which depends on :stats-data via the data layer, but NOT
+    on :game) can render proper i18n'd achievement titles instead of falling
+    back to humanizeResourceKey.
+-->
+<resources>
+
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Travel %1$s</string>
+    <string name="ach_desc_distance_total">Cover %1$s of total recorded distance across all your sessions.</string>
+    <string name="ach_title_week_distance">%1$s this week</string>
+    <string name="ach_desc_week_distance">Travel %1$s within a single calendar week.</string>
+    <string name="ach_title_best_day_distance">%1$s in a day</string>
+    <string name="ach_desc_best_day_distance">Cover %1$s of distance in a single day.</string>
+    <string name="ach_title_max_session_distance">%1$s in one session</string>
+    <string name="ach_desc_max_session_distance">Record a single session that covers %1$s without stopping.</string>
+    <string name="ach_title_on_foot_distance">Walk or run %1$s</string>
+    <string name="ach_desc_on_foot_distance">Cover %1$s on foot (walking or running combined).</string>
+    <string name="ach_title_cycling_distance">Cycle %1$s</string>
+    <string name="ach_desc_cycling_distance">Cycle %1$s in total.</string>
+    <string name="ach_title_vehicle_distance">Drive %1$s</string>
+    <string name="ach_desc_vehicle_distance">Cover %1$s in a vehicle (car, bus, train).</string>
+
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Take %1$s steps</string>
+    <string name="ach_desc_steps_total">Record %1$s steps across all your sessions.</string>
+    <string name="ach_title_best_daily_steps">%1$s steps in a day</string>
+    <string name="ach_desc_best_daily_steps">Take %1$s steps within a single day.</string>
+
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">First session</item>
+        <item quantity="other">Record %1$s sessions</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Record %1$s tracking sessions in total.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Discover your first cell</item>
+        <item quantity="other">Discover %1$s map cells</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Explore %1$s distinct grid cells on the map (each ~1 km square).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Visit %d country</item>
+        <item quantity="other">Visit %d countries</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Record at least one session in %1$d different countries.</string>
+
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">First active day</item>
+        <item quantity="other">%1$s active days</item>
+    </plurals>
+    <string name="ach_desc_active_days">Track activity on %1$s different days in total.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d-day streak</item>
+        <item quantity="other">%d-day streak</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Track activity %1$d days in a row.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Personal best: %d day</item>
+        <item quantity="other">Personal best: %d days</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Reach a personal-best tracking streak of %1$d days.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d month with Tracker</item>
+        <item quantity="other">%d months with Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Stay active in Tracker for %1$d different months.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d active day this week</item>
+        <item quantity="other">%d active days this week</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Track activity on %1$d days within a single week.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">First day with Tracker</item>
+        <item quantity="other">%1$s days with Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Have Tracker installed for %1$s days.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Welcome back</item>
+        <item quantity="other">Welcome back after %d days</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Return to tracking after a %1$d-day break.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Track at %d hour of day</item>
+        <item quantity="other">Track at %d different hours</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Record activity during %1$d different hours of the day across all sessions.</string>
+    <string name="ach_title_days_of_week">All seven days of the week</string>
+    <string name="ach_desc_days_of_week">Track activity on every weekday at least once.</string>
+
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Try %d activity type</item>
+        <item quantity="other">Try %d activity types</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Record sessions in %1$d different activity types (walk, cycle, drive, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d activity type this week</item>
+        <item quantity="other">%d activity types this week</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Use %1$d different activity types within a single week.</string>
+    <string name="ach_title_week_all_days">Track every day of a week</string>
+    <string name="ach_desc_week_all_days">Record activity on all seven days of a calendar week.</string>
+    <string name="ach_title_walk_cycle_drive">Walk, cycle, drive</string>
+    <string name="ach_desc_walk_cycle_drive">Record at least one session of each: walking, cycling, and driving.</string>
+
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">%1$s session</string>
+    <string name="ach_desc_max_session_duration">Record a single session lasting at least %1$s.</string>
+    <string name="ach_title_max_speed">Hit %1$s</string>
+    <string name="ach_desc_max_speed">Reach a top speed of at least %1$s during a session.</string>
+    <string name="ach_title_active_minutes">%1$s active minutes</string>
+    <string name="ach_desc_active_minutes">Accumulate %1$s minutes of active tracking time.</string>
+
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">First export</item>
+        <item quantity="other">%d exports</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Export your data %1$d times.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Track through one season</item>
+        <item quantity="other">Track through %d seasons</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Record activity during %1$d distinct seasons (spring/summer/autumn/winter).</string>
+
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">New Year tracker</string>
+    <string name="ach_desc_calendar_new_year">Record a session on January 1.</string>
+    <string name="ach_title_calendar_leap_day">Leap day pioneer</string>
+    <string name="ach_desc_calendar_leap_day">Record a session on February 29.</string>
+    <string name="ach_title_calendar_summer_solstice">Summer solstice</string>
+    <string name="ach_desc_calendar_summer_solstice">Record a session on the longest day of the year.</string>
+    <string name="ach_title_calendar_winter_solstice">Winter solstice</string>
+    <string name="ach_desc_calendar_winter_solstice">Record a session on the shortest day of the year.</string>
+
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minute</item>
+        <item quantity="other">%d-minute</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-hour</item>
+        <item quantity="other">%d-hour</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-day</item>
+        <item quantity="other">%d-day</item>
+    </plurals>
+</resources>
