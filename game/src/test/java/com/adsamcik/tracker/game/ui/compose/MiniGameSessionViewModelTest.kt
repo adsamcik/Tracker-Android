@@ -39,6 +39,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -270,6 +273,43 @@ class MiniGameSessionViewModelTest {
 	}
 
 	@Test
+	fun rapidPauseResume_doesNotOverlapLocationSubscriptions() = runTest(dispatcher) {
+		// Regression test for R2 round-6, round-2: pause() calls cancel() on
+		// the collection job, but cancel() is fire-and-forget. Without the
+		// pendingTeardown join, a fast pause→resume would launch a new
+		// subscription before the prior callbackFlow had a chance to run
+		// awaitClose { removeLocationUpdates(...) }, briefly registering two
+		// FusedLocationProviderClient callbacks at once.
+		grantLocationPermission()
+		mockkObject(Time)
+		try {
+			every { Time.nowMillis } returns 1_000L
+			val vm = newViewModel()
+			vm.start()
+			advanceUntilIdle()
+			locationSource.subscribers shouldBe 1
+			locationSource.maxConcurrentSubscribers shouldBe 1
+
+			// Hammer pause/resume without giving the dispatcher a chance to
+			// drain in between. Each resume() must wait on the prior
+			// teardown before opening a new subscription.
+			repeat(5) { iter ->
+				every { Time.nowMillis } returns (10_000L + iter * 200L)
+				vm.pause()
+				every { Time.nowMillis } returns (10_100L + iter * 200L)
+				vm.resume()
+			}
+			advanceUntilIdle()
+
+			locationSource.subscribers shouldBe 1
+			locationSource.maxConcurrentSubscribers shouldBe 1
+			vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
+		} finally {
+			unmockkObject(Time)
+		}
+	}
+
+	@Test
 	fun resume_afterFiveMinutes_autoFinalizesSession() = runTest(dispatcher) {
 		grantLocationPermission()
 		mockkObject(Time)
@@ -395,16 +435,34 @@ private class ControllableLocationSource : MiniGameLocationSource {
 	var subscribers: Int = 0
 		private set
 
+	/**
+	 * Peak concurrent subscriber count observed over the lifetime of this
+	 * source. Used by the pause→resume race test to assert the VM never
+	 * holds two GPS subscriptions at once.
+	 */
+	@Volatile
+	var maxConcurrentSubscribers: Int = 0
+		private set
+
 	@Volatile
 	var lastRequest: LocationRequest? = null
 		private set
 
 	override fun samples(request: LocationRequest): Flow<MiniGameLocationSample> = flow {
 		lastRequest = request
-		subscribers += 1
+		val now = ++subscribers
+		if (now > maxConcurrentSubscribers) maxConcurrentSubscribers = now
 		try {
 			sharedFlow.collect { emit(it) }
 		} finally {
+			// Model the real callbackFlow's `awaitClose { removeLocationUpdates(...) }`:
+			// cleanup runs in a NonCancellable context and takes at least one
+			// scheduler tick to complete. Without this, the single-threaded test
+			// dispatcher would coincidentally serialize cancel-then-relaunch and
+			// hide the pause→resume overlap bug.
+			withContext(NonCancellable) {
+				yield()
+			}
 			subscribers -= 1
 		}
 	}

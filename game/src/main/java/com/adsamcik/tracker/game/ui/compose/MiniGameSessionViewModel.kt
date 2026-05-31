@@ -106,6 +106,26 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	private var collectionJob: Job? = null
 
 	/**
+	 * Serializes the actual GPS subscription window.
+	 *
+	 * **Why this exists (R2 round-6, round-2):** [pause] and [stop] call
+	 * `cancel()` which is fire-and-forget — the [FusedMiniGameLocationSource]'s
+	 * `callbackFlow` runs its `awaitClose { removeLocationUpdates(...) }`
+	 * teardown *some time after* the cancel signal lands. If a fast
+	 * pause→resume cycle (or several of them) fires before that teardown
+	 * completes, the new subscription would register a fresh
+	 * `FusedLocationProviderClient` callback while the old one is still
+	 * registered, transiently doubling the GPS callback load.
+	 *
+	 * The mutex is held for the entire duration of the inner `collect { ... }`
+	 * call, so a new collection job always waits for the prior job's flow
+	 * `finally` (i.e. `awaitClose`) to fully run before re-subscribing.
+	 * Cancelled-before-started jobs simply never acquire the lock, so the
+	 * chain stays correct no matter how many rapid pause/resume cycles fire.
+	 */
+	private val subscriptionLock = Mutex()
+
+	/**
 	 * `0L` while the session is actively running; otherwise the timestamp at
 	 * which the host activity stopped being visible. Used by [resume] to decide
 	 * between re-subscribing to location updates and auto-finalising the session
@@ -181,38 +201,47 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	 * without re-emitting the initial Active frame from [start] (which would
 	 * spuriously reset the on-screen score the moment the user backgrounds and
 	 * returns to the app).
+	 *
+	 * The inner `collect { ... }` runs inside [subscriptionLock] so any prior
+	 * subscription's flow `finally` block (i.e. `awaitClose { remove... }`)
+	 * fully runs before the new subscription registers its callback. This is
+	 * what prevents the brief two-callback overlap during a fast pause→resume
+	 * cycle. Cancelled-before-started jobs are queued on the mutex too, so the
+	 * ordering is correct even across many rapid cycles.
 	 */
 	private fun startCollection() {
 		collectionJob = viewModelScope.launch {
-			try {
-				locationSource.samples(game.desiredLocationRequest()).collect { sample ->
-					session.onLocationUpdate(
-						latitude = sample.latitude,
-						longitude = sample.longitude,
-						speedMps = sample.speedMps,
-						accuracyM = sample.accuracyM,
-						timestampMs = sample.timestampMs,
+			subscriptionLock.withLock {
+				try {
+					locationSource.samples(game.desiredLocationRequest()).collect { sample ->
+						session.onLocationUpdate(
+							latitude = sample.latitude,
+							longitude = sample.longitude,
+							speedMps = sample.speedMps,
+							accuracyM = sample.accuracyM,
+							timestampMs = sample.timestampMs,
+						)
+						_uiState.value = MiniGameUiState.Active(
+							score = session.score,
+							state = session.state,
+							statusText = session.statusText,
+							elapsedMs = currentElapsedMs(),
+						)
+					}
+				} catch (cancellation: CancellationException) {
+					throw cancellation
+				} catch (security: SecurityException) {
+					_uiState.value = MiniGameUiState.PermissionNeeded
+				} catch (error: Throwable) {
+					// Stay defensive — never let a downstream failure throw across module
+					// boundaries; fall back to a clean Finished state with zero points.
+					_uiState.value = MiniGameUiState.Finished(
+						finalScore = session.score,
+						pointsEarned = 0,
 					)
-					_uiState.value = MiniGameUiState.Active(
-						score = session.score,
-						state = session.state,
-						statusText = session.statusText,
-						elapsedMs = currentElapsedMs(),
-					)
-				}
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (security: SecurityException) {
-				_uiState.value = MiniGameUiState.PermissionNeeded
-			} catch (error: Throwable) {
-				// Stay defensive — never let a downstream failure throw across module
-				// boundaries; fall back to a clean Finished state with zero points.
-				_uiState.value = MiniGameUiState.Finished(
-					finalScore = session.score,
-					pointsEarned = 0,
-				)
-				if (error !is RuntimeException && error !is IllegalStateException) {
-					throw error
+					if (error !is RuntimeException && error !is IllegalStateException) {
+						throw error
+					}
 				}
 			}
 		}
@@ -296,8 +325,7 @@ internal class MiniGameSessionViewModel @Inject constructor(
 		val startedAt = sessionStartedAtMs
 		val wasActive = collectionJob?.isActive == true || _uiState.value is MiniGameUiState.Active
 
-		collectionJob?.cancel()
-		collectionJob = null
+		cancelCollectionForStop()
 		// Drop any in-flight pause bookkeeping so a follow-up resume() cannot
 		// accidentally re-subscribe to the location source on a finished session.
 		pausedAtMs = 0L
@@ -347,8 +375,7 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	 * ready to start. Use this for the "Play again" button.
 	 */
 	fun reset() {
-		collectionJob?.cancel()
-		collectionJob = null
+		cancelCollectionForStop()
 		session = game.createSession()
 		sessionStartedAtMs = 0L
 		pausedAtMs = 0L
@@ -375,9 +402,19 @@ internal class MiniGameSessionViewModel @Inject constructor(
 		// already pressed Stop, this is a no-op; otherwise we still cancel —
 		// but we do NOT silently write a partial score row, since the user did
 		// not explicitly end the session.
+		cancelCollectionForStop()
+		super.onCleared()
+	}
+
+	/**
+	 * Cancel the in-flight [collectionJob]. The [subscriptionLock] inside
+	 * [startCollection] guarantees the prior subscription's flow `finally`
+	 * (i.e. fused-client `removeLocationUpdates`) fully runs before the next
+	 * subscription registers, so no separate teardown tracking is needed here.
+	 */
+	private fun cancelCollectionForStop() {
 		collectionJob?.cancel()
 		collectionJob = null
-		super.onCleared()
 	}
 
 	companion object {
