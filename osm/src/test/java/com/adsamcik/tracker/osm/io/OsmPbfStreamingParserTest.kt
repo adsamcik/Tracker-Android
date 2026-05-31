@@ -56,4 +56,17 @@ class OsmPbfStreamingParserTest {
 		OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES shouldBe oneHundredMb
 		OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES.shouldBeGreaterThan(0L)
 	}
+
+	@Test
+	fun `referenced-node cap is the documented heap-bound ceiling`() {
+		// Pin MAX_REFERENCED_NODES so any change is loud. Combined with the
+		// per-entry cost of a boxed-Long HashSet/HashMap entry on the Android
+		// runtime (~70-80 bytes), this cap bounds the parser's two intermediate
+		// maps at ~140 MB and ~160 MB respectively — see the class KDoc
+		// "Heap envelope per phase" section. R2 round-6, round-2 lowered this
+		// from 8 000 000 to 2 000 000 because the previous cap admitted a
+		// worst-case ~560 MB transient allocation realistic .osm.pbf payloads
+		// never need but adversarial inputs could weaponize.
+		OsmPbfStreamingParser.MAX_REFERENCED_NODES shouldBe 2_000_000
+	}
 }

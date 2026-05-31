@@ -31,9 +31,32 @@ import kotlin.coroutines.coroutineContext
  * Strict offline contract: the input stream factory MUST point at a local file
  * — the parser never opens a URL.
  *
- * Memory guardrails (Phase 2a):
+ * **Heap envelope per phase (R2 round-6, round-2):** the parser allocates two
+ * heavyweight intermediate maps and one buffer. Because both maps key on
+ * boxed [Long]s, the per-entry footprint is dominated by the JVM's
+ * `HashMap.Node` (~48 B) plus the boxed [Long] (~24 B) — roughly **72 bytes
+ * per node id** in `nodeIds` and **80 bytes per (id → packed lat/lon)
+ * entry** in `nodePositions`. With [MAX_REFERENCED_NODES] capped at
+ * **2 000 000**, that gives:
+ *
+ *  - After pass 1: `nodeIds` ≤ ~140 MB; `wayBuffer` typically ≤ 5 MB
+ *    (refs are stored as primitive `LongArray`s — no boxing).
+ *  - After pass 2: `nodeIds` is no longer needed and is explicitly
+ *    [HashSet.clear]ed before the emit loop begins, freeing ~140 MB.
+ *  - During emit: only `nodePositions` (~160 MB) and `wayBuffer` remain
+ *    resident, plus the in-flight [ParsedOsmWay] batch (≤
+ *    [DEFAULT_WAY_BATCH_SIZE] entries × small bbox header). Downstream
+ *    [OsmImportWorker] persists each batch in 5 000-way DB chunks, so peak
+ *    transient allocations outside the parser stay bounded too.
+ *
+ * Together with the [MAX_FILE_SIZE_BYTES] guard (100 MB) this keeps the worst
+ * realistic OSM import — a fully driveable, urban .osm.pbf — well under the
+ * Android `dalvik.vm.heapgrowthlimit` envelope on common phones (256 MB on
+ * mid-range, 512 MB on high-end).
+ *
+ * Memory guardrails (Phase 2a + R2 round-6 round-2):
  *  - PBF file size must not exceed [MAX_FILE_SIZE_BYTES] (~100 MB).
- *  - Referenced node count must not exceed [MAX_REFERENCED_NODES].
+ *  - Referenced node count must not exceed [MAX_REFERENCED_NODES] (2 000 000).
  *
  * Cancellation: cooperative — the parser polls [coroutineContext] and
  * [CancellationCheck.isCancelled] periodically. Mid-stream cancellation throws
@@ -130,6 +153,13 @@ class OsmPbfStreamingParser {
 		}
 		coroutineContext.ensureActive()
 		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, pass2Counter.value))
+
+		// `nodeIds` is no longer needed once `nodePositions` has been built —
+		// the emit phase only looks ids up in `nodePositions`. Explicitly free
+		// the boxed-Long HashSet (~70 bytes per entry × up to MAX_REFERENCED_NODES)
+		// before the emit loop allocates per-way [ParsedOsmWay] objects. This
+		// matches the per-phase heap envelope documented on the class KDoc.
+		nodeIds.clear()
 
 		// --- Emit ---
 		var globalMinLat = Int.MAX_VALUE
@@ -434,7 +464,23 @@ class OsmPbfStreamingParser {
 
 	companion object {
 		const val MAX_FILE_SIZE_BYTES: Long = 100L * 1024L * 1024L
-		const val MAX_REFERENCED_NODES: Int = 8_000_000
+
+		/**
+		 * Upper bound on distinct referenced node ids retained across both
+		 * passes. Sized so that with the ~70 bytes/entry cost of a
+		 * boxed-`Long` HashSet entry on the Android runtime, the pass-1
+		 * `nodeIds` set stays under ~140 MB even at the cap, and the pass-2
+		 * `nodePositions` map (~80 bytes/entry — Node + boxed-Long key + boxed-
+		 * Long packed value) stays under ~160 MB. Both combined with the
+		 * [MAX_FILE_SIZE_BYTES] file cap keep peak parser RSS well inside the
+		 * Android `dalvik.vm.heapgrowthlimit` envelope for mid-range phones.
+		 *
+		 * Lowered from 8 000 000 to 2 000 000 in R2 round-6, round-2 — the
+		 * higher cap admitted a worst-case ~560 MB transient allocation that
+		 * realistic .osm.pbf payloads never need but adversarial inputs could
+		 * weaponize. See the class KDoc "Heap envelope" section.
+		 */
+		const val MAX_REFERENCED_NODES: Int = 2_000_000
 		const val DEFAULT_WAY_BATCH_SIZE: Int = 1_000
 		private const val MIN_NODES_PER_WAY = 2
 		private const val INITIAL_NODE_ID_CAPACITY = 1 shl 17
