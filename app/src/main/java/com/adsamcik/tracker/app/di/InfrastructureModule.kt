@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.di
 
 import android.content.Context
+import com.adsamcik.tracker.network.DefaultNetworkGateway
+import com.adsamcik.tracker.network.NetworkGateway
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -230,4 +232,15 @@ object InfrastructureModule {
 
     @Provides
     fun provideOsmWayCellDao(database: AppDatabase): OsmWayCellDao = database.osmWayCellDao()
+
+    /**
+     * Provides the singleton [NetworkGateway] — the ONLY allowed network egress
+     * point in the app. Defaults: kill switch OFF, deny-all allowlist (set
+     * [NetworkGateway.setEnabled] / [NetworkGateway.setPolicy] from the consumer
+     * feature when the user opts in). See `com.adsamcik.tracker.network.NetworkGateway`
+     * KDoc for the privacy contract.
+     */
+    @Provides
+    @Singleton
+    fun provideNetworkGateway(): NetworkGateway = DefaultNetworkGateway()
 }

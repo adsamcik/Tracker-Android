@@ -37,6 +37,7 @@ android {
 dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.okhttp)
 
 	// Unit Tests
 	testImplementation(platform(libs.junit5.bom))
@@ -49,6 +50,7 @@ dependencies {
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.turbine)
+	testImplementation(libs.okhttp.mockwebserver)
 }
 
 tasks.withType<Test>().configureEach {

@@ -250,6 +250,7 @@ dependencies {
 	
 	implementation(project(":sbase"))
 	implementation(project(":logging-api"))
+	implementation(project(":network"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
 	implementation(project(":points"))

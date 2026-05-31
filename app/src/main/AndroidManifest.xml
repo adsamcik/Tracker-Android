@@ -26,8 +26,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- API 33+: Required for Wi‑Fi scanning without location; see Onboarding permission mapping -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
-    <!-- Remove INTERNET permission pulled in by MapLibre GL Native SDK; this is an offline-only app -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!--
+        INTERNET re-enabled (was previously stripped via tools:node="remove"). Every byte of
+        egress now flows through `com.adsamcik.tracker.network.NetworkGateway`, which is
+        opt-in (kill switch defaults OFF until a feature like the online map tiles toggle
+        flips it). Direct OkHttp / HttpURLConnection / Retrofit imports outside the
+        `:network` module are forbidden by convention.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name="com.adsamcik.tracker.app.Application"
