@@ -251,7 +251,7 @@ private fun CategorySectionHeader(
 			modifier = Modifier.weight(1f),
 		)
 		Text(
-			"$unlocked / $total",
+			stringResource(R.string.achievement_category_count_format, unlocked, total),
 			style = MaterialTheme.typography.labelMedium,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)

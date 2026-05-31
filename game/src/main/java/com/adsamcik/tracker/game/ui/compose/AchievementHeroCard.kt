@@ -77,7 +77,7 @@ internal fun AchievementHeroCard(
 						color = MaterialTheme.colorScheme.onPrimaryContainer,
 					)
 					Text(
-						"of $total",
+						stringResource(R.string.achievement_hero_of_total, total),
 						style = MaterialTheme.typography.labelSmall,
 						color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
 					)

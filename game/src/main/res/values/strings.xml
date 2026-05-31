@@ -285,6 +285,16 @@
     <string name="achievement_tier_label">%1$s tier · +%2$d XP</string>
     <string name="achievement_hero_title">Your trophy cabinet</string>
     <string name="achievement_hero_points">%1$d XP earned</string>
+    <string name="achievement_hero_of_total">of %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Exploration</string>
+    <string name="achievement_category_distance">Distance</string>
+    <string name="achievement_category_steps">Steps</string>
+    <string name="achievement_category_streaks">Streaks</string>
+    <string name="achievement_category_milestones">Milestones</string>
+    <string name="achievement_category_modes">Modes</string>
+    <string name="achievement_category_time">Time</string>
+    <string name="achievement_category_calendar">Calendar</string>
     <string name="achievement_unlocked_content_description">Unlocked</string>
     <string name="achievement_locked_content_description">Locked</string>
 

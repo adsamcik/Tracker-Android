@@ -52,4 +52,14 @@
     <string name="game_recent_achievements">Recent unlocks</string>
     <string name="game_next_achievements">Next up</string>
     <string name="achievement_show_locked">Show locked</string>
+    <string name="achievement_hero_of_total">z %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Průzkum</string>
+    <string name="achievement_category_distance">Vzdálenost</string>
+    <string name="achievement_category_steps">Kroky</string>
+    <string name="achievement_category_streaks">Série</string>
+    <string name="achievement_category_milestones">Milníky</string>
+    <string name="achievement_category_modes">Režimy</string>
+    <string name="achievement_category_time">Čas</string>
+    <string name="achievement_category_calendar">Kalendář</string>
 </resources>

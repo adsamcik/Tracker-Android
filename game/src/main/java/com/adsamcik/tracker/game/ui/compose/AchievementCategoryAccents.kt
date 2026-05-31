@@ -75,6 +75,17 @@ internal fun categoryIcon(category: AchievementCategory): ImageVector = when (ca
 	AchievementCategory.CALENDAR -> Icons.Outlined.CalendarMonth
 }
 
-/** Display label for the given achievement category. */
-internal fun categoryLabel(category: AchievementCategory): String =
-	category.name.lowercase().replaceFirstChar { it.uppercase() }
+/** Localized display label for the given achievement category. */
+@Composable
+internal fun categoryLabel(category: AchievementCategory): String = stringResource(
+	when (category) {
+		AchievementCategory.EXPLORATION -> R.string.achievement_category_exploration
+		AchievementCategory.DISTANCE -> R.string.achievement_category_distance
+		AchievementCategory.STEPS -> R.string.achievement_category_steps
+		AchievementCategory.STREAKS -> R.string.achievement_category_streaks
+		AchievementCategory.MILESTONES -> R.string.achievement_category_milestones
+		AchievementCategory.MODES -> R.string.achievement_category_modes
+		AchievementCategory.TIME -> R.string.achievement_category_time
+		AchievementCategory.CALENDAR -> R.string.achievement_category_calendar
+	},
+)
