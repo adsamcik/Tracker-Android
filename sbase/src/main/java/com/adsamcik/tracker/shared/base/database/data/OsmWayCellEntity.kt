@@ -9,13 +9,16 @@ import androidx.room.Index
  * Spatial grid index linking an [OsmWayEntity] to every coarse grid cell its
  * bounding box overlaps.
  *
- * Phase 2a uses a simple square-degree grid keyed as
- * `(latE7 / 800_000) << 24 | (lonE7 / 800_000) & 0xFFFFFF` — i.e. cells of
- * roughly 0.08° (~9 km at the equator). Coarser than S2 level 14 but adequate
- * for snap-to-nearest-road queries with a tolerance under 100 m, and it avoids
- * pulling in an S2 dependency that the rest of the tracker doesn't already use.
+ * Cell keys are computed by [com.adsamcik.tracker.osm.io.OsmGridIndex] as
+ * `(latE7 / CELL_E7) << 24 | (lonE7 / CELL_E7) & 0xFFFFFF`. The current cell
+ * size is `0.01°` (E7: 100_000), roughly 1.1 km at the equator — tight enough
+ * that the snap-to-nearest-road query loads a small candidate set even in
+ * dense urban areas.
  *
- * One way can appear in many cells when its bbox straddles a grid line.
+ * One way can appear in many cells when its bbox straddles a grid line. The
+ * source of truth for the cell-key encoding is [com.adsamcik.tracker.osm.io.OsmGridIndex];
+ * any change to that constant invalidates every row in this table and must be
+ * paired with a Room migration that drops the contents plus a reindex pass.
  */
 @Entity(
 	tableName = "osm_way_cell",

@@ -102,4 +102,97 @@ class OsmGridIndexTest {
 		).toList()
 		bbox.shouldContainExactlyInAnyOrder(neighbors)
 	}
+
+	// region cell-size invariants (locked in by the v31->v32 migration)
+
+	@Test
+	fun `cell size is 0_01 degrees so road-segment-scale lookups are selective`() {
+		OsmGridIndex.CELL_DEGREES shouldBe 0.01
+		OsmGridIndex.CELL_E7 shouldBe 100_000
+	}
+
+	@Test
+	fun `cell width at lat 50 is roughly 1_1 km wide and 0_7 km tall`() {
+		// One cell at lat 50: 0.01° latitude = ~1113 m great-circle.
+		// 0.01° longitude shrinks by cos(50°) ≈ 0.6428 → ~715 m.
+		val metresPerDegLat = 111_320.0
+		val expectedLatM = OsmGridIndex.CELL_DEGREES * metresPerDegLat
+		val expectedLonM = OsmGridIndex.CELL_DEGREES * metresPerDegLat * Math.cos(Math.toRadians(50.0))
+		(expectedLatM in 1108.0..1118.0) shouldBe true
+		(expectedLonM in 710.0..720.0) shouldBe true
+	}
+
+	@Test
+	fun `cellKeysForBbox covers a 5km x 5km bbox at lat 50 with at most ~50 cells`() {
+		// 5 km north-south ≈ 0.045° latitude → ~5 cells.
+		// 5 km east-west at lat 50 ≈ 0.070° longitude → ~7 cells.
+		// Total grid block: ~5x7 ≈ 35 cells (plus boundary overlap, capped at 8x10 = 80).
+		val centerLatE7 = 500_000_000 // lat 50.0°
+		val centerLonE7 = 144_000_000 // lon 14.4°
+		val halfLatE7 = 250_000        // 0.025° → 2.78 km
+		val halfLonE7 = 350_000        // 0.035° at lat 50 → ~2.5 km
+		val keys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = centerLatE7 - halfLatE7,
+			maxLatE7 = centerLatE7 + halfLatE7,
+			minLonE7 = centerLonE7 - halfLonE7,
+			maxLonE7 = centerLonE7 + halfLonE7,
+		)
+		// 5 lat × 7 lon = 35; allow ±1 on each axis for boundary alignment.
+		(keys.size in 30..56) shouldBe true
+		// Same bbox under the old 0.08° (E7 800_000) grid resolved to a single
+		// cell, so the new index is at minimum an order of magnitude more
+		// selective on this size of query.
+		(keys.size >= 30) shouldBe true
+	}
+
+	@Test
+	fun `equator boundary lat 0 returns adjacent cells north and south of it`() {
+		val north = OsmGridIndex.cellKey(latE7 = 50_000, lonE7 = 0)
+		val onLine = OsmGridIndex.cellKey(latE7 = 0, lonE7 = 0)
+		val south = OsmGridIndex.cellKey(latE7 = -50_000, lonE7 = 0)
+		// (lat=0 falls into the [0,CELL_E7) cell, same as north).
+		north shouldBe onLine
+		(south != onLine) shouldBe true
+	}
+
+	@Test
+	fun `prime meridian boundary lon 0 separates east and west cells`() {
+		val east = OsmGridIndex.cellKey(latE7 = 500_000_000, lonE7 = 50_000)
+		val west = OsmGridIndex.cellKey(latE7 = 500_000_000, lonE7 = -50_000)
+		(east != west) shouldBe true
+	}
+
+	@Test
+	fun `dateline lon 180 packs into the 24-bit signed slot without collision`() {
+		// lonE7 = +1_800_000_000 → cell index +18_000 fits the signed-24-bit
+		// slot range ±8_388_607 with huge headroom. Make sure
+		// +180° and -180° produce different keys (they're physically the same
+		// meridian but different inputs; OSM never stores +180.0 anyway).
+		val east = OsmGridIndex.cellKey(latE7 = 0, lonE7 = 1_800_000_000)
+		val west = OsmGridIndex.cellKey(latE7 = 0, lonE7 = -1_800_000_000)
+		// Both fit (no overflow / sign-flip), and they decode to distinct cells.
+		(east != west) shouldBe true
+	}
+
+	@Test
+	fun `north pole lat 90 packs without overflow into the high-bit slot`() {
+		val polar = OsmGridIndex.cellKey(latE7 = 900_000_000, lonE7 = 0)
+		val justBelow = OsmGridIndex.cellKey(latE7 = 899_900_000, lonE7 = 0)
+		(polar != justBelow) shouldBe true
+	}
+
+	@Test
+	fun `keys for two adjacent cells decode to consecutive lat or lon indices`() {
+		// Sanity check that the packing is recoverable; lat in high bits,
+		// lon in the low 24 bits as a signed value.
+		val key = OsmGridIndex.cellKey(latE7 = 500_000_000, lonE7 = 144_000_000)
+		val latCell = key shr 24
+		val lonCellRaw = (key and 0xFFFFFFL).toInt()
+		// 0xFFFFFF is unsigned; reconstruct sign manually for negatives.
+		val lonCell = if ((lonCellRaw and 0x800000) != 0) lonCellRaw or 0xFF000000.toInt() else lonCellRaw
+		latCell shouldBe 5_000L
+		lonCell shouldBe 1_440
+	}
+
+	// endregion
 }

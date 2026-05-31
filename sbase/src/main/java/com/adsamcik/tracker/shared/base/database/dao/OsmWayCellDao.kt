@@ -11,8 +11,10 @@ import com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity
  * [com.adsamcik.tracker.shared.base.database.data.OsmWayEntity] rows and
  * the grid cells their bounding boxes overlap.
  *
- * `cell_key` is computed by `(latE7 / 800_000) << 24 | (lonE7 / 800_000) & 0xFFFFFF`.
- * The 24-bit lon slot leaves us headroom for the full [-180°,+180°] range.
+ * `cell_key` is computed by `(latE7 / CELL_E7) << 24 | (lonE7 / CELL_E7) & 0xFFFFFF`,
+ * with `CELL_E7` defined in `com.adsamcik.tracker.osm.io.OsmGridIndex`. The
+ * 24-bit lon slot leaves headroom for the full [-180°,+180°] range at the
+ * current 0.01° cell size and any reasonable future tightening.
  */
 @Dao
 interface OsmWayCellDao {

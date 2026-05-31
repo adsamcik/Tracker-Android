@@ -3,19 +3,31 @@ package com.adsamcik.tracker.osm.io
 /**
  * Coarse square-degree grid used to index OSM ways for nearest-road lookup.
  *
- * The cell size is `0.08°` (E7: 800_000) — roughly 9 km at the equator and
- * still meaningful at sub-arctic latitudes. The key packs the 16-bit latitude
- * cell index into the high half of a Long and the 24-bit longitude cell index
- * into the low half (signed division is intentional so latitudes/longitudes
- * either side of 0 don't collide).
+ * The cell size is `0.01°` (E7: 100_000) — roughly 1.1 km at the equator and
+ * ~0.7 km at lat 50°. This sits one order of magnitude tighter than typical
+ * road-segment lengths and matches the spatial scale of OSM tile resolution
+ * around z14, giving the speed-limit lookup a much smaller candidate set per
+ * query than the original 0.08° (~9 km) grid.
  *
- * The same encoding is used by the SQL-backed `osm_way_cell` table, so any
- * change here MUST also be reflected in the migration.
+ * The key packs the latitude cell index into the high half of a Long
+ * (`shl 24`) and the longitude cell index into the low 24 bits with
+ * `and 0xFFFFFF`. Signed floor division is intentional so latitudes /
+ * longitudes either side of 0 don't collide. With a 0.01° cell:
+ *
+ *  - latitude cell range is roughly ±9_000 (well within 16 bits)
+ *  - longitude cell range is roughly ±18_000 (well within the 24-bit signed
+ *    slot ±8_388_607)
+ *
+ * The same encoding is used by the SQL-backed `osm_way_cell` table.
+ * Because the key space is purely a function of the constants above,
+ * **any change to [CELL_E7] invalidates every existing `osm_way_cell` row**
+ * — `MIGRATION_31_32` drops the table and a background reindexer rebuilds it
+ * from the preserved `osm_way` bboxes on first launch after upgrade.
  */
 object OsmGridIndex {
 
-	const val CELL_DEGREES = 0.08
-	const val CELL_E7 = 800_000
+	const val CELL_DEGREES = 0.01
+	const val CELL_E7 = 100_000
 
 	/** Returns the cell key for a single point in E7 coordinates. */
 	fun cellKey(latE7: Int, lonE7: Int): Long {
