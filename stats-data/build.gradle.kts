@@ -113,6 +113,10 @@ dependencies {
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(libs.androidx.work.testing)
 	testImplementation(project(":testing-common"))
+	// Contract tests assert AchievementWorker (this module) and AchievementProcessor
+	// (in :stats-engine) produce identical unlock decisions for the same input — the
+	// R1 round-6 regression seam. Test-only edge; no production coupling.
+	testImplementation(project(":stats-engine"))
 
 	// Instrumented Tests
 	androidTestImplementation(libs.junit4)
