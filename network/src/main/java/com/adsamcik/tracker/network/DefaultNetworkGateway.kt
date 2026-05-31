@@ -219,7 +219,19 @@ class DefaultNetworkGateway(
 	}
 
 	override fun setEnabled(enabled: Boolean) {
+		val wasEnabled = _isEnabled.value
 		_isEnabled.value = enabled
+		// R2 round 7: when flipping the kill switch OFF, cancel every in-flight
+		// queued + executing call on the shared OkHttp Dispatcher. Without this,
+		// online tile fetches launched a moment before the user toggles offline
+		// continue to completion (potentially several seconds of cleartext
+		// metadata in flight) — the KillSwitchInterceptor only stops NEW calls.
+		// MapLibre uses the same call factory, so its tile/style requests are
+		// cancelled too. Per-request OkHttpClients built via newBuilder() share
+		// this Dispatcher instance, so cancelAll() reaches them as well.
+		if (wasEnabled && !enabled) {
+			runCatching { client.dispatcher.cancelAll() }
+		}
 	}
 
 	override fun setPolicy(policy: NetworkPolicy) {

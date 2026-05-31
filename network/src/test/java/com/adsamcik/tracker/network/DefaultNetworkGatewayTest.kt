@@ -111,6 +111,67 @@ class DefaultNetworkGatewayTest {
 	}
 
 	@Test
+	fun `setEnabled(false) cancels in-flight OkHttp calls (R2 round 7)`() {
+		// Before the fix, KillSwitchInterceptor only rejected NEW requests;
+		// any call that had already passed through the application interceptors
+		// and was waiting on socket I/O kept running for the full read timeout
+		// (up to 30s of in-flight cleartext metadata when the user toggles
+		// online tiles off). The fix calls client.dispatcher.cancelAll() inside
+		// setEnabled(false) so MapLibre's pending tile fetches die immediately.
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(
+				allowedHosts = setOf("localhost"),
+				perHostRateLimit = 1_000,
+				perHostRateWindowMs = 60_000L,
+			),
+		)
+		// Make MockWebServer accept the connection but never send any response —
+		// the client blocks on socket read indefinitely. setBodyDelay alone is
+		// not enough because execute() returns once headers arrive; we need the
+		// call to still be in-flight when we toggle the kill switch.
+		httpsServer.enqueue(
+			MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE),
+		)
+		val client = gateway.httpsTestClient()
+		val call = client.newCall(
+			okhttp3.Request.Builder().url("https://localhost:${httpsServer.port}/slow").build(),
+		)
+
+		// Launch the call on a background thread so we can flip the kill switch
+		// from the test thread while it's blocked on socket read.
+		val resultRef = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+		val started = java.util.concurrent.CountDownLatch(1)
+		val finished = java.util.concurrent.CountDownLatch(1)
+		val t = Thread {
+			started.countDown()
+			try {
+				call.execute().close()
+			} catch (e: Throwable) {
+				resultRef.set(e)
+			} finally {
+				finished.countDown()
+			}
+		}
+		t.start()
+		// Wait for the worker thread to enter the blocking call.
+		started.await(2, java.util.concurrent.TimeUnit.SECONDS)
+		// Brief sleep so the call actually reaches the socket-read stage.
+		Thread.sleep(200)
+
+		// Flip the kill switch — cancelAll() should kill the in-flight call.
+		gateway.setEnabled(false)
+
+		// The call should finish quickly (cancelled), not wait the 60s delay.
+		val cancelled = finished.await(5, java.util.concurrent.TimeUnit.SECONDS)
+		cancelled shouldBe true
+		call.isCanceled() shouldBe true
+		val err = resultRef.get()
+		err shouldNotBe null
+		// OkHttp surfaces cancellation as IOException("Canceled") (or similar).
+		(err is java.io.IOException) shouldBe true
+	}
+	@Test
 	fun `host not in allowlist returns HostNotAllowed before any network IO`() = runTest {
 		val gateway = DefaultNetworkGateway(
 			initialEnabled = true,

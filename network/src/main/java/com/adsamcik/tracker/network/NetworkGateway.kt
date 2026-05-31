@@ -71,11 +71,26 @@ interface NetworkGateway {
 	suspend fun request(req: NetworkRequest): NetworkResponse
 
 	/**
-	 * Toggle the kill switch. Pass `false` to immediately reject all in-flight
-	 * and subsequent requests with [NetworkError.GatewayDisabled].
+	 * Toggle the kill switch.
+	 *
+	 * Passing `false` does two things:
+	 *  1. **Future requests** entering [request] or the raw [okhttp3.Call.Factory]
+	 *     (used by MapLibre online tiles) are rejected immediately with
+	 *     [NetworkError.GatewayDisabled] before any DNS / TCP / TLS work.
+	 *  2. **In-flight calls** that have already passed interceptors and are
+	 *     blocked on socket I/O are actively cancelled via
+	 *     `OkHttpClient.dispatcher.cancelAll()`. This prevents an online tile
+	 *     fetch launched a moment before the user toggles offline from
+	 *     continuing to spend cleartext metadata for the full read timeout
+	 *     (interceptors only check on chain entry; they cannot interrupt a
+	 *     blocking read).
+	 *
+	 * Passing `true` simply re-arms the gateway. No in-flight calls exist at
+	 * that moment (they were cancelled when the switch was flipped off, or
+	 * never started), so there is nothing to resume.
 	 *
 	 * Intended to be wired to a user-facing setting and to system events
-	 * (airplane mode, metered network, low battery — at the discretion of the
+	 * (airplane mode, metered network, low battery -- at the discretion of the
 	 * consumer feature).
 	 */
 	fun setEnabled(enabled: Boolean)
