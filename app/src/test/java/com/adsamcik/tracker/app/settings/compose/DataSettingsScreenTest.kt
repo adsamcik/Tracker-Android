@@ -190,6 +190,11 @@ class DataSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { DataSettingsTestLayout() }
         }
+        // "Auto cleanup old data" sits below several settings rows in a LazyColumn
+        // — scroll to it before asserting visibility so the test viewport doesn't
+        // silently hide it off-screen.
+        composeTestRule.onNodeWithTag("dataSettingsList")
+            .performScrollToNode(hasText("Auto cleanup old data"))
         composeTestRule.onNodeWithText("Data Management").assertIsDisplayed()
         composeTestRule.onNodeWithText("Auto cleanup old data").assertIsDisplayed()
     }
@@ -199,6 +204,8 @@ class DataSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { DataSettingsTestLayout(dataRetentionYears = 3) }
         }
+        composeTestRule.onNodeWithTag("dataSettingsList")
+            .performScrollToNode(hasText("Automatically remove data older than 3 years"))
         composeTestRule.onNodeWithText("Automatically remove data older than 3 years").assertIsDisplayed()
     }
 
@@ -207,6 +214,8 @@ class DataSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { DataSettingsTestLayout(dataRetentionYears = 0) }
         }
+        composeTestRule.onNodeWithTag("dataSettingsList")
+            .performScrollToNode(hasText("Keep data forever", substring = true))
         composeTestRule.onNodeWithText("Keep data forever", substring = true).assertIsDisplayed()
     }
 
@@ -248,6 +257,8 @@ class DataSettingsScreenTest {
                 DataSettingsTestLayout(onAutoCleanupChanged = { newValue = it })
             }
         }
+        composeTestRule.onNodeWithTag("dataSettingsList")
+            .performScrollToNode(hasText("Auto cleanup old data"))
         composeTestRule.onNodeWithText("Auto cleanup old data").performClick()
         newValue shouldBe true // Was false
     }

@@ -216,6 +216,12 @@ class ArchitecturalFitnessTest {
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTriggerTest.kt:",
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycleTest.kt:",
 			"tracker/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt:",
+			// Multi-session lifecycle integration test (commit f8410a8e5) drives
+			// the orchestrator with real LocationData payloads — LocationData
+			// wraps List<android.location.Location>, so the test needs the
+			// platform type to construct fixtures. Replace once a
+			// TestLocations.location(...) helper lands in :testing-common.
+			"tracker/src/test/java/com/adsamcik/tracker/tracker/service/MultiSessionLifecycleTest.kt:",
 			"map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt:",
 		)
 	}

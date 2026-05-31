@@ -58,7 +58,7 @@ class DashboardLayoutRepositoryTest {
 				"exploration",
 				"streak",
 				"today_progress",
-				"challenges",
+				"latest_achievement",
 				"recent_trips",
 				"last_session",
 			)

@@ -87,7 +87,7 @@ class TrackingStatsGridTest {
 	}
 
 	@Test
-	fun withZeroSteps_hidesStepsRow() {
+	fun withZeroSteps_showsStepsRowWithPlaceholder() {
 		val now = System.currentTimeMillis()
 
 		composeRule.setContent {
@@ -105,7 +105,13 @@ class TrackingStatsGridTest {
 			}
 		}
 
-		// Steps row is only shown when steps > 0
-		composeRule.onNodeWithText("Steps").assertDoesNotExist()
+		// Steps label is always shown (parity with the rest of the compact grid);
+		// when the count is zero the row renders an em-dash placeholder value
+		// instead of being hidden, so column widths stay stable across sessions
+		// and the layout doesn't jump when the first step is registered.
+		// (Multiple stats render '–' in the zero-data path — activity, accuracy
+		// etc. — so we don't try to uniquely identify the dash, only that the
+		// Steps row itself is present.)
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
 	}
 }

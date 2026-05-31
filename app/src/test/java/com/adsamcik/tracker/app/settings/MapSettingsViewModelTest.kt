@@ -12,6 +12,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,14 @@ class MapSettingsViewModelTest {
 
     @BeforeEach
     fun setUp() {
+        // Defensive: another test class running earlier in the JVM may have
+        // installed mockkStatic(...) on libraries we touch transitively here
+        // (Compose, MapLibre HttpRequestUtil, DataStore singletons). Clear all
+        // mock state up-front so this test class starts from a clean slate
+        // regardless of suite order — fixes flaky failures of
+        // setOnlineProviderId when run AFTER DataSettingsScreenTest now that
+        // those scroll-to-node fixes let DataSettingsScreenTest complete.
+        unmockkAll()
         Dispatchers.setMain(testDispatcher)
         tempDir.mkdirs()
         every { context.filesDir } returns tempDir
@@ -72,6 +81,7 @@ class MapSettingsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         tempDir.deleteRecursively()
+        unmockkAll()
     }
 
     private fun createViewModel() = MapSettingsViewModel(

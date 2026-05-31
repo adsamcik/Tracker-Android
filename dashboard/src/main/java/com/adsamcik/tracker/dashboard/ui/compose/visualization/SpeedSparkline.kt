@@ -59,8 +59,22 @@ internal fun SpeedSparkline(
 	maxSpeed: Float?,
 	modifier: Modifier = Modifier,
 ) {
+	// Pre-compute the a11y description from the *unfiltered* sample count so the
+	// early-return placeholder ("not enough data to draw") and the rendered
+	// sparkline both expose the same accessible label. Without this the
+	// empty/single-point case rendered an unlabeled Box — invisible to screen
+	// readers and impossible to assert against in Compose tests.
+	val contentDescription = stringResource(
+		R.string.dashboard_cd_speed_sparkline,
+		speedHistory.size,
+	)
+
 	if (speedHistory.size < 2) {
-		Box(modifier = modifier.defaultMinSize(minHeight = 120.dp))
+		Box(
+			modifier = modifier
+				.defaultMinSize(minHeight = 120.dp)
+				.semantics { this.contentDescription = contentDescription },
+		)
 		return
 	}
 
@@ -99,8 +113,6 @@ internal fun SpeedSparkline(
 	val effectiveMax = dataMax + dataRange * 0.1f
 	val effectiveRange = (effectiveMax - effectiveMin).coerceAtLeast(0.01f)
 	val midValue = (effectiveMin + effectiveMax) / 2f
-
-	val contentDescription = stringResource(R.string.dashboard_cd_speed_sparkline, speedHistory.size)
 
 	Box(
 		modifier = modifier.defaultMinSize(minHeight = 120.dp),

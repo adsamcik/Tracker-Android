@@ -22,7 +22,7 @@ class SpeedSparklineTest {
 	val composeRule = createComposeRule()
 
 	@Test
-	fun withEmptyList_rendersNothing() {
+	fun withEmptyList_rendersPlaceholderWithA11yDescription() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				SpeedSparkline(
@@ -36,11 +36,16 @@ class SpeedSparklineTest {
 			}
 		}
 
-		// SpeedSparkline returns early when list is empty, so nothing is rendered
+		// SpeedSparkline reserves layout space even for empty data so the
+		// dashboard doesn't reflow when the first sample arrives. The empty
+		// placeholder MUST still expose a content description ("speed sparkline
+		// with 0 data points") so screen readers can perceive the reserved area
+		// and announce when data starts flowing.
 		composeRule.onAllNodesWithContentDescription(
 			"speed",
 			substring = true,
-		).assertCountEquals(0)
+			ignoreCase = true,
+		).assertCountEquals(1)
 	}
 
 	@Test
