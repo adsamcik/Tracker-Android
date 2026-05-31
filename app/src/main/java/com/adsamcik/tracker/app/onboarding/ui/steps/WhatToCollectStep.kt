@@ -108,7 +108,7 @@ fun WhatToCollectStep(
     }
 
     SetupStepScaffold(
-        actionText = stringResource(R.string.setup_start_exploring),
+        actionText = stringResource(R.string.setup_continue),
         actionTestTag = "setup_cta_complete",
         onAction = onComplete,
         modifier = modifier,

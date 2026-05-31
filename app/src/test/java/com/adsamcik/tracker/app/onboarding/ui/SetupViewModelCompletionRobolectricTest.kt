@@ -6,6 +6,8 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -41,6 +43,8 @@ class SetupViewModelCompletionRobolectricTest {
 	private lateinit var appContext: Context
 	private val paramsFlow = MutableStateFlow(TrackingParamsState())
 	private val trackingParamsRepository: TrackingParamsRepository = mockk()
+	private val onlineTilesFlow = MutableStateFlow(OnlineMapTilesState())
+	private val onlineMapTilesRepository: OnlineMapTilesRepository = mockk()
 	private val onboardingRepository: OnboardingRepository = mockk(relaxed = true)
 	private val activityWatcherController: ActivityWatcherServiceController = mockk(relaxed = true)
 	private val dataRetentionScheduler: DataRetentionScheduler = mockk(relaxed = true)
@@ -65,6 +69,10 @@ class SetupViewModelCompletionRobolectricTest {
 			val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
 			paramsFlow.value = block(paramsFlow.value)
 		}
+		every { onlineMapTilesRepository.data } returns onlineTilesFlow
+		coEvery { onlineMapTilesRepository.setEnabled(any()) } answers {
+			onlineTilesFlow.value = onlineTilesFlow.value.copy(enabled = firstArg())
+		}
 		coEvery { onboardingRepository.markCompleted() } returns Unit
 		every { dataRetentionScheduler.initialize() } returns Unit
 	}
@@ -84,12 +92,14 @@ class SetupViewModelCompletionRobolectricTest {
 			activityWatcherController = activityWatcherController,
 			dataRetentionScheduler = dataRetentionScheduler,
 			trackingParamsRepository = trackingParamsRepository,
+			onlineMapTilesRepository = onlineMapTilesRepository,
 		)
 		vm.setTrackingPreset(TrackingPolicyPreset.HIGH_PRECISION)
 		vm.setWifiEnabled(true)
 		vm.setCellEnabled(true)
 		vm.setAutoTrackingMode(2)
 		vm.onActivityPermissionResult(true)
+		vm.setOnlineMapTilesEnabled(true)
 
 		vm.completeSetup { }
 		advanceUntilIdle()
@@ -108,5 +118,6 @@ class SetupViewModelCompletionRobolectricTest {
 		state.minTimeSeconds shouldBe 5
 		state.requiredAccuracyMeters shouldBe 20
 		state.preset shouldBe TrackingPreset.HIGH_ACCURACY
+		onlineTilesFlow.value.enabled shouldBe true
 	}
 }

@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
+import com.adsamcik.tracker.app.onboarding.ui.steps.OnlineMapTilesStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.WelcomeStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
@@ -163,6 +164,12 @@ fun SetupRoute(
                         onNotificationPermissionResult = viewModel::onNotificationPermissionResult,
                         onWifiPermissionResult = viewModel::onWifiPermissionResult,
                         onCellPermissionResult = viewModel::onCellPermissionResult,
+                        onComplete = { viewModel.goToNextStep() },
+                    )
+
+                    SetupStep.OnlineMapTiles -> OnlineMapTilesStep(
+                        enabled = state.onlineMapTilesEnabled,
+                        onEnabledChange = viewModel::setOnlineMapTilesEnabled,
                         onComplete = {
                             viewModel.completeSetup(onDone = onSetupComplete)
                         },

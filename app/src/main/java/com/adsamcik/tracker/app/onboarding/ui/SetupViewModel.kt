@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -44,6 +45,7 @@ class SetupViewModel @Inject constructor(
     private val activityWatcherController: ActivityWatcherServiceController,
     private val dataRetentionScheduler: DataRetentionScheduler,
     private val trackingParamsRepository: TrackingParamsRepository,
+    private val onlineMapTilesRepository: OnlineMapTilesRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SetupUiState())
@@ -137,6 +139,14 @@ class SetupViewModel @Inject constructor(
 
     // endregion
 
+    // region Step 4 – Online Map Tiles
+
+    fun setOnlineMapTilesEnabled(enabled: Boolean) {
+        _state.update { it.copy(onlineMapTilesEnabled = enabled) }
+    }
+
+    // endregion
+
     // region Completion
 
     /**
@@ -201,6 +211,11 @@ class SetupViewModel @Inject constructor(
                 presetName = s.trackingPreset.toTrackingPreset().name,
             )
         }
+
+        // Online map tiles is opt-in. Only the on-state needs writing — the
+        // datastore default already represents the off-state, but we always
+        // mirror the user's choice so re-running onboarding stays idempotent.
+        onlineMapTilesRepository.setEnabled(s.onlineMapTilesEnabled)
 
         // Poke activity watcher so it picks up the new settings immediately
         activityWatcherController.poke(autoTracking = effectiveMode)

@@ -87,4 +87,13 @@
     <string name="onboarding_open_settings_generic_message">Udělte toto oprávnění v systémovém nastavení.</string>
     <string name="onboarding_background_location_settings_message">Pro povolení automatického sledování nastavte oprávnění Poloha na „Vždy povolit“ v Informace o aplikaci &gt; Oprávnění.</string>
     <string name="onboarding_open_settings_confirm">Otevřít nastavení</string>
+    <string name="setup_continue">Pokračovat</string>
+    <string name="setup_online_tiles_title">Online dlaždice mapy?</string>
+    <string name="setup_online_tiles_subtitle">Tracker má zabudovanou offline mapu, takže funguje i bez internetu. Pokud chcete detailnější mapy, můžete je stahovat z veřejného poskytovatele.</string>
+    <string name="setup_online_tiles_off_title">Pouze offline (doporučeno)</string>
+    <string name="setup_online_tiles_off_desc">Žádné síťové požadavky. Používá se jen přibalená mapa.</string>
+    <string name="setup_online_tiles_on_title">Používat online dlaždice</string>
+    <string name="setup_online_tiles_on_desc">Stahovat detailnější vektorové dlaždice z OpenFreeMap (výchozí). Poskytovatele lze později změnit v Nastavení → Mapa.</string>
+    <string name="setup_online_tiles_privacy">Když je tato volba zapnutá, poskytovatel vidí vaši IP adresu a stahované dlaždice — tedy zhruba kterou část mapy si prohlížíte. Tracker neposílá žádný účet, identifikátor ani historii vašich poloh.</string>
+    <string name="setup_online_tiles_change_later">Nastavení lze kdykoli změnit v Nastavení → Mapa → Online dlaždice mapy.</string>
 </resources>

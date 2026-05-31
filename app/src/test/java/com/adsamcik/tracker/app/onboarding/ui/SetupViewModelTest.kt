@@ -6,12 +6,15 @@ import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -42,17 +45,24 @@ class SetupViewModelTest {
     private val dataRetentionScheduler: DataRetentionScheduler = mockk(relaxed = true)
     private val paramsFlow = MutableStateFlow(TrackingParamsState())
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
+    private val onlineTilesFlow = MutableStateFlow(OnlineMapTilesState())
+    private val onlineMapTilesRepository: OnlineMapTilesRepository = mockk()
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         paramsFlow.value = TrackingParamsState()
+        onlineTilesFlow.value = OnlineMapTilesState()
         every { dispatchers.io } returns testDispatcher
         every { trackingParamsRepository.data } returns paramsFlow
         coEvery { trackingParamsRepository.update(any()) } answers {
             @Suppress("UNCHECKED_CAST")
             val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
             paramsFlow.value = block(paramsFlow.value)
+        }
+        every { onlineMapTilesRepository.data } returns onlineTilesFlow
+        coEvery { onlineMapTilesRepository.setEnabled(any()) } answers {
+            onlineTilesFlow.value = onlineTilesFlow.value.copy(enabled = firstArg())
         }
         coEvery { onboardingRepository.markCompleted() } returns Unit
         every { dataRetentionScheduler.initialize() } returns Unit
@@ -70,6 +80,7 @@ class SetupViewModelTest {
         activityWatcherController = activityWatcherController,
         dataRetentionScheduler = dataRetentionScheduler,
         trackingParamsRepository = trackingParamsRepository,
+        onlineMapTilesRepository = onlineMapTilesRepository,
     )
 
     @Nested
@@ -133,12 +144,22 @@ class SetupViewModelTest {
         }
 
         @Test
+        fun `goToNextStep advances from WhatToCollect to OnlineMapTiles`() {
+            val vm = createViewModel()
+            vm.goToNextStep()
+            vm.goToNextStep()
+            vm.goToNextStep()
+            vm.state.value.currentStep shouldBe SetupStep.OnlineMapTiles
+        }
+
+        @Test
         fun `goToNextStep does not advance past last step`() {
             val vm = createViewModel()
             vm.goToNextStep() // HowToTrack
             vm.goToNextStep() // WhatToCollect
+            vm.goToNextStep() // OnlineMapTiles
             vm.goToNextStep() // should stay
-            vm.state.value.currentStep shouldBe SetupStep.WhatToCollect
+            vm.state.value.currentStep shouldBe SetupStep.OnlineMapTiles
         }
 
         @Test
@@ -161,6 +182,10 @@ class SetupViewModelTest {
             val vm = createViewModel()
             vm.goToNextStep()
             vm.goToNextStep()
+            vm.goToNextStep()
+            vm.state.value.currentStep shouldBe SetupStep.OnlineMapTiles
+
+            vm.goToPreviousStep()
             vm.state.value.currentStep shouldBe SetupStep.WhatToCollect
 
             vm.goToPreviousStep()
@@ -168,6 +193,26 @@ class SetupViewModelTest {
 
             vm.goToPreviousStep()
             vm.state.value.currentStep shouldBe SetupStep.Welcome
+        }
+    }
+
+    @Nested
+    @DisplayName("Online map tiles step")
+    inner class OnlineMapTilesStep {
+
+        @Test
+        fun `online map tiles default to disabled`() {
+            val vm = createViewModel()
+            vm.state.value.onlineMapTilesEnabled shouldBe false
+        }
+
+        @Test
+        fun `setOnlineMapTilesEnabled toggles state`() {
+            val vm = createViewModel()
+            vm.setOnlineMapTilesEnabled(true)
+            vm.state.value.onlineMapTilesEnabled shouldBe true
+            vm.setOnlineMapTilesEnabled(false)
+            vm.state.value.onlineMapTilesEnabled shouldBe false
         }
     }
 
