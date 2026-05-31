@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
+import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.bridge.renderKey
@@ -180,6 +181,11 @@ fun MapScreen(
         mutableStateOf<String?>(null)
     }
 
+    val onlineTilesState by store.onlineMapTiles.collectAsState()
+    val onlineTilesEnabled = onlineTilesState.enabled
+    val onlineProviderId = onlineTilesState.providerId
+    val onlineCustomUrl = onlineTilesState.customUrl
+
     LaunchedEffect(Unit) {
         basemapLoadError = null
         try {
@@ -194,9 +200,16 @@ fun MapScreen(
         }
     }
 
-    val baseStyle = remember(customPath, isDark, defaultBasemapPath) {
+    val baseStyle = remember(customPath, isDark, defaultBasemapPath, onlineTilesEnabled, onlineProviderId, onlineCustomUrl) {
         val currentBasemapPath = defaultBasemapPath
+        val onlineUri = if (onlineTilesEnabled) {
+            val provider = TileProvider.resolve(onlineProviderId, onlineCustomUrl)
+            MapStyleProvider.onlineStyleUri(provider, isDark)
+        } else {
+            null
+        }
         when {
+            onlineUri != null -> BaseStyle.Uri(onlineUri)
             customPath.isNotEmpty() -> {
                 val json = MapStyleProvider.customStyleJson(customPath, isDark)
                 if (json != null) {

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.shared
 
+import com.adsamcik.tracker.map.online.TileProvider
 import java.io.File
 
 /**
@@ -7,6 +8,19 @@ import java.io.File
  *
  * Default mode: asset-bundled z0-z6 PMTiles with light/dark style JSON.
  * Custom mode: user-imported PMTiles file referenced via runtime-generated style JSON.
+ * Online mode: remote `style.json` URL served by a [TileProvider]. Online mode is
+ *   strictly opt-in and OFF by default.
+ *
+ * # MapLibre HTTP wiring (deferred)
+ *
+ * Online tiles currently bypass the project's [NetworkGateway][com.adsamcik.tracker.network.NetworkGateway]
+ * for the actual HTTP layer: MapLibre uses its own internal OkHttp client.
+ * The repository preference still acts as the user-facing kill switch (no
+ * preference → no [BaseStyle.Uri][org.maplibre.compose.style.BaseStyle.Uri]
+ * passed to the map), and the gateway IS armed with the provider's allowlist
+ * for future direct-network consumers and audit hooks — but routing MapLibre
+ * traffic through the gateway requires a custom `HttpRequestFactory` and is
+ * scheduled for a follow-up phase. See `docs/ARCHITECTURE_OVERVIEW.md`.
  */
 object MapStyleProvider {
 
@@ -42,6 +56,17 @@ object MapStyleProvider {
             isDarkTheme = isDarkTheme,
             zoomRange = readPmtilesZoomRange(File(basemapPath)) ?: DEFAULT_BUNDLE_ZOOM_RANGE,
         )
+
+    /**
+     * Returns the remote `style.json` URL for [provider] suitable for passing to
+     * MapLibre's [BaseStyle.Uri][org.maplibre.compose.style.BaseStyle.Uri].
+     *
+     * Returns `null` when the resolved URL is blank — that only happens for the
+     * [TileProvider.Custom] variant when the user hasn't entered a URL yet, in
+     * which case the caller should fall back to the offline basemap.
+     */
+    fun onlineStyleUri(provider: TileProvider, isDarkTheme: Boolean): String? =
+        provider.styleUrl(isDarkTheme).takeIf { it.isNotBlank() }
 
     private fun buildStyleJson(
         pmtilesPath: String,

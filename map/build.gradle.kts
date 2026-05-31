@@ -65,6 +65,7 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":stats-api"))
 	implementation(project(":logger"))
+	implementation(project(":network"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -123,6 +124,7 @@ dependencies {
 	testImplementation(libs.turbine)
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(kotlin("reflect"))
+	testImplementation(project(":testing-common"))
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)

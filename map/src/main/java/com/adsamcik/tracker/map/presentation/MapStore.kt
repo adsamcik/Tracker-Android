@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -18,6 +19,10 @@ import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SelectedTripMapContext
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.CoordinateBounds
+import com.adsamcik.tracker.network.NetworkGateway
+import com.adsamcik.tracker.network.NetworkPolicy
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
@@ -27,8 +32,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,6 +52,8 @@ class MapStore @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     val trackerController: TrackerServiceController,
     private val dispatchers: DispatchersProvider,
+    private val onlineMapTilesRepository: OnlineMapTilesRepository,
+    private val networkGateway: NetworkGateway,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -112,6 +122,43 @@ class MapStore @Inject constructor(
 
     private val _effects = MutableSharedFlow<MapEffect>(extraBufferCapacity = 3)
     val effects = _effects.asSharedFlow()
+
+    /**
+     * Continuously emitted snapshot of the user's online map tile preference.
+     * Defaults to disabled. Consumed by `MapScreen` to decide whether to pass
+     * a remote `style.json` URL into MapLibre.
+     */
+    val onlineMapTiles: StateFlow<OnlineMapTilesState> =
+        onlineMapTilesRepository.data
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.Eagerly,
+                initialValue = OnlineMapTilesState(),
+            )
+
+    init {
+        // Mirror the user's online-tile preference into the NetworkGateway. The
+        // gateway is the project's kill-switch + allowlist for outbound HTTP.
+        // MapLibre itself does NOT route through the gateway yet (see
+        // MapStyleProvider KDoc), but arming it keeps the security posture
+        // consistent for future direct-network consumers and audit hooks.
+        viewModelScope.launch {
+            onlineMapTilesRepository.data.collect { prefs ->
+                applyNetworkPolicy(prefs)
+            }
+        }
+    }
+
+    private fun applyNetworkPolicy(prefs: OnlineMapTilesState) {
+        if (prefs.enabled) {
+            val provider = TileProvider.resolve(prefs.providerId, prefs.customUrl)
+            networkGateway.setPolicy(NetworkPolicy(allowedHosts = provider.allowedHosts))
+            networkGateway.setEnabled(true)
+        } else {
+            networkGateway.setEnabled(false)
+            networkGateway.setPolicy(NetworkPolicy.EMPTY)
+        }
+    }
 
     private var lastBearing: Float = 0f
 
