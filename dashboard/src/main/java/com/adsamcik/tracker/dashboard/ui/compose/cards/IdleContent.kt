@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
@@ -270,6 +271,29 @@ private fun LatestAchievementCard(state: DashboardUiState, modifier: Modifier = 
 private fun resolveStringResource(name: String): String {
 	val context = LocalContext.current
 	val resId = remember(name, context) { context.resources.getIdentifier(name, "string", context.packageName) }
-	return if (resId != 0) stringResource(resId) else name
+	return if (resId != 0) {
+		stringResource(resId)
+	} else {
+		// No string resource defined for this achievement id yet (the catalog
+		// auto-generates ~200 ids; localized titles are still being authored).
+		// Show a readable humanized fallback instead of leaking the raw key
+		// like "achievement_sessions_total_1_title" to the user.
+		humanizeResourceKey(name)
+	}
+}
+
+@VisibleForTesting
+internal fun humanizeResourceKey(name: String): String {
+	val core = name
+		.removePrefix("achievement_")
+		.removeSuffix("_title")
+		.removeSuffix("_desc")
+		.removeSuffix("_description")
+	if (core.isBlank()) return name
+	return core.split('_')
+		.filter { it.isNotEmpty() }
+		.joinToString(" ") { token ->
+			token.replaceFirstChar { ch -> if (ch.isLowerCase()) ch.titlecase() else ch.toString() }
+		}
 }
 
