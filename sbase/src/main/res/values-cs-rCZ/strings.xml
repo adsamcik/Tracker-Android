@@ -53,8 +53,8 @@
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat.</string>
     <string name="channel_activity_watcher_name">Sledovač aktivity</string>
-    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami.</string>
-    <string name="channel_challenges_name">Herní výzvy</string>
+    <string name="channel_achievements_description">Kanál, který obsahuje notifikace související s úspěchy.</string>
+    <string name="channel_achievements_name">Úspěchy</string>
     <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu.</string>
     <string name="channel_other_name">Ostatní</string>
     <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat.</string>

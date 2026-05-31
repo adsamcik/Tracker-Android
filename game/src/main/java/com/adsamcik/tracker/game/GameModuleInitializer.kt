@@ -18,7 +18,10 @@ import javax.inject.Inject
 
 /**
  * Game module initializer.
- * Challenge events are now handled by [GameDomainEventConsumer] via domain events.
+ * Achievement events (and other domain events emitted by the tracker pipeline)
+ * are handled by [GameDomainEventConsumer]; this initializer wires up unconsumed-
+ * event catchup plus a live observer that re-processes whenever new domain
+ * events are persisted.
  */
 class GameModuleInitializer @Inject constructor(
 	@ApplicationContext private val context: Context,

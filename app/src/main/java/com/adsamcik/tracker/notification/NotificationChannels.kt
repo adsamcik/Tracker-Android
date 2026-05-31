@@ -40,9 +40,9 @@ object NotificationChannels {
 		)
 		createChannel(
 				context,
-				R.string.channel_challenges_id,
-				R.string.channel_challenges_name,
-				R.string.channel_challenges_description,
+				R.string.channel_achievements_id,
+				R.string.channel_achievements_name,
+				R.string.channel_achievements_description,
 				true,
 				NotificationManager.IMPORTANCE_HIGH
 		)

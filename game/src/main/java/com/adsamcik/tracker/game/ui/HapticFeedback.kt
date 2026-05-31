@@ -23,8 +23,8 @@ object HapticFeedback {
 		vibrate(context, longArrayOf(0, 20, 80, 20))
 	}
 
-	/** Challenge complete triple ascending (20ms, 30ms, 40ms). */
-	fun challengeComplete(context: Context) {
+	/** Achievement unlock triple ascending (20ms, 30ms, 40ms). */
+	fun achievementComplete(context: Context) {
 		vibrate(context, longArrayOf(0, 20, 60, 30, 60, 40))
 	}
 

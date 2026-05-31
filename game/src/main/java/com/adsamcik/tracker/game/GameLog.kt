@@ -12,5 +12,4 @@ internal fun logGame(data: LogData) =
 		)
 
 internal const val GAME_LOG_SOURCE = "game"
-internal const val CHALLENGE_LOG_SOURCE = "game_challenge"
 internal const val GOALS_LOG_SOURCE = "game_goals"

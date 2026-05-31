@@ -70,8 +70,8 @@ class GameDomainEventConsumer @Inject constructor(
 		val contentIntent = PendingIntent.getActivity(context, NotificationsIds.achievementUnlocked(event), launchIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 		NotificationManagerCompat.from(context).notify(
 			NotificationsIds.achievementUnlocked(event),
-			NotificationCompat.Builder(context, context.getString(com.adsamcik.tracker.shared.base.R.string.channel_challenges_id))
-				.setSmallIcon(R.drawable.ic_challenge_icon)
+			NotificationCompat.Builder(context, context.getString(com.adsamcik.tracker.shared.base.R.string.channel_achievements_id))
+				.setSmallIcon(R.drawable.ic_achievement_icon)
 				.setContentTitle(title)
 				.setContentText(description)
 				.setStyle(NotificationCompat.BigTextStyle().bigText(description))
@@ -89,8 +89,8 @@ class GameDomainEventConsumer @Inject constructor(
 			val text = context.getString(R.string.achievement_progress_notification_description, progressPercent, event.currentValue, event.targetValue)
 			NotificationManagerCompat.from(context).notify(
 				NotificationsIds.achievementProgress(event),
-				NotificationCompat.Builder(context, context.getString(com.adsamcik.tracker.shared.base.R.string.channel_challenges_id))
-					.setSmallIcon(R.drawable.ic_challenge_icon)
+				NotificationCompat.Builder(context, context.getString(com.adsamcik.tracker.shared.base.R.string.channel_achievements_id))
+					.setSmallIcon(R.drawable.ic_achievement_icon)
 					.setContentTitle(context.getString(R.string.achievement_progress_notification_title, event.achievementId))
 					.setContentText(text)
 					.setOnlyAlertOnce(true)

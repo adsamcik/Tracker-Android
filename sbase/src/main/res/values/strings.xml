@@ -67,9 +67,16 @@
     <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
     <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_challenges_description">Notifications related to challenges.</string>
-    <string name="channel_challenges_id" translatable="false">challenge_channel_id</string>
-    <string name="channel_challenges_name">Challenge</string>
+    <string name="channel_achievements_description">Notifications related to achievements.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Achievement</string>
     <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
     <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Other</string>

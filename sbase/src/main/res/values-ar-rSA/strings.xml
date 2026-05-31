@@ -53,8 +53,8 @@
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
     <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_challenges_description">Notifications related to challenges.</string>
-    <string name="channel_challenges_name">Challenge</string>
+    <string name="channel_achievements_description">Notifications related to achievements.</string>
+    <string name="channel_achievements_name">Achievement</string>
     <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
     <string name="channel_other_name">Other</string>
     <string name="channel_track_description">Notifications related to tracking.</string>
