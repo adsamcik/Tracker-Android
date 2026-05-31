@@ -158,10 +158,35 @@ class DefaultNetworkGateway(
 			HttpMethod.PUT -> builder.put(req.body.toRequestBody(contentType))
 			HttpMethod.PATCH -> builder.patch(req.body.toRequestBody(contentType))
 		}
-		req.headers.forEach { (name, value) -> builder.header(name, value) }
+		req.headers.forEach { (name, value) ->
+			try {
+				builder.header(name, value)
+			} catch (e: IllegalArgumentException) {
+				// OkHttp's Headers.checkName/checkValue throws IAE for control
+				// characters, non-ASCII bytes, empty names, etc. The gateway
+				// contract is that every failure surfaces as a sealed
+				// NetworkError on NetworkResponse.Failure -- throwing here
+				// would crash the suspend coroutine with an exception type the
+				// caller can't handle structurally (R3 round 7).
+				return@withContext NetworkResponse.Failure(
+					req,
+					NetworkError.InvalidHeader(name, e.message ?: "invalid header"),
+				)
+			}
+		}
 		// Inject a stable, anonymous UA to prevent device-version fingerprinting.
 		if (!req.headers.keys.any { it.equals("User-Agent", ignoreCase = true) }) {
-			builder.header("User-Agent", USER_AGENT)
+			try {
+				builder.header("User-Agent", USER_AGENT)
+			} catch (e: IllegalArgumentException) {
+				// Should be unreachable -- USER_AGENT is a compile-time constant
+				// that already conforms to RFC 7230. Defensive in case future
+				// edits change the constant; same sealed-error contract.
+				return@withContext NetworkResponse.Failure(
+					req,
+					NetworkError.InvalidHeader("User-Agent", e.message ?: "invalid User-Agent"),
+				)
+			}
 		}
 
 		val perRequestClient = if (req.timeoutMs == NetworkRequest.DEFAULT_TIMEOUT_MS) {

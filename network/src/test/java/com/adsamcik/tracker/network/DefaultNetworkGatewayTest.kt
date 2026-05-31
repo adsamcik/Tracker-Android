@@ -246,6 +246,51 @@ class DefaultNetworkGatewayTest {
 	}
 
 	@Test
+	fun `invalid header value returns InvalidHeader instead of throwing (R3 round 7)`() = runTest {
+		// OkHttp's Headers.checkValue rejects bytes outside the RFC 7230
+		// printable ASCII range; a newline in particular would otherwise allow
+		// HTTP response-splitting if smuggled to the server. Before the fix
+		// the gateway re-threw the underlying IllegalArgumentException --
+		// callers couldn't tell apart a header-validation failure from a
+		// programmer bug. Now it surfaces as a sealed NetworkError so the
+		// caller can branch structurally.
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(allowedHosts = setOf("anywhere.example")),
+		)
+		val response = gateway.request(
+			NetworkRequest(
+				url = "https://anywhere.example/x",
+				headers = mapOf("X-Smuggled" to "line1\r\nInjected: yes"),
+			),
+		)
+		response.shouldBeInstanceOf<NetworkResponse.Failure>()
+		val err = response.error
+		err.shouldBeInstanceOf<NetworkError.InvalidHeader>()
+		(err as NetworkError.InvalidHeader).name shouldBe "X-Smuggled"
+		err.reason.isNotBlank() shouldBe true
+	}
+
+	@Test
+	fun `invalid header name returns InvalidHeader (R3 round 7)`() = runTest {
+		// Empty header names are rejected by OkHttp's Headers.checkName. Same
+		// contract applies: surface as InvalidHeader, not an exception.
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(allowedHosts = setOf("anywhere.example")),
+		)
+		val response = gateway.request(
+			NetworkRequest(
+				url = "https://anywhere.example/x",
+				headers = mapOf("" to "value"),
+			),
+		)
+		response.shouldBeInstanceOf<NetworkResponse.Failure>()
+		response.error.shouldBeInstanceOf<NetworkError.InvalidHeader>()
+		(response.error as NetworkError.InvalidHeader).name shouldBe ""
+	}
+
+	@Test
 	fun `rate limit triggers RateLimited after bucket drains`() {
 		// RateLimit is a NETWORK interceptor (R7 redirect-recheck convergence
 		// fix) so it fires per-hop AFTER ConnectInterceptor. The gateway now

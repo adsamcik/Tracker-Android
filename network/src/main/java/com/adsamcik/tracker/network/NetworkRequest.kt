@@ -110,6 +110,15 @@ sealed interface NetworkError {
 	/** Malformed URL or unparseable host. */
 	data class InvalidUrl(val url: String, val reason: String) : NetworkError
 
+	/**
+	 * Caller supplied a header that OkHttp rejected (illegal name or value --
+	 * RFC 7230 disallows control characters and most non-ASCII bytes in either
+	 * field). Returned in place of throwing so the gateway's contract
+	 * "every failure path is a sealed [NetworkError] on [NetworkResponse.Failure]"
+	 * holds for header validation too (R3 round 7).
+	 */
+	data class InvalidHeader(val name: String, val reason: String) : NetworkError
+
 	/** Network I/O error (no route, DNS, connection refused, socket reset, …). */
 	data class Transport(val message: String, val cause: Throwable? = null) : NetworkError
 
