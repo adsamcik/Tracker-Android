@@ -155,6 +155,15 @@ class MapLibreInitializerTest {
     @DisplayName("setHttpCallFactory")
     inner class SetHttpCallFactory {
 
+        // All tests in this group exercise the post-initialize path. They
+        // assume Application.onCreate's call already raced past initialize()
+        // (covered separately by PreInitializeStash) -- i.e. MapLibre is up
+        // and HttpRequestUtil.setOkHttpClient is safe to call eagerly.
+        @BeforeEach
+        fun bootstrapMapLibre() {
+            kotlinx.coroutines.runBlocking { MapLibreInitializer.initialize(context) }
+        }
+
         @Test
         fun `forwards the factory to MapLibre's HttpRequestUtil`() {
             val factory: okhttp3.Call.Factory = mockk()
@@ -213,6 +222,9 @@ class MapLibreInitializerTest {
             val factory: okhttp3.Call.Factory = mockk()
             MapLibreInitializer.setHttpCallFactory(factory)
             MapLibreInitializer.reset()
+            // After reset we're back in pre-init state. Re-bootstrap so this
+            // test exercises the post-init path consistently with its siblings.
+            kotlinx.coroutines.runBlocking { MapLibreInitializer.initialize(context) }
             MapLibreInitializer.setHttpCallFactory(factory)
             verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
         }
@@ -239,6 +251,116 @@ class MapLibreInitializerTest {
             // Both attempts must reach the static setter; the second is what
             // actually completes the registration.
             verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+    }
+
+    @Nested
+    @DisplayName("setHttpCallFactory before initialize (pending-stash, R7 emulator finding)")
+    inner class PreInitializeStash {
+
+        // Background:
+        // Application.onCreate calls setHttpCallFactory with the gateway's
+        // OkHttp factory at process start. No feature has triggered
+        // MapLibreInitializer.initialize() yet, so MapLibre.getInstance()
+        // has NEVER been called. Eagerly calling HttpRequestUtil.setOkHttpClient
+        // touches HttpRequestImpl.<clinit> -> MapLibre.validateMapLibre()
+        // -> MapLibreConfigurationException. Before the stash fix the resulting
+        // ExceptionInInitializerError was swallowed and the factory was
+        // *never* registered -- MapLibre then silently fell back to its
+        // default OkHttp client, completely bypassing the
+        // NetworkPolicyAggregator kill switch / allowlist / rate limit, and
+        // also bypassing the opt-in 'online map tiles' consent gate.
+        // The fix stashes the factory and applies it from initialize().
+
+        @Test
+        fun `setHttpCallFactory before initialize does NOT call setOkHttpClient yet`() {
+            val factory: okhttp3.Call.Factory = mockk()
+
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            // No eager call: would have thrown MapLibreConfigurationException
+            // in production. Stash silently instead.
+            verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+        }
+
+        @Test
+        fun `initialize applies a pre-stashed factory after MapLibre getInstance succeeds`() = runTest {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+
+            MapLibreInitializer.initialize(context)
+
+            verify(exactly = 1) { MapLibre.getInstance(applicationContext) }
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `pre-stashed factory is applied exactly once even if initialize is called twice`() = runTest {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            MapLibreInitializer.initialize(context)
+            MapLibreInitializer.initialize(context)
+
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `if initialize fails, factory stays stashed for a future successful initialize`() = runTest {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            // First initialize fails (no native lib).
+            every { MapLibre.getInstance(any<Context>()) } throws UnsatisfiedLinkError("no native")
+            MapLibreInitializer.initialize(context) shouldBe false
+            verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+
+            // Recover: native lib loaded, retry.
+            every { MapLibre.getInstance(any<Context>()) } returns mockk()
+            MapLibreInitializer.initialize(context) shouldBe true
+
+            // Factory finally registered.
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `setHttpCallFactory after initialize still applies immediately`() = runTest {
+            // The post-init eager path should not regress: most production
+            // callers (other than Application.onCreate) will run after
+            // initialize().
+            MapLibreInitializer.initialize(context)
+            val factory: okhttp3.Call.Factory = mockk()
+
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `pre-stashed null is a no-op and does not block later real factories`() = runTest {
+            MapLibreInitializer.setHttpCallFactory(null)
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            MapLibreInitializer.initialize(context)
+
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `last pre-stashed factory wins when called multiple times before initialize`() = runTest {
+            val first: okhttp3.Call.Factory = mockk()
+            val second: okhttp3.Call.Factory = mockk()
+
+            MapLibreInitializer.setHttpCallFactory(first)
+            MapLibreInitializer.setHttpCallFactory(second)
+            MapLibreInitializer.initialize(context)
+
+            // Only the latest one is applied -- first was superseded before
+            // MapLibre was even bootstrapped.
+            verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(first) }
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(second) }
         }
     }
 }

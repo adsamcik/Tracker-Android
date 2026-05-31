@@ -58,6 +58,9 @@ object MapLibreInitializer {
     @Volatile
     private var registeredCallFactory: Call.Factory? = null
 
+    @Volatile
+    private var pendingCallFactory: Call.Factory? = null
+
     /**
      * Register the [Call.Factory] MapLibre will use for ALL outbound HTTP.
      *
@@ -67,13 +70,44 @@ object MapLibreInitializer {
      * rate limit).
      *
      * Idempotent — safe to call from multiple call sites; a `null` argument
-     * is a no-op (does not unregister an already-set factory). Can be called
-     * before OR after [initialize]; MapLibre's `HttpRequestUtil.setOkHttpClient`
-     * is a process-global setter that takes effect on the next request.
+     * is a no-op (does not unregister an already-set factory).
+     *
+     * # Ordering relative to [initialize]
+     *
+     * `HttpRequestUtil.setOkHttpClient` triggers the static initializer of
+     * `org.maplibre.android.module.http.HttpRequestImpl`, which calls
+     * `MapLibre.getApplicationContext()` — that throws
+     * `MapLibreConfigurationException` if [MapLibre.getInstance] has never
+     * been called. So calling this method *before* [initialize] cannot
+     * actually register the factory.
+     *
+     * To keep [com.adsamcik.tracker.app.Application.onCreate] simple — it must
+     * wire the gateway at process start, long before any [MapLibre] feature
+     * triggers init — this method **stashes the factory** when MapLibre is
+     * not yet initialized, and [initialize] applies it as soon as
+     * `MapLibre.getInstance(...)` succeeds. The result is that the call
+     * factory is *always* in place before MapLibre issues its first request.
+     * Without this stash, the NetworkPolicyAggregator (kill switch /
+     * allowlist / rate limit) is silently bypassed for the entire map
+     * subsystem (R7 emulator finding: maplibre-init-order).
      */
     fun setHttpCallFactory(callFactory: Call.Factory?) {
         if (callFactory == null) return
-        if (registeredCallFactory === callFactory) return
+        synchronized(this) {
+            if (registeredCallFactory === callFactory) return
+            if (!initialized) {
+                // MapLibre.getInstance() hasn't run yet. Eager
+                // HttpRequestUtil.setOkHttpClient would touch
+                // HttpRequestImpl.<clinit> -> MapLibre.validateMapLibre() ->
+                // MapLibreConfigurationException. Defer until initialize().
+                pendingCallFactory = callFactory
+                return
+            }
+            applyCallFactoryLocked(callFactory)
+        }
+    }
+
+    private fun applyCallFactoryLocked(callFactory: Call.Factory) {
         try {
             HttpRequestUtil.setOkHttpClient(callFactory)
             // Only record the factory as registered AFTER the static setter
@@ -81,10 +115,11 @@ object MapLibreInitializer {
             // Robolectric, or any other failure), leaving registeredCallFactory
             // unset lets a follow-up call with the SAME factory retry the
             // registration -- otherwise the identity short-circuit at the top
-            // would silently swallow the second call even though MapLibre's
-            // global call factory was never actually replaced (R3 round 7
-            // finding: mapinit-factory-record-order).
+            // of setHttpCallFactory would silently swallow the second call
+            // even though MapLibre's global call factory was never actually
+            // replaced (R3 round 7 finding: mapinit-factory-record-order).
             registeredCallFactory = callFactory
+            if (pendingCallFactory === callFactory) pendingCallFactory = null
         } catch (e: LinkageError) {
             // Same JVM-without-native-lib path as initialize(); on Robolectric
             // unit tests both UnsatisfiedLinkError and NoClassDefFoundError can
@@ -112,6 +147,16 @@ object MapLibreInitializer {
                     MapLibre.getInstance(context.applicationContext)
                     initialized = true
                     _isReady.value = true
+                    // Apply any factory that was stashed by setHttpCallFactory
+                    // calls that ran before MapLibre was bootstrapped.
+                    // Without this, the NetworkPolicyAggregator wired up in
+                    // Application.onCreate is silently bypassed by every
+                    // MapLibre HTTP request (kill switch / allowlist /
+                    // rate-limit all dead). Apply once initialize succeeds.
+                    val pending = pendingCallFactory
+                    if (pending != null && registeredCallFactory !== pending) {
+                        applyCallFactoryLocked(pending)
+                    }
                     true
                 } catch (e: UnsatisfiedLinkError) {
                     Log.w(TAG, "Native library not loaded; map will init on render", e)
@@ -133,6 +178,7 @@ object MapLibreInitializer {
             initialized = false
             _isReady.value = false
             registeredCallFactory = null
+            pendingCallFactory = null
         }
     }
 }
