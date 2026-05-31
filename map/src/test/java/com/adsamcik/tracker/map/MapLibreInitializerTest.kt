@@ -216,5 +216,29 @@ class MapLibreInitializerTest {
             MapLibreInitializer.setHttpCallFactory(factory)
             verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
         }
+
+        @Test
+        fun `after swallowed LinkageError, second call with same factory retries (R3 round 7)`() {
+            // Before the record-order fix, registeredCallFactory was set BEFORE
+            // HttpRequestUtil.setOkHttpClient succeeded. If the native call
+            // threw (Robolectric / missing native lib), the field was already
+            // pointing at the factory -- so the identity short-circuit at the
+            // top of setHttpCallFactory silently swallowed every retry, even
+            // though MapLibre's process-global call factory was never actually
+            // replaced. The fix moves the field assignment to AFTER the
+            // setOkHttpClient call so a failed attempt does NOT poison the
+            // retry path.
+            every { HttpRequestUtil.setOkHttpClient(any()) }
+                .throws(LinkageError("first attempt blows up"))
+                .andThen(Unit)
+            val factory: okhttp3.Call.Factory = mockk()
+
+            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory)
+
+            // Both attempts must reach the static setter; the second is what
+            // actually completes the registration.
+            verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
     }
 }

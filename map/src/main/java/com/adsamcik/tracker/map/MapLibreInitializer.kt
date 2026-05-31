@@ -74,14 +74,22 @@ object MapLibreInitializer {
     fun setHttpCallFactory(callFactory: Call.Factory?) {
         if (callFactory == null) return
         if (registeredCallFactory === callFactory) return
-        registeredCallFactory = callFactory
         try {
             HttpRequestUtil.setOkHttpClient(callFactory)
+            // Only record the factory as registered AFTER the static setter
+            // succeeded. If setOkHttpClient throws (LinkageError in
+            // Robolectric, or any other failure), leaving registeredCallFactory
+            // unset lets a follow-up call with the SAME factory retry the
+            // registration -- otherwise the identity short-circuit at the top
+            // would silently swallow the second call even though MapLibre's
+            // global call factory was never actually replaced (R3 round 7
+            // finding: mapinit-factory-record-order).
+            registeredCallFactory = callFactory
         } catch (e: LinkageError) {
             // Same JVM-without-native-lib path as initialize(); on Robolectric
             // unit tests both UnsatisfiedLinkError and NoClassDefFoundError can
             // surface when MapLibre's native HTTP impl class can't link. The
-            // production path always has the native lib loaded — silent skip
+            // production path always has the native lib loaded -- silent skip
             // is the right behavior in tests.
             Log.w(TAG, "setOkHttpClient failed (native lib missing in unit test?)", e)
         } catch (e: Exception) {
