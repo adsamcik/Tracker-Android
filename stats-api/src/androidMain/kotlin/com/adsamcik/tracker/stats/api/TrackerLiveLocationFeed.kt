@@ -26,18 +26,25 @@ import kotlinx.coroutines.flow.StateFlow
  * Consumers should:
  *  1. Observe [isActiveFlow] (or snapshot [isActive]) to decide whether to
  *     subscribe to [locations] or fall back to their own location source.
- *  2. Treat [locations] as a cold-share view of the underlying StateFlow:
- *     cancelling the collector does not stop the tracker, it just stops
- *     forwarding fixes to that collector.
- *  3. Not attempt to write to or steer the tracker through this interface —
+ *  2. Treat [locations] as a hot view of the underlying tracker StateFlow:
+ *     new collectors may receive the latest available fix immediately
+ *     (StateFlow-backed replay of 1, then distinct-filtered). Cancelling a
+ *     collector does not stop the tracker; it just stops forwarding fixes
+ *     to that collector.
+ *  3. Treat the first emission as "the most recent known fix", not "a
+ *     freshly-acquired fix at subscription time". If you need a strictly
+ *     post-subscription fix (e.g. mini-game start time), drop the first
+ *     emission or stamp/dedupe by timestamp on the consumer side.
+ *  4. Not attempt to write to or steer the tracker through this interface —
  *     it is intentionally read-only.
  */
 interface TrackerLiveLocationFeed {
 
 	/**
-	 * Hot flow that mirrors `TrackerServiceController.isServiceRunningFlow`.
+	 * Hot StateFlow that mirrors `TrackerServiceController.isServiceRunningFlow`.
 	 * `true` when the tracker is currently subscribed to FusedLocationProvider
 	 * and emitting fixes on [locations]; `false` when no session is running.
+	 * New collectors receive the current value immediately.
 	 */
 	val isActiveFlow: StateFlow<Boolean>
 
@@ -48,10 +55,27 @@ interface TrackerLiveLocationFeed {
 	val isActive: Boolean
 
 	/**
-	 * Cold flow of [Location] fixes captured by the running tracker. Emits only
-	 * when a session is active and a fresh fix arrives — never replays stale
-	 * snapshots. Null locations from the underlying CollectionData (sessions
-	 * that have not yet produced a fix) are filtered out.
+	 * Hot flow of [Location] fixes captured by the running tracker, adapted
+	 * from the underlying `CollectionData` StateFlow.
+	 *
+	 * Emission semantics:
+	 *  - **Replay of the latest fix.** A new collector receives the most
+	 *    recently published non-null [Location] (if any) immediately on
+	 *    subscription — this comes from the StateFlow replay of 1 upstream.
+	 *    There is no per-subscriber `drop(1)` or freshness gate here. If a
+	 *    consumer must not consume a stale fix, it is responsible for its
+	 *    own gating.
+	 *  - **Null-filtering.** Null `CollectionData` snapshots (between
+	 *    sessions) and null `CollectionData.location` values (sessions that
+	 *    have not yet produced a fix) are dropped.
+	 *  - **Distinct-until-changed by Location equality.** Repeated identical
+	 *    `Location` values are suppressed, including immediately after a
+	 *    replayed first emission, so a collector that resubscribes while the
+	 *    tracker is idle will not see repeated copies of the same last fix.
+	 *  - **Lifetime tied to the tracker, not the collector.** Cancelling
+	 *    the collector does not stop the tracker, and stopping the tracker
+	 *    does not complete this flow — emissions simply pause until the next
+	 *    session publishes a new non-null fix.
 	 */
 	fun locations(): Flow<Location>
 }
