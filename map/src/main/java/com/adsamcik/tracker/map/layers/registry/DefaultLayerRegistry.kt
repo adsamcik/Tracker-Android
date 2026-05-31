@@ -102,6 +102,7 @@ class DefaultLayerRegistry(
             LayerDescriptor(
                 id = "location_heatmap",
                 titleRes = R.string.map_layer_location_heatmap_title,
+                chipLabelRes = R.string.map_layer_location_heatmap_chip,
                 iconRes = null,
                 capabilities = LayerCapabilities(isHeatmap = true),
                 recipe = LayerRecipe(factory = LayerFactory {
@@ -192,6 +193,7 @@ class DefaultLayerRegistry(
             LayerDescriptor(
                 id = "wifi_count_heatmap",
                 titleRes = R.string.map_layer_wifi_count_heatmap_title,
+                chipLabelRes = R.string.map_layer_wifi_count_heatmap_chip,
                 iconRes = null,
                 capabilities = LayerCapabilities(isHeatmap = true),
                 recipe = LayerRecipe(factory = LayerFactory {
@@ -261,6 +263,7 @@ class DefaultLayerRegistry(
             LayerDescriptor(
                 id = "vehicle_compliance",
                 titleRes = R.string.map_layer_vehicle_compliance_title,
+                chipLabelRes = R.string.map_layer_vehicle_compliance_chip,
                 iconRes = null,
                 capabilities = LayerCapabilities(isPolyline = true),
                 recipe = LayerRecipe(factory = LayerFactory {
@@ -382,6 +385,7 @@ class DefaultLayerRegistry(
             LayerDescriptor(
                 id = "location_polyline",
                 titleRes = R.string.map_layer_location_polyline_title,
+                chipLabelRes = R.string.map_layer_location_polyline_chip,
                 iconRes = null,
                 capabilities = LayerCapabilities(isPolyline = true),
                 recipe = LayerRecipe(factory = LayerFactory {

@@ -232,8 +232,8 @@ class LayerDescriptorTest {
             val capabilities = LayerCapabilities()
             val recipe = LayerRecipe(factory = LayerFactory { Unit })
 
-            val desc1 = LayerDescriptor("id1", 1, null, capabilities, recipe)
-            val desc2 = LayerDescriptor("id2", 1, null, capabilities, recipe)
+            val desc1 = LayerDescriptor("id1", 1, iconRes = null, capabilities = capabilities, recipe = recipe)
+            val desc2 = LayerDescriptor("id2", 1, iconRes = null, capabilities = capabilities, recipe = recipe)
 
             desc1 shouldNotBe desc2
         }

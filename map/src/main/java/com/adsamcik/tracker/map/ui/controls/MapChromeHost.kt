@@ -153,7 +153,12 @@ fun MapChromeHost(
 			context.getString(R.string.map_layer_none_title)
 		} else {
 			val descriptor = layers.firstOrNull { it.id == active }
-			descriptor?.titleRes?.let {
+			// Prefer the short chip label when set; long titles like
+			// "Location polyline" / "Wi-Fi count heatmap" / "Vehicle speed
+			// compliance" truncate to "Location polyli..." in the active-layer
+			// chip on the map control bar (~360dp width).
+			val labelRes = descriptor?.chipLabelRes ?: descriptor?.titleRes
+			labelRes?.let {
 				try {
 					context.getString(it)
 				} catch (e: Exception) {

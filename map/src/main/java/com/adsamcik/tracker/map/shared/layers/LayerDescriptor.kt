@@ -7,6 +7,12 @@ import androidx.annotation.StringRes
 data class LayerDescriptor(
     val id: String,
     @StringRes val titleRes: Int,
+    /**
+     * Optional short label used in compact UI (e.g. the active-layer chip
+     * on the map control bar) where the full [titleRes] would truncate.
+     * Falls back to [titleRes] when null.
+     */
+    @StringRes val chipLabelRes: Int? = null,
     @DrawableRes val iconRes: Int?,
     val capabilities: LayerCapabilities,
     val recipe: LayerRecipe

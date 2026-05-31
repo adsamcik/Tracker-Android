@@ -54,6 +54,14 @@
     <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_location_polyline_description">Line connecting your recorded locations over time.</string>
     <string name="map_layer_location_polyline_title">Location polyline</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polyline</string>
+    <string name="map_layer_location_heatmap_chip">Locations</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi count</string>
+    <string name="map_layer_vehicle_compliance_chip">Speeding</string>
     <string name="map_layer_no_data">Current layer has no available data</string>
     <string name="map_layer_none">No overlay</string>
     <string name="map_layer_none_title">No overlay</string>
@@ -112,7 +120,9 @@
     <string name="tips_map_sheet_title">More options</string>
 
     <!-- Map Sheet Controls -->
-    <string name="map_search_placeholder">Search lat, lng (e.g. 50.075, 14.437)</string>
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Lat, Lng e.g. 50.075, 14.437</string>
     <string name="map_search_hint">Lat, Lng  •  e.g. 48.8566, 2.3522</string>
     <string name="map_search_invalid_format">Try 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Clear search</string>
