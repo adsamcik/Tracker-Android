@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.network
 
+import com.adsamcik.tracker.logging.api.ErrorReporter
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.collections.shouldContain as shouldContainElement
 import io.kotest.matchers.collections.shouldNotContain as shouldNotContainElement
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -27,6 +31,7 @@ class DefaultNetworkGatewayTest {
 
 	@BeforeEach
 	fun setup() {
+		resetReporterFacadeDelegate()
 		// Both servers bound explicitly to the loopback address so MockWebServer
 		// reports `127.0.0.1` as hostName (rather than the machine's NetBIOS
 		// name like `cryptomator-vault` which would mismatch the TLS cert SAN).
@@ -56,8 +61,15 @@ class DefaultNetworkGatewayTest {
 
 	@AfterEach
 	fun teardown() {
+		resetReporterFacadeDelegate()
 		server.shutdown()
 		httpsServer.shutdown()
+	}
+
+	private fun resetReporterFacadeDelegate() {
+		val field = ReporterFacade::class.java.getDeclaredField("delegate")
+		field.isAccessible = true
+		field.set(ReporterFacade, null)
 	}
 
 	/**
@@ -99,6 +111,20 @@ class DefaultNetworkGatewayTest {
 		response.shouldBeInstanceOf<NetworkResponse.Failure>()
 		response.error.shouldBeInstanceOf<NetworkError.InsecureScheme>()
 		(response.error as NetworkError.InsecureScheme).scheme shouldBe "http"
+	}
+
+	@Test
+	fun `request emits privacy-safe audit log with method and host only`() = runTest {
+		httpsServer.enqueue(MockResponse().setResponseCode(204))
+		val delegate = mockk<ErrorReporter>(relaxed = true)
+		ReporterFacade.setDelegate(delegate)
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(allowedHosts = setOf("localhost")),
+		)
+
+		gateway.request(NetworkRequest("https://localhost:${httpsServer.port}/tiles?token=secret"))
+		verify(exactly = 1) { delegate.log("NetworkGateway request: GET localhost") }
 	}
 
 	@Test

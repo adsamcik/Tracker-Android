@@ -5,6 +5,7 @@ import com.adsamcik.tracker.network.internal.GatewayInterceptorException
 import com.adsamcik.tracker.network.internal.HttpsOnlyInterceptor
 import com.adsamcik.tracker.network.internal.KillSwitchInterceptor
 import com.adsamcik.tracker.network.internal.RateLimitInterceptor
+import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,7 +88,8 @@ class DefaultNetworkGateway(
 	initialPolicy: NetworkPolicy = NetworkPolicy.EMPTY,
 	/**
 	 * Coroutine dispatcher provider for [request]'s I/O work. Defaults to
-	 * [DefaultDispatchersProvider] which routes I/O to `Dispatchers.IO`. Tests
+	 * [DefaultDispatchersProvider] which routes I/O to the app's shared
+	 * background dispatcher. Tests
 	 * pass a [com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider]
 	 * to force suspend/resume on a controlled scheduler. Also keeps `:network`
 	 * out of direct dependencies on the `Dispatchers` whole-object import,
@@ -147,6 +149,8 @@ class DefaultNetworkGateway(
 		if (parsedUri.host.isNullOrBlank()) {
 			return@withContext NetworkResponse.Failure(req, NetworkError.InvalidUrl(req.url, "missing host"))
 		}
+		val host = parsedUri.host.lowercase()
+		ReporterFacade.log("NetworkGateway request: ${req.method.name} $host")
 
 		val builder = Request.Builder().url(req.url)
 		val contentType = req.headers["Content-Type"]?.toMediaTypeOrNull()

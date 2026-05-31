@@ -2,6 +2,7 @@ package com.adsamcik.tracker.network
 
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +12,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import dagger.multibindings.Multibinds
 
 /**
  * Verifies the composition semantics of [NetworkPolicyAggregator]:
@@ -29,6 +31,15 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 @DisplayName("NetworkPolicyAggregator composition")
 class NetworkPolicyAggregatorTest {
+
+	@Test
+	fun `network module owns contributor contract and empty multibinds declaration`() {
+		NetworkPolicyContributor::class.java.packageName shouldBe "com.adsamcik.tracker.network"
+		NetworkPolicyContributorBindingsModule::class.java.packageName shouldBe "com.adsamcik.tracker.network"
+		NetworkPolicyContributorBindingsModule::class.java
+			.getDeclaredMethod("bindNetworkPolicyContributors")
+			.getAnnotation(Multibinds::class.java) shouldNotBe null
+	}
 
 	private class FakeContributor(
 		override val id: String,

@@ -24,8 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
  *    flags runaway code paths).
  *  - **Kill switch** ([isEnabled]; flipping to `false` makes every subsequent
  *    [request] fail immediately with [NetworkError.GatewayDisabled]).
- *  - **Audit log** (every request gets a structured log line via `:logger`
- *    with host, path, byte counts, latency — body content is NOT logged).
+ *  - **Request audit log** (every request attempt emits one privacy-safe log
+ *    line with HTTP method + host only; no full URL, headers, or body).
  *
  * # Privacy contract
  *
