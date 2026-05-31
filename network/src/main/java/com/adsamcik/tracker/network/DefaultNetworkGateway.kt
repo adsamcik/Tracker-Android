@@ -2,6 +2,7 @@ package com.adsamcik.tracker.network
 
 import com.adsamcik.tracker.network.internal.AllowlistInterceptor
 import com.adsamcik.tracker.network.internal.GatewayInterceptorException
+import com.adsamcik.tracker.network.internal.HttpsOnlyInterceptor
 import com.adsamcik.tracker.network.internal.KillSwitchInterceptor
 import com.adsamcik.tracker.network.internal.RateLimitInterceptor
 import kotlinx.coroutines.Dispatchers
@@ -40,12 +41,19 @@ import kotlin.coroutines.resume
  *  2. [AllowlistInterceptor] — rejects with [NetworkError.HostNotAllowed]
  *     for any URL whose host is not in [NetworkPolicy.allowedHosts]. Application
  *     placement keeps the privacy contract "no DNS / TCP for disallowed hosts"
- *     for the initial URL.
+ *     for the initial URL. Placed before [HttpsOnlyInterceptor] so a disallowed
+ *     host is reported as "not allowed" rather than leaking the additional
+ *     fact that the host would otherwise have been HTTPS-rejected.
+ *  3. [HttpsOnlyInterceptor] — rejects with [NetworkError.InsecureScheme]
+ *     for any URL whose scheme is not `https`. The suspend wrapper has its
+ *     own pre-OkHttp HTTPS guard but consumers using [okHttpCallFactory]
+ *     directly (e.g. MapLibre) bypass that path; this interceptor enforces
+ *     the contract for them too.
  *
  *  Network-level (run for EACH network exchange, including every redirect
- *  hop — required so cross-host redirects cannot bypass the allowlist):
+ *  hop — required so cross-host / cross-scheme redirects cannot bypass):
  *
- *  3. [AllowlistInterceptor] — same gate, second instance. Application-level
+ *  4. [AllowlistInterceptor] — same gate, second instance. Application-level
  *     only sees the originating request; redirects are issued by
  *     OkHttp's internal `RetryAndFollowUpInterceptor` and must be re-checked.
  *     OkHttp's chain runs network interceptors after `ConnectInterceptor`, so
@@ -53,7 +61,10 @@ import kotlin.coroutines.resume
  *     the request BODY is still blocked. To eliminate the DNS cost for
  *     disallowed redirect targets we'd need [okhttp3.OkHttpClient.followRedirects]
  *     = false and a manual redirect follower — that's a future hardening pass.
- *  4. [RateLimitInterceptor] — per-host token bucket. Network-level so each
+ *  5. [HttpsOnlyInterceptor] — same gate, second instance. Catches the case
+ *     where an allowed HTTPS host responds with a 302 to a cleartext `http://`
+ *     URL. OkHttp's `followSslRedirects(true)` would otherwise downgrade.
+ *  6. [RateLimitInterceptor] — per-host token bucket. Network-level so each
  *     hop counts against the target host's bucket (redirect-accurate). Rejects
  *     with [NetworkError.RateLimited] when the bucket is empty.
  *
@@ -102,7 +113,9 @@ class DefaultNetworkGateway(
 		.followSslRedirects(true)
 		.addInterceptor(KillSwitchInterceptor(enabledSource = { _isEnabled.value }))
 		.addInterceptor(AllowlistInterceptor(policySource = { _policy.value }))
+		.addInterceptor(HttpsOnlyInterceptor())
 		.addNetworkInterceptor(AllowlistInterceptor(policySource = { _policy.value }))
+		.addNetworkInterceptor(HttpsOnlyInterceptor())
 		.addNetworkInterceptor(RateLimitInterceptor(policySource = { _policy.value }))
 		.build()
 

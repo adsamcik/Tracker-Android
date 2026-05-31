@@ -59,6 +59,10 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.turbine)
 	testImplementation(libs.okhttp.mockwebserver)
+	// okhttp-tls provides HeldCertificate / HandshakeCertificates so MockWebServer
+	// can serve HTTPS — required for end-to-end testing through the gateway's
+	// HttpsOnlyInterceptor without disabling the HTTPS guard.
+	testImplementation(libs.okhttp.tls)
 }
 
 tasks.withType<Test>().configureEach {

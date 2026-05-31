@@ -7,27 +7,72 @@ import io.kotest.matchers.collections.shouldNotContain as shouldNotContainElemen
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import java.net.InetAddress
 
 @DisplayName("DefaultNetworkGateway end-to-end")
 class DefaultNetworkGatewayTest {
 
 	private lateinit var server: MockWebServer
+	private lateinit var httpsServer: MockWebServer
+	private lateinit var handshakes: HandshakeCertificates
 
 	@BeforeEach
 	fun setup() {
-		server = MockWebServer().apply { start() }
+		// Both servers bound explicitly to the loopback address so MockWebServer
+		// reports `127.0.0.1` as hostName (rather than the machine's NetBIOS
+		// name like `cryptomator-vault` which would mismatch the TLS cert SAN).
+		val loopback = InetAddress.getByName("127.0.0.1")
+		server = MockWebServer().apply { start(loopback, 0) }
+
+		// HTTPS MockWebServer: needed because the gateway now enforces HTTPS at
+		// the application-interceptor level (R1 round 7 finding). Any test that
+		// drives the gateway through `okHttpCallFactory()` MUST go over TLS, and
+		// the gateway's OkHttpClient does NOT trust MockWebServer's self-signed
+		// cert by default — see `httpsTestClient()` below. The cert SAN covers
+		// both `localhost` and `127.0.0.1` so it works regardless of how the
+		// test addresses the server.
+		val held = HeldCertificate.Builder()
+			.addSubjectAlternativeName("localhost")
+			.addSubjectAlternativeName("127.0.0.1")
+			.build()
+		handshakes = HandshakeCertificates.Builder()
+			.addTrustedCertificate(held.certificate)
+			.heldCertificate(held)
+			.build()
+		httpsServer = MockWebServer().apply {
+			useHttps(handshakes.sslSocketFactory(), /* tunnelProxy = */ false)
+			start(loopback, 0)
+		}
 	}
 
 	@AfterEach
 	fun teardown() {
 		server.shutdown()
+		httpsServer.shutdown()
 	}
+
+	/**
+	 * Returns a copy of the gateway's underlying OkHttpClient with the test
+	 * HTTPS trust manager added. `OkHttpClient.newBuilder()` preserves the
+	 * interceptor lists — so the returned client still runs KillSwitch,
+	 * Allowlist, HttpsOnly, and RateLimit. This is the only way to drive
+	 * the gateway through MockWebServer's HTTPS without disabling the HTTPS
+	 * guard.
+	 */
+	private fun DefaultNetworkGateway.httpsTestClient(): OkHttpClient =
+		((this as OkHttpBackedGateway).okHttpCallFactory() as OkHttpClient)
+			.newBuilder()
+			.sslSocketFactory(handshakes.sslSocketFactory(), handshakes.trustManager)
+			.build()
 
 	private fun newGatewayAllowingServer(rateLimit: Int = 600): DefaultNetworkGateway {
 		val host = server.hostName.lowercase() // MockWebServer uses 127.0.0.1 or localhost
@@ -112,35 +157,39 @@ class DefaultNetworkGatewayTest {
 	@Test
 	fun `rate limit triggers RateLimited after bucket drains`() {
 		// RateLimit is a NETWORK interceptor (R7 redirect-recheck convergence
-		// fix) so it fires per-hop AFTER ConnectInterceptor. Test against the
-		// MockWebServer (localhost, resolves instantly, connects instantly) so
-		// the rate limiter actually runs on real exchanges. limit=2 means the
+		// fix) so it fires per-hop AFTER ConnectInterceptor. The gateway now
+		// enforces HTTPS at the application-interceptor level (R7 HTTPS finding)
+		// so this MUST go over TLS. URLs are constructed against "localhost"
+		// directly (not httpsServer.url(...)) because MockWebServer's
+		// canonical-hostname resolution can return the machine NetBIOS name on
+		// some hosts, which would mismatch the cert SAN. limit=2 means the
 		// first two requests succeed and decrement the bucket; the third
 		// finds the bucket empty and is rejected with RateLimited.
 		val gateway = DefaultNetworkGateway(
 			initialEnabled = true,
 			initialPolicy = NetworkPolicy(
-				allowedHosts = setOf(server.hostName.lowercase()),
+				allowedHosts = setOf("localhost"),
 				perHostRateLimit = 2,
 				perHostRateWindowMs = 60_000L,
 			),
 		)
-		server.enqueue(MockResponse().setBody("a"))
-		server.enqueue(MockResponse().setBody("b"))
-		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
+		httpsServer.enqueue(MockResponse().setBody("a"))
+		httpsServer.enqueue(MockResponse().setBody("b"))
+		val client = gateway.httpsTestClient()
+		val baseUrl = "https://localhost:${httpsServer.port}"
 
-		client.newCall(okhttp3.Request.Builder().url(server.url("/1")).build()).execute()
+		client.newCall(okhttp3.Request.Builder().url("$baseUrl/1").build()).execute()
 			.use { it.isSuccessful shouldBe true }
-		client.newCall(okhttp3.Request.Builder().url(server.url("/2")).build()).execute()
+		client.newCall(okhttp3.Request.Builder().url("$baseUrl/2").build()).execute()
 			.use { it.isSuccessful shouldBe true }
 
 		val ex = runCatching {
-			client.newCall(okhttp3.Request.Builder().url(server.url("/3")).build()).execute()
+			client.newCall(okhttp3.Request.Builder().url("$baseUrl/3").build()).execute()
 		}.exceptionOrNull()
 		ex.shouldBeInstanceOf<com.adsamcik.tracker.network.internal.GatewayInterceptorException>()
 		val err = (ex as com.adsamcik.tracker.network.internal.GatewayInterceptorException).networkError
 		err.shouldBeInstanceOf<NetworkError.RateLimited>()
-		(err as NetworkError.RateLimited).host shouldBe server.hostName.lowercase()
+		(err as NetworkError.RateLimited).host shouldBe "localhost"
 	}
 
 	@Test
@@ -207,6 +256,10 @@ class DefaultNetworkGatewayTest {
 		//  - Network: catches every redirect hop after ConnectInterceptor
 		//    (DNS leak on disallowed redirect targets is the trade-off until
 		//    we move to manual redirect handling).
+		// HttpsOnly is also dual-registered (R1 round 7) so that consumers
+		// using the raw OkHttp factory (MapLibre) cannot bypass the suspend
+		// wrapper's HTTPS guard, and so that cross-scheme redirects (HTTPS→
+		// HTTP) cannot bypass it either.
 		// RateLimit is network-only so per-host bucket counts each actual hop.
 		// KillSwitch stays application-only — fail-fast before any I/O.
 		val gateway = DefaultNetworkGateway()
@@ -217,25 +270,24 @@ class DefaultNetworkGatewayTest {
 
 		appNames shouldContainElement "KillSwitchInterceptor"
 		appNames shouldContainElement "AllowlistInterceptor"
+		appNames shouldContainElement "HttpsOnlyInterceptor"
 		appNames shouldNotContainElement "RateLimitInterceptor"
 
 		netNames shouldContainElement "AllowlistInterceptor"
+		netNames shouldContainElement "HttpsOnlyInterceptor"
 		netNames shouldContainElement "RateLimitInterceptor"
 		netNames shouldNotContainElement "KillSwitchInterceptor"
 	}
 
 	@Test
-	fun `cross-host redirect to a disallowed host is rejected at the redirect hop`() {
-		// End-to-end proof of the R7 convergence fix: AllowlistInterceptor must
-		// fire on every redirect hop, not just the original request. We allow
-		// only server.hostName (typically "localhost") and redirect to the same
-		// loopback address using a DIFFERENT host string ("127.0.0.1") — this
-		// resolves (so ConnectInterceptor succeeds and the network interceptor
-		// runs) but does NOT match the allowlist, proving the gate catches the
-		// hop. Before the fix (Allowlist app-only) this redirect would silently
-		// follow and the second MockResponse below would be served.
+	fun `raw OkHttp call factory rejects cleartext HTTP request with InsecureScheme`() {
+		// R1 round 7: MapLibre takes the gateway's OkHttp call factory and uses
+		// it directly to fetch tiles and styles — completely bypassing the
+		// suspend wrapper's pre-OkHttp HTTPS guard. Before this fix, MapLibre
+		// would silently send cleartext HTTP if a tile/style URL was misconfigured
+		// or maliciously redirected. The HttpsOnlyInterceptor (registered as an
+		// application interceptor) catches this on the very first hop.
 		val allowedHost = server.hostName.lowercase()
-		val disallowedHost = if (allowedHost == "localhost") "127.0.0.1" else "localhost"
 		val gateway = DefaultNetworkGateway(
 			initialEnabled = true,
 			initialPolicy = NetworkPolicy(
@@ -244,18 +296,53 @@ class DefaultNetworkGatewayTest {
 				perHostRateWindowMs = 60_000L,
 			),
 		)
-		val redirectTarget = "http://$disallowedHost:${server.port}/x"
-		server.enqueue(
+		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
+		val req = okhttp3.Request.Builder().url(server.url("/x")).build()
+
+		val ex = runCatching { client.newCall(req).execute() }.exceptionOrNull()
+		ex.shouldBeInstanceOf<com.adsamcik.tracker.network.internal.GatewayInterceptorException>()
+		val err = (ex as com.adsamcik.tracker.network.internal.GatewayInterceptorException).networkError
+		err.shouldBeInstanceOf<NetworkError.InsecureScheme>()
+		(err as NetworkError.InsecureScheme).scheme shouldBe "http"
+		// MockWebServer never even got the request — the application interceptor
+		// fast-failed before ConnectInterceptor.
+		server.requestCount shouldBe 0
+	}
+
+	@Test
+	fun `cross-host redirect to a disallowed host is rejected at the redirect hop`() {
+		// End-to-end proof of the R7 convergence fix: AllowlistInterceptor must
+		// fire on every redirect hop, not just the original request. We allow
+		// only "localhost" and redirect to "127.0.0.1" on the same loopback —
+		// this resolves (so ConnectInterceptor succeeds and the network
+		// interceptor runs) but does NOT match the allowlist, proving the gate
+		// catches the hop. Before the fix (Allowlist app-only) this redirect
+		// would silently follow and the second MockResponse below would be
+		// served. The redirect target uses `https://` (matching the cert's SAN
+		// for 127.0.0.1) so the HttpsOnlyInterceptor does NOT reject before
+		// Allowlist (and Allowlist is registered before HttpsOnly in the chain).
+		val allowedHost = "localhost"
+		val disallowedHost = "127.0.0.1"
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(
+				allowedHosts = setOf(allowedHost),
+				perHostRateLimit = 1_000,
+				perHostRateWindowMs = 60_000L,
+			),
+		)
+		val redirectTarget = "https://$disallowedHost:${httpsServer.port}/x"
+		httpsServer.enqueue(
 			MockResponse()
 				.setResponseCode(302)
 				.addHeader("Location", redirectTarget),
 		)
 		// Enqueue a body for the redirect target — if the redirect is silently
 		// followed (the pre-fix bug), this is what would be returned.
-		server.enqueue(MockResponse().setBody("should-never-be-reached"))
+		httpsServer.enqueue(MockResponse().setBody("should-never-be-reached"))
 
-		val client = (gateway as OkHttpBackedGateway).okHttpCallFactory() as okhttp3.OkHttpClient
-		val req = okhttp3.Request.Builder().url(server.url("/r")).build()
+		val client = gateway.httpsTestClient()
+		val req = okhttp3.Request.Builder().url("https://$allowedHost:${httpsServer.port}/r").build()
 
 		val ex = runCatching { client.newCall(req).execute() }.exceptionOrNull()
 		ex.shouldBeInstanceOf<com.adsamcik.tracker.network.internal.GatewayInterceptorException>()
@@ -263,6 +350,6 @@ class DefaultNetworkGatewayTest {
 		err.shouldBeInstanceOf<NetworkError.HostNotAllowed>()
 		(err as NetworkError.HostNotAllowed).host shouldBe disallowedHost
 		// Only the 302 was served; the redirect target was never reached.
-		server.requestCount shouldBe 1
+		httpsServer.requestCount shouldBe 1
 	}
 }
