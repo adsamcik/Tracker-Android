@@ -81,11 +81,11 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 31 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 32 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 31,
+		version = 32,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -360,7 +360,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_27_28,
 				MIGRATION_28_29,
 				MIGRATION_29_30,
-				MIGRATION_30_31
+				MIGRATION_30_31,
+				MIGRATION_31_32
 				)
 		}
 

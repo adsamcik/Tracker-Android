@@ -21,6 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 32         │ 400         │ 🚧 UNRELEASED - Drop osm_way_cell rows  │
+ * │            │             │    so the new 0.01° (~1.1 km) OsmGridIndex│
+ * │            │             │    cells can be rebuilt by the background │
+ * │            │             │    reindexer on next launch.              │
  * │ 29         │ 400         │ 🚧 UNRELEASED - OSM road graph tables   │
  * │            │             │    (osm_import, osm_way, osm_way_cell)   │
  * │ 28         │ 400         │ 🚧 UNRELEASED - Drop challenges, rebuild │
@@ -1357,6 +1361,49 @@ val MIGRATION_30_31: Migration = object : Migration(30, 31) {
 		android.util.Log.i(
 			"AppDatabase",
 			"Migration 30->31: Added idx_minigame_score_played_at on minigame_score",
+		)
+	}
+}
+
+/**
+ * v31 -> v32: Drop every `osm_way_cell` row so the cell-key spatial index
+ * can be rebuilt under the new `OsmGridIndex` cell size (0.01° / ~1.1 km,
+ * down from 0.08° / ~9 km). The keys produced by the old grid are not
+ * compatible with the new grid — they would silently return wrong matches
+ * for every speed-limit lookup — so the only safe option is to wipe and
+ * reindex.
+ *
+ * What this migration touches:
+ *  - `osm_way_cell`: all rows deleted (table schema is unchanged).
+ *
+ * What this migration deliberately leaves alone:
+ *  - `osm_import`: still present, so [com.adsamcik.tracker.shared.base.database.dao.OsmImportDao.observeCount]
+ *    keeps reporting >0 and `DefaultSpeedLimitSource` stays in OSM mode.
+ *  - `osm_way`: rows + `bbox_min/max_lat/lon_e7` columns are preserved, so
+ *    the reindexer can rebuild `osm_way_cell` purely from bbox columns
+ *    without needing to redecode polylines or re-download a single tile.
+ *
+ * Behaviour during the reindex window (between this migration running and
+ * the background reindexer finishing):
+ *  - `OsmSpeedLimitSource.findRoadLimitMps` returns null because every
+ *    cell-key lookup is empty.
+ *  - `DefaultSpeedLimitSource.limitMpsAt` therefore falls back to the
+ *    fixed baseline — no throws, no UI errors, just a temporary loss of
+ *    OSM-specific precision. Pinned by the stats-data integration test
+ *    `OsmDispatcherIntegrationTest`.
+ *
+ * `DELETE FROM` instead of `DROP TABLE`/recreate is intentional: the
+ * table schema and indices remain valid, and Room's schema-hash check
+ * after migration only verifies structure, not row count. Idempotent
+ * by construction — re-running the migration on an empty `osm_way_cell`
+ * is a no-op.
+ */
+val MIGRATION_31_32: Migration = object : Migration(31, 32) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL("DELETE FROM osm_way_cell")
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 31->32: Cleared osm_way_cell; background reindexer will rebuild it under the 0.01° OsmGridIndex grid",
 		)
 	}
 }

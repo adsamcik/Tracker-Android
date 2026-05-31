@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.OsmWayBbox
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
 
 /**
@@ -28,4 +29,19 @@ interface OsmWayDao {
 
 	@Query("SELECT COUNT(*) FROM osm_way")
 	suspend fun count(): Int
+
+	/**
+	 * Returns a page of way ids + bbox columns ordered by primary key, used by
+	 * the cell-index reindexer to rebuild `osm_way_cell` after a cell-size
+	 * change. Ordering by `id` keeps pagination stable across batches even if
+	 * the table is being written to by an import in another transaction.
+	 *
+	 * Reads only the bbox columns (no polyline blob), so a 5000-row page is
+	 * roughly 120 KB regardless of how big the underlying ways are.
+	 */
+	@Query(
+		"SELECT id, bbox_min_lat_e7, bbox_max_lat_e7, bbox_min_lon_e7, bbox_max_lon_e7 " +
+			"FROM osm_way ORDER BY id LIMIT :limit OFFSET :offset"
+	)
+	suspend fun pageBboxes(limit: Int, offset: Int): List<OsmWayBbox>
 }
