@@ -70,19 +70,22 @@ class AchievementProcessor(
 	private suspend fun runEvaluation(force: Boolean): List<DomainEvent> {
 		// Battery-critical short-circuit: if no pre-aggregated table has changed since the
 		// previous flush, we KNOW every metric value is stable, so achievements can't have
-		// moved. Skip the full evaluation. consumeDirty() is an atomic swap so writes that
-		// race this check land in the NEXT flush window — never lost.
+		// moved. Skip the full evaluation. consumeDirty(LIVE) is an atomic swap on the
+		// per-consumer state — writes that race this check land in the NEXT LIVE flush
+		// window, never lost. The PERSISTENCE consumer view (used by AchievementWorker)
+		// is NOT affected by this drain, so the in-session live flush can never starve
+		// the background persistence run of its dirty bits (R1+R2 round-6 finding).
 		// `force = true` is used by onStop() so the final session evaluation doesn't
 		// short-circuit when a periodic flush just consumed the dirty bit moments earlier.
 		val tracker = dirtyTracker
 		val consumed: Set<String>? = if (tracker != null && !force) {
-			val set = tracker.consumeDirty()
+			val set = tracker.consumeDirty(MetricDirtyTracker.Consumer.LIVE)
 			if (set.isEmpty()) return emptyList()
 			set
 		} else if (tracker != null && force) {
-			// In force mode we still drain the dirty set so the next flush starts clean,
-			// but we do NOT early-return on empty.
-			tracker.consumeDirty()
+			// In force mode we still drain the LIVE consumer's set so the next flush
+			// starts clean for that view, but we do NOT early-return on empty.
+			tracker.consumeDirty(MetricDirtyTracker.Consumer.LIVE)
 		} else {
 			null
 		}

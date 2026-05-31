@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker.Consumer
 import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
@@ -86,8 +87,8 @@ class AchievementWorkerTest {
 		result shouldBe ListenableWorker.Result.success()
 		coVerify(exactly = 1) { metricsProvider.collect() }
 		coVerify(exactly = 1) { achievementDao.getAll() }
-		// Dirty bits drained after a successful evaluation.
-		dirtyTracker.consumeDirty().isEmpty() shouldBe true
+		// Dirty bits drained from the PERSISTENCE consumer view after a successful evaluation.
+		dirtyTracker.consumeDirty(Consumer.PERSISTENCE).isEmpty() shouldBe true
 	}
 
 	@Test
@@ -103,9 +104,33 @@ class AchievementWorkerTest {
 
 		val thrown = runCatching { worker.doWork() }
 		thrown.exceptionOrNull()!!.shouldBeInstanceOf<IllegalStateException>()
-		// The dirty bits must be observable to the next worker pass.
-		dirtyTracker.consumeDirty() shouldContainExactlyInAnyOrder setOf(
+		// The dirty bits must be observable to the next worker pass (PERSISTENCE consumer view).
+		dirtyTracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
 			"daily_summary", "session_segment",
+		)
+	}
+
+	@Test
+	fun `worker only drains PERSISTENCE consumer — LIVE view is preserved (R1+R2 round-6)`() = runTest {
+		val metricsProvider = mockk<AchievementMetricsProvider>()
+		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
+		coEvery { metricsProvider.collect() } returns MetricSnapshot.Empty
+		coEvery { achievementDao.getAll() } returns emptyList()
+
+		val dirtyTracker = DefaultMetricDirtyTracker()
+		dirtyTracker.markDirty(setOf("daily_summary", "exploration_cell"))
+
+		val worker = newWorker(metricsProvider, achievementDao, dirtyTracker)
+		val result = worker.doWork()
+
+		result shouldBe ListenableWorker.Result.success()
+		// PERSISTENCE view was consumed by the worker → empty.
+		dirtyTracker.consumeDirty(Consumer.PERSISTENCE).isEmpty() shouldBe true
+		// LIVE view is INTACT — the in-session AchievementProcessor still observes
+		// these writes on its next flush. Before the dual-consumer fix, the worker
+		// would have silently wiped the live view, dropping persisted unlocks.
+		dirtyTracker.consumeDirty(Consumer.LIVE) shouldContainExactlyInAnyOrder setOf(
+			"daily_summary", "exploration_cell",
 		)
 	}
 }

@@ -46,9 +46,13 @@ class AchievementWorker @AssistedInject constructor(
 	private val evaluator = AchievementEvaluator()
 
 	override suspend fun doWork(): Result {
-		// Snapshot the dirty set FIRST. consumeDirty() is an atomic swap — writes that
-		// race this check land in the next scheduled window, never lost.
-		val consumed = dirtyTracker.consumeDirty()
+		// Snapshot the dirty set FIRST for the PERSISTENCE consumer view. consumeDirty
+		// is an atomic swap on the per-consumer state — writes that race this check
+		// land in the next scheduled window for PERSISTENCE, never lost. The LIVE
+		// consumer's view (used by the in-session AchievementProcessor) is NOT
+		// affected by this drain, so the periodic worker can never starve the live
+		// flush of its dirty bits (R1+R2 round-6 finding).
+		val consumed = dirtyTracker.consumeDirty(MetricDirtyTracker.Consumer.PERSISTENCE)
 		if (consumed.isEmpty()) return Result.success()
 
 		return try {
@@ -58,7 +62,9 @@ class AchievementWorker @AssistedInject constructor(
 		} catch (t: Throwable) {
 			// Preserve the dirty bit so the next scheduled run still observes the
 			// underlying changes. Without this, an exception below would silently
-			// drop the next update window.
+			// drop the next update window. (Re-marking fans out to every consumer
+			// view, including LIVE — that's accepted overhead; LIVE will short-circuit
+			// on unchanged values anyway.)
 			dirtyTracker.markDirty(consumed)
 			throw t
 		}
