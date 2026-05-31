@@ -205,6 +205,36 @@ class DefaultNetworkGatewayTest {
 	}
 
 	@Test
+	fun `request honors injected DispatchersProvider instead of Dispatchers IO (R1 round 7)`() = runTest {
+		// Verifies the constructor parameter introduced for the R1 round 7
+		// "DefaultNetworkGateway hardcodes Dispatchers.IO" finding actually
+		// reaches request()'s withContext(...) call. We pass a counting
+		// CoroutineDispatcher and assert it was dispatched to at least once
+		// during request(). The request itself fails fast (deny-all policy)
+		// so no real network I/O happens — purely a structural check.
+		val dispatchCount = java.util.concurrent.atomic.AtomicInteger(0)
+		val countingDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
+			override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+				dispatchCount.incrementAndGet()
+				kotlinx.coroutines.Dispatchers.IO.dispatch(context, block)
+			}
+		}
+		val gateway = DefaultNetworkGateway(
+			initialEnabled = true,
+			initialPolicy = NetworkPolicy(allowedHosts = emptySet()),
+			dispatchers = com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider(countingDispatcher),
+		)
+		val response = gateway.request(NetworkRequest("https://nope.example/x"))
+		// The request was actually executed (and failed as HostNotAllowed,
+		// proving the request body ran inside withContext(dispatchers.io)).
+		response.shouldBeInstanceOf<NetworkResponse.Failure>()
+		response.error.shouldBeInstanceOf<NetworkError.HostNotAllowed>()
+		// withContext(dispatchers.io) MUST have dispatched at least once on
+		// the injected dispatcher — proving the hardcoded Dispatchers.IO is gone.
+		(dispatchCount.get() >= 1) shouldBe true
+	}
+
+	@Test
 	fun `subdomains are NOT auto-allowed by allowlist`() = runTest {
 		val gateway = DefaultNetworkGateway(
 			initialEnabled = true,

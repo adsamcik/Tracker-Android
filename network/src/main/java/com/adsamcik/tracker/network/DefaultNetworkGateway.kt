@@ -5,7 +5,8 @@ import com.adsamcik.tracker.network.internal.GatewayInterceptorException
 import com.adsamcik.tracker.network.internal.HttpsOnlyInterceptor
 import com.adsamcik.tracker.network.internal.KillSwitchInterceptor
 import com.adsamcik.tracker.network.internal.RateLimitInterceptor
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -84,6 +85,15 @@ import kotlin.coroutines.resume
 class DefaultNetworkGateway(
 	initialEnabled: Boolean = false,
 	initialPolicy: NetworkPolicy = NetworkPolicy.EMPTY,
+	/**
+	 * Coroutine dispatcher provider for [request]'s I/O work. Defaults to
+	 * [DefaultDispatchersProvider] which routes I/O to `Dispatchers.IO`. Tests
+	 * pass a [com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider]
+	 * to force suspend/resume on a controlled scheduler. Also keeps `:network`
+	 * out of direct dependencies on the `Dispatchers` whole-object import,
+	 * which the architectural fitness test now bans outside `:sbase`.
+	 */
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : NetworkGateway, OkHttpBackedGateway {
 
 	private val _isEnabled = MutableStateFlow(initialEnabled)
@@ -121,7 +131,7 @@ class DefaultNetworkGateway(
 
 	override fun okHttpCallFactory(): okhttp3.Call.Factory = client
 
-	override suspend fun request(req: NetworkRequest): NetworkResponse = withContext(Dispatchers.IO) {
+	override suspend fun request(req: NetworkRequest): NetworkResponse = withContext(dispatchers.io) {
 		// Parse + scheme guard happen synchronously before we touch OkHttp.
 		val parsedUri = try {
 			URI(req.url)

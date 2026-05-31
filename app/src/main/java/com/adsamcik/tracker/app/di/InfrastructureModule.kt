@@ -239,8 +239,13 @@ object InfrastructureModule {
      * [NetworkGateway.setEnabled] / [NetworkGateway.setPolicy] from the consumer
      * feature when the user opts in). See `com.adsamcik.tracker.network.NetworkGateway`
      * KDoc for the privacy contract.
+     *
+     * The injected [DispatchersProvider] reaches into [DefaultNetworkGateway.request]
+     * so tests can substitute a controlled dispatcher; production injection
+     * binds to [DefaultDispatchersProvider] above.
      */
     @Provides
     @Singleton
-    fun provideNetworkGateway(): NetworkGateway = DefaultNetworkGateway()
+    fun provideNetworkGateway(dispatchers: DispatchersProvider): NetworkGateway =
+        DefaultNetworkGateway(dispatchers = dispatchers)
 }

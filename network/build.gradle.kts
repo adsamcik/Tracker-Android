@@ -37,6 +37,11 @@ android {
 dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
+	// :sbase exposes DispatchersProvider — required so DefaultNetworkGateway
+	// can swap dispatchers in tests via TestDispatchersProvider instead of
+	// hardcoding Dispatchers.IO. Also satisfies the fitness rule that bans
+	// whole-object Dispatchers imports outside :sbase.
+	implementation(project(":sbase"))
 	// OkHttp is `api` because [OkHttpBackedGateway.okHttpCallFactory] returns
 	// `okhttp3.Call.Factory` — that type must be visible to consumers like
 	// `:map` (for `HttpRequestUtil.setOkHttpClient`) and any future module that
