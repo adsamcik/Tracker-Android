@@ -179,6 +179,11 @@ fun MapSettingsScreen(
             }
         }
 
+        // Online map tiles section (opt-in)
+        item {
+            OnlineTilesSection(viewModel)
+        }
+
         // All map settings are advanced - wrap in expandable section
         item {
             ExpandableSection(

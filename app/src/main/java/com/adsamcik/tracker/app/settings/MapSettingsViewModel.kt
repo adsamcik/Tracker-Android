@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,6 +30,7 @@ import javax.inject.Inject
 class MapSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mapSettingsRepository: MapSettingsRepository,
+    private val onlineMapTilesRepository: OnlineMapTilesRepository,
     private val dispatchers: DispatchersProvider,
     private val preferences: Preferences,
 ) : ViewModel() {
@@ -63,12 +66,21 @@ class MapSettingsViewModel @Inject constructor(
     private val _visitThreshold = MutableStateFlow(MapSettingsState.DEFAULT_VISIT_THRESHOLD)
     val visitThreshold: StateFlow<Int> = _visitThreshold.asStateFlow()
 
+    // Online map tiles state
+    private val _onlineTiles = MutableStateFlow(OnlineMapTilesState())
+    val onlineTiles: StateFlow<OnlineMapTilesState> = _onlineTiles.asStateFlow()
+
     init {
         viewModelScope.launch {
             mapSettingsRepository.data.collect { state ->
                 _quality.value = state.quality
                 _maxHeat.value = state.maxHeatPoints
                 _visitThreshold.value = state.visitThresholdSeconds
+            }
+        }
+        viewModelScope.launch {
+            onlineMapTilesRepository.data.collect { state ->
+                _onlineTiles.value = state
             }
         }
     }
@@ -131,6 +143,24 @@ class MapSettingsViewModel @Inject constructor(
     fun setVisitThreshold(value: Int) {
         viewModelScope.launch {
             mapSettingsRepository.setVisitThresholdSeconds(value)
+        }
+    }
+
+    fun setOnlineTilesEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            onlineMapTilesRepository.setEnabled(enabled)
+        }
+    }
+
+    fun setOnlineProviderId(providerId: String) {
+        viewModelScope.launch {
+            onlineMapTilesRepository.setProviderId(providerId)
+        }
+    }
+
+    fun setOnlineCustomUrl(url: String) {
+        viewModelScope.launch {
+            onlineMapTilesRepository.setCustomUrl(url)
         }
     }
 }

@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -31,7 +33,9 @@ class MapSettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val mapSettingsFlow = MutableStateFlow(MapSettingsState())
+    private val onlineTilesFlow = MutableStateFlow(OnlineMapTilesState())
     private val mapSettingsRepository: MapSettingsRepository = mockk()
+    private val onlineMapTilesRepository: OnlineMapTilesRepository = mockk()
     private val context: Context = mockk(relaxed = true)
     private val dispatchers: DispatchersProvider = mockk(relaxed = true)
     private val preferences: Preferences = mockk(relaxed = true)
@@ -43,6 +47,7 @@ class MapSettingsViewModelTest {
         tempDir.mkdirs()
         every { context.filesDir } returns tempDir
         every { mapSettingsRepository.data } returns mapSettingsFlow
+        every { onlineMapTilesRepository.data } returns onlineTilesFlow
         coEvery { mapSettingsRepository.setQuality(any()) } answers {
             mapSettingsFlow.value = mapSettingsFlow.value.copy(quality = firstArg())
         }
@@ -51,6 +56,15 @@ class MapSettingsViewModelTest {
         }
         coEvery { mapSettingsRepository.setVisitThresholdSeconds(any()) } answers {
             mapSettingsFlow.value = mapSettingsFlow.value.copy(visitThresholdSeconds = firstArg())
+        }
+        coEvery { onlineMapTilesRepository.setEnabled(any()) } answers {
+            onlineTilesFlow.value = onlineTilesFlow.value.copy(enabled = firstArg())
+        }
+        coEvery { onlineMapTilesRepository.setProviderId(any()) } answers {
+            onlineTilesFlow.value = onlineTilesFlow.value.copy(providerId = firstArg())
+        }
+        coEvery { onlineMapTilesRepository.setCustomUrl(any()) } answers {
+            onlineTilesFlow.value = onlineTilesFlow.value.copy(customUrl = firstArg())
         }
     }
 
@@ -63,6 +77,7 @@ class MapSettingsViewModelTest {
     private fun createViewModel() = MapSettingsViewModel(
         context = context,
         mapSettingsRepository = mapSettingsRepository,
+        onlineMapTilesRepository = onlineMapTilesRepository,
         dispatchers = dispatchers,
         preferences = preferences,
     )
@@ -90,6 +105,13 @@ class MapSettingsViewModelTest {
             val vm = createViewModel()
             advanceUntilIdle()
             vm.visitThreshold.value shouldBe MapSettingsState.DEFAULT_VISIT_THRESHOLD
+        }
+
+        @Test
+        fun `onlineTiles defaults to disabled OnlineMapTilesState`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            vm.onlineTiles.value.enabled shouldBe false
         }
     }
 
@@ -169,6 +191,47 @@ class MapSettingsViewModelTest {
     }
 
     @Nested
+    @DisplayName("Online map tiles management")
+    inner class OnlineTilesManagement {
+
+        @Test
+        fun `setOnlineTilesEnabled mirrors into state and delegates`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setOnlineTilesEnabled(true)
+            advanceUntilIdle()
+
+            vm.onlineTiles.value.enabled shouldBe true
+            coVerify { onlineMapTilesRepository.setEnabled(true) }
+        }
+
+        @Test
+        fun `setOnlineProviderId mirrors into state and delegates`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setOnlineProviderId("protomaps")
+            advanceUntilIdle()
+
+            vm.onlineTiles.value.providerId shouldBe "protomaps"
+            coVerify { onlineMapTilesRepository.setProviderId("protomaps") }
+        }
+
+        @Test
+        fun `setOnlineCustomUrl mirrors into state and delegates`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setOnlineCustomUrl("https://example.com/style.json")
+            advanceUntilIdle()
+
+            vm.onlineTiles.value.customUrl shouldBe "https://example.com/style.json"
+            coVerify { onlineMapTilesRepository.setCustomUrl("https://example.com/style.json") }
+        }
+    }
+
+    @Nested
     @DisplayName("Flow observation")
     inner class FlowObservation {
 
@@ -187,6 +250,23 @@ class MapSettingsViewModelTest {
             vm.quality.value shouldBe 0.75f
             vm.maxHeat.value shouldBe 100
             vm.visitThreshold.value shouldBe 45
+        }
+
+        @Test
+        fun `external online tiles flow changes update state`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            onlineTilesFlow.value = OnlineMapTilesState(
+                enabled = true,
+                providerId = "custom",
+                customUrl = "https://tiles.example.com/style.json",
+            )
+            advanceUntilIdle()
+
+            vm.onlineTiles.value.enabled shouldBe true
+            vm.onlineTiles.value.providerId shouldBe "custom"
+            vm.onlineTiles.value.customUrl shouldBe "https://tiles.example.com/style.json"
         }
     }
 }
