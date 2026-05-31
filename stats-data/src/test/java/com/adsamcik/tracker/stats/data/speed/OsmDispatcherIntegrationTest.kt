@@ -231,6 +231,38 @@ class OsmDispatcherIntegrationTest {
 		limit.shouldBeBetween(BASELINE_50_KMH_MPS, BASELINE_50_KMH_MPS, EPS)
 	}
 
+	@Test
+	fun `osm_way_cell empty during reindex window falls back to fixed silently`() = runTest {
+		// Mirrors the on-disk state immediately after MIGRATION_31_32 runs but
+		// before OsmWayCellReindexer rebuilds osm_way_cell: osm_import and
+		// osm_way are intact, the cell index is empty. The dispatcher must
+		// return the baseline without throwing — OsmSpeedLimitSource returns
+		// null on an empty candidate list, and DefaultSpeedLimitSource falls
+		// through to the fixed source.
+		seedOsmImport()
+		seedDriveableWayWithoutCells(
+			wayId = 1L,
+			maxspeedKmh = 90,
+			latsE7 = intArrayOf(PRAGUE_LAT_E7, PRAGUE_LAT_E7),
+			lonsE7 = intArrayOf(PRAGUE_LON_E7, PRAGUE_LON_E7 + 1_000),
+		)
+
+		// Sanity: the migration leaves osm_way_cell empty.
+		check(database.osmWayCellDao().count() == 0) {
+			"osm_way_cell must be empty to simulate the reindex window"
+		}
+
+		val limit = dispatcher.limitMpsAt(
+			epochMs = 0L,
+			// Same point the OSM-hit test snaps onto — but with no cells,
+			// the candidate list is empty so we must NOT see the 90 km/h limit.
+			latE7 = PRAGUE_LAT_E7 + 100,
+			lonE7 = PRAGUE_LON_E7 + 500,
+		)
+
+		limit.shouldBeBetween(BASELINE_50_KMH_MPS, BASELINE_50_KMH_MPS, EPS)
+	}
+
 	// endregion
 
 	// region dispatcher dynamic behaviour
@@ -363,6 +395,39 @@ class OsmDispatcherIntegrationTest {
 		)
 		val cellRows = cellKeys.map { key -> OsmWayCellEntity(cellKey = key, wayId = wayId) }
 		database.osmWayCellDao().insertAll(cellRows)
+	}
+
+	/**
+	 * Insert a driveable [OsmWayEntity] WITHOUT seeding `osm_way_cell`. Mirrors
+	 * the on-disk state during the v31->v32 reindex window: bboxes preserved,
+	 * cell index dropped. Used to pin the dispatcher's graceful-fallback
+	 * contract while OsmWayCellReindexer is repopulating the index.
+	 */
+	private suspend fun seedDriveableWayWithoutCells(
+		wayId: Long,
+		importId: Long = 1L,
+		maxspeedKmh: Int,
+		latsE7: IntArray,
+		lonsE7: IntArray,
+	) {
+		require(latsE7.size == lonsE7.size && latsE7.isNotEmpty()) {
+			"latsE7 and lonsE7 must be the same non-empty length"
+		}
+		val way = OsmWayEntity(
+			id = wayId,
+			importId = importId,
+			name = "Test Road $wayId",
+			roadClass = "primary",
+			maxspeedKmh = maxspeedKmh,
+			maxspeedExplicit = 1,
+			isOneway = 0,
+			geomPolylineE7 = PolylineE7Codec.encode(latsE7, lonsE7),
+			bboxMinLatE7 = latsE7.min(),
+			bboxMaxLatE7 = latsE7.max(),
+			bboxMinLonE7 = lonsE7.min(),
+			bboxMaxLonE7 = lonsE7.max(),
+		)
+		database.osmWayDao().insertAll(listOf(way))
 	}
 
 	companion object {
