@@ -19,6 +19,9 @@ import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
+import com.adsamcik.tracker.map.MapLibreInitializer
+import com.adsamcik.tracker.network.NetworkGateway
+import com.adsamcik.tracker.network.OkHttpBackedGateway
 import com.adsamcik.tracker.game.goals.GoalResetScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -69,6 +72,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var moduleInitializerCoordinator: ModuleInitializerCoordinator
+
+	@Inject
+	lateinit var networkGateway: NetworkGateway
 
 	@Inject
 	lateinit var trackerServiceControllerProvider: Provider<TrackerServiceController>
@@ -247,6 +253,15 @@ class Application : AndroidApplication(), Configuration.Provider {
 	override fun onCreate() {
 		super.onCreate()
 		enableStrictMode()
+
+		// Wire MapLibre's HTTP through the project NetworkGateway so tile/style/sprite
+		// fetches share the kill switch + allowlist + rate-limit interceptors that
+		// every other future egress consumer uses. Idempotent process-global setter;
+		// safe to call before MapLibreInitializer.initialize() runs in any feature.
+		// Skips silently in unit tests where the gateway isn't OkHttp-backed (Fake).
+		(networkGateway as? OkHttpBackedGateway)?.okHttpCallFactory()?.let { factory ->
+			MapLibreInitializer.setHttpCallFactory(factory)
+		}
 
 		initializeImportantSingletons()
 

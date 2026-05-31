@@ -78,6 +78,15 @@ class MapStore @Inject constructor(
         private const val TRIP_ID_KEY = "tripId"
         private const val TRIP_START_MS_KEY = "startMs"
         private const val TRIP_END_MS_KEY = "endMs"
+        /**
+         * Per-host rate limit (requests / minute) applied to online tile providers.
+         * Tile loads are bursty — a single viewport pan can request 20-50 vector
+         * tiles in a few seconds plus sprite + glyph fetches. The 600/min
+         * ([NetworkPolicy.DEFAULT_RATE_LIMIT]) per-host default is too tight for
+         * that; 3600/min (60/s sustained) covers a vigorous pan/zoom without ever
+         * spuriously rate-limiting the user, while still gating a runaway loop.
+         */
+        private const val TILE_HOST_RATE_LIMIT_PER_MIN: Int = 3600
         private val coordinatePartDelimiterRegex = Regex("[,;\\n]+")
         private val coordinateNumberRegex = Regex("[-+]?\\d+(?:\\.\\d+)?")
         private val hemisphereRegex = Regex("[NSEW]", RegexOption.IGNORE_CASE)
@@ -137,11 +146,12 @@ class MapStore @Inject constructor(
             )
 
     init {
-        // Mirror the user's online-tile preference into the NetworkGateway. The
-        // gateway is the project's kill-switch + allowlist for outbound HTTP.
-        // MapLibre itself does NOT route through the gateway yet (see
-        // MapStyleProvider KDoc), but arming it keeps the security posture
-        // consistent for future direct-network consumers and audit hooks.
+        // Mirror the user's online-tile preference into the NetworkGateway. MapLibre's
+        // OkHttp client is registered against the gateway at app startup
+        // (Application.onCreate → MapLibreInitializer.setHttpCallFactory), so flipping
+        // the gateway's kill switch here immediately gates every subsequent MapLibre
+        // tile/style/sprite/glyph request through the gateway's interceptor chain
+        // (kill switch → allowlist → rate limit).
         viewModelScope.launch {
             onlineMapTilesRepository.data.collect { prefs ->
                 applyNetworkPolicy(prefs)
@@ -152,7 +162,13 @@ class MapStore @Inject constructor(
     private fun applyNetworkPolicy(prefs: OnlineMapTilesState) {
         if (prefs.enabled) {
             val provider = TileProvider.resolve(prefs.providerId, prefs.customUrl)
-            networkGateway.setPolicy(NetworkPolicy(allowedHosts = provider.allowedHosts))
+            networkGateway.setPolicy(
+                NetworkPolicy(
+                    allowedHosts = provider.allowedHosts,
+                    perHostRateLimit = TILE_HOST_RATE_LIMIT_PER_MIN,
+                    perHostRateWindowMs = NetworkPolicy.DEFAULT_RATE_WINDOW_MS,
+                ),
+            )
             networkGateway.setEnabled(true)
         } else {
             networkGateway.setEnabled(false)

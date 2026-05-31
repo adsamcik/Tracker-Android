@@ -37,7 +37,15 @@ android {
 dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.okhttp)
+	// OkHttp is `api` because [OkHttpBackedGateway.okHttpCallFactory] returns
+	// `okhttp3.Call.Factory` — that type must be visible to consumers like
+	// `:map` (for `HttpRequestUtil.setOkHttpClient`) and any future module that
+	// wants to integrate at the OkHttp level. The convention (enforced by code
+	// review, future lint rule) is that NO module other than `:network` may
+	// construct an `OkHttpClient` directly — get the call factory from the
+	// gateway instead so requests share the kill-switch + allowlist + rate-limit
+	// interceptor chain.
+	api(libs.okhttp)
 
 	// Unit Tests
 	testImplementation(platform(libs.junit5.bom))

@@ -22,6 +22,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.maplibre.android.MapLibre
+import org.maplibre.android.module.http.HttpRequestUtil
 
 @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 @DisplayName("MapLibreInitializer")
@@ -37,8 +38,10 @@ class MapLibreInitializerTest {
         Dispatchers.setMain(mainDispatcher)
         MapLibreInitializer.reset()
         mockkStatic(MapLibre::class)
+        mockkStatic(HttpRequestUtil::class)
         every { context.applicationContext } returns applicationContext
         every { MapLibre.getInstance(any<Context>()) } returns mockk()
+        every { HttpRequestUtil.setOkHttpClient(any()) } returns Unit
     }
 
     @AfterEach
@@ -47,6 +50,7 @@ class MapLibreInitializerTest {
         Dispatchers.resetMain()
         mainDispatcher.close()
         unmockkStatic(MapLibre::class)
+        unmockkStatic(HttpRequestUtil::class)
     }
 
     @Nested
@@ -144,6 +148,73 @@ class MapLibreInitializerTest {
             MapLibreInitializer.isReady.value shouldBe true
 
             verify(exactly = 2) { MapLibre.getInstance(any<Context>()) }
+        }
+    }
+
+    @Nested
+    @DisplayName("setHttpCallFactory")
+    inner class SetHttpCallFactory {
+
+        @Test
+        fun `forwards the factory to MapLibre's HttpRequestUtil`() {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `null factory is a silent no-op (does not unregister)`() {
+            MapLibreInitializer.setHttpCallFactory(null)
+            verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+        }
+
+        @Test
+        fun `same factory passed twice only registers once`() {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `different factories each register`() {
+            val first: okhttp3.Call.Factory = mockk()
+            val second: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(first)
+            MapLibreInitializer.setHttpCallFactory(second)
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(first) }
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(second) }
+        }
+
+        @Test
+        fun `survives UnsatisfiedLinkError in unit test environment`() {
+            every { HttpRequestUtil.setOkHttpClient(any()) } throws UnsatisfiedLinkError("no native lib")
+            val factory: okhttp3.Call.Factory = mockk()
+            // Should not throw.
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `survives NoClassDefFoundError (HttpRequestImpl link failure in Robolectric)`() {
+            // Robolectric unit tests raise NoClassDefFoundError when MapLibre's
+            // native HTTP impl class fails to link. Our catch must cover
+            // LinkageError (the common parent) so Application.onCreate doesn't
+            // explode in 183 :app tests.
+            every { HttpRequestUtil.setOkHttpClient(any()) } throws
+                NoClassDefFoundError("Could not initialize class HttpRequestImpl")
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `reset clears the registered factory so a new one will register again`() {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.reset()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.network
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -163,5 +164,29 @@ class DefaultNetworkGatewayTest {
 		// contract documented in DefaultNetworkGateway.
 		DefaultNetworkGateway.USER_AGENT shouldContain "Tracker-Android"
 		DefaultNetworkGateway.USER_AGENT shouldContain "privacy-first"
+	}
+
+	@Test
+	fun `gateway implements OkHttpBackedGateway and exposes a non-null call factory`() {
+		val gateway = DefaultNetworkGateway()
+		(gateway is OkHttpBackedGateway) shouldBe true
+		val factory = (gateway as OkHttpBackedGateway).okHttpCallFactory()
+		// Factory is the underlying OkHttpClient — same instance across calls.
+		factory shouldNotBe null
+		val second = (gateway as OkHttpBackedGateway).okHttpCallFactory()
+		(factory === second) shouldBe true
+	}
+
+	@Test
+	fun `redirects are enabled so tile providers that 301 work correctly`() {
+		// Verifies the OkHttpClient backing the gateway has followRedirects enabled,
+		// which is required for tile providers that legitimately redirect (cache
+		// busting, version pinning). Reflective check — internal config not exposed
+		// otherwise.
+		val gateway = DefaultNetworkGateway()
+		val factory = (gateway as OkHttpBackedGateway).okHttpCallFactory()
+		val client = factory as okhttp3.OkHttpClient
+		client.followRedirects shouldBe true
+		client.followSslRedirects shouldBe true
 	}
 }

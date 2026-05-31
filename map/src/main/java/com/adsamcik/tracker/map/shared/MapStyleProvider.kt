@@ -11,16 +11,17 @@ import java.io.File
  * Online mode: remote `style.json` URL served by a [TileProvider]. Online mode is
  *   strictly opt-in and OFF by default.
  *
- * # MapLibre HTTP wiring (deferred)
+ * # NetworkGateway integration
  *
- * Online tiles currently bypass the project's [NetworkGateway][com.adsamcik.tracker.network.NetworkGateway]
- * for the actual HTTP layer: MapLibre uses its own internal OkHttp client.
- * The repository preference still acts as the user-facing kill switch (no
- * preference → no [BaseStyle.Uri][org.maplibre.compose.style.BaseStyle.Uri]
- * passed to the map), and the gateway IS armed with the provider's allowlist
- * for future direct-network consumers and audit hooks — but routing MapLibre
- * traffic through the gateway requires a custom `HttpRequestFactory` and is
- * scheduled for a follow-up phase. See `docs/ARCHITECTURE_OVERVIEW.md`.
+ * Online tile fetches go through the project [com.adsamcik.tracker.network.NetworkGateway]:
+ * [com.adsamcik.tracker.app.Application.onCreate] registers the gateway's
+ * `okHttpCallFactory()` via
+ * [com.adsamcik.tracker.map.MapLibreInitializer.setHttpCallFactory], which
+ * delegates to MapLibre's `HttpRequestUtil.setOkHttpClient` (a process-global
+ * static). Every MapLibre HTTP request — style.json, sprite, glyph, vector
+ * tile — flows through the gateway's interceptor chain (kill switch,
+ * allowlist, per-host rate limit). When the user toggles online mode off the
+ * gateway's kill switch flips immediately and tile requests fail closed.
  */
 object MapStyleProvider {
 

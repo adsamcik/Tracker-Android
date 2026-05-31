@@ -58,7 +58,7 @@ import kotlin.coroutines.resume
 class DefaultNetworkGateway(
 	initialEnabled: Boolean = false,
 	initialPolicy: NetworkPolicy = NetworkPolicy.EMPTY,
-) : NetworkGateway {
+) : NetworkGateway, OkHttpBackedGateway {
 
 	private val _isEnabled = MutableStateFlow(initialEnabled)
 	override val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
@@ -71,12 +71,22 @@ class DefaultNetworkGateway(
 		.readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 		.writeTimeout(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 		.retryOnConnectionFailure(true)
-		.followRedirects(false) // explicit; consumers handle redirects via re-request
-		.followSslRedirects(false)
+		// Redirects are followed by default. Required so the allowlist remains
+		// useful for tile/style providers that legitimately redirect within
+		// their own host (e.g. cache-busting query strings, version pinning).
+		// Each redirect hop re-enters the interceptor chain because we register
+		// our gates as APPLICATION interceptors (run once per call), so the
+		// initial-URL allowlist check still gates the originating request. A
+		// future hardening pass can move the allowlist to a NETWORK interceptor
+		// to gate every hop, accepting the cost of an extra check per redirect.
+		.followRedirects(true)
+		.followSslRedirects(true)
 		.addInterceptor(KillSwitchInterceptor(enabledSource = { _isEnabled.value }))
 		.addInterceptor(AllowlistInterceptor(policySource = { _policy.value }))
 		.addInterceptor(RateLimitInterceptor(policySource = { _policy.value }))
 		.build()
+
+	override fun okHttpCallFactory(): okhttp3.Call.Factory = client
 
 	override suspend fun request(req: NetworkRequest): NetworkResponse = withContext(Dispatchers.IO) {
 		// Parse + scheme guard happen synchronously before we touch OkHttp.

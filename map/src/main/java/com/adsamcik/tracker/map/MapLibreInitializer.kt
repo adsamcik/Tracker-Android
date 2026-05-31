@@ -11,7 +11,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.Call
 import org.maplibre.android.MapLibre
+import org.maplibre.android.module.http.HttpRequestUtil
 
 /**
  * Initializes the MapLibre SDK on the UI thread before the map composable renders.
@@ -26,6 +28,20 @@ import org.maplibre.android.MapLibre
  *
  * This initializer is intentionally used lazily from `MapScreen` so app startup
  * stays responsive while still guaranteeing the SDK is ready before map render.
+ *
+ * # HTTP wiring through NetworkGateway
+ *
+ * The app's [com.adsamcik.tracker.network.NetworkGateway] is the single chokepoint
+ * for all egress. When MapLibre needs to fetch online style/tile/sprite/glyph
+ * resources it MUST use the same OkHttp client that backs the gateway so the
+ * kill switch, allowlist, and rate-limit interceptors apply uniformly.
+ *
+ * [Application.onCreate] calls [setHttpCallFactory] with the gateway's
+ * `okHttpCallFactory()` BEFORE the first map renders. The call delegates to
+ * [HttpRequestUtil.setOkHttpClient] which is a process-wide static — once set
+ * it covers every subsequent MapLibre HTTP request without per-request
+ * registration. Setting it is idempotent; passing the same factory twice
+ * has no effect.
  */
 object MapLibreInitializer {
 
@@ -38,6 +54,40 @@ object MapLibreInitializer {
 
     @Volatile
     private var initialized = false
+
+    @Volatile
+    private var registeredCallFactory: Call.Factory? = null
+
+    /**
+     * Register the [Call.Factory] MapLibre will use for ALL outbound HTTP.
+     *
+     * Pass the result of
+     * `(networkGateway as? OkHttpBackedGateway)?.okHttpCallFactory()` so MapLibre
+     * traffic shares the gateway's interceptor chain (kill switch, allowlist,
+     * rate limit).
+     *
+     * Idempotent — safe to call from multiple call sites; a `null` argument
+     * is a no-op (does not unregister an already-set factory). Can be called
+     * before OR after [initialize]; MapLibre's `HttpRequestUtil.setOkHttpClient`
+     * is a process-global setter that takes effect on the next request.
+     */
+    fun setHttpCallFactory(callFactory: Call.Factory?) {
+        if (callFactory == null) return
+        if (registeredCallFactory === callFactory) return
+        registeredCallFactory = callFactory
+        try {
+            HttpRequestUtil.setOkHttpClient(callFactory)
+        } catch (e: LinkageError) {
+            // Same JVM-without-native-lib path as initialize(); on Robolectric
+            // unit tests both UnsatisfiedLinkError and NoClassDefFoundError can
+            // surface when MapLibre's native HTTP impl class can't link. The
+            // production path always has the native lib loaded — silent skip
+            // is the right behavior in tests.
+            Log.w(TAG, "setOkHttpClient failed (native lib missing in unit test?)", e)
+        } catch (e: Exception) {
+            Log.w(TAG, "setOkHttpClient failed", e)
+        }
+    }
 
     suspend fun initialize(
         context: Context,
@@ -74,6 +124,8 @@ object MapLibreInitializer {
         synchronized(this) {
             initialized = false
             _isReady.value = false
+            registeredCallFactory = null
         }
     }
 }
+
