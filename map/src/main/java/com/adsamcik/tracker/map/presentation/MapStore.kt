@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -19,8 +18,6 @@ import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SelectedTripMapContext
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.CoordinateBounds
-import com.adsamcik.tracker.network.NetworkGateway
-import com.adsamcik.tracker.network.NetworkPolicy
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -53,7 +50,6 @@ class MapStore @Inject constructor(
     val trackerController: TrackerServiceController,
     private val dispatchers: DispatchersProvider,
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
-    private val networkGateway: NetworkGateway,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -78,15 +74,6 @@ class MapStore @Inject constructor(
         private const val TRIP_ID_KEY = "tripId"
         private const val TRIP_START_MS_KEY = "startMs"
         private const val TRIP_END_MS_KEY = "endMs"
-        /**
-         * Per-host rate limit (requests / minute) applied to online tile providers.
-         * Tile loads are bursty — a single viewport pan can request 20-50 vector
-         * tiles in a few seconds plus sprite + glyph fetches. The 600/min
-         * ([NetworkPolicy.DEFAULT_RATE_LIMIT]) per-host default is too tight for
-         * that; 3600/min (60/s sustained) covers a vigorous pan/zoom without ever
-         * spuriously rate-limiting the user, while still gating a runaway loop.
-         */
-        private const val TILE_HOST_RATE_LIMIT_PER_MIN: Int = 3600
         private val coordinatePartDelimiterRegex = Regex("[,;\\n]+")
         private val coordinateNumberRegex = Regex("[-+]?\\d+(?:\\.\\d+)?")
         private val hemisphereRegex = Regex("[NSEW]", RegexOption.IGNORE_CASE)
@@ -136,6 +123,15 @@ class MapStore @Inject constructor(
      * Continuously emitted snapshot of the user's online map tile preference.
      * Defaults to disabled. Consumed by `MapScreen` to decide whether to pass
      * a remote `style.json` URL into MapLibre.
+     *
+     * Mirroring this preference into the `NetworkGateway` (kill switch +
+     * allowlist + per-host rate limit) is the responsibility of
+     * `com.adsamcik.tracker.map.network.MapTilesPolicyContributor`, which is
+     * Hilt-registered via `@IntoSet NetworkPolicyContributor` and consumed by
+     * `com.adsamcik.tracker.network.NetworkPolicyAggregator`. Keeping the
+     * gateway plumbing OUT of `MapStore` is what lets a second consumer
+     * (e.g. OSM PMTiles offline download) publish its own contribution
+     * without fighting the map for global gateway state.
      */
     val onlineMapTiles: StateFlow<OnlineMapTilesState> =
         onlineMapTilesRepository.data
@@ -144,37 +140,6 @@ class MapStore @Inject constructor(
                 started = SharingStarted.Eagerly,
                 initialValue = OnlineMapTilesState(),
             )
-
-    init {
-        // Mirror the user's online-tile preference into the NetworkGateway. MapLibre's
-        // OkHttp client is registered against the gateway at app startup
-        // (Application.onCreate → MapLibreInitializer.setHttpCallFactory), so flipping
-        // the gateway's kill switch here immediately gates every subsequent MapLibre
-        // tile/style/sprite/glyph request through the gateway's interceptor chain
-        // (kill switch → allowlist → rate limit).
-        viewModelScope.launch {
-            onlineMapTilesRepository.data.collect { prefs ->
-                applyNetworkPolicy(prefs)
-            }
-        }
-    }
-
-    private fun applyNetworkPolicy(prefs: OnlineMapTilesState) {
-        if (prefs.enabled) {
-            val provider = TileProvider.resolve(prefs.providerId, prefs.customUrl)
-            networkGateway.setPolicy(
-                NetworkPolicy(
-                    allowedHosts = provider.allowedHosts,
-                    perHostRateLimit = TILE_HOST_RATE_LIMIT_PER_MIN,
-                    perHostRateWindowMs = NetworkPolicy.DEFAULT_RATE_WINDOW_MS,
-                ),
-            )
-            networkGateway.setEnabled(true)
-        } else {
-            networkGateway.setEnabled(false)
-            networkGateway.setPolicy(NetworkPolicy.EMPTY)
-        }
-    }
 
     private var lastBearing: Float = 0f
 

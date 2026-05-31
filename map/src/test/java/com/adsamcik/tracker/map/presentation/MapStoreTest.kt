@@ -11,7 +11,6 @@ import com.adsamcik.tracker.map.shared.MapLegend
 import com.adsamcik.tracker.map.shared.MapLegendValue
 import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLayerData
-import com.adsamcik.tracker.network.FakeNetworkGateway
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.testing.fake.FakeOnlineMapTilesRepository
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -58,7 +57,6 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
-            FakeNetworkGateway(),
         )
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
@@ -98,7 +96,6 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
-            FakeNetworkGateway(),
         )
 
         val state = tripStore.state.first()
@@ -123,7 +120,6 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
-            FakeNetworkGateway(),
         )
 
         tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
@@ -250,7 +246,6 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
-            FakeNetworkGateway(),
         )
         tripStore.setLayerEngine(mockLayerEngine)
 

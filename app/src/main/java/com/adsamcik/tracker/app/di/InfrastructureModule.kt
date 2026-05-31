@@ -235,10 +235,16 @@ object InfrastructureModule {
 
     /**
      * Provides the singleton [NetworkGateway] — the ONLY allowed network egress
-     * point in the app. Defaults: kill switch OFF, deny-all allowlist (set
-     * [NetworkGateway.setEnabled] / [NetworkGateway.setPolicy] from the consumer
-     * feature when the user opts in). See `com.adsamcik.tracker.network.NetworkGateway`
-     * KDoc for the privacy contract.
+     * point in the app. Defaults: kill switch OFF, deny-all allowlist; the
+     * gateway is then driven by [com.adsamcik.tracker.network.NetworkPolicyAggregator],
+     * which composes contributions from every Hilt-registered
+     * [com.adsamcik.tracker.network.NetworkPolicyContributor]
+     * (`@IntoSet`) — see `com.adsamcik.tracker.network.NetworkGateway` KDoc
+     * for the privacy contract.
+     *
+     * Direct calls to [NetworkGateway.setEnabled] / [NetworkGateway.setPolicy]
+     * from feature code are an anti-pattern; they will be silently overwritten
+     * on the aggregator's next emission. Register a contributor instead.
      *
      * The injected [DispatchersProvider] reaches into [DefaultNetworkGateway.request]
      * so tests can substitute a controlled dispatcher; production injection

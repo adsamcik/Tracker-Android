@@ -21,6 +21,7 @@ import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.map.MapLibreInitializer
 import com.adsamcik.tracker.network.NetworkGateway
+import com.adsamcik.tracker.network.NetworkPolicyAggregator
 import com.adsamcik.tracker.network.OkHttpBackedGateway
 import com.adsamcik.tracker.game.goals.GoalResetScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
@@ -75,6 +76,18 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var networkGateway: NetworkGateway
+
+	/**
+	 * Injected eagerly so its `init {}` block subscribes every Hilt-registered
+	 * [com.adsamcik.tracker.network.NetworkPolicyContributor] to the
+	 * [NetworkGateway] at process start. Without this `lateinit` field there
+	 * would be no live subscription until some other component asked Hilt for
+	 * the aggregator, leaving the gateway at its deny-all default and
+	 * potentially racing UI that expects the policy already mirrored.
+	 */
+	@Suppress("unused")
+	@Inject
+	lateinit var networkPolicyAggregator: NetworkPolicyAggregator
 
 	@Inject
 	lateinit var trackerServiceControllerProvider: Provider<TrackerServiceController>

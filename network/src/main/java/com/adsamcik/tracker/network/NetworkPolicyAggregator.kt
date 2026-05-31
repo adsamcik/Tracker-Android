@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.network
 
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
@@ -65,7 +66,7 @@ import javax.inject.Singleton
 class NetworkPolicyAggregator @Inject constructor(
 	private val gateway: NetworkGateway,
 	private val contributors: Set<@JvmSuppressWildcards NetworkPolicyContributor>,
-	private val scope: CoroutineScope,
+	@ApplicationScope private val scope: CoroutineScope,
 ) {
 
 	private val collectorJob: Job? = startCollector()
