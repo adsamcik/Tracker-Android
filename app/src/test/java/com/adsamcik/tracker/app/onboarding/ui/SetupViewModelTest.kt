@@ -334,6 +334,74 @@ class SetupViewModelTest {
             vm.onCellPermissionResult(true)
             vm.state.value.cellPermissionGranted shouldBe true
         }
+
+        @Test
+        fun `denied location permission disables location and flags alert`() {
+            val vm = createViewModel()
+            vm.setLocationEnabled(true)
+            vm.onLocationPermissionResult(false)
+            val state = vm.state.value
+            state.locationEnabled shouldBe false
+            state.locationPermissionGranted shouldBe false
+            state.locationPermissionDenied shouldBe true
+        }
+
+        @Test
+        fun `denied activity permission disables activity and flags alert`() {
+            val vm = createViewModel()
+            vm.setActivityEnabled(true)
+            vm.onActivityPermissionResult(false)
+            val state = vm.state.value
+            state.activityEnabled shouldBe false
+            state.activityPermissionDenied shouldBe true
+        }
+
+        @Test
+        fun `denied wifi permission disables wifi and flags alert`() {
+            val vm = createViewModel()
+            vm.setWifiEnabled(true)
+            vm.onWifiPermissionResult(false)
+            val state = vm.state.value
+            state.wifiEnabled shouldBe false
+            state.wifiPermissionDenied shouldBe true
+        }
+
+        @Test
+        fun `denied cell permission disables cell and flags alert`() {
+            val vm = createViewModel()
+            vm.setCellEnabled(true)
+            vm.onCellPermissionResult(false)
+            val state = vm.state.value
+            state.cellEnabled shouldBe false
+            state.cellPermissionDenied shouldBe true
+        }
+
+        @Test
+        fun `re-enabling a denied source clears its alert`() {
+            val vm = createViewModel()
+            vm.setWifiEnabled(true)
+            vm.onWifiPermissionResult(false)
+            vm.state.value.wifiPermissionDenied shouldBe true
+
+            vm.setWifiEnabled(true)
+            val state = vm.state.value
+            state.wifiEnabled shouldBe true
+            state.wifiPermissionDenied shouldBe false
+        }
+
+        @Test
+        fun `granting after a prior denial clears the alert`() {
+            val vm = createViewModel()
+            vm.setActivityEnabled(true)
+            vm.onActivityPermissionResult(false)
+            vm.state.value.activityPermissionDenied shouldBe true
+
+            vm.setActivityEnabled(true)
+            vm.onActivityPermissionResult(true)
+            val state = vm.state.value
+            state.activityPermissionGranted shouldBe true
+            state.activityPermissionDenied shouldBe false
+        }
     }
 
     @Nested

@@ -30,6 +30,14 @@ data class SetupUiState(
     val wifiPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
 
+    // Denial alerts — set when the user asked to collect a source but denied its
+    // runtime permission. The source is auto-disabled and the UI surfaces a
+    // recoverable inline alert until the user re-toggles it.
+    val locationPermissionDenied: Boolean = false,
+    val activityPermissionDenied: Boolean = false,
+    val wifiPermissionDenied: Boolean = false,
+    val cellPermissionDenied: Boolean = false,
+
     // Step 4 – Online Map Tiles (opt-in, off by default)
     val onlineMapTilesEnabled: Boolean = false,
 ) {

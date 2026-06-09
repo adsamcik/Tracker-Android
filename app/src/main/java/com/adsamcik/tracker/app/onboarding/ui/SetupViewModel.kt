@@ -86,7 +86,7 @@ class SetupViewModel @Inject constructor(
     // region Step 3 – What to Collect
 
     fun setLocationEnabled(enabled: Boolean) {
-        _state.update { it.copy(locationEnabled = enabled) }
+        _state.update { it.copy(locationEnabled = enabled, locationPermissionDenied = false) }
     }
 
     fun setLocationPrecision(mode: LocationPrecisionMode) {
@@ -94,7 +94,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun setActivityEnabled(enabled: Boolean) {
-        _state.update { it.copy(activityEnabled = enabled) }
+        _state.update { it.copy(activityEnabled = enabled, activityPermissionDenied = false) }
     }
 
     fun setStepsEnabled(enabled: Boolean) {
@@ -102,11 +102,11 @@ class SetupViewModel @Inject constructor(
     }
 
     fun setWifiEnabled(enabled: Boolean) {
-        _state.update { it.copy(wifiEnabled = enabled) }
+        _state.update { it.copy(wifiEnabled = enabled, wifiPermissionDenied = false) }
     }
 
     fun setCellEnabled(enabled: Boolean) {
-        _state.update { it.copy(cellEnabled = enabled) }
+        _state.update { it.copy(cellEnabled = enabled, cellPermissionDenied = false) }
     }
 
     // endregion
@@ -114,7 +114,20 @@ class SetupViewModel @Inject constructor(
     // region Permissions
 
     fun onLocationPermissionResult(granted: Boolean) {
-        _state.update { it.copy(locationPermissionGranted = granted) }
+        _state.update {
+            if (granted) {
+                it.copy(locationPermissionGranted = true, locationPermissionDenied = false)
+            } else {
+                // Honor the user's intent: if they want to collect a source but deny its
+                // permission, disable that collection and alert them rather than silently
+                // leaving a toggle on that records nothing.
+                it.copy(
+                    locationPermissionGranted = false,
+                    locationEnabled = false,
+                    locationPermissionDenied = true,
+                )
+            }
+        }
     }
 
     fun onBackgroundLocationResult(granted: Boolean) {
@@ -122,7 +135,17 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onActivityPermissionResult(granted: Boolean) {
-        _state.update { it.copy(activityPermissionGranted = granted) }
+        _state.update {
+            if (granted) {
+                it.copy(activityPermissionGranted = true, activityPermissionDenied = false)
+            } else {
+                it.copy(
+                    activityPermissionGranted = false,
+                    activityEnabled = false,
+                    activityPermissionDenied = true,
+                )
+            }
+        }
     }
 
     fun onNotificationPermissionResult(granted: Boolean) {
@@ -130,11 +153,31 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onWifiPermissionResult(granted: Boolean) {
-        _state.update { it.copy(wifiPermissionGranted = granted) }
+        _state.update {
+            if (granted) {
+                it.copy(wifiPermissionGranted = true, wifiPermissionDenied = false)
+            } else {
+                it.copy(
+                    wifiPermissionGranted = false,
+                    wifiEnabled = false,
+                    wifiPermissionDenied = true,
+                )
+            }
+        }
     }
 
     fun onCellPermissionResult(granted: Boolean) {
-        _state.update { it.copy(cellPermissionGranted = granted) }
+        _state.update {
+            if (granted) {
+                it.copy(cellPermissionGranted = true, cellPermissionDenied = false)
+            } else {
+                it.copy(
+                    cellPermissionGranted = false,
+                    cellEnabled = false,
+                    cellPermissionDenied = true,
+                )
+            }
+        }
     }
 
     // endregion
