@@ -1,19 +1,15 @@
 package com.adsamcik.tracker.app.ui
 
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -308,26 +304,11 @@ fun MainRoot(
     val navigationLayout = rememberMainNavigationLayout()
     val useSideRail = navigationLayout == MainNavigationLayout.SideRail && !hideTopLevelNavigation && effectiveRouteObj != null
     val showBottomNavigation = !hideTopLevelNavigation && effectiveRouteObj != null && !useSideRail
-    // 72 bar + 24 padding above bar = 96dp; add system nav-bar inset so content clears gesture handle on gesture-nav devices.
-    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomPaddingTarget = if (showBottomNavigation) 96.dp + navBarInset else 0.dp
-    // Spring the content's bottom padding so the inset shrink/grow matches the
-    // bar's enter/exit slide. Otherwise the content would jump while the bar
-    // smoothly slides off-screen.
-    // Use DampingRatioNoBouncy (critically damped, 1.0f) instead of an
-    // under-damped spring: layout values must never overshoot below zero,
-    // since Compose's padding() rejects negative dp with
-    // IllegalArgumentException. A critically damped spring still feels smooth
-    // — the visual difference vs. 0.9f is imperceptible — but it eliminates
-    // the transient negative-value frame at the source.
-    val bottomPadding by animateDpAsState(
-        targetValue = bottomPaddingTarget,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "navBottomPadding",
-    )
+    // The floating navigation bar is a true floating overlay: content fills the full
+    // height and flows *behind* it (the bar's Haze blur reveals it). Each top-level
+    // screen reserves the bar's footprint in its own bottom contentPadding
+    // (bottomNavSafeClearance / DashboardLayoutDefaults / MapNavGraph) so interactive
+    // elements still rest above the bar — see AppDimensions.FloatingNavBarReserve.
 
     fun openSettings(origin: AppRoute) {
         settingsLaunchNonce += 1
@@ -375,11 +356,6 @@ fun MainRoot(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(state = hazeState)
-                    // Defense-in-depth: even though the spring above is now
-                    // critically damped, [toSafeBottomPadding] guarantees no
-                    // negative value ever reaches padding() if a future change
-                    // reintroduces an under-damped spring or a different anim.
-                    .padding(bottom = bottomPadding.toSafeBottomPadding())
             ) {
                 setupGraph(
                     navController = navController,

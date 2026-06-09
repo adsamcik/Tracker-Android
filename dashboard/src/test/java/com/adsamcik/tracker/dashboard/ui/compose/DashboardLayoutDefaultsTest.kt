@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
@@ -31,17 +32,17 @@ class DashboardLayoutDefaultsTest {
 		}
 
 		@Test
-		fun `BottomBar portrait clears the tracking pill plus visual margin plus inset`() {
+		fun `BottomBar portrait clears the floating bar plus tracking pill plus margin plus inset`() {
 			val result = DashboardLayoutDefaults.contentBottomClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				bottomInset = 0.dp,
 				isLandscape = false,
 			)
-			// MainRoot reserves the floating nav bar (96dp + navBarInset) at the NavHost
-			// level — DashboardLayoutDefaults only needs to reserve the tracking pill
-			// (PillClearance = 112dp) plus a visual margin (28dp matching
-			// bottomNavSafeClearance) plus the system inset (defense in depth).
-			val expected = DashboardLayoutDefaults.PillClearance + 28.dp
+			// Content flows behind the floating bar, so the dashboard reserves the bar
+			// footprint (96dp) + the tracking pill (PillClearance = 112dp) + a visual
+			// margin (28dp) + the system inset.
+			val expected = AppDimensions.FloatingNavBarReserve +
+				DashboardLayoutDefaults.PillClearance + 28.dp
 			result shouldBe expected
 		}
 
@@ -52,10 +53,10 @@ class DashboardLayoutDefaultsTest {
 				bottomInset = 10.dp,
 				isLandscape = true,
 			)
-			// MainRoot's NavHost reservation is the same in portrait and landscape
-			// (96.dp + navBarInset), so the dashboard's local reservation no longer
-			// branches on orientation.
-			val expected = DashboardLayoutDefaults.PillClearance + 28.dp + 10.dp
+			// The floating bar footprint is the same in portrait and landscape, so the
+			// dashboard's local reservation no longer branches on orientation.
+			val expected = AppDimensions.FloatingNavBarReserve +
+				DashboardLayoutDefaults.PillClearance + 28.dp + 10.dp
 			result shouldBe expected
 		}
 
@@ -90,24 +91,23 @@ class DashboardLayoutDefaultsTest {
 		}
 
 		@Test
-		fun `BottomBar portrait returns the floating action margin`() {
+		fun `BottomBar portrait reserves the bar footprint plus floating action margin plus inset`() {
 			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
 				bottomInset = 8.dp,
 				isLandscape = false,
 			)
-			// The outer MainRoot NavHost already reserves the floating nav bar +
-			// system nav inset, so the overlay pill only needs the small margin
-			// from the bottom edge of the dashboard surface.
-			result shouldBe 16.dp
+			// Content flows behind the floating bar, so the overlay pill reserves the
+			// bar footprint (96dp) + system inset (8dp) + the small margin (16dp).
+			result shouldBe AppDimensions.FloatingNavBarReserve + 8.dp + 16.dp
 		}
 
 		@Test
-		fun `BottomBar landscape returns the floating action margin`() {
+		fun `BottomBar landscape reserves the bar footprint plus floating action margin plus inset`() {
 			val result = DashboardLayoutDefaults.floatingActionBottomPadding(
 				bottomInset = 8.dp,
 				isLandscape = true,
 			)
-			result shouldBe 16.dp
+			result shouldBe AppDimensions.FloatingNavBarReserve + 8.dp + 16.dp
 		}
 	}
 }

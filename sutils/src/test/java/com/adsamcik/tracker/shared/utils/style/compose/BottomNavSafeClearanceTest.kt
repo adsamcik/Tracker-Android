@@ -14,32 +14,32 @@ class BottomNavSafeClearanceTest {
 	inner class BottomBarLayoutTest {
 
 		@Test
-		fun `returns the constant visual margin when inset is zero`() {
+		fun `reserves the floating bar footprint plus visual margin when inset is zero`() {
 			val result = bottomNavSafeClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				systemBottomInset = 0.dp,
 			)
-			result shouldBe 28.dp
+			// Content now flows behind the floating bar, so the screen reserves the
+			// bar footprint (96dp) + visual margin (28dp).
+			result shouldBe AppDimensions.FloatingNavBarReserve + 28.dp
 		}
 
 		@Test
-		fun `ignores system bottom inset because MainRoot already reserves it`() {
-			// MainRoot's `96.dp + navBarInset` NavHost reservation already covers
-			// the system inset, so adding it here would double-count.
+		fun `adds the system bottom inset to the bar footprint and margin`() {
 			val result = bottomNavSafeClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				systemBottomInset = 48.dp,
 			)
-			result shouldBe 28.dp
+			result shouldBe AppDimensions.FloatingNavBarReserve + 48.dp + 28.dp
 		}
 
 		@Test
-		fun `gesture-nav inset is also ignored`() {
+		fun `includes the gesture-nav inset`() {
 			val result = bottomNavSafeClearance(
 				navigationLayout = MainNavigationLayout.BottomBar,
 				systemBottomInset = 24.dp,
 			)
-			result shouldBe 28.dp
+			result shouldBe AppDimensions.FloatingNavBarReserve + 24.dp + 28.dp
 		}
 	}
 

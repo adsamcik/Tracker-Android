@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 
 /**
  * Map destination within the app navigation graph.
@@ -18,7 +18,7 @@ internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
             contentPadding = if (useSideRail) {
                 PaddingValues()
             } else {
-                PaddingValues(bottom = 96.dp + navBarPad)
+                PaddingValues(bottom = AppDimensions.FloatingNavBarReserve + navBarPad)
             },
         )
     }
@@ -29,7 +29,7 @@ internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
             contentPadding = if (useSideRail) {
                 PaddingValues()
             } else {
-                PaddingValues(bottom = 96.dp + navBarPad)
+                PaddingValues(bottom = AppDimensions.FloatingNavBarReserve + navBarPad)
             },
         )
     }

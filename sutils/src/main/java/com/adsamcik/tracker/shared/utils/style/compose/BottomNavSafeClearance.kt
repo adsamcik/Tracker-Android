@@ -22,23 +22,21 @@ private val SIDE_RAIL_VISUAL_MARGIN = 24.dp
 
 /**
  * Bottom `contentPadding` a top-level screen's scroll container (typically a
- * `LazyColumn`) should use so its last item clears the floating navigation
- * pill without double-counting the space already reserved upstream.
+ * `LazyColumn`) should use so its last item rests above the floating navigation
+ * pill while the rest of the content flows edge-to-edge *behind* it.
  *
  * # Why this helper exists
  *
- * `MainRoot.kt` already reserves `96.dp + navBarInset` of bottom padding at
- * the `NavHost` level whenever the floating bottom navigation pill is shown.
- * The pill itself occupies `80dp + 12dp` top breathing padding = 92dp of that
- * area, with a ~4dp residual. So in [MainNavigationLayout.BottomBar] mode a
- * screen only needs a small visual margin above the pill — anything more
- * triple-counts the reservation and produces hundreds of dp of dead space at
- * the bottom of the list (see commit `9d1b1980d` for the historic bug).
+ * The floating navigation bar is a true floating overlay — `MainRoot.kt` no
+ * longer pads the `NavHost`, so content fills the full height and the bar's
+ * Haze blur reveals it underneath. Each top-level screen must therefore reserve
+ * the bar's own footprint in [MainNavigationLayout.BottomBar] mode:
+ * [AppDimensions.FloatingNavBarReserve] (`96dp` = 72dp bar + 24dp gap) plus the
+ * system bottom inset (gesture handle / soft nav bar) plus a small visual margin.
  *
- * In [MainNavigationLayout.SideRail] mode there is no floating bottom nav —
- * the rail is on the side — so `MainRoot` does NOT reserve any bottom padding.
- * In that case the screen must consume the system bottom inset itself
- * (gesture handle, soft nav bar) plus a small visual margin.
+ * In [MainNavigationLayout.SideRail] mode there is no floating bottom nav — the
+ * rail is on the side — so the screen only needs the system bottom inset plus a
+ * small visual margin.
  *
  * # Usage
  *
@@ -49,16 +47,14 @@ private val SIDE_RAIL_VISUAL_MARGIN = 24.dp
  * @param navigationLayout current top-level navigation layout.
  * @param systemBottomInset bottom inset reported by
  *   `WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()`.
- *   Only consulted in [MainNavigationLayout.SideRail] mode; ignored in
- *   [MainNavigationLayout.BottomBar] mode because `MainRoot` already reserves
- *   the system inset along with the floating-pill clearance.
  */
 fun bottomNavSafeClearance(
     navigationLayout: MainNavigationLayout,
     systemBottomInset: Dp,
 ): Dp = when (navigationLayout) {
     MainNavigationLayout.SideRail -> systemBottomInset + SIDE_RAIL_VISUAL_MARGIN
-    MainNavigationLayout.BottomBar -> BOTTOM_BAR_VISUAL_MARGIN
+    MainNavigationLayout.BottomBar ->
+        AppDimensions.FloatingNavBarReserve + systemBottomInset + BOTTOM_BAR_VISUAL_MARGIN
 }
 
 /**

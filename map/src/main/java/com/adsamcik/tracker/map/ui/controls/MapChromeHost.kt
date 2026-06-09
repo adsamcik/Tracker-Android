@@ -94,28 +94,26 @@ fun MapChromeHost(
 		}
 	)
 
-	// Inset handling. The caller (MapNavGraph) already accounts for the floating bottom
-	// nav bar AND the system navigation-bar inset in `bottomInsetPx` (see MapNavGraph:
-	// PaddingValues(bottom = 96.dp + navBarPad)). Re-adding `systemBottomDp` here would
-	// push the chrome ~navInset+nav-bar-height above where it should sit, which is what
-	// produced the visible "map controls float halfway up the screen" bug.
-	//
-	// We only need to override that when the IME is taller than what the caller reserved
-	// (keyboard open) so the search field doesn't disappear under the keyboard.
+	// Inset handling. `bottomInsetPx` (from MapNavGraph) is the floating navigation
+	// bar's footprint plus the system navigation-bar inset
+	// (AppDimensions.FloatingNavBarReserve + navBarPad). The map *surface* renders
+	// full-bleed behind the floating bar, but this chrome overlay must sit above it,
+	// so we inset the whole chrome Box by that footprint (see the bottom padding on
+	// the Box below). The per-strip `controlStripBottomPx` then only adds the small
+	// visual gap, plus any keyboard overflow when the IME is taller than the reserved
+	// footprint so the search field never disappears under the keyboard.
 	val imeBottom = WindowInsets.ime.getBottom(density)
 	val navBottom = WindowInsets.navigationBars.getBottom(density)
 	val systemBottomPx = maxOf(imeBottom, navBottom)
 	// Visual breathing room between the chrome strip (search/chips/FAB) and the
-	// floating navigation pill below. Was 4dp ("stacked-pair" design), but in
-	// practice the chrome read as one with the pill — the user perceived it as
-	// the nav cutting off content. 20dp gives a clear visual separation while
-	// still keeping the chrome anchored to the same edge of the screen.
+	// floating navigation pill below.
 	val controlStripBottomPx = resolveMapChromeBottomPaddingPx(
 		bottomInsetPx = bottomInsetPx,
 		imeBottomPx = imeBottom,
 		gapPx = with(density) { 20.dp.roundToPx() },
 	)
 	val controlStripBottomDp = with(density) { controlStripBottomPx.toDp() }
+	val chromeBottomInsetDp = with(density) { bottomInsetPx.toDp() }
 
 	// Report the height the map should keep clear so map attribution/content doesn't sit
 	// behind the chrome. Stack is: search pill 56dp + 8dp gap + chip row 40dp = ~104dp,
@@ -181,7 +179,11 @@ fun MapChromeHost(
 		}
 	}
 
-	Box(modifier = modifier.fillMaxSize()) {
+	Box(
+		modifier = modifier
+			.fillMaxSize()
+			.padding(bottom = chromeBottomInsetDp),
+	) {
 		// Bottom control region — stacked so the my-location FAB sits above the strip.
 		Column(
 			modifier = Modifier

@@ -30,6 +30,16 @@ import androidx.compose.ui.unit.sp
 object AppDimensions {
     /** Bottom padding to clear the floating navigation bar. */
     val FloatingNavBarClearance = 120.dp
+
+    /**
+     * Footprint of the floating navigation bar measured from the top of the system
+     * navigation inset: 72dp bar height + 24dp breathing gap above it. Top-level
+     * screens add this (plus the system bottom inset) to their bottom contentPadding
+     * so their last item rests above the bar while the rest of the content flows
+     * behind it. Single source of truth shared by `bottomNavSafeClearance`,
+     * `DashboardLayoutDefaults`, and the map nav graph.
+     */
+    val FloatingNavBarReserve = 96.dp
 }
 
 /** Ridgeline spacing scale. 4dp base, semantic token names. */
