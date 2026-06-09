@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.telephony.TelephonyManager
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -108,6 +109,47 @@ inline fun <reified T : Service> Context.startForegroundService(
 	val intent = newIntent<T>()
 	intent.init()
 	ContextCompat.startForegroundService(this, intent)
+}
+
+/**
+ * Starts a service in the foreground, tolerating the Android 12+ (API 31+)
+ * background foreground-service start restriction.
+ *
+ * On modern Android a foreground service started from a background-restricted
+ * context (for example a [android.content.BroadcastReceiver] delivering a
+ * periodic activity-recognition update) throws
+ * `android.app.ForegroundServiceStartNotAllowedException`, which is fatal when
+ * it propagates out of the receiver. This helper catches that case (and
+ * [SecurityException]) and returns `false` instead of crashing. Other
+ * [RuntimeException]s propagate unchanged.
+ *
+ * @return `true` if the start was dispatched, `false` if the platform blocked it.
+ */
+inline fun <reified T : Service> Context.startForegroundServiceSafely(
+	init: Intent.() -> Unit = {}
+): Boolean {
+	val intent = newIntent<T>()
+	intent.init()
+	return try {
+		ContextCompat.startForegroundService(this, intent)
+		true
+	} catch (exception: SecurityException) {
+		Log.w("ForegroundServiceStart", "Foreground service start blocked by security policy", exception)
+		false
+	} catch (exception: RuntimeException) {
+		val isForegroundStartRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+			exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
+		if (isForegroundStartRestricted) {
+			Log.w(
+				"ForegroundServiceStart",
+				"Skipped foreground service start from background-restricted context",
+				exception,
+			)
+			false
+		} else {
+			throw exception
+		}
+	}
 }
 
 /**

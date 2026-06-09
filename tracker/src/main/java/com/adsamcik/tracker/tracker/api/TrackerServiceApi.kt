@@ -2,7 +2,7 @@ package com.adsamcik.tracker.tracker.api
 
 import android.app.ActivityManager
 import android.content.Context
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
+import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
 import com.adsamcik.tracker.shared.base.extension.stopService
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
@@ -44,7 +44,12 @@ object TrackerServiceApi {
 	}
 
 	private fun startServiceInternal(context: Context, isUserInitiated: Boolean, isAmbient: Boolean) {
-		context.startForegroundService<TrackerService> {
+		// Use the restriction-tolerant start: background activity-recognition updates
+		// can trigger this from a background-restricted context on Android 12+, where a
+		// raw startForegroundService would throw ForegroundServiceStartNotAllowedException
+		// and crash the delivering receiver. When blocked, the start is skipped; tracking
+		// is re-triggered by the next activity transition or when the app is foregrounded.
+		context.startForegroundServiceSafely<TrackerService> {
 			putExtra(TrackerService.ARG_IS_USER_INITIATED, isUserInitiated)
 			if (isAmbient) {
 				putExtra(TrackerService.ARG_IS_AMBIENT, true)

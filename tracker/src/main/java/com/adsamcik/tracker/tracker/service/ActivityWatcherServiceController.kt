@@ -5,7 +5,7 @@ import android.os.Build
 import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
+import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -77,21 +77,7 @@ class ActivityWatcherServiceController @Inject constructor(
 						Log.i(tag, "Skipping ActivityWatcherService start: app not in foreground")
 						return
 					}
-					try {
-						context.startForegroundService<ActivityWatcherService> { }
-					} catch (exception: SecurityException) {
-						Log.w(tag, "Activity watcher start blocked by security policy", exception)
-					} catch (exception: RuntimeException) {
-						val isForegroundStartRestricted =
-							Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-								exception::class.java.name ==
-								"android.app.ForegroundServiceStartNotAllowedException"
-						if (isForegroundStartRestricted) {
-							Log.w(tag, "Skipped starting ActivityWatcherService from background-restricted context")
-						} else {
-							throw exception
-						}
-					}
+					context.startForegroundServiceSafely<ActivityWatcherService> { }
 				}
 				return
 			}
