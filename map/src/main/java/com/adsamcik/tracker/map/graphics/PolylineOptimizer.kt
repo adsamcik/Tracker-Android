@@ -13,19 +13,59 @@ import kotlin.math.cos
 object PolylineOptimizer {
 
     /**
-     * Simplify a polyline with Douglas-Peucker then enforce [maxPoints] by down sampling and optional even spacing.
+     * Simplify a polyline with Douglas-Peucker, then, if it is still over
+     * [maxPoints], keep reducing it **shape-awarely** (by raising the
+     * Douglas-Peucker tolerance) until it fits the budget.
+     *
+     * [evenSpacing] re-distributes the result into equal-distance samples. This
+     * discards the shape-defining vertices Douglas-Peucker keeps (corners get
+     * rounded off), so it defaults to `false` and should only be enabled when a
+     * caller specifically wants uniform spacing (e.g. animation) rather than a
+     * faithful route shape.
      */
     fun optimize(
         points: List<LatLngModel>,
         toleranceMeters: Double,
         maxPoints: Int,
-        evenSpacing: Boolean = true,
+        evenSpacing: Boolean = false,
     ): List<LatLngModel> {
-        if (points.size <= 2 || (points.size <= maxPoints && toleranceMeters <= 0.0)) return points
-        val simplified = if (toleranceMeters > 0) douglasPeucker(points, toleranceMeters) else points
-        val capped = if (simplified.size > maxPoints) downSampleEvenly(simplified, maxPoints) else simplified
-        if (!evenSpacing) return capped
-        return if (capped.size <= 2) capped else resampleEvenDistance(capped, min(maxPoints, capped.size))
+        if (points.size <= 2 || maxPoints < 2) return points
+        if (points.size <= maxPoints && toleranceMeters <= 0.0) return points
+
+        var simplified = if (toleranceMeters > 0.0) douglasPeucker(points, toleranceMeters) else points
+        if (simplified.size > maxPoints) {
+            // Enforce the point budget by raising the tolerance until the shape
+            // fits, instead of dropping points at fixed index intervals.
+            simplified = simplifyToBudget(points, maxPoints, toleranceMeters)
+        }
+
+        if (!evenSpacing) return simplified
+        return if (simplified.size <= 2) simplified else resampleEvenDistance(simplified, min(maxPoints, simplified.size))
+    }
+
+    /**
+     * Reduce [points] to at most [maxPoints] using Douglas-Peucker, growing the
+     * tolerance geometrically until the budget is met. This preserves the most
+     * significant vertices (corners, turns) rather than blindly decimating.
+     *
+     * Falls back to even index down-sampling only if a very large tolerance still
+     * cannot hit the budget (degenerate input such as a dense GPS cluster); even
+     * then it keeps real recorded vertices rather than interpolating new ones.
+     */
+    private fun simplifyToBudget(
+        points: List<LatLngModel>,
+        maxPoints: Int,
+        startTolerance: Double,
+    ): List<LatLngModel> {
+        var tolerance = if (startTolerance > 0.0) startTolerance else INITIAL_BUDGET_TOLERANCE_METERS
+        var result = douglasPeucker(points, tolerance)
+        var iterations = 0
+        while (result.size > maxPoints && iterations < MAX_BUDGET_ITERATIONS) {
+            tolerance *= BUDGET_TOLERANCE_GROWTH
+            result = douglasPeucker(points, tolerance)
+            iterations++
+        }
+        return if (result.size > maxPoints) downSampleEvenly(result, maxPoints) else result
     }
 
     private fun douglasPeucker(points: List<LatLngModel>, tolerance: Double): List<LatLngModel> {
@@ -151,4 +191,13 @@ object PolylineOptimizer {
             return kotlin.math.sqrt(dx * dx + dy * dy) * earthR
         }
     }
+
+    /** Starting tolerance for adaptive budget simplification when none is supplied. */
+    private const val INITIAL_BUDGET_TOLERANCE_METERS = 1.0
+
+    /** Geometric growth factor applied to the tolerance each budget iteration. */
+    private const val BUDGET_TOLERANCE_GROWTH = 1.8
+
+    /** Safety cap on adaptive iterations; growth makes this converge well before the limit. */
+    private const val MAX_BUDGET_ITERATIONS = 40
 }

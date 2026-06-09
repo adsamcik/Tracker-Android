@@ -34,10 +34,17 @@ class LocationPathLayer(
 
     override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
         if (input.points.isEmpty()) return Prepared("", emptyList(), null)
+        // Use a small, real distance tolerance so Douglas-Peucker preserves the
+        // route shape. `budgets.decimationThreshold` is a point-count budget, NOT a
+        // metre tolerance — feeding it in as the tolerance (8000m+) collapsed every
+        // route to a straight line. The point budget is enforced shape-awarely by
+        // the optimizer (adaptive tolerance), and even-distance resampling is off so
+        // corners are never rounded away.
         val simplified = PolylineOptimizer.optimize(
             input.points,
-            toleranceMeters = budgets.decimationThreshold.toDouble(),
-            maxPoints = budgets.maxPolylinePoints
+            toleranceMeters = OVERVIEW_SIMPLIFY_TOLERANCE_METERS,
+            maxPoints = budgets.maxPolylinePoints,
+            evenSpacing = false,
         )
         val geoJson = GeoJsonConverter.lineToFeatureCollection(simplified)
         return Prepared(geoJson, simplified, simplified.coordinateBoundsOrNull())
@@ -76,5 +83,12 @@ class LocationPathLayer(
 
     companion object {
         private const val DEFAULT_POLYLINE_COLOR = 0xFF007AFF.toInt()
+
+        /**
+         * Douglas-Peucker tolerance (metres) for the route overview. Small enough to
+         * keep the route's shape (turns, switchbacks) while removing GPS jitter; the
+         * optimizer raises it adaptively if the point budget is still exceeded.
+         */
+        private const val OVERVIEW_SIMPLIFY_TOLERANCE_METERS = 5.0
     }
 }
