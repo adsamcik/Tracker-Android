@@ -1,51 +1,23 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
-    alias(libs.plugins.robolectric.junit5)
+    id("tracker.android.library")
+    id("tracker.android.hilt")
+    id("tracker.android.test")
 }
 
 android {
-    compileSdk = Android.COMPILE_VERSION
-    buildToolsVersion = Android.BUILD_TOOLS_VERSION
-
-    defaultConfig {
-        minSdk = Android.MIN_VERSION
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
+    namespace = "com.adsamcik.tracker.activity.impl"
 
     sourceSets {
         this.maybeCreate("androidTest").assets.srcDir("$projectDir/schemas")
     }
 
-    compileOptions {
-        sourceCompatibility = Android.javaTarget
-        targetCompatibility = Android.javaTarget
-    }
-
-    kotlin {
-        jvmToolchain(Android.JAVA_VERSION)
-    }
-
-    buildTypes {
-        getByName("debug") {}
-        create("release_nominify") { isMinifyEnabled = false }
-        getByName("release") { isMinifyEnabled = false }
-    }
-
     lint {
-        checkReleaseBuilds = true
-        abortOnError = false
         baseline = file("lint-baseline.xml")
     }
 
     testOptions {
         unitTests.isReturnDefaultValues = true
-        unitTests.isIncludeAndroidResources = true
     }
-
-    namespace = "com.adsamcik.tracker.activity.impl"
 }
 
 dependencies {
@@ -65,40 +37,10 @@ dependencies {
     implementation(libs.google.play.services.base)
     implementation(libs.google.play.services.location)
     implementation(libs.androidx.work.runtime.ktx)
-
-    implementation(libs.hilt.android)
     implementation(libs.hilt.work)
-    ksp(libs.hilt.compiler)
-    ksp(libs.androidx.hilt.compiler)
 
-    testImplementation(platform(libs.junit5.bom))
-    testImplementation(libs.junit5.jupiter)
-    testImplementation(libs.junit5.jupiter.params)
-    testRuntimeOnly(libs.junit5.jupiter.engine)
-    testRuntimeOnly(libs.junit5.vintage.engine)
-    testImplementation(libs.junit4)
-    testImplementation(libs.kotlin.test)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.arch.core.testing)
-    testImplementation(libs.androidx.test.core)
-    testImplementation(libs.robolectric)
-    testImplementation(libs.junit5.robolectric)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
     testImplementation(libs.androidx.work.testing)
-    testImplementation(libs.kotest.assertions.core)
     testImplementation(project(":core:testing"))
 
-    androidTestImplementation(libs.junit4)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.uiautomator)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.arch.core.testing)
-    androidTestImplementation(libs.espresso)
-    androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.androidx.work.testing)
-}
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
 }

@@ -1,108 +1,54 @@
 plugins {
-	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
-	alias(libs.plugins.ksp)
-	alias(libs.plugins.robolectric.junit5)
+    id("tracker.android.library")
+    id("tracker.android.hilt")
+    id("tracker.android.test")
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+    namespace = "com.adsamcik.tracker.osm"
 
-	defaultConfig {
-		minSdk = Android.MIN_VERSION
+    defaultConfig {
+        consumerProguardFiles("consumer-rules.pro")
+    }
 
-		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		consumerProguardFiles("consumer-rules.pro")
-	}
-
-	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
-	}
-
-	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
-	}
-
-	buildTypes {
-		getByName("debug") {}
-		create("release_nominify") { isMinifyEnabled = false }
-		getByName("release") {
-			isMinifyEnabled = false
-			proguardFiles(
-				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro",
-			)
-		}
-	}
-
-	lint {
-		checkReleaseBuilds = true
-		abortOnError = false
-	}
-
-	testOptions {
-		unitTests.isIncludeAndroidResources = true
-	}
-
-	namespace = "com.adsamcik.tracker.osm"
+    buildTypes {
+        getByName("release") {
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
+    }
 }
 
 dependencies {
-	api(project(":stats:api"))
-	implementation(project(":core:base"))
-	implementation(project(":core:ui"))
-	implementation(project(":data:preferences"))
-	implementation(project(":core:logging-api"))
+    api(project(":stats:api"))
+    implementation(project(":core:base"))
+    implementation(project(":core:ui"))
+    implementation(project(":data:preferences"))
+    implementation(project(":core:logging-api"))
 
-	// Core
-	implementation(libs.kotlin.stdlib.jdk8)
-	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.androidx.core.ktx)
-	implementation(libs.androidx.documentfile)
+    // Core
+    implementation(libs.kotlin.stdlib.jdk8)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.documentfile)
 
-	// Room (read existing osm_* tables via DAO injection)
-	implementation(libs.androidx.room.runtime)
-	implementation(libs.androidx.room.ktx)
+    // Room (read existing osm_* tables via DAO injection)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
 
-	// WorkManager + Hilt worker bridge
-	implementation(libs.androidx.work.runtime.ktx)
-	implementation(libs.hilt.android)
-	implementation(libs.hilt.work)
-	ksp(libs.hilt.compiler)
-	ksp(libs.androidx.hilt.compiler)
+    // WorkManager + Hilt worker bridge
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.hilt.work)
 
-	// DI annotations
-	implementation(libs.javax.inject)
+    // DI annotations
+    implementation(libs.javax.inject)
 
-	// OSM PBF parsing (offline; never touched by network).
-	implementation(libs.osmpbf)
+    // OSM PBF parsing (offline; never touched by network).
+    implementation(libs.osmpbf)
 
-	// Unit tests
-	testImplementation(platform(libs.junit5.bom))
-	testImplementation(libs.junit5.jupiter)
-	testImplementation(libs.junit5.jupiter.params)
-	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testImplementation(libs.junit4)
-	testImplementation(libs.kotlin.test)
-	testImplementation(libs.mockk)
-	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.kotest.assertions.core)
-	testImplementation(libs.robolectric)
-	testImplementation(libs.junit5.robolectric)
-	testImplementation(libs.androidx.test.core)
-	testImplementation(libs.androidx.work.testing)
-	testImplementation(libs.androidx.room.testing)
-
-	// Instrumented tests
-	androidTestImplementation(libs.junit4)
-	androidTestImplementation(libs.androidx.test.runner)
-	androidTestImplementation(libs.androidx.test.ext.junit)
-	androidTestImplementation(libs.kotlinx.coroutines.test)
-	androidTestImplementation(libs.mockk.android)
-}
-
-tasks.withType<Test>().configureEach {
-	useJUnitPlatform()
+    // Module-specific test helpers
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(libs.androidx.room.testing)
 }
