@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.app.ui.navigation
+package com.adsamcik.tracker.statistics.navigation
 
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavGraphBuilder
@@ -6,14 +6,20 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
+import com.adsamcik.tracker.feature.statistics.api.navigation.History
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
+import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSummary
+import com.adsamcik.tracker.feature.statistics.api.navigation.StatsWifi
+import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
  * Statistics-related destinations: Stats list, History, and Trip detail.
  */
-internal fun NavGraphBuilder.statsGraph(
+fun NavGraphBuilder.statsGraph(
     navController: NavHostController,
     getTripDetailFallbackRoute: () -> Any,
     onSetTripDetailFallback: (Any) -> Unit,
+    onNavigateToTracker: () -> Unit,
 ) {
     composable<Stats> {
         com.adsamcik.tracker.statistics.fragment.StatsRoute(
@@ -33,13 +39,7 @@ internal fun NavGraphBuilder.statsGraph(
                     launchSingleTop = true
                 }
             },
-            onNavigateToTracker = {
-                navController.navigate(Dashboard) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
+            onNavigateToTracker = onNavigateToTracker,
             onNavigateToSummary = {
                 navController.navigate(StatsSummary) {
                     launchSingleTop = true
@@ -105,5 +105,7 @@ internal fun NavGraphBuilder.statsGraph(
         )
     }
 }
+
+
 
 

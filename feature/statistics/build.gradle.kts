@@ -61,6 +61,8 @@ android {
 
 dependencies {
 	// Removed :app dependency as part of converting to a library module
+	implementation(project(":feature:statistics:api"))
+	implementation(project(":feature:map:api"))
 	implementation(project(":core:base"))
 	implementation(project(":core:ui"))
 	implementation(project(":data:preferences"))
@@ -159,4 +161,5 @@ dependencies {
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
+
 

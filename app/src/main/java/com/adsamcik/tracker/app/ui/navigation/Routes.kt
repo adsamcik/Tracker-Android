@@ -14,15 +14,6 @@ data object Dashboard : AppRoute
 data object Setup : AppRoute
 
 @Serializable
-data object Stats : AppRoute
-
-@Serializable
-data object StatsSummary : AppRoute
-
-@Serializable
-data object StatsWifi : AppRoute
-
-@Serializable
 data object Game : AppRoute
 
 @Serializable
@@ -33,12 +24,6 @@ data object MiniGameScores : AppRoute
 
 @Serializable
 data object Achievements : AppRoute
-
-@Serializable
-data class TripDetail(val tripId: Long) : AppRoute
-
-@Serializable
-data object History : AppRoute
 
 @Serializable
 data object Debug : AppRoute
@@ -72,3 +57,4 @@ data object ActivitySettings : AppRoute
 
 @Serializable
 data object NotificationManagement : AppRoute
+

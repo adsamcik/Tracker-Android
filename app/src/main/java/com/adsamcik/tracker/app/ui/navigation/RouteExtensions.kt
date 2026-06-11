@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.ui.navigation
 
 import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 
 /**
  * Maps a route object to the corresponding [SettingsOrigin] for back-navigation.
@@ -22,3 +23,4 @@ internal fun SettingsOrigin.toAppRoute(): Any = when (this) {
     SettingsOrigin.MAP -> Map
     SettingsOrigin.GAME -> Game
 }
+

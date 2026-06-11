@@ -32,7 +32,7 @@ import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Setup
-import com.adsamcik.tracker.app.ui.navigation.Stats
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -323,6 +323,7 @@ class MainActivityViewModel @Inject constructor(
         const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }
+
 
 
 

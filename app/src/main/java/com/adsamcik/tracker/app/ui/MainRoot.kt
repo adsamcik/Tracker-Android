@@ -52,18 +52,18 @@ import com.adsamcik.tracker.app.ui.navigation.dashboardGraph
 import com.adsamcik.tracker.app.ui.navigation.gameGraph
 import com.adsamcik.tracker.map.navigation.mapGraph
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
-import com.adsamcik.tracker.app.ui.navigation.statsGraph
+import com.adsamcik.tracker.statistics.navigation.statsGraph
 import com.adsamcik.tracker.app.ui.navigation.setupGraph
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
-import com.adsamcik.tracker.app.ui.navigation.Stats
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.MiniGameScores
 import com.adsamcik.tracker.app.ui.navigation.MiniGameSession
 import com.adsamcik.tracker.app.ui.navigation.Achievements
-import com.adsamcik.tracker.app.ui.navigation.TripDetail
-import com.adsamcik.tracker.app.ui.navigation.History
+import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
+import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.SettingsSection
@@ -372,6 +372,13 @@ fun MainRoot(
                     navController = navController,
                     getTripDetailFallbackRoute = { tripDetailFallbackRoute },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
+                    onNavigateToTracker = {
+                        navController.navigate(Dashboard) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
                 gameGraph(
                     navController = navController,
@@ -462,6 +469,8 @@ fun MainRoot(
  * animated padding inputs in this file flow through this coerce.
  */
 internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
+
+
 
 
 

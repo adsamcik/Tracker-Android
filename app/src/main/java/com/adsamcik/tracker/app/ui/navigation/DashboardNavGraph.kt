@@ -9,6 +9,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
  * Dashboard destination within the app navigation graph.
@@ -49,5 +50,6 @@ internal fun NavGraphBuilder.dashboardGraph(
         )
     }
 }
+
 
 
