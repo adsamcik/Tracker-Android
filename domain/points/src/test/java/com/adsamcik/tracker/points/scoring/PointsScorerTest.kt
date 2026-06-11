@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.points.scoring
 
 import com.adsamcik.tracker.points.data.PointsScoringPolicy
+import com.adsamcik.tracker.points.scoring.PointsScorer.ScoringLocation
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.model.Location
 import io.kotest.matchers.doubles.shouldBeExactly
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
@@ -24,7 +24,7 @@ class PointsScorerTest {
 		lat: Double,
 		lon: Double,
 		alt: Double,
-	): DatabaseLocation = DatabaseLocation(
+	): ScoringLocation = ScoringLocation(
 		location = Location(
 			time = time,
 			latitude = lat,
@@ -35,7 +35,7 @@ class PointsScorerTest {
 			speed = null,
 			speedAccuracy = null,
 		),
-		activityInfo = ActivityInfo(ON_FOOT, CONFIDENCE),
+		activity = ActivityInfo(ON_FOOT, CONFIDENCE),
 	)
 
 	// ── Policy defaults ─────────────────────────────────────────────
@@ -178,7 +178,7 @@ class PointsScorerTest {
 		 * the second point [speedMps] × 1000 meters east and 1 second later,
 		 * on flat terrain so only the speed multiplier matters.
 		 */
-		private fun flatSegmentLocations(speedMps: Double): List<DatabaseLocation> {
+		private fun flatSegmentLocations(speedMps: Double): List<ScoringLocation> {
 			// distance ≈ speedMps * timeDelta; timeDelta = 1000s gives
 			// nice round numbers and keeps lat/lon close enough for the
 			// Haversine approximation.

@@ -12,6 +12,7 @@ android {
 
 dependencies {
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":core:logging"))
 

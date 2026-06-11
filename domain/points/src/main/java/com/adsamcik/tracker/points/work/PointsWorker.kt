@@ -13,15 +13,16 @@ import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.points.scoring.PointsScorer
+import com.adsamcik.tracker.points.scoring.PointsScorer.ScoringLocation
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.dao.getAllBetweenChunked
 import com.adsamcik.tracker.shared.base.extension.format
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.LocationSample
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -60,7 +61,8 @@ internal class PointsWorker @AssistedInject constructor(
 		val locationData = appDatabase
 			.locationSampleDao()
 			.getAllBetweenChunked(trip.startTimeMs, trip.endTimeMs)
-			.mapNotNull { it.toDatabaseLocation() }
+			.map { it.toModel() }
+			.mapNotNull { it.toScoringLocation() }
 			.filter { it.altitude != null }
 
 		val scorer = PointsScorer()
@@ -93,10 +95,10 @@ internal class PointsWorker @AssistedInject constructor(
 		)
 	}
 
-	private fun LocationSample.toDatabaseLocation(): DatabaseLocation? {
+	private fun LocationSample.toScoringLocation(): ScoringLocation? {
 		val lat = latE7 ?: return null
 		val lon = lonE7 ?: return null
-		return DatabaseLocation(
+		return ScoringLocation(
 			location = Location(
 				time = timeMs,
 				latitude = lat / 1e7,
@@ -107,7 +109,7 @@ internal class PointsWorker @AssistedInject constructor(
 				speed = speedMps,
 				speedAccuracy = null,
 			),
-			activityInfo = ActivityInfo.UNKNOWN,
+			activity = ActivityInfo.UNKNOWN,
 		)
 	}
 

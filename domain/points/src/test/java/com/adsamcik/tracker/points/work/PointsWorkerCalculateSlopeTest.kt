@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.points.work
 
 import com.adsamcik.tracker.points.scoring.PointsScorer
+import com.adsamcik.tracker.points.scoring.PointsScorer.ScoringLocation
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.model.Location
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import org.junit.jupiter.api.Nested
@@ -35,9 +35,9 @@ class PointsWorkerCalculateSlopeTest {
 		latitude: Double,
 		longitude: Double,
 		altitude: Double
-	): DatabaseLocation = DatabaseLocation(
+	): ScoringLocation = ScoringLocation(
 		location = createLocation(time, latitude, longitude, altitude),
-		activityInfo = ActivityInfo(ON_FOOT_TYPE, CONFIDENCE)
+		activity = ActivityInfo(ON_FOOT_TYPE, CONFIDENCE)
 	)
 
 	@Nested
