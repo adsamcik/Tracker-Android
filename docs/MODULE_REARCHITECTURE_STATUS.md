@@ -63,19 +63,24 @@ Each phase was verified with a full `:app:assembleDebug` and committed only when
   no UI) / `:feature:tracker` (Compose UI). `:feature:map` and `:feature:dashboard` now depend on
   `:tracker:api` only.
 
-## Remaining (optional, not blocking)
+## Follow-ups — also delivered
 
-### Phase 0b — `build-logic` convention plugins (DX)
-Every module still duplicates ~100 lines of `android { … }` config. A `build-logic` included build
-with convention plugins (`tracker.android.library`, `.compose`, `.room`, `.hilt`, `.feature`) would
-remove this duplication. Deferred as an all-or-nothing change against the AGP 9 + `android.newDsl=false`
-setup that provides DX value, not graph value.
+### Phase 0b — `build-logic` convention plugins (DONE)
+Added a `build-logic` included build with convention plugins (`tracker.android.library`,
+`.application`, `.compose`, `.hilt`, `.room`, `.test`). Migrated 27 modules (incl. `:app`) off the
+duplicated `android { … }` + test/compose/hilt/room boilerplate (~1.6k net LOC removed). KMP modules
+(`:core:model`, `:stats:api`, `:stats:engine`) left as-is. Verified green.
 
-### Incremental model migration
-Phase 2 established `:core:model` + mappers and decoupled `:stats:api`; broader consumers
-(`:feature:*`, `:domain:*`, `:tracker:engine`) still use the Room-coupled `shared.base.(data|database.data)`
-types directly. These can be migrated onto `:core:model` incrementally, behind the mappers, without
-further structural change.
+### Incremental `:core:model` migration (LARGELY DONE)
+Migrated ~38 of 55 Room-type usages in `:feature:*` / `:domain:*` / `:tracker:engine` / `:sensor:activity`
+onto `:core:model` (`Location`, `Trip`, `LocationSample`, `SkiRunSegment`) behind the `:core:base`
+mappers, committed per-module and verified green. Intentionally left (need a follow-up that touches a
+public contract or Room construction, out of scope for a behind-the-mappers pass):
+- `DefaultTrackerServiceController` still exposes `base.data.Location` because `:tracker:api` owns that
+  public signature (migrating it changes the api surface).
+- `SegmentSource` at `SessionSegment` Room-construction boundaries.
+
+## Guardrails
 
 ## Guardrails
 - `CoreCommonBoundaryTest` (`:core:common`) fails if `:core:common` imports Room, the database
