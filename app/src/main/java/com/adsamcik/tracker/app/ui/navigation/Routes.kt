@@ -11,18 +11,6 @@ data object Onboarding : AppRoute
 data object Setup : AppRoute
 
 @Serializable
-data object Game : AppRoute
-
-@Serializable
-data class MiniGameSession(val gameId: String) : AppRoute
-
-@Serializable
-data object MiniGameScores : AppRoute
-
-@Serializable
-data object Achievements : AppRoute
-
-@Serializable
 data object Debug : AppRoute
 
 @Serializable
@@ -54,5 +42,6 @@ data object ActivitySettings : AppRoute
 
 @Serializable
 data object NotificationManagement : AppRoute
+
 
 

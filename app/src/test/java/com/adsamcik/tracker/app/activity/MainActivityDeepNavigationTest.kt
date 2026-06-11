@@ -2,7 +2,7 @@ package com.adsamcik.tracker.app.activity
 
 import android.content.Intent
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
-import com.adsamcik.tracker.app.ui.navigation.Game
+import com.adsamcik.tracker.feature.game.api.navigation.Game
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -56,5 +56,6 @@ class MainActivityDeepNavigationTest {
         selectedTabForDeepNavigationTarget(MainActivityCompose.TARGET_SETTINGS) shouldBe Dashboard
     }
 }
+
 
 

@@ -2,6 +2,9 @@ package com.adsamcik.tracker.app.ui.navigation
 
 import kotlin.reflect.KClass
 import com.adsamcik.tracker.feature.statistics.api.navigation.History
+import com.adsamcik.tracker.feature.game.api.navigation.Achievements
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameScores
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameSession
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
@@ -28,5 +31,6 @@ internal val ROUTES_HIDING_TOP_LEVEL_CHROME: List<KClass<*>> = listOf(
 	MiniGameSession::class,
 	MiniGameScores::class,
 )
+
 
 

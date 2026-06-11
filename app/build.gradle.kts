@@ -266,6 +266,7 @@ dependencies {
 	implementation(project(":stats:data"))
 	implementation(project(":feature:map:api"))
 	implementation(project(":feature:map"))
+	implementation(project(":feature:game:api"))
 	implementation(project(":feature:game"))
 	implementation(project(":feature:dashboard:api"))
 	implementation(project(":feature:dashboard"))
@@ -432,6 +433,7 @@ afterEvaluate {
 	}
 	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }
+
 
 
 

@@ -5,6 +5,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
 import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
@@ -19,7 +20,6 @@ fun NavGraphBuilder.statsGraph(
     navController: NavHostController,
     getTripDetailFallbackRoute: () -> Any,
     onSetTripDetailFallback: (Any) -> Unit,
-    onNavigateToTracker: () -> Unit,
 ) {
     composable<Stats> {
         com.adsamcik.tracker.statistics.fragment.StatsRoute(
@@ -39,7 +39,13 @@ fun NavGraphBuilder.statsGraph(
                     launchSingleTop = true
                 }
             },
-            onNavigateToTracker = onNavigateToTracker,
+            onNavigateToTracker = {
+                navController.navigate(Dashboard) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
             onNavigateToSummary = {
                 navController.navigate(StatsSummary) {
                     launchSingleTop = true
@@ -105,6 +111,7 @@ fun NavGraphBuilder.statsGraph(
         )
     }
 }
+
 
 
 

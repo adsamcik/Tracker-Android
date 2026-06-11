@@ -65,6 +65,8 @@ android {
 
 dependencies {
 	// Removed :app dependency as part of converting to a library module
+	implementation(project(":feature:game:api"))
+	implementation(project(":feature:dashboard:api"))
 	implementation(project(":core:base"))
 	implementation(project(":core:ui"))
 	implementation(project(":data:preferences"))
@@ -169,3 +171,4 @@ tasks.withType<Test>().configureEach {
 }
 
 configureProtobuf()
+

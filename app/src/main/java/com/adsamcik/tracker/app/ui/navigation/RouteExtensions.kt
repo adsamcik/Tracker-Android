@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.ui.navigation
 
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
+import com.adsamcik.tracker.feature.game.api.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 
@@ -24,5 +25,6 @@ internal fun SettingsOrigin.toAppRoute(): Any = when (this) {
     SettingsOrigin.MAP -> Map
     SettingsOrigin.GAME -> Game
 }
+
 
 

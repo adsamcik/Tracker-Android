@@ -49,7 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import com.adsamcik.tracker.dashboard.navigation.dashboardGraph
-import com.adsamcik.tracker.app.ui.navigation.gameGraph
+import com.adsamcik.tracker.game.navigation.gameGraph
 import com.adsamcik.tracker.map.navigation.mapGraph
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
 import com.adsamcik.tracker.statistics.navigation.statsGraph
@@ -58,10 +58,10 @@ import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
-import com.adsamcik.tracker.app.ui.navigation.Game
-import com.adsamcik.tracker.app.ui.navigation.MiniGameScores
-import com.adsamcik.tracker.app.ui.navigation.MiniGameSession
-import com.adsamcik.tracker.app.ui.navigation.Achievements
+import com.adsamcik.tracker.feature.game.api.navigation.Game
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameScores
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameSession
+import com.adsamcik.tracker.feature.game.api.navigation.Achievements
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
@@ -365,12 +365,6 @@ fun MainRoot(
                     navController = navController,
                     useSideRail = useSideRail,
                     onOpenSettings = { openSettings(Dashboard) },
-                    onOpenGame = {
-                        navController.navigate(Game) {
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
                 )
                 mapGraph(useSideRail = useSideRail)
@@ -378,13 +372,6 @@ fun MainRoot(
                     navController = navController,
                     getTripDetailFallbackRoute = { tripDetailFallbackRoute },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
-                    onNavigateToTracker = {
-                        navController.navigate(Dashboard) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
                 )
                 gameGraph(
                     navController = navController,
@@ -475,6 +462,7 @@ fun MainRoot(
  * animated padding inputs in this file flow through this coerce.
  */
 internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
+
 
 
 
