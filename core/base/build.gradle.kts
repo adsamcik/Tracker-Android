@@ -81,6 +81,7 @@ android {
 
 dependencies {
 	api(project(":core:common"))
+	api(project(":core:model"))
 	implementation(project(":core:logging-api"))
 
 	// Core
@@ -163,3 +164,5 @@ dependencies {
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
+
+
