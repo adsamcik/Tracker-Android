@@ -54,13 +54,13 @@ android {
 		unitTests.isIncludeAndroidResources = true
 		unitTests.isReturnDefaultValues = true
 	}
-    namespace = "com.adsamcik.tracker.map"
+	namespace = "com.adsamcik.tracker.map"
 }
 
 dependencies {
 	// Removed :app dependency as part of converting to a library module
 	implementation(project(":core:base"))
-	implementation(project(":tracker"))
+	implementation(project(":tracker:api"))
 	implementation(project(":core:ui"))
 	implementation(project(":data:preferences"))
 	implementation(project(":stats:api"))

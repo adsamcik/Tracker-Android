@@ -20,10 +20,11 @@ plugins {
 }
 
 include(":app")
-include(":tracker")
+include(":tracker:api", ":tracker:engine")
+project(":tracker:api").projectDir = file("tracker/api-module")
 include(":core:base", ":core:common", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
 include(":data:preferences")
 include(":stats:api", ":stats:engine", ":stats:data")
 include(":domain:points", ":domain:osm")
 include(":sensor:activity-api", ":sensor:activity")
-include(":feature:map", ":feature:statistics", ":feature:dashboard", ":feature:game", ":feature:activity", ":feature:import-export")
+include(":feature:map", ":feature:statistics", ":feature:dashboard", ":feature:game", ":feature:activity", ":feature:import-export", ":feature:tracker")

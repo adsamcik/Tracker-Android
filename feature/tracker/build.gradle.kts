@@ -30,14 +30,13 @@ android {
 	}
 
 	buildTypes {
-		create("release_nominify")
-		create("dev") {
-			initWith(getByName("release"))
-			matchingFallbacks += listOf("debug", "release")
-		}
+		getByName("debug") {}
+		create("release_nominify") { isMinifyEnabled = false }
+		getByName("release") { isMinifyEnabled = false }
 	}
 
 	testOptions {
+		unitTests.isReturnDefaultValues = true
 		unitTests.isIncludeAndroidResources = true
 	}
 
@@ -46,61 +45,54 @@ android {
 		abortOnError = false
 	}
 
-	namespace = "com.adsamcik.tracker.dashboard"
+	namespace = "com.adsamcik.tracker.feature.tracker"
 }
 
 dependencies {
-	// Internal modules
+	implementation(project(":tracker:api"))
+	implementation(project(":tracker:engine"))
 	implementation(project(":core:base"))
 	implementation(project(":core:ui"))
 	implementation(project(":data:preferences"))
-	implementation(project(":core:logging"))
-	implementation(project(":tracker:api"))
 	implementation(project(":stats:api"))
-	implementation(project(":stats:data"))
-	implementation(project(":domain:points"))
 
-	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.runtime.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
-	implementation(libs.androidx.datastore.preferences)
-	implementation(libs.hilt.navigation.compose)
+	implementation(libs.activity.compose)
+
 	implementation(libs.hilt.android)
+	implementation(libs.hilt.navigation.compose)
 	ksp(libs.hilt.compiler)
 
-	// Compose
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
+	implementation(libs.compose.foundation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
-	implementation(libs.activity.compose)
-	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
 
-	// MapLibre for tracking map hero
-	implementation(libs.maplibre.compose)
-
-	// Glass effects
-	implementation(libs.haze)
-
-	// Unit Tests
 	testImplementation(platform(libs.junit5.bom))
 	testImplementation(libs.junit5.jupiter)
-	testImplementation(libs.kotlin.test)
-	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.mockk)
-	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
-	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.kotlin.test)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.compose.ui.test.junit4)
-	testRuntimeOnly(libs.junit5.vintage.engine)
+	testImplementation(libs.activity.compose)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.mockk)
+	testImplementation(libs.kotest.assertions.core)
+	testImplementation(project(":core:testing"))
 	debugImplementation(libs.compose.ui.test.manifest)
 }
 
