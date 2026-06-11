@@ -43,6 +43,7 @@ android {
 dependencies {
     api(project(":tracker:api"))
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":core:logging-api"))
     implementation(project(":sensor:activity-api"))
     implementation(project(":core:ui"))

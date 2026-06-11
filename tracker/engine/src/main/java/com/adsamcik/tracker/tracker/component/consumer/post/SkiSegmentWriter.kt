@@ -6,9 +6,10 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.shared.model.SkiRunSegment
+import com.adsamcik.tracker.shared.model.SkiSegmentType
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiStateListener
@@ -124,7 +125,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		runIndex++
 		scope?.launch(dispatchers.io) {
 			try {
-				database.skiRunSegmentDao().insert(segment)
+				database.skiRunSegmentDao().insert(segment.toEntity())
 			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 				ReporterFacade.report(e)
 			}
@@ -136,7 +137,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		runIndex++
 		kotlinx.coroutines.withContext(dispatchers.io) {
 			try {
-				database.skiRunSegmentDao().insert(segment)
+				database.skiRunSegmentDao().insert(segment.toEntity())
 			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 				ReporterFacade.report(e)
 			}

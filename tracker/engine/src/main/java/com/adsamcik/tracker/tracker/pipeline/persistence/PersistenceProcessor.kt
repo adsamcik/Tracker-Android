@@ -11,12 +11,12 @@ import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.base.database.data.MotionState as EntityMotionState
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality as EntitySampleQuality
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
@@ -33,6 +33,9 @@ import com.adsamcik.tracker.stats.api.signal.WifiSignal
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.withDatabaseRetry
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.SampleQuality
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
@@ -129,8 +132,8 @@ class PersistenceProcessor @Inject constructor(
 	) {
 		if (location == null) return
 
-		val quality = classifyQuality(location.horizontalAccuracyM)
-		val motionState = inferMotionState(signal.activity)
+		val quality = classifyQuality(location.horizontalAccuracyM).toModel()
+		val motionState = inferMotionState(signal.activity)?.toModel()
 
 		locationBuffer.add(
 			LocationSample(
@@ -255,7 +258,7 @@ class PersistenceProcessor @Inject constructor(
 
 	private suspend fun flushAll() {
 		flushTable("location_sample", locationBuffer, LOCATION_BATCH_SIZE) { batch ->
-			withDatabaseRetry { locationSampleDao.insert(batch) }
+			withDatabaseRetry { locationSampleDao.insert(batch.map { it.toEntity() }) }
 		}
 		flushTable("cell_sample", cellBuffer, CELL_BATCH_SIZE) { batch ->
 			withDatabaseRetry { cellSampleDao.insert(batch) }
@@ -362,29 +365,33 @@ class PersistenceProcessor @Inject constructor(
 		/**
 		 * Classify location quality from horizontal accuracy.
 		 */
-		internal fun classifyQuality(horizontalAccuracyM: Float?): SampleQuality = when {
-			horizontalAccuracyM == null -> SampleQuality.COARSE
-			horizontalAccuracyM < HIGH_ACCURACY_THRESHOLD -> SampleQuality.HIGH
-			horizontalAccuracyM < MEDIUM_ACCURACY_THRESHOLD -> SampleQuality.MEDIUM
-			else -> SampleQuality.LOW
+		internal fun classifyQuality(horizontalAccuracyM: Float?): EntitySampleQuality = when {
+			horizontalAccuracyM == null -> EntitySampleQuality.COARSE
+			horizontalAccuracyM < HIGH_ACCURACY_THRESHOLD -> EntitySampleQuality.HIGH
+			horizontalAccuracyM < MEDIUM_ACCURACY_THRESHOLD -> EntitySampleQuality.MEDIUM
+			else -> EntitySampleQuality.LOW
 		}
 
 		/**
 		 * Infer motion state from activity recognition.
 		 */
-		internal fun inferMotionState(activity: ActivitySignal?): MotionState? {
+		internal fun inferMotionState(activity: ActivitySignal?): EntityMotionState? {
 			if (activity == null) return null
 			return when (activity.type) {
-				DetectedActivityType.STILL -> MotionState.STILL
+				DetectedActivityType.STILL -> EntityMotionState.STILL
 				DetectedActivityType.WALKING,
 				DetectedActivityType.RUNNING,
 				DetectedActivityType.ON_FOOT,
 				DetectedActivityType.IN_VEHICLE,
 				DetectedActivityType.ON_BICYCLE,
-				-> MotionState.MOVING
+				-> EntityMotionState.MOVING
 
-				else -> MotionState.UNKNOWN
+				else -> EntityMotionState.UNKNOWN
 			}
 		}
 	}
 }
+
+private fun EntitySampleQuality.toModel(): SampleQuality = SampleQuality.valueOf(name)
+
+private fun EntityMotionState.toModel(): MotionState = MotionState.valueOf(name)

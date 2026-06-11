@@ -1,12 +1,16 @@
 package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.LengthUnit
+import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Feeds sensor data (activity transitions, location displacement, step counts)
@@ -78,10 +82,11 @@ internal class TrackerPolicyFeeder {
 		scope: CoroutineScope,
 	) {
 		collectionData.location?.let { location ->
-			policyManager.escalationEngine?.updateSpeed(location.speed)
+			val modelLocation = location.toModel()
+			policyManager.escalationEngine?.updateSpeed(modelLocation.speed)
 
 			lastLocation?.let { prevLocation ->
-				val distance = prevLocation.distance(location, LengthUnit.Meter).toFloat()
+				val distance = distanceMeters(prevLocation, modelLocation).toFloat()
 				if (distance > 0f) {
 					scope.launch {
 						policyManager.onLocationChange(
@@ -91,8 +96,19 @@ internal class TrackerPolicyFeeder {
 					}
 				}
 			}
-			lastLocation = location
+			lastLocation = modelLocation
 		}
+	}
+
+	private fun distanceMeters(first: Location, second: Location): Double {
+		val earthRadiusMeters = 6_371_000.0
+		val firstLat = Math.toRadians(first.latitude)
+		val secondLat = Math.toRadians(second.latitude)
+		val deltaLat = Math.toRadians(second.latitude - first.latitude)
+		val deltaLon = Math.toRadians(second.longitude - first.longitude)
+		val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+			cos(firstLat) * cos(secondLat) * sin(deltaLon / 2) * sin(deltaLon / 2)
+		return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
 	}
 
 	private fun feedStepUpdate(
