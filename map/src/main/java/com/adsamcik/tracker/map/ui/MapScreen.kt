@@ -40,6 +40,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.online.TileProvider
@@ -412,8 +415,19 @@ fun MapScreen(
         else -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_location)
     }
 
+    // Tear down the native MapLibre renderer whenever the screen is not visible.
+    // The render thread otherwise keeps drawing against a surface that becomes
+    // invalid during background / screen-off / display-state transitions, which
+    // crashes natively inside libmaplibre.so (mbgl::android::MapRenderer::render)
+    // and takes the whole process down. Gating on STARTED removes the map from
+    // composition once the activity is stopped, disposing the MapView (and its
+    // render thread); cameraState is hoisted above this gate so the camera
+    // position is restored when the map returns to the foreground.
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val isMapVisible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+
     Box(Modifier.fillMaxSize()) {
-        if (baseStyle != null && mapLibreReady) {
+        if (baseStyle != null && mapLibreReady && isMapVisible) {
             MaplibreMap(
                 modifier = Modifier
                     .fillMaxSize()

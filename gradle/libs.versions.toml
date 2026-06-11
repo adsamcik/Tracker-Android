@@ -43,7 +43,7 @@ playServicesBase = "18.7.2"
 playLocation = "21.3.0"
 
 # MapLibre
-maplibreCompose = "0.12.1"
+maplibreCompose = "0.13.0"
 
 # KotlinX
 coroutines = "1.10.2"
