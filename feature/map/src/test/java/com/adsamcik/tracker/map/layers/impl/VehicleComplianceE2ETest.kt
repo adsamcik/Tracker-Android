@@ -12,8 +12,9 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.speed.SpeedLimitSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -395,7 +396,7 @@ class VehicleComplianceE2ETest {
 				primaryActivity = primaryActivity,
 				activityConfidence = 90,
 				sampleCount = 10,
-				source = SegmentSource.USER_CREATED,
+				source = SegmentSource.USER_CREATED.toEntity(),
 				inferenceVersion = "test",
 				createdAt = startMs,
 			),

@@ -8,11 +8,11 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.SegmentSource
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
 
@@ -195,7 +195,7 @@ internal class JsonImport(
 			primaryActivity = null,
 			activityConfidence = null,
 			sampleCount = collections,
-			source = SegmentSource.USER_CREATED,
+			source = SegmentSource.USER_CREATED.toEntity(),
 			inferenceVersion = null,
 			createdAt = System.currentTimeMillis(),
 		)

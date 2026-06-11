@@ -11,10 +11,11 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
@@ -128,7 +129,7 @@ class TestDataSeeder @Inject constructor(
                             primaryActivity = primaryActivity,
                             activityConfidence = 95,
                             sampleCount = sampleCount,
-                            source = SegmentSource.USER_CREATED,
+                            source = SegmentSource.USER_CREATED.toEntity(),
                             inferenceVersion = "debug-seed-v1",
                             createdAt = createdAt,
                         )

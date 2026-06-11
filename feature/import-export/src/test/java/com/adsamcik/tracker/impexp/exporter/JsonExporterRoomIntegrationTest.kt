@@ -8,10 +8,11 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.LocationSample as EntityLocationSample
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -267,7 +268,7 @@ class JsonExporterRoomIntegrationTest {
 		primaryActivity = null,
 		activityConfidence = null,
 		sampleCount = sampleCount,
-		source = SegmentSource.USER_CREATED,
+		source = SegmentSource.USER_CREATED.toEntity(),
 		inferenceVersion = "test",
 		createdAt = endTimeMs,
 	)

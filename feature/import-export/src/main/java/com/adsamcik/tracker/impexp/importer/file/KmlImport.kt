@@ -10,12 +10,12 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.SegmentSource
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.time.Instant
@@ -248,7 +248,7 @@ internal class KmlImport(
 			primaryActivity = session.sessionActivityId?.toInt(),
 			activityConfidence = null,
 			sampleCount = session.collections,
-			source = SegmentSource.USER_CREATED,
+			source = SegmentSource.USER_CREATED.toEntity(),
 			inferenceVersion = null,
 			createdAt = System.currentTimeMillis(),
 		)

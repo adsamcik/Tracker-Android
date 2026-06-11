@@ -153,8 +153,8 @@ liftType = liftType,
 createdAt = createdAt,
 )
 
-private fun EntitySegmentSource.toModel(): ModelSegmentSource = ModelSegmentSource.valueOf(name)
-private fun ModelSegmentSource.toEntity(): EntitySegmentSource = EntitySegmentSource.valueOf(name)
+fun EntitySegmentSource.toModel(): ModelSegmentSource = ModelSegmentSource.valueOf(name)
+fun ModelSegmentSource.toEntity(): EntitySegmentSource = EntitySegmentSource.valueOf(name)
 private fun EntitySampleQuality.toModel(): ModelSampleQuality = ModelSampleQuality.valueOf(name)
 private fun ModelSampleQuality.toEntity(): EntitySampleQuality = EntitySampleQuality.valueOf(name)
 private fun EntityMotionState.toModel(): ModelMotionState = ModelMotionState.valueOf(name)
