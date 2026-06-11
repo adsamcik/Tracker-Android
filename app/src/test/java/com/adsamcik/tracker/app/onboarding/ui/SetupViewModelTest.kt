@@ -144,8 +144,19 @@ class SetupViewModelTest {
         }
 
         @Test
-        fun `goToNextStep advances from WhatToCollect to OnlineMapTiles`() {
+        fun `goToNextStep advances from WhatToCollect to BackgroundAccess`() {
             val vm = createViewModel()
+            vm.goToNextStep()
+            vm.goToNextStep()
+            vm.state.value.currentStep shouldBe SetupStep.WhatToCollect
+            vm.goToNextStep()
+            vm.state.value.currentStep shouldBe SetupStep.BackgroundAccess
+        }
+
+        @Test
+        fun `goToNextStep advances from BackgroundAccess to OnlineMapTiles`() {
+            val vm = createViewModel()
+            vm.goToNextStep()
             vm.goToNextStep()
             vm.goToNextStep()
             vm.goToNextStep()
@@ -157,6 +168,7 @@ class SetupViewModelTest {
             val vm = createViewModel()
             vm.goToNextStep() // HowToTrack
             vm.goToNextStep() // WhatToCollect
+            vm.goToNextStep() // BackgroundAccess
             vm.goToNextStep() // OnlineMapTiles
             vm.goToNextStep() // should stay
             vm.state.value.currentStep shouldBe SetupStep.OnlineMapTiles
@@ -183,7 +195,11 @@ class SetupViewModelTest {
             vm.goToNextStep()
             vm.goToNextStep()
             vm.goToNextStep()
+            vm.goToNextStep()
             vm.state.value.currentStep shouldBe SetupStep.OnlineMapTiles
+
+            vm.goToPreviousStep()
+            vm.state.value.currentStep shouldBe SetupStep.BackgroundAccess
 
             vm.goToPreviousStep()
             vm.state.value.currentStep shouldBe SetupStep.WhatToCollect

@@ -23,25 +23,31 @@ class SetupUiStateTest {
     inner class Progress {
 
         @Test
-        fun `Welcome step is 1 of 4`() {
+        fun `Welcome step is 1 of 5`() {
             val state = SetupUiState(currentStep = SetupStep.Welcome)
-            assertEquals(1f / 4f, state.progress)
+            assertEquals(1f / 5f, state.progress)
         }
 
         @Test
-        fun `HowToTrack step is 2 of 4`() {
+        fun `HowToTrack step is 2 of 5`() {
             val state = SetupUiState(currentStep = SetupStep.HowToTrack)
-            assertEquals(2f / 4f, state.progress)
+            assertEquals(2f / 5f, state.progress)
         }
 
         @Test
-        fun `WhatToCollect step is 3 of 4`() {
+        fun `WhatToCollect step is 3 of 5`() {
             val state = SetupUiState(currentStep = SetupStep.WhatToCollect)
-            assertEquals(3f / 4f, state.progress)
+            assertEquals(3f / 5f, state.progress)
         }
 
         @Test
-        fun `OnlineMapTiles step is 4 of 4`() {
+        fun `BackgroundAccess step is 4 of 5`() {
+            val state = SetupUiState(currentStep = SetupStep.BackgroundAccess)
+            assertEquals(4f / 5f, state.progress)
+        }
+
+        @Test
+        fun `OnlineMapTiles step is 5 of 5`() {
             val state = SetupUiState(currentStep = SetupStep.OnlineMapTiles)
             assertEquals(1f, state.progress)
         }
@@ -174,8 +180,8 @@ class SetupUiStateTest {
 class SetupStepTest {
 
     @Test
-    fun `totalSteps is 4`() {
-        assertEquals(4, SetupStep.totalSteps)
+    fun `totalSteps is 5`() {
+        assertEquals(5, SetupStep.totalSteps)
     }
 
     @Test
@@ -183,13 +189,14 @@ class SetupStepTest {
         assertEquals(SetupStep.Welcome, SetupStep.fromIndex(0))
         assertEquals(SetupStep.HowToTrack, SetupStep.fromIndex(1))
         assertEquals(SetupStep.WhatToCollect, SetupStep.fromIndex(2))
-        assertEquals(SetupStep.OnlineMapTiles, SetupStep.fromIndex(3))
+        assertEquals(SetupStep.BackgroundAccess, SetupStep.fromIndex(3))
+        assertEquals(SetupStep.OnlineMapTiles, SetupStep.fromIndex(4))
     }
 
     @Test
     fun `fromIndex returns null for out of bounds`() {
         assertEquals(null, SetupStep.fromIndex(-1))
-        assertEquals(null, SetupStep.fromIndex(4))
+        assertEquals(null, SetupStep.fromIndex(5))
     }
 
     @Test
@@ -197,6 +204,7 @@ class SetupStepTest {
         assertEquals(0, SetupStep.Welcome.index)
         assertEquals(1, SetupStep.HowToTrack.index)
         assertEquals(2, SetupStep.WhatToCollect.index)
-        assertEquals(3, SetupStep.OnlineMapTiles.index)
+        assertEquals(3, SetupStep.BackgroundAccess.index)
+        assertEquals(4, SetupStep.OnlineMapTiles.index)
     }
 }

@@ -832,4 +832,18 @@
     <string name="setup_online_tiles_privacy">While enabled, the provider can see your IP address and which tiles you load — roughly which area of the map you are looking at. Tracker never sends an account, identifier, or your location history.</string>
     <string name="setup_online_tiles_change_later">You can change this any time in Settings → Map → Online map tiles.</string>
 
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">To record trips while the screen is off or the app is closed, Tracker needs to keep running in the background. Phone battery settings can pause it — allow background activity so auto-tracking stays reliable.</string>
+    <string name="setup_background_access_optional">Optional, but recommended. You can change this any time in Settings → Tracking.</string>
+
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Reliable background tracking</string>
+    <string name="background_reliability_status_exempt">Background activity allowed</string>
+    <string name="background_reliability_status_optimized">Battery optimization is on</string>
+    <string name="background_reliability_exempt_desc">Tracker is excluded from battery optimization, so background and auto-tracking can run reliably.</string>
+    <string name="background_reliability_optimized_desc">Battery optimization can pause Tracker in the background, stopping auto-tracking. Allow background activity to keep it running.</string>
+    <string name="background_reliability_allow_action">Allow background activity</string>
+    <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
+    <string name="background_reliability_samsung_action">Open device battery settings</string>
+
 </resources>

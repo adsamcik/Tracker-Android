@@ -160,6 +160,13 @@ internal fun TrackingSettingsContent(
             }
         }
 
+        // Background reliability (battery optimization / Samsung sleeping apps)
+        item {
+            com.adsamcik.tracker.app.background.BackgroundReliabilitySettingsEntry(
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+
         // Validation warning
         if (!uiState.hasValidSources) {
             item {
