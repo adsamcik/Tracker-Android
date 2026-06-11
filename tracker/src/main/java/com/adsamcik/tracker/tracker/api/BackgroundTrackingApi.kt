@@ -280,9 +280,10 @@ object BackgroundTrackingApi {
 	 */
 	@MainThread
 	fun initialize(context: Context) {
-		if (appContext != null) return
-
-		appContext = context.applicationContext
+		synchronized(this) {
+			if (appContext != null) return
+			appContext = context.applicationContext
+		}
 		val ctx = requireNotNull(appContext)
 
 		val entryPoint = getEntryPoint(ctx)

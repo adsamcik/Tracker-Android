@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -31,6 +32,13 @@ class BootReceiver : BroadcastReceiver() {
 			entryPoint.appScope().launch {
 				try {
 					entryPoint.lockManager().initializeFromPersistence(context)
+					// Re-arm background auto-tracking after a reboot WITHOUT starting any
+					// foreground service: Android 14+ forbids launching a location FGS from
+					// BOOT_COMPLETED. This (re)registers the Google Play activity-recognition
+					// subscription (a PendingIntent, not a service); the next movement
+					// transition is an allowed exemption that then starts TrackerService.
+					// Idempotent — safe even though module init may also call it.
+					BackgroundTrackingApi.initialize(context)
 				} finally {
 					pendingResult.finish()
 				}
