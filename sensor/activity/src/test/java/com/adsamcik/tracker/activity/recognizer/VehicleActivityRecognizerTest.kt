@@ -2,10 +2,9 @@ package com.adsamcik.tracker.activity.recognizer
 
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -25,7 +24,7 @@ class VehicleActivityRecognizerTest {
         activity: DetectedActivity,
         confidence: Int = 80,
         time: Long = 1_700_000_000_000L
-    ): DatabaseLocation {
+    ): ActivityLocation {
         val location = Location(
             time = time,
             latitude = 50.0,
@@ -36,14 +35,14 @@ class VehicleActivityRecognizerTest {
             speed = null,
             speedAccuracy = null
         )
-        return DatabaseLocation(location, ActivityInfo(activity, confidence))
+        return ActivityLocation(location, ActivityInfo(activity, confidence))
     }
 
     private fun locationsOf(
         count: Int,
         activity: DetectedActivity,
         confidence: Int = 80
-    ): List<DatabaseLocation> = List(count) { i ->
+    ): List<ActivityLocation> = List(count) { i ->
         locationWith(activity, confidence, time = 1_700_000_000_000L + i * 1000L)
     }
 

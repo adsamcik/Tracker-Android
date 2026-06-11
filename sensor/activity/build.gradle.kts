@@ -23,6 +23,7 @@ android {
 dependencies {
     api(project(":sensor:activity-api"))
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))

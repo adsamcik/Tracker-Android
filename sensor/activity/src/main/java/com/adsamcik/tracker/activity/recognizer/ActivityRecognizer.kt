@@ -1,9 +1,10 @@
 package com.adsamcik.tracker.activity.recognizer
 
 import androidx.annotation.IntRange
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.model.Location
 
 internal interface IActivityRecognizer {
 	/**
@@ -17,7 +18,7 @@ internal interface IActivityRecognizer {
 
 	fun resolve(
 			session: TrackerSession,
-			locationCollection: Collection<DatabaseLocation>
+			locationCollection: Collection<ActivityLocation>
 	): ActivityRecognitionResult
 }
 
@@ -28,6 +29,16 @@ internal abstract class ActivityRecognizer : IActivityRecognizer {
 	}
 }
 
+internal data class ActivityLocation(
+	val location: Location,
+	val activityInfo: ActivityInfo,
+) {
+	val latitude: Double get() = location.latitude
+	val longitude: Double get() = location.longitude
+	val altitude: Double? get() = location.altitude
+	val time: Long get() = location.time
+}
+
 data class ActivityRecognitionResult(
 		val recognizedActivity: NativeSessionActivity?,
 		@IntRange(from = 0, to = 100)
@@ -36,4 +47,3 @@ data class ActivityRecognitionResult(
 	val requireRecognizedActivity: NativeSessionActivity
 		get() = recognizedActivity ?: throw NullPointerException("Recognized activity was null")
 }
-

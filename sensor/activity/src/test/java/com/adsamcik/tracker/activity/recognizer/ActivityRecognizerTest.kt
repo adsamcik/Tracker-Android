@@ -2,10 +2,9 @@ package com.adsamcik.tracker.activity.recognizer
 
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -28,7 +27,7 @@ class ActivityRecognizerTest {
     private val session: TrackerSession = mockk(relaxed = true)
 
     /**
-     * Creates a [DatabaseLocation] with the specified [DetectedActivity] and confidence.
+     * Creates a [ActivityLocation] with the specified [DetectedActivity] and confidence.
      * All other location fields use neutral defaults since the recognizers only
      * inspect [ActivityInfo].
      */
@@ -36,7 +35,7 @@ class ActivityRecognizerTest {
         activity: DetectedActivity,
         confidence: Int = 80,
         time: Long = 1700000000000L
-    ): DatabaseLocation {
+    ): ActivityLocation {
         val location = Location(
             time = time,
             latitude = 50.0,
@@ -48,17 +47,17 @@ class ActivityRecognizerTest {
             speedAccuracy = null
         )
         val activityInfo = ActivityInfo(activity, confidence)
-        return DatabaseLocation(location, activityInfo)
+        return ActivityLocation(location, activityInfo)
     }
 
     /**
-     * Creates a list of [DatabaseLocation] instances, all with the same activity and confidence.
+     * Creates a list of [ActivityLocation] instances, all with the same activity and confidence.
      */
     private fun locationsOf(
         count: Int,
         activity: DetectedActivity,
         confidence: Int = 80
-    ): List<DatabaseLocation> = (0 until count).map { i ->
+    ): List<ActivityLocation> = (0 until count).map { i ->
         locationWith(activity, confidence, time = 1700000000000L + i * 1000L)
     }
 

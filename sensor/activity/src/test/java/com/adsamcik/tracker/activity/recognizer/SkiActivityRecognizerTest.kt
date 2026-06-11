@@ -2,10 +2,9 @@ package com.adsamcik.tracker.activity.recognizer
 
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
@@ -35,7 +34,7 @@ class SkiActivityRecognizerTest {
 		lon: Double = 11.0,
 		alt: Double? = null,
 		speed: Float? = null,
-	): DatabaseLocation {
+	): ActivityLocation {
 		val location = Location(
 			time = timeMs,
 			latitude = lat,
@@ -46,7 +45,7 @@ class SkiActivityRecognizerTest {
 			speed = speed,
 			speedAccuracy = null,
 		)
-		return DatabaseLocation(location, ActivityInfo(DetectedActivity.UNKNOWN, 0))
+		return ActivityLocation(location, ActivityInfo(DetectedActivity.UNKNOWN, 0))
 	}
 
 	@Nested
@@ -129,7 +128,7 @@ class SkiActivityRecognizerTest {
 		 */
 		@Test
 		fun `detects skiing with multiple lift-descent cycles`() {
-			val locations = mutableListOf<DatabaseLocation>()
+			val locations = mutableListOf<ActivityLocation>()
 			var t = 1_000_000_000_000L
 			val baseAlt = 1500.0
 

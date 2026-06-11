@@ -5,27 +5,29 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
+import com.adsamcik.tracker.activity.recognizer.ActivityLocation
 import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.SkiActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.toSegmentPrimaryActivityId
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.SkiRunSegment
+import com.adsamcik.tracker.shared.model.SkiSegmentType
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.async
@@ -103,7 +105,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val allActivitySnapshots = allActivitySnapshotsDeferred.await()
 		val allLocations = allLocationSamplesDeferred.await().mapNotNull {
-			it.toDatabaseLocation(allActivitySnapshots)
+			it.toActivityLocation(allActivitySnapshots)
 		}
 		val allPressure = allPressureDeferred?.await().orEmpty()
 
@@ -133,7 +135,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			)
 			if (chunk.isEmpty()) break
 
-			samples += chunk
+			samples += chunk.map { it.toModel() }
 			val lastSample = chunk.last()
 			afterTimeMs = lastSample.timeMs
 			afterId = lastSample.id
@@ -165,7 +167,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 	 */
 	private suspend fun processSession(
 		segment: SessionSegment,
-		locationCollection: List<DatabaseLocation>,
+		locationCollection: List<ActivityLocation>,
 		pressureSamples: List<PressureSample>,
 		skiDetectionEnabled: Boolean,
 		database: AppDatabase
@@ -241,7 +243,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 					createdAt = now
 				)
 			}
-			database.skiRunSegmentDao().insert(skiRunSegments)
+			database.skiRunSegmentDao().insert(skiRunSegments.map { it.toEntity() })
 		}
 
 		return@coroutineScope Result.success()
@@ -259,13 +261,13 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 
 	/**
-	 * Converts a [LocationSample] to a [DatabaseLocation] for recognizer compatibility.
+	 * Converts a [LocationSample] to an [ActivityLocation] for recognizer compatibility.
 	 * Uses persisted activity snapshots when available; otherwise keeps the signal unknown.
 	 */
-	private fun LocationSample.toDatabaseLocation(activitySnapshots: List<ActivitySnapshot>): DatabaseLocation? {
+	private fun LocationSample.toActivityLocation(activitySnapshots: List<ActivitySnapshot>): ActivityLocation? {
 		val lat = latE7 ?: return null
 		val lon = lonE7 ?: return null
-		return DatabaseLocation(
+		return ActivityLocation(
 			location = Location(
 				time = timeMs,
 				latitude = lat / 1e7,

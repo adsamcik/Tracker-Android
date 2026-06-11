@@ -3,7 +3,6 @@ package com.adsamcik.tracker.activity.recognizer
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import kotlin.math.roundToInt
 
 internal class OnFootActivityRecognizer : ActivityRecognizer() {
@@ -11,7 +10,7 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 
 	override fun resolve(
 			session: TrackerSession,
-			locationCollection: Collection<DatabaseLocation>
+			locationCollection: Collection<ActivityLocation>
 	): ActivityRecognitionResult {
 		val run = ActivitySum()
 		val walk = ActivitySum()
@@ -59,4 +58,3 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	}
 
 }
-

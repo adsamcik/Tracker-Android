@@ -2,7 +2,6 @@ package com.adsamcik.tracker.activity.recognizer
 
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.stats.engine.ski.SkiDetectionConfig
@@ -54,7 +53,7 @@ internal class SkiActivityRecognizer(
 
 	override fun resolve(
 		session: TrackerSession,
-		locationCollection: Collection<DatabaseLocation>
+		locationCollection: Collection<ActivityLocation>
 	): ActivityRecognitionResult {
 		skiSessionSummary = null
 
@@ -143,7 +142,7 @@ internal class SkiActivityRecognizer(
 	}
 
 	private fun buildAltitudeTimeSeries(
-		locations: List<DatabaseLocation>
+		locations: List<ActivityLocation>
 	): List<TimestampedAltitude> {
 		val samples = pressureSamples
 		return if (!samples.isNullOrEmpty()) {
@@ -159,7 +158,7 @@ internal class SkiActivityRecognizer(
 
 	private fun buildSkiSignals(
 		verticalRates: List<TimestampedVerticalRate>,
-		locations: List<DatabaseLocation>
+		locations: List<ActivityLocation>
 	): List<SkiSignal> {
 		val rateMap = verticalRates.associateBy { it.timeMs }
 

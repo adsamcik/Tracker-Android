@@ -3,14 +3,13 @@ package com.adsamcik.tracker.activity.recognizer
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 
 internal class VehicleActivityRecognizer : ActivityRecognizer() {
 	override val precisionConfidence: Int = 75
 
 	override fun resolve(
 			session: TrackerSession,
-			locationCollection: Collection<DatabaseLocation>
+			locationCollection: Collection<ActivityLocation>
 	): ActivityRecognitionResult {
 		val vehicle = ActivitySum()
 		val bicycle = ActivitySum()
@@ -57,4 +56,3 @@ internal class VehicleActivityRecognizer : ActivityRecognizer() {
 	}
 
 }
-
