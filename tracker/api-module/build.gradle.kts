@@ -18,6 +18,7 @@ android {
 
 dependencies {
     api(project(":core:base"))
+    api(project(":core:model"))
     api(project(":stats:api"))
     api(project(":stats:engine"))
 

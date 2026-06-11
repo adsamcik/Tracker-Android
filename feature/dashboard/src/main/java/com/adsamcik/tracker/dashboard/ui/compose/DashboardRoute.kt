@@ -25,7 +25,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
-import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
@@ -174,7 +173,7 @@ fun DashboardRoute(
 		if (displaySession != null && displayPathPoints != null &&
 			displayPathPoints.first == displaySession.id
 		) {
-			displayPathPoints.second.map { it.toModel() }
+			displayPathPoints.second
 		} else {
 			null
 		}

@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
@@ -38,14 +40,14 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
     override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
 
-    private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>(null)
-    override val pathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?> get() = _pathPointsFlow
+    private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
+    override val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _pathPointsFlow
 
     private val _lastSessionFlow = MutableStateFlow<TrackerSession?>(null)
     override val lastSessionFlow: StateFlow<TrackerSession?> get() = _lastSessionFlow
 
-    private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>(null)
-    override val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?> get() = _lastPathPointsFlow
+    private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
+    override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
 
     private val _policyTierFlow = MutableStateFlow(PolicyTier.OFF)
     override val policyTierFlow: StateFlow<PolicyTier> get() = _policyTierFlow
@@ -83,7 +85,7 @@ class DefaultTrackerServiceController : TrackerServiceController {
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
         val currentSession = _sessionFlow.value
-        val location = data?.location ?: return
+        val location = data?.location?.toModel() ?: return
         if (currentSession == null) return
 
         // Atomic read-modify-write via StateFlow.update so concurrent collection cycles

@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
@@ -259,7 +260,7 @@ class DefaultTrackerServiceControllerTest {
 			pathPoints.shouldNotBeNull()
 			pathPoints.first shouldBe 10L
 			pathPoints.second.size shouldBe 1
-			pathPoints.second[0] shouldBe location
+			pathPoints.second[0] shouldBe location.toModel()
 		}
 
 		@Test

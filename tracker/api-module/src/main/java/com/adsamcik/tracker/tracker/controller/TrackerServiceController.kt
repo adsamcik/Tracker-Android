@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
@@ -59,7 +60,7 @@ interface TrackerServiceController {
      * Pair of Session ID and List of Locations.
      * Used for drawing the map preview.
      */
-    val pathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
+    val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?>
 
     /**
      * The last active session data (retained after service stop).
@@ -70,7 +71,7 @@ interface TrackerServiceController {
     /**
      * The path points of the last active session.
      */
-    val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
+    val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?>
     
     /**
      * Current policy tier (OFF/AMBIENT/ACTIVE/PRECISION).
