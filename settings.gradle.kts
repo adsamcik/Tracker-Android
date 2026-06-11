@@ -21,7 +21,7 @@ plugins {
 
 include(":app")
 include(":tracker")
-include(":core:base", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
+include(":core:base", ":core:common", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
 include(":data:preferences")
 include(":stats:api", ":stats:engine", ":stats:data")
 include(":domain:points", ":domain:osm")

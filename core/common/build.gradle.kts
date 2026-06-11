@@ -3,7 +3,6 @@ plugins {
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
-	alias(libs.plugins.ksp)
 	alias(libs.plugins.robolectric.junit5)
 }
 
@@ -15,13 +14,8 @@ android {
 		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		
+
 		consumerProguardFiles("consumer-rules.pro")
-
-	}
-
-	sourceSets {
-		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
 	}
 
 	compileOptions {
@@ -60,19 +54,13 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
-		baseline = file("lint-baseline.xml")
-	}
-
-	ksp {
-		arg("room.schemaLocation", "$projectDir/schemas")
-		arg("room.incremental", "true")
-		arg("room.generateKotlin", "false")
 	}
 
 	testOptions {
 		unitTests.isIncludeAndroidResources = true
 	}
-    namespace = "com.adsamcik.tracker.shared.base"
+
+	namespace = "com.adsamcik.tracker.shared.common"
 	buildFeatures {
 		buildConfig = true
 		compose = true
@@ -80,7 +68,7 @@ android {
 }
 
 dependencies {
-	api(project(":core:common"))
+	// Logging contracts (the only intra-project dependency core:common needs)
 	implementation(project(":core:logging-api"))
 
 	// Core
@@ -98,27 +86,14 @@ dependencies {
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 
-	// JSON
-	implementation(libs.moshi)
-	ksp(libs.moshi.kotlin.codegen)
-
-	// Compose runtime for CompositionLocal DI support
+	// Compose runtime for CompositionLocal DI support (graph/di packages)
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.runtime)
 	implementation(libs.compose.material3)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.ui)
-	implementation(libs.accompanist.permissions)
 	implementation(libs.activity.compose)
-
-	// DB (api to expose RoomDatabase supertype to consumers of sbase)
-	api(libs.androidx.room.runtime)
-	ksp(libs.androidx.room.compiler)
-	implementation(libs.androidx.room.ktx)
-	implementation(libs.androidx.room.paging)
-	implementation(libs.sqlite.android)
-	androidTestImplementation(libs.androidx.room.testing)
 
 	// Paging
 	implementation(libs.androidx.paging.runtime)
@@ -128,7 +103,6 @@ dependencies {
 
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
-	androidTestImplementation(libs.androidx.work.testing)
 
 	// Unit Tests - JUnit 5 for modern testing
 	testImplementation(platform(libs.junit5.bom))
@@ -145,18 +119,6 @@ dependencies {
 	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.kotest.assertions.core)
-	testImplementation(libs.compose.ui.test.junit4)
-	debugImplementation(libs.compose.ui.test.manifest)
-
-	// Instrumented Tests
-	androidTestImplementation(libs.junit4)
-	androidTestImplementation(libs.androidx.test.runner)
-	androidTestImplementation(libs.uiautomator)
-	androidTestImplementation(libs.androidx.test.ext.junit)
-	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.espresso)
-	androidTestImplementation(libs.kotlinx.coroutines.test)
-	androidTestImplementation(libs.mockk.android)
 }
 
 // Configure JUnit 5 for unit tests
