@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import com.adsamcik.tracker.feature.map.api.navigation.Map
 
 /**
  * Dashboard destination within the app navigation graph.
@@ -16,7 +17,7 @@ internal fun NavGraphBuilder.dashboardGraph(
     navController: NavHostController,
     useSideRail: Boolean,
     onOpenSettings: () -> Unit,
-    onSetTripDetailFallback: (AppRoute) -> Unit,
+    onSetTripDetailFallback: (Any) -> Unit,
 ) {
     composable<Dashboard> {
         com.adsamcik.tracker.dashboard.ui.compose.DashboardRoute(
@@ -48,3 +49,5 @@ internal fun NavGraphBuilder.dashboardGraph(
         )
     }
 }
+
+

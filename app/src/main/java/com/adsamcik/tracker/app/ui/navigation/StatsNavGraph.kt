@@ -5,14 +5,15 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
 
 /**
  * Statistics-related destinations: Stats list, History, and Trip detail.
  */
 internal fun NavGraphBuilder.statsGraph(
     navController: NavHostController,
-    getTripDetailFallbackRoute: () -> AppRoute,
-    onSetTripDetailFallback: (AppRoute) -> Unit,
+    getTripDetailFallbackRoute: () -> Any,
+    onSetTripDetailFallback: (Any) -> Unit,
 ) {
     composable<Stats> {
         com.adsamcik.tracker.statistics.fragment.StatsRoute(
@@ -104,3 +105,5 @@ internal fun NavGraphBuilder.statsGraph(
         )
     }
 }
+
+

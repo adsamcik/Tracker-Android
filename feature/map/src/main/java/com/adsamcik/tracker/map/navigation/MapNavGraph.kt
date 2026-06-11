@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.app.ui.navigation
+package com.adsamcik.tracker.map.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -6,15 +6,18 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
+import com.adsamcik.tracker.map.ui.MapRoute
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 
 /**
  * Map destination within the app navigation graph.
  */
-internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
+fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
     composable<Map> {
         val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        com.adsamcik.tracker.map.ui.MapRoute(
+        MapRoute(
             contentPadding = if (useSideRail) {
                 PaddingValues()
             } else {
@@ -25,7 +28,7 @@ internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
 
     composable<MapTripContext> {
         val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        com.adsamcik.tracker.map.ui.MapRoute(
+        MapRoute(
             contentPadding = if (useSideRail) {
                 PaddingValues()
             } else {
@@ -34,3 +37,5 @@ internal fun NavGraphBuilder.mapGraph(useSideRail: Boolean) {
         )
     }
 }
+
+

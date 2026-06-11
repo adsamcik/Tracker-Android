@@ -59,6 +59,7 @@ android {
 
 dependencies {
 	// Removed :app dependency as part of converting to a library module
+	implementation(project(":feature:map:api"))
 	implementation(project(":core:base"))
 	implementation(project(":tracker:api"))
 	implementation(project(":core:ui"))
@@ -145,3 +146,4 @@ tasks.withType<Test>().configureEach {
 		enabled = false
 	}
 }
+

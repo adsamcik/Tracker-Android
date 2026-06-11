@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.app.ui
 
-import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
-import com.adsamcik.tracker.app.ui.navigation.Map
+import com.adsamcik.tracker.feature.map.api.navigation.Map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -31,3 +30,4 @@ class MainViewModelTest {
         assertEquals(Map, viewModel.currentRoute.first())
     }
 }
+
