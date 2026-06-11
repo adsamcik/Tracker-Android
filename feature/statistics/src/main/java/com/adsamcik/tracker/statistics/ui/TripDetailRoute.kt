@@ -238,7 +238,7 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 private fun TripOverview(
 	trip: TripSummary,
 	insights: TripDetailInsights,
-	skiSegments: List<com.adsamcik.tracker.shared.base.database.data.SkiRunSegment> = emptyList()
+	skiSegments: List<com.adsamcik.tracker.shared.model.SkiRunSegment> = emptyList()
 ) {
 	val context = LocalContext.current
 	val resources = context.resources

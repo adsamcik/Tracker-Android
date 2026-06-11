@@ -13,8 +13,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.fragment.AppendUiState
 import com.adsamcik.tracker.statistics.fragment.RefreshUiState
 import com.adsamcik.tracker.statistics.fragment.StatsScreen

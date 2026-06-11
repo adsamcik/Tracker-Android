@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.stats.api.repository
 
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.LocationSample
 
 /**
  * Android presentation/export contract for route samples.

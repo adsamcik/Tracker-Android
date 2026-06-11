@@ -34,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.activityIcon

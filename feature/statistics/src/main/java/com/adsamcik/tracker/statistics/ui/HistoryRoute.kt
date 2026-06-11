@@ -37,8 +37,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData

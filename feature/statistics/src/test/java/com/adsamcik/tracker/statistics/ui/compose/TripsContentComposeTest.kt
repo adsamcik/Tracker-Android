@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.ui.TripCard
 import com.adsamcik.tracker.statistics.ui.formatDuration
 import com.adsamcik.tracker.statistics.ui.formatTripTimeRange

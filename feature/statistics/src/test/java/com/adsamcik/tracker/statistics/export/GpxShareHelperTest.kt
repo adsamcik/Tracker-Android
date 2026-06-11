@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.MotionState
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.minigame.location
 
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.Location as TrackerLocation
+import com.adsamcik.tracker.shared.model.Location as TrackerLocation
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.google.android.gms.location.LocationRequest
 import javax.inject.Inject

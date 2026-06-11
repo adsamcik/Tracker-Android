@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -21,7 +22,7 @@ class DefaultLocationSampleRepositoryTest {
 			locationSampleDao.getChunkBetweenOrdered(1_000L, 2_000L, null, null, any())
 		} returns samples
 
-		repository.getSamplesBetween(1_000L, 2_000L) shouldBe samples
+		repository.getSamplesBetween(1_000L, 2_000L) shouldBe samples.map { it.toModel() }
 
 		coVerify(exactly = 1) {
 			locationSampleDao.getChunkBetweenOrdered(1_000L, 2_000L, null, null, any())
@@ -35,7 +36,7 @@ class DefaultLocationSampleRepositoryTest {
 			locationSampleDao.getChunkBetweenOrdered(1_000L, 3_000L, 1_500L, 1L, 500)
 		} returns samples
 
-		repository.getOrderedChunkBetween(1_000L, 3_000L, 1_500L, 1L, 500) shouldBe samples
+		repository.getOrderedChunkBetween(1_000L, 3_000L, 1_500L, 1L, 500) shouldBe samples.map { it.toModel() }
 
 		coVerify(exactly = 1) {
 			locationSampleDao.getChunkBetweenOrdered(1_000L, 3_000L, 1_500L, 1L, 500)

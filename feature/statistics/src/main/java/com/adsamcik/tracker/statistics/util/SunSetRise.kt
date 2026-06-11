@@ -6,7 +6,7 @@ import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.LengthUnit
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.Location as BaseTrackerLocation
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -150,7 +150,7 @@ class SunSetRise {
         locationLock.withLock {
             val currentLocation = this.location
             val distance = if (currentLocation != null) {
-                Location.distance(
+                BaseTrackerLocation.distance(
                     currentLocation.latitude,
                     currentLocation.longitude,
                     loc.latitude,

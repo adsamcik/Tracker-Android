@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.stats.api
 
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 

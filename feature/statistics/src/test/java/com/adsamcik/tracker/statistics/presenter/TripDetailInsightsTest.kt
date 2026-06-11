@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.statistics.presenter
 
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.MotionState
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM

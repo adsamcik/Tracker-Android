@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,7 +35,7 @@ class DefaultSkiRunSegmentRepositoryTest {
 		)
 		coEvery { skiRunSegmentDao.getByTimeRange(1_000L, 5_000L) } returns segments
 
-		repository.getSegmentsByTimeRange(1_000L, 5_000L) shouldBe segments
+		repository.getSegmentsByTimeRange(1_000L, 5_000L) shouldBe segments.map { it.toModel() }
 
 		coVerify(exactly = 1) { skiRunSegmentDao.getByTimeRange(1_000L, 5_000L) }
 	}

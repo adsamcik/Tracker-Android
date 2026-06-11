@@ -1,9 +1,12 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import androidx.paging.PagingSource
+import androidx.paging.PagingState
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.error.StatsError
@@ -43,14 +46,19 @@ class DefaultTripRepository @Inject constructor(
 		}
 	}
 
-	override fun getPagedTrips() = tripDao.getAllPaged()
+	override fun getPagedTrips(): PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> =
+		TripModelPagingSource(tripDao.getAllPaged())
 
-	override fun getPagedTripsOverlapping(fromMs: Long, toMs: Long) =
-		tripDao.getPagedOverlapping(fromMs, toMs)
+	override fun getPagedTripsOverlapping(
+		fromMs: Long,
+		toMs: Long,
+	): PagingSource<Int, com.adsamcik.tracker.shared.model.Trip> =
+		TripModelPagingSource(tripDao.getPagedOverlapping(fromMs, toMs))
 
-	override suspend fun getTripsBetween(fromMs: Long, toMs: Long) = tripDao.getBetween(fromMs, toMs)
+	override suspend fun getTripsBetween(fromMs: Long, toMs: Long) =
+		tripDao.getBetween(fromMs, toMs).map { it.toModel() }
 
-	override suspend fun getTripProjection(id: Long) = tripDao.getById(id)
+	override suspend fun getTripProjection(id: Long) = tripDao.getById(id)?.toModel()
 
 	override suspend fun deleteTrip(id: Long) {
 		tripDao.deleteById(id)
@@ -81,5 +89,29 @@ class DefaultTripRepository @Inject constructor(
 					TransportMode.TRANSIT
 				else -> TransportMode.UNKNOWN
 			}
+		}
+}
+
+private class TripModelPagingSource(
+	private val delegate: PagingSource<Int, com.adsamcik.tracker.shared.base.database.data.Trip>,
+) : PagingSource<Int, com.adsamcik.tracker.shared.model.Trip>() {
+	init {
+		delegate.registerInvalidatedCallback { invalidate() }
+	}
+
+	override fun getRefreshKey(state: PagingState<Int, com.adsamcik.tracker.shared.model.Trip>): Int? =
+		state.anchorPosition
+
+	override suspend fun load(params: LoadParams<Int>): LoadResult<Int, com.adsamcik.tracker.shared.model.Trip> =
+		when (val result = delegate.load(params)) {
+			is LoadResult.Error -> LoadResult.Error(result.throwable)
+			is LoadResult.Invalid -> LoadResult.Invalid()
+			is LoadResult.Page -> LoadResult.Page(
+				data = result.data.map { it.toModel() },
+				prevKey = result.prevKey,
+				nextKey = result.nextKey,
+				itemsBefore = result.itemsBefore,
+				itemsAfter = result.itemsAfter,
+			)
 		}
 }

@@ -20,8 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.model.SkiRunSegment
+import com.adsamcik.tracker.shared.model.SkiSegmentType
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance

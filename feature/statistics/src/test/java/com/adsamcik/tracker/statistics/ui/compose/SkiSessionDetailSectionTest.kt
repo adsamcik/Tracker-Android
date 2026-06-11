@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.model.SkiRunSegment
+import com.adsamcik.tracker.shared.model.SkiSegmentType
 import com.adsamcik.tracker.statistics.ui.ski.SkiSessionDetailSection
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme

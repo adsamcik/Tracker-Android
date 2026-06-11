@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.data
 
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.LocationSample
 
 data class ElevationData(
 		val raw: LocationSample,

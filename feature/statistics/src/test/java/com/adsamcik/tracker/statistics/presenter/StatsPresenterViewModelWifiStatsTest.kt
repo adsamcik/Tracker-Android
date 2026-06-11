@@ -3,7 +3,7 @@ package com.adsamcik.tracker.statistics.presenter
 import arrow.core.left
 import arrow.core.right
 import androidx.paging.PagingSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository

@@ -18,6 +18,7 @@ kotlin {
 			api(libs.kotlinx.coroutines.core)
 			api(libs.arrow.core)
 			api(libs.javax.inject)
+			api(project(":core:model"))
 		}
 		commonTest.dependencies {
 			implementation(libs.kotlin.test)
@@ -27,7 +28,6 @@ kotlin {
 			runtimeOnly(libs.junit5.jupiter.engine)
 		}
 		androidMain.dependencies {
-			api(project(":core:base"))
 			api(libs.androidx.paging.runtime)
 		}
 		jvmMain.dependencies {

@@ -7,8 +7,8 @@ import android.content.Context
 import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
@@ -236,7 +236,7 @@ private suspend fun loadSampleInsights(
 
 private fun buildInsights(
 	trip: TripSummary,
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 	samples: List<LocationSample>,
 ): TripDetailInsights {
 	val altitudePoints = samples.mapNotNull { it.altitudeM?.toDouble() }
@@ -278,7 +278,7 @@ private fun buildInsights(
 
 private fun buildInsights(
 	trip: TripSummary,
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 	sampleInsights: SampleInsights,
 ): TripDetailInsights {
 	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
@@ -310,7 +310,7 @@ internal fun simplifyRoutePoints(points: List<LatLngModel>): List<LatLngModel> =
 	}
 
 private fun resolveActivityType(
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 	trip: TripSummary,
 ): String {
 	projection?.primaryActivity?.let { return activityLabel(it) }
@@ -324,7 +324,7 @@ private fun resolveActivityType(
 
 private fun resolveSourceLabel(
 	samples: List<LocationSample>,
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 ): String {
 	val provider = samples
 		.groupingBy { normalizeProviderLabel(it.provider) }
@@ -337,7 +337,7 @@ private fun resolveSourceLabel(
 
 private fun resolveSourceLabel(
 	providerCounts: Map<String, Int>,
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 ): String {
 	val provider = providerCounts.maxByOrNull { it.value }?.key
 
@@ -346,7 +346,7 @@ private fun resolveSourceLabel(
 
 private fun resolveSourceLabel(
 	provider: String?,
-	projection: com.adsamcik.tracker.shared.base.database.data.Trip?,
+	projection: com.adsamcik.tracker.shared.model.Trip?,
 ): String {
 
 	if (provider != null) {
@@ -354,11 +354,11 @@ private fun resolveSourceLabel(
 	}
 
 	return when (projection?.source) {
-		com.adsamcik.tracker.shared.base.database.data.SegmentSource.USER_CREATED -> "Manual"
-		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_HIGH_CONFIDENCE -> "Inferred"
-		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_MEDIUM_CONFIDENCE -> "Inferred"
-		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_LOW_CONFIDENCE -> "Inferred"
-		com.adsamcik.tracker.shared.base.database.data.SegmentSource.LEGACY_MIGRATION -> "Legacy"
+		com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED -> "Manual"
+		com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_HIGH_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_MEDIUM_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_LOW_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.model.SegmentSource.LEGACY_MIGRATION -> "Legacy"
 		null -> "—"
 	}
 }

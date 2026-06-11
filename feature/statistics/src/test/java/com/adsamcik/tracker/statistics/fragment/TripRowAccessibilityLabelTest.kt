@@ -2,8 +2,8 @@ package com.adsamcik.tracker.statistics.fragment
 
 import android.content.Context
 import android.content.res.Resources
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk

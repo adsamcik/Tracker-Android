@@ -2,7 +2,7 @@ package com.adsamcik.tracker.game.minigame.location
 
 import app.cash.turbine.test
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority

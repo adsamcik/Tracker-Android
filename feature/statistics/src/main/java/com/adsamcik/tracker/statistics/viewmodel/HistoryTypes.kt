@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.Train
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.Trip
 import java.time.LocalDate
 import java.time.YearMonth
 import java.util.Locale

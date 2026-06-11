@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.stats.api.repository
 
-import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
+import com.adsamcik.tracker.shared.model.SkiRunSegment
 
 /**
  * Android presentation contract for ski session detail data.

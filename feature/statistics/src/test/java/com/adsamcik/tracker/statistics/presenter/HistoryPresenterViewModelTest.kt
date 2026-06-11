@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import androidx.paging.PagingSource
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository

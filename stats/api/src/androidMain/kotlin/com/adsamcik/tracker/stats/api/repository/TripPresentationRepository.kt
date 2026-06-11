@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.stats.api.repository
 
 import androidx.paging.PagingSource
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.Trip
 
 /**
  * Android presentation contract for paged trip access and trip mutations.

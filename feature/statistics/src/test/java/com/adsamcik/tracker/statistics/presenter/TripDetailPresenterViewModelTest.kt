@@ -4,9 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import arrow.core.right
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.MotionState
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository

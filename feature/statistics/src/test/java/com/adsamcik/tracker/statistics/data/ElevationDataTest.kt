@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 @DisplayName("ElevationData")
 class ElevationDataTest {
 
-	private fun sampleLocation() = com.adsamcik.tracker.shared.base.database.data.LocationSample(
+	private fun sampleLocation() = com.adsamcik.tracker.shared.model.LocationSample(
 		id = 1,
 		timeMs = 1000L,
 		elapsedRealtimeNanos = 1_000_000_000L,
@@ -22,8 +22,8 @@ class ElevationDataTest {
 		speedMps = 1.5f,
 		speedAccuracyMps = 0.5f,
 		provider = "gps",
-		quality = com.adsamcik.tracker.shared.base.database.data.SampleQuality.HIGH,
-		motionState = com.adsamcik.tracker.shared.base.database.data.MotionState.MOVING,
+		quality = com.adsamcik.tracker.shared.model.SampleQuality.HIGH,
+		motionState = com.adsamcik.tracker.shared.model.MotionState.MOVING,
 		policy = null,
 		bucketId = null,
 		createdAt = 1000L,

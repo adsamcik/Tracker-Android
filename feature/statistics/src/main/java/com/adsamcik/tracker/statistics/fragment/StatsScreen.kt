@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.paging.compose.LazyPagingItems
-import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.R as BaseR
@@ -386,7 +386,7 @@ private fun ContentState(
                 if (index == 0) {
                     DateHeader(System.currentTimeMillis())
                 }
-                TripRow(Trip(id = index.toLong(), startTimeMs = 0, endTimeMs = 0, distanceM = 0f, steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0, source = com.adsamcik.tracker.shared.base.database.data.SegmentSource.USER_CREATED, createdAt = 0))
+                TripRow(Trip(id = index.toLong(), startTimeMs = 0, endTimeMs = 0, distanceM = 0f, steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0, source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED, createdAt = 0))
             }
         }
 

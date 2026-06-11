@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.feed
 
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import kotlinx.coroutines.flow.Flow
@@ -46,5 +47,6 @@ class DefaultTrackerLiveLocationFeed @Inject constructor(
 		.filterNotNull()
 		.map { it.location }
 		.filterNotNull()
+		.map { it.toModel() }
 		.distinctUntilChanged()
 }
