@@ -28,12 +28,11 @@ import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.app.ui.MainRoot
-import com.adsamcik.tracker.app.ui.navigation.AppRoute
-import com.adsamcik.tracker.app.ui.navigation.Dashboard
-import com.adsamcik.tracker.app.ui.navigation.Game
-import com.adsamcik.tracker.app.ui.navigation.Map
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
+import com.adsamcik.tracker.feature.game.api.navigation.Game
+import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Setup
-import com.adsamcik.tracker.app.ui.navigation.Stats
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -159,7 +158,7 @@ class MainActivityCompose : ComponentActivity() {
         AppTheme(darkTheme = darkTheme) {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Box(Modifier.fillMaxSize()) {
-                    val effectiveStartDestination: AppRoute =
+                    val effectiveStartDestination: Any =
                         if (startupDestination.requiresOnboarding) Setup else selectedTab
                     MainRoot(
                         startDestination = effectiveStartDestination,
@@ -191,7 +190,7 @@ class MainActivityCompose : ComponentActivity() {
     }
 }
 
-private fun AppRoute.routeKey(): String = when (this) {
+private fun Any.routeKey(): String = when (this) {
     Dashboard -> "dashboard"
     Stats -> "stats"
     Map -> "map"
@@ -199,7 +198,7 @@ private fun AppRoute.routeKey(): String = when (this) {
     else -> "dashboard"
 }
 
-private fun routeFromKey(key: String): AppRoute = when (key) {
+private fun routeFromKey(key: String): Any = when (key) {
     "dashboard" -> Dashboard
     "stats" -> Stats
     "map" -> Map
@@ -261,7 +260,7 @@ private val deepNavigationTargets = setOf(
     MainActivityCompose.TARGET_STATS,
 )
 
-internal fun selectedTabForDeepNavigationTarget(target: String): AppRoute = when (target) {
+internal fun selectedTabForDeepNavigationTarget(target: String): Any = when (target) {
     MainActivityCompose.TARGET_GAME -> Game
     MainActivityCompose.TARGET_STATS -> Stats
     else -> Dashboard
@@ -275,7 +274,7 @@ class MainActivityViewModel @Inject constructor(
     private val _selectedTab = MutableStateFlow(
         routeFromKey(savedStateHandle[KEY_SELECTED_TAB] ?: Dashboard.routeKey())
     )
-    val selectedTab: StateFlow<AppRoute> = _selectedTab.asStateFlow()
+    val selectedTab: StateFlow<Any> = _selectedTab.asStateFlow()
 
     private val _deepNavigationRequest = MutableStateFlow(
         savedStateHandle.toDeepNavigationRequest()
@@ -294,7 +293,7 @@ class MainActivityViewModel @Inject constructor(
     )
     val startupDestination: StateFlow<StartupDestination> = _startupDestination.asStateFlow()
 
-    fun setSelectedTab(route: AppRoute) {
+    fun setSelectedTab(route: Any) {
         _selectedTab.value = route
         savedStateHandle[KEY_SELECTED_TAB] = route.routeKey()
     }
@@ -324,3 +323,9 @@ class MainActivityViewModel @Inject constructor(
         const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }
+
+
+
+
+
+

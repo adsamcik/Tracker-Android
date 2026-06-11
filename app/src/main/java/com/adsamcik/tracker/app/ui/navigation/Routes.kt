@@ -2,54 +2,13 @@ package com.adsamcik.tracker.app.ui.navigation
 
 import kotlinx.serialization.Serializable
 
-@Serializable
-sealed interface AppRoute
+interface AppRoute
 
 @Serializable
 data object Onboarding : AppRoute
 
 @Serializable
-data object Dashboard : AppRoute
-
-@Serializable
 data object Setup : AppRoute
-
-@Serializable
-data object Stats : AppRoute
-
-@Serializable
-data object StatsSummary : AppRoute
-
-@Serializable
-data object StatsWifi : AppRoute
-
-@Serializable
-data object Map : AppRoute
-
-@Serializable
-data class MapTripContext(
-    val tripId: Long,
-    val startMs: Long,
-    val endMs: Long,
-) : AppRoute
-
-@Serializable
-data object Game : AppRoute
-
-@Serializable
-data class MiniGameSession(val gameId: String) : AppRoute
-
-@Serializable
-data object MiniGameScores : AppRoute
-
-@Serializable
-data object Achievements : AppRoute
-
-@Serializable
-data class TripDetail(val tripId: Long) : AppRoute
-
-@Serializable
-data object History : AppRoute
 
 @Serializable
 data object Debug : AppRoute
@@ -83,3 +42,6 @@ data object ActivitySettings : AppRoute
 
 @Serializable
 data object NotificationManagement : AppRoute
+
+
+

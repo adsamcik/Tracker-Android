@@ -33,8 +33,8 @@ import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import dagger.hilt.android.EntryPointAccessors
 

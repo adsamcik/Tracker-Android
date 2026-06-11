@@ -26,7 +26,12 @@
 
 ## 2. Module Architecture
 
-The application is organized into **18 Gradle modules**:
+The application is organized into **28 Gradle modules**, grouped by architectural layer
+(`:core:*`, `:data:*`, `:domain:*`, `:stats:*`, `:sensor:*`, `:feature:*`, `:tracker:*`, plus `:app`).
+The table below lists the primary modules; `:tracker` is split into `:tracker:api`/`:tracker:engine`/`:feature:tracker`,
+`activity` into `:sensor:activity-api`/`:sensor:activity`/`:feature:activity`, each UI feature has a
+`:feature:<x>:api` route-contract module, and `:core:model` holds Room-free domain models. See
+`docs/MODULE_REARCHITECTURE_STATUS.md` for the complete final module graph:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -67,24 +72,27 @@ The application is organized into **18 Gradle modules**:
 
 | Module | Purpose |
 |--------|---------|
-| **app** | Main application: `Application.kt`, `AppGraph.kt`, navigation, settings, onboarding |
-| **tracker** | Core tracking: `TrackerService`, component pipeline, producers/consumers |
-| **map** | Map visualization with layers and heatmaps via **MapLibre GL Native** (no Google Maps) |
-| **statistics** | Session list, detail views, summary statistics |
-| **dashboard** | Tracker dashboard, live stats, milestones, recent trips, widgets |
-| **game** | Challenges, goals, gamification features |
-| **activity** | Activity recognition via Google Play Services |
-| **impexp** | Import/export in GPX, KML, JSON, SQLite formats |
-| **logger** | Crash handling, structured logging, PII redaction |
-| **logging-api** | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) that decouple `:logger` from `:sbase` |
-| **points** | Points calculation and scoring |
-| **stats-api** | Stats domain contracts: value classes, SignalProcessor, repositories, domain events (KMP) |
-| **stats-engine** | Stats algorithms: aggregation, segment detection, exploration, achievements (KMP) |
-| **stats-data** | Stats data layer: repository implementations, Hilt DI bindings |
-| **sbase** | Shared base: Room database (v26, 26 entities), data classes, entities, DAOs |
-| **sutils** | Shared utilities: extensions, formatters, helpers, `AppTheme` |
-| **spreferences** | Shared preferences and settings (Proto DataStore + legacy SharedPreferences read-compat) |
-| **testing-common** | Test utilities, fakes, mocks |
+| **:app** | Main application: `Application.kt`, `AppGraph.kt`, navigation, settings, onboarding |
+| **:tracker** | Core tracking: `TrackerService`, component pipeline, producers/consumers (engine + UI) |
+| **:core:base** | Room database (entities, DAOs, converters) + Room `@Entity` data models + base extensions/permission/misc/assist (was `sbase`) |
+| **:core:common** | Foundation leaf: concurrency/`DispatchersProvider`, time, constants, exceptions, DI/graph, io, logging, notification, service — no Room/DB |
+| **:core:ui** | Shared Compose UI, formatters, helpers, `AppTheme` (was `sutils`) |
+| **:core:logging** | Crash handling, structured logging, PII redaction (was `logger`) |
+| **:core:logging-api** | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) that decouple logging impl from data |
+| **:core:network** | Network helpers (was `network`) |
+| **:core:testing** | Test utilities, fakes, mocks (was `testing-common`) |
+| **:data:preferences** | Shared preferences and settings (Proto DataStore + legacy SharedPreferences read-compat) (was `spreferences`) |
+| **:stats:api** | Stats domain contracts: value classes, SignalProcessor, repositories, domain events (KMP) (was `stats-api`) |
+| **:stats:engine** | Stats algorithms: aggregation, segment detection, exploration, achievements (KMP) (was `stats-engine`) |
+| **:stats:data** | Stats data layer: repository implementations, Hilt DI bindings (was `stats-data`) |
+| **:domain:points** | Points calculation and scoring (was `points`) |
+| **:domain:osm** | OpenStreetMap place/way lookup (was `osm`) |
+| **:sensor:activity** | Activity recognition via Google Play Services + activity-type management UI (was `activity`) |
+| **:feature:map** | Map visualization with layers and heatmaps via **MapLibre GL Native** (no Google Maps) (was `map`) |
+| **:feature:statistics** | Session list, detail views, summary statistics (was `statistics`) |
+| **:feature:dashboard** | Tracker dashboard, live stats, milestones, recent trips, widgets (was `dashboard`) |
+| **:feature:game** | Challenges, goals, gamification features (was `game`) |
+| **:feature:import-export** | Import/export in GPX, KML, JSON, SQLite formats (was `impexp`) |
 
 ---
 

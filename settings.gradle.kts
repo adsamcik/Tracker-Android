@@ -1,4 +1,5 @@
 pluginManagement {
+	includeBuild("build-logic")
 	repositories {
 		google()
 		mavenCentral()
@@ -19,12 +20,17 @@ plugins {
 	id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
 }
 
-include(":impexp")
-include(":logger")
-include(":logging-api")
-include(":network")
-include(":points")
-include(":testing-common")
-include(":app", ":statistics", ":game", ":map", ":sbase", ":spreferences", "sutils", ":tracker", ":activity", ":dashboard")
-include(":stats-api", ":stats-engine", ":stats-data")
-include(":osm")
+include(":app")
+include(":tracker:api", ":tracker:engine")
+project(":tracker:api").projectDir = file("tracker/api-module")
+include(":core:base", ":core:common", ":core:model", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
+include(":data:preferences")
+include(":stats:api", ":stats:engine", ":stats:data")
+include(":domain:points", ":domain:osm")
+include(":sensor:activity-api", ":sensor:activity")
+include(":feature:map:api", ":feature:map", ":feature:statistics:api", ":feature:statistics", ":feature:dashboard:api", ":feature:dashboard", ":feature:game:api", ":feature:game", ":feature:activity", ":feature:import-export", ":feature:tracker")
+
+
+
+
+

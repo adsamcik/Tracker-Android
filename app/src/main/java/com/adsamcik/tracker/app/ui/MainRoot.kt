@@ -48,27 +48,26 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
-import com.adsamcik.tracker.app.ui.navigation.dashboardGraph
-import com.adsamcik.tracker.app.ui.navigation.gameGraph
-import com.adsamcik.tracker.app.ui.navigation.mapGraph
+import com.adsamcik.tracker.dashboard.navigation.dashboardGraph
+import com.adsamcik.tracker.game.navigation.gameGraph
+import com.adsamcik.tracker.map.navigation.mapGraph
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
-import com.adsamcik.tracker.app.ui.navigation.statsGraph
+import com.adsamcik.tracker.statistics.navigation.statsGraph
 import com.adsamcik.tracker.app.ui.navigation.setupGraph
-import com.adsamcik.tracker.app.ui.navigation.Dashboard
-import com.adsamcik.tracker.app.ui.navigation.Stats
-import com.adsamcik.tracker.app.ui.navigation.Map
-import com.adsamcik.tracker.app.ui.navigation.MapTripContext
-import com.adsamcik.tracker.app.ui.navigation.Game
-import com.adsamcik.tracker.app.ui.navigation.MiniGameScores
-import com.adsamcik.tracker.app.ui.navigation.MiniGameSession
-import com.adsamcik.tracker.app.ui.navigation.Achievements
-import com.adsamcik.tracker.app.ui.navigation.TripDetail
-import com.adsamcik.tracker.app.ui.navigation.History
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
+import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
+import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
+import com.adsamcik.tracker.feature.game.api.navigation.Game
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameScores
+import com.adsamcik.tracker.feature.game.api.navigation.MiniGameSession
+import com.adsamcik.tracker.feature.game.api.navigation.Achievements
+import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
+import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.SettingsSection
 import com.adsamcik.tracker.app.ui.navigation.ActivitySettings
-import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.ROUTES_HIDING_TOP_LEVEL_CHROME
 import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.app.ui.navigation.toSettingsOrigin
@@ -96,12 +95,12 @@ import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLay
  */
 @Composable
 fun MainRoot(
-    startDestination: AppRoute = Dashboard,
+    startDestination: Any = Dashboard,
     deepNavigationRequest: DeepNavigationRequest? = null,
     showOnboardingReadError: Boolean = false,
     onSetupComplete: () -> Unit = {},
     onDeepNavigationHandled: () -> Unit = {},
-    onRouteChanged: (AppRoute) -> Unit = {}
+    onRouteChanged: (Any) -> Unit = {}
 ) {
     val viewModel: MainViewModel = hiltViewModel()
 
@@ -111,7 +110,7 @@ fun MainRoot(
     val backStack by navController.currentBackStackEntryAsState()
     val currentDestination = backStack?.destination
     var lastTopLevelRoute by remember {
-        mutableStateOf<AppRoute>(
+        mutableStateOf<Any>(
             when (startDestination) {
                 Dashboard, Stats, Map, Game -> startDestination
                 is MapTripContext -> Map
@@ -120,7 +119,7 @@ fun MainRoot(
         )
     }
     var settingsLaunchNonce by remember { mutableStateOf(0L) }
-    var tripDetailFallbackRoute by remember { mutableStateOf<AppRoute>(Stats) }
+    var tripDetailFallbackRoute by remember { mutableStateOf<Any>(Stats) }
     
     // Phase 2: Precision upgrade prompt state
     val context = LocalContext.current
@@ -150,7 +149,7 @@ fun MainRoot(
     LaunchedEffect(currentDestination) {
         val destination = currentDestination
         if (destination != null) {
-            val route: AppRoute? = when {
+            val route: Any? = when {
                 destination.hasRoute<Dashboard>() -> Dashboard
                 destination.hasRoute<Stats>() -> Stats
                 destination.hasRoute<Map>() -> Map
@@ -281,7 +280,7 @@ fun MainRoot(
         NavigationItem(Game, Icons.Filled.VideogameAsset, stringResource(R.string.module_game_title), "nav_game")
     )
 
-    fun routeMatches(route: AppRoute): Boolean {
+    fun routeMatches(route: Any): Boolean {
         return currentDestination?.hierarchy?.any { destination ->
             when (route) {
                 Dashboard -> destination.hasRoute<Dashboard>() || destination.route == "dashboard" || destination.route?.contains("Dashboard") == true
@@ -292,7 +291,7 @@ fun MainRoot(
             }
         } == true
     }
-    val currentRouteObj = navItems.find { item -> routeMatches(item.id as AppRoute) }
+    val currentRouteObj = navItems.find { item -> routeMatches(item.id) }
     val hideTopLevelNavigation = currentDestination?.hierarchy?.any { destination ->
         ROUTES_HIDING_TOP_LEVEL_CHROME.any { kClass -> destination.hasRoute(kClass) }
     } == true
@@ -310,7 +309,7 @@ fun MainRoot(
     // (bottomNavSafeClearance / DashboardLayoutDefaults / MapNavGraph) so interactive
     // elements still rest above the bar — see AppDimensions.FloatingNavBarReserve.
 
-    fun openSettings(origin: AppRoute) {
+    fun openSettings(origin: Any) {
         settingsLaunchNonce += 1
         navController.navigate(
             Settings(
@@ -387,7 +386,7 @@ fun MainRoot(
         if (!hideTopLevelNavigation && effectiveRouteObj != null && !isDashboard && !isGame) {
             IconButton(
                 onClick = {
-                    openSettings((effectiveRouteObj.id as? AppRoute) ?: lastTopLevelRoute)
+                    openSettings(effectiveRouteObj.id)
                 },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -463,3 +462,11 @@ fun MainRoot(
  * animated padding inputs in this file flow through this coerce.
  */
 internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
+
+
+
+
+
+
+
+

@@ -1,0 +1,150 @@
+package com.adsamcik.tracker.tracker.controller
+
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.stats.api.PolicyState
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
+import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Controller interface for TrackerService state observation.
+ * 
+ * Provides reactive access to tracking state without static dependencies.
+ * Injected via AppGraph for testability and proper dependency management.
+ * 
+ * Per copilot-instructions Section 16A:
+ * - Replaces TrackerService static companion state
+ * - Enables test injection (fake controller for UI tests)
+ * - Maintains clean module boundaries
+ */
+interface TrackerServiceController {
+    /**
+     * Observable tracking service running state.
+     * True when TrackerService is actively running.
+     */
+    val isServiceRunningFlow: StateFlow<Boolean>
+    
+    /**
+     * Current value of service running state (snapshot).
+     */
+    val isServiceRunning: Boolean
+    
+    /**
+     * Current session information as Flow.
+     * Contains basic session metadata (user-initiated flag, start time).
+     * Null when no session is active.
+     */
+    val sessionInfoFlow: StateFlow<TrackerSessionInfo?>
+    
+    /**
+     * Current full session data as Flow.
+     * Contains all runtime metrics: distance, steps, collections, timestamps.
+     * Null when no session is active.
+     */
+    val sessionFlow: StateFlow<TrackerSession?>
+    
+    /**
+     * Current collection data as Flow.
+     * Contains live tracking data: location, activity, wifi, cell.
+     * Null when no session is active or no data collected yet.
+     */
+    val collectionDataFlow: StateFlow<CollectionData?>
+
+    /**
+     * Accumulated path points for the current/last session.
+     * Pair of Session ID and List of Locations.
+     * Used for drawing the map preview.
+     */
+    val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?>
+
+    /**
+     * The last active session data (retained after service stop).
+     * Used to display summary immediately after tracking stops.
+     */
+    val lastSessionFlow: StateFlow<TrackerSession?>
+
+    /**
+     * The path points of the last active session.
+     */
+    val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?>
+    
+    /**
+     * Current policy tier (OFF/AMBIENT/ACTIVE/PRECISION).
+     * Defaults to OFF when service is not running.
+     */
+    val policyTierFlow: StateFlow<PolicyTier>
+
+    /**
+     * Detailed policy engine state including accumulator value,
+     * detected activity, GPS interval, and minimum tier lock.
+     * Null when the escalation engine is not active.
+     */
+    val policyStateFlow: StateFlow<PolicyState?>
+
+    /**
+     * Real-time ski detection state.
+     * Null when ski detection is not active or no barometric data available.
+     * Emits on every collection cycle that produces a ski state update.
+     */
+    val skiStateFlow: StateFlow<RealTimeSkiState?>
+
+    /**
+     * Flow of database persistence errors.
+     * Observers can display to user, log, or take corrective action.
+     * Null when no error collector is active (tracking not running).
+     */
+    val persistenceErrorFlow: SharedFlow<PersistenceError>?
+    
+    /**
+     * Internal: Update service running state.
+     * Called by TrackerService lifecycle methods.
+     */
+    fun updateServiceRunning(isRunning: Boolean)
+    
+    /**
+     * Internal: Update session info.
+     * Called by TrackerService when session starts/stops.
+     */
+    fun updateSessionInfo(info: TrackerSessionInfo?)
+    
+    /**
+     * Internal: Update session data.
+     * Called by TrackerService on each data collection.
+     */
+    fun updateSession(session: TrackerSession?)
+    
+    /**
+     * Internal: Update collection data.
+     * Called by TrackerService on each data collection.
+     */
+    fun updateCollectionData(data: CollectionData?)
+    
+    /**
+     * Internal: Update persistence error flow.
+     * Called by TrackerService when component manager is initialized/destroyed.
+     */
+    fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?)
+
+    /**
+     * Internal: Update policy tier.
+     * Called by TrackerService when the escalation engine changes tier.
+     */
+    fun updatePolicyTier(tier: PolicyTier)
+
+    /**
+     * Internal: Update detailed policy state.
+     * Called by TrackerService when the escalation engine emits a new state.
+     */
+    fun updatePolicyState(state: PolicyState?)
+
+    /**
+     * Internal: Update ski detection state.
+     * Called by TrackerService from SkiTrackingComponent's state flow.
+     */
+    fun updateSkiState(state: RealTimeSkiState?)
+}

@@ -33,10 +33,10 @@ class MapSettingsViewModel @Inject constructor(
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
     private val dispatchers: DispatchersProvider,
     private val preferences: Preferences,
+    val skiInfrastructureManager: SkiInfrastructureManager,
 ) : ViewModel() {
 
     val basemapManager = BasemapManager(context, dispatchers)
-    val skiInfrastructureManager = SkiInfrastructureManager(context, dispatchers)
 
     // Basemap path key for legacy preference (basemap path not in proto — it's file-system state)
     private val basemapPathKey = MapPreferenceKeys.BASEMAP_PATH

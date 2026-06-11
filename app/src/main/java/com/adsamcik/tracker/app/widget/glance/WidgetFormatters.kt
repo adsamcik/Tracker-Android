@@ -2,7 +2,7 @@ package com.adsamcik.tracker.app.widget.glance
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import java.util.Locale
 import kotlin.math.abs
 

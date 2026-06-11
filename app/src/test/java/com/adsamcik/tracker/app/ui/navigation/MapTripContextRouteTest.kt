@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app.ui.navigation
 
 import android.content.Context
 import androidx.lifecycle.ViewModelStore
+import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.composable
@@ -48,3 +50,4 @@ class MapTripContextRouteTest {
 		entry.savedStateHandle.get<Long>("endMs") shouldBe 1_700_000_900_000L
 	}
 }
+

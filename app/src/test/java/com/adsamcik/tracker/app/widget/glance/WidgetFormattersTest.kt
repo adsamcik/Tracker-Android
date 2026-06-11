@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.widget.glance
 
+import com.adsamcik.tracker.shared.model.Location
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -149,7 +150,7 @@ class WidgetFormattersTest {
     }
 
     private fun testLocation(latitude: Double, longitude: Double) =
-        com.adsamcik.tracker.shared.base.data.Location(
+        Location(
             time = 0L,
             latitude = latitude,
             longitude = longitude,
