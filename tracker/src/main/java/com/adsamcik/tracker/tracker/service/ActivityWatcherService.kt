@@ -29,10 +29,13 @@ import kotlinx.coroutines.launch
  */
 @AndroidEntryPoint
 class ActivityWatcherService : CoreService() {
-	private var activityInfo: ActivityInfo = ActivityRequestManager.lastActivity
+	private var activityInfo: ActivityInfo = ActivityInfo.UNKNOWN
 
 	@Inject
 	lateinit var activityWatcherController: ActivityWatcherServiceController
+
+	@Inject
+	lateinit var activityRequestManager: ActivityRequestManager
 
 	private var pollingJob: Job? = null
 
@@ -44,6 +47,7 @@ class ActivityWatcherService : CoreService() {
 		TrackerNotificationChannels.ensureActivityWatcherChannel(this)
 
 		activityWatcherController.attachService(this)
+		activityInfo = activityRequestManager.lastActivity
 
 		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
 
@@ -58,7 +62,7 @@ class ActivityWatcherService : CoreService() {
 		pollingJob = launch {
 			while (isActive) {
 				delay(updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS)
-				val newActivityInfo = ActivityRequestManager.lastActivity
+				val newActivityInfo = activityRequestManager.lastActivity
 				if (newActivityInfo != activityInfo) {
 					activityInfo = newActivityInfo
 					notificationManager.notify(NOTIFICATION_ID, updateNotification())

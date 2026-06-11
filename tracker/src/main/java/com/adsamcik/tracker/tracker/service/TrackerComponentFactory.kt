@@ -167,7 +167,7 @@ internal class TrackerComponentFactory(
 		if (!skiEnabled) return null to null
 
 		val segmentWriter = SkiSegmentWriter()
-		val skiComponent = SkiTrackingComponent(dispatchers).also {
+		val skiComponent = SkiTrackingComponent().also {
 			it.setEscalationEngine(escalationEngine)
 			it.setSecondaryListener(segmentWriter)
 			scope.launch {

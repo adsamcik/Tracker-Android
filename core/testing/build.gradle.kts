@@ -57,7 +57,7 @@ dependencies {
 	implementation(project(":core:base"))
 	implementation(project(":data:preferences"))
 	implementation(project(":tracker"))
-	implementation(project(":sensor:activity"))
+	implementation(project(":sensor:activity-api"))
 	implementation(project(":stats:api"))
 	implementation(project(":stats:engine"))
 

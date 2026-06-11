@@ -25,5 +25,5 @@ include(":core:base", ":core:common", ":core:ui", ":core:logging", ":core:loggin
 include(":data:preferences")
 include(":stats:api", ":stats:engine", ":stats:data")
 include(":domain:points", ":domain:osm")
-include(":sensor:activity")
-include(":feature:map", ":feature:statistics", ":feature:dashboard", ":feature:game", ":feature:import-export")
+include(":sensor:activity-api", ":sensor:activity")
+include(":feature:map", ":feature:statistics", ":feature:dashboard", ":feature:game", ":feature:activity", ":feature:import-export")

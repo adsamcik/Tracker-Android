@@ -84,7 +84,7 @@ android {
 dependencies {
 	implementation(project(":core:base"))
 	implementation(project(":core:logging-api"))
-	implementation(project(":sensor:activity"))
+	implementation(project(":sensor:activity-api"))
 	implementation(project(":core:ui"))
 	implementation(project(":data:preferences"))
 	implementation(project(":core:logging"))

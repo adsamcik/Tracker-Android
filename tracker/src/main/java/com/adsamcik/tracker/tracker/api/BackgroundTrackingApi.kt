@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.onEach
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface BackgroundTrackingApiEntryPoint {
+	fun activityRequestManager(): ActivityRequestManager
 	fun lockManager(): LockManager
 	fun trackerServiceController(): TrackerServiceController
 	fun trackingParamsRepository(): TrackingParamsRepository
@@ -111,6 +112,9 @@ object BackgroundTrackingApi {
 	}
 
 	private fun cachedParamsSnapshot(): TrackingParamsState = synchronized(paramsLock) { cachedParams }
+
+	private fun activityRequestManager(context: Context): ActivityRequestManager =
+		getEntryPoint(context).activityRequestManager()
 
 	private fun updateCachedParams(newParams: TrackingParamsState): TrackingParamsState =
 		synchronized(paramsLock) {
@@ -250,7 +254,7 @@ object BackgroundTrackingApi {
 			ActivityRequestData(this::class, changeData = getActivityRequest())
 		}
 
-		ActivityRequestManager.requestActivity(context, requestData)
+		activityRequestManager(context).requestActivity(context, requestData)
 		getWatcherController(context).poke()
 	}
 
@@ -269,7 +273,7 @@ object BackgroundTrackingApi {
 	private fun disable(context: Context) {
 		assertTrue(isActive)
 
-		ActivityRequestManager.removeActivityRequest(context, this::class)
+		activityRequestManager(context).removeActivityRequest(context, this::class)
 		getWatcherController(context).poke()
 
 		isActive = false

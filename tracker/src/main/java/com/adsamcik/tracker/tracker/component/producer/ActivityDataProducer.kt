@@ -4,6 +4,10 @@ import android.content.Context
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
@@ -14,6 +18,12 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.flow.map
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface ActivityDataProducerEntryPoint {
+	fun activityRequestManager(): ActivityRequestManager
+}
 
 internal class ActivityDataProducer(
 	changeReceiver: TrackerDataProducerObserver,
@@ -31,6 +41,12 @@ internal class ActivityDataProducer(
 	private var lastSnapshot: ActivitySnapshot = ActivitySnapshot(ActivityInfo.UNKNOWN, -1L)
 
 	private data class ActivitySnapshot(val activity: ActivityInfo, val elapsedTimeMillis: Long)
+
+	private fun activityRequestManager(context: Context): ActivityRequestManager =
+		EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			ActivityDataProducerEntryPoint::class.java,
+		).activityRequestManager()
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val snapshot = lastSnapshot
@@ -56,7 +72,7 @@ internal class ActivityDataProducer(
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
 		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
-		ActivityRequestManager.requestActivity(
+		activityRequestManager(context).requestActivity(
 				context,
 				ActivityRequestData(
 						this::class,
@@ -70,7 +86,7 @@ internal class ActivityDataProducer(
 
 	override fun onDisable(context: Context) {
 		super.onDisable(context)
-		ActivityRequestManager.removeActivityRequest(context, this::class)
+		activityRequestManager(context).removeActivityRequest(context, this::class)
 	}
 
 	companion object {

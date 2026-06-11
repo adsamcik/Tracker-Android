@@ -20,19 +20,19 @@ import javax.inject.Inject
  *
  * Directory: context.filesDir/ski-data/ski_infrastructure.db
  */
-class SkiInfrastructureManager @Inject constructor(
+class DefaultSkiInfrastructureManager @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val dispatchers: DispatchersProvider,
-) {
+) : SkiInfrastructureManager {
 
 	private val dataDir = File(context.filesDir, "ski-data")
 	private val dbFile = File(dataDir, "ski_infrastructure.db")
 
 	/** Check if the ski infrastructure database is available */
-	fun isAvailable(): Boolean = dbFile.exists() && dbFile.length() > 0
+	override fun isAvailable(): Boolean = dbFile.exists() && dbFile.length() > 0
 
 	/** Import a ski infrastructure database from a URI (SAF picker) */
-	suspend fun importDatabase(uri: Uri): SkiInfrastructureImportResult = withContext(dispatchers.io) {
+	override suspend fun importDatabase(uri: Uri): SkiInfrastructureImportResult = withContext(dispatchers.io) {
 		dataDir.mkdirs()
 
 		val input = try {
@@ -83,12 +83,12 @@ class SkiInfrastructureManager @Inject constructor(
 	}
 
 	/** Clear the imported database */
-	fun clearDatabase() {
+	override fun clearDatabase() {
 		dbFile.delete()
 	}
 
 	/** Get metadata value from database */
-	fun getMetadata(key: String): String? {
+	override fun getMetadata(key: String): String? {
 		if (!isAvailable()) return null
 		return try {
 			openDatabase().use { db ->
@@ -109,7 +109,7 @@ class SkiInfrastructureManager @Inject constructor(
 	 * Find ski lifts near a coordinate using bounding-box pre-filter + haversine post-filter.
 	 * Returns empty list if database is not available.
 	 */
-	fun findLiftsNearby(lat: Double, lon: Double, radiusDeg: Double): List<SkiLift> {
+	override fun findLiftsNearby(lat: Double, lon: Double, radiusDeg: Double): List<SkiLift> {
 		if (!isAvailable()) return emptyList()
 
 		val minLat = lat - radiusDeg

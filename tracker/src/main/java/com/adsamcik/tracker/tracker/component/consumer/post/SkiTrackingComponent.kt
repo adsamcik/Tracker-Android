@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.logging.api.ReporterFacade
@@ -20,6 +19,10 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 
 /**
  * Real-time ski tracking component that detects skiing activity from
@@ -38,9 +41,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * No required data: operates on whatever sensors are available.
  * If barometer data is missing, the component silently does nothing.
  */
-internal class SkiTrackingComponent(
-	private val dispatchers: DispatchersProvider,
-) : PostTrackerComponent, SkiStateListener {
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface SkiTrackingComponentEntryPoint {
+	fun skiInfrastructureManager(): SkiInfrastructureManager
+}
+
+internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private val detector = RealTimeSkiDetector(SkiDetectionConfig())
@@ -92,7 +99,10 @@ internal class SkiTrackingComponent(
 		lastCollectionTimeMs = 0L
 		proximityChecked = false
 		infrastructureManager = try {
-			val mgr = SkiInfrastructureManager(context, dispatchers)
+			val mgr = EntryPointAccessors.fromApplication(
+				context.applicationContext,
+				SkiTrackingComponentEntryPoint::class.java,
+			).skiInfrastructureManager()
 			if (mgr.isAvailable()) mgr else null
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			null

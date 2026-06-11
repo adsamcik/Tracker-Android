@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.robolectric.junit5)
@@ -15,10 +16,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    sourceSets {
-        this.maybeCreate("androidTest").assets.srcDir("$projectDir/schemas")
-    }
-
     compileOptions {
         sourceCompatibility = Android.javaTarget
         targetCompatibility = Android.javaTarget
@@ -26,6 +23,10 @@ android {
 
     kotlin {
         jvmToolchain(Android.JAVA_VERSION)
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     buildTypes {
@@ -37,66 +38,54 @@ android {
     lint {
         checkReleaseBuilds = true
         abortOnError = false
-        baseline = file("lint-baseline.xml")
     }
 
     testOptions {
-        unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
+        unitTests.isReturnDefaultValues = true
     }
 
-    namespace = "com.adsamcik.tracker.activity.impl"
+    namespace = "com.adsamcik.tracker.feature.activity"
 }
 
 dependencies {
-    api(project(":sensor:activity-api"))
+    implementation(project(":sensor:activity-api"))
     implementation(project(":core:base"))
     implementation(project(":core:ui"))
-    implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
-    implementation(project(":stats:api"))
-    implementation(project(":stats:engine"))
 
     implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.common.java8)
-    implementation(libs.google.play.services.base)
-    implementation(libs.google.play.services.location)
-    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.activity.compose)
+
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.foundation.layout)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.hilt.android)
-    implementation(libs.hilt.work)
+    implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
-    ksp(libs.androidx.hilt.compiler)
 
     testImplementation(platform(libs.junit5.bom))
     testImplementation(libs.junit5.jupiter)
-    testImplementation(libs.junit5.jupiter.params)
     testRuntimeOnly(libs.junit5.jupiter.engine)
     testRuntimeOnly(libs.junit5.vintage.engine)
     testImplementation(libs.junit4)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.arch.core.testing)
-    testImplementation(libs.androidx.test.core)
     testImplementation(libs.robolectric)
     testImplementation(libs.junit5.robolectric)
     testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.androidx.work.testing)
     testImplementation(libs.kotest.assertions.core)
-    testImplementation(project(":core:testing"))
-
-    androidTestImplementation(libs.junit4)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.uiautomator)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.arch.core.testing)
-    androidTestImplementation(libs.espresso)
-    androidTestImplementation(libs.mockk.android)
-    androidTestImplementation(libs.androidx.work.testing)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 tasks.withType<Test>().configureEach {

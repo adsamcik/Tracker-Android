@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
-import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.DefaultActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
@@ -31,6 +31,7 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface ActivityReceiverEntryPoint {
 	fun backend(): GmsActivityRecognitionBackend
+	fun defaultActivityRequestManager(): DefaultActivityRequestManager
 }
 
 /**
@@ -41,7 +42,7 @@ interface ActivityReceiverEntryPoint {
  * results to [GmsActivityRecognitionBackend], which exposes them as Flows
  * via the [ActivityRecognitionBackend] interface.
  *
- * It also notifies [ActivityRequestManager] for backward-compatible callback
+ * It also notifies [DefaultActivityRequestManager] for backward-compatible callback
  * dispatching to existing request holders.
  */
 internal class ActivityReceiver : BroadcastReceiver() {
@@ -56,19 +57,21 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			),
 		)
 
-		val backend = EntryPointAccessors.fromApplication(
+		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			ActivityReceiverEntryPoint::class.java,
-		).backend()
+		)
+		val backend = entryPoint.backend()
+		val requestManager = entryPoint.defaultActivityRequestManager()
 
 		if (hasActivityResult) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
-			onActivityResult(context, result, backend)
+			onActivityResult(context, result, backend, requestManager)
 		}
 
 		if (hasActivityTransitionResult) {
 			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
-			onActivityTransitionResult(context, result, backend)
+			onActivityTransitionResult(context, result, backend, requestManager)
 
 			if (!hasActivityResult) {
 				setActivityResultFromTransition(result.transitionEvents.last(), backend)
@@ -80,6 +83,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		context: Context,
 		result: ActivityRecognitionResult,
 		backend: GmsActivityRecognitionBackend,
+		requestManager: DefaultActivityRequestManager,
 	) {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
 		val elapsedTimeMillis = Time.elapsedRealtimeMillis
@@ -95,7 +99,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			),
 		)
 
-		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
+		requestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
 	}
 
 	/**
@@ -123,6 +127,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		context: Context,
 		result: ActivityTransitionResult,
 		backend: GmsActivityRecognitionBackend,
+		requestManager: DefaultActivityRequestManager,
 	) {
 		result.transitionEvents.forEach {
 			logActivity(
@@ -143,7 +148,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		}
 		backend.onTransitionResult(transitionUpdates)
 
-		ActivityRequestManager.onActivityTransition(context, result)
+		requestManager.onActivityTransition(context, result)
 	}
 
 	companion object {
@@ -154,7 +159,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		 * broadcast received.  Defaults to UNKNOWN before the first update.
 		 *
 		 * Written only by [ActivityReceiver.onReceive]; read by callers like
-		 * [ActivityRequestManager] that need last-known activity without a context.
+		 * [DefaultActivityRequestManager] that need last-known activity without a context.
 		 */
 		@Volatile
 		var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
@@ -188,4 +193,3 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		}
 	}
 }
-
