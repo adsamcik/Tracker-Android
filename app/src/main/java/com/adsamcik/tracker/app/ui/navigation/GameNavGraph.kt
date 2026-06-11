@@ -5,6 +5,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 
 internal fun NavGraphBuilder.gameGraph(
 	navController: NavHostController,
@@ -55,4 +56,5 @@ internal fun NavGraphBuilder.gameGraph(
 		)
 	}
 }
+
 

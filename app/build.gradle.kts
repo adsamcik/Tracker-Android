@@ -267,6 +267,7 @@ dependencies {
 	implementation(project(":feature:map:api"))
 	implementation(project(":feature:map"))
 	implementation(project(":feature:game"))
+	implementation(project(":feature:dashboard:api"))
 	implementation(project(":feature:dashboard"))
 	implementation(project(":domain:osm"))
 
@@ -431,5 +432,6 @@ afterEvaluate {
 	}
 	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }
+
 
 

@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.app.ui.navigation
+package com.adsamcik.tracker.dashboard.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -8,16 +8,18 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
  * Dashboard destination within the app navigation graph.
  */
-internal fun NavGraphBuilder.dashboardGraph(
+fun NavGraphBuilder.dashboardGraph(
     navController: NavHostController,
     useSideRail: Boolean,
     onOpenSettings: () -> Unit,
+    onOpenGame: () -> Unit,
     onSetTripDetailFallback: (Any) -> Unit,
 ) {
     composable<Dashboard> {
@@ -29,12 +31,7 @@ internal fun NavGraphBuilder.dashboardGraph(
                     restoreState = true
                 }
             },
-            onOpenGame = {
-                navController.navigate(Game) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
+            onOpenGame = onOpenGame,
             onSessionDetailClick = { sessionId ->
                 onSetTripDetailFallback(Dashboard)
                 navController.navigate(TripDetail(sessionId)) {
@@ -50,6 +47,8 @@ internal fun NavGraphBuilder.dashboardGraph(
         )
     }
 }
+
+
 
 
 

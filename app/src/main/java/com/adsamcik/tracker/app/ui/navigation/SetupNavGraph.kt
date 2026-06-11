@@ -4,6 +4,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.adsamcik.tracker.app.onboarding.ui.SetupRoute
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 
 /**
  * First-time setup destination within the app navigation graph.
@@ -26,3 +27,4 @@ internal fun NavGraphBuilder.setupGraph(
         )
     }
 }
+

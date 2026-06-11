@@ -8,9 +8,6 @@ interface AppRoute
 data object Onboarding : AppRoute
 
 @Serializable
-data object Dashboard : AppRoute
-
-@Serializable
 data object Setup : AppRoute
 
 @Serializable
@@ -57,4 +54,5 @@ data object ActivitySettings : AppRoute
 
 @Serializable
 data object NotificationManagement : AppRoute
+
 

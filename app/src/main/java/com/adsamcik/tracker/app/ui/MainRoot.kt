@@ -48,13 +48,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
-import com.adsamcik.tracker.app.ui.navigation.dashboardGraph
+import com.adsamcik.tracker.dashboard.navigation.dashboardGraph
 import com.adsamcik.tracker.app.ui.navigation.gameGraph
 import com.adsamcik.tracker.map.navigation.mapGraph
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
 import com.adsamcik.tracker.statistics.navigation.statsGraph
 import com.adsamcik.tracker.app.ui.navigation.setupGraph
-import com.adsamcik.tracker.app.ui.navigation.Dashboard
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
@@ -365,6 +365,12 @@ fun MainRoot(
                     navController = navController,
                     useSideRail = useSideRail,
                     onOpenSettings = { openSettings(Dashboard) },
+                    onOpenGame = {
+                        navController.navigate(Game) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
                 )
                 mapGraph(useSideRail = useSideRail)
@@ -469,6 +475,8 @@ fun MainRoot(
  * animated padding inputs in this file flow through this coerce.
  */
 internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
+
+
 
 
 

@@ -28,7 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.app.ui.MainRoot
-import com.adsamcik.tracker.app.ui.navigation.Dashboard
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Setup
@@ -323,6 +323,7 @@ class MainActivityViewModel @Inject constructor(
         const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }
+
 
 
 

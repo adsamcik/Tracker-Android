@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.app.ui
 
-import com.adsamcik.tracker.app.ui.navigation.Dashboard
+import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import kotlinx.coroutines.flow.first
@@ -30,5 +30,6 @@ class MainViewModelTest {
         assertEquals(Map, viewModel.currentRoute.first())
     }
 }
+
 
 
