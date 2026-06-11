@@ -88,6 +88,13 @@ class DefaultLockManager(
                 lockedUntilRecharge = persistedRecharge
             }
 
+            // AlarmManager alarms do not survive a reboot. If a time lock is still
+            // in the future, re-register it so it fires its unlock (and re-pokes the
+            // watcher to resume auto-tracking) at the correct moment after a restart.
+            if (Time.nowMillis < persistedTime) {
+                scheduleTimeUnlockAlarm(context, persistedTime)
+            }
+
             refreshLockState(context)
         } catch (t: Throwable) {
             persistenceInitialized.set(false)
@@ -130,11 +137,7 @@ class DefaultLockManager(
             }
 
             setTimeLock(context, lockUntilTime)
-            context.alarmManager.set(
-                AlarmManager.RTC_WAKEUP,
-                lockUntilTime,
-                getTimeUnlockBroadcastIntent(context)
-            )
+            scheduleTimeUnlockAlarm(context, lockUntilTime)
             return LockResult.Locked
         }
     }
@@ -202,5 +205,13 @@ class DefaultLockManager(
     private fun getTimeUnlockBroadcastIntent(context: Context): PendingIntent {
         val intent = Intent(context, TrackerTimeUnlockReceiver::class.java)
         return PendingIntent.getBroadcast(context, 0, intent, FLAG_IMMUTABLE)
+    }
+
+    private fun scheduleTimeUnlockAlarm(context: Context, lockUntilTime: Long) {
+        context.alarmManager.set(
+            AlarmManager.RTC_WAKEUP,
+            lockUntilTime,
+            getTimeUnlockBroadcastIntent(context)
+        )
     }
 }

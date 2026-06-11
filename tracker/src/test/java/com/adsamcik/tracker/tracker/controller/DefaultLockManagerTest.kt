@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.controller
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.res.Resources
 import com.adsamcik.tracker.shared.base.Time
@@ -12,6 +14,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkConstructor
+import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.runs
 import io.mockk.unmockkAll
@@ -28,6 +31,7 @@ class DefaultLockManagerTest {
 
 	private val context: Context = mockk(relaxed = true)
 	private val resources: Resources = mockk(relaxed = true)
+	private val alarmManager: AlarmManager = mockk(relaxed = true)
 	private val trackerServiceController: TrackerServiceController = mockk(relaxed = true)
 	private val watcherLockManager: LockManager = mockk(relaxed = true)
 
@@ -40,6 +44,9 @@ class DefaultLockManagerTest {
 		every { context.resources } returns resources
 		every { context.getString(R.string.settings_disabled_time_key) } returns "disabled_time"
 		every { context.getString(R.string.settings_disabled_time_default) } returns "0"
+		every { context.getSystemService(Context.ALARM_SERVICE) } returns alarmManager
+		mockkStatic(PendingIntent::class)
+		every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
 		every { trackerServiceController.sessionInfoFlow } returns MutableStateFlow(null)
 		every { trackerServiceController.isServiceRunning } returns true
 		every { watcherLockManager.isLocked } returns false
@@ -84,6 +91,26 @@ class DefaultLockManagerTest {
 		assertTrue(lockManager.isChargeLocked)
 		verify(exactly = 0) { anyConstructed<Preferences>().edit(any()) }
 		verify(exactly = 1) { activityWatcherController.poke(any(), any(), any(), any(), any()) }
+		// A still-active future time lock must re-arm its AlarmManager unlock, since
+		// alarms do not survive a reboot.
+		verify(exactly = 1) { alarmManager.set(AlarmManager.RTC_WAKEUP, any(), any()) }
+	}
+
+	@Test
+	fun `initializeFromPersistence does not re-arm alarm when no future time lock`() = runTest {
+		coEvery {
+			anyConstructed<Preferences>().fetchLong("disabled_time", 0L)
+		} returns 0L
+		coEvery {
+			anyConstructed<Preferences>().fetchBooleanRes(
+				R.string.settings_disabled_recharge_key,
+				R.string.settings_disabled_recharge_default,
+			)
+		} returns false
+
+		lockManager.initializeFromPersistence(context)
+
+		verify(exactly = 0) { alarmManager.set(any<Int>(), any<Long>(), any<PendingIntent>()) }
 	}
 
 	@Test
