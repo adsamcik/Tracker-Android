@@ -26,8 +26,12 @@
 
 ## 2. Module Architecture
 
-The application is organized into **21 Gradle modules**, grouped by architectural layer
-(`:core:*`, `:data:*`, `:domain:*`, `:stats:*`, `:sensor:*`, `:feature:*`, plus `:app` and `:tracker`):
+The application is organized into **28 Gradle modules**, grouped by architectural layer
+(`:core:*`, `:data:*`, `:domain:*`, `:stats:*`, `:sensor:*`, `:feature:*`, `:tracker:*`, plus `:app`).
+The table below lists the primary modules; `:tracker` is split into `:tracker:api`/`:tracker:engine`/`:feature:tracker`,
+`activity` into `:sensor:activity-api`/`:sensor:activity`/`:feature:activity`, each UI feature has a
+`:feature:<x>:api` route-contract module, and `:core:model` holds Room-free domain models. See
+`docs/MODULE_REARCHITECTURE_STATUS.md` for the complete final module graph:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐

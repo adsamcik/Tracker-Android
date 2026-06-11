@@ -11,31 +11,33 @@ Privacy-first, fully local location & activity tracker for Android. No backend, 
 ---
 
 ## 2. Architecture
-Multi-module Gradle project (21 modules) grouped by layer. See `docs/ARCHITECTURE_OVERVIEW.md`
-for full component maps and `docs/MODULE_REARCHITECTURE_STATUS.md` for the modularization roadmap.
+Multi-module Gradle project (28 modules) grouped by layer. See `docs/ARCHITECTURE_OVERVIEW.md`
+for full component maps and `docs/MODULE_REARCHITECTURE_STATUS.md` for the modularization record.
+Rule of thumb: depend on `*:api` contract modules, never on another feature's implementation.
 
 | Module | Purpose |
 |--------|---------|
-| `:app` | Entry point, Hilt DI (`AppGraph`), navigation, settings, onboarding |
-| `:tracker` | Core tracking: `TrackerService`, component pipeline, producers (engine + UI; split pending) |
-| `:core:base` | Room database (v26 entities), DAOs, Room `@Entity` data models, base extensions/permission/misc |
+| `:app` | Entry point, Hilt DI (`AppGraph`), root `NavHost`, settings, onboarding |
+| `:core:base` | Room database, DAOs, Room `@Entity` types + entity↔model mappers (was `sbase`) |
+| `:core:model` | Pure (Room-free) domain models (`Location`, `Trip`, `LocationSample`, `SkiRunSegment`, …) consumed by `:stats:api` |
 | `:core:common` | Foundation leaf: concurrency (`DispatchersProvider`), time, constants, exceptions, DI/graph, io, logging, notification, service. No Room/DB. |
 | `:core:ui` | Shared Compose UI, formatters, `AppTheme` (was `sutils`) |
-| `:core:logging` | Structured logging with privacy-aware redaction (was `logger`) |
-| `:core:logging-api` | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) decoupling logging impl from data |
+| `:core:logging` / `:core:logging-api` | Logging impl / logger-facing contracts (`ReporterFacade`, `ErrorReporter`) (were `logger`/`logging-api`) |
 | `:core:network` | Network helpers (was `network`) |
 | `:core:testing` | Test fakes, utilities (was `testing-common`) |
 | `:data:preferences` | Typed preferences, settings repos, retention (was `spreferences`) |
-| `:stats:api` | Stats API contracts (achievements, policies, trips) (was `stats-api`) |
-| `:stats:engine` | Stats processing algorithms (aggregation, place detection) (was `stats-engine`) |
-| `:stats:data` | Stats data layer (was `stats-data`) |
-| `:domain:points` | Points calculation (was `points`) |
-| `:domain:osm` | OpenStreetMap place/way lookup (was `osm`) |
-| `:sensor:activity` | Activity recognition via Google Play Services + activity-type UI (was `activity`) |
-| `:feature:map` | MapLibre visualization, heatmaps, layers (UDF via MapStore) (was `map`) |
-| `:feature:statistics` | Session list, trip detail views, analytics (was `statistics`) |
-| `:feature:dashboard` | Tracker dashboard, live stats, milestones, widgets (was `dashboard`) |
-| `:feature:game` | Challenges, goals, gamification (was `game`) |
+| `:stats:api` / `:stats:engine` / `:stats:data` | Stats contracts (depend on `:core:model`, NOT the DB) / algorithms / data layer (were `stats-*`) |
+| `:domain:points` / `:domain:osm` | Points calculation / OpenStreetMap place lookup (were `points`/`osm`) |
+| `:tracker:api` | Tracking contracts: `TrackerServiceController`, `LockManager`, `BackgroundTrackingApi`, session/insight types |
+| `:tracker:engine` | Tracking impl: `TrackerService`, component pipeline, producers/consumers, policy, notification (no UI) |
+| `:feature:tracker` | Tracking Compose UI (`TrackerRoute`) |
+| `:sensor:activity-api` | Activity-recognition contracts (`ActivityRequestManager` interface, request/transition types) consumed by `:tracker:*` |
+| `:sensor:activity` | Activity recognition impl via Google Play Services (was part of `activity`) |
+| `:feature:activity` | Activity-type management Compose UI |
+| `:feature:map` (+ `:feature:map:api`) | MapLibre visualization, heatmaps, layers + route contracts (was `map`) |
+| `:feature:statistics` (+ `:feature:statistics:api`) | Session list, trip detail, analytics + route contracts (was `statistics`) |
+| `:feature:dashboard` (+ `:feature:dashboard:api`) | Tracker dashboard, live stats, widgets + route contracts (was `dashboard`) |
+| `:feature:game` (+ `:feature:game:api`) | Challenges, goals, gamification + route contracts (was `game`) |
 | `:feature:import-export` | Import/export (GPX, KML, JSON, SQLite), streaming writers (was `impexp`) |
 
 Data flow: `Sensors -> Producers -> TempData -> Pre/Data/Post-Components -> Room Database`
