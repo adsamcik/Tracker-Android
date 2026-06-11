@@ -16,7 +16,7 @@ android {
 	}
 
 	sourceSets {
-		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+		this.maybeCreate("androidTest").assets.directories.add("$projectDir/schemas")
 	}
 
 	compileOptions {
@@ -117,7 +117,7 @@ afterEvaluate {
 	// Precreate expected KSP output folder to avoid NoSuchFileException
 	val ensureKspDir = tasks.register("ensureKspDir") {
 		doLast {
-			file("$buildDir/generated/ksp/debug").mkdirs()
+			layout.buildDirectory.dir("generated/ksp/debug").get().asFile.mkdirs()
 		}
 	}
 

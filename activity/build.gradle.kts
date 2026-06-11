@@ -19,7 +19,7 @@ android {
 	}
 
 	sourceSets {
-		this.maybeCreate("androidTest").assets.srcDir("$projectDir/schemas")
+		this.maybeCreate("androidTest").assets.directories.add("$projectDir/schemas")
 	}
 
 	compileOptions {

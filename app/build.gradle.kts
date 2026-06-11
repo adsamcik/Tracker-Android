@@ -180,7 +180,7 @@ android {
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
-	sourceSets.getByName("main").res.srcDir("$buildDir/generated/third_party_licenses_fallback/res")
+	sourceSets.getByName("main").res.srcDir(layout.buildDirectory.dir("generated/third_party_licenses_fallback/res").get().asFile.path)
 
 	// dynamicFeatures removed; modules are now statically linked libraries
 	namespace = "com.adsamcik.tracker"
