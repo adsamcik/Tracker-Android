@@ -6,7 +6,6 @@ import androidx.core.content.FileProvider
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -68,7 +67,7 @@ class GpxShareHelper @Inject constructor(
 						afterId = sample.id
 
 						if (sample.latE7 != null && sample.lonE7 != null) {
-							emit(sample.toEntity())
+							emit(sample)
 							exportedPointCount++
 						}
 					}
