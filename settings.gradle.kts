@@ -19,12 +19,11 @@ plugins {
 	id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
 }
 
-include(":impexp")
-include(":logger")
-include(":logging-api")
-include(":network")
-include(":points")
-include(":testing-common")
-include(":app", ":statistics", ":game", ":map", ":sbase", ":spreferences", "sutils", ":tracker", ":activity", ":dashboard")
-include(":stats-api", ":stats-engine", ":stats-data")
-include(":osm")
+include(":app")
+include(":tracker")
+include(":core:base", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
+include(":data:preferences")
+include(":stats:api", ":stats:engine", ":stats:data")
+include(":domain:points", ":domain:osm")
+include(":sensor:activity")
+include(":feature:map", ":feature:statistics", ":feature:dashboard", ":feature:game", ":feature:import-export")
