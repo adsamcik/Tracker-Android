@@ -2,10 +2,10 @@ package com.adsamcik.tracker.dashboard.ui.compose.state
 
 import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.tracker.insights.SessionInsight

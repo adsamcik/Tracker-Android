@@ -7,8 +7,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.model.Location
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

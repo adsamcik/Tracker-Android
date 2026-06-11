@@ -17,13 +17,14 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -148,9 +149,9 @@ class DashboardViewModel @Inject constructor(
 				try {
 					val appDatabase = appDatabaseProvider.get()
 					if (lastSessionData == null) {
-						_dbLastSession.value = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
+						_dbLastSession.value = appDatabase.tripDao().getRecentTrips(1).firstOrNull()?.toModel()
 					}
-					_recentTrips.value = appDatabase.tripDao().getRecentTrips(5)
+					_recentTrips.value = appDatabase.tripDao().getRecentTrips(5).map { it.toModel() }
 
 					loadExplorationData(appDatabase)
 					loadStreakData(appDatabase)

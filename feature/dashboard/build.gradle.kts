@@ -23,6 +23,7 @@ dependencies {
     implementation(project(":feature:map:api"))
     implementation(project(":feature:statistics:api"))
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))

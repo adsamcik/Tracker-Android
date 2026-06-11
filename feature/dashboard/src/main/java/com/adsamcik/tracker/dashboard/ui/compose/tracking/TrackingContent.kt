@@ -47,7 +47,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SpeedSparkline
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
@@ -55,6 +54,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
