@@ -36,6 +36,7 @@ dependencies {
     // Removed :app dependency as part of converting to a library module
     implementation(project(":feature:map:api"))
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":tracker:api"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))

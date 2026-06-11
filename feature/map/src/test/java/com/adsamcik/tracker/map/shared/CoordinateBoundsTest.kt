@@ -5,7 +5,7 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LONGITU
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LATITUDE
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LONGITUDE
 import com.adsamcik.tracker.shared.base.data.BaseLocation
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.model.Location
 import io.kotest.matchers.doubles.shouldBeExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
