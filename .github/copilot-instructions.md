@@ -11,28 +11,32 @@ Privacy-first, fully local location & activity tracker for Android. No backend, 
 ---
 
 ## 2. Architecture
-Multi-module Gradle project (18 modules). See `docs/ARCHITECTURE_OVERVIEW.md` for full component maps.
+Multi-module Gradle project (21 modules) grouped by layer. See `docs/ARCHITECTURE_OVERVIEW.md`
+for full component maps and `docs/MODULE_REARCHITECTURE_STATUS.md` for the modularization roadmap.
 
 | Module | Purpose |
 |--------|---------|
-| `app` | Entry point, Hilt DI (`AppGraph`), navigation, settings, onboarding |
-| `tracker` | Core tracking: `TrackerService`, component pipeline, producers |
-| `map` | MapLibre visualization, heatmaps, layers (UDF via MapStore) |
-| `statistics` | Session list, trip detail views, analytics |
-| `dashboard` | Tracker dashboard, live stats, milestones, widgets |
-| `game` | Challenges, goals, gamification |
-| `activity` | Activity recognition (Google Play Services) |
-| `impexp` | Import/export (GPX, KML, JSON, SQLite), streaming writers |
-| `sbase` | Room database (v26, 26 entities), DAOs |
-| `sutils` | Shared utilities, formatters, `AppTheme` |
-| `spreferences` | Typed preferences, settings repos, retention |
-| `logger` | Structured logging with privacy-aware redaction |
-| `logging-api` | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) decoupling `:logger` from `:sbase` |
-| `points` | Points calculation |
-| `stats-api` | API contracts (achievements, policies, trips) |
-| `stats-engine` | Processing algorithms (aggregation, place detection) |
-| `stats-data` | Stats data layer |
-| `testing-common` | Test fakes, utilities |
+| `:app` | Entry point, Hilt DI (`AppGraph`), navigation, settings, onboarding |
+| `:tracker` | Core tracking: `TrackerService`, component pipeline, producers (engine + UI; split pending) |
+| `:core:base` | Room database (v26 entities), DAOs, Room `@Entity` data models, base extensions/permission/misc |
+| `:core:common` | Foundation leaf: concurrency (`DispatchersProvider`), time, constants, exceptions, DI/graph, io, logging, notification, service. No Room/DB. |
+| `:core:ui` | Shared Compose UI, formatters, `AppTheme` (was `sutils`) |
+| `:core:logging` | Structured logging with privacy-aware redaction (was `logger`) |
+| `:core:logging-api` | Logger-facing contracts (`ReporterFacade`, `ErrorReporter`) decoupling logging impl from data |
+| `:core:network` | Network helpers (was `network`) |
+| `:core:testing` | Test fakes, utilities (was `testing-common`) |
+| `:data:preferences` | Typed preferences, settings repos, retention (was `spreferences`) |
+| `:stats:api` | Stats API contracts (achievements, policies, trips) (was `stats-api`) |
+| `:stats:engine` | Stats processing algorithms (aggregation, place detection) (was `stats-engine`) |
+| `:stats:data` | Stats data layer (was `stats-data`) |
+| `:domain:points` | Points calculation (was `points`) |
+| `:domain:osm` | OpenStreetMap place/way lookup (was `osm`) |
+| `:sensor:activity` | Activity recognition via Google Play Services + activity-type UI (was `activity`) |
+| `:feature:map` | MapLibre visualization, heatmaps, layers (UDF via MapStore) (was `map`) |
+| `:feature:statistics` | Session list, trip detail views, analytics (was `statistics`) |
+| `:feature:dashboard` | Tracker dashboard, live stats, milestones, widgets (was `dashboard`) |
+| `:feature:game` | Challenges, goals, gamification (was `game`) |
+| `:feature:import-export` | Import/export (GPX, KML, JSON, SQLite), streaming writers (was `impexp`) |
 
 Data flow: `Sensors -> Producers -> TempData -> Pre/Data/Post-Components -> Room Database`
 
