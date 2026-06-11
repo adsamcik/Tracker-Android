@@ -6,9 +6,10 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.Trip
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.Trip
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
@@ -74,7 +75,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				)
 			}
 			if (trips.isEmpty()) break
-			sessions += trips.map { it.toSessionSnapshot() }
+			sessions += trips.map { it.toModel().toSessionSnapshot() }
 			offset += trips.size
 			if (trips.size < SESSION_PAGE_SIZE) break
 		}

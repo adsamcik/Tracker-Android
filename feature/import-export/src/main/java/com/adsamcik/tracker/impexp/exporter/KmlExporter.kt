@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.time.Instant

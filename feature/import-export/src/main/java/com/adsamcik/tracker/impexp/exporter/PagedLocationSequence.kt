@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.LocationSample
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -36,7 +37,7 @@ internal fun pagedLocationSequence(
 		}
 
 		private fun loadNextPage() {
-			buffer = runBlocking {
+			val chunk = runBlocking {
 				locationSampleDao.getChunkBetweenOrdered(
 					fromMs = fromMs,
 					toMs = toMs,
@@ -45,12 +46,13 @@ internal fun pagedLocationSequence(
 					limit = pageSize,
 				)
 			}
+			buffer = chunk.map { it.toModel() }
 			index = 0
 			if (buffer.isEmpty()) {
 				exhausted = true
 				return
 			}
-			buffer.last().let { last ->
+			chunk.last().let { last ->
 				afterTimeMs = last.timeMs
 				afterId = last.id
 			}

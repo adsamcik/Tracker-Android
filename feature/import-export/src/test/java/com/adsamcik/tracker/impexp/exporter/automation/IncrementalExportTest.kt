@@ -8,7 +8,7 @@ import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.proto.ExportBackupPlanProto
 import com.adsamcik.tracker.impexp.exporter.proto.ExportFormatProto
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.base.time.Clock
 import io.mockk.every
 import io.mockk.mockk

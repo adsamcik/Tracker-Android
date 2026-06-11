@@ -2,10 +2,10 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.BufferedWriter
 import java.io.IOException
 import java.io.OutputStream

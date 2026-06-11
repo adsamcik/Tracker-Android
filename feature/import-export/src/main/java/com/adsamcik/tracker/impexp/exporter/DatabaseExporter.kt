@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.extension.openInputStream
+import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
 
 /**
@@ -34,4 +34,3 @@ class DatabaseExporter : Exporter {
 		return ExportResult.Success
 	}
 }
-

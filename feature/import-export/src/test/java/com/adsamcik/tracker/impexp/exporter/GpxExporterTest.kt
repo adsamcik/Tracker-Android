@@ -3,8 +3,8 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan

@@ -8,10 +8,11 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SampleQuality
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
 
@@ -73,7 +74,7 @@ internal class JsonImport(
 				batch.add(sample)
 				count++
 				if (batch.size >= BATCH_SIZE) {
-					sampleDao.insert(batch)
+					sampleDao.insert(batch.map { it.toEntity() })
 					batch.clear()
 				}
 			}
@@ -81,7 +82,7 @@ internal class JsonImport(
 		reader.endArray()
 
 		if (batch.isNotEmpty()) {
-			sampleDao.insert(batch)
+			sampleDao.insert(batch.map { it.toEntity() })
 		}
 		return count
 	}

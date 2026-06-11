@@ -7,18 +7,22 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.LengthUnit
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SampleQuality
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.time.Instant
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Imports KML files with [Placemark] [LineString] tracks.
@@ -201,7 +205,7 @@ internal class KmlImport(
 			sampleList.add(location.toLocationSample())
 
 			lastLocation?.let {
-				session.distanceInM += location.distance(it, LengthUnit.Meter).toFloat()
+				session.distanceInM += distanceMeters(location, it).toFloat()
 			}
 
 			lastLocation = location
@@ -213,7 +217,7 @@ internal class KmlImport(
 
 		database.locationSampleDao().let { dao ->
 			for (chunk in sampleList.chunked(BATCH_SIZE)) {
-				dao.insert(chunk)
+				dao.insert(chunk.map { it.toEntity() })
 			}
 		}
 		saveSession(database, session)
@@ -270,6 +274,17 @@ internal class KmlImport(
 			bucketId = null,
 			createdAt = System.currentTimeMillis(),
 		)
+	}
+
+	private fun distanceMeters(first: Location, second: Location): Double {
+		val earthRadiusMeters = 6_371_000.0
+		val firstLat = Math.toRadians(first.latitude)
+		val secondLat = Math.toRadians(second.latitude)
+		val deltaLat = Math.toRadians(second.latitude - first.latitude)
+		val deltaLon = Math.toRadians(second.longitude - first.longitude)
+		val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+			cos(firstLat) * cos(secondLat) * sin(deltaLon / 2) * sin(deltaLon / 2)
+		return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
 	}
 
 	private fun XmlPullParser.readTextOrNull(): String? {

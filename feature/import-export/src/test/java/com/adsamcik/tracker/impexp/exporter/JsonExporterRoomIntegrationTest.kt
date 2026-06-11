@@ -6,11 +6,13 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.LocationSample as EntityLocationSample
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -213,7 +215,7 @@ class JsonExporterRoomIntegrationTest {
 				break
 			}
 
-			collected += chunk
+			collected += chunk.map { it.toModel() }
 			val last = chunk.last()
 			afterTimeMs = last.timeMs
 			afterId = last.id
@@ -232,7 +234,7 @@ class JsonExporterRoomIntegrationTest {
 		altitudeM: Float,
 		speedMps: Float,
 		accuracyM: Float,
-	): LocationSample = LocationSample(
+	): EntityLocationSample = EntityLocationSample(
 		timeMs = timeMs,
 		elapsedRealtimeNanos = timeMs * 1_000_000L,
 		latE7 = (latitude * 1e7).toInt(),
@@ -270,7 +272,7 @@ class JsonExporterRoomIntegrationTest {
 		createdAt = endTimeMs,
 	)
 
-	private fun LocationSample.latitude(): Double = (latE7 ?: 0) / 1e7
+	private fun EntityLocationSample.latitude(): Double = (latE7 ?: 0) / 1e7
 
-	private fun LocationSample.longitude(): Double = (lonE7 ?: 0) / 1e7
+	private fun EntityLocationSample.longitude(): Double = (lonE7 ?: 0) / 1e7
 }

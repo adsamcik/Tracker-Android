@@ -6,18 +6,22 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.LengthUnit
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SampleQuality
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.time.Instant
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Imports GPX files using a streaming [XmlPullParser].
@@ -98,12 +102,12 @@ batch.add(sample)
 sampleCount++
 
 lastLocation?.let {
-distanceM += location.distance(it, LengthUnit.Meter).toFloat()
+distanceM += distanceMeters(location, it).toFloat()
 }
 lastLocation = location
 
 if (batch.size >= BATCH_SIZE) {
-database.locationSampleDao().insert(batch.toList())
+database.locationSampleDao().insert(batch.map { it.toEntity() })
 batch.clear()
 }
 }
@@ -112,7 +116,7 @@ event = parser.next()
 }
 
 if (batch.isNotEmpty()) {
-database.locationSampleDao().insert(batch.toList())
+database.locationSampleDao().insert(batch.map { it.toEntity() })
 }
 
 // Only create a session if we got at least one timed waypoint
@@ -205,6 +209,17 @@ policy = null,
 bucketId = null,
 createdAt = System.currentTimeMillis(),
 )
+}
+
+private fun distanceMeters(first: Location, second: Location): Double {
+val earthRadiusMeters = 6_371_000.0
+val firstLat = Math.toRadians(first.latitude)
+val secondLat = Math.toRadians(second.latitude)
+val deltaLat = Math.toRadians(second.latitude - first.latitude)
+val deltaLon = Math.toRadians(second.longitude - first.longitude)
+val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+cos(firstLat) * cos(secondLat) * sin(deltaLon / 2) * sin(deltaLon / 2)
+return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
 }
 
 private fun XmlPullParser.readTextOrNull(): String? {
