@@ -5,8 +5,6 @@ import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
-import com.adsamcik.tracker.shared.base.data.LengthUnit
-import com.adsamcik.tracker.shared.base.data.Location as BaseTrackerLocation
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -18,6 +16,10 @@ import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 
 typealias SunSetRiseChangeListener = (SunSetRise) -> Unit
@@ -150,12 +152,11 @@ class SunSetRise {
         locationLock.withLock {
             val currentLocation = this.location
             val distance = if (currentLocation != null) {
-                BaseTrackerLocation.distance(
+                distanceKilometers(
                     currentLocation.latitude,
                     currentLocation.longitude,
                     loc.latitude,
                     loc.longitude,
-                    LengthUnit.Kilometer
                 )
             } else {
                 Double.POSITIVE_INFINITY
@@ -210,8 +211,28 @@ class SunSetRise {
         private const val LAST_LONGITUDE_KEY = "SunSetLongitude"
 
         private const val MIN_DIFFERENCE_IN_KILOMETERS = 50.0
+        private const val EARTH_CIRCUMFERENCE_METERS = 40_075_000.0
+        private const val METERS_IN_KILOMETER = 1_000.0
 
         private const val DEFAULT_SUNSET = 21
         private const val DEFAULT_SUNRISE = 7
+
+        private fun distanceKilometers(
+            firstLatitude: Double,
+            firstLongitude: Double,
+            secondLatitude: Double,
+            secondLongitude: Double,
+        ): Double {
+            val lat1Rad = Math.toRadians(firstLatitude)
+            val lat2Rad = Math.toRadians(secondLatitude)
+            val latDistance = Math.toRadians(secondLatitude - firstLatitude)
+            val lonDistance = Math.toRadians(secondLongitude - firstLongitude)
+            val sinLatDistance = sin(latDistance / 2)
+            val sinLonDistance = sin(lonDistance / 2)
+            val a = sinLatDistance * sinLatDistance +
+                    cos(lat1Rad) * cos(lat2Rad) * sinLonDistance * sinLonDistance
+            val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+            return (EARTH_CIRCUMFERENCE_METERS / (2 * Math.PI)) * c / METERS_IN_KILOMETER
+        }
     }
 }
