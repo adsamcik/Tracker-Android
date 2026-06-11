@@ -5,16 +5,15 @@ import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 
 plugins {
-	alias(libs.plugins.android.application)
-	alias(libs.plugins.kotlin.android)
-	alias(libs.plugins.kotlin.parcelize)
-	alias(libs.plugins.kotlin.compose)
-	alias(libs.plugins.kotlin.serialization)
-	alias(libs.plugins.ksp)
-	alias(libs.plugins.hilt)
-	alias(libs.plugins.oss.licenses)
+    id("tracker.android.application")
+    id("tracker.android.compose")
+    id("tracker.android.hilt")
+    id("tracker.android.room")
+    id("tracker.android.test")
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.oss.licenses)
 }
-
 val localProperties = Properties().apply {
 	val localPropertiesFile = rootProject.file("local.properties")
 	if (localPropertiesFile.isFile) {
@@ -77,119 +76,96 @@ val releaseSigningProperties = releaseStoreFilePath?.let { storeFilePath ->
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
-	defaultConfig {
-		applicationId = "com.adsamcik.tracker"
-		minSdk = Android.MIN_VERSION
-		targetSdk = Android.TARGET_VERSION
-		versionCode = 400
-		versionName = "10.0.0"
-		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
-	}
+    defaultConfig {
+        applicationId = "com.adsamcik.tracker"
+        versionCode = 400
+        versionName = "10.0.0"
+        resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
+    }
 
-	testOptions {
-		unitTests.isIncludeAndroidResources = true
-	}
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
 
-	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
-		isCoreLibraryDesugaringEnabled = true
-	}
+    kotlin {
+        compilerOptions {
+            optIn.add("kotlin.ExperimentalUnsignedTypes")
+        }
+    }
 
-	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
-		compilerOptions {
-			optIn.add("kotlin.ExperimentalUnsignedTypes")
-		}
-	}
+    val releaseSigningConfig = releaseSigningProperties?.let { signing ->
+        signingConfigs.create("release") {
+            storeFile = signing.storeFile
+            storePassword = signing.storePassword
+            keyAlias = signing.keyAlias
+            keyPassword = signing.keyPassword
+        }
+    }
 
-	java {
-		toolchain {
-			setSourceCompatibility(Android.JAVA_VERSION)
-			setTargetCompatibility(Android.JAVA_VERSION)
-		}
-	}
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "COMPOSE_MAIN", "true")
+        }
 
+        val release = getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("boolean", "COMPOSE_MAIN", "true")
+            releaseSigningConfig?.let {
+                signingConfig = it
+            }
+        }
 
-	val releaseSigningConfig = releaseSigningProperties?.let { signing ->
-		signingConfigs.create("release") {
-			storeFile = signing.storeFile
-			storePassword = signing.storePassword
-			keyAlias = signing.keyAlias
-			keyPassword = signing.keyPassword
-		}
-	}
+        // Installable alongside production: non-debuggable, unique appId/label
+        create("dev") {
+            // Base on release settings for closer-to-prod behavior
+            initWith(release)
+            // Use debug dependencies if a matching dev variant doesn't exist in deps
+            matchingFallbacks += listOf("debug", "release")
+            // Distinct identity on device and in Play/adb lists
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            // Clear label marker so users can tell builds apart
+            resValue("string", "app_name", "Advention Dev")
+            // Sign with debug key for easy local installs (customize if you have a dev keystore)
+            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = false
+            isMinifyEnabled = false
+            isShrinkResources = false
+            buildConfigField("boolean", "COMPOSE_MAIN", "true")
+        }
 
-	buildTypes {
-		getByName("debug") {
-			applicationIdSuffix = ".debug"
-			buildConfigField("boolean", "COMPOSE_MAIN", "true")
-		}
+        getByName("release_nominify") {
+            initWith(release)
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
 
-		val release = getByName("release") {
-			isMinifyEnabled = true
-			isShrinkResources = true
-			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-			buildConfigField("boolean", "COMPOSE_MAIN", "true")
-			releaseSigningConfig?.let {
-				signingConfig = it
-			}
-		}
+    buildFeatures {
+        buildConfig = true
+        resValues = true
+        // viewBinding no longer used; Compose-only UI
+        viewBinding = false
+    }
 
-		// Installable alongside production: non-debuggable, unique appId/label
-		create("dev") {
-			// Base on release settings for closer-to-prod behavior
-			initWith(release)
-			// Use debug dependencies if a matching dev variant doesn't exist in deps
-			matchingFallbacks += listOf("debug", "release")
-			// Distinct identity on device and in Play/adb lists
-			applicationIdSuffix = ".dev"
-			versionNameSuffix = "-dev"
-			// Clear label marker so users can tell builds apart
-			resValue("string", "app_name", "Advention Dev")
-			// Sign with debug key for easy local installs (customize if you have a dev keystore)
-			signingConfig = signingConfigs.getByName("debug")
-			isDebuggable = false
-			isMinifyEnabled = false
-			isShrinkResources = false
-			buildConfigField("boolean", "COMPOSE_MAIN", "true")
-		}
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = true
+        baseline = file("lint-baseline.xml")
+    }
 
-		create("release_nominify") {
-			initWith(release)
-			isMinifyEnabled = false
-			isShrinkResources = false
-		}
-	}
+    sourceSets.getByName("main").res.srcDir("$buildDir/generated/third_party_licenses_fallback/res")
 
-	buildFeatures {
-		compose = true
-		buildConfig = true
-		resValues = true
-		// viewBinding no longer used; Compose-only UI
-		viewBinding = false
-	}
-
-	lint {
-		checkReleaseBuilds = true
-		abortOnError = true
-		baseline = file("lint-baseline.xml")
-	}
-
-	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
-	sourceSets.getByName("main").res.srcDir("$buildDir/generated/third_party_licenses_fallback/res")
-
-	// dynamicFeatures removed; modules are now statically linked libraries
-	namespace = "com.adsamcik.tracker"
-	dependenciesInfo {
-		includeInApk = true
-		includeInBundle = true
-	}
+    // dynamicFeatures removed; modules are now statically linked libraries
+    namespace = "com.adsamcik.tracker"
+    dependenciesInfo {
+        includeInApk = true
+        includeInBundle = true
+    }
 }
-
 val releaseLintReport = layout.buildDirectory.file("reports/lint-results-release.xml")
 
 tasks.register("checkReleaseLintReport") {
@@ -246,148 +222,107 @@ tasks.register("checkReleaseLintReport") {
 }
 
 dependencies {
-	coreLibraryDesugaring(libs.desugar.jdk.libs)
-	
-	implementation(project(":core:base"))
-	implementation(project(":core:logging-api"))
-	implementation(project(":core:network"))
-	implementation(project(":tracker:engine"))
-	implementation(project(":feature:tracker"))
-	implementation(project(":sensor:activity-api"))
-	implementation(project(":sensor:activity"))
-	implementation(project(":feature:activity"))
-	implementation(project(":domain:points"))
-	implementation(project(":core:ui"))
-	implementation(project(":data:preferences"))
-	implementation(project(":core:logging"))
-	implementation(project(":feature:import-export"))
-	implementation(project(":feature:statistics:api"))
-	implementation(project(":feature:statistics"))
-	implementation(project(":stats:data"))
-	implementation(project(":feature:map:api"))
-	implementation(project(":feature:map"))
-	implementation(project(":feature:game:api"))
-	implementation(project(":feature:game"))
-	implementation(project(":feature:dashboard:api"))
-	implementation(project(":feature:dashboard"))
-	implementation(project(":domain:osm"))
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
-	// Core
-	implementation(libs.kotlin.stdlib.jdk8)
-	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.androidx.appcompat)
-	implementation(libs.androidx.core.ktx)
-	implementation(libs.androidx.constraintlayout)
-	implementation(libs.androidx.lifecycle.runtime.ktx)
-	implementation(libs.androidx.lifecycle.service)
-	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.preference)
-	implementation(libs.androidx.lifecycle.common.java8)
-	implementation(libs.google.material)
-	implementation(libs.google.play.services.base)
-	// WorkManager
-	implementation(libs.androidx.work.runtime.ktx)
-	androidTestImplementation(libs.androidx.work.testing)
+    implementation(project(":core:base"))
+    implementation(project(":core:logging-api"))
+    implementation(project(":core:network"))
+    implementation(project(":tracker:engine"))
+    implementation(project(":feature:tracker"))
+    implementation(project(":sensor:activity-api"))
+    implementation(project(":sensor:activity"))
+    implementation(project(":feature:activity"))
+    implementation(project(":domain:points"))
+    implementation(project(":core:ui"))
+    implementation(project(":data:preferences"))
+    implementation(project(":core:logging"))
+    implementation(project(":feature:import-export"))
+    implementation(project(":feature:statistics:api"))
+    implementation(project(":feature:statistics"))
+    implementation(project(":stats:data"))
+    implementation(project(":feature:map:api"))
+    implementation(project(":feature:map"))
+    implementation(project(":feature:game:api"))
+    implementation(project(":feature:game"))
+    implementation(project(":feature:dashboard:api"))
+    implementation(project(":feature:dashboard"))
+    implementation(project(":domain:osm"))
 
-	// Hilt (Dependency Injection)
-	implementation(libs.hilt.android)
-	ksp(libs.hilt.compiler)
-	ksp(libs.androidx.hilt.compiler)
-	implementation(libs.hilt.navigation.compose)
-	implementation(libs.hilt.work)
+    // Core
+    implementation(libs.kotlin.stdlib.jdk8)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.service)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.preference)
+    implementation(libs.androidx.lifecycle.common.java8)
+    implementation(libs.google.material)
+    implementation(libs.google.play.services.base)
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+    androidTestImplementation(libs.androidx.work.testing)
 
-	// Glance App Widgets
-	implementation(libs.androidx.glance.appwidget)
-	implementation(libs.androidx.glance.material3)
+    implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.work)
 
-	// App Startup
-	implementation(libs.androidx.startup.runtime)
+    // Glance App Widgets
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 
-	// Compose
-	implementation(platform(libs.compose.bom))
-	androidTestImplementation(platform(libs.compose.bom))
-	implementation(libs.compose.material3)
+    // App Startup
+    implementation(libs.androidx.startup.runtime)
 
-	// Glance (App Widgets)
-	implementation(libs.glance.appwidget)
-	implementation(libs.glance.material3)
-	implementation(libs.compose.ui.tooling.preview)
-	debugImplementation(libs.compose.ui.tooling)
-	implementation(libs.activity.compose)
-	implementation(libs.androidx.core.splashscreen)
-	implementation(libs.compose.material.icons.extended)
-	implementation(libs.compose.animation)
-	implementation(libs.compose.animation.graphics)
-	// AndroidViewBinding is no longer used
-	implementation(libs.navigation.compose)
-	implementation(libs.androidx.lifecycle.viewmodel.compose)
-	implementation(libs.compose.runtime)
-	implementation(libs.constraintlayout.compose)
-	implementation(libs.haze)
-	androidTestImplementation(libs.compose.ui.test.junit4)
-	testImplementation(libs.compose.ui.test.junit4)
-	debugImplementation(libs.compose.ui.test.manifest)
-	// proto-java is needed at compile time for debug TestDataSeeder which interacts with
-	// OnboardingStateProto's GeneratedMessageV3 supertype. Release does not depend on this.
-	debugImplementation(libs.protobuf.java)
-	// 1st party dependencies
-	implementation(libs.component.slider)
-	// Draggable overlay removed with legacy fallback
+    // Compose
+    androidTestImplementation(platform(libs.compose.bom))
 
-	implementation(libs.spotlight)
+    // Glance (App Widgets)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
+    implementation(libs.activity.compose)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.animation.graphics)
+    // AndroidViewBinding is no longer used
+    implementation(libs.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.constraintlayout.compose)
+    implementation(libs.haze)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+    // proto-java is needed at compile time for debug TestDataSeeder which interacts with
+    // OnboardingStateProto's GeneratedMessageV3 supertype. Release does not depend on this.
+    debugImplementation(libs.protobuf.java)
+    // 1st party dependencies
+    implementation(libs.component.slider)
+    // Draggable overlay removed with legacy fallback
 
-	// 3rd party dependencies
-	implementation(libs.moshi)
-	ksp(libs.moshi.kotlin.codegen)
+    implementation(libs.spotlight)
 
-	// Google dependencies
-	implementation(libs.androidx.cardview)
+    // 3rd party dependencies
+    implementation(libs.moshi)
+    ksp(libs.moshi.kotlin.codegen)
 
-	// Open-source licenses
-	implementation(libs.licensesdialog)
+    // Google dependencies
+    implementation(libs.androidx.cardview)
 
-	// PlayServices
-	implementation(libs.google.play.services.location)
+    // Open-source licenses
+    implementation(libs.licensesdialog)
 
-	// Database
-	implementation(libs.androidx.room.runtime)
-	ksp(libs.androidx.room.compiler)
-	implementation(libs.androidx.room.ktx)
-	implementation(libs.androidx.room.paging)
-	implementation(libs.sqlite.android)
-	androidTestImplementation(libs.androidx.room.testing)
+    // PlayServices
+    implementation(libs.google.play.services.location)
 
-	// Unit test deps - JUnit 5 for modern testing
-	testImplementation(platform(libs.junit5.bom))
-	testImplementation(libs.junit5.jupiter)
-	testImplementation(libs.junit5.jupiter.params)
-	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testRuntimeOnly(libs.junit5.vintage.engine)
-	testImplementation(libs.junit4)
-	testImplementation(libs.kotlin.test)
-	testImplementation(libs.androidx.test.core)
-	testImplementation(libs.androidx.work.testing)
-	testImplementation(libs.robolectric)
-	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.mockk)
-	testImplementation(libs.turbine)
-	testImplementation(libs.kotest.assertions.core)
-	testImplementation(project(":stats:api"))
-	implementation(project(":stats:api"))
-	testImplementation(project(":stats:engine"))
-
-	androidTestImplementation(libs.junit4)
-	androidTestImplementation(libs.androidx.test.runner)
-	androidTestImplementation(libs.uiautomator)
-	androidTestImplementation(libs.androidx.test.ext.junit)
-	androidTestImplementation(libs.androidx.test.rules)
-	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.espresso)
-	androidTestImplementation(libs.mockk.android)
-	androidTestImplementation(project(":core:testing"))
-	testImplementation(project(":core:testing"))
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(project(":stats:api"))
+    testImplementation(project(":stats:engine"))
+    androidTestImplementation(project(":core:testing"))
+    testImplementation(project(":core:testing"))
 }
-
 // Configure JUnit 5 for unit tests
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
