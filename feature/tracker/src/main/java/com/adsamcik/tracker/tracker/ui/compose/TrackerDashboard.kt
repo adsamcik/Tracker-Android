@@ -92,6 +92,7 @@ import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.currentCoroutineContext
@@ -107,7 +108,7 @@ internal data class TrackerDashboardUiState(
     val sessionData: TrackerSession? = null,
     val collectionData: CollectionData? = null,
     val hasLocationPermission: Boolean = false,
-    val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
+    val pathPoints: List<Location>? = null,
     val policyTier: PolicyTier = PolicyTier.OFF,
     val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED,
     val trackingParams: TrackingParamsState = TrackingParamsState(),
@@ -395,7 +396,7 @@ private fun TrackingContent(
     onMapClick: () -> Unit,
     onSessionDetailClick: ((Long) -> Unit)? = null,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
-    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
+    pathPoints: List<Location>? = null,
     trackingParams: TrackingParamsState,
     modifier: Modifier = Modifier
 ) {

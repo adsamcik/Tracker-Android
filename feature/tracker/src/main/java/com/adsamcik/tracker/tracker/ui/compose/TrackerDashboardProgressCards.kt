@@ -51,14 +51,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.withContext
 
@@ -283,7 +284,7 @@ internal fun RecentTripsCard(
     LaunchedEffect(Unit) {
         try {
             trips = withContext(defaultDispatchers.io) {
-                db.tripDao().getRecentTrips(3)
+                db.tripDao().getRecentTrips(3).map { it.toModel() }
             }
         } catch (e: Exception) {
             Log.e("RecentTripsCard", "Failed to fetch recent trips", e)

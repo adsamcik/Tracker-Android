@@ -58,14 +58,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
 internal fun StatusAndQuickStatsCard(
@@ -74,7 +78,7 @@ internal fun StatusAndQuickStatsCard(
     collectionData: CollectionData?,
     wallClockNowMillis: Long,
     onMapClick: () -> Unit,
-    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
+    pathPoints: List<Location>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -94,7 +98,7 @@ internal fun StatusAndQuickStatsCard(
     val isMoving = (currentSpeed ?: 0f) > 0.5f
     val derivedDistanceMeters = remember(pathPoints) {
         pathPoints.orEmpty().windowed(size = 2).sumOf { (start, end) ->
-            start.distance(end, LengthUnit.Meter)
+            start.distanceFlatMeters(end)
         }.toFloat()
     }
     val distanceMeters = maxOf(sessionData?.distanceInM ?: 0f, derivedDistanceMeters)
@@ -364,7 +368,7 @@ private fun ActiveStatItem(
 }
 
 private fun calculateMovingAverageSpeed(
-    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>?
+    pathPoints: List<Location>?
 ): Double {
     if (pathPoints.isNullOrEmpty() || pathPoints.size < 2) return 0.0
 
@@ -375,7 +379,7 @@ private fun calculateMovingAverageSpeed(
         val deltaMillis = end.time - start.time
         if (deltaMillis <= 0L) return@forEach
 
-        val segmentDistanceMeters = start.distance(end, LengthUnit.Meter)
+        val segmentDistanceMeters = start.distanceFlatMeters(end)
         if (segmentDistanceMeters <= 0.0) return@forEach
 
         movingDistanceMeters += segmentDistanceMeters
@@ -387,6 +391,21 @@ private fun calculateMovingAverageSpeed(
     } else {
         0.0
     }
+}
+
+private const val EARTH_CIRCUMFERENCE_METERS = 40_075_000.0
+
+private fun Location.distanceFlatMeters(other: Location): Double {
+    val lat1Rad = Math.toRadians(latitude)
+    val lat2Rad = Math.toRadians(other.latitude)
+    val latDistance = Math.toRadians(other.latitude - latitude)
+    val lonDistance = Math.toRadians(other.longitude - longitude)
+    val sinLatDistance = sin(latDistance / 2)
+    val sinLonDistance = sin(lonDistance / 2)
+    val a = sinLatDistance * sinLatDistance +
+        cos(lat1Rad) * cos(lat2Rad) * sinLonDistance * sinLonDistance
+    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return (EARTH_CIRCUMFERENCE_METERS / (2 * Math.PI)) * c
 }
 
 @Composable

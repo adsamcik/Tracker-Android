@@ -54,6 +54,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.launch
 
@@ -62,7 +63,7 @@ import kotlinx.coroutines.launch
 internal fun SessionOverviewCard(
     session: TrackerSession,
     isTracking: Boolean,
-    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>?,
+    pathPoints: List<Location>?,
     onMapClick: () -> Unit,
     onDetailClick: ((Long) -> Unit)? = null,
     snackbarHostState: SnackbarHostState
@@ -297,7 +298,7 @@ private fun SessionMetric(label: String, value: String, modifier: Modifier = Mod
 
 @Composable
 internal fun SessionPathPreview(
-    points: List<com.adsamcik.tracker.shared.base.data.Location>,
+    points: List<Location>,
     modifier: Modifier = Modifier
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary

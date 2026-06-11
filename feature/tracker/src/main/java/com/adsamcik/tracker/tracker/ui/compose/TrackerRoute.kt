@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
@@ -106,7 +107,7 @@ fun TrackerRoute(
     
     val relevantPathPoints = remember(displaySession, displayPathPoints) {
         if (displaySession != null && displayPathPoints != null && displayPathPoints.first == displaySession.id) {
-            displayPathPoints.second
+            displayPathPoints.second.map { it.toModel() }
         } else {
             null
         }

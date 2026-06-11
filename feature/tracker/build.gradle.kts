@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":tracker:api"))
     implementation(project(":tracker:engine"))
     implementation(project(":core:base"))
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":stats:api"))
