@@ -159,26 +159,27 @@ class TrackingSettingsScreenTest {
     }
 
     @Test
-    fun advancedSectionCollapsedByDefault() {
+    fun settingsOrganizedIntoVisibleSections() {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        scrollTo("Advanced")
-        composeTestRule.onNodeWithText("Advanced", substring = true).assertIsDisplayed()
-        // Content inside collapsed section should not be visible
-        composeTestRule.onNodeWithText("Location").assertDoesNotExist()
+        // Settings are no longer hidden behind a collapsed "Advanced" section — each
+        // group has a visible header and its controls are reachable by scrolling.
+        scrollTo("Data sources")
+        composeTestRule.onNodeWithText("Data sources", substring = true).assertIsDisplayed()
+        scrollTo("Tracking detail")
+        composeTestRule.onNodeWithText("Tracking detail", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun advancedSectionExpandsOnClick() {
+    fun dataSourceTogglesVisibleWithoutExpanding() {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        scrollTo("Advanced")
-        composeTestRule.onNodeWithText("Advanced", substring = true).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Location").assertExists()
-        composeTestRule.onNodeWithText("Activity").assertExists()
+        scrollTo("Location")
+        composeTestRule.onNodeWithText("Location").assertIsDisplayed()
+        scrollTo("Activity")
+        composeTestRule.onNodeWithText("Activity").assertIsDisplayed()
     }
 
     @Test

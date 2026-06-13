@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
-import com.adsamcik.tracker.app.settings.components.ExpandableSection
+import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
@@ -213,28 +213,33 @@ internal fun TrackingSettingsContent(
             }
         }
 
-        // Auto-tracking toggle (essential setting with help)
+        // Custom-profile hint: editing any control below builds a Custom profile.
+        if (onPresetBaseline) {
+            item {
+                Text(
+                    text = stringResource(com.adsamcik.tracker.R.string.tracking_preset_custom_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        }
+
+        // --- Detection & automation ---
+        item {
+            SectionHeader(
+                stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detection),
+            )
+        }
         item {
             SwitchSettingsItemWithHelp(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
                 checked = uiState.transitionDetectionEnabled,
                 onCheckedChange = onTransitionDetectionChanged,
-                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection,
             )
         }
-
-        // Notification toggle (essential setting)
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
-                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
-                checked = uiState.notificationStyled,
-                onCheckedChange = onNotificationStyledChanged,
-            )
-        }
-
-        // Ski detection toggle
         item {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_title),
@@ -244,7 +249,140 @@ internal fun TrackingSettingsContent(
             )
         }
 
-        // Notification customization
+        // --- Data sources ---
+        item {
+            SectionHeader(
+                stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_sources),
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+                checked = uiState.locationEnabled,
+                onCheckedChange = onLocationEnabledChanged,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
+                checked = uiState.activityEnabled,
+                onCheckedChange = onActivityEnabledChanged,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
+                checked = uiState.stepsEnabled,
+                onCheckedChange = onStepsEnabledChanged,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
+                subtitle = if (uiState.wifiPermissionGranted) {
+                    stringResource(com.adsamcik.tracker.R.string.settings_wifi_privacy_summary)
+                } else {
+                    stringResource(com.adsamcik.tracker.R.string.settings_wifi_permission_required)
+                },
+                checked = uiState.wifiEnabled,
+                onCheckedChange = onWifiEnabledChanged,
+            )
+        }
+        if (uiState.wifiEnabled) {
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
+                    checked = uiState.wifiNetworkEnabled,
+                    onCheckedChange = onWifiNetworkEnabledChanged,
+                )
+            }
+            item {
+                SwitchSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
+                    checked = uiState.wifiLocationCountEnabled,
+                    onCheckedChange = onWifiLocationCountEnabledChanged,
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count,
+                )
+            }
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
+                subtitle = if (uiState.cellPermissionGranted) {
+                    stringResource(com.adsamcik.tracker.R.string.settings_cell_privacy_summary)
+                } else {
+                    stringResource(com.adsamcik.tracker.R.string.settings_cell_permission_required)
+                },
+                checked = uiState.cellEnabled,
+                onCheckedChange = onCellEnabledChanged,
+            )
+        }
+
+        // --- Tracking detail (fine-tuning) ---
+        item {
+            SectionHeader(
+                stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detail),
+            )
+        }
+        item {
+            SliderSettingsItemWithHelp(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
+                value = uiState.minDistance.toFloat(),
+                valueRange = 0f..200f,
+                steps = 19,
+                valueLabel = { "${it.toInt()} m" },
+                onValueChange = { onMinDistanceChanged(it.toInt()) },
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
+            )
+        }
+        item {
+            SliderSettingsItemWithHelp(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
+                value = uiState.minTime.toFloat(),
+                valueRange = 0f..60f,
+                steps = 11,
+                valueLabel = { "${it.toInt()} s" },
+                onValueChange = { onMinTimeChanged(it.toInt()) },
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
+            )
+        }
+        item {
+            SliderSettingsItemWithHelp(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
+                value = uiState.requiredAccuracy.toFloat(),
+                valueRange = 10f..200f,
+                steps = 18,
+                valueLabel = { "${it.toInt()} m" },
+                onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
+            )
+        }
+        item {
+            SliderSettingsItemWithHelp(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_vehicle_speed_limit_baseline_title),
+                value = uiState.vehicleSpeedLimitKmh.toFloat(),
+                valueRange = 30f..130f,
+                steps = 99,
+                valueLabel = { "${it.toInt()} km/h" },
+                onValueChange = { onVehicleSpeedLimitKmhChanged(it.toInt()) },
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_vehicle_speed_limit_baseline,
+            )
+        }
+
+        // --- Notifications ---
+        item {
+            SectionHeader(
+                stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_notifications),
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
+                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
+                checked = uiState.notificationStyled,
+                onCheckedChange = onNotificationStyledChanged,
+            )
+        }
         item {
             SettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
@@ -252,120 +390,6 @@ internal fun TrackingSettingsContent(
                 icon = Icons.Default.Notifications,
                 onClick = onNotificationCustomize,
             )
-        }
-
-        // Advanced settings section (collapsed by default)
-        item {
-            ExpandableSection(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_advanced_section_title),
-                initiallyExpanded = false
-            ) {
-                if (onPresetBaseline) {
-                    Text(
-                        text = stringResource(com.adsamcik.tracker.R.string.tracking_preset_custom_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                // Tracking parameters with contextual help
-                SliderSettingsItemWithHelp(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
-                    value = uiState.minDistance.toFloat(),
-                    valueRange = 0f..200f,
-                    steps = 19,
-                    valueLabel = { "${it.toInt()} m" },
-                    onValueChange = { onMinDistanceChanged(it.toInt()) },
-                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
-                )
-
-                SliderSettingsItemWithHelp(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
-                    value = uiState.minTime.toFloat(),
-                    valueRange = 0f..60f,
-                    steps = 11,
-                    valueLabel = { "${it.toInt()} s" },
-                    onValueChange = { onMinTimeChanged(it.toInt()) },
-                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
-                )
-
-                SliderSettingsItemWithHelp(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
-                    value = uiState.requiredAccuracy.toFloat(),
-                    valueRange = 10f..200f,
-                    steps = 18,
-                    valueLabel = { "${it.toInt()} m" },
-                    onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
-                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
-                )
-
-                SliderSettingsItemWithHelp(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_vehicle_speed_limit_baseline_title),
-                    value = uiState.vehicleSpeedLimitKmh.toFloat(),
-                    valueRange = 30f..130f,
-                    steps = 99,
-                    valueLabel = { "${it.toInt()} km/h" },
-                    onValueChange = { onVehicleSpeedLimitKmhChanged(it.toInt()) },
-                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_vehicle_speed_limit_baseline,
-                )
-
-                // Enable/disable sources
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
-                    checked = uiState.locationEnabled,
-                    onCheckedChange = onLocationEnabledChanged,
-                )
-
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
-                    checked = uiState.activityEnabled,
-                    onCheckedChange = onActivityEnabledChanged,
-                )
-
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
-                    checked = uiState.stepsEnabled,
-                    onCheckedChange = onStepsEnabledChanged,
-                )
-
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
-                    subtitle = if (uiState.wifiPermissionGranted) {
-                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_privacy_summary)
-                    } else {
-                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_permission_required)
-                    },
-                    checked = uiState.wifiEnabled,
-                    onCheckedChange = onWifiEnabledChanged,
-                )
-
-                // WiFi sub-options
-                if (uiState.wifiEnabled) {
-                    SwitchSettingsItem(
-                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
-                        checked = uiState.wifiNetworkEnabled,
-                        onCheckedChange = onWifiNetworkEnabledChanged,
-                    )
-
-                    SwitchSettingsItemWithHelp(
-                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
-                        checked = uiState.wifiLocationCountEnabled,
-                        onCheckedChange = onWifiLocationCountEnabledChanged,
-                        helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count,
-                    )
-                }
-
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
-                    subtitle = if (uiState.cellPermissionGranted) {
-                        stringResource(com.adsamcik.tracker.R.string.settings_cell_privacy_summary)
-                    } else {
-                        stringResource(com.adsamcik.tracker.R.string.settings_cell_permission_required)
-                    },
-                    checked = uiState.cellEnabled,
-                    onCheckedChange = onCellEnabledChanged,
-                )
-            }
         }
     }
 }
