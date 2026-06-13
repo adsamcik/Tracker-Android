@@ -9,6 +9,7 @@ import com.adsamcik.tracker.game.GAME_LOG_SOURCE
 import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.stats.api.event.DomainEvent
@@ -24,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 class GameDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler,
+	private val progressionRepository: PlayerProgressionRepository,
 	@ApplicationContext private val context: Context,
 ) {
 	private val processMutex = Mutex()
@@ -44,7 +46,11 @@ class GameDomainEventConsumer @Inject constructor(
 
 	private suspend fun handleEvent(event: DomainEvent) {
 		when (event) {
-			is DomainEvent.SessionEnded -> if (event.sessionId > 0L) enqueueAchievementWorker()
+			is DomainEvent.SessionEnded -> {
+				// Passive XP feeds the player level that gates mini-game unlocks.
+				progressionRepository.awardSessionXp(event)
+				if (event.sessionId > 0L) enqueueAchievementWorker()
+			}
 			is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
 			is DomainEvent.AchievementUnlocked -> onAchievementUnlocked(event)
 			is DomainEvent.AchievementProgress -> onAchievementProgress(event)

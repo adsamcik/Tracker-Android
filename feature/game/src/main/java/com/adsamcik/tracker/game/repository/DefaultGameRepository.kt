@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.repository
 
 import android.app.Application
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
@@ -34,6 +35,7 @@ class DefaultGameRepository @Inject constructor(
 	private val sessionChannel: TrackerSessionChannel,
 	private val dispatchers: DispatchersProvider,
 	private val database: AppDatabase,
+	private val progressionRepository: PlayerProgressionRepository,
 ) : GameRepository {
 	private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
 
@@ -74,6 +76,10 @@ class DefaultGameRepository @Inject constructor(
 				),
 			)
 		}
+		// Also feed the leveling ledger so mini-game play raises the player level
+		// (and thus unlocks higher-tier games). Separate store from the points
+		// ledger above; idempotent on the run timestamp.
+		progressionRepository.awardMiniGameXp(points = xp, earnedAtMs = earnedAtMs)
 	}
 
 	private companion object {

@@ -24,8 +24,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +71,7 @@ class MiniGameSessionViewModelTest {
 	private lateinit var registry: MiniGameRegistry
 	private lateinit var dispatcher: TestDispatcher
 	private lateinit var dispatchers: TestDispatchersProvider
+	private lateinit var appScope: CoroutineScope
 
 	@Before
 	fun setUp() {
@@ -82,11 +85,13 @@ class MiniGameSessionViewModelTest {
 		registry = MiniGameRegistry(setOf(FakeMiniGame(GAME_ID)))
 		dispatcher = StandardTestDispatcher()
 		dispatchers = TestDispatchersProvider(dispatcher)
+		appScope = CoroutineScope(dispatcher)
 		Dispatchers.setMain(dispatcher)
 	}
 
 	@After
 	fun tearDown() {
+		appScope.cancel()
 		Dispatchers.resetMain()
 	}
 
@@ -174,6 +179,27 @@ class MiniGameSessionViewModelTest {
 		grantLocationPermission()
 		val vm = newViewModel()
 
+		vm.stop()
+		advanceUntilIdle()
+
+		scoreDao.inserted.shouldHaveSize(0)
+		gameRepository.creditedXp.shouldHaveSize(0)
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
+	}
+
+	@Test
+	fun stop_afterStartButNoSample_returnsToIdleWithoutWriting() = runTest(dispatcher) {
+		// Regression: backing out of a freshly started session before the first
+		// GPS fix must not record a 0-score run (which previously still credited
+		// the game's base points and left an orphan score row).
+		grantLocationPermission()
+		val vm = newViewModel()
+
+		vm.start()
+		advanceUntilIdle()
+		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
+
+		// No location sample is ever emitted.
 		vm.stop()
 		advanceUntilIdle()
 
@@ -374,6 +400,7 @@ class MiniGameSessionViewModelTest {
 		gameRepository = gameRepository,
 		locationSource = locationSource,
 		dispatchers = dispatchers,
+		appScope = appScope,
 	)
 
 	private fun grantLocationPermission() {

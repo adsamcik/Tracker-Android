@@ -12,6 +12,7 @@ import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
@@ -19,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -84,6 +86,7 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	private val gameRepository: GameRepository,
 	private val locationSource: MiniGameLocationSource,
 	private val dispatchers: DispatchersProvider,
+	@ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
 
 	private val app: Application = application
@@ -104,6 +107,16 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	@Volatile
 	private var sessionStartedAtMs: Long = 0L
 	private var collectionJob: Job? = null
+
+	/**
+	 * `true` once at least one GPS sample has been forwarded to the active
+	 * session. A run that never received a fix (e.g. the user tapped Start then
+	 * immediately backed out before the first fix) must NOT be recorded — it
+	 * would otherwise persist a 0-score row and credit the game's base points
+	 * for no actual play. Reset on every [start]/[reset].
+	 */
+	@Volatile
+	private var hasReceivedSample: Boolean = false
 
 	/**
 	 * Serializes the actual GPS subscription window.
@@ -174,6 +187,9 @@ internal class MiniGameSessionViewModel @Inject constructor(
 		// Reset the one-shot finalize latch so this fresh session can persist
 		// exactly once when the player taps Stop (or auto-ends).
 		hasFinalized.set(false)
+		// Fresh session: no samples seen yet, so a Stop before the first fix
+		// is treated as "nothing to record".
+		hasReceivedSample = false
 		// Reset pause bookkeeping for the fresh session so the elapsed clock
 		// starts at zero and any stale paused-at timestamp is discarded.
 		pausedAtMs = 0L
@@ -214,6 +230,7 @@ internal class MiniGameSessionViewModel @Inject constructor(
 			subscriptionLock.withLock {
 				try {
 					locationSource.samples(game.desiredLocationRequest()).collect { sample ->
+						hasReceivedSample = true
 						session.onLocationUpdate(
 							latitude = sample.latitude,
 							longitude = sample.longitude,
@@ -330,16 +347,22 @@ internal class MiniGameSessionViewModel @Inject constructor(
 		// accidentally re-subscribe to the location source on a finished session.
 		pausedAtMs = 0L
 
-		if (!wasActive) {
-			// User stopped before any frame ever arrived — just go back to Idle UX
-			// rather than recording a 0/0 row. Release the latch so the next
-			// start() can finalize normally.
+		if (!wasActive || !hasReceivedSample) {
+			// Either the user stopped before any Active frame, or no GPS fix ever
+			// arrived. Go back to Idle rather than recording a 0/0 row that would
+			// still credit base points for a run that never produced data. Release
+			// the latch so the next start() can finalize normally.
 			hasFinalized.set(false)
 			_uiState.value = MiniGameUiState.Idle
 			return
 		}
 
-		viewModelScope.launch {
+		// Persist on the application scope, NOT viewModelScope: navigating away
+		// (e.g. system Back) disposes the route and clears this ViewModel, which
+		// would cancel viewModelScope mid-finalize and could split the score row
+		// (main DB) from the points/XP credit (points + ledger DBs). The app
+		// scope outlives the ViewModel so the finalize sequence always completes.
+		appScope.launch {
 			finalizeMutex.withLock {
 				activeSession.onSessionEnd()
 				val finalScore = activeSession.score
@@ -380,6 +403,7 @@ internal class MiniGameSessionViewModel @Inject constructor(
 		sessionStartedAtMs = 0L
 		pausedAtMs = 0L
 		totalPausedMs = 0L
+		hasReceivedSample = false
 		hasFinalized.set(false)
 		_uiState.value = MiniGameUiState.Idle
 	}
