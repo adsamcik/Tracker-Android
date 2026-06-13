@@ -7,8 +7,6 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
-import com.adsamcik.tracker.tracker.component.DataProducerManager
-import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
@@ -18,6 +16,7 @@ import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.PolicyTierMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -25,16 +24,17 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Handles tier changes and escalation from AMBIENT to ACTIVE/PRECISION.
  *
- * Manages timer interval updates when the [TrackingPolicy] changes, and
- * performs a full timer swap + component addition when escalating from a
- * non-GPS tier to a GPS-enabled tier.
+ * Manages timer interval updates when the [TrackingPolicy] changes, and performs a timer swap
+ * (ambient → GPS) when escalating from a non-GPS tier to a GPS-enabled tier — but only when the
+ * user actually enabled location. Producers and data components for every enabled source are built
+ * up-front by toggle (see [TrackerComponentFactory]), so escalation no longer mutates component or
+ * producer lists; it only changes the collection trigger and escalates the stats pipeline.
  *
  * Extracted from [TrackerService] to isolate tier-escalation concerns.
  */
 internal class TrackerTierEscalationHandler(
 	private val componentMutex: Mutex,
 	private val controller: TrackerServiceController,
-	private val componentFactory: TrackerComponentFactory,
 	private val trackingParamsRepository: TrackingParamsRepository,
 ) {
 
@@ -50,23 +50,11 @@ internal class TrackerTierEscalationHandler(
 	 */
 	lateinit var timerAccessor: TimerAccessor
 
-	/**
-	 * Mutable component list owned by the service — handler appends during escalation.
-	 */
-	lateinit var dataComponentList: MutableList<DataTrackerComponent>
-
-	/**
-	 * Callback invoked when escalation creates a new DataProducerManager.
-	 * The service must update its own field to use the new manager.
-	 */
-	var onProducerManagerChanged: ((DataProducerManager) -> Unit)? = null
-
-	var dataProducerManager: DataProducerManager? = null
 	var processorPipeline: ProcessorPipeline? = null
 
 	/**
 	 * Called when the tracking policy changes. Updates the timer interval and
-	 * triggers a full tier escalation if the tier boundary crosses from
+	 * triggers a tier escalation if the tier boundary crosses from
 	 * non-GPS to GPS-enabled.
 	 */
 	fun onPolicyChanged(
@@ -105,35 +93,25 @@ internal class TrackerTierEscalationHandler(
 	) {
 		scope.launch {
 			componentMutex.withLock {
-				// Swap timer
-				timerAccessor.get().onDisable(context)
-				val gpsTimer = TrackerTimerManager.getSelected(context)
-				timerAccessor.set(gpsTimer)
-
-				// Recreate DataProducerManager with full producer set
-				dataProducerManager?.onDisable()
-				val newManager = DataProducerManager(
-					context = context,
-					initialTier = newTier,
-					trackingParamsRepository = trackingParamsRepository,
-				)
-				newManager.onEnable()
-				dataProducerManager = newManager
-				onProducerManagerChanged?.invoke(newManager)
-
-				// Add GPS-dependent data components
-				val newDataComponents = componentFactory.buildEscalationDataComponents(context)
-				dataComponentList.addAll(newDataComponents)
-
-				// Escalate the stats ProcessorPipeline
-				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
-
-				// Enable GPS timer
-				if (gpsTimer.hasRequiredPermissions(context)) {
-					gpsTimer.onEnable(context, timerReceiver)
-				} else {
-					Reporter.report("Missing permissions for GPS timer during escalation")
+				// Only escalate to a GPS trigger when the user wants location. Without location we
+				// keep the lightweight non-GPS trigger so Wi-Fi/cell/activity/step cycles keep
+				// firing at the ambient cadence. Producers/components for every enabled source were
+				// already created up-front, so escalation just begins delivering real GPS fixes.
+				val locationEnabled = trackingParamsRepository.data.first().locationEnabled
+				if (locationEnabled) {
+					timerAccessor.get().onDisable(context)
+					val gpsTimer = TrackerTimerManager.getSelected(context)
+					timerAccessor.set(gpsTimer)
+					if (gpsTimer.hasRequiredPermissions(context)) {
+						gpsTimer.onEnable(context, timerReceiver)
+					} else {
+						Reporter.report("Missing permissions for GPS timer during escalation")
+					}
 				}
+
+				// Escalate the stats ProcessorPipeline regardless of location so tier-aware
+				// metrics stay correct.
+				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
 			}
 		}
 	}

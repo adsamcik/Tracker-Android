@@ -23,18 +23,16 @@ class TierConfigurationTest {
 	// ---- helpers ----
 
 	/**
-	 * Build a [TierConfiguration] that mirrors what [TrackerComponentFactory]
-	 * would produce for the given [tier].
+	 * Build a synthetic [TierConfiguration] with a representative number of mock components.
 	 *
-	 * AMBIENT: 1 data component (activity only), no GPS.
-	 * ACTIVE/PRECISION: 4 data components (activity + cell + location + wifi).
+	 * This fixture exercises the [TierConfiguration] data class and the resolver only; it does
+	 * NOT reflect how [TrackerComponentFactory] selects components (component selection is now
+	 * driven by per-source toggles, not the tier). The component counts here are arbitrary.
 	 */
 	private fun buildConfigForTier(tier: PolicyTier): TierConfiguration {
 		val dataComponents = buildList {
-			// ActivityTrackerComponent is always present
 			add(mockk<DataTrackerComponent>(relaxed = true))
 			if (tier.isGpsEnabled) {
-				// Cell, Location, Wifi added for GPS tiers
 				add(mockk<DataTrackerComponent>(relaxed = true))
 				add(mockk<DataTrackerComponent>(relaxed = true))
 				add(mockk<DataTrackerComponent>(relaxed = true))

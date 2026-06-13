@@ -11,13 +11,16 @@ object PreferencesAssist {
 	 * Checks if there is anything to track.
 	 *
 	 * @param trackingParamsRepository repository for tracking parameters
-	 * @return true if at least one of location, cell and wifi tracking is enabled
+	 * @return true if at least one trackable data source is enabled
 	 */
 	suspend fun hasAnythingToTrack(trackingParamsRepository: TrackingParamsRepository): Boolean {
 		val params = trackingParamsRepository.data.first()
 		return params.locationEnabled ||
 				params.cellEnabled ||
+				params.wifiEnabled ||
 				params.wifiLocationCountEnabled ||
-				params.wifiNetworkEnabled
+				params.wifiNetworkEnabled ||
+				params.activityEnabled ||
+				params.stepsEnabled
 	}
 }

@@ -397,7 +397,8 @@ object BackgroundTrackingApi {
 /** Pure logic: checks if at least one trackable data source is enabled. */
 internal fun hasAnythingToTrack(params: TrackingParamsState): Boolean =
 	params.locationEnabled || params.cellEnabled ||
-		params.wifiEnabled || params.wifiLocationCountEnabled || params.wifiNetworkEnabled
+		params.wifiEnabled || params.wifiLocationCountEnabled || params.wifiNetworkEnabled ||
+		params.activityEnabled || params.stepsEnabled
 
 /** Pure logic: checks if background tracking can be activated for the given activity and preferences. */
 internal fun canBackgroundTrackWithParams(

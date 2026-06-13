@@ -213,7 +213,6 @@ internal class TrackingOrchestrator(
 
 		dataProducerManager = DataProducerManager(
 			context = context,
-			initialTier = initialTier,
 			trackingParamsRepository = trackingParamsRepository,
 		).apply { onEnable() }
 
@@ -239,20 +238,15 @@ internal class TrackingOrchestrator(
 			}
 		}
 
-		// Initialize tier escalation handler
+		// Initialize tier escalation handler. Component/producer lists are now built up-front by
+		// source toggle, so the handler only swaps the collection trigger + escalates the pipeline.
 		tierEscalationHandler = TrackerTierEscalationHandler(
 			componentMutex = componentMutex,
 			controller = controller,
-			componentFactory = componentFactory,
 			trackingParamsRepository = trackingParamsRepository,
 		).apply {
 			this.currentTier = initialTier
-			this.dataComponentList = this@TrackingOrchestrator.dataComponentList
-			this.dataProducerManager = this@TrackingOrchestrator.dataProducerManager
 			this.processorPipeline = null // set below after pipeline creation
-			this.onProducerManagerChanged = { newManager ->
-				this@TrackingOrchestrator.dataProducerManager = newManager
-			}
 			this.timerAccessor = timerAccessor
 		}
 

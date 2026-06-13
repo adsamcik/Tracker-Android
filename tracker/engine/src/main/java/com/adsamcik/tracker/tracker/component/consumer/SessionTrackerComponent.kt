@@ -140,8 +140,12 @@ internal class SessionTrackerComponent(
 			}
 
 			withContext(coroutineContext) {
-				if (isNewSession && collectedLocationCount == 0) {
-					// Rapid start/stop produced no GPS points — remove the pre-inserted row.
+				if (isNewSession && collectedLocationCount == 0 && mutableSession.steps == 0) {
+					// Remove the pre-inserted row only when the session produced no persistable
+					// data of its own — no location fixes AND no steps. This still cleans up rapid
+					// start/stop (and location sessions that never got a fix) while preserving
+					// intentional non-location sessions (e.g. a steps-only configuration). Wi-Fi and
+					// cell observations are persisted in their own tables regardless.
 					if (mutableSession.id > 0L) {
 						sessionSegmentDao.deleteById(mutableSession.id)
 					}

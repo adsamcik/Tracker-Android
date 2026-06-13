@@ -74,8 +74,11 @@ class BackgroundTrackingApiLogicTest {
 			val params = TrackingParamsState(
 				locationEnabled = false,
 				cellEnabled = false,
+				wifiEnabled = false,
 				wifiLocationCountEnabled = false,
 				wifiNetworkEnabled = false,
+				activityEnabled = false,
+				stepsEnabled = false,
 			)
 			hasAnythingToTrack(params) shouldBe false
 		}
@@ -92,16 +95,31 @@ class BackgroundTrackingApiLogicTest {
 		}
 
 		@Test
-		fun `ignores unrelated flags like steps and activity`() {
+		fun `returns true when only activity is enabled`() {
 			val params = TrackingParamsState(
 				locationEnabled = false,
 				cellEnabled = false,
+				wifiEnabled = false,
 				wifiLocationCountEnabled = false,
 				wifiNetworkEnabled = false,
-				stepsEnabled = true,
 				activityEnabled = true,
+				stepsEnabled = false,
 			)
-			hasAnythingToTrack(params) shouldBe false
+			hasAnythingToTrack(params) shouldBe true
+		}
+
+		@Test
+		fun `returns true when only steps are enabled`() {
+			val params = TrackingParamsState(
+				locationEnabled = false,
+				cellEnabled = false,
+				wifiEnabled = false,
+				wifiLocationCountEnabled = false,
+				wifiNetworkEnabled = false,
+				activityEnabled = false,
+				stepsEnabled = true,
+			)
+			hasAnythingToTrack(params) shouldBe true
 		}
 	}
 

@@ -40,6 +40,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -173,11 +174,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val initialTier = batteryAwarePolicy.adjustForBattery(rawTier)
 		controller.updatePolicyTier(initialTier)
 
-		// Select timer based on tier: AMBIENT uses lightweight handler, ACTIVE+ uses GPS-based timer
-		if (initialTier == PolicyTier.AMBIENT) {
-			timerComponent = AmbientCollectionTrigger()
-		}
-
 		controller.updateServiceRunning(true)
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
@@ -203,8 +199,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// one so only one initialization is in flight at a time.
 		initializationJob?.cancel()
 		initializationJob = launch {
-			if (initialTier != PolicyTier.AMBIENT) {
-				timerComponent = TrackerTimerManager.getSelected(this@TrackerService)
+			// The collection trigger is chosen from BOTH the battery tier and whether the user
+			// wants location. A GPS trigger only runs when location is enabled AND the tier is
+			// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
+			// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
+			val locationEnabled = trackingParamsRepository.data.first().locationEnabled
+			val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
+			timerComponent = if (useGpsTrigger) {
+				TrackerTimerManager.getSelected(this@TrackerService)
+			} else {
+				AmbientCollectionTrigger()
 			}
 
 			val timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {

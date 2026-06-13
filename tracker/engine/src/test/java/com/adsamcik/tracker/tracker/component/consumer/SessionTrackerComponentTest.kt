@@ -254,6 +254,22 @@ class SessionTrackerComponentTest {
 			// session.id = 42 > 0 → update (segment was pre-inserted in initializeSession)
 			coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 		}
+
+		@Test
+		@DisplayName("preserves new session with steps but no location (steps-only tracking)")
+		fun preservesStepsOnlySessionWithoutLocation() = runTest {
+			// Separation of sources: a steps-only (or otherwise non-location) session collects no
+			// GPS fixes (collectedLocationCount stays 0) yet records steps. It must be preserved,
+			// not deleted by the rapid-start/stop empty-session guard.
+			val component = createComponent()
+			setSession(component, nonEmptySession(collections = 3, distanceInM = 0f))
+			setIsNewSession(component, true)
+
+			component.onDisable(context)
+
+			coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+		}
 	}
 
 	@Nested

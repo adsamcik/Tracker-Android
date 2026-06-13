@@ -34,6 +34,14 @@ class MapSettingsRepositoryTest {
 		override suspend fun setVisitThresholdSeconds(seconds: Int) {
 			_data.value = _data.value.copy(visitThresholdSeconds = seconds)
 		}
+
+		override suspend fun setLegacyHeatmapEnabled(enabled: Boolean) {
+			_data.value = _data.value.copy(legacyHeatmapEnabled = enabled)
+		}
+
+		override suspend fun setZoomButtonsEnabled(enabled: Boolean) {
+			_data.value = _data.value.copy(zoomButtonsEnabled = enabled)
+		}
 	}
 
 	@Nested

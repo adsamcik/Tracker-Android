@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CancellationException
@@ -40,7 +39,7 @@ class DataProducerManagerFailureIsolationTest {
 	fun `failing producer does not prevent other producers from running`() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		val dispatchers = testDispatchers(testDispatcher)
-		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+		val manager = DataProducerManager(context, dispatchers)
 
 		val throwingProducer = ThrowingProducer(RuntimeException("sensor failure"))
 		val recordingProducer = RecordingProducer()
@@ -61,7 +60,7 @@ class DataProducerManagerFailureIsolationTest {
 	fun `CancellationException still propagates`() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		val dispatchers = testDispatchers(testDispatcher)
-		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+		val manager = DataProducerManager(context, dispatchers)
 
 		val cancellingProducer = ThrowingProducer(CancellationException("cancelled"))
 		activateProducer(manager, cancellingProducer)
@@ -79,7 +78,7 @@ class DataProducerManagerFailureIsolationTest {
 	fun `all producers succeed when none throw`() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		val dispatchers = testDispatchers(testDispatcher)
-		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+		val manager = DataProducerManager(context, dispatchers)
 
 		val producer1 = RecordingProducer()
 		val producer2 = RecordingProducer()

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -54,17 +55,22 @@ internal class TrackerComponentFactory(
 ) {
 
 	/**
-	 * Build and enable all tracker components for the given [tier].
+	 * Build and enable all tracker components for a new session.
+	 *
+	 * Which data/pre components are created is derived from the user's per-source toggles
+	 * (read fresh inside this call), not from [tier]. [tier] is retained only so the result can be
+	 * wrapped in the tier-configuration model; it no longer selects sources.
 	 *
 	 * @param context            Android context for component lifecycle calls.
 	 * @param isSessionUserInitiated  whether the session was started by the user.
-	 * @param tier               current [PolicyTier] determining which components are active.
+	 * @param tier               starting [PolicyTier] (governs trigger cadence, not source set).
 	 * @param notificationComponent shared notification component instance.
 	 * @param trackingPolicyManager policy manager for adaptive location filtering (nullable).
 	 * @param escalationEngine   engine for ski tracking component wiring.
 	 * @param controller         service controller for forwarding ski state.
 	 * @param scope              coroutine scope for ski state collection.
 	 */
+	@Suppress("UNUSED_PARAMETER")
 	suspend fun create(
 		context: Context,
 		isSessionUserInitiated: Boolean,
@@ -83,8 +89,13 @@ internal class TrackerComponentFactory(
 			onEnable(context)
 		}
 
-		val preComponents = buildPreComponents(context, trackingPolicyManager)
-		val dataComponents = buildDataComponents(context, tier)
+		// Single snapshot of the user's per-source toggles. Component/pre-component existence is
+		// derived purely from these toggles, so any combination of sources can be tracked
+		// independently of the battery tier.
+		val params = trackingParamsRepository.data.first()
+
+		val preComponents = buildPreComponents(context, trackingPolicyManager, params)
+		val dataComponents = buildDataComponents(context, params)
 		val errorCollector = DefaultPersistenceErrorCollector()
 
 		// Enable notification component directly (no longer in generic list).
@@ -111,22 +122,20 @@ internal class TrackerComponentFactory(
 	}
 
 	/**
-	 * Build GPS-dependent data components added during tier escalation.
+	 * Build pre-validation components for the session.
+	 *
+	 * The location pre-tracker gates the whole cycle on a usable GPS fix when the policy demands
+	 * location. It must therefore only be installed when the user actually enabled location —
+	 * otherwise a Wi-Fi/cell/activity-only session would have every cycle rejected for lack of a
+	 * fix. When location is disabled this returns an empty list so non-location cycles always pass.
 	 */
-	suspend fun buildEscalationDataComponents(context: Context): List<DataTrackerComponent> {
-		val components = listOf(
-			CellTrackerComponent(),
-			LocationTrackerComponent(),
-			WifiTrackerComponent(),
-		)
-		for (component in components) { component.onEnable(context) }
-		return components
-	}
-
 	private suspend fun buildPreComponents(
 		context: Context,
 		trackingPolicyManager: TrackingPolicyManager?,
+		params: TrackingParamsState,
 	): List<PreTrackerComponent> {
+		if (!params.locationEnabled) return emptyList()
+
 		val components = mutableListOf<PreTrackerComponent>().apply {
 			trackingPolicyManager?.let { policyMgr ->
 				add(PolicyAwareLocationPreTrackerComponent(
@@ -141,17 +150,22 @@ internal class TrackerComponentFactory(
 		return components
 	}
 
+	/**
+	 * Build data-collection components, one per enabled source toggle.
+	 *
+	 * Each component is added iff its source toggle is on, fully decoupling source selection from
+	 * the battery tier. Components also self-skip when their data is absent (see
+	 * `TrackerComponentRequirement`), so a built-but-starved component is harmless.
+	 */
 	private suspend fun buildDataComponents(
 		context: Context,
-		tier: PolicyTier,
+		params: TrackingParamsState,
 	): List<DataTrackerComponent> {
 		val components = mutableListOf<DataTrackerComponent>().apply {
-			add(ActivityTrackerComponent())
-			if (tier.isGpsEnabled) {
-				add(CellTrackerComponent())
-				add(LocationTrackerComponent())
-				add(WifiTrackerComponent())
-			}
+			if (params.activityEnabled) add(ActivityTrackerComponent())
+			if (params.locationEnabled) add(LocationTrackerComponent())
+			if (params.cellEnabled) add(CellTrackerComponent())
+			if (params.wifiEnabled) add(WifiTrackerComponent())
 		}
 		for (component in components) { component.onEnable(context) }
 		return components

@@ -17,15 +17,21 @@ class PreferencesAssistTest {
 	private fun mockRepo(
 		location: Boolean = false,
 		cell: Boolean = false,
+		wifi: Boolean = false,
 		wifiCount: Boolean = false,
 		wifiNetwork: Boolean = false,
+		activity: Boolean = false,
+		steps: Boolean = false,
 	): TrackingParamsRepository = mockk {
 		every { data } returns flowOf(
 			TrackingParamsState(
 				locationEnabled = location,
 				cellEnabled = cell,
+				wifiEnabled = wifi,
 				wifiLocationCountEnabled = wifiCount,
 				wifiNetworkEnabled = wifiNetwork,
+				activityEnabled = activity,
+				stepsEnabled = steps,
 			)
 		)
 	}
@@ -49,6 +55,11 @@ class PreferencesAssistTest {
 		}
 
 		@Test
+		fun `returns true when only wifi scanning enabled`() = runTest {
+			PreferencesAssist.hasAnythingToTrack(mockRepo(wifi = true)) shouldBe true
+		}
+
+		@Test
 		fun `returns true when only wifi count enabled`() = runTest {
 			PreferencesAssist.hasAnythingToTrack(mockRepo(wifiCount = true)) shouldBe true
 		}
@@ -56,6 +67,16 @@ class PreferencesAssistTest {
 		@Test
 		fun `returns true when only wifi network enabled`() = runTest {
 			PreferencesAssist.hasAnythingToTrack(mockRepo(wifiNetwork = true)) shouldBe true
+		}
+
+		@Test
+		fun `returns true when only activity enabled`() = runTest {
+			PreferencesAssist.hasAnythingToTrack(mockRepo(activity = true)) shouldBe true
+		}
+
+		@Test
+		fun `returns true when only steps enabled`() = runTest {
+			PreferencesAssist.hasAnythingToTrack(mockRepo(steps = true)) shouldBe true
 		}
 
 		@Test

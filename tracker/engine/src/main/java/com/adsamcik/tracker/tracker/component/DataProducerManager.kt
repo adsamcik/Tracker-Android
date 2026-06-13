@@ -9,7 +9,6 @@ import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.stats.api.PolicyTier
 import java.util.concurrent.CopyOnWriteArrayList
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -24,7 +23,14 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Manages enabled data producers (Wi‑Fi, cell, activity, steps) and runs their collection concurrently.
+ * Manages all data producers (Wi‑Fi, cell, activity, steps, barometer) and runs their collection
+ * concurrently.
+ *
+ * Source separation: producers are no longer gated by the battery tier. Every producer is always
+ * constructed; each one self-gates on its own user toggle (via the `enabledFlow` in
+ * [TrackerDataProducerComponent]), so any combination of sources can be collected independently of
+ * the battery tier / GPS state. The tier only governs the collection trigger cadence, not which
+ * sources exist.
  *
  * Performance: Previously this scope was bound to Dispatchers.Main which risked doing telephony
  * and wifi polling work on the main thread. We now switch to an injected Default dispatcher to
@@ -32,7 +38,6 @@ import kotlin.coroutines.CoroutineContext
  */
 internal class DataProducerManager(
 	context: Context,
-	private val initialTier: PolicyTier = PolicyTier.PRECISION,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : TrackerDataProducerObserver, CoroutineScope {
@@ -44,17 +49,18 @@ internal class DataProducerManager(
 
 	/**
 	 * Keeps all producers from being recycled. Producers should take only very little memory so this is fine.
+	 *
+	 * All producers are always created; each self-gates on its own toggle so a disabled source is
+	 * simply never enabled (it never joins [activeProducerList]).
 	 */
 	@Suppress("unused")
-	private val producerList = buildList {
-		if (initialTier >= PolicyTier.ACTIVE) {
-			add(WifiDataProducer(this@DataProducerManager, trackingParamsRepository))
-			add(CellDataProducer(this@DataProducerManager, trackingParamsRepository))
-		}
-		add(ActivityDataProducer(this@DataProducerManager, trackingParamsRepository))
-		add(StepDataProducer(this@DataProducerManager, trackingParamsRepository))
-		add(BarometerDataProducer(this@DataProducerManager))
-	}
+	private val producerList = listOf(
+		WifiDataProducer(this@DataProducerManager, trackingParamsRepository),
+		CellDataProducer(this@DataProducerManager, trackingParamsRepository),
+		ActivityDataProducer(this@DataProducerManager, trackingParamsRepository),
+		StepDataProducer(this@DataProducerManager, trackingParamsRepository),
+		BarometerDataProducer(this@DataProducerManager),
+	)
 
 	private val activeProducerList = CopyOnWriteArrayList<TrackerDataProducerComponent>()
 
