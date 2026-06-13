@@ -15,4 +15,10 @@ interface MapSettingsRepository {
 
     /** Set minimum visit duration threshold in seconds. */
     suspend fun setVisitThresholdSeconds(seconds: Int)
+
+    /** Enable/disable the legacy 10 m grid-tile heatmap (easter egg). */
+    suspend fun setLegacyHeatmapEnabled(enabled: Boolean)
+
+    /** Enable/disable the on-screen accessibility zoom in/out buttons. */
+    suspend fun setZoomButtonsEnabled(enabled: Boolean)
 }

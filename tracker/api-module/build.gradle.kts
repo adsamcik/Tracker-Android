@@ -1,6 +1,7 @@
 plugins {
     id("tracker.android.library")
     id("tracker.android.hilt")
+    id("tracker.android.test")
     alias(libs.plugins.kotlin.parcelize)
 }
 

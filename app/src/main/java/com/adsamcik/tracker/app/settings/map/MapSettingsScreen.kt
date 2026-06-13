@@ -38,6 +38,7 @@ import com.adsamcik.tracker.app.settings.MapSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
+import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 
 @Composable
 fun MapSettingsScreen(
@@ -48,6 +49,8 @@ fun MapSettingsScreen(
     val quality by viewModel.quality.collectAsState()
     val maxHeat by viewModel.maxHeat.collectAsState()
     val visitThreshold by viewModel.visitThreshold.collectAsState()
+    val legacyHeatmap by viewModel.legacyHeatmap.collectAsState()
+    val zoomButtons by viewModel.zoomButtons.collectAsState()
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -227,6 +230,20 @@ fun MapSettingsScreen(
                     valueLabel = { formatVisitThreshold(valueForSliderIndex(it, visitValues)) },
                     onValueChange = { viewModel.setVisitThreshold(valueForSliderIndex(it, visitValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
+                )
+
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_legacy_heatmap_title),
+                    subtitle = stringResource(com.adsamcik.tracker.map.R.string.settings_map_legacy_heatmap_subtitle),
+                    checked = legacyHeatmap,
+                    onCheckedChange = { viewModel.setLegacyHeatmap(it) },
+                )
+
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_zoom_buttons_title),
+                    subtitle = stringResource(com.adsamcik.tracker.map.R.string.settings_map_zoom_buttons_subtitle),
+                    checked = zoomButtons,
+                    onCheckedChange = { viewModel.setZoomButtons(it) },
                 )
             }
         }

@@ -508,5 +508,58 @@ class LocationTrackerComponentTest {
 			cd.location.shouldNotBeNull()
 			cycle.location!!.distance shouldBe originalDistance
 		}
+
+		@Test
+		fun `first accepted fix writes zero distance-from-previous`() = runTest {
+			val first = createAndroidLocation(
+				latitude = 50.0875, longitude = 14.4213,
+				time = 1000L,
+			).apply { elapsedRealtimeNanos = 1_000_000_000_000L }
+
+			val cd = MutableCollectionData()
+			component.onDataUpdated(createCycle(first), cd)
+
+			cd.location.shouldNotBeNull()
+			cd.distanceFromPreviousM shouldBe 0f
+		}
+
+		@Test
+		fun `accepted point bridges distance from last accepted location`() = runTest {
+			val baseNanos = 1_000_000_000_000L
+
+			// First accepted fix A.
+			val a = createAndroidLocation(
+				latitude = 50.0875, longitude = 14.4213,
+				time = 1000L,
+			).apply { elapsedRealtimeNanos = baseNanos }
+			component.onDataUpdated(createCycle(a), MutableCollectionData())
+
+			// Second accepted fix B ~100m north. The trigger bakes a DIFFERENT previousLocation P
+			// (an intermediate raw fix that was dropped upstream), so the raw cycle distance is
+			// dist(P,B). The accumulated distance must instead be measured from A (last accepted),
+			// bridging the dropped segment.
+			val b = createAndroidLocation(
+				latitude = 50.0884, longitude = 14.4213,
+				time = 6000L,
+			).apply { elapsedRealtimeNanos = baseNanos + 5_000_000_000L }
+			val p = createAndroidLocation(
+				latitude = 50.0880, longitude = 14.4213,
+				time = 5000L,
+			).apply { elapsedRealtimeNanos = baseNanos + 4_000_000_000L }
+			val cycleB = createCycleWithPrevious(b, p)
+
+			val cd = MutableCollectionData()
+			component.onDataUpdated(cycleB, cd)
+
+			cd.location.shouldNotBeNull()
+			val expected = a.distanceTo(b)
+			val written = requireNotNull(cd.distanceFromPreviousM)
+			assert(abs(written - expected) < 1f) {
+				"distance should be measured from last accepted location ($expected) but was $written"
+			}
+			assert(abs(written - cycleB.location!!.distance!!) > 10f) {
+				"distance should NOT equal the raw trigger distance (${cycleB.location!!.distance})"
+			}
+		}
 	}
 }

@@ -56,26 +56,82 @@ internal class WifiDataProducer(
     private var lastScanRequest: Long = 0
     private var isScanRequested: Boolean = false
 
+    // Freshest per-AP timestamp (micros since boot) of the last scan we recorded. Used to record
+    // each distinct scan only once, even when the cached-results fallback observes it repeatedly.
+    @Volatile
+    private var lastRecordedScanMicros: Long = Long.MIN_VALUE
+
     private val scanDataLock = ReentrantLock()
 
     override fun onDataRequest(builder: TrackingCycleBuilder) {
-        scanDataLock.withLock {
-            val scanData = scanData
-            if (scanData != null) {
-                builder.wifiScan = WifiScanData(scanTime, scanTimeRelative, scanData)
+        if (!this::appContext.isInitialized) return
 
-                this.scanData = null
+        if (!hasWifiScanPermission()) {
+            scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
+            return
+        }
+
+        resolveScanData()?.let { builder.wifiScan = it }
+        requestScan()
+    }
+
+    /**
+     * Resolve the Wi-Fi scan to attach to this cycle. Prefers a scan freshly delivered via the
+     * `SCAN_RESULTS_AVAILABLE` broadcast; otherwise falls back to the system's most recent cached
+     * results.
+     *
+     * The cached fallback is the background-reliability fix: with the screen off `startScan()` is
+     * throttled to near-zero and broadcasts are sparse, but the system still performs occasional
+     * scans whose results remain available via [WifiManager.getScanResults]. Each distinct scan is
+     * recorded at most once (see [WifiScanGate]) so the fallback never floods the database with
+     * duplicates of a stationary access point.
+     */
+    private fun resolveScanData(): WifiScanData? {
+        val buffered = scanDataLock.withLock {
+            val data = scanData
+            if (data != null) {
+                val result = WifiScanData(scanTime, scanTimeRelative, data)
+                scanData = null
                 scanTime = -1L
                 scanTimeRelative = -1L
-            }
-        }
-        if (this::appContext.isInitialized) {
-            if (hasWifiScanPermission()) {
-                requestScan()
+                result
             } else {
-                scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
+                null
             }
         }
+
+        // A fresh SCAN_RESULTS_AVAILABLE broadcast always means a new scan completed — record it
+        // unconditionally (do not run it through the de-duplication gate, which would wrongly drop
+        // scans on devices/emulators whose ScanResult.timestamp does not advance every scan). Track
+        // its timestamp so the cached fallback below does not re-record the same scan.
+        if (buffered != null) {
+            buffered.data.maxOfOrNull { it.timestamp }?.let {
+                lastRecordedScanMicros = maxOf(lastRecordedScanMicros, it)
+            }
+            return buffered
+        }
+
+        // No fresh broadcast: fall back to the system's most recent cached results, recording each
+        // distinct scan at most once (see [WifiScanGate]).
+        val cached = readCachedScanOrNull() ?: return null
+        val freshestMicros = cached.data.maxOfOrNull { it.timestamp } ?: return cached
+        if (!WifiScanGate.shouldRecord(
+                freshestTimestampMicros = freshestMicros,
+                lastRecordedTimestampMicros = lastRecordedScanMicros,
+                nowElapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+                maxAgeNanos = MAX_SCAN_AGE_NANOS,
+            )
+        ) {
+            return null
+        }
+        lastRecordedScanMicros = freshestMicros
+        return cached
+    }
+
+    private fun readCachedScanOrNull(): WifiScanData? {
+        val results = readScanResultsOrNull()?.takeIf { it.isNotEmpty() } ?: return null
+        val freshestMicros = results.maxOf { it.timestamp }
+        return WifiScanData(Time.nowMillis, freshestMicros * MICROS_TO_NANOS, results)
     }
 
     @Synchronized
@@ -160,5 +216,14 @@ internal class WifiDataProducer(
 
     private fun hasWifiScanPermission(): Boolean {
         return appContext.hasWifiScanPermission
+    }
+
+    private companion object {
+        private const val MICROS_TO_NANOS = 1_000L
+
+        // A cached scan older than this is considered stale and is not recorded. Two minutes keeps
+        // location-tagged Wi-Fi useful (APs are stationary) without resurrecting hours-old scans
+        // when Wi-Fi is simply left on without movement.
+        private val MAX_SCAN_AGE_NANOS = 2 * 60 * Time.SECOND_IN_NANOSECONDS
     }
 }

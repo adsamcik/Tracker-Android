@@ -66,6 +66,14 @@ class MapSettingsViewModel @Inject constructor(
     private val _visitThreshold = MutableStateFlow(MapSettingsState.DEFAULT_VISIT_THRESHOLD)
     val visitThreshold: StateFlow<Int> = _visitThreshold.asStateFlow()
 
+    // Legacy grid-tile heatmap (easter egg)
+    private val _legacyHeatmap = MutableStateFlow(MapSettingsState.DEFAULT_LEGACY_HEATMAP)
+    val legacyHeatmap: StateFlow<Boolean> = _legacyHeatmap.asStateFlow()
+
+    // Accessibility zoom buttons
+    private val _zoomButtons = MutableStateFlow(MapSettingsState.DEFAULT_ZOOM_BUTTONS)
+    val zoomButtons: StateFlow<Boolean> = _zoomButtons.asStateFlow()
+
     // Online map tiles state
     private val _onlineTiles = MutableStateFlow(OnlineMapTilesState())
     val onlineTiles: StateFlow<OnlineMapTilesState> = _onlineTiles.asStateFlow()
@@ -76,6 +84,8 @@ class MapSettingsViewModel @Inject constructor(
                 _quality.value = state.quality
                 _maxHeat.value = state.maxHeatPoints
                 _visitThreshold.value = state.visitThresholdSeconds
+                _legacyHeatmap.value = state.legacyHeatmapEnabled
+                _zoomButtons.value = state.zoomButtonsEnabled
             }
         }
         viewModelScope.launch {
@@ -143,6 +153,18 @@ class MapSettingsViewModel @Inject constructor(
     fun setVisitThreshold(value: Int) {
         viewModelScope.launch {
             mapSettingsRepository.setVisitThresholdSeconds(value)
+        }
+    }
+
+    fun setLegacyHeatmap(enabled: Boolean) {
+        viewModelScope.launch {
+            mapSettingsRepository.setLegacyHeatmapEnabled(enabled)
+        }
+    }
+
+    fun setZoomButtons(enabled: Boolean) {
+        viewModelScope.launch {
+            mapSettingsRepository.setZoomButtonsEnabled(enabled)
         }
     }
 

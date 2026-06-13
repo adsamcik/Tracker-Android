@@ -328,12 +328,36 @@ class SessionTrackerComponentTest {
 				prevLat = 50.0875, prevLon = 14.4213,
 			)
 			val collectionData = MutableCollectionData(1000L)
-			// Simulate LocationTrackerComponent accepting the point
+			// Simulate LocationTrackerComponent accepting the point: it sets both the
+			// location and the bridged distance-from-previous-accepted value.
 			collectionData.setLocation(cycle.location!!.lastLocation)
+			collectionData.distanceFromPreviousM = cycle.location!!.distance
 
 			component.onDataUpdated(cycle, collectionData)
 
 			session.distanceInM shouldBeGreaterThan 0f
+		}
+
+		@Test
+		@DisplayName("accumulates the bridged distance-from-previous, not the raw cycle distance")
+		fun usesBridgedDistanceField() = runTest {
+			val component = createComponent()
+			val session = emptySession(id = 1L)
+			setSession(component, session)
+
+			val cycle = cycleWithDistance(
+				lat = 50.0884, lon = 14.4213,
+				prevLat = 50.0875, prevLon = 14.4213,
+			)
+			val collectionData = MutableCollectionData(1000L)
+			collectionData.setLocation(cycle.location!!.lastLocation)
+			// Bridged distance differs from the raw cycle distance (it spans cycles dropped
+			// upstream). The session must use this value, not cycle.location.distance.
+			collectionData.distanceFromPreviousM = 250f
+
+			component.onDataUpdated(cycle, collectionData)
+
+			session.distanceInM shouldBe 250f
 		}
 
 		@Test
@@ -363,6 +387,7 @@ class SessionTrackerComponentTest {
 			)
 			val normalData = MutableCollectionData(6000L)
 			normalData.setLocation(normalCycle.location!!.lastLocation)
+			normalData.distanceFromPreviousM = normalCycle.location!!.distance
 			component.onDataUpdated(normalCycle, normalData)
 
 			// Distance should be ~100m, NOT ~5,500,000m + 100m

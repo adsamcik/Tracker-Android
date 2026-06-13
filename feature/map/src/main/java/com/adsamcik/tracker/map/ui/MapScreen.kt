@@ -6,6 +6,7 @@ import com.adsamcik.tracker.map.MapLibreInitializer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -44,7 +46,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.adsamcik.tracker.map.basemap.BasemapManager
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
+import com.adsamcik.tracker.map.data.paddedBounds
 import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
@@ -56,12 +60,14 @@ import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
+import com.adsamcik.tracker.map.presentation.udf.SpeedProbeModel
 import com.adsamcik.tracker.map.shared.MapStyleProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
@@ -74,12 +80,15 @@ import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.FloatValue
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.layers.FillLayer
 import org.maplibre.compose.layers.HeatmapLayer
 import org.maplibre.compose.layers.LineLayer
 import org.maplibre.compose.map.GestureOptions
 import org.maplibre.compose.map.MapOptions
 import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.util.ClickResult
 import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.GeoJsonOptions
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.BoundingBox
@@ -104,6 +113,7 @@ import org.maplibre.compose.map.OrnamentOptions
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
 private const val MAP_LOAD_TAG = "MapScreen"
@@ -124,6 +134,10 @@ private const val MAX_EMPTY_STATE_ZOOM = 4f
  * that support higher zoom can still reach those zooms via the first pinch gesture.
  */
 private const val MAX_RESTORE_ZOOM = 8f
+
+/** Zoom bounds for the accessibility zoom buttons (MapLibre supports ~0–22). */
+private const val MIN_BUTTON_ZOOM = 1f
+private const val MAX_BUTTON_ZOOM = 20f
 
 
 /**
@@ -178,7 +192,10 @@ fun MapScreen(
         .collectAsState(initial = "")
 
     var defaultBasemapPath by remember {
-        mutableStateOf(basemapManager.defaultBasemapPath())
+        // Start null and let the IO-bound LaunchedEffect below populate this via
+        // ensureDefaultBasemap(). Calling basemapManager.defaultBasemapPath() here would read the
+        // filesystem on the main thread during composition (StrictMode DiskReadViolation).
+        mutableStateOf<String?>(null)
     }
     var basemapLoadError by remember {
         mutableStateOf<String?>(null)
@@ -203,30 +220,31 @@ fun MapScreen(
         }
     }
 
-    val baseStyle = remember(customPath, isDark, defaultBasemapPath, onlineTilesEnabled, onlineProviderId, onlineCustomUrl) {
-        val currentBasemapPath = defaultBasemapPath
-        val onlineUri = if (onlineTilesEnabled) {
-            val provider = TileProvider.resolve(onlineProviderId, onlineCustomUrl)
-            MapStyleProvider.onlineStyleUri(provider, isDark)
-        } else {
-            null
-        }
-        when {
-            onlineUri != null -> BaseStyle.Uri(onlineUri)
-            customPath.isNotEmpty() -> {
-                val json = MapStyleProvider.customStyleJson(customPath, isDark)
-                if (json != null) {
-                    BaseStyle.Json(json)
-                } else {
-                    currentBasemapPath?.let {
-                        BaseStyle.Json(MapStyleProvider.defaultStyleJson(it, isDark))
-                    }
-                }
-            }
-            currentBasemapPath != null -> {
-                BaseStyle.Json(MapStyleProvider.defaultStyleJson(currentBasemapPath, isDark))
-            }
-            else -> null
+    // Resolve the basemap style off the main thread. MapStyleProvider.defaultStyleJson /
+    // customStyleJson read the PMTiles header from disk (readPmtilesZoomRange); doing that inside a
+    // composition `remember {}` block ran on the main thread and produced StrictMode
+    // DiskReadViolations every time one of the keys settled at startup. produceState runs the
+    // resolution in a coroutine and hops to dispatchers.io for the disk work; baseStyle stays null
+    // (showing the loading state) until the first resolution completes.
+    val dispatchers = store.dispatchersProvider
+    val baseStyle by produceState<BaseStyle?>(
+        initialValue = null,
+        customPath,
+        isDark,
+        defaultBasemapPath,
+        onlineTilesEnabled,
+        onlineProviderId,
+        onlineCustomUrl,
+    ) {
+        value = withContext(dispatchers.io) {
+            resolveBaseStyle(
+                customPath = customPath,
+                isDark = isDark,
+                defaultBasemapPath = defaultBasemapPath,
+                onlineTilesEnabled = onlineTilesEnabled,
+                onlineProviderId = onlineProviderId,
+                onlineCustomUrl = onlineCustomUrl,
+            )
         }
     }
     var isMapLoading by remember(baseStyle) { mutableStateOf(baseStyle != null) }
@@ -415,26 +433,31 @@ fun MapScreen(
         else -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_location)
     }
 
-    // Tear down the native MapLibre renderer whenever the screen is not visible.
-    // The render thread otherwise keeps drawing against a surface that becomes
-    // invalid during background / screen-off / display-state transitions, which
-    // crashes natively inside libmaplibre.so (mbgl::android::MapRenderer::render)
-    // and takes the whole process down. Gating on STARTED removes the map from
-    // composition once the activity is stopped, disposing the MapView (and its
-    // render thread); cameraState is hoisted above this gate so the camera
-    // position is restored when the map returns to the foreground.
+    // Tear down the native MapLibre renderer as soon as the screen leaves the foreground.
+    // The render thread otherwise keeps drawing against a surface that becomes invalid during
+    // background / screen-off / display-state transitions, which crashes natively inside
+    // libmaplibre.so (mbgl::android::MapRenderer::render) and takes the whole process down.
+    //
+    // This must gate on RESUMED, not STARTED: on screen-off the SurfaceView's surface is destroyed
+    // around onStop, so disposing the map only when the lifecycle drops below STARTED (i.e. at
+    // onStop) races the surface teardown and the crash still slips through. Dropping the map at
+    // onPause (below RESUMED) stops the GL thread *before* the surface is destroyed, closing the
+    // window. The cost is that the map is re-created when returning from a transient pause (system
+    // permission dialog, app switch, multi-window focus loss); cameraState is hoisted above this
+    // gate so the camera position is restored seamlessly when the map returns to the foreground.
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    val isMapVisible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    val isMapVisible = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
 
     Box(Modifier.fillMaxSize()) {
-        if (baseStyle != null && mapLibreReady && isMapVisible) {
+        val resolvedBaseStyle = baseStyle
+        if (resolvedBaseStyle != null && mapLibreReady && isMapVisible) {
             MaplibreMap(
                 modifier = Modifier
                     .fillMaxSize()
                     .clearAndSetSemantics {
                         contentDescription = mapAccessibilitySummary
                     },
-                baseStyle = baseStyle,
+                baseStyle = resolvedBaseStyle,
                 cameraState = cameraState,
                 options = MapOptions(
                     gestureOptions = gestureOptions,
@@ -450,6 +473,23 @@ fun MapScreen(
                 ),
                 onMapLoadFinished = {
                     isMapLoading = false
+                },
+                onMapClick = { position, _ ->
+                    // The speed heatmap is interactive: tapping reads the avg/max speed travelled
+                    // around the tapped point. Other layers leave the tap unconsumed so default
+                    // map behaviour is unaffected. The probe radius tracks zoom (a fixed on-screen
+                    // tap tolerance in dp), clamped to a sensible real-world range.
+                    if (state.activeLayerIds.contains(SPEED_HEATMAP_LAYER_ID)) {
+                        val metersPerDp = cameraState.metersPerDpAtTarget
+                        val radiusMeters = (metersPerDp * SPEED_PROBE_TAP_TOLERANCE_DP)
+                            .coerceIn(SPEED_PROBE_MIN_RADIUS_M, SPEED_PROBE_MAX_RADIUS_M)
+                        store.dispatch(
+                            MapEvent.ProbeSpeedAt(position.latitude, position.longitude, radiusMeters)
+                        )
+                        ClickResult.Consume
+                    } else {
+                        ClickResult.Pass
+                    }
                 },
                 onMapLoadFailed = { reason ->
                     isMapLoading = false
@@ -668,6 +708,35 @@ fun MapScreen(
             }
         }
 
+        // Interactive speed heatmap: callout with the speed/max speed at the tapped location, or a
+        // hint to tap when the speed heatmap is active but nothing has been probed yet. Anchored at
+        // the top because the bottom is occupied by the (separately-rendered) MapChromeHost controls.
+        val speedProbe = state.speedProbe
+        if (speedProbe != null) {
+            SpeedProbeCallout(
+                probe = speedProbe,
+                topPadding = topInsetPadding + 12.dp,
+                onDismiss = { store.dispatch(MapEvent.DismissSpeedProbe) },
+            )
+        } else if (state.activeLayerIds.contains(SPEED_HEATMAP_LAYER_ID) && !hasNoData) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(start = 16.dp, end = 16.dp, top = topInsetPadding + 12.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                tonalElevation = 2.dp,
+                shadowElevation = 1.dp,
+            ) {
+                Text(
+                    text = stringResource(com.adsamcik.tracker.map.R.string.map_speed_probe_hint),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
+
     }
 
     val locationManager = remember(appContext) { LocationAndSensorsManager(appContext) }
@@ -733,6 +802,12 @@ fun MapScreen(
                             bearing = pos.bearing.toFloat(),
                         ),
                         byGesture = false,
+                        // Real viewport from the projection. cameraToBounds (the store's fallback)
+                        // assumes a single 256px tile is visible and badly under-covers the screen,
+                        // so the heatmap would only fetch a central patch of the visible area.
+                        visibleBounds = cameraState.projection
+                            ?.queryVisibleBoundingBox()
+                            ?.toPaddedBounds(),
                     )
                 )
             }
@@ -775,6 +850,23 @@ fun MapScreen(
                         Reporter.report(e)
                     }
                 }
+                is MapEffect.ZoomBy -> {
+                    try {
+                        val current = cameraState.position.zoom
+                        val target = (current + effect.delta)
+                            .coerceIn(MIN_BUTTON_ZOOM.toDouble(), MAX_BUTTON_ZOOM.toDouble())
+                        if (target != current) {
+                            cameraState.animateTo(
+                                finalPosition = cameraState.position.copy(zoom = target),
+                                duration = 300.milliseconds,
+                            )
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Reporter.report(e)
+                    }
+                }
                 is MapEffect.ShowFollowCanceled -> {
                     try {
                         snackbarHostState.showSnackbar(followCanceledText)
@@ -801,6 +893,174 @@ fun MapScreen(
 }
 
 /**
+ * GeoJSON source options for the data layers. [GeoJsonOptions.synchronousUpdate] applies in-memory
+ * data updates on the same frame instead of asynchronously re-tiling on a worker thread. The async
+ * default briefly clears the source between the old and new data, which makes the heatmap visibly
+ * "pop" out and back in on every viewport refresh. These sources are refreshed frequently as the
+ * user pans, so synchronous updates are the intended trade-off here (see GeoJsonOptions docs).
+ */
+private val SYNCHRONOUS_GEOJSON_OPTIONS = GeoJsonOptions(synchronousUpdate = true)
+
+/**
+ * Resolve the [BaseStyle] for the current basemap configuration. Performs disk I/O
+ * (MapStyleProvider reads the PMTiles header), so this MUST be called off the main thread — see the
+ * produceState that drives it in [MapScreen].
+ */
+private fun resolveBaseStyle(
+    customPath: String,
+    isDark: Boolean,
+    defaultBasemapPath: String?,
+    onlineTilesEnabled: Boolean,
+    onlineProviderId: String,
+    onlineCustomUrl: String,
+): BaseStyle? {
+    val onlineUri = if (onlineTilesEnabled) {
+        val provider = TileProvider.resolve(onlineProviderId, onlineCustomUrl)
+        MapStyleProvider.onlineStyleUri(provider, isDark)
+    } else {
+        null
+    }
+    return when {
+        onlineUri != null -> BaseStyle.Uri(onlineUri)
+        customPath.isNotEmpty() -> {
+            val json = MapStyleProvider.customStyleJson(customPath, isDark)
+            if (json != null) {
+                BaseStyle.Json(json)
+            } else {
+                defaultBasemapPath?.let {
+                    BaseStyle.Json(MapStyleProvider.defaultStyleJson(it, isDark))
+                }
+            }
+        }
+        defaultBasemapPath != null -> {
+            BaseStyle.Json(MapStyleProvider.defaultStyleJson(defaultBasemapPath, isDark))
+        }
+        else -> null
+    }
+}
+
+/** Layer id of the speed heatmap (interactive: tap to read the speed at a location). */
+private const val SPEED_HEATMAP_LAYER_ID = "speed_heatmap"
+
+/** On-screen tap tolerance (dp) used to size the speed-probe query radius from the current zoom. */
+private const val SPEED_PROBE_TAP_TOLERANCE_DP = 28.0
+
+/** Minimum/maximum real-world radius (m) for a speed probe, so the query is useful at any zoom. */
+private const val SPEED_PROBE_MIN_RADIUS_M = 20.0
+private const val SPEED_PROBE_MAX_RADIUS_M = 250.0
+
+/**
+ * Callout shown when the user taps the interactive speed heatmap. Displays the average and maximum
+ * speed recorded around the tapped point (in the user's configured units), or an explicit
+ * no-data message when the spot has no nearby samples.
+ */
+@Composable
+private fun BoxScope.SpeedProbeCallout(
+    probe: SpeedProbeModel,
+    topPadding: Dp,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    Surface(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(start = 16.dp, end = 16.dp, top = topPadding)
+            .testTag("map_speed_probe_card"),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Filled.LocationOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(com.adsamcik.tracker.map.R.string.map_speed_probe_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (probe.hasData) {
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    ) {
+                        SpeedProbeMetric(
+                            label = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_speed_probe_avg_label
+                            ),
+                            value = context.resources.formatSpeed(context, probe.avgSpeedMps, 1),
+                        )
+                        SpeedProbeMetric(
+                            label = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_speed_probe_max_label
+                            ),
+                            value = context.resources.formatSpeed(context, probe.maxSpeedMps, 1),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = stringResource(
+                            com.adsamcik.tracker.map.R.string.map_speed_probe_empty
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(
+                        com.adsamcik.tracker.map.R.string.map_speed_probe_dismiss
+                    ),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpeedProbeMetric(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/**
+ * Convert the map's real visible bounding box into [Bounds] for spatial layer queries, padded by
+ * [paddingFraction] on each side so a little data beyond the viewport is pre-fetched for smooth
+ * panning. Returns `null` for degenerate or antimeridian-crossing boxes so the caller can fall back
+ * to the camera-derived estimate.
+ */
+private fun BoundingBox.toPaddedBounds(paddingFraction: Double = 0.5): Bounds? =
+    paddedBounds(
+        north = northeast.latitude,
+        east = northeast.longitude,
+        south = southwest.latitude,
+        west = southwest.longitude,
+        paddingFraction = paddingFraction,
+    )
+
+/**
  * Declarative data layer rendering. Replaces imperative applyLayerConfig().
  * Recomposes automatically when [layerConfig] changes.
  */
@@ -818,7 +1078,8 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
             when (config) {
             is MapLibreLayerConfig.Heatmap -> {
                 val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson)
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 HeatmapLayer(
                     id = "heatmap-layer-$index",
@@ -832,7 +1093,8 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
             }
                 is MapLibreLayerConfig.Line -> {
                 val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson)
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 LineLayer(
                     id = "line-layer-$index",
@@ -840,6 +1102,19 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     color = const(Color(config.colorArgb)),
                     width = const(config.widthDp.dp),
                     opacity = const(config.opacity),
+                )
+            }
+                is MapLibreLayerConfig.Fill -> {
+                val source = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
+                )
+                FillLayer(
+                    id = "fill-layer-$index",
+                    source = source,
+                    color = buildFillColorExpr(config.colorStops, config.weightProperty),
+                    opacity = const(config.opacity),
+                    outlineColor = const(Color(config.outlineColorArgb ?: 0)),
                 )
             }
                 is MapLibreLayerConfig.Composite -> Unit
@@ -951,12 +1226,32 @@ private fun buildHeatmapColorExpr(
     )
 }
 
+/**
+ * Builds a fill color interpolation expression keyed on a per-feature numeric property in [0, 1].
+ * Used by the legacy grid-tile heatmap to colour each tile by its normalized visit count.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun buildFillColorExpr(
+    colorStops: List<Pair<Float, Int>>,
+    weightProperty: String,
+): Expression<ColorValue> {
+    val stops = colorStops
+        .map { (stop, argb) -> stop.toNumber() to const(Color(argb)) }
+        .toTypedArray()
+    return interpolate(
+        type = linear(),
+        input = Feature[weightProperty] as Expression<FloatValue>,
+        stops = stops,
+    )
+}
+
 private fun Float.toNumber(): Number = this
 
 private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     null -> false
     is MapLibreLayerConfig.Heatmap -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Line -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.Fill -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
 }
 

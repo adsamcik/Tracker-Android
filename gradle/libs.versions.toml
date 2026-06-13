@@ -44,6 +44,10 @@ playLocation = "21.3.0"
 
 # MapLibre
 maplibreCompose = "0.13.0"
+# MapLibre Android native SDK version bundled by maplibreCompose above. Used only to pull the
+# OpenGL build of the native SDK (android-sdk-opengl) in place of the default Vulkan build. This
+# MUST stay in sync with the android-sdk version that the maplibreCompose release depends on.
+maplibreAndroid = "13.0.2"
 
 # KotlinX
 coroutines = "1.10.2"
@@ -176,6 +180,10 @@ google-play-services-location = { group = "com.google.android.gms", name = "play
 
 # MapLibre
 maplibre-compose = { group = "org.maplibre.compose", name = "maplibre-compose", version.ref = "maplibreCompose" }
+# OpenGL build of the MapLibre Android native SDK. Swapped in for the default Vulkan build
+# (org.maplibre.gl:android-sdk) because the Vulkan renderer segfaults on software-emulated GPUs
+# (Android emulators) and the renderer backend is fixed per native-SDK build (not runtime-toggleable).
+maplibre-android-opengl = { group = "org.maplibre.gl", name = "android-sdk-opengl", version.ref = "maplibreAndroid" }
 
 # Moshi
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }

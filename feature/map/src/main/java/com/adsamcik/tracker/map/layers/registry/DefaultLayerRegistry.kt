@@ -7,6 +7,7 @@ import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.impl.CellHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
+import com.adsamcik.tracker.map.layers.impl.LegacyHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
 import com.adsamcik.tracker.map.layers.impl.SpeedHeatmapLayer
@@ -452,6 +453,40 @@ class DefaultLayerRegistry(
                             info = MapLayerInfo("LocationPathLayer", R.string.map_layer_location_polyline_title),
                             colorList = emptyList(),
                             legend = MapLegend(R.string.map_layer_location_polyline_description)
+                        )
+                    )
+                })
+            )
+        )
+
+        // Legacy grid-tile Heatmap (easter egg; only shown when enabled in Map settings).
+        add(
+            LayerDescriptor(
+                id = "legacy_heatmap",
+                titleRes = R.string.map_layer_legacy_heatmap_title,
+                chipLabelRes = R.string.map_layer_legacy_heatmap_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = true, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
+                            val repo: GeoRepository = GeoRepositoryImpl(dao)
+                            LegacyHeatmapLayer(repo, PerformanceManager())
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("LegacyHeatmapLayer", R.string.map_layer_legacy_heatmap_title),
+                            colorList = HeatmapColorRamps.LegacyTiles.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_legacy_heatmap_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_location_heatmap_low, HeatmapColorRamps.LegacyTiles[0].second),
+                                    MapLegendValue(R.string.map_layer_location_heatmap_low_medium, HeatmapColorRamps.LegacyTiles[1].second),
+                                    MapLegendValue(R.string.map_layer_location_heatmap_medium, HeatmapColorRamps.LegacyTiles[2].second),
+                                    MapLegendValue(R.string.map_layer_location_heatmap_high, HeatmapColorRamps.LegacyTiles[3].second),
+                                    MapLegendValue(R.string.map_layer_location_heatmap_peak, HeatmapColorRamps.LegacyTiles[4].second),
+                                )
+                            )
                         )
                     )
                 })

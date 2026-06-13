@@ -190,16 +190,18 @@ class MapLibreLayerConfigTest {
 			val configs: List<MapLibreLayerConfig> = listOf(
 				MapLibreLayerConfig.Heatmap(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.Line(geoJson = "", colorArgb = 0),
+				MapLibreLayerConfig.Fill(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.Composite(layers = emptyList()),
 			)
 			val labels = configs.map { config ->
 				when (config) {
 					is MapLibreLayerConfig.Heatmap -> "heatmap"
 					is MapLibreLayerConfig.Line -> "line"
+					is MapLibreLayerConfig.Fill -> "fill"
 					is MapLibreLayerConfig.Composite -> "composite"
 				}
 			}
-			labels shouldBe listOf("heatmap", "line", "composite")
+			labels shouldBe listOf("heatmap", "line", "fill", "composite")
 		}
 	}
 }

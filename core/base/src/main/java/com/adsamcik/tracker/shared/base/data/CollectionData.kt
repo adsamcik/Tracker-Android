@@ -70,6 +70,21 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		get() = tryGet(WIFI)
 		set(value) = set(WIFI, value)
 
+	/**
+	 * Distance in meters from the previously *accepted* location to this collection's location,
+	 * as determined by the location filtering component (e.g. [LocationTrackerComponent]).
+	 *
+	 * Unlike the raw per-fix distance baked into [LocationData] by the collection trigger, this value
+	 * bridges across cycles that were rejected by the pre-tracker accuracy gate or the teleport guard,
+	 * so the accumulated session distance matches the persisted track and does not silently lose
+	 * segments leading into a rejected point.
+	 *
+	 * `null` when no location was accepted for this cycle.
+	 */
+	var distanceFromPreviousM: Float?
+		get() = if (bundle.containsKey(DISTANCE)) bundle.getFloat(DISTANCE) else null
+		set(value) = set(DISTANCE, value)
+
 
 	/**
 	 * Retrieve long value with key.
@@ -130,6 +145,20 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	}
 
 	/**
+	 * Set float value with key.
+	 *
+	 * @param key Key
+	 * @param value Value (Removes existing value if null)
+	 */
+	fun set(key: String, value: Float?) {
+		if (value == null) {
+			bundle.remove(key)
+		} else {
+			bundle.putFloat(key, value)
+		}
+	}
+
+	/**
 	 * Sets collection location.
 	 *
 	 * @param location location
@@ -165,6 +194,7 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		private const val TIME = "Time"
 		private const val LOCATION = "Location"
 		private const val ACTIVITY = "Activity"
+		private const val DISTANCE = "Distance"
 	}
 }
 

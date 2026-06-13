@@ -20,7 +20,11 @@ class BasemapManager(
     private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
 
-    private val basemapDir = File(context.filesDir, "basemap")
+    // Lazy so constructing BasemapManager does not touch context.filesDir (a disk read). The map
+    // creates this in Compose `remember {}`, which runs on the main thread; eagerly resolving
+    // filesDir there triggers a StrictMode DiskReadViolation. All real users of basemapDir run
+    // inside IO coroutines (importBasemap / ensureDefaultBasemap), so deferring is safe.
+    private val basemapDir by lazy { File(context.filesDir, "basemap") }
 
     /** Copy a user-selected PMTiles file to internal storage. */
     suspend fun importBasemap(uri: Uri): BasemapImportResult = withContext(dispatchers.io) {

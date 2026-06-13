@@ -44,6 +44,9 @@
     <string name="map_layer_speed_very_fast">Very Fast</string>
     <string name="map_layer_speed_extreme">Extreme Speed</string>
     <string name="map_layer_speed_heatmap_title">Speed heatmap</string>
+    <string name="map_layer_legacy_heatmap_title">Legacy heatmap</string>
+    <string name="map_layer_legacy_heatmap_chip">Legacy tiles</string>
+    <string name="map_layer_legacy_heatmap_description">Throwback to the original Signals app: your location density drawn as discrete 10\u202fm grid tiles, the way the heatmap looked when tiles were rendered on the server. Zoom in to see the squares.</string>
     <string name="map_layer_vehicle_compliance_title">Vehicle speed compliance</string>
     <string name="map_layer_vehicle_compliance_description">Polyline of driving samples coloured by how the speed compares to your configured baseline limit.</string>
     <string name="map_layer_vehicle_compliance_way_under">Way under limit</string>
@@ -107,6 +110,10 @@
     <string name="settings_map_quality_title">Heatmap resolution</string>
     <string name="settings_map_visit_threshold_summary">Minimum time to stay in one place before it\'s counted as a visit</string>
     <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
+    <string name="settings_map_legacy_heatmap_title">Legacy heatmap (10\u202fm tiles)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Easter egg: adds a \"Legacy heatmap\" layer that draws location density as discrete 10\u202fm grid tiles, like the original server-rendered Signals heatmap.</string>
+    <string name="settings_map_zoom_buttons_title">Map zoom buttons</string>
+    <string name="settings_map_zoom_buttons_subtitle">Show on-screen + and − buttons to zoom the map, for when pinch-to-zoom is hard to use.</string>
 
     <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
     <string name="tips_map_date_range_title">Date range</string>
@@ -153,6 +160,14 @@
     <string name="map_empty_subtitle_cell">No cell data yet. Start tracking to see cell coverage on this map.</string>
     <string name="map_empty_subtitle_wifi">No Wi-Fi data yet. Start tracking to see Wi-Fi heatmaps on this map.</string>
     <string name="map_empty_subtitle_speed">No speed data yet. Start tracking to see speed heatmaps on this map.</string>
+    <string name="map_speed_probe_title">Speed here</string>
+    <string name="map_speed_probe_avg_label">Average</string>
+    <string name="map_speed_probe_max_label">Max</string>
+    <string name="map_speed_probe_empty">No speed data at this spot. Tap somewhere with heat to see speeds.</string>
+    <string name="map_speed_probe_hint">Tap the map to see speeds</string>
+    <string name="map_speed_probe_dismiss">Dismiss speed details</string>
+    <string name="map_zoom_in">Zoom in</string>
+    <string name="map_zoom_out">Zoom out</string>
     <string name="map_loading">Loading map…</string>
     <string name="map_basemap_unavailable">Map basemap could not be prepared. Close and reopen the map to try again.</string>
     <string name="map_follow_canceled">Stopped centering on your location</string>

@@ -25,9 +25,7 @@ open class SpeedHeatmapLayer(
 
     override fun geoJsonFrom(processed: String): String = processed
 
-    override fun radiusPx(): Float = 20f * quality
-
-    override fun intensity(): Float = quality
+    override fun radiusPx(): Float = GridAggregator.radiusForQuality(20f, quality)
 
     override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
         val query = GeoQuery(
@@ -49,7 +47,7 @@ open class SpeedHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
-        val cellSize = GridAggregator.cellSizeForZoom(zoom)
+        val cellSize = GridAggregator.cellSizeForZoom(zoom, quality)
 
         val processed = if (cellSize > 0.0) {
             // For speed we want the average per cell (not count), so keep GridAggregator's

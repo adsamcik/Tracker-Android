@@ -115,7 +115,12 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setWifiEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiEnabled(enabled && context.hasWifiScanPermission)
+            // Persist the user's intent. Actual scanning is guarded at runtime by the Wi-Fi
+            // producer (which re-checks the permission every cycle and nudges the user to grant
+            // it), and the UI's effective state still gates display on the permission. Coercing
+            // to false here previously discarded the intent if the permission check raced the
+            // grant callback, leaving the toggle stuck off.
+            trackingParamsRepository.setWifiEnabled(enabled)
             markCustomPreset()
         }
     }
@@ -129,14 +134,14 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setWifiNetworkEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiNetworkEnabled(enabled && context.hasWifiScanPermission)
+            trackingParamsRepository.setWifiNetworkEnabled(enabled)
             markCustomPreset()
         }
     }
 
     fun setWifiLocationCountEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiLocationCountEnabled(enabled && context.hasWifiScanPermission)
+            trackingParamsRepository.setWifiLocationCountEnabled(enabled)
             markCustomPreset()
         }
     }

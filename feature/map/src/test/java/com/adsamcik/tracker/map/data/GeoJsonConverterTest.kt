@@ -56,6 +56,41 @@ class GeoJsonConverterTest {
 	}
 
 	@Nested
+	@DisplayName("tilesToFeatureCollection")
+	inner class TilesToFeatureCollectionTests {
+
+		@Test
+		fun `empty list produces empty FeatureCollection`() {
+			GeoJsonConverter.tilesToFeatureCollection(emptyList()) shouldBe
+				"""{"type":"FeatureCollection","features":[]}"""
+		}
+
+		@Test
+		fun `single tile produces a closed polygon ring with weight`() {
+			val tiles = listOf(
+				GridTile(west = 14.0, south = 50.0, east = 14.001, north = 50.001, weight = 0.5, count = 3),
+			)
+			val result = GeoJsonConverter.tilesToFeatureCollection(tiles)
+			result shouldContain """"type":"Polygon""""
+			result shouldContain """"weight":0.5"""
+			// Ring: SW, SE, NE, NW, SW (closed) — first and last coordinate must match.
+			result shouldContain """[[14.0,50.0],[14.001,50.0],[14.001,50.001],[14.0,50.001],[14.0,50.0]]"""
+		}
+
+		@Test
+		fun `multiple tiles separated by commas`() {
+			val tiles = listOf(
+				GridTile(14.0, 50.0, 14.001, 50.001, weight = 1.0, count = 5),
+				GridTile(14.001, 50.0, 14.002, 50.001, weight = 0.2, count = 1),
+			)
+			val result = GeoJsonConverter.tilesToFeatureCollection(tiles)
+			result shouldStartWith """{"type":"FeatureCollection","features":["""
+			result shouldContain """"weight":1.0"""
+			result shouldContain """"weight":0.2"""
+		}
+	}
+
+	@Nested
 	@DisplayName("lineToFeatureCollection")
 	inner class LineToFeatureCollectionTests {
 

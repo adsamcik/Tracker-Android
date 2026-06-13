@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.presentation.udf
 
 import androidx.compose.runtime.Immutable
 import androidx.annotation.StringRes
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 import kotlinx.collections.immutable.ImmutableList
@@ -35,6 +36,21 @@ data class LegendItem(
 
 @Immutable
 data class LatLngModel(val lat: Double, val lng: Double)
+
+/**
+ * Result of tapping the interactive speed heatmap: the average and maximum recorded speed (m/s)
+ * around [latLng]. [sampleCount] is 0 when the user tapped a spot with no nearby speed data, which
+ * the UI surfaces as an explicit "no data here" message rather than stale numbers.
+ */
+@Immutable
+data class SpeedProbeModel(
+    val latLng: LatLngModel,
+    val avgSpeedMps: Double,
+    val maxSpeedMps: Double,
+    val sampleCount: Int,
+) {
+    val hasData: Boolean get() = sampleCount > 0
+}
 
 @Immutable
 data class SelectedTripMapContext(
@@ -92,6 +108,7 @@ data class MapState(
     val selectedTripContext: SelectedTripMapContext? = null,
     val layerLoadingProgress: Int = 0,
     val layerConfig: MapLibreLayerConfig? = null,
+    val speedProbe: SpeedProbeModel? = null,
 )
 
 sealed interface MapEvent {
@@ -102,7 +119,16 @@ sealed interface MapEvent {
     data object HideSheet : MapEvent
     data class SetSheet(val visibility: SheetVisibility) : MapEvent
     data class SelectLayer(val id: String) : MapEvent
-    data class CameraMoved(val position: CameraModel, val byGesture: Boolean) : MapEvent
+    data class CameraMoved(
+        val position: CameraModel,
+        val byGesture: Boolean,
+        /**
+         * The map's real visible viewport (already padded for prefetch), derived from the map
+         * projection. Used for spatial layer queries; null when the projection is not yet ready,
+         * in which case the store falls back to a camera-derived estimate.
+         */
+        val visibleBounds: Bounds? = null,
+    ) : MapEvent
     data class SetQuality(val value: Float) : MapEvent
     data class SetDateRange(val range: LongRange) : MapEvent
     data class UpdateSearchQuery(val query: String) : MapEvent
@@ -110,6 +136,20 @@ sealed interface MapEvent {
     data object SubmitSearch : MapEvent
     data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double) : MapEvent
     data class SetBearing(val bearing: Float) : MapEvent
+
+    /** Accessibility zoom controls: step the map zoom in / out by one level. */
+    data object ZoomIn : MapEvent
+    data object ZoomOut : MapEvent
+
+    /**
+     * User tapped the map while the speed heatmap is active. Queries the average/maximum speed
+     * within [radiusMeters] of the tapped point. Ignored when the speed heatmap is not the active
+     * layer.
+     */
+    data class ProbeSpeedAt(val lat: Double, val lng: Double, val radiusMeters: Double) : MapEvent
+
+    /** Dismiss the speed-probe callout. */
+    data object DismissSpeedProbe : MapEvent
 }
 
 sealed interface MapEffect {
@@ -117,4 +157,7 @@ sealed interface MapEffect {
     data class CenterCamera(val bounds: CoordinateBounds) : MapEffect
     data class SetCameraBearing(val bearing: Float) : MapEffect
     data object ShowSearchFormatHint : MapEffect
+
+    /** Animate the camera zoom by [delta] zoom levels (positive = in, negative = out). */
+    data class ZoomBy(val delta: Float) : MapEffect
 }

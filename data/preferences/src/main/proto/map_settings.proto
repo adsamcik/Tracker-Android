@@ -14,6 +14,11 @@ message MapSettingsProto {
   int32 max_heat_points = 2;
   // Minimum visit duration threshold in seconds
   int32 visit_threshold_seconds = 3;
+  // Easter egg: render the heatmap as discrete 10 m grid tiles (the old Signals/Advention
+  // server-rendered look) instead of the smooth GPU heatmap. Off by default.
+  bool legacy_heatmap_enabled = 4;
+  // Accessibility: show on-screen zoom in/out buttons on the map. Off by default.
+  bool zoom_buttons_enabled = 5;
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

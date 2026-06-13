@@ -131,3 +131,9 @@ Fakes: `FakeLocationSource`, `FakeTrackerSettingsRepository`. `TestAppGraphBuild
 
 To run QC on the app, use the `/android-qc` skill or say "run QC on the app".
 The skill is defined in `.github/skills/android-qc/SKILL.md`.
+
+## Handling reported problems
+
+When I report something as a problem, investigate the root cause first. If it turns out the
+new/current solution is actually better than the old behavior I'm comparing against, **keep the new
+solution** and explain why it's superior — do not revert just to match my initial report.

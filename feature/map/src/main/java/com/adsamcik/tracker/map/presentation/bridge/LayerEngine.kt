@@ -19,5 +19,29 @@ interface LayerEngine {
     fun activeLegend(): MapLayerData?
     fun activeLayerConfig(): MapLibreLayerConfig?
     fun overlays(): ImmutableList<MapOverlayState>
+
+    /**
+     * Summary of recorded speed within [radiusMeters] of the given point, limited to [dateRange].
+     * Returns `null` when no speed samples are found. Powers the interactive speed heatmap, where
+     * tapping the map reads the average and maximum speed travelled around that location. Default
+     * no-op for engines that don't support point queries.
+     */
+    suspend fun querySpeedSummaryAt(
+        lat: Double,
+        lng: Double,
+        radiusMeters: Double,
+        dateRange: LongRange,
+    ): SpeedSummary? = null
+
     fun destroy() {}
 }
+
+/**
+ * Summary of speed samples around a point. Speeds are in metres per second; [sampleCount] is the
+ * number of contributing location fixes.
+ */
+data class SpeedSummary(
+    val avgSpeedMps: Double,
+    val maxSpeedMps: Double,
+    val sampleCount: Int,
+)

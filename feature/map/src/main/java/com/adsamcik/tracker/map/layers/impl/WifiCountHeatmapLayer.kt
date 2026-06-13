@@ -7,6 +7,7 @@ import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.graphics.GridAggregator
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import kotlinx.coroutines.flow.first
@@ -30,9 +31,7 @@ class WifiCountHeatmapLayer(
 
     override fun geoJsonFrom(processed: String): String = processed
 
-    override fun radiusPx(): Float = 18f * quality
-
-    override fun intensity(): Float = quality
+    override fun radiusPx(): Float = GridAggregator.radiusForQuality(18f, quality)
 
     override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
         val query = GeoQuery(
@@ -54,7 +53,7 @@ class WifiCountHeatmapLayer(
             input = input,
             maxPoints = budgets.maxPoints,
             cellSizeDegrees = run {
-                val zoomCellSize = com.adsamcik.tracker.map.graphics.GridAggregator.cellSizeForZoom(zoom)
+                val zoomCellSize = GridAggregator.cellSizeForZoom(zoom, quality)
                 val qualityCellSize = (0.0006 / quality.coerceAtLeast(0.6f)).toDouble()
                 maxOf(zoomCellSize, qualityCellSize).toFloat()
             }

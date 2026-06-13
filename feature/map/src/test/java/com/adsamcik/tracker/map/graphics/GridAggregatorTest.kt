@@ -39,8 +39,75 @@ class GridAggregatorTest {
         }
 
         @Test
-        fun `returns 0 for very high zoom`() {
-            GridAggregator.cellSizeForZoom(15f) shouldBe 0.0
+        fun `aggregates at street zoom`() {
+            // Regression: zoom >= 13 used to return 0.0 (no aggregation), letting raw overlapping
+            // path points saturate the heatmap to solid red. It must now aggregate.
+            GridAggregator.cellSizeForZoom(14f) shouldBe 0.002
+        }
+
+        @Test
+        fun `aggregates at block zoom`() {
+            GridAggregator.cellSizeForZoom(16f) shouldBe 0.0005
+        }
+
+        @Test
+        fun `aggregates at building zoom`() {
+            GridAggregator.cellSizeForZoom(18f) shouldBe 0.00012
+        }
+
+        @Test
+        fun `is always positive and never increases with zoom`() {
+            var previous = Double.MAX_VALUE
+            for (z in 0..22) {
+                val size = GridAggregator.cellSizeForZoom(z.toFloat())
+                check(size > 0.0) { "cell size must be positive (was $size at zoom $z)" }
+                check(size <= previous) { "cell size increased from $previous to $size at zoom $z" }
+                previous = size
+            }
+        }
+
+        @Test
+        fun `default quality equals quality one`() {
+            GridAggregator.cellSizeForZoom(16f) shouldBe GridAggregator.cellSizeForZoom(16f, 1f)
+        }
+
+        @Test
+        fun `higher quality produces finer cells`() {
+            val balanced = GridAggregator.cellSizeForZoom(16f, 1f)
+            val detailed = GridAggregator.cellSizeForZoom(16f, 2f)
+            // Detailed (quality 2.0) halves the cell size -> more resolution/detail, not just size.
+            detailed shouldBe balanced / 2.0
+        }
+
+        @Test
+        fun `lower quality produces coarser cells`() {
+            val balanced = GridAggregator.cellSizeForZoom(16f, 1f)
+            val fast = GridAggregator.cellSizeForZoom(16f, 0.5f)
+            fast shouldBe balanced * 2.0
+        }
+
+        @Test
+        fun `quality is clamped to the supported range`() {
+            val maxDetail = GridAggregator.cellSizeForZoom(16f, GridAggregator.MAX_QUALITY)
+            GridAggregator.cellSizeForZoom(16f, 10f) shouldBe maxDetail
+            val maxCoarse = GridAggregator.cellSizeForZoom(16f, GridAggregator.MIN_QUALITY)
+            GridAggregator.cellSizeForZoom(16f, 0.01f) shouldBe maxCoarse
+        }
+    }
+
+    @Nested
+    inner class RadiusForQuality {
+        @Test
+        fun `higher quality shrinks the radius to match finer cells`() {
+            GridAggregator.radiusForQuality(20f, 2f) shouldBe 10f
+            GridAggregator.radiusForQuality(20f, 1f) shouldBe 20f
+            GridAggregator.radiusForQuality(20f, 0.5f) shouldBe 40f
+        }
+
+        @Test
+        fun `clamps extreme quality values`() {
+            GridAggregator.radiusForQuality(20f, 99f) shouldBe 2.5f
+            GridAggregator.radiusForQuality(20f, 0.001f) shouldBe 80f
         }
     }
 

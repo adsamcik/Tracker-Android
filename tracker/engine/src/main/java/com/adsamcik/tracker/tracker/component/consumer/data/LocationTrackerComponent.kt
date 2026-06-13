@@ -129,6 +129,11 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 			location.speed = correctedSpeed
 		}
 
+		// Distance from the previously *accepted* location. Measured here — not taken from the
+		// trigger's raw per-fix distance — so segments are bridged across cycles dropped by the
+		// pre-tracker accuracy gate or teleport guard, preventing systematic distance under-reporting.
+		val distanceFromPrevious = previousLocation?.let { location.distanceTo(it) } ?: 0f
+
 		// Capture raw GPS altitude before any processing
 		lastRawGpsAltitudeM = if (location.hasAltitude()) location.altitude else null
 
@@ -150,6 +155,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		}
 
 		collectionData.setLocation(location)
+		collectionData.distanceFromPreviousM = distanceFromPrevious
 		lastAcceptedLocation = Location(location)
 	}
 

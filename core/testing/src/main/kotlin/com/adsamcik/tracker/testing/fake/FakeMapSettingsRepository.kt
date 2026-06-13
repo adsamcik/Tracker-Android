@@ -46,6 +46,14 @@ class FakeMapSettingsRepository(
 		_state.update { it.copy(visitThresholdSeconds = seconds) }
 	}
 
+	override suspend fun setLegacyHeatmapEnabled(enabled: Boolean) {
+		_state.update { it.copy(legacyHeatmapEnabled = enabled) }
+	}
+
+	override suspend fun setZoomButtonsEnabled(enabled: Boolean) {
+		_state.update { it.copy(zoomButtonsEnabled = enabled) }
+	}
+
 	/** Reset to default state (useful between tests). */
 	fun reset() {
 		_state.value = MapSettingsState()

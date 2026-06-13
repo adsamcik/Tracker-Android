@@ -27,9 +27,7 @@ open class LocationHeatmapLayer(
 
     override fun geoJsonFrom(processed: String): String = processed
 
-    override fun radiusPx(): Float = 20f * quality
-
-    override fun intensity(): Float = quality
+    override fun radiusPx(): Float = GridAggregator.radiusForQuality(20f, quality)
 
     override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
         val query = GeoQuery(
@@ -54,7 +52,7 @@ open class LocationHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
-        val cellSize = GridAggregator.cellSizeForZoom(zoom)
+        val cellSize = GridAggregator.cellSizeForZoom(zoom, quality)
 
         val processed = if (cellSize > 0.0) {
             // Aggregate, then re-weight each cell by visit count (normalized by max). This

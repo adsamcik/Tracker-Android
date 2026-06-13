@@ -432,7 +432,8 @@ fun MainRoot(
                 ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding(),
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp),
             ) {
                 // Inside the exit transition the route may briefly be null; fall back
                 // to the first item so the bar can finish its slide-out animation

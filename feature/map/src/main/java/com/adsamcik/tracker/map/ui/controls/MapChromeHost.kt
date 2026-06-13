@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.ui.controls
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,14 +13,19 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -51,6 +57,9 @@ import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
+import com.adsamcik.tracker.shared.utils.style.compose.GlassTier
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineElevation
+import com.adsamcik.tracker.shared.utils.style.compose.borderColor
 import kotlinx.coroutines.launch
 
 /**
@@ -77,9 +86,16 @@ fun MapChromeHost(
 	val scope = rememberCoroutineScope()
 	val haptic = LocalHapticFeedback.current
 
-	val layers = remember(registry) { registry.getAllLayers() }
+	val allLayers = remember(registry) { registry.getAllLayers() }
+	val legacyHeatmapEnabled by store.legacyHeatmapEnabled.collectAsStateWithLifecycle()
+	val zoomButtonsEnabled by store.zoomButtonsEnabled.collectAsStateWithLifecycle()
+	// The legacy grid-tile heatmap is an easter egg: hide it from the picker unless the user has
+	// enabled it in Map settings.
+	val layers = remember(allLayers, legacyHeatmapEnabled) {
+		if (legacyHeatmapEnabled) allLayers
+		else allLayers.filterNot { it.id == "legacy_heatmap" }
+	}
 	var showLayers by remember { mutableStateOf(false) }
-	var showQuality by remember { mutableStateOf(false) }
 	var showDates by remember { mutableStateOf(false) }
 	var showCustomDateRange by remember { mutableStateOf(false) }
 	var searchError by remember { mutableStateOf<String?>(null) }
@@ -124,9 +140,8 @@ fun MapChromeHost(
 	}
 
 	// Close popovers on system back before letting nav handle it.
-	BackHandler(enabled = showLayers || showQuality || showDates) {
+	BackHandler(enabled = showLayers || showDates) {
 		showLayers = false
-		showQuality = false
 		showDates = false
 	}
 
@@ -137,13 +152,6 @@ fun MapChromeHost(
 	}
 
 	val activeLayerId = state.activeLayerIds.firstOrNull()
-	val isHeatmapLayerSelected = activeLayerId.isHeatmapLayerId()
-
-	LaunchedEffect(isHeatmapLayerSelected) {
-		if (!isHeatmapLayerSelected) {
-			showQuality = false
-		}
-	}
 
 	val activeLayerLabel = remember(activeLayerId, layers) {
 		val active = activeLayerId
@@ -164,10 +172,6 @@ fun MapChromeHost(
 				}
 			} ?: active
 		}
-	}
-
-	val activeQualityLabel = remember(state.quality) {
-		context.getString(qualityLabelRes(state.quality))
 	}
 
 	val dateRangeLabel = remember(state.dateRange, state.selectedTripContext) {
@@ -197,6 +201,15 @@ fun MapChromeHost(
 			// focused — the keyboard rises and would cover it anyway, and an obstructed FAB is
 			// worse than no FAB.
 			if (!searchFocused && imeBottom == 0) {
+				// Accessibility zoom buttons (opt-in via Map settings) sit above the FAB so the
+				// whole right-side column reads as one control stack.
+				if (zoomButtonsEnabled) {
+					ZoomControls(
+						onZoomIn = { store.dispatch(MapEvent.ZoomIn) },
+						onZoomOut = { store.dispatch(MapEvent.ZoomOut) },
+						modifier = Modifier.padding(end = 24.dp),
+					)
+				}
 				MyLocationFab(
 					isFollowing = state.isFollowing,
 					onClick = {
@@ -238,13 +251,9 @@ fun MapChromeHost(
 				},
 				activeLayerLabel = activeLayerLabel,
 				onLayersClick = { showLayers = true },
-				showQualityChip = isHeatmapLayerSelected,
-				qualityLabel = activeQualityLabel,
-				onQualityClick = { showQuality = true },
 				dateRangeLabel = dateRangeLabel,
 				onDatesClick = { showDates = true },
 				layersExpanded = showLayers,
-				qualityExpanded = showQuality,
 				datesExpanded = showDates,
 			)
 		}
@@ -272,14 +281,6 @@ fun MapChromeHost(
 			)
 		}
 
-		if (showQuality && isHeatmapLayerSelected) {
-			QualityPickerPopover(
-				quality = state.quality,
-				onQualityChange = { value -> store.setQuality(value) },
-				onDismiss = { showQuality = false },
-			)
-		}
-
 		if (showDates) {
 			DateRangePopover(
 				currentRange = state.dateRange,
@@ -291,8 +292,8 @@ fun MapChromeHost(
 
 		// Sheet-visibility signal is legacy-but-harmless; keep the store in sync with our
 		// current popover state so any downstream consumer sees a coherent value.
-		LaunchedEffect(showLayers, showQuality, showDates) {
-			val vis = if (showLayers || showQuality || showDates) SheetVisibility.Expanded else SheetVisibility.Peek
+		LaunchedEffect(showLayers, showDates) {
+			val vis = if (showLayers || showDates) SheetVisibility.Expanded else SheetVisibility.Peek
 			if (state.sheet.visibility != vis) {
 				store.dispatch(MapEvent.SetSheet(vis))
 			}
@@ -341,10 +342,11 @@ private fun MyLocationFab(
 		color = if (isFollowing) {
 			MaterialTheme.colorScheme.primaryContainer
 		} else {
-			MaterialTheme.colorScheme.surfaceContainerHighest
+			MaterialTheme.colorScheme.surfaceContainerHigh
 		},
-		tonalElevation = 3.dp,
-		shadowElevation = 6.dp,
+		border = if (isFollowing) null else BorderStroke(1.dp, GlassTier.G2.borderColor()),
+		tonalElevation = RidgelineElevation.Raised.tonal,
+		shadowElevation = 3.dp,
 	) {
 		IconButton(
 			onClick = onClick,
@@ -363,10 +365,54 @@ private fun MyLocationFab(
 	}
 }
 
-private fun String?.isHeatmapLayerId(): Boolean = this?.endsWith("_heatmap") == true
-
-private fun qualityLabelRes(quality: Float): Int = when {
-	quality < 0.75f -> R.string.map_quality_fast
-	quality > 1.5f -> R.string.map_quality_detailed
-	else -> R.string.map_quality_balanced
+/**
+ * Accessibility zoom controls: a vertical glass pill with zoom-in (+) and zoom-out (−) buttons,
+ * matching the my-location FAB's glass treatment. Opt-in via Map settings for users who can't
+ * pinch-zoom comfortably.
+ */
+@Composable
+private fun ZoomControls(
+	onZoomIn: () -> Unit,
+	onZoomOut: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	Surface(
+		modifier = modifier.width(56.dp),
+		shape = RoundedCornerShape(28.dp),
+		color = MaterialTheme.colorScheme.surfaceContainerHigh,
+		border = BorderStroke(1.dp, GlassTier.G2.borderColor()),
+		tonalElevation = RidgelineElevation.Raised.tonal,
+		shadowElevation = 3.dp,
+	) {
+		Column(horizontalAlignment = Alignment.CenterHorizontally) {
+			IconButton(
+				onClick = onZoomIn,
+				modifier = Modifier
+					.size(56.dp)
+					.testTag("map_zoom_in_button"),
+			) {
+				Icon(
+					imageVector = Icons.Filled.Add,
+					contentDescription = stringResource(R.string.map_zoom_in),
+					tint = MaterialTheme.colorScheme.onSurface,
+				)
+			}
+			HorizontalDivider(
+				modifier = Modifier.width(28.dp),
+				color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+			)
+			IconButton(
+				onClick = onZoomOut,
+				modifier = Modifier
+					.size(56.dp)
+					.testTag("map_zoom_out_button"),
+			) {
+				Icon(
+					imageVector = Icons.Filled.Remove,
+					contentDescription = stringResource(R.string.map_zoom_out),
+					tint = MaterialTheme.colorScheme.onSurface,
+				)
+			}
+		}
+	}
 }

@@ -3,6 +3,8 @@ package com.adsamcik.tracker.map.data
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -142,6 +144,127 @@ class GeoModelsTest {
 		fun `clamps to min longitude`() {
 			val bounds = cameraToBounds(lat = 0.0, lng = -170.0, zoom = 3.0)!!
 			bounds.west shouldBe -180.0
+		}
+	}
+
+	@Nested
+	@DisplayName("paddedBounds")
+	inner class PaddedBoundsTests {
+
+		@Test
+		fun `pads each side by the given fraction of the span`() {
+			// 2 deg lat span, 4 deg lon span, 50% padding -> +1 deg lat, +2 deg lon each side.
+			val bounds = paddedBounds(
+				north = 51.0, east = 18.0, south = 49.0, west = 14.0,
+				paddingFraction = 0.5,
+			)!!
+			bounds.north shouldBe 52.0
+			bounds.south shouldBe 48.0
+			bounds.east shouldBe 20.0
+			bounds.west shouldBe 12.0
+		}
+
+		@Test
+		fun `zero padding returns the box unchanged`() {
+			val bounds = paddedBounds(
+				north = 51.0, east = 18.0, south = 49.0, west = 14.0,
+				paddingFraction = 0.0,
+			)!!
+			bounds shouldBe Bounds(north = 51.0, east = 18.0, south = 49.0, west = 14.0)
+		}
+
+		@Test
+		fun `clamps padded values to valid coordinate ranges`() {
+			val bounds = paddedBounds(
+				north = 89.5, east = 179.5, south = -89.5, west = -179.5,
+				paddingFraction = 0.5,
+			)!!
+			bounds.north shouldBe 90.0
+			bounds.south shouldBe -90.0
+			bounds.east shouldBe 180.0
+			bounds.west shouldBe -180.0
+		}
+
+		@Test
+		fun `returns null when north is not greater than south`() {
+			paddedBounds(north = 50.0, east = 18.0, south = 50.0, west = 14.0).shouldBeNull()
+			paddedBounds(north = 49.0, east = 18.0, south = 50.0, west = 14.0).shouldBeNull()
+		}
+
+		@Test
+		fun `returns null for antimeridian-crossing box`() {
+			// east < west indicates the box wraps the antimeridian; not representable as Bounds.
+			paddedBounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0).shouldBeNull()
+		}
+	}
+
+	@Nested
+	@DisplayName("boundsAround")
+	inner class BoundsAroundTests {
+
+		@Test
+		fun `returns null for non-positive radius`() {
+			boundsAround(lat = 50.0, lng = 14.0, radiusMeters = 0.0).shouldBeNull()
+			boundsAround(lat = 50.0, lng = 14.0, radiusMeters = -10.0).shouldBeNull()
+		}
+
+		@Test
+		fun `box encloses the requested radius`() {
+			val radius = 100.0
+			val bounds = boundsAround(lat = 50.0, lng = 14.0, radiusMeters = radius)!!
+			// Latitude half-span ~= radius / 111320 deg.
+			val latHalf = bounds.north - 50.0
+			latHalf shouldBe ((radius / 111_320.0) plusOrMinus 1e-9)
+			// The box must fully contain a point at exactly `radius` north of centre.
+			val northPoint = 50.0 + radius / 111_320.0
+			(bounds.north >= northPoint) shouldBe true
+		}
+
+		@Test
+		fun `longitude span widens with latitude`() {
+			val equator = boundsAround(lat = 0.0, lng = 0.0, radiusMeters = 100.0)!!
+			val high = boundsAround(lat = 60.0, lng = 0.0, radiusMeters = 100.0)!!
+			val equatorLonSpan = equator.east - equator.west
+			val highLonSpan = high.east - high.west
+			// cos(60deg) = 0.5, so the high-latitude longitude span is ~2x the equator span.
+			(highLonSpan > equatorLonSpan) shouldBe true
+		}
+
+		@Test
+		fun `clamps to valid coordinate ranges near the pole`() {
+			val bounds = boundsAround(lat = 89.9999, lng = 0.0, radiusMeters = 100.0)!!
+			(bounds.north <= 90.0) shouldBe true
+			(bounds.south >= -90.0) shouldBe true
+		}
+	}
+
+	@Nested
+	@DisplayName("haversineMeters")
+	inner class HaversineTests {
+
+		@Test
+		fun `zero distance for identical points`() {
+			haversineMeters(50.0, 14.0, 50.0, 14.0) shouldBe (0.0 plusOrMinus 1e-6)
+		}
+
+		@Test
+		fun `one degree of latitude is about 111 km`() {
+			val d = haversineMeters(0.0, 0.0, 1.0, 0.0)
+			d shouldBe (111_195.0 plusOrMinus 200.0)
+		}
+
+		@Test
+		fun `short distance is accurate`() {
+			// ~100 m north at the equator.
+			val d = haversineMeters(0.0, 0.0, 100.0 / 111_320.0, 0.0)
+			d shouldBe (100.0 plusOrMinus 1.0)
+		}
+
+		@Test
+		fun `is symmetric`() {
+			val ab = haversineMeters(50.0, 14.0, 50.1, 14.2)
+			val ba = haversineMeters(50.1, 14.2, 50.0, 14.0)
+			(kotlin.math.abs(ab - ba)) shouldBeLessThan 1e-6
 		}
 	}
 

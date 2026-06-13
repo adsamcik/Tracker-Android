@@ -83,4 +83,38 @@ object GeoJsonConverter {
      */
     fun pointToFeature(lat: Double, lng: Double): String =
         """{"type":"Feature","geometry":{"type":"Point","coordinates":[$lng,$lat]},"properties":{}}"""
+
+    /**
+     * Convert grid tiles to a GeoJSON FeatureCollection of rectangular [Polygon]s. Each feature
+     * carries a normalized "weight" property in [0, 1] for data-driven fill colouring. Used by the
+     * legacy grid-tile heatmap.
+     */
+    fun tilesToFeatureCollection(tiles: List<GridTile>): String {
+        if (tiles.isEmpty()) return """{"type":"FeatureCollection","features":[]}"""
+        val sb = StringBuilder(tiles.size * 170 + 100)
+        sb.append("""{"type":"FeatureCollection","features":[""")
+        tiles.forEachIndexed { index, tile ->
+            if (index > 0) sb.append(',')
+            sb.append("""{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[""")
+            // Closed ring: SW -> SE -> NE -> NW -> SW
+            appendLonLat(sb, tile.west, tile.south); sb.append(',')
+            appendLonLat(sb, tile.east, tile.south); sb.append(',')
+            appendLonLat(sb, tile.east, tile.north); sb.append(',')
+            appendLonLat(sb, tile.west, tile.north); sb.append(',')
+            appendLonLat(sb, tile.west, tile.south)
+            sb.append("""]]},"properties":{"weight":""")
+            sb.append(tile.weight)
+            sb.append("""}}""")
+        }
+        sb.append("""]}""")
+        return sb.toString()
+    }
+
+    private fun appendLonLat(sb: StringBuilder, lon: Double, lat: Double) {
+        sb.append('[')
+        sb.append(lon)
+        sb.append(',')
+        sb.append(lat)
+        sb.append(']')
+    }
 }

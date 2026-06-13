@@ -43,6 +43,13 @@ Reference for building, testing, and debugging Tracker Android.
 | Release APK | `./gradlew.bat :app:assembleRelease` |
 | Clean build | `./gradlew.bat clean :app:assembleDebug` |
 | All modules | `./gradlew.bat assembleDebug` |
+| Emulator install (OpenGL) | `./gradlew.bat :app:installDebug -PuseOpenGlMapRenderer=true` |
+
+**Map renderer on emulators:** MapLibre Android 13 defaults to the Vulkan renderer, which
+segfaults inside `libmaplibre.so` on the software-emulated GPUs that Android emulators expose
+(any map heatmap crashes the process). Pass `-PuseOpenGlMapRenderer=true` to swap the native
+MapLibre SDK for its drop-in OpenGL build when building for an emulator. Leave the flag unset for
+device and release builds so they keep the default (hardware) Vulkan renderer.
 
 ### Test
 | Task | Command |

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
+import com.adsamcik.tracker.shared.utils.style.compose.GlassTier
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineElevation
+import com.adsamcik.tracker.shared.utils.style.compose.borderColor
+
+// Sizing for the contextual chips (Layers, Dates). The label always renders; the quality control
+// now lives in Settings so only two chips share the row, leaving room for full text.
+private val CHIP_ICON_SIZE = 20.dp
 
 /**
  * Unified map chrome card that houses the contextual chips (Layers, Dates) and the
@@ -78,13 +86,9 @@ internal fun MapChromeBar(
 	onSearchFocusChange: (Boolean) -> Unit,
 	activeLayerLabel: String,
 	onLayersClick: () -> Unit,
-	showQualityChip: Boolean,
-	qualityLabel: String,
-	onQualityClick: () -> Unit,
 	dateRangeLabel: String,
 	onDatesClick: () -> Unit,
 	layersExpanded: Boolean,
-	qualityExpanded: Boolean,
 	datesExpanded: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -93,14 +97,17 @@ internal fun MapChromeBar(
 		label = "chip_row_alpha",
 	)
 
-	// M3 Expressive: lean on tonal elevation over drop shadows. The card floats via its
-	// brighter surface tier against the map underneath — no hard shadow needed.
+	// Match the floating navigation bar's glass treatment so the map chrome reads as part of the
+	// same design language: surfaceContainerHigh tier, a subtle 1dp glass border, and the Ridgeline
+	// "Raised" elevation. The card floats via its brighter surface tier + border against the map,
+	// not a hard shadow.
 	Surface(
 		modifier = modifier.fillMaxWidth(),
 		shape = RoundedCornerShape(32.dp),
-		color = MaterialTheme.colorScheme.surfaceContainer,
-		tonalElevation = 2.dp,
-		shadowElevation = 1.dp,
+		color = MaterialTheme.colorScheme.surfaceContainerHigh,
+		border = BorderStroke(1.dp, GlassTier.G2.borderColor()),
+		tonalElevation = RidgelineElevation.Raised.tonal,
+		shadowElevation = RidgelineElevation.Raised.shadow,
 	) {
 		Column(
 			modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
@@ -109,13 +116,9 @@ internal fun MapChromeBar(
 			ContextualChipsRow(
 				activeLayerLabel = activeLayerLabel,
 				onLayersClick = onLayersClick,
-				showQualityChip = showQualityChip,
-				qualityLabel = qualityLabel,
-				onQualityClick = onQualityClick,
 				dateRangeLabel = dateRangeLabel,
 				onDatesClick = onDatesClick,
 				layersExpanded = layersExpanded,
-				qualityExpanded = qualityExpanded,
 				datesExpanded = datesExpanded,
 				modifier = Modifier
 					.fillMaxWidth()
@@ -141,13 +144,9 @@ internal fun MapChromeBar(
 private fun ContextualChipsRow(
 	activeLayerLabel: String,
 	onLayersClick: () -> Unit,
-	showQualityChip: Boolean,
-	qualityLabel: String,
-	onQualityClick: () -> Unit,
 	dateRangeLabel: String,
 	onDatesClick: () -> Unit,
 	layersExpanded: Boolean,
-	qualityExpanded: Boolean,
 	datesExpanded: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -156,7 +155,6 @@ private fun ContextualChipsRow(
 		horizontalArrangement = Arrangement.spacedBy(8.dp),
 	) {
 		val layersA11y = stringResource(R.string.map_chip_layers) + ", " + activeLayerLabel
-		val qualityA11y = stringResource(R.string.map_quality_label) + ", " + qualityLabel
 		val datesA11y = stringResource(R.string.map_chip_dates) + ", " + dateRangeLabel
 		ContextualChip(
 			icon = Icons.Filled.Layers,
@@ -168,17 +166,6 @@ private fun ContextualChipsRow(
 				.weight(1f)
 				.testTag("map_layer_picker_chip"),
 		)
-		if (showQualityChip) {
-			QualityContextualChip(
-				value = qualityLabel,
-				contentDescription = qualityA11y,
-				expanded = qualityExpanded,
-				onClick = onQualityClick,
-				modifier = Modifier
-					.weight(0.9f)
-					.testTag("map_quality_picker_chip"),
-			)
-		}
 		ContextualChip(
 			icon = Icons.Filled.DateRange,
 			value = dateRangeLabel,
@@ -226,9 +213,9 @@ private fun ContextualChip(
 		tonalElevation = 0.dp,
 		shadowElevation = 0.dp,
 	) {
-		// Icon is the verb (what the chip is for); value is the noun (current selection);
-		// chevron is the universal "tap to open more." No redundant prefix label — the icon
-		// already carries the role, so we keep room for the value to render in full.
+		// Icon is the verb (what the chip is for); value is the noun (current selection); chevron
+		// is the universal "tap to open more." The label always renders now that the quality
+		// control lives in Settings, leaving room for the Layers and Dates labels.
 		Row(
 			modifier = Modifier.padding(start = 14.dp, end = 10.dp),
 			verticalAlignment = Alignment.CenterVertically,
@@ -237,7 +224,7 @@ private fun ContextualChip(
 			Icon(
 				imageVector = icon,
 				contentDescription = null,
-				modifier = Modifier.size(20.dp),
+				modifier = Modifier.size(CHIP_ICON_SIZE),
 			)
 			Text(
 				text = value,
@@ -250,60 +237,7 @@ private fun ContextualChip(
 			Icon(
 				imageVector = Icons.Filled.ArrowDropDown,
 				contentDescription = null,
-				modifier = Modifier.size(20.dp),
-			)
-		}
-	}
-}
-
-@Composable
-private fun QualityContextualChip(
-	value: String,
-	contentDescription: String,
-	expanded: Boolean,
-	onClick: () -> Unit,
-	modifier: Modifier = Modifier,
-) {
-	val containerColor = if (expanded) {
-		MaterialTheme.colorScheme.primaryContainer
-	} else {
-		MaterialTheme.colorScheme.surfaceContainerHighest
-	}
-	val contentColor = if (expanded) {
-		MaterialTheme.colorScheme.onPrimaryContainer
-	} else {
-		MaterialTheme.colorScheme.onSurface
-	}
-	Surface(
-		modifier = modifier
-			.height(44.dp)
-			.semantics(mergeDescendants = true) {
-				this.contentDescription = contentDescription
-			},
-		onClick = onClick,
-		shape = RoundedCornerShape(22.dp),
-		color = containerColor,
-		contentColor = contentColor,
-		tonalElevation = 0.dp,
-		shadowElevation = 0.dp,
-	) {
-		Row(
-			modifier = Modifier.padding(start = 14.dp, end = 10.dp),
-			verticalAlignment = Alignment.CenterVertically,
-			horizontalArrangement = Arrangement.spacedBy(8.dp),
-		) {
-			Text(
-				text = value,
-				style = MaterialTheme.typography.titleSmall,
-				fontWeight = FontWeight.Bold,
-				maxLines = 1,
-				overflow = TextOverflow.Ellipsis,
-				modifier = Modifier.weight(1f),
-			)
-			Icon(
-				imageVector = Icons.Filled.ArrowDropDown,
-				contentDescription = null,
-				modifier = Modifier.size(20.dp),
+				modifier = Modifier.size(CHIP_ICON_SIZE),
 			)
 		}
 	}

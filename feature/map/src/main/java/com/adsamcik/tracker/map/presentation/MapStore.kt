@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
@@ -17,9 +18,11 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SelectedTripMapContext
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
+import com.adsamcik.tracker.map.presentation.udf.SpeedProbeModel
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
+import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
@@ -33,6 +36,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,6 +55,7 @@ class MapStore @Inject constructor(
     val trackerController: TrackerServiceController,
     private val dispatchers: DispatchersProvider,
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
+    private val mapSettingsRepository: MapSettingsRepository,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -66,6 +72,10 @@ class MapStore @Inject constructor(
         private const val SELECTED_LAYER_ID_KEY = "selected_layer_id"
         private const val NONE_LAYER_ID = "none"
         private const val DEFAULT_LAYER_ID = "location_polyline"
+        private const val SPEED_LAYER_ID = "speed_heatmap"
+
+        /** Zoom levels stepped per zoom-button tap. */
+        private const val ZOOM_STEP = 1f
         private const val CAMERA_LAT_KEY = "camera_lat"
         private const val CAMERA_LNG_KEY = "camera_lng"
         private const val CAMERA_ZOOM_KEY = "camera_zoom"
@@ -141,10 +151,48 @@ class MapStore @Inject constructor(
                 initialValue = OnlineMapTilesState(),
             )
 
+    /**
+     * Whether the legacy grid-tile heatmap (easter egg) is enabled in Map settings. The map chrome
+     * uses this to show/hide the "Legacy heatmap" entry in the layer picker.
+     */
+    val legacyHeatmapEnabled: StateFlow<Boolean> =
+        mapSettingsRepository.data
+            .map { it.legacyHeatmapEnabled }
+            .distinctUntilChanged()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.Eagerly,
+                initialValue = false,
+            )
+
+    /**
+     * Whether the on-screen accessibility zoom in/out buttons are enabled in Map settings. The map
+     * chrome uses this to show/hide the zoom controls.
+     */
+    val zoomButtonsEnabled: StateFlow<Boolean> =
+        mapSettingsRepository.data
+            .map { it.zoomButtonsEnabled }
+            .distinctUntilChanged()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.Eagerly,
+                initialValue = false,
+            )
+
     private var lastBearing: Float = 0f
 
     private var applyLayerJob: Job? = null
     private var cameraRefreshJob: Job? = null
+    private var speedProbeJob: Job? = null
+    /**
+     * Latest real viewport bounds reported by the map projection (see
+     * [MapEvent.CameraMoved.visibleBounds]). Preferred over the camera-derived [cameraToBounds]
+     * estimate for spatial layer queries; the estimate badly under-covers the viewport because it
+     * assumes a single 256px tile is visible. Kept as the last non-null value so a transient null
+     * (projection not ready) does not collapse the fetch box.
+     */
+    @Volatile
+    private var lastVisibleBounds: Bounds? = null
     private var overlayUpdateJob: Job? = null
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
@@ -152,6 +200,24 @@ class MapStore @Inject constructor(
     private var hasReceivedInitialLocation: Boolean = false
     private var lastKnownUserLocation: LatLngModel? = null
     private var lastKnownAccuracyM: Double = 0.0
+
+    init {
+        // Heatmap quality is configured in the Map settings screen (not an in-map pill anymore).
+        // Observe it here so the persisted value at startup and any later setting change drive the
+        // rendered quality. Reuses the existing SetQuality reducer (updates state + re-applies the
+        // active layer); applyLayer() is a no-op until the engine is attached, after which
+        // setLayerEngine() applies the current quality.
+        viewModelScope.launch {
+            mapSettingsRepository.data
+                .map { it.quality }
+                .distinctUntilChanged()
+                .collect { quality ->
+                    if (_state.value.quality != quality) {
+                        dispatch(MapEvent.SetQuality(quality))
+                    }
+                }
+        }
+    }
 
     fun dispatch(event: MapEvent) {
         when (event) {
@@ -165,13 +231,14 @@ class MapStore @Inject constructor(
                 _state.update { it.copy(sheet = it.sheet.copy(visibility = event.visibility)) }
             }
             is MapEvent.SelectLayer -> {
+                speedProbeJob?.cancel()
                 _state.update { current ->
                     val updatedLayerIds = if (event.id == NONE_LAYER_ID) {
                         persistentSetOf()
                     } else {
                         persistentSetOf(event.id)
                     }
-                    current.copy(activeLayerIds = updatedLayerIds)
+                    current.copy(activeLayerIds = updatedLayerIds, speedProbe = null)
                 }
                 savedStateHandle[SELECTED_LAYER_ID_KEY] = if (event.id == NONE_LAYER_ID) {
                     NONE_LAYER_ID
@@ -265,6 +332,7 @@ class MapStore @Inject constructor(
             }
             is MapEvent.CameraMoved -> {
                 _state.update { it.copy(camera = event.position) }
+                event.visibleBounds?.let { lastVisibleBounds = it }
                 savedStateHandle[CAMERA_LAT_KEY] = event.position.lat
                 savedStateHandle[CAMERA_LNG_KEY] = event.position.lng
                 savedStateHandle[CAMERA_ZOOM_KEY] = event.position.zoom
@@ -312,6 +380,13 @@ class MapStore @Inject constructor(
                     }
                 }
             }
+            is MapEvent.ProbeSpeedAt -> probeSpeedAt(event.lat, event.lng, event.radiusMeters)
+            is MapEvent.DismissSpeedProbe -> {
+                speedProbeJob?.cancel()
+                _state.update { it.copy(speedProbe = null) }
+            }
+            is MapEvent.ZoomIn -> _effects.tryEmit(MapEffect.ZoomBy(ZOOM_STEP))
+            is MapEvent.ZoomOut -> _effects.tryEmit(MapEffect.ZoomBy(-ZOOM_STEP))
         }
     }
 
@@ -370,6 +445,39 @@ class MapStore @Inject constructor(
         )
     }
 
+    /**
+     * Query the speed summary around (lat, lng) and publish it as [MapState.speedProbe]. No-op
+     * unless the speed heatmap is the active layer. A tap with no nearby data still publishes a
+     * probe with sampleCount 0 so the UI can show an explicit "no data here" message.
+     */
+    private fun probeSpeedAt(lat: Double, lng: Double, radiusMeters: Double) {
+        val engine = layerManager ?: return
+        if (!_state.value.activeLayerIds.contains(SPEED_LAYER_ID)) return
+        speedProbeJob?.cancel()
+        speedProbeJob = viewModelScope.launch {
+            val dateRange = _state.value.dateRange
+            val summary = try {
+                withContext(dispatchers.default) {
+                    engine.querySpeedSummaryAt(lat, lng, radiusMeters, dateRange)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Reporter.report(e)
+                null
+            }
+            _state.update {
+                it.copy(
+                    speedProbe = SpeedProbeModel(
+                        latLng = LatLngModel(lat, lng),
+                        avgSpeedMps = summary?.avgSpeedMps ?: 0.0,
+                        maxSpeedMps = summary?.maxSpeedMps ?: 0.0,
+                        sampleCount = summary?.sampleCount ?: 0,
+                    )
+                )
+            }
+        }
+    }
+
     private fun applyLayer() {
         val engine = layerManager ?: return
         cameraRefreshJob?.cancel()
@@ -378,7 +486,8 @@ class MapStore @Inject constructor(
             _state.update { it.copy(layerLoadingProgress = 50) }
             try {
                 val s = _state.value
-                val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
+                val bounds = lastVisibleBounds
+                    ?: cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
                 withContext(dispatchers.default) {
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
@@ -403,7 +512,8 @@ class MapStore @Inject constructor(
             _state.update { it.copy(layerLoadingProgress = 50) }
             try {
                 val s = _state.value
-                val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
+                val bounds = lastVisibleBounds
+                    ?: cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
                 withContext(dispatchers.default) {
                     engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange)
                 }

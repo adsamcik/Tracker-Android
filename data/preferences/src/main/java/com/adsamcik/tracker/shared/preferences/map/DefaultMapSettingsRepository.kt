@@ -75,6 +75,26 @@ class DefaultMapSettingsRepository(
         }
     }
 
+    override suspend fun setLegacyHeatmapEnabled(enabled: Boolean) {
+        withContext(io) {
+            context.mapSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setLegacyHeatmapEnabled(enabled)
+                    .build()
+            }
+        }
+    }
+
+    override suspend fun setZoomButtonsEnabled(enabled: Boolean) {
+        withContext(io) {
+            context.mapSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setZoomButtonsEnabled(enabled)
+                    .build()
+            }
+        }
+    }
+
     private suspend fun ensureMigrated() {
         val current = context.mapSettingsDataStore.data.first()
         if (current.legacyMigrated) return
@@ -105,5 +125,7 @@ private fun MapSettingsProto.toDomain(): MapSettingsState {
         quality = quality.takeIf { it > 0f } ?: MapSettingsState.DEFAULT_QUALITY,
         maxHeatPoints = maxHeatPoints.takeIf { it > 0 } ?: MapSettingsState.DEFAULT_MAX_HEAT,
         visitThresholdSeconds = visitThresholdSeconds.takeIf { it > 0 } ?: MapSettingsState.DEFAULT_VISIT_THRESHOLD,
+        legacyHeatmapEnabled = legacyHeatmapEnabled,
+        zoomButtonsEnabled = zoomButtonsEnabled,
     )
 }

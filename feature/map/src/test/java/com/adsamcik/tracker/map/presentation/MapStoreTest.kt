@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.presentation
 
 import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
+import com.adsamcik.tracker.map.presentation.bridge.SpeedSummary
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
@@ -12,7 +13,9 @@ import com.adsamcik.tracker.map.shared.MapLegendValue
 import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.testing.fake.FakeMapSettingsRepository
 import com.adsamcik.tracker.testing.fake.FakeOnlineMapTilesRepository
+import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -31,6 +34,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.coVerify
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
@@ -57,6 +61,7 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
+            FakeMapSettingsRepository(),
         )
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
@@ -96,6 +101,7 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
+            FakeMapSettingsRepository(),
         )
 
         val state = tripStore.state.first()
@@ -120,6 +126,7 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
+            FakeMapSettingsRepository(),
         )
 
         tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
@@ -246,6 +253,7 @@ class MapStoreTest {
             mockTrackerController,
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
+            FakeMapSettingsRepository(),
         )
         tripStore.setLayerEngine(mockLayerEngine)
 
@@ -384,6 +392,26 @@ class MapStoreTest {
     }
 
     @Test
+    fun `quality from map settings repository drives state`() = runTest {
+        val settingsRepo = FakeMapSettingsRepository(MapSettingsState(quality = 2f))
+        val store = MapStore(
+            SavedStateHandle(),
+            mockTrackerController,
+            TestDispatchersProvider(testDispatcher),
+            FakeOnlineMapTilesRepository(),
+            settingsRepo,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        store.state.first().quality shouldBe 2f
+
+        settingsRepo.setQuality(0.5f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        store.state.first().quality shouldBe 0.5f
+    }
+
+    @Test
     fun `setDateRange helper method works`() = runTest {
         val range = 500L..1500L
         
@@ -473,6 +501,124 @@ class MapStoreTest {
             expectedLat = -33.8688,
             expectedLng = 151.2093
         )
+    }
+
+    @Test
+    fun `zoom in emits positive ZoomBy effect`() = runTest {
+        mapStore.effects.test {
+            mapStore.dispatch(MapEvent.ZoomIn)
+            val effect = awaitItem()
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.ZoomBy) shouldBe true
+            (effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.ZoomBy).delta shouldBe 1f
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `zoom out emits negative ZoomBy effect`() = runTest {
+        mapStore.effects.test {
+            mapStore.dispatch(MapEvent.ZoomOut)
+            val effect = awaitItem()
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.ZoomBy) shouldBe true
+            (effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.ZoomBy).delta shouldBe -1f
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `zoom buttons setting drives state`() = runTest {
+        val settingsRepo = FakeMapSettingsRepository(MapSettingsState(zoomButtonsEnabled = true))
+        val store = MapStore(
+            SavedStateHandle(),
+            mockTrackerController,
+            TestDispatchersProvider(testDispatcher),
+            FakeOnlineMapTilesRepository(),
+            settingsRepo,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        store.zoomButtonsEnabled.value shouldBe true
+
+        settingsRepo.setZoomButtonsEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        store.zoomButtonsEnabled.value shouldBe false
+    }
+
+    @Test
+    fun `probe speed at populates speed probe when speed heatmap active`() = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer("speed_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { mockLayerEngine.querySpeedSummaryAt(any(), any(), any(), any()) } returns
+            SpeedSummary(avgSpeedMps = 10.0, maxSpeedMps = 25.0, sampleCount = 7)
+        mapStore.dispatch(MapEvent.ProbeSpeedAt(lat = 50.0, lng = 14.0, radiusMeters = 50.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val probe = mapStore.state.first().speedProbe
+        probe.shouldNotBeNull()
+        probe.latLng shouldBe LatLngModel(50.0, 14.0)
+        probe.avgSpeedMps shouldBe 10.0
+        probe.maxSpeedMps shouldBe 25.0
+        probe.sampleCount shouldBe 7
+        probe.hasData shouldBe true
+        coVerify { mockLayerEngine.querySpeedSummaryAt(eq(50.0), eq(14.0), eq(50.0), any()) }
+    }
+
+    @Test
+    fun `probe speed at is ignored when speed heatmap is not active`() = runTest {
+        // Default layer is location_polyline.
+        mapStore.dispatch(MapEvent.ProbeSpeedAt(lat = 50.0, lng = 14.0, radiusMeters = 50.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.state.first().speedProbe.shouldBeNull()
+        coVerify(exactly = 0) { mockLayerEngine.querySpeedSummaryAt(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `probe speed at with no nearby data publishes empty probe`() = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer("speed_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { mockLayerEngine.querySpeedSummaryAt(any(), any(), any(), any()) } returns null
+
+        mapStore.dispatch(MapEvent.ProbeSpeedAt(lat = 50.0, lng = 14.0, radiusMeters = 50.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val probe = mapStore.state.first().speedProbe
+        probe.shouldNotBeNull()
+        probe.sampleCount shouldBe 0
+        probe.hasData shouldBe false
+    }
+
+    @Test
+    fun `dismiss speed probe clears it`() = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer("speed_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { mockLayerEngine.querySpeedSummaryAt(any(), any(), any(), any()) } returns
+            SpeedSummary(5.0, 5.0, 1)
+        mapStore.dispatch(MapEvent.ProbeSpeedAt(50.0, 14.0, 50.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.state.first().speedProbe.shouldNotBeNull()
+
+        mapStore.dispatch(MapEvent.DismissSpeedProbe)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.state.first().speedProbe.shouldBeNull()
+    }
+
+    @Test
+    fun `selecting another layer clears speed probe`() = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer("speed_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { mockLayerEngine.querySpeedSummaryAt(any(), any(), any(), any()) } returns
+            SpeedSummary(5.0, 5.0, 1)
+        mapStore.dispatch(MapEvent.ProbeSpeedAt(50.0, 14.0, 50.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.state.first().speedProbe.shouldNotBeNull()
+
+        mapStore.dispatch(MapEvent.SelectLayer("location_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.state.first().speedProbe.shouldBeNull()
     }
 
     private suspend fun assertSuccessfulSearch(
