@@ -59,6 +59,7 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
+        scrollTo("Balanced")
         composeTestRule.onNodeWithText("Balanced", substring = true).assertIsDisplayed()
     }
 
@@ -75,6 +76,7 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
+        scrollTo("Use activity transitions")
         composeTestRule.onNodeWithText("Use activity transitions", substring = true).assertIsDisplayed()
         scrollTo("Colored notifications")
         composeTestRule.onNodeWithText("Colored notifications", substring = true).assertIsDisplayed()
@@ -93,6 +95,7 @@ class TrackingSettingsScreenTest {
                 )
             }
         }
+        scrollTo("Use activity transitions")
         composeTestRule.onNodeWithText("Use activity transitions", substring = true).performClick()
         newValue shouldBe false // Was true, toggling makes false
     }

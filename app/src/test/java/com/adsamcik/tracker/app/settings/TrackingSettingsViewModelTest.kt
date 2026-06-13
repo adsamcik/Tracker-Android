@@ -445,6 +445,29 @@ class TrackingSettingsViewModelTest {
         }
 
         @Test
+        fun `building from a preset keeps other preset values when one is edited`() =
+            runTest(testDispatcher) {
+                val vm = createViewModel()
+                advanceUntilIdle()
+
+                vm.applyPreset(TrackingPreset.POWER_SAVE)
+                advanceUntilIdle()
+
+                // Fine-tune a single control on top of the preset.
+                vm.setMinDistance(42)
+                advanceUntilIdle()
+
+                // The profile becomes Custom, the edited value is applied, and the remaining
+                // POWER_SAVE values are preserved (the user builds from the preset rather than
+                // starting from scratch).
+                vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
+                vm.uiState.value.minDistance shouldBe 42
+                vm.uiState.value.minTime shouldBe TrackingPreset.POWER_SAVE.minTimeSeconds
+                vm.uiState.value.requiredAccuracy shouldBe TrackingPreset.POWER_SAVE.requiredAccuracyMeters
+                vm.uiState.value.stepsEnabled shouldBe TrackingPreset.POWER_SAVE.stepsEnabled
+            }
+
+        @Test
         fun `applying preset after custom restores named preset`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()

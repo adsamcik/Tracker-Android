@@ -97,4 +97,33 @@ class TrackingPresetSelectorTest {
         // Verify the selector renders with the title visible
         composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
     }
+
+    @Test
+    fun showsCustomIndicatorWhenCustom() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingPresetSelector(
+                    selectedPreset = TrackingPreset.CUSTOM,
+                    currentBatteryImpact = BatteryImpact.MODERATE,
+                    onPresetSelected = {},
+                )
+            }
+        }
+        // The custom-profile indicator explains the user has fine-tuned tracking
+        composeTestRule.onNodeWithText("fine-tuned", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun hidesCustomIndicatorWhenPresetSelected() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingPresetSelector(
+                    selectedPreset = TrackingPreset.BALANCED,
+                    currentBatteryImpact = BatteryImpact.MODERATE,
+                    onPresetSelected = {},
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("fine-tuned", substring = true).assertDoesNotExist()
+    }
 }

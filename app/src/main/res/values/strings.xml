@@ -653,8 +653,9 @@
     <string name="tracking_preset_custom_name">Custom</string>
     <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
     <string name="tracking_preset_selector_title">Tracking Preset</string>
-    <string name="tracking_preset_selector_subtitle">Choose a profile, then switch to Custom to edit individual controls</string>
-    <string name="tracking_preset_custom_hint">Select Custom above to edit the detailed tracking controls below.</string>
+    <string name="tracking_preset_selector_subtitle">Pick a profile to start from, then fine-tune it in Advanced settings below.</string>
+    <string name="tracking_preset_custom_hint">Adjusting any setting below builds a Custom profile from the current preset.</string>
+    <string name="tracking_preset_customized_summary">You\'ve fine-tuned tracking. Pick a preset above to reset.</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>

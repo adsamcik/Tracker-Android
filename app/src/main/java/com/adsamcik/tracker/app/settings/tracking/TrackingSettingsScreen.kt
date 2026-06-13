@@ -124,7 +124,7 @@ internal fun TrackingSettingsContent(
     onNotificationCustomize: () -> Unit = {},
 ) {
     if (!uiState.isLoaded) return
-    val customControlsEnabled = uiState.currentPreset == TrackingPreset.CUSTOM
+    val onPresetBaseline = uiState.currentPreset != TrackingPreset.CUSTOM
 
     LazyColumn(
         modifier = Modifier
@@ -260,7 +260,7 @@ internal fun TrackingSettingsContent(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_advanced_section_title),
                 initiallyExpanded = false
             ) {
-                if (!customControlsEnabled) {
+                if (onPresetBaseline) {
                     Text(
                         text = stringResource(com.adsamcik.tracker.R.string.tracking_preset_custom_hint),
                         style = MaterialTheme.typography.bodySmall,
@@ -277,7 +277,6 @@ internal fun TrackingSettingsContent(
                     valueLabel = { "${it.toInt()} m" },
                     onValueChange = { onMinDistanceChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
-                    enabled = customControlsEnabled,
                 )
 
                 SliderSettingsItemWithHelp(
@@ -288,7 +287,6 @@ internal fun TrackingSettingsContent(
                     valueLabel = { "${it.toInt()} s" },
                     onValueChange = { onMinTimeChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
-                    enabled = customControlsEnabled,
                 )
 
                 SliderSettingsItemWithHelp(
@@ -299,7 +297,6 @@ internal fun TrackingSettingsContent(
                     valueLabel = { "${it.toInt()} m" },
                     onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
-                    enabled = customControlsEnabled,
                 )
 
                 SliderSettingsItemWithHelp(
@@ -317,21 +314,18 @@ internal fun TrackingSettingsContent(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
                     checked = uiState.locationEnabled,
                     onCheckedChange = onLocationEnabledChanged,
-                    enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
                     checked = uiState.activityEnabled,
                     onCheckedChange = onActivityEnabledChanged,
-                    enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
                     checked = uiState.stepsEnabled,
                     onCheckedChange = onStepsEnabledChanged,
-                    enabled = customControlsEnabled,
                 )
 
                 SwitchSettingsItem(
@@ -343,7 +337,6 @@ internal fun TrackingSettingsContent(
                     },
                     checked = uiState.wifiEnabled,
                     onCheckedChange = onWifiEnabledChanged,
-                    enabled = customControlsEnabled,
                 )
 
                 // WiFi sub-options
@@ -352,7 +345,6 @@ internal fun TrackingSettingsContent(
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
                         checked = uiState.wifiNetworkEnabled,
                         onCheckedChange = onWifiNetworkEnabledChanged,
-                        enabled = customControlsEnabled,
                     )
 
                     SwitchSettingsItemWithHelp(
@@ -360,7 +352,6 @@ internal fun TrackingSettingsContent(
                         checked = uiState.wifiLocationCountEnabled,
                         onCheckedChange = onWifiLocationCountEnabledChanged,
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count,
-                        enabled = customControlsEnabled,
                     )
                 }
 
@@ -373,7 +364,6 @@ internal fun TrackingSettingsContent(
                     },
                     checked = uiState.cellEnabled,
                     onCheckedChange = onCellEnabledChanged,
-                    enabled = customControlsEnabled,
                 )
             }
         }
