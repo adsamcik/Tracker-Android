@@ -52,6 +52,22 @@ data class SpeedProbeModel(
     val hasData: Boolean get() = sampleCount > 0
 }
 
+/**
+ * Result of tapping the map to reveal the nearest place name via the offline reverse geocoder.
+ * [title] is the most specific label (e.g. "Vinohradská, Prague"); [subtitle] is an optional
+ * secondary line (country). [isLoading] is true while the lookup is in flight; [hasResult] is
+ * false when nothing was found, which the UI surfaces as an explicit "no place here" message.
+ */
+@Immutable
+data class PlaceCalloutModel(
+    val latLng: LatLngModel,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val isLoading: Boolean = false,
+) {
+    val hasResult: Boolean get() = title != null
+}
+
 @Immutable
 data class SelectedTripMapContext(
     val tripId: Long,
@@ -109,6 +125,7 @@ data class MapState(
     val layerLoadingProgress: Int = 0,
     val layerConfig: MapLibreLayerConfig? = null,
     val speedProbe: SpeedProbeModel? = null,
+    val placeCallout: PlaceCalloutModel? = null,
 )
 
 sealed interface MapEvent {
@@ -150,6 +167,15 @@ sealed interface MapEvent {
 
     /** Dismiss the speed-probe callout. */
     data object DismissSpeedProbe : MapEvent
+
+    /**
+     * User tapped the map (no interactive layer active) to reveal the nearest place name via the
+     * offline reverse geocoder.
+     */
+    data class ReverseGeocodeAt(val lat: Double, val lng: Double) : MapEvent
+
+    /** Dismiss the reverse-geocode place callout. */
+    data object DismissPlaceCallout : MapEvent
 }
 
 sealed interface MapEffect {

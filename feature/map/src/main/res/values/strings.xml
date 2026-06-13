@@ -166,6 +166,9 @@
     <string name="map_speed_probe_empty">No speed data at this spot. Tap somewhere with heat to see speeds.</string>
     <string name="map_speed_probe_hint">Tap the map to see speeds</string>
     <string name="map_speed_probe_dismiss">Dismiss speed details</string>
+    <string name="map_place_callout_loading">Finding place…</string>
+    <string name="map_place_callout_empty">No place found here</string>
+    <string name="map_place_callout_dismiss">Dismiss place details</string>
     <string name="map_zoom_in">Zoom in</string>
     <string name="map_zoom_out">Zoom out</string>
     <string name="map_loading">Loading map…</string>

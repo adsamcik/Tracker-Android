@@ -60,6 +60,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
+import com.adsamcik.tracker.map.presentation.udf.PlaceCalloutModel
 import com.adsamcik.tracker.map.presentation.udf.SpeedProbeModel
 import com.adsamcik.tracker.map.shared.MapStyleProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -488,7 +489,12 @@ fun MapScreen(
                         )
                         ClickResult.Consume
                     } else {
-                        ClickResult.Pass
+                        // No interactive layer: tap reveals the nearest place name (offline reverse
+                        // geocoding) in a top-anchored callout.
+                        store.dispatch(
+                            MapEvent.ReverseGeocodeAt(position.latitude, position.longitude)
+                        )
+                        ClickResult.Consume
                     }
                 },
                 onMapLoadFailed = { reason ->
@@ -735,6 +741,18 @@ fun MapScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
+        }
+
+        // Tap-to-identify place callout (offline reverse geocoding), shown when no interactive
+        // layer consumed the tap. Mutually exclusive with the speed probe (which only triggers
+        // when the speed heatmap is active).
+        val placeCallout = state.placeCallout
+        if (placeCallout != null) {
+            PlaceCallout(
+                callout = placeCallout,
+                topPadding = topInsetPadding + 12.dp,
+                onDismiss = { store.dispatch(MapEvent.DismissPlaceCallout) },
+            )
         }
 
     }
@@ -1042,6 +1060,87 @@ private fun SpeedProbeMetric(label: String, value: String) {
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
+    }
+}
+
+/**
+ * Callout shown when the user taps the map to identify the nearest place (offline reverse
+ * geocoding). Shows a loading state while resolving, the resolved place name, or an explicit
+ * "no place here" message when nothing was found.
+ */
+@Composable
+private fun BoxScope.PlaceCallout(
+    callout: PlaceCalloutModel,
+    topPadding: Dp,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(start = 16.dp, end = 16.dp, top = topPadding)
+            .testTag("map_place_callout_card"),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Filled.LocationOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                when {
+                    callout.isLoading -> {
+                        Text(
+                            text = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_place_callout_loading
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    callout.hasResult -> {
+                        Text(
+                            text = callout.title.orEmpty(),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (!callout.subtitle.isNullOrBlank()) {
+                            Text(
+                                text = callout.subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                    }
+                    else -> {
+                        Text(
+                            text = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_place_callout_empty
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            IconButton(onClick = onDismiss) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(
+                        com.adsamcik.tracker.map.R.string.map_place_callout_dismiss
+                    ),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

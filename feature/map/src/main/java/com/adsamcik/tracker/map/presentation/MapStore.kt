@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.geocoder.ReverseGeocoder
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.presentation.udf.PlaceCalloutModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SelectedTripMapContext
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
@@ -56,6 +58,7 @@ class MapStore @Inject constructor(
     private val dispatchers: DispatchersProvider,
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
     private val mapSettingsRepository: MapSettingsRepository,
+    private val reverseGeocoder: ReverseGeocoder,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -184,6 +187,8 @@ class MapStore @Inject constructor(
     private var applyLayerJob: Job? = null
     private var cameraRefreshJob: Job? = null
     private var speedProbeJob: Job? = null
+    private var placeCalloutJob: Job? = null
+    private var searchJob: Job? = null
     /**
      * Latest real viewport bounds reported by the map projection (see
      * [MapEvent.CameraMoved.visibleBounds]). Preferred over the camera-derived [cameraToBounds]
@@ -232,13 +237,14 @@ class MapStore @Inject constructor(
             }
             is MapEvent.SelectLayer -> {
                 speedProbeJob?.cancel()
+                placeCalloutJob?.cancel()
                 _state.update { current ->
                     val updatedLayerIds = if (event.id == NONE_LAYER_ID) {
                         persistentSetOf()
                     } else {
                         persistentSetOf(event.id)
                     }
-                    current.copy(activeLayerIds = updatedLayerIds, speedProbe = null)
+                    current.copy(activeLayerIds = updatedLayerIds, speedProbe = null, placeCallout = null)
                 }
                 savedStateHandle[SELECTED_LAYER_ID_KEY] = if (event.id == NONE_LAYER_ID) {
                     NONE_LAYER_ID
@@ -302,33 +308,11 @@ class MapStore @Inject constructor(
                     return
                 }
                 val coordinate = parseCoordinateQuery(q)
-                if (coordinate == null) {
-                    _state.update { it.copy(search = it.search.copy(resultStatus = SearchResultStatus.NotFound)) }
-                    _effects.tryEmit(MapEffect.ShowSearchFormatHint)
-                    return
+                if (coordinate != null) {
+                    applySearchResult(coordinate)
+                } else {
+                    searchPlacesByName(q)
                 }
-                _state.update { current ->
-                    current.copy(
-                        isFollowing = false,
-                        search = current.search.copy(resultStatus = SearchResultStatus.Found),
-                        overlays = persistentListOf(
-                            *(current.overlays
-                                .filterNot { overlay -> overlay is MapOverlayState.SearchMarker } +
-                                MapOverlayState.SearchMarker(coordinate)).toTypedArray()
-                        )
-                    )
-                }
-                val delta = 0.005
-                _effects.tryEmit(
-                    MapEffect.CenterCamera(
-                        CoordinateBounds(
-                            topBound = coordinate.lat + delta,
-                            rightBound = coordinate.lng + delta,
-                            bottomBound = coordinate.lat - delta,
-                            leftBound = coordinate.lng - delta
-                        )
-                    )
-                )
             }
             is MapEvent.CameraMoved -> {
                 _state.update { it.copy(camera = event.position) }
@@ -384,6 +368,11 @@ class MapStore @Inject constructor(
             is MapEvent.DismissSpeedProbe -> {
                 speedProbeJob?.cancel()
                 _state.update { it.copy(speedProbe = null) }
+            }
+            is MapEvent.ReverseGeocodeAt -> reverseGeocodeAt(event.lat, event.lng)
+            is MapEvent.DismissPlaceCallout -> {
+                placeCalloutJob?.cancel()
+                _state.update { it.copy(placeCallout = null) }
             }
             is MapEvent.ZoomIn -> _effects.tryEmit(MapEffect.ZoomBy(ZOOM_STEP))
             is MapEvent.ZoomOut -> _effects.tryEmit(MapEffect.ZoomBy(-ZOOM_STEP))
@@ -476,6 +465,90 @@ class MapStore @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * Reverse-geocode the tapped point and publish it as [MapState.placeCallout]. Shows a loading
+     * callout immediately, then resolves the nearest place name fully offline. A tap with no
+     * resolvable place still publishes a callout (hasResult = false) so the UI can show an explicit
+     * "no place here" message rather than silently doing nothing.
+     */
+    private fun reverseGeocodeAt(lat: Double, lng: Double) {
+        placeCalloutJob?.cancel()
+        _state.update {
+            it.copy(placeCallout = PlaceCalloutModel(LatLngModel(lat, lng), isLoading = true))
+        }
+        placeCalloutJob = viewModelScope.launch {
+            val place = try {
+                reverseGeocoder.reverseGeocode(lat, lng)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Reporter.report(e)
+                null
+            }
+            _state.update {
+                it.copy(
+                    placeCallout = PlaceCalloutModel(
+                        latLng = LatLngModel(lat, lng),
+                        title = place?.displayName,
+                        subtitle = place?.countryCode,
+                        isLoading = false,
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Forward-search a free-text place name (non-coordinate query) against the offline places
+     * dataset and jump the camera to the best (most prominent) match. Falls back to the existing
+     * NotFound + format-hint path when nothing matches.
+     */
+    private fun searchPlacesByName(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            val best = try {
+                reverseGeocoder.searchPlaces(query, limit = 1).firstOrNull()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Reporter.report(e)
+                null
+            }
+            if (best == null) {
+                _state.update {
+                    it.copy(search = it.search.copy(resultStatus = SearchResultStatus.NotFound))
+                }
+                _effects.tryEmit(MapEffect.ShowSearchFormatHint)
+            } else {
+                applySearchResult(LatLngModel(best.latitude, best.longitude))
+            }
+        }
+    }
+
+    /** Mark the search as found, drop a search marker, and center the camera on [coordinate]. */
+    private fun applySearchResult(coordinate: LatLngModel) {
+        _state.update { current ->
+            current.copy(
+                isFollowing = false,
+                search = current.search.copy(resultStatus = SearchResultStatus.Found),
+                overlays = persistentListOf(
+                    *(current.overlays
+                        .filterNot { overlay -> overlay is MapOverlayState.SearchMarker } +
+                        MapOverlayState.SearchMarker(coordinate)).toTypedArray()
+                )
+            )
+        }
+        val delta = 0.005
+        _effects.tryEmit(
+            MapEffect.CenterCamera(
+                CoordinateBounds(
+                    topBound = coordinate.lat + delta,
+                    rightBound = coordinate.lng + delta,
+                    bottomBound = coordinate.lat - delta,
+                    leftBound = coordinate.lng - delta
+                )
+            )
+        )
     }
 
     private fun applyLayer() {

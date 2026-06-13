@@ -171,6 +171,11 @@
     <string name="about_github">GitHub</string>
     <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Links</string>
+    <string name="about_attributions_title">Data attributions</string>
+    <string name="about_attribution_geonames_label">Place names</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Map &amp; street data</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_send_feedback_title">Send feedback</string>
     <string name="settings_send_feedback_subtitle">Report issues on GitHub</string>
     <string name="settings_log_activity_title">Log activity changes</string>

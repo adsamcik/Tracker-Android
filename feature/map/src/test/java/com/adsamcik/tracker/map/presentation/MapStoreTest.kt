@@ -6,12 +6,16 @@ import com.adsamcik.tracker.map.presentation.bridge.SpeedSummary
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
+import com.adsamcik.tracker.geocoder.GeocodedPlace
+import com.adsamcik.tracker.geocoder.PlaceSearchResult
 import com.adsamcik.tracker.map.presentation.udf.SheetStateModel
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.MapLegend
 import com.adsamcik.tracker.map.shared.MapLegendValue
 import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLayerData
+import com.adsamcik.tracker.geocoder.ReverseGeocoder
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.testing.fake.FakeMapSettingsRepository
 import com.adsamcik.tracker.testing.fake.FakeOnlineMapTilesRepository
@@ -46,6 +50,7 @@ class MapStoreTest {
 
     private val mockLayerEngine: LayerEngine = mockk(relaxed = true)
     private val mockTrackerController: TrackerServiceController = mockk(relaxed = true)
+    private val mockReverseGeocoder: ReverseGeocoder = mockk(relaxed = true)
 
     private lateinit var mapStore: MapStore
     private val testDispatcher = StandardTestDispatcher()
@@ -62,6 +67,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
+            mockReverseGeocoder,
         )
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
@@ -102,6 +108,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
+            mockReverseGeocoder,
         )
 
         val state = tripStore.state.first()
@@ -127,6 +134,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
+            mockReverseGeocoder,
         )
 
         tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
@@ -254,6 +262,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
+            mockReverseGeocoder,
         )
         tripStore.setLayerEngine(mockLayerEngine)
 
@@ -400,6 +409,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             settingsRepo,
+            mockReverseGeocoder,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -526,6 +536,103 @@ class MapStoreTest {
     }
 
     @Test
+    fun `reverse geocode tap shows place callout with resolved name`() = runTest {
+        coEvery { mockReverseGeocoder.reverseGeocode(50.0, 14.0) } returns GeocodedPlace(
+            displayName = "Vinohradská, Prague",
+            street = "Vinohradská",
+            locality = "Prague",
+            countryCode = "CZ",
+            latitude = 50.0,
+            longitude = 14.0,
+        )
+
+        mapStore.dispatch(MapEvent.ReverseGeocodeAt(50.0, 14.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val callout = mapStore.state.first().placeCallout
+        callout.shouldNotBeNull()
+        callout!!.isLoading shouldBe false
+        callout.hasResult shouldBe true
+        callout.title shouldBe "Vinohradská, Prague"
+        callout.subtitle shouldBe "CZ"
+    }
+
+    @Test
+    fun `reverse geocode tap with no place shows empty callout`() = runTest {
+        coEvery { mockReverseGeocoder.reverseGeocode(any(), any()) } returns null
+
+        mapStore.dispatch(MapEvent.ReverseGeocodeAt(0.0, 0.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val callout = mapStore.state.first().placeCallout
+        callout.shouldNotBeNull()
+        callout!!.isLoading shouldBe false
+        callout.hasResult shouldBe false
+    }
+
+    @Test
+    fun `dismiss place callout clears it`() = runTest {
+        coEvery { mockReverseGeocoder.reverseGeocode(any(), any()) } returns null
+        mapStore.dispatch(MapEvent.ReverseGeocodeAt(0.0, 0.0))
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.state.first().placeCallout.shouldNotBeNull()
+
+        mapStore.dispatch(MapEvent.DismissPlaceCallout)
+        mapStore.state.first().placeCallout.shouldBeNull()
+    }
+
+    @Test
+    fun `submit place-name search forward-geocodes and centers camera`() = runTest {
+        coEvery {
+            mockReverseGeocoder.searchPlaces("Prague", any(), any(), any())
+        } returns listOf(
+            PlaceSearchResult(
+                displayName = "Prague",
+                locality = "Prague",
+                countryCode = "CZ",
+                latitude = 50.0875,
+                longitude = 14.4213,
+                population = 1_165_581,
+            )
+        )
+        mapStore.dispatch(MapEvent.UpdateSearchQuery("Prague"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.effects.test {
+            mapStore.dispatch(MapEvent.SubmitSearch)
+            testDispatcher.scheduler.advanceUntilIdle()
+            val effect = awaitItem()
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera) shouldBe true
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val state = mapStore.state.first()
+        state.search.resultStatus shouldBe SearchResultStatus.Found
+        val marker = state.overlays
+            .filterIsInstance<com.adsamcik.tracker.map.presentation.udf.MapOverlayState.SearchMarker>()
+            .single()
+        marker.latLng.lat shouldBe (50.0875 plusOrMinus 0.000001)
+        marker.latLng.lng shouldBe (14.4213 plusOrMinus 0.000001)
+    }
+
+    @Test
+    fun `submit place-name search with no match emits format hint and marks NotFound`() = runTest {
+        coEvery { mockReverseGeocoder.searchPlaces(any(), any(), any(), any()) } returns emptyList()
+        mapStore.dispatch(MapEvent.UpdateSearchQuery("Nowhereville"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.effects.test {
+            mapStore.dispatch(MapEvent.SubmitSearch)
+            testDispatcher.scheduler.advanceUntilIdle()
+            val effect = awaitItem()
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.ShowSearchFormatHint) shouldBe true
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        mapStore.state.first().search.resultStatus shouldBe SearchResultStatus.NotFound
+    }
+
+    @Test
     fun `zoom buttons setting drives state`() = runTest {
         val settingsRepo = FakeMapSettingsRepository(MapSettingsState(zoomButtonsEnabled = true))
         val store = MapStore(
@@ -534,6 +641,7 @@ class MapStoreTest {
             TestDispatchersProvider(testDispatcher),
             FakeOnlineMapTilesRepository(),
             settingsRepo,
+            mockReverseGeocoder,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 

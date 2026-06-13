@@ -15,7 +15,9 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -126,6 +128,29 @@ fun AboutScreen(
                             Icon(Icons.Default.Code, contentDescription = null)
                         },
                         modifier = Modifier.testTag("about_screen_github_link"),
+                    )
+                }
+            }
+
+            item {
+                SettingsGroupCard(
+                    title = stringResource(R.string.about_attributions_title),
+                ) {
+                    AboutValue(
+                        label = stringResource(R.string.about_attribution_geonames_label),
+                        value = stringResource(R.string.about_attribution_geonames_value),
+                        icon = {
+                            Icon(Icons.Default.Place, contentDescription = null)
+                        },
+                        modifier = Modifier.testTag("about_screen_attribution_geonames"),
+                    )
+                    AboutValue(
+                        label = stringResource(R.string.about_attribution_osm_label),
+                        value = stringResource(R.string.about_attribution_osm_value),
+                        icon = {
+                            Icon(Icons.Default.Map, contentDescription = null)
+                        },
+                        modifier = Modifier.testTag("about_screen_attribution_osm"),
                     )
                 }
             }
