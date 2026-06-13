@@ -47,22 +47,20 @@ open class SpeedHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
+        // cellSizeForZoom is always > 0, so every zoom aggregates into a grid. For speed we keep the
+        // per-cell AVERAGE (weights are already normalized to [0, 1] in loadData), not a count.
         val cellSize = GridAggregator.cellSizeForZoom(zoom, quality)
+        val cells = GridAggregator.aggregate(input, cellSize)
+        val weighted = GridAggregator.toWeightedFeatures(cells)
 
-        val processed = if (cellSize > 0.0) {
-            // For speed we want the average per cell (not count), so keep GridAggregator's
-            // averaging semantics — but weights are now already normalized to [0, 1].
-            val cells = GridAggregator.aggregate(input, cellSize)
-            GridAggregator.toWeightedFeatures(cells)
+        // Safety cap: thin uniformly if a viewport still resolves into more cells than the budget.
+        val capped = if (weighted.size > budgets.maxPoints) {
+            val step = (weighted.size / budgets.maxPoints).coerceAtLeast(1)
+            weighted.filterIndexed { index, _ -> index % step == 0 }
         } else {
-            if (input.size > budgets.maxPoints) {
-                val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
-                input.filterIndexed { index, _ -> index % step == 0 }
-            } else {
-                input
-            }
+            weighted
         }
-        return GeoJsonConverter.pointsToFeatureCollection(processed)
+        return GeoJsonConverter.pointsToFeatureCollection(capped)
     }
 
     private companion object {

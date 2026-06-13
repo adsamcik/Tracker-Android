@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.math.abs
+import kotlin.math.floor
 
 /**
  * MapStore: holds central MapState, reduces MapEvent, and bridges to LayerEngine.
@@ -87,6 +88,12 @@ class MapStore @Inject constructor(
         private const val TRIP_ID_KEY = "tripId"
         private const val TRIP_START_MS_KEY = "startMs"
         private const val TRIP_END_MS_KEY = "endMs"
+
+        /** Viewport-bucket quantization: fraction of a span (see [viewportBucket]). */
+        private const val BUCKET_FRACTION = 0.1
+
+        /** Smallest viewport bucket cell, guarding against zero-width spans. */
+        private const val MIN_BUCKET_DEGREES = 0.000001
         private val coordinatePartDelimiterRegex = Regex("[,;\\n]+")
         private val coordinateNumberRegex = Regex("[-+]?\\d+(?:\\.\\d+)?")
         private val hemisphereRegex = Regex("[NSEW]", RegexOption.IGNORE_CASE)
@@ -198,6 +205,17 @@ class MapStore @Inject constructor(
      */
     @Volatile
     private var lastVisibleBounds: Bounds? = null
+
+    /**
+     * Viewport "bucket" (coarsely-quantized bounds + integer zoom) whose data is currently rendered.
+     * A camera move that lands in the same bucket already has its heatmap drawn, so re-running the
+     * fetch/aggregate/encode pipeline would only re-publish identical data — wasted work that can
+     * still cause a visible refresh. Used by [MapEvent.CameraMoved] to skip redundant refreshes on
+     * micro-pans. Reset by [applyLayer] (a full re-select re-establishes the rendered bucket) and
+     * updated by [refreshLayerDataInPlace] once a refresh actually completes.
+     */
+    @Volatile
+    private var lastRenderedViewportBucket: ViewportBucket? = null
     private var overlayUpdateJob: Job? = null
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
@@ -323,11 +341,17 @@ class MapStore @Inject constructor(
                 savedStateHandle[CAMERA_TILT_KEY] = event.position.tilt
                 savedStateHandle[CAMERA_BEARING_KEY] = event.position.bearing
                 // Debounced viewport refresh so heatmaps update data without rebuilding layers.
+                // Skip entirely when the camera is still inside the viewport bucket we already
+                // rendered — refetching there would only re-publish identical data, an update the
+                // user perceives as the heatmap needlessly "flickering" while panning.
                 if (_state.value.activeLayerIds.any(::isBoundsSensitiveLayer)) {
-                    cameraRefreshJob?.cancel()
-                    cameraRefreshJob = viewModelScope.launch {
-                        delay(cameraRefreshDebounceMs)
-                        refreshLayerDataInPlace()
+                    val bucket = viewportBucket(lastVisibleBounds, event.position.zoom)
+                    if (bucket == null || bucket != lastRenderedViewportBucket) {
+                        cameraRefreshJob?.cancel()
+                        cameraRefreshJob = viewModelScope.launch {
+                            delay(cameraRefreshDebounceMs)
+                            refreshLayerDataInPlace()
+                        }
                     }
                 }
             }
@@ -555,6 +579,10 @@ class MapStore @Inject constructor(
         val engine = layerManager ?: return
         cameraRefreshJob?.cancel()
         applyLayerJob?.cancel()
+        // A full re-select renders fresh data (possibly a new layer / quality / date range); the
+        // previously-rendered viewport bucket no longer reflects what's drawn, so invalidate it and
+        // let the next camera move establish a new one.
+        lastRenderedViewportBucket = null
         applyLayerJob = viewModelScope.launch {
             _state.update { it.copy(layerLoadingProgress = 50) }
             try {
@@ -591,6 +619,9 @@ class MapStore @Inject constructor(
                     engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange)
                 }
                 updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = false)
+                // Record the viewport bucket now rendered so subsequent micro-pans within it are
+                // skipped (see MapEvent.CameraMoved).
+                lastRenderedViewportBucket = viewportBucket(bounds, s.camera.zoom)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 _state.update { it.copy(layerLoadingProgress = 0) }
@@ -700,6 +731,34 @@ class MapStore @Inject constructor(
         "wifi_heatmap",
         "wifi_count_heatmap",
         "speed_heatmap",
+    )
+
+    /**
+     * Coarse viewport identity: bounds quantized to ~10% of their own span plus the integer zoom.
+     * Two camera positions that fall in the same bucket cover essentially the same data window, so
+     * the heatmap rendered for one already covers the other. Returns `null` when bounds are unknown
+     * (callers then always refresh). Mirrors the bucketing [com.adsamcik.tracker.map.ui.LayerController]
+     * uses for its config cache, so a skipped refresh would have hit that cache anyway.
+     */
+    private fun viewportBucket(bounds: Bounds?, zoom: Float): ViewportBucket? {
+        if (bounds == null) return null
+        val latBucket = ((bounds.north - bounds.south) * BUCKET_FRACTION).coerceAtLeast(MIN_BUCKET_DEGREES)
+        val lonBucket = ((bounds.east - bounds.west) * BUCKET_FRACTION).coerceAtLeast(MIN_BUCKET_DEGREES)
+        return ViewportBucket(
+            north = floor(bounds.north / latBucket).toLong(),
+            east = floor(bounds.east / lonBucket).toLong(),
+            south = floor(bounds.south / latBucket).toLong(),
+            west = floor(bounds.west / lonBucket).toLong(),
+            zoomInt = zoom.toInt(),
+        )
+    }
+
+    private data class ViewportBucket(
+        val north: Long,
+        val east: Long,
+        val south: Long,
+        val west: Long,
+        val zoomInt: Int,
     )
 
     private fun readTripContext(handle: SavedStateHandle): SelectedTripMapContext? {

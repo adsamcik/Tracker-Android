@@ -53,6 +53,12 @@ class LocationHeatmapLayerTest {
     private val perf = PerformanceManager()
     private val layer = TestableLocationHeatmapLayer(mockRepo, perf)
 
+    /** Extract all numeric "weight" property values from a GeoJSON FeatureCollection string. */
+    private fun weightsOf(geoJson: String): List<Double> =
+        Regex(""""weight":([0-9.eE+-]+)""").findAll(geoJson)
+            .map { it.groupValues[1].toDouble() }
+            .toList()
+
     // ── colorStops ───────────────────────────────────────────────────────────
 
     @Nested
@@ -191,6 +197,36 @@ class LocationHeatmapLayerTest {
         fun `empty input produces empty features array`() {
             val json = layer.testProcessData(emptyList(), budgets(1000))
             json shouldContain """"features":[]"""
+        }
+
+        @Test
+        fun `cell weight is absolute and independent of a busier cell elsewhere`() {
+            // The previous code normalized by the viewport's max count, so the SAME cell recoloured
+            // whenever a busier cell scrolled into view — the "breathing" the user reported. With
+            // absolute log-density weighting a cell's weight must depend only on its own count.
+            val quietCell = List(5) { WeightedGeoFeature(50.0, 14.0, it.toLong(), 1.0) }
+            val busyCell = List(500) { WeightedGeoFeature(60.0, 24.0, it.toLong(), 1.0) }
+
+            val weightAlone = weightsOf(layer.testProcessData(quietCell, budgets(1000))).single()
+            val withBusyNeighbour = weightsOf(layer.testProcessData(quietCell + busyCell, budgets(1000)))
+
+            // Same physical cell, same weight regardless of the busy neighbour's presence.
+            withBusyNeighbour.min() shouldBe weightAlone
+        }
+
+        @Test
+        fun `denser cells get hotter weights and sparse cells stay cool`() {
+            val sparse = List(2) { WeightedGeoFeature(50.0, 14.0, it.toLong(), 1.0) }
+            val dense = List(400) { WeightedGeoFeature(60.0, 24.0, it.toLong(), 1.0) }
+
+            val weights = weightsOf(layer.testProcessData(sparse + dense, budgets(1000))).sorted()
+            weights shouldHaveSize 2
+            val cool = weights.first()
+            val hot = weights.last()
+            // A real gradient: the sparse cell is a cool mid-low tone, the dense cell is clearly
+            // hotter — not both pinned to the top of the ramp ("all red").
+            (cool < 0.5) shouldBe true
+            (hot > cool) shouldBe true
         }
     }
 

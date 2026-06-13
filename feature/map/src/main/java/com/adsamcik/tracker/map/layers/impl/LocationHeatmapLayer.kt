@@ -37,10 +37,11 @@ open class LocationHeatmapLayer(
             timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
             weight = "hor_acc"
         )
-        // `hor_acc` is GPS accuracy in meters (5–50+). Lower = more accurate. Invert and clamp
-        // to [0, 1] so each point contributes a normalized weight to the heatmap; high-accuracy
-        // fixes get weight ~0.9, poor fixes ~0.0. Without this, raw meter values (5–50) fed to
-        // MapLibre's `heatmap-weight` saturate the color ramp on the very first sample.
+        // `hor_acc` is GPS accuracy in meters (5–50+). Lower = more accurate. Invert and clamp to
+        // [0, 1] so each fix carries a confidence weight (high-accuracy ~0.9, poor ~0.0). The density
+        // heatmap colours cells by visit COUNT (see processData), so this per-fix weight is currently
+        // retained only as confidence metadata; it intentionally does not drive the colour directly,
+        // which is what previously let raw meter values saturate the ramp.
         return repo.queryWeighted(query, "hor_acc").first().map { feature ->
             feature.copy(
                 weight = (1.0 - feature.weight / MAX_ACCURACY_METERS).coerceIn(0.0, 1.0)
@@ -52,35 +53,34 @@ open class LocationHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
+        // cellSizeForZoom is always > 0, so every zoom aggregates raw fixes into a grid. This both
+        // bounds the rendered point count and — crucially — stops a travelled path's tightly-spaced
+        // raw points from piling up inside one heatmap radius and saturating to solid red.
         val cellSize = GridAggregator.cellSizeForZoom(zoom, quality)
+        val cells = GridAggregator.aggregate(input, cellSize)
 
-        val processed = if (cellSize > 0.0) {
-            // Aggregate, then re-weight each cell by visit count (normalized by max). This
-            // surfaces true density hotspots instead of averaging per-point accuracy across
-            // cells (which flattened the signal).
-            val cells = GridAggregator.aggregate(input, cellSize)
-            val maxCount = cells.maxOfOrNull { it.count } ?: 1
-            if (maxCount <= 0) {
-                emptyList()
-            } else {
-                cells.map { cell ->
-                    WeightedGeoFeature(
-                        lat = cell.lat,
-                        lon = cell.lon,
-                        time = cell.newestTime,
-                        weight = (cell.count.toDouble() / maxCount.toDouble()).coerceIn(0.0, 1.0),
-                    )
-                }
-            }
-        } else {
-            if (input.size > budgets.maxPoints) {
-                val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
-                input.filterIndexed { index, _ -> index % step == 0 }
-            } else {
-                input
-            }
+        // Weight each cell by an ABSOLUTE log-density of its visit count (not count / viewportMax).
+        // Absolute → a cell's colour depends only on its own data, so colours stay put as the user
+        // pans (no "breathing") and the log curve produces real cool→hot shades across the huge
+        // dynamic range of visit counts.
+        val weighted = cells.map { cell ->
+            WeightedGeoFeature(
+                lat = cell.lat,
+                lon = cell.lon,
+                time = cell.newestTime,
+                weight = GridAggregator.densityWeight(cell.count),
+            )
         }
-        return GeoJsonConverter.pointsToFeatureCollection(processed)
+
+        // Safety cap: in the rare case a single viewport still resolves into more cells than the
+        // render budget allows, thin them uniformly so spatial coverage (and the gradient) is kept.
+        val capped = if (weighted.size > budgets.maxPoints) {
+            val step = (weighted.size / budgets.maxPoints).coerceAtLeast(1)
+            weighted.filterIndexed { index, _ -> index % step == 0 }
+        } else {
+            weighted
+        }
+        return GeoJsonConverter.pointsToFeatureCollection(capped)
     }
 
     private companion object {

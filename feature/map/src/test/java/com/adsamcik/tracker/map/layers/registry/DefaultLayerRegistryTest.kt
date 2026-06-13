@@ -134,7 +134,8 @@ class DefaultLayerRegistryTest {
                 "wifi_count_heatmap",
                 "speed_heatmap",
                 "vehicle_compliance",
-                "location_polyline"
+                "location_polyline",
+                "legacy_heatmap"
             )
         }
 

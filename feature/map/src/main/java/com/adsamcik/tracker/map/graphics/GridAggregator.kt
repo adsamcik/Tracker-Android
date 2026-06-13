@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.graphics
 
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import kotlin.math.floor
+import kotlin.math.ln
 
 /**
  * Spatial grid aggregation for heatmap layers.
@@ -23,6 +24,38 @@ object GridAggregator {
 
     /** Upper bound for the render quality multiplier (matches the most detailed Map-settings stop). */
     const val MAX_QUALITY: Float = 8.0f
+
+    /**
+     * Visit count at which a grid cell is considered fully "hot" (weight ≈ 1.0) by [densityWeight].
+     *
+     * Calibrated for location-density heatmaps: a cell touched once reads cool, a regularly-walked
+     * path reads warm, and a dwell location (home/work, hundreds+ of fixes) reads hot. The logarithmic
+     * curve in [densityWeight] spreads the heavily right-skewed distribution of visit counts across
+     * the whole colour ramp instead of pinning everything but the single busiest cell to the bottom.
+     */
+    const val DEFAULT_DENSITY_REFERENCE: Double = 150.0
+
+    /**
+     * Map an **absolute** visit [count] to a heatmap weight in [0, 1] on a logarithmic scale.
+     *
+     * Unlike a `count / maxCount` normalization, this depends only on the cell's own count — never on
+     * the busiest cell currently in the viewport. That gives two properties the previous linear,
+     * viewport-relative weighting lacked:
+     *  - **Stable colours:** the same physical cell keeps the same colour as the user pans, so the
+     *    heatmap no longer "breathes"/animates on every refresh.
+     *  - **Proper shades:** visit counts span several orders of magnitude (a road passed once vs. a
+     *    home visited for months); the log curve turns that into a smooth cool→warm→hot gradient
+     *    rather than a binary "hottest cell = red, everything else ≈ transparent".
+     *
+     * @param count   raw number of fixes aggregated into the cell (>= 0).
+     * @param reference visit count that should map to full intensity (weight 1.0). Defaults to
+     *                  [DEFAULT_DENSITY_REFERENCE]; values <= 0 are treated as 1.
+     */
+    fun densityWeight(count: Int, reference: Double = DEFAULT_DENSITY_REFERENCE): Double {
+        if (count <= 0) return 0.0
+        val ref = reference.coerceAtLeast(1.0)
+        return (ln(1.0 + count) / ln(1.0 + ref)).coerceIn(0.0, 1.0)
+    }
 
     /**
      * Heatmap blob radius (px) for a [basePx] radius at quality 1, scaled to stay coherent with the

@@ -112,6 +112,56 @@ class GridAggregatorTest {
     }
 
     @Nested
+    inner class DensityWeight {
+        @Test
+        fun `zero count is zero weight`() {
+            GridAggregator.densityWeight(0) shouldBe 0.0
+            GridAggregator.densityWeight(-5) shouldBe 0.0
+        }
+
+        @Test
+        fun `count at reference reaches full weight`() {
+            GridAggregator.densityWeight(150, reference = 150.0).shouldBeBetween(0.999, 1.0, 0.0)
+        }
+
+        @Test
+        fun `counts beyond reference clamp to one`() {
+            GridAggregator.densityWeight(100_000, reference = 150.0) shouldBe 1.0
+        }
+
+        @Test
+        fun `weight increases monotonically with count`() {
+            var previous = -1.0
+            for (count in intArrayOf(1, 2, 5, 10, 30, 80, 150)) {
+                val w = GridAggregator.densityWeight(count)
+                check(w > previous) { "weight must increase with count (count=$count w=$w prev=$previous)" }
+                previous = w
+            }
+        }
+
+        @Test
+        fun `spreads heavy-tailed counts across the mid range`() {
+            // The whole point of the log curve: a single-visit cell and a busy cell must produce
+            // distinctly different, non-saturated mid-tones rather than ~0 vs 1.0.
+            GridAggregator.densityWeight(1).shouldBeBetween(0.05, 0.30, 0.0)
+            GridAggregator.densityWeight(20).shouldBeBetween(0.50, 0.80, 0.0)
+        }
+
+        @Test
+        fun `weight depends only on the cell's own count`() {
+            // Absolute (not viewport-relative): the same count always yields the same weight,
+            // regardless of any busier cell elsewhere — this is what stops colours "breathing" on pan.
+            GridAggregator.densityWeight(10) shouldBe GridAggregator.densityWeight(10)
+        }
+
+        @Test
+        fun `non-positive reference is treated as one`() {
+            GridAggregator.densityWeight(1, reference = 0.0) shouldBe 1.0
+            GridAggregator.densityWeight(1, reference = -10.0) shouldBe 1.0
+        }
+    }
+
+    @Nested
     inner class Aggregate {
         @Test
         fun `reduces point count`() {
