@@ -48,4 +48,16 @@ class TripRouteMapPreviewStateTest {
 			mapLoadFailed = false,
 		) shouldBe TripPreviewContentState.Map
 	}
+
+	@Test
+	fun `preview tears down the map (Loading) while host is not visible`() {
+		tripPreviewContentState(
+			hasBaseStyle = true,
+			mapLibreReady = true,
+			routePointCount = 2,
+			preparingBasemap = false,
+			mapLoadFailed = false,
+			isVisible = false,
+		) shouldBe TripPreviewContentState.Loading
+	}
 }

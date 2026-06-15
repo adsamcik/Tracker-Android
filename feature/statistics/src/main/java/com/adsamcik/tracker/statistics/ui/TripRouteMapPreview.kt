@@ -20,6 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.adsamcik.tracker.map.MapLibreInitializer
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
@@ -153,6 +156,15 @@ fun TripRouteMapPreview(
 
 	val cameraState = rememberCameraState(firstPosition = initialPosition)
 
+	// Tear down the native MapLibre renderer whenever the screen is not resumed.
+	// Mirrors MapScreen: the GL render thread otherwise issues onDrawFrame against
+	// a surface being destroyed at onStop, crashing natively in libmaplibre.so
+	// (mbgl::android::MapRenderer::render). Gating on RESUMED disposes the GL
+	// renderer at onPause, BEFORE surface teardown; cameraState is hoisted above
+	// this gate so the camera is restored when the preview returns to the foreground.
+	val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+	val isMapVisible = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+
 	// Fit camera to bounds once the map loads
 	LaunchedEffect(mapReady, bounds) {
 		if (mapReady && bounds != null) {
@@ -171,7 +183,16 @@ fun TripRouteMapPreview(
 	}
 
 	Box(modifier = modifier, contentAlignment = Alignment.Center) {
-		when (tripPreviewContentState(baseStyle != null, mapLibreReady, routeCoords.size, preparingBasemap, mapLoadFailed)) {
+		when (
+			tripPreviewContentState(
+				hasBaseStyle = baseStyle != null,
+				mapLibreReady = mapLibreReady,
+				routePointCount = routeCoords.size,
+				preparingBasemap = preparingBasemap,
+				mapLoadFailed = mapLoadFailed,
+				isVisible = isMapVisible,
+			)
+		) {
 			TripPreviewContentState.Map -> {
 				MaplibreMap(
 					modifier = Modifier.fillMaxSize(),
@@ -226,9 +247,13 @@ internal fun tripPreviewContentState(
 	routePointCount: Int,
 	preparingBasemap: Boolean,
 	mapLoadFailed: Boolean,
+	isVisible: Boolean = true,
 ): TripPreviewContentState = when {
 	mapLoadFailed -> TripPreviewContentState.Error
 	routePointCount < 2 -> TripPreviewContentState.Error
+	// While the host is paused/backgrounded, keep the native map OUT of
+	// composition so its GL render thread is torn down before the surface.
+	hasBaseStyle && mapLibreReady && !isVisible -> TripPreviewContentState.Loading
 	hasBaseStyle && mapLibreReady -> TripPreviewContentState.Map
 	preparingBasemap || !mapLibreReady -> TripPreviewContentState.Loading
 	else -> TripPreviewContentState.Error
