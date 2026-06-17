@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileDownload
@@ -31,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,7 +70,7 @@ class CrashManagerActivity : ComposeDetailActivity() {
         var isLoading by remember { mutableStateOf(true) }
         var isExporting by remember { mutableStateOf(false) }
         var isClearing by remember { mutableStateOf(false) }
-        var showClearDialog by remember { mutableStateOf(false) }
+        var showClearDialog by rememberSaveable { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
 
         // Set up export function
@@ -117,7 +120,8 @@ class CrashManagerActivity : ComposeDetailActivity() {
         } else {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {

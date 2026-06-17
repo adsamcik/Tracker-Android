@@ -290,50 +290,6 @@
     </issue>
 
     <issue
-        id="LockedOrientationActivity"
-        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="91"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="LockedOrientationActivity"
-        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="96"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="LockedOrientationActivity"
-        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
-        errorLine1="            android:screenOrientation=&quot;portrait&quot;>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="101"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="LockedOrientationActivity"
-        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="115"
-            column="13"/>
-    </issue>
-
-    <issue
         id="RestrictedApi"
         message="SnackbarLayout can only be accessed from within the same library group (referenced groupId=`com.google.android.material` from groupId=`Tracker-Android-dev-v10`)"
         errorLine1="  return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout"
@@ -558,50 +514,6 @@
         message="The native library `arm64-v8a/libmockkjvmtiagent.so` (from `io.mockk:mockk-agent-android:1.13.16`) is not 16 KB aligned">
         <location
             file="$GRADLE_USER_HOME/caches/9.3.1/transforms/bf4ab018bbf0997c59fdf33de717206a/workspace/transformed/mockk-agent-android-1.13.16/jni/arm64-v8a/libmockkjvmtiagent.so"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="91"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="96"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
-        errorLine1="            android:screenOrientation=&quot;portrait&quot;>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="101"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
-        errorLine1="            android:screenOrientation=&quot;portrait&quot; />"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/AndroidManifest.xml"
-            line="115"
-            column="13"/>
     </issue>
 
     <issue

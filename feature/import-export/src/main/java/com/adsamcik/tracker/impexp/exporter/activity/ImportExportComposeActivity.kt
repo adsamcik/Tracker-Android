@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -47,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +64,7 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.DetailContentMaxWidth
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -125,8 +129,8 @@ fun ExportScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     // State variables
-    val fileNameState = remember { mutableStateOf("") }
-    val fileNameErrorState = remember { mutableStateOf<String?>(null) }
+    val fileNameState = rememberSaveable { mutableStateOf("") }
+    val fileNameErrorState = rememberSaveable { mutableStateOf<String?>(null) }
     val canSelectDateRange = exporter.canSelectDateRange
 
     val now = Time.now
@@ -134,8 +138,8 @@ fun ExportScreen(
     val rangeState = remember { mutableStateOf(monthBefore..now) }
 
     // State for date pickers
-    val showFromDatePicker = remember { mutableStateOf(false) }
-    val showToDatePicker = remember { mutableStateOf(false) }
+    val showFromDatePicker = rememberSaveable { mutableStateOf(false) }
+    val showToDatePicker = rememberSaveable { mutableStateOf(false) }
     val pendingSensitiveAction = remember { mutableStateOf<ExportSensitiveAction?>(null) }
 
     if (uiState.showNoDataDialog) {
@@ -166,6 +170,9 @@ fun ExportScreen(
         Column(
             modifier = Modifier
                 .padding(paddingValues)
+                .fillMaxWidth()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = DetailContentMaxWidth)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)

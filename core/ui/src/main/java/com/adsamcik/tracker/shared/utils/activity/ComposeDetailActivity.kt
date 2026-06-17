@@ -5,9 +5,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,10 +25,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.DetailContentMaxWidth
 
 /**
  * Base activity for detail screens using Jetpack Compose
@@ -41,7 +45,14 @@ abstract class ComposeDetailActivity : ComponentActivity() {
      */
     data class Configuration(
         var showBackButton: Boolean = true,
-        var title: String = ""
+        var title: String = "",
+        /**
+         * When true (default), the hosted [Content] is capped to
+         * [DetailContentMaxWidth] and centered so detail screens stay legible on
+         * large screens and forced-landscape (API 37). Set false for screens that
+         * intentionally need the full window width.
+         */
+        var constrainContentWidth: Boolean = true
     )
     
     /**
@@ -105,12 +116,25 @@ abstract class ComposeDetailActivity : ComponentActivity() {
                             )
                         }
                     ) { paddingValues ->
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(paddingValues)
+                                .padding(paddingValues),
+                            contentAlignment = Alignment.TopCenter
                         ) {
-                            Content()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(
+                                        if (configuration.constrainContentWidth) {
+                                            Modifier.widthIn(max = DetailContentMaxWidth)
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                            ) {
+                                Content()
+                            }
                         }
                     }
                 }

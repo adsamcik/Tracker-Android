@@ -43,9 +43,7 @@
         </service>
 
         <activity
-            android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi" />
+            android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity" />
 
         <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver"

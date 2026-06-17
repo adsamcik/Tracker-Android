@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -35,7 +36,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.license.LicenseObject
 import com.adsamcik.tracker.license.ResourceLicenseObject
 import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
-import de.psdev.licensesdialog.model.Notice
 import org.json.JSONObject
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -52,7 +52,7 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
     override fun Content() {
         val context = LocalContext.current
         var uiState by remember { mutableStateOf<LicenseUiState>(LicenseUiState.Loading) }
-        var selectedNotice by remember { mutableStateOf<Notice?>(null) }
+        var selectedLicenseName by rememberSaveable { mutableStateOf<String?>(null) }
 
         LaunchedEffect(Unit) {
             uiState = loadLicenseUiState()
@@ -107,7 +107,7 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
-                                .clickable { selectedNotice = license.notice },
+                                .clickable { selectedLicenseName = license.name },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
@@ -141,6 +141,11 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
             }
         }
 
+        val selectedNotice = (uiState as? LicenseUiState.Ready)
+            ?.licenses
+            ?.firstOrNull { it.name == selectedLicenseName }
+            ?.notice
+
         selectedNotice?.let { notice ->
             val licenseText = remember(notice) {
                 notice.license?.readFullTextFromResources(context).orEmpty().trim()
@@ -159,9 +164,9 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
                     ?: ""
             }
             AlertDialog(
-                onDismissRequest = { selectedNotice = null },
+                onDismissRequest = { selectedLicenseName = null },
                 confirmButton = {
-                    TextButton(onClick = { selectedNotice = null }) {
+                    TextButton(onClick = { selectedLicenseName = null }) {
                         Text(text = stringResource(android.R.string.ok))
                     }
                 },

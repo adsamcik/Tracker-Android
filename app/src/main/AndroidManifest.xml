@@ -90,13 +90,11 @@
         
         <activity
             android:name="com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
+            android:exported="false" />
              
         <activity
             android:name="com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity"
-            android:exported="false"
-            android:screenOrientation="portrait">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
 
@@ -109,8 +107,7 @@
 
         <activity
             android:name="com.adsamcik.tracker.app.activity.debug.CrashManagerActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
+            android:exported="false" />
 
         <receiver
             android:name="com.adsamcik.tracker.app.receiver.BootReceiver"
