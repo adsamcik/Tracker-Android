@@ -45,7 +45,7 @@ jobs:
         if: matrix.language == 'java-kotlin'
         uses: gradle/actions/setup-gradle@v4
 
-      # Android SDK for Gradle builds (compileSdk 36, build-tools 35.0.0)
+      # Android SDK for Gradle builds (compileSdk 37, build-tools 37.0.0-rc2)
       - name: Setup Android SDK
         if: matrix.language == 'java-kotlin'
         uses: android-actions/setup-android@v3
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           sdkmanager --install \
-            "platforms;android-36" \
-            "build-tools;35.0.0" \
+            "platforms;android-37" \
+            "build-tools;37.0.0-rc2" \
             "platform-tools"
           yes | sdkmanager --licenses
 

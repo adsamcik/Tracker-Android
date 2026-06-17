@@ -13,10 +13,10 @@ import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
 
 internal object TrackerAndroidConfig {
-    const val COMPILE_SDK = 36
-    const val TARGET_SDK = 36
+    const val COMPILE_SDK = 37
+    const val TARGET_SDK = 37
     const val MIN_SDK = 26
-    const val BUILD_TOOLS = "36.0.0"
+    const val BUILD_TOOLS = "37.0.0-rc2"
     const val JAVA_VERSION = 17
 }
 
