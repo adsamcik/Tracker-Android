@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -10,6 +11,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -105,7 +107,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onCreate() {
 		super.onCreate()
 
-		ensureForegroundStarted()
+		val foregroundStarted = ensureForegroundStarted()
 
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
@@ -141,11 +143,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				)
 			)
 		}
+
+		if (!foregroundStarted) {
+			// startForeground failed (e.g. location permission revoked or a background
+			// start was blocked). Stop cleanly instead of lingering as a started-but-not-
+			// foreground service that the platform would later kill.
+			stopSelf()
+		}
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
-		ensureForegroundStarted()
+		if (!ensureForegroundStarted()) {
+			Reporter.w(
+				"TrackerService",
+				"Could not enter foreground (missing permission or blocked background start); stopping"
+			)
+			stopSelfResult(startId)
+			return START_NOT_STICKY
+		}
 
 		val recoveredSessionInfo = sessionInfo ?: controller.sessionInfoFlow.value
 		val resolvedIntent = intent ?: run {
@@ -242,20 +258,66 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		return if (isUserInitiated) START_STICKY else START_NOT_STICKY
 	}
 
-	private fun ensureForegroundStarted() {
+	/**
+	 * Promotes the service to the foreground, choosing a foreground-service type that
+	 * matches the permissions actually held:
+	 *  - [ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION] when a location permission is
+	 *    granted (GPS sessions), and
+	 *  - [ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE] as a fallback so Wi-Fi/cell/
+	 *    activity-only ("ambient") sessions can still run when location permission is absent.
+	 *
+	 * Starting a location-typed foreground service without a location permission throws a
+	 * [SecurityException] on Android 14+, and any blocked background start throws
+	 * `ForegroundServiceStartNotAllowedException` (an [IllegalStateException] subclass) on
+	 * Android 12+. Both are caught so a failed start surfaces a user-visible notification and
+	 * a clean stop instead of an uncaught crash or a silent no-op.
+	 *
+	 * @return true if the service is now in the foreground, false if it could not be started.
+	 */
+	private fun ensureForegroundStarted(): Boolean {
 		TrackerNotificationChannels.ensureTrackingChannel(this)
 		val notification = TrackerNotificationManager.getForegroundNotification(this)
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-			startForeground(
-				TrackerNotificationManager.NOTIFICATION_ID,
-				notification,
-				ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-			)
+
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+			return tryStartForeground(notification, fgsType = null)
+		}
+
+		val preferredType = if (hasLocationPermission) {
+			ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
 		} else {
-			startForeground(
-				TrackerNotificationManager.NOTIFICATION_ID,
-				notification
-			)
+			ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+		}
+		if (tryStartForeground(notification, preferredType)) return true
+
+		// If the location type was rejected (e.g. permission revoked between the check and
+		// the start call), fall back to the special-use type before giving up.
+		if (preferredType != ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE &&
+			tryStartForeground(notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+		) {
+			return true
+		}
+
+		TrackerNotificationManager.postStartFailedNotification(this)
+		return false
+	}
+
+	private fun tryStartForeground(notification: Notification, fgsType: Int?): Boolean {
+		return try {
+			if (fgsType != null) {
+				startForeground(TrackerNotificationManager.NOTIFICATION_ID, notification, fgsType)
+			} else {
+				startForeground(TrackerNotificationManager.NOTIFICATION_ID, notification)
+			}
+			true
+		} catch (e: SecurityException) {
+			// Missing runtime permission for the requested FGS type (Android 14+).
+			Reporter.report(e)
+			false
+		} catch (e: IllegalStateException) {
+			// ForegroundServiceStartNotAllowedException (Android 12+) is an
+			// IllegalStateException subclass; also covers an already-stopped service.
+			Reporter.report(e)
+			false
 		}
 	}
 
@@ -287,6 +349,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			)
 			TrackerTimerErrorSeverity.WARNING -> Reporter.log(errorData.internalMessage)
 		}
+	}
+
+	/**
+	 * Android 15+ may time out a foreground service of a time-limited type. Stop cleanly so
+	 * the platform does not raise a fatal `RemoteServiceException`; the normal [onDestroy]
+	 * cleanup then flushes the durable signal buffer. Auto-tracking sessions can be
+	 * re-triggered by [ActivityWatcherService]; user sessions end gracefully.
+	 */
+	override fun onTimeout(startId: Int, fgsType: Int) {
+		Reporter.w("TrackerService", "Foreground service timed out (type=$fgsType); stopping")
+		stopSelf(startId)
 	}
 
 	override fun onDestroy() {

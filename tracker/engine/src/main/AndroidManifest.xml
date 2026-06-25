@@ -32,8 +32,12 @@
         <service
             android:name="com.adsamcik.tracker.tracker.service.TrackerService"
             android:exported="false"
-            android:foregroundServiceType="location"
-            tools:targetApi="q" />
+            android:foregroundServiceType="location|specialUse"
+            tools:targetApi="q">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="SignalTracking" />
+        </service>
 
         <service
             android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"

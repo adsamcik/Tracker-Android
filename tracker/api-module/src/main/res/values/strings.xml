@@ -80,6 +80,8 @@
     <string name="notification_stop_til_recharge">Stop till recharge</string>
     <string name="notification_tracker_active_ticker">Recording your route — location in use</string>
     <string name="notification_tracking_active">Tracking</string>
+    <string name="notification_tracking_start_failed_title">Tracking couldn\'t start</string>
+    <string name="notification_tracking_start_failed_text">Tracking couldn\'t start in the background. Open the app to resume.</string>
 
     <string name="permissions_tracker_timer_message">%1$s location method requires additional permissions to start tracking</string>
 

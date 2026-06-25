@@ -7,10 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
@@ -51,9 +51,15 @@ class ActivityWatcherService : CoreService() {
 
 		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
 
-		startForegroundCompat(updateNotification())
+		val foregroundStarted = startForegroundCompat(updateNotification())
 
 		notificationManager = (this as Context).notificationManager
+
+		if (!foregroundStarted) {
+			Reporter.w(TAG, "Could not enter foreground; stopping activity watcher")
+			stopSelf()
+			return
+		}
 
 		BackgroundTrackingApi.initialize(this)
 		activityWatcherController.poke()
@@ -83,16 +89,37 @@ class ActivityWatcherService : CoreService() {
 		return START_REDELIVER_INTENT
 	}
 
-	private fun startForegroundCompat(notification: Notification) {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-			// SPECIAL_USE foreground service type is available from Android 14.
-			startForeground(
-				NOTIFICATION_ID,
-				notification,
-				ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-			)
-		} else {
-			startForeground(NOTIFICATION_ID, notification)
+	/**
+	 * Android 15+ may time out a foreground service of a time-limited type. Stop cleanly so
+	 * the platform does not raise a fatal `RemoteServiceException`; the watcher will be
+	 * re-poked the next time tracking state changes.
+	 */
+	override fun onTimeout(startId: Int, fgsType: Int) {
+		Reporter.w(TAG, "Activity watcher foreground service timed out (type=$fgsType); stopping")
+		stopSelf(startId)
+	}
+
+	private fun startForegroundCompat(notification: Notification): Boolean {
+		return try {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+				// SPECIAL_USE foreground service type is available from Android 14.
+				startForeground(
+					NOTIFICATION_ID,
+					notification,
+					ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+				)
+			} else {
+				startForeground(NOTIFICATION_ID, notification)
+			}
+			true
+		} catch (e: SecurityException) {
+			Reporter.report(e)
+			false
+		} catch (e: IllegalStateException) {
+			// ForegroundServiceStartNotAllowedException (Android 12+) is an
+			// IllegalStateException subclass; treat any such failure as "not foregrounded".
+			Reporter.report(e)
+			false
 		}
 	}
 

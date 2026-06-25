@@ -96,6 +96,7 @@ class TrackerNotificationManager(
 
 	companion object {
 		const val NOTIFICATION_ID: Int = -7643
+		const val START_FAILED_NOTIFICATION_ID: Int = -7644
 
 		fun getForegroundNotification(
 			context: Context,
@@ -108,6 +109,41 @@ class TrackerNotificationManager(
 				.setContentTitle(context.getString(R.string.notification_starting))
 				.setContentText(context.getString(R.string.notification_tracker_active_ticker))
 				.build()
+		}
+
+		/**
+		 * Posts a dismissible, user-visible notification informing the user that tracking
+		 * could not start (e.g. location permission was revoked or a background start was
+		 * blocked by the platform). This replaces a previously silent failure so the user
+		 * has a clear, tappable signal to reopen the app and resume tracking.
+		 */
+		fun postStartFailedNotification(context: Context) {
+			TrackerNotificationChannels.ensureTrackingChannel(context)
+			val resources = context.resources
+			val builder = NotificationCompat.Builder(
+				context,
+				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
+			)
+				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
+				.setCategory(NotificationCompat.CATEGORY_ERROR)
+				.setPriority(NotificationCompat.PRIORITY_DEFAULT)
+				.setContentTitle(resources.getString(R.string.notification_tracking_start_failed_title))
+				.setContentText(resources.getString(R.string.notification_tracking_start_failed_text))
+				.setAutoCancel(true)
+
+			context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
+				builder.setContentIntent(
+					TaskStackBuilder.create(context).run {
+						addNextIntentWithParentStack(launch)
+						getPendingIntent(
+							0,
+							PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
+						)
+					}
+				)
+			}
+
+			context.notificationManager.notify(START_FAILED_NOTIFICATION_ID, builder.build())
 		}
 
 		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {
