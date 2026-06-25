@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import android.util.Log
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -325,6 +326,10 @@ class PersistenceProcessor @Inject constructor(
 				throw e
 			} catch (e: Exception) {
 				Log.w(TAG, "Flush failed for $tableName chunk $index (${chunk.size} records)", e)
+				// Route to the redacting crash reporter so DB persistence failures are visible
+				// in diagnostics, not just logcat. The structured errorCollector flow below is
+				// exposed via the controller but currently observed only by optional UI.
+				Reporter.report(e)
 				errorCollector.reportError(
 					PersistenceError(
 						source = PROCESSOR_ID,

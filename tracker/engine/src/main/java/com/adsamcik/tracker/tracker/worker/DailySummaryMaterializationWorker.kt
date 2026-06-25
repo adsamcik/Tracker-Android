@@ -11,10 +11,12 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,18 +41,30 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, workerParams) {
 
 	override suspend fun doWork(): Result {
-		val database = AppDatabase.database(applicationContext)
-		val aggregator = DailySummaryAggregator(
-			dailySummaryDao = database.dailySummaryDao(),
-			sessionSegmentDao = database.sessionSegmentDao(),
-			onDailySummaryWritten = {
-				dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
-			},
-		)
+		try {
+			val database = AppDatabase.database(applicationContext)
+			val aggregator = DailySummaryAggregator(
+				dailySummaryDao = database.dailySummaryDao(),
+				sessionSegmentDao = database.sessionSegmentDao(),
+				onDailySummaryWritten = {
+					dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
+				},
+			)
 
-		aggregator.materializeToday()
+			aggregator.materializeToday()
 
-		return Result.success()
+			return Result.success()
+		} catch (e: CancellationException) {
+			// The system stopped this worker before completion — e.g. Android 16 job-quota
+			// throttling (jobs now count against quota even while an FGS runs), constraints no
+			// longer met, or the app was killed. Log the stop reason so quota-related stops are
+			// diagnosable, then propagate cancellation so WorkManager can reschedule.
+			Reporter.w(
+				"DailySummaryMaterializationWorker",
+				"Stopped before completion (stopReason=$stopReason)"
+			)
+			throw e
+		}
 	}
 
 	companion object {
