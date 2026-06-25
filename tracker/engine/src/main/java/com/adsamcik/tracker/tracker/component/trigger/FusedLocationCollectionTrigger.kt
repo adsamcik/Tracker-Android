@@ -64,11 +64,11 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		val minDistanceInMeters = BackgroundTrackingApi.cachedParams.minDistanceMeters
 
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.Builder(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(selectPriority(context))
-			.setMinUpdateDistanceMeters(minDistanceInMeters.toFloat())
-			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.build()
+		val request = buildLocationRequest(
+			context,
+			minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS,
+			minDistanceInMeters.toFloat(),
+		)
 
 		try {
 			// checked by component manager
@@ -95,11 +95,11 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
 		// Re-requesting updates with the same callback updates delivery parameters without a forced stop/start gap.
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.Builder(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(selectPriority(context))
-			.setMinUpdateDistanceMeters(minDistanceMeters.toFloat())
-			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.build()
+		val request = buildLocationRequest(
+			context,
+			intervalSeconds * Time.SECOND_IN_MILLISECONDS,
+			minDistanceMeters.toFloat(),
+		)
 
 		try {
 			// checked by component manager
@@ -117,11 +117,39 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		}
 	}
 
+	private fun buildLocationRequest(
+		context: Context,
+		intervalMillis: Long,
+		minDistanceMeters: Float,
+	): LocationRequest {
+		// setMaxUpdateDelayMillis lets the OS batch several fixes and deliver them together
+		// when it is power-efficient to do so (typically screen-off / Doze-adjacent windows),
+		// cutting radio and CPU wakeups. Delivery stays prompt while the app is interactive,
+		// and onNewData already filters/persists every fix in a batch, so per-fix timestamps
+		// are preserved regardless of when the batch is delivered.
+		return LocationRequest.Builder(intervalMillis)
+			.setPriority(selectPriority(context))
+			.setMinUpdateDistanceMeters(minDistanceMeters)
+			.setMinUpdateIntervalMillis(intervalMillis)
+			.setMaxUpdateDelayMillis(intervalMillis * LOCATION_BATCH_FACTOR)
+			.build()
+	}
+
 	private fun selectPriority(context: Context): Int {
 		return if (context.hasPreciseLocationPermission) {
 			Priority.PRIORITY_HIGH_ACCURACY
 		} else {
 			Priority.PRIORITY_BALANCED_POWER_ACCURACY
 		}
+	}
+
+	companion object {
+		/**
+		 * Multiplier applied to the collection interval to derive the maximum batch window
+		 * ([LocationRequest.Builder.setMaxUpdateDelayMillis]). A modest 3x bounds worst-case
+		 * delivery latency while still allowing the OS to coalesce wakeups when the user is
+		 * not actively looking at the screen.
+		 */
+		private const val LOCATION_BATCH_FACTOR = 3L
 	}
 }
