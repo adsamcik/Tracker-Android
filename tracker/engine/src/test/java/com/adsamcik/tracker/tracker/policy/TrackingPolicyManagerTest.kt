@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.just
@@ -75,6 +77,24 @@ class TrackingPolicyManagerTest {
 		startAndAwait(manager)
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `engine-backed auto session honors GPS-capable initial tier`() = runTest {
+		val engine = DefaultPolicyEscalationEngine()
+		val manager = TrackingPolicyManager(
+			context = context,
+			isUserInitiated = false,
+			escalationEngine = engine,
+			scope = backgroundScope,
+			database = database,
+			initialTier = PolicyTier.ACTIVE,
+		)
+		startAndAwait(manager)
+
+		assertEquals(PolicyTier.ACTIVE, engine.policyState.value.tier)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+		assertTrue(manager.shouldRequestLocation())
 	}
 
 	@Test

@@ -227,6 +227,7 @@ internal class TrackingOrchestrator(
 			scope = scope,
 			database = appDatabase,
 			dispatchers = dispatchers,
+			initialTier = initialTier,
 		).apply {
 			start() // Start tracking run + engine
 		}
@@ -429,7 +430,7 @@ internal class TrackingOrchestrator(
 	private suspend fun destroyComponents(context: Context): ShutdownResult {
 		// Finalize session data BEFORE stopping the pipeline. The pipeline's
 		// stop() calls AggregatorProcessor.onStop() which emits SessionEnded.
-		// Downstream consumers (ChallengeWorker, AchievementWorker,
+		// Downstream consumers (AchievementWorker,
 		// DailySummaryMaterializationWorker) read session_segment rows after
 		// receiving SessionEnded, so the final row must already be persisted.
 		sessionComponent?.let { component ->

@@ -46,6 +46,11 @@ class TrackingPolicyManager(
 	private val scope: CoroutineScope? = null,
 	database: AppDatabase? = null,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val initialTier: PolicyTier = if (isUserInitiated) {
+		PolicyTier.PRECISION
+	} else {
+		PolicyTier.AMBIENT
+	},
 ) {
 	private val database = database ?: AppDatabase.database(context)
 	private val trackerRunDao by lazy { this.database.trackerRunDao() }
@@ -53,7 +58,11 @@ class TrackingPolicyManager(
 	private val stateMutex = Mutex()
 
 	private val _currentPolicy = MutableStateFlow(
-		if (isUserInitiated) TrackingPolicy.USER_INITIATED else TrackingPolicy.PASSIVE_LOW
+		if (isUserInitiated) {
+			TrackingPolicy.USER_INITIATED
+		} else {
+			PolicyTierMapper.toTrackingPolicy(initialTier)
+		}
 	)
 
 	/**
@@ -95,11 +104,6 @@ class TrackingPolicyManager(
 
 		// Start the escalation engine and observe tier changes
 		escalationEngine?.let { engine ->
-			val initialTier = if (isUserInitiated) {
-				PolicyTier.PRECISION
-			} else {
-				PolicyTier.AMBIENT
-			}
 			engine.start(initialTier, now)
 
 			engineObservationJob = scope?.launch {
