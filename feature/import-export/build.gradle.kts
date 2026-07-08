@@ -37,6 +37,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.constraintlayout.compose)
     androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.espresso.intents)
     debugImplementation(libs.compose.ui.test.manifest)
 
     // Core

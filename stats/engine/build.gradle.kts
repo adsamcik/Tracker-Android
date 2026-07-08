@@ -1,13 +1,18 @@
 plugins {
 	alias(libs.plugins.kotlin.multiplatform)
-	alias(libs.plugins.android.library)
+	alias(libs.plugins.android.kotlin.multiplatform.library)
 }
 
 kotlin {
-	androidTarget {
-		compilerOptions {
-			jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(Android.javaTarget.toString()))
-		}
+	android {
+		namespace = "com.adsamcik.tracker.stats.engine"
+		compileSdk = Android.COMPILE_VERSION
+		minSdk = Android.MIN_VERSION
+
+		// The ski/GPS detection classes (src/androidMain) use JVM APIs (java.util.Arrays) and are
+		// consumed by Android modules; their unit tests live in src/androidHostTest. The AGP KMP
+		// plugin disables host tests by default, so opt in to keep those tests running.
+		withHostTest {}
 	}
 	jvm()
 
@@ -29,50 +34,7 @@ kotlin {
 			implementation(libs.turbine)
 			implementation(libs.kotest.assertions.core)
 		}
-		androidMain.dependencies {
-			// Android-specific implementations
-		}
-		jvmMain.dependencies {
-			// JVM-specific implementations
-		}
 	}
-}
-
-android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
-
-	defaultConfig {
-		minSdk = Android.MIN_VERSION
-		consumerProguardFiles("consumer-rules.pro")
-	}
-
-	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
-	}
-
-	buildTypes {
-		getByName("debug") {
-		}
-		create("release_nominify") {
-			isMinifyEnabled = false
-		}
-		getByName("release") {
-			isMinifyEnabled = false
-			proguardFiles(
-				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro"
-			)
-		}
-	}
-
-	lint {
-		checkReleaseBuilds = true
-		abortOnError = false
-	}
-
-	namespace = "com.adsamcik.tracker.stats.engine"
 }
 
 tasks.withType<Test>().configureEach {

@@ -118,7 +118,6 @@ internal fun ApplicationExtension.configureTrackerApplication() {
 class AndroidLibraryConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.library")
-        pluginManager.apply("org.jetbrains.kotlin.android")
 
         extensions.configure<LibraryExtension> {
             configureTrackerLibrary()
@@ -131,7 +130,6 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 class AndroidApplicationConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.application")
-        pluginManager.apply("org.jetbrains.kotlin.android")
 
         extensions.configure<ApplicationExtension> {
             configureTrackerApplication()

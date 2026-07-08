@@ -96,3 +96,6 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 -keep class com.adsamcik.tracker.app.ui.navigation.** { *; }
+
+# Relocated from :stats:api consumer-rules.pro (the AGP KMP library plugin drops consumerProguardFiles).
+-keep class com.adsamcik.tracker.stats.api.** { *; }

@@ -1,13 +1,13 @@
 plugins {
 	alias(libs.plugins.kotlin.multiplatform)
-	alias(libs.plugins.android.library)
+	alias(libs.plugins.android.kotlin.multiplatform.library)
 }
 
 kotlin {
-	androidTarget {
-		compilerOptions {
-			jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(Android.javaTarget.toString()))
-		}
+	android {
+		namespace = "com.adsamcik.tracker.stats.api"
+		compileSdk = Android.COMPILE_VERSION
+		minSdk = Android.MIN_VERSION
 	}
 	jvm()
 
@@ -34,43 +34,6 @@ kotlin {
 			// JVM-specific implementations
 		}
 	}
-}
-
-android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
-
-	defaultConfig {
-		minSdk = Android.MIN_VERSION
-		consumerProguardFiles("consumer-rules.pro")
-	}
-
-	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
-	}
-
-	buildTypes {
-		getByName("debug") {
-		}
-		create("release_nominify") {
-			isMinifyEnabled = false
-		}
-		getByName("release") {
-			isMinifyEnabled = false
-			proguardFiles(
-				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro",
-			)
-		}
-	}
-
-	lint {
-		checkReleaseBuilds = true
-		abortOnError = false
-	}
-
-	namespace = "com.adsamcik.tracker.stats.api"
 }
 
 tasks.withType<Test>().configureEach {
