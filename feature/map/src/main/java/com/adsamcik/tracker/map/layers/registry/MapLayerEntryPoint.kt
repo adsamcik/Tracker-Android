@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.layers.registry
 
 import android.content.Context
-import com.adsamcik.tracker.stats.api.speed.SpeedLimitSource
+import com.adsamcik.tracker.stats.api.roadmatch.RoadMatcher
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -17,9 +17,9 @@ import dagger.hilt.components.SingletonComponent
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface MapLayerEntryPoint {
-	fun speedLimitSource(): SpeedLimitSource
+	fun roadMatcher(): RoadMatcher
 }
 
-internal fun Context.speedLimitSource(): SpeedLimitSource =
+internal fun Context.roadMatcher(): RoadMatcher =
 	EntryPointAccessors.fromApplication(applicationContext, MapLayerEntryPoint::class.java)
-		.speedLimitSource()
+		.roadMatcher()

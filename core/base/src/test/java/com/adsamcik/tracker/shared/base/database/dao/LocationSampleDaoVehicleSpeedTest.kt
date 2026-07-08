@@ -28,6 +28,8 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  *  - returns only samples whose timestamp falls inside a `session_segment`
  *    whose `primary_activity` is in the supplied driving list,
  *  - drops samples with NULL coordinates or NULL speed,
+ *  - drops samples with an untrustworthy speed reading (LOW/COARSE quality,
+ *    or speed_accuracy_mps above the trusted threshold),
  *  - paginates using the (time_ms, id) stable cursor.
  */
 @ExtendWith(RobolectricExtension::class)
@@ -97,6 +99,29 @@ class LocationSampleDaoVehicleSpeedTest {
 		)
 
 		rows.map { it.timeMs } shouldBe listOf(3_000L)
+	}
+
+	@Test
+	fun `samples with an untrustworthy speed reading are dropped`() = runTest {
+		insertSegment(0L, 10_000L, DetectedActivity.IN_VEHICLE.value)
+
+		sampleDao.insert(createSample(timeMs = 1_000L, quality = SampleQuality.LOW))
+		sampleDao.insert(createSample(timeMs = 2_000L, quality = SampleQuality.COARSE))
+		sampleDao.insert(createSample(timeMs = 3_000L, speedAccuracyMps = 5f)) // above trusted threshold
+		sampleDao.insert(createSample(timeMs = 4_000L)) // fully valid (HIGH quality, 0.5 accuracy)
+		sampleDao.insert(createSample(timeMs = 5_000L, speedAccuracyMps = null)) // unknown accuracy is trusted
+		sampleDao.insert(createSample(timeMs = 6_000L, quality = SampleQuality.MEDIUM)) // MEDIUM is trusted
+
+		val rows = sampleDao.getDrivingChunkBetweenOrdered(
+			fromMs = 0L,
+			toMs = Long.MAX_VALUE,
+			drivingActivities = DRIVING_ACTIVITIES,
+			afterTimeMs = null,
+			afterId = null,
+			limit = 100,
+		)
+
+		rows.map { it.timeMs } shouldBe listOf(4_000L, 5_000L, 6_000L)
 	}
 
 	@Test
@@ -202,6 +227,8 @@ class LocationSampleDaoVehicleSpeedTest {
 				AND ls.lat_e7 IS NOT NULL
 				AND ls.lon_e7 IS NOT NULL
 				AND ls.speed_mps IS NOT NULL
+				AND ls.quality NOT IN ('LOW', 'COARSE')
+				AND (ls.speed_accuracy_mps IS NULL OR ls.speed_accuracy_mps <= 3.0)
 				AND ls.time_ms >= ?
 				AND ls.time_ms <= ?
 				AND (
@@ -254,6 +281,8 @@ class LocationSampleDaoVehicleSpeedTest {
 		latE7: Int? = 500_000_000,
 		lonE7: Int? = 140_000_000,
 		speedMps: Float? = 1.5f,
+		quality: SampleQuality = SampleQuality.HIGH,
+		speedAccuracyMps: Float? = 0.5f,
 	) = LocationSample(
 		timeMs = timeMs,
 		elapsedRealtimeNanos = timeMs * 1_000_000L,
@@ -264,9 +293,9 @@ class LocationSampleDaoVehicleSpeedTest {
 		hAccM = 5f,
 		vAccM = 10f,
 		speedMps = speedMps,
-		speedAccuracyMps = 0.5f,
+		speedAccuracyMps = speedAccuracyMps,
 		provider = "fused",
-		quality = SampleQuality.HIGH,
+		quality = quality,
 		motionState = MotionState.MOVING,
 		policy = null,
 		bucketId = null,

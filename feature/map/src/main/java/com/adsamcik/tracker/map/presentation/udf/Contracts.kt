@@ -181,6 +181,15 @@ sealed interface MapEvent {
 sealed interface MapEffect {
     data object ShowFollowCanceled : MapEffect
     data class CenterCamera(val bounds: CoordinateBounds) : MapEffect
+
+    /**
+     * Pan the camera to the user's location. Unlike [CenterCamera], this does not fit a bounding
+     * box (which derives an over-tight zoom from the GPS accuracy radius). When [zoom] is non-null
+     * the camera animates to that absolute zoom (used for the explicit my-location tap / first
+     * fix); when null the current zoom is preserved (used for continuous follow updates so the
+     * user can freely zoom while following).
+     */
+    data class CenterOnUser(val lat: Double, val lng: Double, val zoom: Double?) : MapEffect
     data class SetCameraBearing(val bearing: Float) : MapEffect
     data object ShowSearchFormatHint : MapEffect
 

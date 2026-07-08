@@ -11,28 +11,44 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 
 /**
- * Map layer that draws a polyline of driving-activity GPS samples coloured by how the
- * sample's speed compares to the active baseline speed limit. The polyline is rendered
- * as a [MapLibreLayerConfig.Composite] of up to 5 [MapLibreLayerConfig.Line]s — one
- * per speed-vs-baseline bucket — because the renderer applies a single colour per
- * Line config.
+ * Map layer that colours the roads a vehicle actually drove on by how the
+ * recorded speed compared to that road's speed limit.
  *
- * The layer is offline by construction: the [sampleProvider] streams from Room and
- * the bucket lookup is a pure function. No network calls.
+ * Unlike a raw-GPS overlay, the geometry here is **road-matched**: an upstream
+ * HMM/Viterbi map matcher (see `:stats-api` `RoadMatcher`) snaps the drive onto
+ * the locally imported OSM road graph and produces [ComplianceEdge]s that follow
+ * the real road centre-line. This layer only classifies each edge into a
+ * [ComplianceBucket] and stitches contiguous same-bucket edges into continuous
+ * strokes.
+ *
+ * Strictly offline: the [edgeProvider] streams from Room + the local OSM graph,
+ * and bucket classification is a pure function. No network calls.
+ *
+ * The result is a [MapLibreLayerConfig.Composite] of up to 5
+ * [MapLibreLayerConfig.Line]s — one per bucket — because the renderer applies a
+ * single colour per Line config.
  */
 open class VehicleComplianceLayer(
-	private val sampleProvider: suspend (LongRange) -> List<VehicleSpeedSample>,
+	private val edgeProvider: suspend (LongRange) -> List<ComplianceEdge>,
 	private val perf: PerformanceManager = PerformanceManager(),
 ) : BaseMapLayer<VehicleComplianceLayer.Input, VehicleComplianceLayer.Prepared>(perf),
 	SupportsDateRange {
 
-	/** Decoded sample with bucket already classified. */
-	data class VehicleSpeedSample(
-		val latLng: LatLngModel,
+	/**
+	 * One road-matched span ready for classification.
+	 *
+	 * [ratio] is `speed / speed-limit` for the span. [path] follows the matched
+	 * road centre-line (>= 2 points). [gapBefore] is `true` when this edge does
+	 * not continue directly from the previous edge (an unmatched stretch was
+	 * skipped), which forces the start of a new visual stroke.
+	 */
+	data class ComplianceEdge(
 		val ratio: Float,
+		val path: List<LatLngModel>,
+		val gapBefore: Boolean,
 	)
 
-	data class Input(val samples: List<VehicleSpeedSample>)
+	data class Input(val edges: List<ComplianceEdge>)
 	data class Prepared(
 		val perBucket: List<BucketGeoJson>,
 		val bounds: CoordinateBounds?,
@@ -46,58 +62,62 @@ open class VehicleComplianceLayer(
 	override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
 	override suspend fun loadData(context: Context, bounds: Bounds?): Input {
-		val samples = sampleProvider(dateRange)
-		return Input(samples)
+		return Input(edgeProvider(dateRange))
 	}
 
 	override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
-		if (input.samples.isEmpty()) return Prepared(emptyList(), null)
+		if (input.edges.isEmpty()) return Prepared(emptyList(), null)
 
-		// Group samples into buckets. We split into contiguous runs per bucket so each
-		// run renders as a single LineString — that keeps strokes visually continuous
-		// while still letting each bucket use its own colour.
-		val runs = mutableListOf<Pair<ComplianceBucket, MutableList<LatLngModel>>>()
+		// Stitch contiguous same-bucket edges into continuous strokes. A new
+		// stroke begins when the bucket changes or an unmatched stretch was
+		// skipped (gapBefore). Consecutive contiguous edges share their boundary
+		// point, so we drop the duplicate when concatenating.
+		val runsByBucket = LinkedHashMap<ComplianceBucket, MutableList<List<LatLngModel>>>()
 		var currentBucket: ComplianceBucket? = null
 		var currentRun: MutableList<LatLngModel>? = null
-		var previousPoint: LatLngModel? = null
 
-		for (sample in input.samples) {
-			val bucket = ComplianceBucket.forRatio(sample.ratio)
-			if (bucket == currentBucket && currentRun != null) {
-				currentRun.add(sample.latLng)
-			} else {
-				// Stitch the new run to the previous point so segments visually connect
-				// across bucket changes (no visual gap when colour switches).
-				val run = mutableListOf<LatLngModel>()
-				previousPoint?.let { run.add(it) }
-				run.add(sample.latLng)
-				runs += bucket to run
-				currentBucket = bucket
-				currentRun = run
+		fun flush() {
+			val run = currentRun
+			val bucket = currentBucket
+			if (run != null && bucket != null && run.size >= 2) {
+				runsByBucket.getOrPut(bucket) { mutableListOf() }.add(run.toList())
 			}
-			previousPoint = sample.latLng
 		}
 
-		val grouped = runs.groupBy(
-			keySelector = { it.first },
-			valueTransform = { it.second.toList() },
-		)
-
-		val perBucket = ComplianceBucket.entries
-			.mapNotNull { bucket ->
-				val segments = grouped[bucket] ?: return@mapNotNull null
-				val drawable = segments.filter { it.size >= 2 }
-				if (drawable.isEmpty()) {
-					null
+		for (edge in input.edges) {
+			if (edge.path.size < 2) continue
+			val bucket = ComplianceBucket.forRatio(edge.ratio)
+			val startsNewRun = bucket != currentBucket || edge.gapBefore || currentRun == null
+			if (startsNewRun) {
+				flush()
+				currentRun = edge.path.toMutableList()
+				currentBucket = bucket
+			} else {
+				// Contiguous continuation: skip the shared boundary point.
+				val run = currentRun!!
+				val continuation = if (run.isNotEmpty() && run.last() == edge.path.first()) {
+					edge.path.drop(1)
 				} else {
-					BucketGeoJson(
-						bucket = bucket,
-						geoJson = GeoJsonConverter.segmentsToFeatureCollection(drawable),
-					)
+					edge.path
 				}
+				run.addAll(continuation)
 			}
+		}
+		flush()
 
-		val bounds = input.samples.asSequence().map { it.latLng }.toList().coordinateBoundsOrNull()
+		val perBucket = ComplianceBucket.entries.mapNotNull { bucket ->
+			val segments = runsByBucket[bucket]?.filter { it.size >= 2 }
+			if (segments.isNullOrEmpty()) {
+				null
+			} else {
+				BucketGeoJson(bucket, GeoJsonConverter.segmentsToFeatureCollection(segments))
+			}
+		}
+
+		val bounds = input.edges.asSequence()
+			.flatMap { it.path.asSequence() }
+			.toList()
+			.coordinateBoundsOrNull()
 		return Prepared(perBucket, bounds)
 	}
 

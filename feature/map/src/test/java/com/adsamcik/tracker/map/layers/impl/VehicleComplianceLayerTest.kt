@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
@@ -31,8 +30,8 @@ class VehicleComplianceLayerTest {
 
 	/** Subclass that re-exposes the protected lifecycle methods for tests. */
 	private class TestableVehicleComplianceLayer(
-		sampleProvider: suspend (LongRange) -> List<VehicleComplianceLayer.VehicleSpeedSample>,
-	) : VehicleComplianceLayer(sampleProvider, PerformanceManager()) {
+		edgeProvider: suspend (LongRange) -> List<VehicleComplianceLayer.ComplianceEdge>,
+	) : VehicleComplianceLayer(edgeProvider, PerformanceManager()) {
 		suspend fun testLoadData() = loadData(context = stubContext(), bounds = null)
 		fun testProcessData(input: Input, budgets: PerformanceManager.PerformanceBudgets) =
 			processData(input, budgets)
@@ -40,17 +39,19 @@ class VehicleComplianceLayerTest {
 		fun testProduceConfig(prepared: Prepared) = produceConfig(prepared)
 	}
 
-	private fun sample(latLng: Pair<Double, Double>, ratio: Float) =
-		VehicleComplianceLayer.VehicleSpeedSample(
-			latLng = LatLngModel(latLng.first, latLng.second),
-			ratio = ratio,
-		)
+	private fun edge(
+		ratio: Float,
+		vararg points: Pair<Double, Double>,
+		gapBefore: Boolean = false,
+	) = VehicleComplianceLayer.ComplianceEdge(
+		ratio = ratio,
+		path = points.map { LatLngModel(it.first, it.second) },
+		gapBefore = gapBefore,
+	)
 
 	private fun layerFor(
-		samples: List<VehicleComplianceLayer.VehicleSpeedSample>,
-	): TestableVehicleComplianceLayer = TestableVehicleComplianceLayer(
-		sampleProvider = { samples },
-	)
+		edges: List<VehicleComplianceLayer.ComplianceEdge>,
+	): TestableVehicleComplianceLayer = TestableVehicleComplianceLayer(edgeProvider = { edges })
 
 	@Nested
 	@DisplayName("ComplianceBucket.forRatio")
@@ -68,6 +69,21 @@ class VehicleComplianceLayerTest {
 		@Test
 		fun `0_5 is SLOW (lower boundary inclusive)`() {
 			ComplianceBucket.forRatio(0.5f) shouldBe ComplianceBucket.SLOW
+		}
+
+		@Test
+		fun `0_9 is AT_LIMIT (lower boundary inclusive)`() {
+			ComplianceBucket.forRatio(0.9f) shouldBe ComplianceBucket.AT_LIMIT
+		}
+
+		@Test
+		fun `1_1 is SLIGHTLY_OVER (lower boundary inclusive)`() {
+			ComplianceBucket.forRatio(1.1f) shouldBe ComplianceBucket.SLIGHTLY_OVER
+		}
+
+		@Test
+		fun `1_3 is SPEEDING (lower boundary inclusive)`() {
+			ComplianceBucket.forRatio(1.3f) shouldBe ComplianceBucket.SPEEDING
 		}
 
 		@Test
@@ -100,7 +116,7 @@ class VehicleComplianceLayerTest {
 	@DisplayName("loadData + processData")
 	inner class Loading {
 		@Test
-		fun `empty sample list produces no config`() = runTest {
+		fun `empty edge list produces no config`() = runTest {
 			val layer = layerFor(emptyList())
 			val input = layer.testLoadData()
 			val prepared = layer.testProcessData(input, PerformanceManager().acquireBudgets())
@@ -110,13 +126,13 @@ class VehicleComplianceLayerTest {
 		}
 
 		@Test
-		fun `single bucket samples produce single Line in Composite`() = runTest {
-			val samples = listOf(
-				sample(50.0 to 14.0, 1.0f),
-				sample(50.001 to 14.001, 1.05f),
-				sample(50.002 to 14.002, 0.95f),
+		fun `contiguous same-bucket edges stitch into a single Line`() = runTest {
+			val edges = listOf(
+				edge(1.0f, 50.0 to 14.0, 50.001 to 14.001),
+				edge(1.05f, 50.001 to 14.001, 50.002 to 14.002),
+				edge(0.95f, 50.002 to 14.002, 50.003 to 14.003),
 			)
-			val layer = layerFor(samples)
+			val layer = layerFor(edges)
 			val input = layer.testLoadData()
 			val prepared = layer.testProcessData(input, PerformanceManager().acquireBudgets())
 
@@ -131,19 +147,15 @@ class VehicleComplianceLayerTest {
 		}
 
 		@Test
-		fun `multiple buckets produce one Line per bucket with distinct colours`() = runTest {
-			// First bucket needs >=2 samples to survive the size>=2 filter (subsequent
-			// runs are always stitched to the previous point, so they reach size 2 on
-			// the first sample).
-			val samples = listOf(
-				sample(50.0 to 14.0, 0.2f),     // WAY_UNDER
-				sample(50.0005 to 14.0005, 0.2f), // WAY_UNDER (gives run size 2)
-				sample(50.001 to 14.001, 0.7f), // SLOW
-				sample(50.002 to 14.002, 1.0f), // AT_LIMIT
-				sample(50.003 to 14.003, 1.2f), // SLIGHTLY_OVER
-				sample(50.004 to 14.004, 2.0f), // SPEEDING
+		fun `each distinct bucket yields its own Line with a distinct colour`() = runTest {
+			val edges = listOf(
+				edge(0.2f, 50.0 to 14.0, 50.001 to 14.001),     // WAY_UNDER
+				edge(0.7f, 50.001 to 14.001, 50.002 to 14.002), // SLOW
+				edge(1.0f, 50.002 to 14.002, 50.003 to 14.003), // AT_LIMIT
+				edge(1.2f, 50.003 to 14.003, 50.004 to 14.004), // SLIGHTLY_OVER
+				edge(2.0f, 50.004 to 14.004, 50.005 to 14.005), // SPEEDING
 			)
-			val layer = layerFor(samples)
+			val layer = layerFor(edges)
 			val input = layer.testLoadData()
 			val prepared = layer.testProcessData(input, PerformanceManager().acquireBudgets())
 
@@ -156,30 +168,32 @@ class VehicleComplianceLayerTest {
 		}
 
 		@Test
-		fun `single sample per bucket yields no Line for that bucket when alone`() = runTest {
-			val samples = listOf(
-				sample(50.0 to 14.0, 1.0f),
-				sample(50.5 to 14.5, 2.0f),
+		fun `gapBefore keeps the same bucket but breaks the stroke`() = runTest {
+			// Two AT_LIMIT spans separated by an unmatched stretch: one bucket, but the
+			// second span is not contiguous with the first.
+			val edges = listOf(
+				edge(1.0f, 50.0 to 14.0, 50.001 to 14.001),
+				edge(1.0f, 50.010 to 14.010, 50.011 to 14.011, gapBefore = true),
 			)
-			val layer = layerFor(samples)
+			val layer = layerFor(edges)
 			val input = layer.testLoadData()
 			val prepared = layer.testProcessData(input, PerformanceManager().acquireBudgets())
 
-			val config = layer.testProduceConfig(prepared)
-			config.shouldNotBeNull()
-			val composite = config.shouldBeInstanceOf<MapLibreLayerConfig.Composite>()
-			// AT_LIMIT run has 1 point (dropped), SPEEDING run has 2 (stitched from prev AT_LIMIT).
+			prepared.perBucket.shouldHaveSize(1)
+			prepared.perBucket[0].bucket shouldBe ComplianceBucket.AT_LIMIT
+			val composite = layer.testProduceConfig(prepared)
+				.shouldNotBeNull()
+				.shouldBeInstanceOf<MapLibreLayerConfig.Composite>()
 			composite.layers.shouldHaveSize(1)
 		}
 
 		@Test
-		fun `bounds reflect sample coordinate range`() = runTest {
-			val samples = listOf(
-				sample(50.0 to 14.0, 1.0f),
-				sample(50.5 to 14.5, 1.0f),
-				sample(50.2 to 14.3, 1.0f),
+		fun `bounds reflect path coordinate range`() = runTest {
+			val edges = listOf(
+				edge(1.0f, 50.0 to 14.0, 50.5 to 14.5),
+				edge(1.0f, 50.5 to 14.5, 50.2 to 14.3),
 			)
-			val layer = layerFor(samples)
+			val layer = layerFor(edges)
 			val input = layer.testLoadData()
 			val prepared = layer.testProcessData(input, PerformanceManager().acquireBudgets())
 

@@ -13,18 +13,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.adsamcik.tracker.map.export.MapShareResolution
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
+import com.adsamcik.tracker.map.ui.compose.MapShareSheet
 import com.adsamcik.tracker.map.ui.controls.MapChromeHost
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
+import kotlinx.coroutines.launch
 
 /**
  * Compose-native Map route. Hosts MapScreen and MapSheet,
@@ -82,6 +87,16 @@ fun MapRoute(
 
     var extraBottomPadding by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // "Share map as image" — sheet visibility/selection live here (transient UI, not MapStore
+    // state); the actual capture runs inside MapScreen, which owns the map's baseStyle/camera/
+    // layer data this needs.
+    var showShareSheet by remember { mutableStateOf(false) }
+    var shareResolution by remember { mutableStateOf(MapShareResolution.STANDARD) }
+    var shareCaptureRequest by remember { mutableStateOf<MapShareResolution?>(null) }
+    var isPreparingShareImage by remember { mutableStateOf(false) }
+    val shareErrorMessage = stringResource(com.adsamcik.tracker.map.R.string.map_share_error)
 
     // Read real status-bar height instead of hard-coding 72dp so the Map badge/loading indicator never
     // clip behind a tall status bar (large-font / cutout / always-on displays).
@@ -97,6 +112,15 @@ fun MapRoute(
             bottomPaddingPx = finalBottomPadding,
             isLocationPermissionGranted = hasPermission,
             topInsetPadding = statusBarTop + 16.dp,
+            shareCaptureRequest = shareCaptureRequest,
+            onShareCaptureStarted = { isPreparingShareImage = true },
+            onShareCaptureFinished = { success ->
+                isPreparingShareImage = false
+                shareCaptureRequest = null
+                if (!success) {
+                    coroutineScope.launch { snackbarHostState.showSnackbar(shareErrorMessage) }
+                }
+            },
         )
 
         MapChromeHost(
@@ -106,7 +130,20 @@ fun MapRoute(
             bottomInsetPx = bottomPaddingPx,
             onBottomPaddingChanged = { padding ->
                 extraBottomPadding = padding
-            }
+            },
+            onShareMapClick = { showShareSheet = true },
+        )
+
+        MapShareSheet(
+            visible = showShareSheet,
+            selectedResolution = shareResolution,
+            isPreparing = isPreparingShareImage,
+            onResolutionSelected = { shareResolution = it },
+            onShareClick = {
+                showShareSheet = false
+                shareCaptureRequest = shareResolution
+            },
+            onDismiss = { showShareSheet = false },
         )
     }
 }

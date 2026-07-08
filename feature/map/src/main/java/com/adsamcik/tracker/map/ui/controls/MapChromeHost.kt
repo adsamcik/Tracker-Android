@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.ui.controls
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -57,9 +58,6 @@ import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
-import com.adsamcik.tracker.shared.utils.style.compose.GlassTier
-import com.adsamcik.tracker.shared.utils.style.compose.RidgelineElevation
-import com.adsamcik.tracker.shared.utils.style.compose.borderColor
 import kotlinx.coroutines.launch
 
 /**
@@ -77,6 +75,7 @@ fun MapChromeHost(
 	snackbarHostState: SnackbarHostState,
 	bottomInsetPx: Int,
 	onBottomPaddingChanged: (Int) -> Unit,
+	onShareMapClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val state by store.state.collectAsStateWithLifecycle()
@@ -100,6 +99,10 @@ fun MapChromeHost(
 	var showCustomDateRange by remember { mutableStateOf(false) }
 	var searchError by remember { mutableStateOf<String?>(null) }
 	var searchFocused by remember { mutableStateOf(false) }
+	// Measured height of the bottom control stack (my-location FAB + chrome bar). The snackbar
+	// floats above it; a fixed offset would land on the chip row when zoom buttons show or fonts
+	// scale, so we anchor to the real height instead.
+	var controlStackHeightPx by remember { mutableStateOf(0) }
 	var followAfterPermissionGrant by rememberSaveable { mutableStateOf(false) }
 	val locationPermissionFlow = rememberMapLocationPermissionFlow(
 		onPermissionGranted = {
@@ -122,11 +125,12 @@ fun MapChromeHost(
 	val navBottom = WindowInsets.navigationBars.getBottom(density)
 	val systemBottomPx = maxOf(imeBottom, navBottom)
 	// Visual breathing room between the chrome strip (search/chips/FAB) and the
-	// floating navigation pill below.
+	// floating navigation pill below. Kept tight so the two frosted-glass controls
+	// read as a connected cluster rather than two widely-separated bars.
 	val controlStripBottomPx = resolveMapChromeBottomPaddingPx(
 		bottomInsetPx = bottomInsetPx,
 		imeBottomPx = imeBottom,
-		gapPx = with(density) { 20.dp.roundToPx() },
+		gapPx = with(density) { 8.dp.roundToPx() },
 	)
 	val controlStripBottomDp = with(density) { controlStripBottomPx.toDp() }
 	val chromeBottomInsetDp = with(density) { bottomInsetPx.toDp() }
@@ -193,7 +197,8 @@ fun MapChromeHost(
 			modifier = Modifier
 				.align(Alignment.BottomCenter)
 				.fillMaxWidth()
-				.padding(bottom = controlStripBottomDp),
+				.padding(bottom = controlStripBottomDp)
+				.onSizeChanged { controlStackHeightPx = it.height },
 			horizontalAlignment = Alignment.End,
 			verticalArrangement = Arrangement.spacedBy(12.dp),
 		) {
@@ -210,6 +215,10 @@ fun MapChromeHost(
 						modifier = Modifier.padding(end = 24.dp),
 					)
 				}
+				ShareMapFab(
+					onClick = onShareMapClick,
+					modifier = Modifier.padding(end = 24.dp),
+				)
 				MyLocationFab(
 					isFollowing = state.isFollowing,
 					onClick = {
@@ -255,14 +264,23 @@ fun MapChromeHost(
 				onDatesClick = { showDates = true },
 				layersExpanded = showLayers,
 				datesExpanded = showDates,
+				// Inset the chips + search row 24dp per side to match the floating navigation
+				// bar's horizontal inset (FloatingNavigationBar: padding(start/end = 24.dp)).
+				// The right-side FAB/zoom controls already sit at end = 24.dp, so all the
+				// floating map chrome now shares one edge alignment with the nav bar.
+				modifier = Modifier.padding(horizontal = 24.dp),
 			)
 		}
 
+		// Float the snackbar just above the whole control stack (FAB + chrome bar) so it never
+		// overlaps the chips or search field. controlStackHeightPx is the measured content height
+		// (excludes the controlStripBottomDp padding, which we re-add here).
+		val controlStackHeightDp = with(density) { controlStackHeightPx.toDp() }
 		SnackbarHost(
 			hostState = snackbarHostState,
 			modifier = Modifier
 				.align(Alignment.BottomCenter)
-				.padding(bottom = controlStripBottomDp + 80.dp),
+				.padding(bottom = controlStripBottomDp + controlStackHeightDp + 12.dp),
 		)
 
 		if (showLayers) {
@@ -336,17 +354,21 @@ private fun MyLocationFab(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	// Frosted-glass material shared with the chrome bar and the floating navigation bar: idle uses
+	// the translucent surface tint + glass edge so the FAB reads as the same material; the active
+	// (following) state keeps an opaque primaryContainer accent, mirroring the nav bar's selected
+	// pill. No shadow — a translucent surface should not cast one.
 	Surface(
 		modifier = modifier.size(56.dp),
 		shape = CircleShape,
 		color = if (isFollowing) {
 			MaterialTheme.colorScheme.primaryContainer
 		} else {
-			MaterialTheme.colorScheme.surfaceContainerHigh
+			mapChromeFrostedColor()
 		},
-		border = if (isFollowing) null else BorderStroke(1.dp, GlassTier.G2.borderColor()),
-		tonalElevation = RidgelineElevation.Raised.tonal,
-		shadowElevation = 3.dp,
+		border = if (isFollowing) null else mapChromeGlassBorder(),
+		tonalElevation = 0.dp,
+		shadowElevation = 0.dp,
 	) {
 		IconButton(
 			onClick = onClick,
@@ -360,6 +382,33 @@ private fun MyLocationFab(
 				} else {
 					MaterialTheme.colorScheme.onSurface
 				},
+			)
+		}
+	}
+}
+
+/** Opens the "share map as image" bottom sheet. Same frosted-glass FAB material as [MyLocationFab]. */
+@Composable
+private fun ShareMapFab(
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	Surface(
+		modifier = modifier.size(56.dp),
+		shape = CircleShape,
+		color = mapChromeFrostedColor(),
+		border = mapChromeGlassBorder(),
+		tonalElevation = 0.dp,
+		shadowElevation = 0.dp,
+	) {
+		IconButton(
+			onClick = onClick,
+			modifier = Modifier.testTag("map_share_button"),
+		) {
+			Icon(
+				imageVector = Icons.Filled.Share,
+				contentDescription = stringResource(R.string.map_share_button),
+				tint = MaterialTheme.colorScheme.onSurface,
 			)
 		}
 	}
@@ -379,10 +428,10 @@ private fun ZoomControls(
 	Surface(
 		modifier = modifier.width(56.dp),
 		shape = RoundedCornerShape(28.dp),
-		color = MaterialTheme.colorScheme.surfaceContainerHigh,
-		border = BorderStroke(1.dp, GlassTier.G2.borderColor()),
-		tonalElevation = RidgelineElevation.Raised.tonal,
-		shadowElevation = 3.dp,
+		color = mapChromeFrostedColor(),
+		border = mapChromeGlassBorder(),
+		tonalElevation = 0.dp,
+		shadowElevation = 0.dp,
 	) {
 		Column(horizontalAlignment = Alignment.CenterHorizontally) {
 			IconButton(

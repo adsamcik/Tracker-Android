@@ -51,6 +51,7 @@ class MapStoreTest {
     private val mockLayerEngine: LayerEngine = mockk(relaxed = true)
     private val mockTrackerController: TrackerServiceController = mockk(relaxed = true)
     private val mockReverseGeocoder: ReverseGeocoder = mockk(relaxed = true)
+    private val mockMapImageShareHelper: com.adsamcik.tracker.map.export.MapImageShareHelper = mockk(relaxed = true)
 
     private lateinit var mapStore: MapStore
     private val testDispatcher = StandardTestDispatcher()
@@ -68,6 +69,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
@@ -109,6 +111,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
 
         val state = tripStore.state.first()
@@ -135,6 +138,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
 
         tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
@@ -263,6 +267,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
         tripStore.setLayerEngine(mockLayerEngine)
 
@@ -410,6 +415,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             settingsRepo,
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -642,6 +648,7 @@ class MapStoreTest {
             FakeOnlineMapTilesRepository(),
             settingsRepo,
             mockReverseGeocoder,
+            mockMapImageShareHelper,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 

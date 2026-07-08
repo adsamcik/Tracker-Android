@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.ui
 
+import android.os.StrictMode
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapLibreInitializer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +27,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -35,6 +38,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -49,6 +54,7 @@ import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.paddedBounds
+import com.adsamcik.tracker.map.export.resolveOutputSizePx
 import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
@@ -115,6 +121,8 @@ import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.map.ui.controls.mapChromeFrostedColor
+import com.adsamcik.tracker.map.ui.controls.mapChromeGlassBorder
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
 private const val MAP_LOAD_TAG = "MapScreen"
@@ -153,6 +161,9 @@ fun MapScreen(
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
     topInsetPadding: Dp = 0.dp,
+    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareResolution? = null,
+    onShareCaptureStarted: () -> Unit = {},
+    onShareCaptureFinished: (success: Boolean) -> Unit = {},
 ) {
     val state by store.state.collectAsState()
     val isDark = isSystemInDarkTheme()
@@ -348,6 +359,9 @@ fun MapScreen(
     val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
     var suppressNextCameraPersistence by remember { mutableStateOf(false) }
     var hasAppliedEmptyStateZoomCap by rememberSaveable { mutableStateOf(false) }
+    // Dismiss state for the empty-data banner. Keyed to the active layer so switching to a
+    // different (still empty) layer surfaces the banner again instead of staying hidden.
+    var emptyStateDismissed by remember(activeLayerId) { mutableStateOf(false) }
 
     /**
      * MapLibre Compose's rememberCameraState is backed by rememberSaveable
@@ -431,6 +445,7 @@ fun MapScreen(
         "wifi_heatmap",
         "wifi_count_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_wifi)
         "speed_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_speed)
+        "vehicle_compliance" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_vehicle_compliance)
         else -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_location)
     }
 
@@ -449,9 +464,63 @@ fun MapScreen(
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val isMapVisible = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
 
-    Box(Modifier.fillMaxSize()) {
+    var mapViewportSizePx by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val activeTrackingColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+
+    // "Share map as image" capture. Rendering happens fully off-screen via MapSnapshotRenderer
+    // (MapLibre's classic MapSnapshotter) — independent of whatever is on screen right now — so
+    // this does not touch mapLibreReady/isMapVisible/baseStyle gating above; it only reuses their
+    // already-resolved values as inputs.
+    LaunchedEffect(shareCaptureRequest) {
+        val resolution = shareCaptureRequest ?: return@LaunchedEffect
+        val resolvedStyle = baseStyle ?: run {
+            onShareCaptureFinished(false)
+            return@LaunchedEffect
+        }
+        onShareCaptureStarted()
+        val aspectRatio = mapViewportSizePx.let { size ->
+            if (size.width > 0 && size.height > 0) size.width.toFloat() / size.height.toFloat() else 1f
+        }
+        val outputSize = resolution.resolveOutputSizePx(aspectRatio)
+        val success = try {
+            val bitmap = com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
+                context = appContext,
+                baseStyle = resolvedStyle,
+                cameraPosition = cameraState.position,
+                layerConfig = state.layerConfig,
+                activeTrackingPath = activeTrackingPath,
+                activeTrackingColorArgb = activeTrackingColorArgb,
+                widthPx = outputSize.widthPx,
+                heightPx = outputSize.heightPx,
+            )
+            store.mapImageShareHelper.saveAndShare(appContext, bitmap)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.report(e)
+            false
+        }
+        onShareCaptureFinished(success)
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coordinates -> mapViewportSizePx = coordinates.size },
+    ) {
         val resolvedBaseStyle = baseStyle
         if (resolvedBaseStyle != null && mapLibreReady && isMapVisible) {
+            // MapLibre inflates its underlying AndroidView via
+            // MapLibreMapOptions.createFromAttributes, which calls context.getFilesDir() on the
+            // main thread — a one-time (~60 ms) disk read inside the library that cannot be moved
+            // off-thread. Relax StrictMode's disk-read detection only for the frame that creates the
+            // view (remember runs during composition, before the AndroidView factory in applyChanges;
+            // SideEffect restores the original policy immediately after), so this benign library read
+            // no longer logs a violation while genuine app-code reads are still caught. Our own
+            // map-state init (basemap path, style JSON) was already moved off the main thread.
+            val priorThreadPolicy = remember { StrictMode.allowThreadDiskReads() }
+            SideEffect { StrictMode.setThreadPolicy(priorThreadPolicy) }
             MaplibreMap(
                 modifier = Modifier
                     .fillMaxSize()
@@ -569,45 +638,61 @@ fun MapScreen(
             }
         }
 
-        // Empty state — no data for active layer
+        // Empty state — no data for the active layer. A compact, dismissible frosted banner at the
+        // top informs the user without the old large centered card blanketing the map. It reuses
+        // the map chrome's frosted-glass material so it reads as part of the same design language.
         androidx.compose.animation.AnimatedVisibility(
-            visible = hasNoData,
+            visible = hasNoData && !emptyStateDismissed,
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(start = 32.dp, end = 32.dp, bottom = bottomPaddingDp),
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut(),
+                .align(Alignment.TopCenter)
+                .padding(top = topInsetPadding + 12.dp)
+                .padding(horizontal = 16.dp),
+            enter = androidx.compose.animation.fadeIn() +
+                androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.fadeOut() +
+                androidx.compose.animation.shrinkVertically(),
         ) {
             Surface(
-                modifier = Modifier.testTag("map_empty_state_card"),
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 2.dp,
-                shadowElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier
+                    .testTag("map_empty_state_card")
+                    .widthIn(max = 440.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = mapChromeFrostedColor(),
+                border = mapChromeGlassBorder(),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     androidx.compose.material3.Icon(
                         imageVector = Icons.Filled.LocationOn,
                         contentDescription = null,
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                    androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = stringResource(com.adsamcik.tracker.map.R.string.map_empty_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
                     Text(
                         text = emptyStateSubtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
                     )
+                    IconButton(
+                        onClick = { emptyStateDismissed = true },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("map_empty_state_dismiss"),
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(
+                                com.adsamcik.tracker.map.R.string.map_empty_dismiss
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -846,6 +931,24 @@ fun MapScreen(
                         cameraState.animateTo(
                             boundingBox = bounds,
                             padding = PaddingValues(32.dp),
+                            duration = 500.milliseconds,
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Reporter.report(e)
+                    }
+                }
+                is MapEffect.CenterOnUser -> {
+                    try {
+                        // Preserve the current zoom when the effect carries none (continuous
+                        // follow); otherwise snap to the requested comfortable zoom.
+                        val targetZoom = effect.zoom ?: cameraState.position.zoom
+                        cameraState.animateTo(
+                            finalPosition = cameraState.position.copy(
+                                target = Position(effect.lng, effect.lat),
+                                zoom = targetZoom,
+                            ),
                             duration = 500.milliseconds,
                         )
                     } catch (e: CancellationException) {

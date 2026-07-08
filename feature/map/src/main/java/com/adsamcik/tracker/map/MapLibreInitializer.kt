@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map
 
 import android.content.Context
+import android.os.StrictMode
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
@@ -144,7 +145,19 @@ object MapLibreInitializer {
                 if (initialized) return@withContext true
 
                 try {
-                    MapLibre.getInstance(context.applicationContext)
+                    // MapLibre mandates main-thread SDK bootstrap (see class kdoc). getInstance()
+                    // loads the native library and initializes FileSource cache paths — both are
+                    // disk reads that, by MapLibre's threading contract, MUST run on this main
+                    // thread and cannot be deferred to a background dispatcher. Scope a StrictMode
+                    // disk-read permit around just this call so the known, one-time, non-actionable
+                    // library bootstrap does not surface as a DiskReadViolation. (App-owned reads —
+                    // basemap path / style JSON — are already deferred off-main in MapScreen.)
+                    val previousPolicy = StrictMode.allowThreadDiskReads()
+                    try {
+                        MapLibre.getInstance(context.applicationContext)
+                    } finally {
+                        StrictMode.setThreadPolicy(previousPolicy)
+                    }
                     initialized = true
                     _isReady.value = true
                     // Apply any factory that was stashed by setHttpCallFactory

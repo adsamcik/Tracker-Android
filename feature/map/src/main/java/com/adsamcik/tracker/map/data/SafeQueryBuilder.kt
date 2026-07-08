@@ -132,6 +132,17 @@ class SafeQueryBuilder private constructor(
             args += degreesToE7(west!!)
         }
 
+        // Speed is the one weight column noisy enough to need its own trustworthiness gate: a
+        // single low-accuracy or coarse fix can report an implausible instantaneous speed even
+        // though the numeric value itself is unremarkable, which would otherwise let one bad fix
+        // paint a hot spot on the heatmap or skew the tap-to-probe average/max. Mirrors
+        // LocationSample.hasTrustworthySpeed() (feature:statistics TripDetailPresenterViewModel).
+        if (table == Table.LOCATION && weightColumn == "speed") {
+            appendClause(selection, "speed_mps IS NOT NULL")
+            appendClause(selection, "quality NOT IN ('LOW', 'COARSE')")
+            appendClause(selection, "(speed_accuracy_mps IS NULL OR speed_accuracy_mps <= $MAX_TRUSTED_SPEED_ACCURACY_MPS)")
+        }
+
         if (selection.isNotEmpty()) {
             sql.append(" WHERE ").append(selection)
         }
@@ -187,6 +198,11 @@ class SafeQueryBuilder private constructor(
 
     companion object {
         private const val E7_DIVISOR = 10_000_000.0
+
+        // A single low-accuracy or coarse fix can report an implausible instantaneous speed;
+        // above this threshold the reading is excluded from speed-weighted queries. Mirrors
+        // MAX_TRUSTED_SPEED_ACCURACY_MPS in feature:statistics's TripDetailPresenterViewModel.
+        private const val MAX_TRUSTED_SPEED_ACCURACY_MPS = 3.0
 
         fun location(): SafeQueryBuilder = SafeQueryBuilder(Table.LOCATION)
         fun wifi(): SafeQueryBuilder = SafeQueryBuilder(Table.WIFI)

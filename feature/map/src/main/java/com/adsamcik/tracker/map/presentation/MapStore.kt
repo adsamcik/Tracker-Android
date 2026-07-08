@@ -8,6 +8,7 @@ import com.adsamcik.tracker.geocoder.ReverseGeocoder
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.map.export.MapImageShareHelper
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -60,6 +61,7 @@ class MapStore @Inject constructor(
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
     private val mapSettingsRepository: MapSettingsRepository,
     private val reverseGeocoder: ReverseGeocoder,
+    val mapImageShareHelper: MapImageShareHelper,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -80,6 +82,14 @@ class MapStore @Inject constructor(
 
         /** Zoom levels stepped per zoom-button tap. */
         private const val ZOOM_STEP = 1f
+
+        /**
+         * Absolute zoom used when explicitly centering on the user (my-location tap / first GPS
+         * fix). A street/neighbourhood level that shows the immediate surroundings. Previously the
+         * camera fit a bounding box derived from the GPS accuracy radius, which produced a near-max
+         * (~z18) zoom that felt "too much"; a fixed comfortable zoom is predictable instead.
+         */
+        private const val CENTER_ON_USER_ZOOM = 16.0
         private const val CAMERA_LAT_KEY = "camera_lat"
         private const val CAMERA_LNG_KEY = "camera_lng"
         private const val CAMERA_ZOOM_KEY = "camera_zoom"
@@ -222,7 +232,6 @@ class MapStore @Inject constructor(
     private val cameraRefreshDebounceMs = 500L
     private var hasReceivedInitialLocation: Boolean = false
     private var lastKnownUserLocation: LatLngModel? = null
-    private var lastKnownAccuracyM: Double = 0.0
 
     init {
         // Heatmap quality is configured in the Map settings screen (not an in-map pill anymore).
@@ -284,7 +293,7 @@ class MapStore @Inject constructor(
                         }
                         cur.copy(overlays = persistentListOf(*updatedOverlays.toTypedArray()))
                     }
-                    emitCenterOnUser()
+                    emitCenterOnUser(resetZoom = true)
                     _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
                 }
             }
@@ -417,7 +426,6 @@ class MapStore @Inject constructor(
             hasReceivedInitialLocation = true
         }
         lastKnownUserLocation = latLng
-        lastKnownAccuracyM = accuracyM
 
         _state.update { st ->
             val userOverlayIndices = mutableListOf<Int>()
@@ -436,24 +444,24 @@ class MapStore @Inject constructor(
             st.copy(overlays = persistentListOf(*(filteredOverlays + newUserOverlays).toTypedArray()))
         }
         if (isInitial || _state.value.isFollowing) {
-            emitCenterOnUser()
+            // First fix snaps to a comfortable zoom; continuous follow updates pan only so the
+            // user can zoom freely while following.
+            emitCenterOnUser(resetZoom = isInitial)
             if (_state.value.isFollowing) {
                 _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
             }
         }
     }
 
-    private fun emitCenterOnUser() {
+    private fun emitCenterOnUser(resetZoom: Boolean) {
         val location = lastKnownUserLocation ?: return
-        val delta = kotlin.math.max(0.001, lastKnownAccuracyM / 111000.0)
         _effects.tryEmit(
-            MapEffect.CenterCamera(
-                CoordinateBounds(
-                    topBound = location.lat + delta,
-                    rightBound = location.lng + delta,
-                    bottomBound = location.lat - delta,
-                    leftBound = location.lng - delta,
-                )
+            MapEffect.CenterOnUser(
+                lat = location.lat,
+                lng = location.lng,
+                // Explicit / first centre snaps to a comfortable zoom; continuous follow updates
+                // keep the user's current zoom so following never fights a manual zoom-out.
+                zoom = if (resetZoom) CENTER_ON_USER_ZOOM else null,
             )
         )
     }

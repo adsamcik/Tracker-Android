@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Map</string>
 
@@ -144,6 +144,17 @@
     <string name="map_date_range_dialog_cancel">Cancel</string>
     <string name="map_controls_title">Map Controls</string>
     <string name="map_filters_title">Filters</string>
+
+    <!-- Share map as image -->
+    <string name="map_share_button">Share map</string>
+    <string name="map_share_sheet_title">Share map as image</string>
+    <string name="map_share_sheet_subtitle">Renders the current view and active layer as a static image. Your live location is never included.</string>
+    <string name="map_share_resolution_standard">Standard (1080p)</string>
+    <string name="map_share_resolution_high">High (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Share</string>
+    <string name="map_share_preparing">Preparing image…</string>
+    <string name="map_share_error">Couldn\'t render the map image. Please try again.</string>
     <string name="map_quality_label">Quality</string>
     <string name="map_quality_fast">Fast</string>
     <string name="map_quality_balanced">Balanced</string>
@@ -160,6 +171,8 @@
     <string name="map_empty_subtitle_cell">No cell data yet. Start tracking to see cell coverage on this map.</string>
     <string name="map_empty_subtitle_wifi">No Wi-Fi data yet. Start tracking to see Wi-Fi heatmaps on this map.</string>
     <string name="map_empty_subtitle_speed">No speed data yet. Start tracking to see speed heatmaps on this map.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">No road-matched drives to show. Import an OpenStreetMap region (Settings) and record some driving so we can match your route to real roads.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Dismiss no-data message</string>
     <string name="map_speed_probe_title">Speed here</string>
     <string name="map_speed_probe_avg_label">Average</string>
     <string name="map_speed_probe_max_label">Max</string>

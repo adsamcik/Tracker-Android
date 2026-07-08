@@ -32,6 +32,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 
 	@Query("SELECT COUNT(*) FROM location_sample")
 	suspend fun countAll(): Long
+
+	/** Ordered (by time) non-null fused MSL altitudes, for total-ascent computation. */
+	@Query("SELECT alt_m FROM location_sample WHERE alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC")
+	suspend fun getAltitudesOrdered(): List<Float>
 	
 	/**
 	 * Get the next ordered chunk of location samples within a time range.
@@ -63,7 +67,14 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	/**
 	 * Get the next ordered chunk of location samples within a time range that fall
 	 * inside a driving session segment, filtered to samples with coordinates and
-	 * a known speed. Used by the vehicle speed compliance map layer.
+	 * a known, trustworthy speed. Used by the vehicle speed compliance map layer.
+	 *
+	 * A single low-accuracy or coarse fix can report an implausible instantaneous
+	 * speed even though the numeric value itself is unremarkable, which would
+	 * otherwise let one bad fix mis-colour a whole road-matched stretch as
+	 * speeding/way-under. `quality` and `speed_accuracy_mps` gate this out the
+	 * same way `LocationSample.hasTrustworthySpeed()` does for trip statistics
+	 * (feature:statistics TripDetailPresenterViewModel).
 	 *
 	 * Uses (time_ms, id) as a stable cursor (identical to [getChunkBetweenOrdered])
 	 * and INNER JOINs `session_segment` so the planner can use the segment time
@@ -83,6 +94,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 			AND ls.lat_e7 IS NOT NULL
 			AND ls.lon_e7 IS NOT NULL
 			AND ls.speed_mps IS NOT NULL
+			AND ls.quality NOT IN ('LOW', 'COARSE')
+			AND (ls.speed_accuracy_mps IS NULL OR ls.speed_accuracy_mps <= 3.0)
 			AND ls.time_ms >= :fromMs
 			AND ls.time_ms <= :toMs
 			AND (

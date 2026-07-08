@@ -37,6 +37,23 @@ class SafeQueryBuilderTest {
     }
 
     @Test
+    fun `speed weighted query filters untrustworthy readings`() {
+        val q = SafeQueryBuilder.location().weight("speed").build()
+        val sql = (q as SimpleSQLiteQuery).sql
+        sql shouldContain "speed_mps IS NOT NULL"
+        sql shouldContain "quality NOT IN ('LOW', 'COARSE')"
+        sql shouldContain "speed_accuracy_mps IS NULL OR speed_accuracy_mps <= 3.0"
+    }
+
+    @Test
+    fun `non-speed weighted query does not add speed trustworthiness filter`() {
+        val q = SafeQueryBuilder.location().weight("hor_acc").build()
+        val sql = (q as SimpleSQLiteQuery).sql
+        sql shouldContain "h_acc_m AS weight"
+        (sql.contains("quality NOT IN")) shouldBe false
+    }
+
+    @Test
     fun `reject disallowed weight`() {
         shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().weight("not_col")

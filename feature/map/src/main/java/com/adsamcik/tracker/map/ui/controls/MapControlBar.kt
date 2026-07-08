@@ -53,13 +53,30 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
-import com.adsamcik.tracker.shared.utils.style.compose.GlassTier
-import com.adsamcik.tracker.shared.utils.style.compose.RidgelineElevation
-import com.adsamcik.tracker.shared.utils.style.compose.borderColor
 
 // Sizing for the contextual chips (Layers, Dates). The label always renders; the quality control
 // now lives in Settings so only two chips share the row, leaving room for full text.
 private val CHIP_ICON_SIZE = 20.dp
+
+// --- Shared floating map-chrome material -------------------------------------------------------
+// The map's floating controls (the chrome bar, the my-location FAB, the zoom controls) share the
+// SAME frosted-glass material as the app's floating navigation bar (FloatingNavigationBar in :app).
+// Over content the nav bar renders a translucent `surface` tint with a 1dp outlineVariant edge and
+// no shadow, so the map reads through it. Mirroring that recipe here makes the map chrome and the
+// bottom navigation read as one continuous design language instead of two competing materials
+// (an opaque card floating over a frosted nav bar).
+private const val MAP_CHROME_FROSTED_ALPHA = 0.78f
+private const val MAP_CHROME_BORDER_ALPHA = 0.3f
+
+/** Translucent frosted fill matching the floating navigation bar's haze tint. */
+@Composable
+internal fun mapChromeFrostedColor(): Color =
+	MaterialTheme.colorScheme.surface.copy(alpha = MAP_CHROME_FROSTED_ALPHA)
+
+/** 1dp glass edge matching the floating navigation bar's border. */
+@Composable
+internal fun mapChromeGlassBorder(): BorderStroke =
+	BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = MAP_CHROME_BORDER_ALPHA))
 
 /**
  * Unified map chrome card that houses the contextual chips (Layers, Dates) and the
@@ -97,17 +114,17 @@ internal fun MapChromeBar(
 		label = "chip_row_alpha",
 	)
 
-	// Match the floating navigation bar's glass treatment so the map chrome reads as part of the
-	// same design language: surfaceContainerHigh tier, a subtle 1dp glass border, and the Ridgeline
-	// "Raised" elevation. The card floats via its brighter surface tier + border against the map,
-	// not a hard shadow.
+	// Match the floating navigation bar's frosted-glass material (see FloatingNavigationBar in
+	// :app) so the map chrome and the bottom navigation read as one design language: a translucent
+	// `surface` tint that lets the map show through, a 1dp outlineVariant glass edge, and no
+	// shadow — the border + tint provide the float, exactly like the nav bar's haze treatment.
 	Surface(
 		modifier = modifier.fillMaxWidth(),
 		shape = RoundedCornerShape(32.dp),
-		color = MaterialTheme.colorScheme.surfaceContainerHigh,
-		border = BorderStroke(1.dp, GlassTier.G2.borderColor()),
-		tonalElevation = RidgelineElevation.Raised.tonal,
-		shadowElevation = RidgelineElevation.Raised.shadow,
+		color = mapChromeFrostedColor(),
+		border = mapChromeGlassBorder(),
+		tonalElevation = 0.dp,
+		shadowElevation = 0.dp,
 	) {
 		Column(
 			modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),

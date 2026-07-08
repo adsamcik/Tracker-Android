@@ -21,6 +21,7 @@ import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
+import com.adsamcik.tracker.stats.api.roadmatch.RoadObservation
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLegend
@@ -44,6 +45,16 @@ class DefaultLayerRegistry(
         const val DEFAULT_LOCATION_RANGE_MS = 30L * 24 * 60 * 60 * 1_000
         const val VEHICLE_CHUNK_SIZE = 2_000
         const val VEHICLE_MAX_PRE_SAMPLES = 30_000
+
+        /** Conversion factor from km/h to m/s for matched road speed limits. */
+        const val VEHICLE_MPS_PER_KMH = 1000f / 3600f
+
+        /**
+         * Emission sigma (GPS noise) handed to the road matcher. The driving
+         * sample projection doesn't carry per-sample accuracy, so we use a
+         * single sensible default that the matcher clamps into its valid range.
+         */
+        const val VEHICLE_DEFAULT_ACCURACY_M = 8f
     }
 
     /**
@@ -272,9 +283,9 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao = AppDatabase.database(ctx).locationSampleDao()
                             val drivingActivityIds = SessionActivityIds.DRIVING.toList()
-                            val speedLimitSource = ctx.speedLimitSource()
+                            val roadMatcher = ctx.roadMatcher()
                             VehicleComplianceLayer(
-                                sampleProvider = { range ->
+                                edgeProvider = { range ->
                                     withContext(dispatchers.io) {
                                         val now = System.currentTimeMillis()
                                         val fromMs = if (!range.isEmpty()) {
@@ -308,34 +319,51 @@ class DefaultLayerRegistry(
                                         if (rows.isEmpty()) {
                                             emptyList()
                                         } else {
-                                            val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES).coerceAtLeast(1)
-                                            // Plain mutable list because limitMpsAt() is a suspend fun and
-                                            // cannot be called from a non-suspending buildList { } lambda.
-                                            // This whole block runs in withContext(dispatchers.io).
-                                            val result = ArrayList<VehicleComplianceLayer.VehicleSpeedSample>(
-                                                rows.size / step + 1,
-                                            )
-                                            for ((index, row) in rows.withIndex()) {
-                                                if (index % step != 0) continue
-                                                val limitMps = speedLimitSource.limitMpsAt(
-                                                    epochMs = row.timeMs,
+                                            // Decimate to keep the matcher's work bounded, then map-match
+                                            // the drive onto the OSM road graph. Each MatchedEdge already
+                                            // follows the real road; we only classify it by speed-vs-limit.
+                                            val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES)
+                                                .coerceAtLeast(1)
+                                            val sampled = if (step == 1) {
+                                                rows
+                                            } else {
+                                                rows.filterIndexed { index, _ -> index % step == 0 }
+                                            }
+                                            val observations = sampled.map { row ->
+                                                RoadObservation(
                                                     latE7 = row.latE7,
                                                     lonE7 = row.lonE7,
+                                                    accuracyM = VEHICLE_DEFAULT_ACCURACY_M,
+                                                    timeMs = row.timeMs,
                                                 )
-                                                val ratio = if (limitMps <= 0.0) {
+                                            }
+                                            val edges = roadMatcher.match(observations)
+                                            val result = ArrayList<VehicleComplianceLayer.ComplianceEdge>(
+                                                edges.size,
+                                            )
+                                            var prevToIndex = -1
+                                            for (edge in edges) {
+                                                // Classify the span by the speed recorded at the fix it
+                                                // leads into (the more recent reading), matching the
+                                                // original per-sample colouring and avoiding blended
+                                                // "sliver" buckets at every speed transition.
+                                                val speed = sampled[edge.toIndex].speedMps
+                                                val limitMps = edge.maxspeedKmh * VEHICLE_MPS_PER_KMH
+                                                val ratio = if (limitMps <= 0f) {
                                                     Float.NaN
                                                 } else {
-                                                    (row.speedMps / limitMps).toFloat()
+                                                    speed / limitMps
                                                 }
                                                 result.add(
-                                                    VehicleComplianceLayer.VehicleSpeedSample(
-                                                        latLng = LatLngModel(
-                                                            row.latE7 / 1e7,
-                                                            row.lonE7 / 1e7,
-                                                        ),
+                                                    VehicleComplianceLayer.ComplianceEdge(
                                                         ratio = ratio,
+                                                        path = edge.path.map { p ->
+                                                            LatLngModel(p.latE7 / 1e7, p.lonE7 / 1e7)
+                                                        },
+                                                        gapBefore = edge.fromIndex != prevToIndex,
                                                     ),
                                                 )
+                                                prevToIndex = edge.toIndex
                                             }
                                             result
                                         }
