@@ -14,7 +14,8 @@ import androidx.paging.PagingConfig
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.statistics.fragment.*
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.Trip
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,17 +30,23 @@ class StatsPagingIntegrationTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
-    private class FakeSessionPagingSource : PagingSource<Int, TrackerSession>() {
-        override suspend fun load(params: LoadParams<Int>): LoadResult<Int, TrackerSession> {
+    private class FakeSessionPagingSource : PagingSource<Int, Trip>() {
+        override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Trip> {
             val page = params.key ?: 0
             val pageSize = params.loadSize
             // Generate deterministic fake data
             val items = List(pageSize) { idx ->
-                TrackerSession(
+                Trip(
                     id = (page * pageSize + idx).toLong() + 1,
-                    start = 1000L * (idx + 1),
-                    end = 1000L * (idx + 2),
+                    startTimeMs = 1000L * (idx + 1),
+                    endTimeMs = 1000L * (idx + 2),
+                    distanceM = 100f * (idx + 1),
                     steps = 10 * (idx + 1),
+                    primaryActivity = null,
+                    activityConfidence = null,
+                    sampleCount = 5,
+                    source = SegmentSource.INFERRED_HIGH_CONFIDENCE,
+                    createdAt = 1000L * (idx + 1),
                 )
             }
             val nextKey = if (page >= 1) null else page + 1 // single additional page
@@ -49,7 +56,7 @@ class StatsPagingIntegrationTest {
                 nextKey = nextKey
             )
         }
-        override fun getRefreshKey(state: PagingState<Int, TrackerSession>): Int? = null
+        override fun getRefreshKey(state: PagingState<Int, Trip>): Int? = null
     }
 
     @Composable

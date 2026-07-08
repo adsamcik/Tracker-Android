@@ -7,10 +7,10 @@ import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
 import com.adsamcik.tracker.tracker.component.producer.CellDataProducer
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -21,13 +21,13 @@ import kotlin.test.assertTrue
  * `TrackerDataProducerComponent.enabledFlow`), so any combination of sources can be collected
  * without coupling Wi-Fi/cell to GPS.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DataProducerManagerProducerSetTest {
 
 	private lateinit var context: Context
 
-	@BeforeEach
+	@Before
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
 	}

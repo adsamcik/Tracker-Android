@@ -3,7 +3,7 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.DefaultActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
@@ -40,22 +40,24 @@ class ActivityReceiverTest {
 		get() = ApplicationProvider.getApplicationContext()
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
+	private lateinit var mockRequestManager: DefaultActivityRequestManager
 
 	@BeforeEach
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
-		mockkObject(ActivityRequestManager)
 		mockkObject(Logger)
 		mockkObject(Time)
 
 		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 		every { Time.elapsedRealtimeMillis } returns 5000L
 
-		// Mock the Hilt EntryPoint so the receiver can obtain a backend
+		// Mock the Hilt EntryPoint so the receiver can obtain a backend and request manager
 		mockBackend = mockk(relaxed = true)
+		mockRequestManager = mockk(relaxed = true)
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
+			every { defaultActivityRequestManager() } returns mockRequestManager
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {
@@ -89,7 +91,6 @@ class ActivityReceiverTest {
 		every { ActivityRecognitionResult.hasResult(intent) } returns true
 		every { ActivityRecognitionResult.extractResult(intent) } returns result
 		every { ActivityTransitionResult.hasResult(intent) } returns false
-		every { ActivityRequestManager.onActivityUpdate(any(), any(), any()) } just runs
 
 		return intent
 	}
@@ -105,7 +106,6 @@ class ActivityReceiverTest {
 		every { ActivityRecognitionResult.hasResult(intent) } returns false
 		every { ActivityTransitionResult.hasResult(intent) } returns true
 		every { ActivityTransitionResult.extractResult(intent) } returns result
-		every { ActivityRequestManager.onActivityTransition(any(), any()) } just runs
 
 		return intent
 	}
@@ -153,7 +153,7 @@ class ActivityReceiverTest {
 			receiver.onReceive(context, intent)
 
 			verify(exactly = 1) {
-				ActivityRequestManager.onActivityUpdate(context, any(), any())
+				mockRequestManager.onActivityUpdate(context, any(), any())
 			}
 		}
 	}
@@ -174,7 +174,7 @@ class ActivityReceiverTest {
 			receiver.onReceive(context, intent)
 
 			verify(exactly = 1) {
-				ActivityRequestManager.onActivityTransition(context, any())
+				mockRequestManager.onActivityTransition(context, any())
 			}
 		}
 
@@ -233,8 +233,8 @@ class ActivityReceiverTest {
 
 			receiver.onReceive(context, intent)
 
-			verify(exactly = 0) { ActivityRequestManager.onActivityUpdate(any(), any(), any()) }
-			verify(exactly = 0) { ActivityRequestManager.onActivityTransition(any(), any()) }
+			verify(exactly = 0) { mockRequestManager.onActivityUpdate(any(), any(), any()) }
+			verify(exactly = 0) { mockRequestManager.onActivityTransition(any(), any()) }
 		}
 	}
 }

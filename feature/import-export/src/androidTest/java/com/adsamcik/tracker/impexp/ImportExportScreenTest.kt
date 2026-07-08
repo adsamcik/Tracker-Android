@@ -15,8 +15,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
 import com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity
-import com.adsamcik.tracker.testing.AccessibilityTestExtensions.assertAccessible
-import com.adsamcik.tracker.testing.AccessibilityTestExtensions.assertMinTouchTargetSize
+import com.adsamcik.tracker.testing.accessibility.assertHasAccessibleText
+import com.adsamcik.tracker.testing.accessibility.assertMinTouchTargetSize
 import org.hamcrest.Matchers.allOf
 import org.junit.After
 import org.junit.Before
@@ -274,12 +274,12 @@ class ImportExportScreenTest {
         // Export button is accessible
         composeTestRule.onNodeWithText(
             context.getString(R.string.export_button)
-        ).assertAccessible()
+        ).assertHasAccessibleText()
 
         // Share button is accessible
         composeTestRule.onNodeWithText(
             context.getString(R.string.export_share_button)
-        ).assertAccessible()
+        ).assertHasAccessibleText()
     }
 
     // ========================================

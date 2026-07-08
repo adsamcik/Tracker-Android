@@ -75,7 +75,7 @@ class DataRetentionInstrumentationTest {
             bucketId = null,
             createdAt = now,
         )
-        db.locationSampleDao().insert(listOf(sampleOld, sampleNew))
+        runBlocking { db.locationSampleDao().insert(listOf(sampleOld, sampleNew)) }
 
         // Simulate process death by recreating WorkManager
         val config = Configuration.Builder()

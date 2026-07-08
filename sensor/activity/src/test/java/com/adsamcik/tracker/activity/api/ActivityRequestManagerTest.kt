@@ -7,7 +7,7 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
-import com.adsamcik.tracker.activity.receiver.ActivityReceiver
+import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
@@ -28,12 +28,14 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+
 /**
- * Unit tests for [ActivityRequestManager] covering request lifecycle,
+ * Unit tests for [DefaultActivityRequestManager] covering request lifecycle,
  * callback dispatching, interval calculation, and cleanup.
  *
- * Uses MockK to isolate from Android framework dependencies
- * ([android.util.SparseArray] is shadowed by mocking the static/object calls).
+ * The manager delegates real-time recognition start/stop to the injected
+ * [ActivityRecognitionBackend], which is mocked here so the tests stay isolated
+ * from Google Play Services.
  */
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
@@ -41,6 +43,9 @@ class ActivityRequestManagerTest {
 
     private val context: Context
         get() = ApplicationProvider.getApplicationContext()
+
+    private lateinit var backend: ActivityRecognitionBackend
+    private lateinit var manager: DefaultActivityRequestManager
 
     @BeforeEach
     fun setup() {
@@ -52,21 +57,15 @@ class ActivityRequestManagerTest {
         every { Reporter.report(any<String>()) } just Runs
         every { Reporter.log(any()) } just Runs
 
-        mockkObject(ActivityReceiver)
-        every { ActivityReceiver.startActivityRecognition(any(), any(), any()) } returns true
-        every { ActivityReceiver.stopActivityRecognition(any()) } just Runs
-        every { ActivityReceiver.lastActivity } returns ActivityInfo(DetectedActivity.UNKNOWN, 0)
-
         // hasActivityPermission is inline and checks Build.VERSION.SDK_INT < Q.
-        // In unit tests SDK_INT defaults to 0, so the permission check passes automatically.
+        // With @Config(sdk = [28]) the check passes automatically (no runtime
+        // permission existed before Android Q), so startUpdates is reached.
+        backend = mockk(relaxed = true)
+        manager = DefaultActivityRequestManager(backend)
     }
 
     @AfterEach
     fun teardown() {
-        // Clean internal state by removing any added requests
-        runCatching { ActivityRequestManager.removeActivityRequest(context, TestClassA::class) }
-        runCatching { ActivityRequestManager.removeActivityRequest(context, TestClassB::class) }
-        runCatching { ActivityRequestManager.removeActivityRequest(context, TestClassC::class) }
         unmockkAll()
     }
 
@@ -101,7 +100,7 @@ class ActivityRequestManagerTest {
                 changeData = changeRequest()
             )
 
-            val result = ActivityRequestManager.requestActivity(context, request)
+            val result = manager.requestActivity(context, request)
 
             result shouldBe true
         }
@@ -117,7 +116,7 @@ class ActivityRequestManagerTest {
                 transitionData = transitionRequest(transition)
             )
 
-            val result = ActivityRequestManager.requestActivity(context, request)
+            val result = manager.requestActivity(context, request)
 
             result shouldBe true
         }
@@ -131,7 +130,7 @@ class ActivityRequestManagerTest {
             )
 
             assertThrows<IllegalArgumentException> {
-                ActivityRequestManager.requestActivity(context, request)
+                manager.requestActivity(context, request)
             }
         }
 
@@ -142,9 +141,9 @@ class ActivityRequestManagerTest {
                 changeData = changeRequest(intervalS = 15)
             )
 
-            ActivityRequestManager.requestActivity(context, request)
+            manager.requestActivity(context, request)
 
-            verify { ActivityReceiver.startActivityRecognition(any(), any(), any()) }
+            verify { backend.startUpdates(any()) }
         }
 
     }
@@ -154,7 +153,7 @@ class ActivityRequestManagerTest {
 
         @Test
         fun `removing non-existent request reports error`() {
-            ActivityRequestManager.removeActivityRequest(context, TestClassC::class)
+            manager.removeActivityRequest(context, TestClassC::class)
 
             verify { Reporter.report(match<String> { it.contains("not subscribed") }) }
         }
@@ -165,11 +164,11 @@ class ActivityRequestManagerTest {
                 key = TestClassA::class,
                 changeData = changeRequest()
             )
-            ActivityRequestManager.requestActivity(context, request)
+            manager.requestActivity(context, request)
 
-            ActivityRequestManager.removeActivityRequest(context, TestClassA::class)
+            manager.removeActivityRequest(context, TestClassA::class)
 
-            verify { ActivityReceiver.stopActivityRecognition(any()) }
+            verify { backend.stopUpdates() }
         }
 
         @Test
@@ -182,12 +181,12 @@ class ActivityRequestManagerTest {
                 key = TestClassB::class,
                 changeData = changeRequest(intervalS = 20)
             )
-            ActivityRequestManager.requestActivity(context, requestA)
-            ActivityRequestManager.requestActivity(context, requestB)
+            manager.requestActivity(context, requestA)
+            manager.requestActivity(context, requestB)
 
-            ActivityRequestManager.removeActivityRequest(context, TestClassA::class)
+            manager.removeActivityRequest(context, TestClassA::class)
 
-            verify(exactly = 0) { ActivityReceiver.stopActivityRecognition(any()) }
+            verify(exactly = 0) { backend.stopUpdates() }
         }
     }
 
@@ -213,11 +212,11 @@ class ActivityRequestManagerTest {
                     callback = { _, _, _ -> callbackBInvoked = true }
                 )
             )
-            ActivityRequestManager.requestActivity(context, requestA)
-            ActivityRequestManager.requestActivity(context, requestB)
+            manager.requestActivity(context, requestA)
+            manager.requestActivity(context, requestB)
 
             val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            ActivityRequestManager.onActivityUpdate(context, activity, 1000L)
+            manager.onActivityUpdate(context, activity, 1000L)
 
             callbackAInvoked shouldBe true
             callbackBInvoked shouldBe true
@@ -238,10 +237,10 @@ class ActivityRequestManagerTest {
                     }
                 )
             )
-            ActivityRequestManager.requestActivity(context, request)
+            manager.requestActivity(context, request)
 
             val activity = ActivityInfo(DetectedActivity.RUNNING, 95)
-            ActivityRequestManager.onActivityUpdate(context, activity, 5000L)
+            manager.onActivityUpdate(context, activity, 5000L)
 
             receivedActivity shouldBe activity
             receivedElapsed shouldBe 5000L
@@ -258,11 +257,11 @@ class ActivityRequestManagerTest {
                     callback = { _, _, _ -> callbackInvoked = true }
                 )
             )
-            ActivityRequestManager.requestActivity(context, request)
-            ActivityRequestManager.removeActivityRequest(context, TestClassA::class)
+            manager.requestActivity(context, request)
+            manager.removeActivityRequest(context, TestClassA::class)
 
             val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            ActivityRequestManager.onActivityUpdate(context, activity, 1000L)
+            manager.onActivityUpdate(context, activity, 1000L)
 
             callbackInvoked shouldBe false
         }
@@ -279,10 +278,10 @@ class ActivityRequestManagerTest {
                 key = TestClassA::class,
                 transitionData = transitionRequest(transition)
             )
-            ActivityRequestManager.requestActivity(context, request)
+            manager.requestActivity(context, request)
 
             val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            ActivityRequestManager.onActivityUpdate(context, activity, 1000L)
+            manager.onActivityUpdate(context, activity, 1000L)
 
             changeCallbackInvoked shouldBe false
         }
@@ -292,11 +291,11 @@ class ActivityRequestManagerTest {
     inner class `last activity` {
 
         @Test
-        fun `lastActivity delegates to ActivityReceiver`() {
+        fun `lastActivity delegates to backend`() {
             val expected = ActivityInfo(DetectedActivity.RUNNING, 85)
-            every { ActivityReceiver.lastActivity } returns expected
+            every { backend.lastActivity } returns expected
 
-            ActivityRequestManager.lastActivity shouldBe expected
+            manager.lastActivity shouldBe expected
         }
     }
 

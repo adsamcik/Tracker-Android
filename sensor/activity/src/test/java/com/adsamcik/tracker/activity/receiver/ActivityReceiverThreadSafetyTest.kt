@@ -2,7 +2,7 @@ package com.adsamcik.tracker.activity.receiver
 
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.DefaultActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
@@ -42,12 +42,12 @@ class ActivityReceiverThreadSafetyTest {
 	private val receiver = ActivityReceiver()
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
+	private lateinit var mockRequestManager: DefaultActivityRequestManager
 
 	@BeforeEach
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
-		mockkObject(ActivityRequestManager)
 		mockkObject(Logger)
 		mockkObject(Time)
 
@@ -57,9 +57,11 @@ class ActivityReceiverThreadSafetyTest {
 		mockBackend = mockk(relaxed = true)
 		every { mockBackend.lastActivity } returns ActivityInfo(DetectedActivity.UNKNOWN, 0)
 		every { mockBackend.lastActivityElapsedTimeMillis } returns 0L
+		mockRequestManager = mockk(relaxed = true)
 
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
+			every { defaultActivityRequestManager() } returns mockRequestManager
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {
@@ -88,7 +90,6 @@ class ActivityReceiverThreadSafetyTest {
 		every { ActivityRecognitionResult.hasResult(any()) } returns true
 		every { ActivityRecognitionResult.extractResult(any()) } returns result
 		every { ActivityTransitionResult.hasResult(any()) } returns false
-		every { ActivityRequestManager.onActivityUpdate(any(), any(), any()) } just runs
 
 		val timeCounter = AtomicLong(0)
 		every { Time.elapsedRealtimeMillis } answers { timeCounter.incrementAndGet() }

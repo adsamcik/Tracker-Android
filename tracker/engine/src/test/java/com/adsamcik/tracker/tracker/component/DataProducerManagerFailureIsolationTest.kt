@@ -10,11 +10,11 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -24,13 +24,13 @@ import kotlin.test.assertTrue
  * contributing data to the collection cycle.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DataProducerManagerFailureIsolationTest {
 
 	private lateinit var context: Context
 
-	@BeforeEach
+	@Before
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
 	}

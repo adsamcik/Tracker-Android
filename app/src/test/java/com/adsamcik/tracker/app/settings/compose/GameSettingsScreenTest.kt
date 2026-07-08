@@ -11,12 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.settings.components.SectionHeader
-import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,25 +32,11 @@ class GameSettingsScreenTest {
     val composeTestRule = createComposeRule()
 
     @Composable
-    private fun GameSettingsTestLayout(
-        challengeEnabled: Boolean = true,
-        onChallengeEnabledChanged: (Boolean) -> Unit = {},
-    ) {
+    private fun GameSettingsTestLayout() {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
         ) {
-            // Challenges section
-            item {
-                SectionHeader("Challenges")
-            }
-            item {
-                SwitchSettingsItem(
-                    title = "Enable challenges",
-                    checked = challengeEnabled,
-                    onCheckedChange = onChallengeEnabledChanged,
-                )
-            }
             // Goals section
             item {
                 SectionHeader("Goals")
@@ -69,50 +52,11 @@ class GameSettingsScreenTest {
     }
 
     @Test
-    fun displaysChallengesSection() {
-        composeTestRule.setContent {
-            AppTheme { GameSettingsTestLayout() }
-        }
-        composeTestRule.onNodeWithText("Challenges").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Enable challenges").assertIsDisplayed()
-    }
-
-    @Test
     fun displaysGoalsSection() {
         composeTestRule.setContent {
             AppTheme { GameSettingsTestLayout() }
         }
         composeTestRule.onNodeWithText("Goals").assertIsDisplayed()
         composeTestRule.onNodeWithText("managed", substring = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun challengeToggleCallsCallback() {
-        var newValue: Boolean? = null
-        composeTestRule.setContent {
-            AppTheme {
-                GameSettingsTestLayout(
-                    challengeEnabled = true,
-                    onChallengeEnabledChanged = { newValue = it },
-                )
-            }
-        }
-        composeTestRule.onNodeWithText("Enable challenges").performClick()
-        newValue shouldBe false
-    }
-
-    @Test
-    fun challengeDisabledTogglesOn() {
-        var newValue: Boolean? = null
-        composeTestRule.setContent {
-            AppTheme {
-                GameSettingsTestLayout(
-                    challengeEnabled = false,
-                    onChallengeEnabledChanged = { newValue = it },
-                )
-            }
-        }
-        composeTestRule.onNodeWithText("Enable challenges").performClick()
-        newValue shouldBe true
     }
 }

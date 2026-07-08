@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings
 
 import android.content.Context
+import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
@@ -40,6 +41,7 @@ class MapSettingsViewModelTest {
     private val context: Context = mockk(relaxed = true)
     private val dispatchers: DispatchersProvider = mockk(relaxed = true)
     private val preferences: Preferences = mockk(relaxed = true)
+    private val skiInfrastructureManager: SkiInfrastructureManager = mockk(relaxed = true)
     private val tempDir = File(System.getProperty("java.io.tmpdir"), "map-settings-test-${System.nanoTime()}")
 
     @BeforeEach
@@ -90,6 +92,7 @@ class MapSettingsViewModelTest {
         onlineMapTilesRepository = onlineMapTilesRepository,
         dispatchers = dispatchers,
         preferences = preferences,
+        skiInfrastructureManager = skiInfrastructureManager,
     )
 
     @Nested

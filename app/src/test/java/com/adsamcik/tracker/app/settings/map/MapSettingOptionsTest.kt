@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.app.settings.map
 
-import kotlin.test.Test
+import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 class MapSettingOptionsTest {
