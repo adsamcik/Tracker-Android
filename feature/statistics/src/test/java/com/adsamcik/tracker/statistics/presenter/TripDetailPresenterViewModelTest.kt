@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
@@ -34,6 +35,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.lang.reflect.Method
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripDetailPresenterViewModelTest {
@@ -45,6 +47,14 @@ class TripDetailPresenterViewModelTest {
 	private val skiRunSegmentRepository: SkiRunSegmentRepository = mockk()
 	private val locationSampleRepository: LocationSampleRepository = mockk()
 	private val gpxShareHelper: GpxShareHelper = mockk(relaxed = true)
+	private val buildInsightsFn: Method = Class.forName(
+		"com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModelKt",
+	).getDeclaredMethod(
+		"buildInsights",
+		TripSummary::class.java,
+		Trip::class.java,
+		List::class.java,
+	).also { it.isAccessible = true }
 
 	@BeforeEach
 	fun setUp() {
@@ -109,7 +119,73 @@ class TripDetailPresenterViewModelTest {
 		stateCollector.cancel()
 	}
 
-	private fun createViewModel(): TripDetailPresenterViewModel =
+	@Test
+	fun `repository-backed sample insights match direct insights across chunk boundary`() = runTest {
+		val samples = (0 until SAMPLE_CHUNK_SIZE + 1).map { index ->
+			val altitude = when (index) {
+				SAMPLE_CHUNK_SIZE - 1 -> 125f
+				SAMPLE_CHUNK_SIZE -> 117f
+				else -> 100f
+			}
+			sample(
+				id = index + 1L,
+				timeMs = TRIP_START_MS + index,
+				latE7 = null,
+				lonE7 = null,
+				altitudeM = altitude,
+				speedMps = if (index == SAMPLE_CHUNK_SIZE) 6.5f else 1.5f,
+				provider = if (index == SAMPLE_CHUNK_SIZE) "network" else "gps",
+			)
+		}
+		val tripEndMs = TRIP_START_MS + samples.lastIndex
+		val trip = TripSummary(
+			id = TRIP_ID,
+			startTimeMs = EpochMs(TRIP_START_MS),
+			endTimeMs = EpochMs(tripEndMs),
+			distance = DistanceM(5_100f),
+			steps = StepCount(0),
+			duration = DurationMs(tripEndMs - TRIP_START_MS),
+			primaryMode = TransportMode.WALK,
+			sampleCount = samples.size,
+		)
+		val chunkedRepository = ChunkedLocationSampleRepository(samples)
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
+		coEvery {
+			skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, tripEndMs)
+		} returns emptyList()
+
+		val viewModel = createViewModel(locationSampleRepository = chunkedRepository)
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+
+		advanceUntilIdle()
+
+		val expected = buildInsights(trip, null, samples)
+		viewModel.insights.value shouldBe expected
+		viewModel.insights.value.elevationGainM shouldBe 25.0
+		viewModel.insights.value.elevationLossM shouldBe 8.0
+		chunkedRepository.requests shouldBe listOf(
+			ChunkRequest(TRIP_START_MS, tripEndMs, null, null, SAMPLE_CHUNK_SIZE),
+			ChunkRequest(
+				TRIP_START_MS,
+				tripEndMs,
+				afterTimeMs = samples[SAMPLE_CHUNK_SIZE - 1].timeMs,
+				afterId = samples[SAMPLE_CHUNK_SIZE - 1].id,
+				limit = SAMPLE_CHUNK_SIZE,
+			),
+		)
+		stateCollector.cancel()
+	}
+
+	private fun buildInsights(
+		trip: TripSummary,
+		projection: Trip?,
+		samples: List<LocationSample>,
+	): TripDetailInsights = buildInsightsFn.invoke(null, trip, projection, samples) as TripDetailInsights
+
+	private fun createViewModel(
+		locationSampleRepository: LocationSampleRepository = this.locationSampleRepository,
+	): TripDetailPresenterViewModel =
 		TripDetailPresenterViewModel(
 			presenter = TripDetailPresenter(tripRepository),
 			tripPresentationRepository = tripPresentationRepository,
@@ -123,21 +199,24 @@ class TripDetailPresenterViewModelTest {
 	private fun sample(
 		id: Long,
 		timeMs: Long,
-		latE7: Int,
-		lonE7: Int,
+		latE7: Int?,
+		lonE7: Int?,
+		altitudeM: Float? = null,
+		speedMps: Float? = null,
+		provider: String = "gps",
 	): LocationSample = LocationSample(
 		id = id,
 		timeMs = timeMs,
 		elapsedRealtimeNanos = timeMs * 1_000_000L,
 		latE7 = latE7,
 		lonE7 = lonE7,
-		altitudeM = null,
-		rawGpsAltitudeM = null,
+		altitudeM = altitudeM,
+		rawGpsAltitudeM = altitudeM,
 		hAccM = 5f,
 		vAccM = null,
-		speedMps = null,
+		speedMps = speedMps,
 		speedAccuracyMps = null,
-		provider = "gps",
+		provider = provider,
 		quality = SampleQuality.HIGH,
 		motionState = MotionState.MOVING,
 		policy = null,
@@ -145,9 +224,46 @@ class TripDetailPresenterViewModelTest {
 		createdAt = timeMs,
 	)
 
+	private data class ChunkRequest(
+		val fromMs: Long,
+		val toMs: Long,
+		val afterTimeMs: Long?,
+		val afterId: Long?,
+		val limit: Int,
+	)
+
+	private class ChunkedLocationSampleRepository(samples: List<LocationSample>) : LocationSampleRepository {
+		private val orderedSamples = samples.sortedWith(compareBy(LocationSample::timeMs, LocationSample::id))
+		val requests = mutableListOf<ChunkRequest>()
+
+		override suspend fun getSamplesBetween(fromMs: Long, toMs: Long): List<LocationSample> =
+			orderedSamples.filter { it.timeMs in fromMs..toMs }
+
+		override suspend fun getOrderedChunkBetween(
+			fromMs: Long,
+			toMs: Long,
+			afterTimeMs: Long?,
+			afterId: Long?,
+			limit: Int,
+		): List<LocationSample> {
+			requests += ChunkRequest(fromMs, toMs, afterTimeMs, afterId, limit)
+			return orderedSamples
+				.asSequence()
+				.filter { it.timeMs in fromMs..toMs }
+				.filter { sample ->
+					afterTimeMs == null ||
+						sample.timeMs > afterTimeMs ||
+						(sample.timeMs == afterTimeMs && (afterId == null || sample.id > afterId))
+				}
+				.take(limit)
+				.toList()
+		}
+	}
+
 	private companion object {
 		const val TRIP_ID = 42L
 		const val TRIP_START_MS = 1_000L
 		const val TRIP_END_MS = 5_000L
+		const val SAMPLE_CHUNK_SIZE = 2_000
 	}
 }

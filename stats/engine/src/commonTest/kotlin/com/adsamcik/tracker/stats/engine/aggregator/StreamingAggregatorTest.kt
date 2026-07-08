@@ -5,6 +5,7 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -145,7 +146,7 @@ class StreamingAggregatorTest {
 		}
 
 		@Test
-		fun `speed tracking updates current, avg, and max`() {
+		fun `speed tracking updates current and max from instantaneous readings`() {
 			val aggregator = createAggregator()
 			aggregator.start(currentTimeMs)
 
@@ -155,8 +156,41 @@ class StreamingAggregatorTest {
 
 			val snapshot = aggregator.snapshot()
 			snapshot.currentSpeedMps shouldBe 3f // last value
-			snapshot.avgSpeedMps shouldBe 6f // (5+10+3)/3
 			snapshot.maxSpeedMps shouldBe 10f
+		}
+
+		@Test
+		fun `average speed is total distance over total duration`() {
+			val aggregator = createAggregator()
+			aggregator.start(currentTimeMs)
+
+			// 1 second per signal, distance matches the instantaneous speed reading exactly,
+			// so distance-based and naive-mean averages coincide here (equal intervals).
+			aggregator.onSignal(movingSignal(currentTimeMs + 1000, distanceDeltaM = 5f, speedMps = 5f))
+			aggregator.onSignal(movingSignal(currentTimeMs + 2000, distanceDeltaM = 10f, speedMps = 10f))
+			aggregator.onSignal(movingSignal(currentTimeMs + 3000, distanceDeltaM = 3f, speedMps = 3f))
+
+			val snapshot = aggregator.snapshot()
+			snapshot.sessionDistanceM shouldBe 18f
+			snapshot.sessionDurationMs shouldBe 3000L
+			snapshot.avgSpeedMps shouldBe 6f // 18m / 3s
+		}
+
+		@Test
+		fun `average speed is not skewed by uneven sampling intervals`() {
+			val aggregator = createAggregator()
+			aggregator.start(currentTimeMs)
+
+			// A long slow segment (100s @ 2 m/s = 200m) followed by a brief fast burst
+			// (1s @ 20 m/s = 20m). A naive mean of the two readings would wrongly report
+			// 11 m/s; the true time-weighted average is far closer to the slow segment.
+			aggregator.onSignal(movingSignal(currentTimeMs + 100_000, distanceDeltaM = 200f, speedMps = 2f))
+			aggregator.onSignal(movingSignal(currentTimeMs + 101_000, distanceDeltaM = 20f, speedMps = 20f))
+
+			val snapshot = aggregator.snapshot()
+			val expectedAverage = 220f / 101f
+			snapshot.avgSpeedMps shouldBe expectedAverage
+			snapshot.avgSpeedMps shouldBeLessThan 11f // naive mean of (2+20)/2 would have been 11
 		}
 
 		@Test
@@ -173,17 +207,17 @@ class StreamingAggregatorTest {
 		}
 
 		@Test
-		fun `null speed is ignored`() {
+		fun `null speed does not affect current or distance-based average speed`() {
 			val aggregator = createAggregator()
 			aggregator.start(currentTimeMs)
 
-			aggregator.onSignal(movingSignal(currentTimeMs + 1000, speedMps = 5f))
-			aggregator.onSignal(movingSignal(currentTimeMs + 2000, speedMps = null))
-			aggregator.onSignal(movingSignal(currentTimeMs + 3000, speedMps = 10f))
+			aggregator.onSignal(movingSignal(currentTimeMs + 1000, distanceDeltaM = 10f, speedMps = 5f))
+			aggregator.onSignal(movingSignal(currentTimeMs + 2000, distanceDeltaM = 10f, speedMps = null))
+			aggregator.onSignal(movingSignal(currentTimeMs + 3000, distanceDeltaM = 10f, speedMps = 10f))
 
 			val snapshot = aggregator.snapshot()
-			snapshot.currentSpeedMps shouldBe 10f
-			snapshot.avgSpeedMps shouldBe 7.5f // (5+10)/2
+			snapshot.currentSpeedMps shouldBe 10f // last non-null reading
+			snapshot.avgSpeedMps shouldBe 10f // 30m / 3s, unaffected by the null reading
 		}
 
 		@Test
@@ -448,7 +482,7 @@ class StreamingAggregatorTest {
 
 			val snapshot = aggregator.snapshot()
 			snapshot.currentSpeedMps shouldBe 8f // last non-null
-			snapshot.avgSpeedMps shouldBe (23f / 3f) // (5+10+8)/3
+			snapshot.avgSpeedMps shouldBe 100f // 500m (5 x default 100m) / 5s, independent of null speed readings
 			snapshot.maxSpeedMps shouldBe 10f
 		}
 

@@ -13,7 +13,8 @@ package com.adsamcik.tracker.stats.api
  * @param dayTotalSteps Running day-level steps (includes prior sessions)
  * @param dayTotalDurationMs Running day-level duration (includes prior sessions)
  * @param currentSpeedMps Most recent speed reading (null if no GPS)
- * @param avgSpeedMps Average speed across session (0 if no readings)
+ * @param avgSpeedMps Average speed across session: total distance / total duration (time-weighted,
+ *   not a naive mean of per-signal speed readings, so it's unaffected by variable sampling rates)
  * @param maxSpeedMps Maximum speed recorded in session
  * @param sampleCount Number of GPS samples in session
  * @param dominantActivity Most frequently detected activity type in session

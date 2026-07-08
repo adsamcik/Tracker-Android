@@ -8,6 +8,7 @@ import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
@@ -199,7 +200,7 @@ private suspend fun loadSampleInsights(
 			}
 
 			val speed = sample.speedMps?.toDouble()?.takeIf { it > 0.0 }
-			if (speed != null) {
+			if (speed != null && sample.hasTrustworthySpeed()) {
 				maxSpeed = maxOf(maxSpeed ?: speed, speed)
 			}
 
@@ -249,7 +250,9 @@ private fun buildInsights(
 		}
 	}
 
-	val maxSpeed = samples.mapNotNull { it.speedMps?.toDouble() }
+	val maxSpeed = samples
+		.filter { it.hasTrustworthySpeed() }
+		.mapNotNull { it.speedMps?.toDouble() }
 		.filter { it > 0.0 }
 		.maxOrNull()
 	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
@@ -368,6 +371,29 @@ private const val ROUTE_PREVIEW_MAX_POINTS = 1_500
 private const val ROUTE_COMPACTION_FACTOR = 4
 private const val ROUTE_PREVIEW_TOLERANCE_METERS = 8.0
 private const val E7_DIVISOR = 1e7
+
+/**
+ * Maximum trusted uncertainty for a device-reported speed reading. Readings with a larger
+ * reported [LocationSample.speedAccuracyMps] are too uncertain to be trusted for a "record"
+ * statistic like max speed, even if the raw value itself looks plausible.
+ */
+private const val MAX_TRUSTED_SPEED_ACCURACY_MPS = 3.0
+
+/**
+ * Whether this sample's speed reading is reliable enough to contribute to speed statistics
+ * (currently max speed). A single low-accuracy or coarse fix can report an implausible
+ * instantaneous speed even though the numeric value itself is unremarkable, which would let one
+ * bad fix set a trip's "max speed" record. [SampleQuality] is derived from horizontal accuracy at
+ * capture time (see PersistenceProcessor.classifyQuality); LOW/COARSE fixes are excluded here.
+ * When available, [LocationSample.speedAccuracyMps] is checked too, since it can flag an
+ * unreliable speed independently of position accuracy.
+ */
+private fun LocationSample.hasTrustworthySpeed(): Boolean {
+	if (quality == SampleQuality.LOW || quality == SampleQuality.COARSE) return false
+	val speedAccuracy = speedAccuracyMps
+	if (speedAccuracy != null && speedAccuracy > MAX_TRUSTED_SPEED_ACCURACY_MPS) return false
+	return true
+}
 
 private fun normalizeProviderLabel(provider: String): String = when (provider.lowercase()) {
 	"gps" -> "GPS"

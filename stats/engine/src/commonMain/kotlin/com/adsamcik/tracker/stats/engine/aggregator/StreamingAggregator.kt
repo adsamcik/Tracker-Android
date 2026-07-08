@@ -40,6 +40,8 @@ class StreamingAggregator(
 
 	// Speed tracking
 	private var currentSpeedMps: Float? = null
+	// speedSum/speedCount are no longer used to derive avgSpeedMps (see computeAverageSpeedMpsLocked)
+	// but are kept accumulated and (de)serialized for checkpoint format stability.
 	private var speedSum = 0f
 	private var speedCount = 0
 	private var maxSpeedMps = 0f
@@ -127,7 +129,7 @@ class StreamingAggregator(
 	 * Non-destructive: does not modify internal state.
 	 */
 	fun snapshot(): AggregatorSnapshot = synchronized(lock) {
-		val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
+		val avgSpeed = computeAverageSpeedMpsLocked()
 		val dominant = activityVotes.maxByOrNull { it.value }?.key
 
 		AggregatorSnapshot(
@@ -195,7 +197,7 @@ class StreamingAggregator(
 	}
 
 	private fun snapshotLocked(): AggregatorSnapshot {
-		val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
+		val avgSpeed = computeAverageSpeedMpsLocked()
 		val dominant = activityVotes.maxByOrNull { it.value }?.key
 		return AggregatorSnapshot(
 			sessionStartMs = sessionStartMs,
@@ -213,6 +215,21 @@ class StreamingAggregator(
 			dominantActivity = dominant,
 			tripCount = tripCount,
 		)
+	}
+
+	/**
+	 * Average speed across the session, computed as total distance over total duration.
+	 *
+	 * Deliberately NOT a naive mean of per-signal [AggregatorSignal.speedMps] readings: GPS
+	 * sampling intervals vary with the tracking policy tier (ambient/active/precision) and
+	 * device-driven batching, so a plain arithmetic mean over-weights whichever speed regime
+	 * happened to produce more signals rather than reflecting time actually spent at each speed.
+	 * Distance/duration is interval-agnostic and matches how historical trip statistics compute
+	 * average speed (see TripDetailPresenterViewModel).
+	 */
+	private fun computeAverageSpeedMpsLocked(): Float {
+		if (sessionDurationMs <= 0L) return 0f
+		return sessionDistanceM / (sessionDurationMs / 1000f)
 	}
 
 	/** Serialize all mutable state for crash-recovery checkpointing. */

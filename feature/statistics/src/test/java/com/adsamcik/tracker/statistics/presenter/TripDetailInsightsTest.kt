@@ -241,6 +241,59 @@ class TripDetailInsightsTest {
 		}
 
 		@Test
+		fun `low quality sample speed is excluded from max speed`() {
+			val samples = listOf(
+				makeSample(speedMps = 5.0f, quality = SampleQuality.HIGH),
+				// A single degraded fix reporting an implausible spike shouldn't set the record.
+				makeSample(speedMps = 90.0f, quality = SampleQuality.LOW),
+			)
+			val trip = makeTripSummary()
+			val insights = buildInsights(trip, null, samples)
+
+			insights.maxSpeedMps.shouldNotBeNull()
+			insights.maxSpeedMps!! shouldBe 5.0
+		}
+
+		@Test
+		fun `coarse quality sample speed is excluded from max speed`() {
+			val samples = listOf(
+				makeSample(speedMps = 4.0f, quality = SampleQuality.MEDIUM),
+				makeSample(speedMps = 120.0f, quality = SampleQuality.COARSE),
+			)
+			val trip = makeTripSummary()
+			val insights = buildInsights(trip, null, samples)
+
+			insights.maxSpeedMps.shouldNotBeNull()
+			insights.maxSpeedMps!! shouldBe 4.0
+		}
+
+		@Test
+		fun `high speed-accuracy uncertainty excludes sample from max speed`() {
+			val samples = listOf(
+				makeSample(speedMps = 6.0f, speedAccuracyMps = 0.5f),
+				// Accurate position but the device itself flags this speed reading as unreliable.
+				makeSample(speedMps = 50.0f, speedAccuracyMps = 15.0f),
+			)
+			val trip = makeTripSummary()
+			val insights = buildInsights(trip, null, samples)
+
+			insights.maxSpeedMps.shouldNotBeNull()
+			insights.maxSpeedMps!! shouldBe 6.0
+		}
+
+		@Test
+		fun `all samples untrustworthy yields null max speed`() {
+			val samples = listOf(
+				makeSample(speedMps = 90.0f, quality = SampleQuality.LOW),
+				makeSample(speedMps = 120.0f, quality = SampleQuality.COARSE),
+			)
+			val trip = makeTripSummary()
+			val insights = buildInsights(trip, null, samples)
+
+			insights.maxSpeedMps.shouldBeNull()
+		}
+
+		@Test
 		fun `average speed from trip distance and duration`() {
 			val trip = makeTripSummary(distanceM = 3600f, durationMs = 3600_000L) // 1 m/s
 			val insights = buildInsights(trip, null, emptyList())
@@ -345,6 +398,8 @@ class TripDetailInsightsTest {
 			speedMps: Float? = null,
 			latE7: Int? = null,
 			lonE7: Int? = null,
+			quality: SampleQuality = SampleQuality.HIGH,
+			speedAccuracyMps: Float? = null,
 		) = LocationSample(
 			id = ++sampleIdCounter,
 			timeMs = 1_700_000_000_000L + sampleIdCounter * 1000,
@@ -356,9 +411,9 @@ class TripDetailInsightsTest {
 			hAccM = 5.0f,
 			vAccM = 3.0f,
 			speedMps = speedMps,
-			speedAccuracyMps = null,
+			speedAccuracyMps = speedAccuracyMps,
 			provider = provider,
-			quality = SampleQuality.HIGH,
+			quality = quality,
 			motionState = MotionState.MOVING,
 			policy = null,
 			bucketId = null,
