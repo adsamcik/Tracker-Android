@@ -12,7 +12,7 @@ import com.adsamcik.tracker.shared.base.data.Location
  */
 // TODO: Migrate to LocationSample. Active writers: DatabaseLocationComponent, GpxImport, JsonImport.
 //  Active readers: map (DefaultLayerRegistry), statistics (RawLocationDataProducer, SummaryGenerator,
-//  TripDetailPresenterViewModel), impexp (export), game (ExplorerChallengeProcessor).
+//  TripDetailPresenterViewModel), impexp (export).
 @Entity(
 	tableName = "location_data",
 	indices = [

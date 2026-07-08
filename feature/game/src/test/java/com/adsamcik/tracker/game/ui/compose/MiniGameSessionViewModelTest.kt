@@ -512,6 +512,8 @@ private class RecordingScoreDao : MiniGameScoreDao {
 
 	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = recent.asStateFlow()
 
+	override suspend fun countTotal(): Long = inserted.size.toLong()
+
 	override fun deleteAll() {
 		inserted.clear()
 		byGame.clear()

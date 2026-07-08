@@ -155,6 +155,8 @@ private class ScriptedScoreDao : MiniGameScoreDao {
 
 	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = recent.asStateFlow()
 
+	override suspend fun countTotal(): Long = recent.value.size.toLong()
+
 	override fun deleteAll() { recent.value = emptyList() }
 	override suspend fun insert(obj: MiniGameScoreEntity): Long {
 		recent.value = recent.value + obj

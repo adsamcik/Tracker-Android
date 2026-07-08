@@ -4,16 +4,32 @@ import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
+import com.adsamcik.tracker.shared.base.database.dao.CellBounds
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
+import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
+import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
+import com.adsamcik.tracker.stats.api.AchievementCategory
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
+import com.adsamcik.tracker.stats.data.geo.CountryBoundaryLookup
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.time.temporal.WeekFields
 import javax.inject.Inject
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 class DefaultAchievementMetricsProvider @Inject constructor(
 	private val dailySummaryDao: DailySummaryDao,
@@ -21,6 +37,12 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 	private val explorationStreakDao: ExplorationStreakDao,
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val exportLogDao: ExportLogDao,
+	private val xpLedgerDao: XpLedgerDao,
+	private val playerProfileDao: PlayerProfileDao,
+	private val miniGameScoreDao: MiniGameScoreDao,
+	private val locationSampleDao: LocationSampleDao,
+	private val countryLookup: CountryBoundaryLookup,
+	private val achievementProgressDao: AchievementProgressDao,
 ) : AchievementMetricsProvider {
 	override suspend fun collect(): MetricSnapshot {
 		val zoneId = ZoneId.systemDefault()
@@ -36,6 +58,19 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val hasCycle = sessionSegmentDao.countByActivities(SessionActivityIds.CYCLING.toList()) > 0
 		val hasDrive = sessionSegmentDao.countByActivities(SessionActivityIds.DRIVING.toList()) > 0
 		val weekActiveDays = dailySummaryDao.countActiveDaysSinceEpochDay(weekStartEpochDay)
+		val countriesVisited = explorationCellDao.getCellCenters(EXPLORATION_CELL_LEVEL)
+			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
+			.size
+		val goalMetMillis = xpLedgerDao.getEarnedAtBySource(XP_SOURCE_GOAL)
+		val progressRows = achievementProgressDao.getAll()
+		val unlockedTierByMetric = progressRows
+			.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row.lastTierIndex } }
+			.toMap()
+		val achievementsUnlocked = progressRows.sumOf { (it.lastTierIndex + 1).coerceAtLeast(0) }
+		val categoriesCompleted = AchievementCategory.entries.count { category ->
+			val defs = AchievementCatalog.byCategory(category).filterNot { it.metric in META_METRICS }
+			defs.isNotEmpty() && defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
+		}
 
 		return MetricSnapshot.from(
 			mapOf(
@@ -49,7 +84,7 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.MAX_SPEED_MPS to sessionSegmentDao.maxAverageSpeedMps(),
 				MetricKey.STREAK_DAYS_CURRENT to (explorationStreakDao.getByType(DAILY_STREAK_TYPE)?.currentCount ?: 0).toDouble(),
 				MetricKey.STREAK_DAYS_MAX to (explorationStreakDao.getByType(DAILY_STREAK_TYPE)?.bestCount ?: 0).toDouble(),
-				MetricKey.COUNTRIES_VISITED to 0.0,
+				MetricKey.COUNTRIES_VISITED to countriesVisited.toDouble(),
 				MetricKey.ACTIVITY_TYPES_USED to sessionSegmentDao.countDistinctActivities().toDouble(),
 				MetricKey.MONTHS_ACTIVE to dailySummaryDao.countDistinctMonths().toDouble(),
 				MetricKey.HOURS_OF_DAY_TRACKED to sessionSegmentDao.countDistinctStartHours().toDouble(),
@@ -73,6 +108,32 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.BEST_DAY_DISTANCE_M to dailySummaryDao.maxDailyDistance().toDouble(),
 				MetricKey.EXPORTS_TOTAL to exportLogDao.countTotal().toDouble(),
 				MetricKey.SEASONS_EXPLORED to Integer.bitCount(combinedSeasons).toDouble(),
+				MetricKey.NIGHT_SESSIONS_TOTAL to sessionSegmentDao.countSessionsStartingBetweenHours(NIGHT_START_HOUR, NIGHT_END_HOUR).toDouble(),
+				MetricKey.DAWN_SESSIONS_TOTAL to sessionSegmentDao.countSessionsStartingBetweenHours(DAWN_START_HOUR, DAWN_END_HOUR).toDouble(),
+				MetricKey.USER_CREATED_SESSIONS to sessionSegmentDao.countBySource(SegmentSource.USER_CREATED).toDouble(),
+				MetricKey.MAX_CYCLE_SESSION_M to sessionSegmentDao.maxDistanceByActivities(SessionActivityIds.CYCLING.toList()).toDouble(),
+				MetricKey.TRIATHLON_DAYS to sessionSegmentDao.countTriathlonDays(
+					SessionActivityIds.ON_FOOT.toList(),
+					SessionActivityIds.CYCLING.toList(),
+					SessionActivityIds.DRIVING.toList(),
+				).toDouble(),
+				MetricKey.CELL_ALL_SEASONS to explorationCellDao.countAllSeasonsCells(EXPLORATION_CELL_LEVEL).toDouble(),
+				MetricKey.MAX_CELL_VISITS to explorationCellDao.maxVisitCount(EXPLORATION_CELL_LEVEL).toDouble(),
+				MetricKey.CELLS_THOROUGH to explorationCellDao.countByQuality(EXPLORATION_CELL_LEVEL, QUALITY_THOROUGHLY_EXPLORED).toDouble(),
+				MetricKey.MAX_CELL_SPAN_M to spanMeters(explorationCellDao.getCellBounds(EXPLORATION_CELL_LEVEL)),
+				MetricKey.MAX_CELLS_IN_DAY to explorationCellDao.maxCellsDiscoveredInDay(EXPLORATION_CELL_LEVEL).toDouble(),
+				MetricKey.MAX_CELL_REVISIT_GAP_DAYS to explorationCellDao.maxRevisitGapDays(EXPLORATION_CELL_LEVEL).toDouble(),
+				MetricKey.PERFECT_MONTHS to countPerfectMonths(activeDays).toDouble(),
+				MetricKey.EXPORT_FORMATS to exportLogDao.countDistinctFormats().toDouble(),
+				MetricKey.PLAYER_LEVEL to (playerProfileDao.get()?.level ?: 0).toDouble(),
+				MetricKey.BEST_DAY_XP to xpLedgerDao.maxDailyXp().toDouble(),
+				MetricKey.MINIGAMES_PLAYED to miniGameScoreDao.countTotal().toDouble(),
+				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudesOrdered()),
+				MetricKey.XP_SOURCES_USED to xpLedgerDao.countDistinctSources().toDouble(),
+				MetricKey.PERFECT_WEEKS to countPerfectWeeks(goalMetMillis, zoneId).toDouble(),
+				MetricKey.GOAL_STREAK_DAYS to maxGoalStreak(goalMetMillis, zoneId).toDouble(),
+				MetricKey.ACHIEVEMENTS_UNLOCKED to achievementsUnlocked.toDouble(),
+				MetricKey.CATEGORIES_COMPLETED to categoriesCompleted.toDouble(),
 			)
 		)
 	}
@@ -101,9 +162,114 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 
 	private fun Boolean.toFlag(): Double = if (this) 1.0 else 0.0
 
+	/**
+	 * Counts calendar months in which EVERY day was an active tracking day.
+	 * [activeDays] is the distinct, sorted list of active epoch-days.
+	 */
+	private fun countPerfectMonths(activeDays: List<Long>): Long {
+		if (activeDays.isEmpty()) return 0L
+		return activeDays
+			.groupBy { LocalDate.ofEpochDay(it).withDayOfMonth(1) }
+			.count { (firstOfMonth, days) -> days.size >= firstOfMonth.lengthOfMonth() }
+			.toLong()
+	}
+
+	/**
+	 * Counts ISO calendar weeks in which the daily step goal was met on all 7 days.
+	 * [goalMetMillis] are the `earned_at` timestamps of GOAL-source XP rows (one per
+	 * goal-met day, idempotent).
+	 */
+	private fun countPerfectWeeks(goalMetMillis: List<Long>, zoneId: ZoneId): Long {
+		if (goalMetMillis.isEmpty()) return 0L
+		val weekFields = WeekFields.ISO
+		return goalMetMillis
+			.map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
+			.groupBy { it.get(weekFields.weekBasedYear()) to it.get(weekFields.weekOfWeekBasedYear()) }
+			.count { (_, days) -> days.distinct().size >= DAYS_PER_WEEK }
+			.toLong()
+	}
+
+	/** Longest run of consecutive days on which the daily goal was met. */
+	private fun maxGoalStreak(goalMetMillis: List<Long>, zoneId: ZoneId): Long {
+		if (goalMetMillis.isEmpty()) return 0L
+		val days = goalMetMillis
+			.map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate().toEpochDay() }
+			.distinct()
+			.sorted()
+		var best = 1L
+		var run = 1L
+		for (index in 1 until days.size) {
+			if (days[index] == days[index - 1] + 1) {
+				run++
+				if (run > best) best = run
+			} else {
+				run = 1L
+			}
+		}
+		return best
+	}
+
+	/**
+	 * Total elevation gain (meters) = sum of positive consecutive altitude deltas.
+	 * Deltas below [ASCENT_MIN_DELTA_M] are ignored as barometric/GPS jitter and
+	 * deltas above [ASCENT_MAX_DELTA_M] (between adjacent samples) as glitches.
+	 * Computed over the retained `location_sample` history (re-evaluation triggered
+	 * by `daily_summary` writes at session end).
+	 */
+	private fun totalAscent(altitudes: List<Float>): Double {
+		if (altitudes.size < 2) return 0.0
+		var ascent = 0.0
+		var previous = altitudes.first().toDouble()
+		for (index in 1 until altitudes.size) {
+			val current = altitudes[index].toDouble()
+			val delta = current - previous
+			if (delta in ASCENT_MIN_DELTA_M..ASCENT_MAX_DELTA_M) ascent += delta
+			previous = current
+		}
+		return ascent
+	}
+
+	/**
+	 * Great-circle distance (meters) across the diagonal of the discovered-cell
+	 * bounding box — a cheap proxy for "furthest two cells apart". Returns 0 when
+	 * fewer than two cells exist.
+	 */
+	private fun spanMeters(bounds: CellBounds?): Double {
+		val minLat = bounds?.minLatE7 ?: return 0.0
+		val maxLat = bounds.maxLatE7 ?: return 0.0
+		val minLon = bounds.minLonE7 ?: return 0.0
+		val maxLon = bounds.maxLonE7 ?: return 0.0
+		return haversineMeters(minLat / E7, minLon / E7, maxLat / E7, maxLon / E7)
+	}
+
+	private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {		val dLat = Math.toRadians(lat2 - lat1)
+		val dLon = Math.toRadians(lon2 - lon1)
+		val a = sin(dLat / 2) * sin(dLat / 2) +
+			cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2)
+		return 2 * EARTH_RADIUS_M * asin(min(1.0, sqrt(a)))
+	}
+
 	companion object {
 		private const val EXPLORATION_CELL_LEVEL = 14
 		private const val DAILY_STREAK_TYPE = "DAILY_DISCOVERY"
 		private const val MILLIS_PER_MINUTE = 60_000L
+		private const val QUALITY_THOROUGHLY_EXPLORED = 4
+		private const val NIGHT_START_HOUR = 0
+		private const val NIGHT_END_HOUR = 5
+		private const val DAWN_START_HOUR = 5
+		private const val DAWN_END_HOUR = 8
+		private const val EARTH_RADIUS_M = 6_371_000.0
+		private const val E7 = 1e7
+		private const val ASCENT_MIN_DELTA_M = 0.5
+		private const val ASCENT_MAX_DELTA_M = 50.0
+		private const val DAYS_PER_WEEK = 7
+		private const val XP_SOURCE_GOAL = "GOAL"
+
+		/** Meta metrics are excluded from category-completion so completing a
+		 * category never depends on the meta achievements that live in it. */
+		private val META_METRICS = setOf(
+			MetricKey.ACHIEVEMENTS_UNLOCKED,
+			MetricKey.CATEGORIES_COMPLETED,
+		)
 	}
 }

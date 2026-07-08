@@ -36,6 +36,11 @@ internal object XpCalculator {
 	/** A mini-game run credits its points as XP 1:1. */
 	fun miniGameXp(points: Int): Int = points.coerceAtLeast(0)
 
+	/** Fixed XP granted for meeting a daily goal. */
+	fun goalXp(): Int = GOAL_XP
+
+	private const val GOAL_XP = 50
+
 	private const val MILLIS_PER_MINUTE = 60_000.0
 	private const val MAX_DURATION_MIN = 120.0
 	private const val DISTANCE_WEIGHT = 0.05

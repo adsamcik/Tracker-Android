@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class AchievementCatalogTest {
-	@Test fun catalogHasLongTailAchievements() { assertTrue(AchievementCatalog.definitions.size in 150..200) }
+	@Test fun catalogHasLongTailAchievements() { assertTrue(AchievementCatalog.definitions.size in 150..400) }
 
 	@Test fun thresholdsAreStrictlyAscendingPerMetric() {
 		AchievementCatalog.byMetric.forEach { (metric, definitions) ->

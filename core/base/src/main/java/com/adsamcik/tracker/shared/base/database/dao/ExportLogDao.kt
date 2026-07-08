@@ -41,4 +41,10 @@ interface ExportLogDao {
 	 */
 	@Query("SELECT COUNT(*) FROM export_log")
 	suspend fun countTotal(): Long
+
+	/**
+	 * Count distinct export formats used (gpx / kml / json / sqlite / …).
+	 */
+	@Query("SELECT COUNT(DISTINCT format) FROM export_log")
+	suspend fun countDistinctFormats(): Long
 }

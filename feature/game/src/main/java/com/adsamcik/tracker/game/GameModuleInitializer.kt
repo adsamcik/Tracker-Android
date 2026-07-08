@@ -4,12 +4,14 @@ import android.content.Context
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -31,6 +33,8 @@ class GameModuleInitializer @Inject constructor(
 	private val explorationConsumer: ExplorationDomainEventConsumer,
 	private val trackerSessionChannel: TrackerSessionChannel,
 	private val domainEventRepository: DomainEventRepository,
+	private val progressionRepository: PlayerProgressionRepository,
+	private val achievementScheduler: AchievementEvaluationScheduler,
 ) : ModuleInitializer {
 	override val priority: Int = 30
 
@@ -47,6 +51,6 @@ class GameModuleInitializer @Inject constructor(
 	}
 
 	private fun initializeGoals() {
-		GoalTracker.initialize(context, trackerSessionChannel)
+		GoalTracker.initialize(context, trackerSessionChannel, progressionRepository, achievementScheduler)
 	}
 }

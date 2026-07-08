@@ -8,6 +8,7 @@ import com.adsamcik.tracker.game.goals.data.PreferencesGoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
 import com.adsamcik.tracker.game.goals.data.implementation.DailyStepGoal
 import com.adsamcik.tracker.game.goals.data.implementation.WeeklyStepGoal
+import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.data.AwardSource
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
+import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +55,8 @@ internal object GoalTracker : CoroutineScope {
 	private var mAppContext: Context? = null
 	@Volatile
 	private var initialized = false
+	private var progressionRepository: PlayerProgressionRepository? = null
+	private var achievementScheduler: AchievementEvaluationScheduler? = null
 
 	private var mLastSessionId: Long = -1
 
@@ -69,7 +73,12 @@ internal object GoalTracker : CoroutineScope {
 	 * @param sessionChannel shared channel for per-cycle session updates (replaces broadcast registration)
 	 */
 	@AnyThread
-	fun initialize(context: Context, sessionChannel: TrackerSessionChannel) {
+	fun initialize(
+		context: Context,
+		sessionChannel: TrackerSessionChannel,
+		progressionRepository: PlayerProgressionRepository,
+		achievementScheduler: AchievementEvaluationScheduler,
+	) {
 		if (initialized) return
 		var startObserver = false
 
@@ -77,6 +86,8 @@ internal object GoalTracker : CoroutineScope {
 			if (initialized) return@synchronized
 
 			mAppContext = context.applicationContext
+			this.progressionRepository = progressionRepository
+			this.achievementScheduler = achievementScheduler
 
 			val persistence = PreferencesGoalPersistence(context)
 			listOf(
@@ -120,6 +131,12 @@ internal object GoalTracker : CoroutineScope {
 		)
 		showNotification(goal)
 		awardGoalPoints(goal)
+		if (goal is DailyStepGoal) {
+			// GOAL-source XP doubles as the "daily goal met today" record consumed
+			// by Perfect Week and Point Portfolio achievements (idempotent per day).
+			progressionRepository?.awardGoalXp(Time.nowMillis)
+			achievementScheduler?.scheduleEvaluation()
+		}
 	}
 
 	private suspend fun awardGoalPoints(goal: Goal) {

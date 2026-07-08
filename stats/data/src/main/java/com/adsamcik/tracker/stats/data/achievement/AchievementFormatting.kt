@@ -76,6 +76,29 @@ object AchievementFormatting {
 			MetricKey.CALENDAR_LEAP_DAY -> context.getString(R.string.ach_title_calendar_leap_day)
 			MetricKey.CALENDAR_SUMMER_SOLSTICE -> context.getString(R.string.ach_title_calendar_summer_solstice)
 			MetricKey.CALENDAR_WINTER_SOLSTICE -> context.getString(R.string.ach_title_calendar_winter_solstice)
+
+			MetricKey.NIGHT_SESSIONS_TOTAL -> res.getQuantityString(R.plurals.ach_title_night_sessions, n, formatCount(def.threshold.toLong()))
+			MetricKey.DAWN_SESSIONS_TOTAL -> res.getQuantityString(R.plurals.ach_title_dawn_sessions, n, formatCount(def.threshold.toLong()))
+			MetricKey.USER_CREATED_SESSIONS -> res.getQuantityString(R.plurals.ach_title_user_created_sessions, n, formatCount(def.threshold.toLong()))
+			MetricKey.MAX_CYCLE_SESSION_M -> context.getString(R.string.ach_title_max_cycle_session, distance(res, def.threshold))
+			MetricKey.TRIATHLON_DAYS -> res.getQuantityString(R.plurals.ach_title_triathlon_days, n, n)
+			MetricKey.CELL_ALL_SEASONS -> res.getQuantityString(R.plurals.ach_title_cell_all_seasons, n, n)
+			MetricKey.MAX_CELL_VISITS -> context.getString(R.string.ach_title_max_cell_visits, n)
+			MetricKey.CELLS_THOROUGH -> res.getQuantityString(R.plurals.ach_title_cells_thorough, n, formatCount(def.threshold.toLong()))
+			MetricKey.MAX_CELL_SPAN_M -> context.getString(R.string.ach_title_max_cell_span, distance(res, def.threshold))
+			MetricKey.MAX_CELLS_IN_DAY -> res.getQuantityString(R.plurals.ach_title_max_cells_in_day, n, n)
+			MetricKey.MAX_CELL_REVISIT_GAP_DAYS -> context.getString(R.string.ach_title_max_cell_revisit_gap, n)
+			MetricKey.PERFECT_MONTHS -> res.getQuantityString(R.plurals.ach_title_perfect_months, n, n)
+			MetricKey.EXPORT_FORMATS -> res.getQuantityString(R.plurals.ach_title_export_formats, n, n)
+			MetricKey.PLAYER_LEVEL -> context.getString(R.string.ach_title_player_level, n)
+			MetricKey.BEST_DAY_XP -> context.getString(R.string.ach_title_best_day_xp, formatCount(def.threshold.toLong()))
+			MetricKey.MINIGAMES_PLAYED -> res.getQuantityString(R.plurals.ach_title_minigames_played, n, formatCount(def.threshold.toLong()))
+			MetricKey.TOTAL_ASCENT_M -> context.getString(R.string.ach_title_total_ascent, distance(res, def.threshold))
+			MetricKey.XP_SOURCES_USED -> res.getQuantityString(R.plurals.ach_title_xp_sources, n, n)
+			MetricKey.PERFECT_WEEKS -> res.getQuantityString(R.plurals.ach_title_perfect_weeks, n, n)
+			MetricKey.GOAL_STREAK_DAYS -> res.getQuantityString(R.plurals.ach_title_goal_streak, n, n)
+			MetricKey.ACHIEVEMENTS_UNLOCKED -> res.getQuantityString(R.plurals.ach_title_achievements_unlocked, n, n)
+			MetricKey.CATEGORIES_COMPLETED -> res.getQuantityString(R.plurals.ach_title_categories_completed, n, n)
 		}
 	}
 
@@ -123,6 +146,29 @@ object AchievementFormatting {
 			MetricKey.CALENDAR_LEAP_DAY -> context.getString(R.string.ach_desc_calendar_leap_day)
 			MetricKey.CALENDAR_SUMMER_SOLSTICE -> context.getString(R.string.ach_desc_calendar_summer_solstice)
 			MetricKey.CALENDAR_WINTER_SOLSTICE -> context.getString(R.string.ach_desc_calendar_winter_solstice)
+
+			MetricKey.NIGHT_SESSIONS_TOTAL -> context.getString(R.string.ach_desc_night_sessions, def.threshold.toInt())
+			MetricKey.DAWN_SESSIONS_TOTAL -> context.getString(R.string.ach_desc_dawn_sessions, def.threshold.toInt())
+			MetricKey.USER_CREATED_SESSIONS -> context.getString(R.string.ach_desc_user_created_sessions, def.threshold.toInt())
+			MetricKey.MAX_CYCLE_SESSION_M -> context.getString(R.string.ach_desc_max_cycle_session, distance(res, def.threshold))
+			MetricKey.TRIATHLON_DAYS -> context.getString(R.string.ach_desc_triathlon_days, def.threshold.toInt())
+			MetricKey.CELL_ALL_SEASONS -> context.getString(R.string.ach_desc_cell_all_seasons, def.threshold.toInt())
+			MetricKey.MAX_CELL_VISITS -> context.getString(R.string.ach_desc_max_cell_visits, def.threshold.toInt())
+			MetricKey.CELLS_THOROUGH -> context.getString(R.string.ach_desc_cells_thorough, def.threshold.toInt())
+			MetricKey.MAX_CELL_SPAN_M -> context.getString(R.string.ach_desc_max_cell_span, distance(res, def.threshold))
+			MetricKey.MAX_CELLS_IN_DAY -> context.getString(R.string.ach_desc_max_cells_in_day, def.threshold.toInt())
+			MetricKey.MAX_CELL_REVISIT_GAP_DAYS -> context.getString(R.string.ach_desc_max_cell_revisit_gap, def.threshold.toInt())
+			MetricKey.PERFECT_MONTHS -> context.getString(R.string.ach_desc_perfect_months, def.threshold.toInt())
+			MetricKey.EXPORT_FORMATS -> context.getString(R.string.ach_desc_export_formats, def.threshold.toInt())
+			MetricKey.PLAYER_LEVEL -> context.getString(R.string.ach_desc_player_level, def.threshold.toInt())
+			MetricKey.BEST_DAY_XP -> context.getString(R.string.ach_desc_best_day_xp, def.threshold.toInt())
+			MetricKey.MINIGAMES_PLAYED -> context.getString(R.string.ach_desc_minigames_played, def.threshold.toInt())
+			MetricKey.TOTAL_ASCENT_M -> context.getString(R.string.ach_desc_total_ascent, distance(res, def.threshold))
+			MetricKey.XP_SOURCES_USED -> context.getString(R.string.ach_desc_xp_sources, def.threshold.toInt())
+			MetricKey.PERFECT_WEEKS -> context.getString(R.string.ach_desc_perfect_weeks, def.threshold.toInt())
+			MetricKey.GOAL_STREAK_DAYS -> context.getString(R.string.ach_desc_goal_streak, def.threshold.toInt())
+			MetricKey.ACHIEVEMENTS_UNLOCKED -> context.getString(R.string.ach_desc_achievements_unlocked, def.threshold.toInt())
+			MetricKey.CATEGORIES_COMPLETED -> context.getString(R.string.ach_desc_categories_completed, def.threshold.toInt())
 		}
 	}
 
@@ -137,7 +183,8 @@ object AchievementFormatting {
 			MetricKey.MAX_SESSION_DISTANCE_M,
 			MetricKey.DISTANCE_ON_FOOT_M,
 			MetricKey.CYCLING_DISTANCE_M,
-			MetricKey.VEHICLE_DISTANCE_M -> "${distance(res, current.coerceAtMost(target))} / ${distance(res, target)}"
+			MetricKey.VEHICLE_DISTANCE_M,
+			MetricKey.TOTAL_ASCENT_M -> "${distance(res, current.coerceAtMost(target))} / ${distance(res, target)}"
 
 			MetricKey.MAX_SESSION_DURATION_MS -> "${formatDuration(context, current.toLong().coerceAtMost(target.toLong()))} / ${formatDuration(context, target.toLong())}"
 			MetricKey.MAX_SPEED_MPS -> "${formatSpeedKmh(current.coerceAtMost(target))} / ${formatSpeedKmh(target)}"

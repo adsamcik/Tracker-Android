@@ -89,7 +89,6 @@ class DashboardLayoutRepositoryTest {
 				"unknown_widget",
 				"today_progress",
 				"streak",
-				"challenges",
 				"last_session",
 				"recent_trips",
 				"exploration",
@@ -143,7 +142,7 @@ class DashboardLayoutRepositoryTest {
 		@Test
 		@DisplayName("reset clears custom order and hidden widgets")
 		fun `reset clears customizations`() = runTest {
-			repo.reorder(listOf("exploration", "streak", "today_progress", "challenges", "recent_trips", "last_session"))
+			repo.reorder(listOf("exploration", "streak", "today_progress", "latest_achievement", "recent_trips", "last_session"))
 			repo.toggleVisibility("streak")
 
 			repo.resetToDefault()

@@ -30,13 +30,13 @@ class PointsAwardedTest {
 			val awarded = PointsAwarded(
 				time = 2000L,
 				value = Points(25.0),
-				source = AwardSource.CHALLENGE
+				source = AwardSource.MINIGAME
 			)
 
 			awarded.id shouldBe 0
 			awarded.time shouldBe 2000L
 			awarded.value.value shouldBeExactly 25.0
-			awarded.source shouldBe AwardSource.CHALLENGE
+			awarded.source shouldBe AwardSource.MINIGAME
 		}
 	}
 
@@ -48,8 +48,8 @@ class PointsAwardedTest {
 		}
 
 		@Test
-		fun `CHALLENGE source has correct value`() {
-			AwardSource.CHALLENGE.value shouldBe "challenge"
+		fun `MINIGAME source has correct value`() {
+			AwardSource.MINIGAME.value shouldBe "minigame"
 		}
 
 		@Test
@@ -70,7 +70,7 @@ class PointsAwardedTest {
 
 		@Test
 		fun `different sources are not equal`() {
-			AwardSource.SESSION shouldNotBe AwardSource.CHALLENGE
+			AwardSource.SESSION shouldNotBe AwardSource.MINIGAME
 		}
 	}
 
@@ -100,7 +100,7 @@ class PointsAwardedTest {
 
 		@Test
 		fun `round-trip AwardSource conversion`() {
-			val original = AwardSource.CHALLENGE
+			val original = AwardSource.MINIGAME
 			val converted = converters.toAwardSource(converters.fromAwardSource(original))
 			converted shouldBe original
 		}

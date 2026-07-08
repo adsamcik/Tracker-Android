@@ -11,9 +11,6 @@
 
     <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Activity type</string>
-    <string name="dashboard_cd_challenge_icon">Challenge</string>
-    <string name="dashboard_cd_challenge_card">Challenge: %1$s, %2$d%% complete. Tap to view</string>
-    <string name="dashboard_cd_challenge_empty">Start a challenge. Tap to view challenges</string>
     <string name="dashboard_cd_explore_icon">Exploration</string>
     <string name="dashboard_cd_fire_icon">Streak</string>
     <string name="dashboard_cd_forward_arrow">View details</string>
@@ -30,7 +27,6 @@
     <string name="dashboard_cd_stop_tracking">Stop tracking</string>
     <string name="dashboard_action_enable_location">Enable location access</string>
     <string name="dashboard_action_open_settings">Open settings</string>
-    <string name="dashboard_action_view_challenges">View challenges</string>
     <string name="dashboard_action_view_details">View details</string>
     <string name="dashboard_action_view_map">View map</string>
     <string name="dashboard_action_view_streak_details">View streak details</string>
@@ -72,15 +68,6 @@
     <string name="dashboard_streak_start">Start a streak!</string>
     <string name="dashboard_streak_trend_up">↑%1$d%% vs last wk</string>
     <string name="dashboard_streak_trend_down">↓%1$d%% vs last wk</string>
-    <string name="dashboard_challenges_title">Challenges</string>
-    <string name="dashboard_challenges_empty">Start a challenge →</string>
-    <string name="dashboard_challenge_easy">Easy</string>
-    <string name="dashboard_challenge_medium">Medium</string>
-    <string name="dashboard_challenge_hard">Hard</string>
-    <string name="dashboard_challenge_time_remaining">%1$s left</string>
-    <string name="dashboard_challenge_time_days">%1$dd</string>
-    <string name="dashboard_challenge_time_hours">%1$dh</string>
-    <string name="dashboard_challenge_time_less_than_hour">&lt;1h</string>
     <string name="dashboard_last_session_title">Last Session</string>
     <string name="dashboard_last_session_duration">Duration</string>
     <string name="dashboard_last_session_distance">Distance</string>
@@ -155,7 +142,6 @@
     <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Today\'s Progress</string>
     <string name="widget_streak">Streak</string>
-    <string name="widget_challenges">Challenges</string>
     <string name="widget_last_session">Last Session</string>
     <string name="widget_recent_trips">Recent Trips</string>
     <string name="widget_exploration">Exploration</string>

@@ -27,6 +27,24 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 
 	@Query("SELECT * FROM xp_ledger ORDER BY earned_at DESC LIMIT :limit")
 	suspend fun getRecent(limit: Int): List<XpLedgerEntity>
+	/** Highest total XP earned within any single LOCAL calendar day. */
+	@Query(
+		"""
+		SELECT COALESCE(MAX(daySum), 0) FROM (
+			SELECT SUM(amount) AS daySum FROM xp_ledger
+			GROUP BY strftime('%Y-%m-%d', earned_at / 1000, 'unixepoch', 'localtime')
+		)
+		"""
+	)
+	suspend fun maxDailyXp(): Long
+
+	/** Number of distinct XP sources (session / mini-game / goal) ever credited. */
+	@Query("SELECT COUNT(DISTINCT source) FROM xp_ledger")
+	suspend fun countDistinctSources(): Long
+
+	/** `earned_at` timestamps for all ledger rows of a given source, oldest first. */
+	@Query("SELECT earned_at FROM xp_ledger WHERE source = :source ORDER BY earned_at ASC")
+	suspend fun getEarnedAtBySource(source: String): List<Long>
 	@Query("DELETE FROM xp_ledger")
 	fun deleteAll()
 

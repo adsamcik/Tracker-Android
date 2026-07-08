@@ -7,6 +7,10 @@ const val TABLE_EXPLORATION_STREAK_NAME = "exploration_streak"
 const val TABLE_EXPORT_LOG_NAME = "export_log"
 const val TABLE_AGGREGATOR_STATE_NAME = "aggregator_state"
 const val TABLE_OSM_IMPORT_NAME = "osm_import"
+const val TABLE_XP_LEDGER_NAME = "xp_ledger"
+const val TABLE_PLAYER_PROFILE_NAME = "player_profile"
+const val TABLE_MINI_GAME_SCORE_NAME = "minigame_score"
+const val TABLE_ACHIEVEMENT_PROGRESS_NAME = "achievement_progress"
 
 enum class MetricKey(val storageKey: String, private vararg val backingTables: String) {
 	DISTANCE_TOTAL_M("distance_total_m", TABLE_DAILY_SUMMARY_NAME, TABLE_AGGREGATOR_STATE_NAME),
@@ -42,7 +46,29 @@ enum class MetricKey(val storageKey: String, private vararg val backingTables: S
 	BEST_DAILY_STEPS("best_daily_steps", TABLE_DAILY_SUMMARY_NAME, TABLE_AGGREGATOR_STATE_NAME),
 	BEST_DAY_DISTANCE_M("best_day_distance_m", TABLE_DAILY_SUMMARY_NAME),
 	EXPORTS_TOTAL("exports_total", TABLE_EXPORT_LOG_NAME),
-	SEASONS_EXPLORED("seasons_explored", TABLE_EXPLORATION_CELL_NAME);
+	SEASONS_EXPLORED("seasons_explored", TABLE_EXPLORATION_CELL_NAME),
+	NIGHT_SESSIONS_TOTAL("night_sessions_total", TABLE_SESSION_SEGMENT_NAME),
+	DAWN_SESSIONS_TOTAL("dawn_sessions_total", TABLE_SESSION_SEGMENT_NAME),
+	USER_CREATED_SESSIONS("user_created_sessions", TABLE_SESSION_SEGMENT_NAME),
+	MAX_CYCLE_SESSION_M("max_cycle_session_m", TABLE_SESSION_SEGMENT_NAME),
+	TRIATHLON_DAYS("triathlon_days", TABLE_SESSION_SEGMENT_NAME),
+	CELL_ALL_SEASONS("cell_all_seasons", TABLE_EXPLORATION_CELL_NAME),
+	MAX_CELL_VISITS("max_cell_visits", TABLE_EXPLORATION_CELL_NAME),
+	CELLS_THOROUGH("cells_thorough", TABLE_EXPLORATION_CELL_NAME),
+	MAX_CELL_SPAN_M("max_cell_span_m", TABLE_EXPLORATION_CELL_NAME),
+	MAX_CELLS_IN_DAY("max_cells_in_day", TABLE_EXPLORATION_CELL_NAME),
+	MAX_CELL_REVISIT_GAP_DAYS("max_cell_revisit_gap_days", TABLE_EXPLORATION_CELL_NAME),
+	PERFECT_MONTHS("perfect_months", TABLE_DAILY_SUMMARY_NAME),
+	EXPORT_FORMATS("export_formats", TABLE_EXPORT_LOG_NAME),
+	PLAYER_LEVEL("player_level", TABLE_PLAYER_PROFILE_NAME),
+	BEST_DAY_XP("best_day_xp", TABLE_XP_LEDGER_NAME),
+	MINIGAMES_PLAYED("minigames_played", TABLE_MINI_GAME_SCORE_NAME),
+	TOTAL_ASCENT_M("total_ascent_m", TABLE_DAILY_SUMMARY_NAME),
+	XP_SOURCES_USED("xp_sources_used", TABLE_XP_LEDGER_NAME),
+	PERFECT_WEEKS("perfect_weeks", TABLE_XP_LEDGER_NAME),
+	GOAL_STREAK_DAYS("goal_streak_days", TABLE_XP_LEDGER_NAME),
+	ACHIEVEMENTS_UNLOCKED("achievements_unlocked", TABLE_ACHIEVEMENT_PROGRESS_NAME),
+	CATEGORIES_COMPLETED("categories_completed", TABLE_ACHIEVEMENT_PROGRESS_NAME);
 
 	val sourceTables: Set<String> = backingTables.toSet()
 	companion object {
@@ -59,6 +85,10 @@ object MetricKeys {
 	const val TABLE_EXPORT_LOG = TABLE_EXPORT_LOG_NAME
 	const val TABLE_AGGREGATOR_STATE = TABLE_AGGREGATOR_STATE_NAME
 	const val TABLE_OSM_IMPORT = TABLE_OSM_IMPORT_NAME
+	const val TABLE_XP_LEDGER = TABLE_XP_LEDGER_NAME
+	const val TABLE_PLAYER_PROFILE = TABLE_PLAYER_PROFILE_NAME
+	const val TABLE_MINI_GAME_SCORE = TABLE_MINI_GAME_SCORE_NAME
+	const val TABLE_ACHIEVEMENT_PROGRESS = TABLE_ACHIEVEMENT_PROGRESS_NAME
 	const val MIN_DAILY_TRIPS = 1
 	const val STEPS = "steps"
 	const val DISTANCE_M = "distance_m"

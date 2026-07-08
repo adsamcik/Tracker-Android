@@ -12,6 +12,9 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -36,10 +39,12 @@ class DefaultGameRepository @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val database: AppDatabase,
 	private val progressionRepository: PlayerProgressionRepository,
+	private val metricDirtyTracker: MetricDirtyTracker,
+	private val achievementScheduler: AchievementEvaluationScheduler,
 ) : GameRepository {
 	private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
 
-	init { GoalTracker.initialize(application, sessionChannel) }
+	init { GoalTracker.initialize(application, sessionChannel, progressionRepository, achievementScheduler) }
 
 	private fun startOfDay(now: Long): Long = Instant.ofEpochMilli(now)
 		.atZone(ZoneId.systemDefault())
@@ -66,20 +71,27 @@ class DefaultGameRepository @Inject constructor(
 		.flowOn(dispatchers.io)
 
 	override suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long) {
-		if (xp <= 0) return
-		withContext(dispatchers.io) {
-			pointsDao.insert(
-				PointsAwarded(
-					earnedAtMs,
-					Points(xp.toDouble()),
-					AwardSource(MINIGAME_AWARD_SOURCE_PREFIX + gameId),
-				),
-			)
+		// The score row was just persisted by the caller, so re-evaluate mini-game
+		// achievements even for a zero-point run.
+		metricDirtyTracker.markDirty(setOf(MetricKeys.TABLE_MINI_GAME_SCORE))
+		if (xp > 0) {
+			withContext(dispatchers.io) {
+				pointsDao.insert(
+					PointsAwarded(
+						earnedAtMs,
+						Points(xp.toDouble()),
+						AwardSource(MINIGAME_AWARD_SOURCE_PREFIX + gameId),
+					),
+				)
+			}
+			// Also feed the leveling ledger so mini-game play raises the player level
+			// (and thus unlocks higher-tier games). Separate store from the points
+			// ledger above; idempotent on the run timestamp.
+			progressionRepository.awardMiniGameXp(points = xp, earnedAtMs = earnedAtMs)
 		}
-		// Also feed the leveling ledger so mini-game play raises the player level
-		// (and thus unlocks higher-tier games). Separate store from the points
-		// ledger above; idempotent on the run timestamp.
-		progressionRepository.awardMiniGameXp(points = xp, earnedAtMs = earnedAtMs)
+		// Mini-game play does not emit a SessionEnded event, so nothing else would
+		// schedule achievement evaluation — kick it off here.
+		achievementScheduler.scheduleEvaluation()
 	}
 
 	private companion object {

@@ -13,8 +13,10 @@ message GoalsSettingsProto {
   int32 weekly_step_goal = 3;
   // Maximum daily portion of weekly goal (fraction 0-1, stored as float)
   float weekly_daily_limit = 4;
-  // Whether challenges are enabled
-  bool challenges_enabled = 5;
+  // Field 5 (challenges_enabled) retired with the Challenges feature.
+  // Reserved so the number/name is never reused and old DataStore files stay readable.
+  reserved 5;
+  reserved "challenges_enabled";
   // Internal migration marker so legacy SharedPreferences import runs only once.
   bool legacy_migrated = 1000;
 }

@@ -88,22 +88,7 @@ class GameDomainEventConsumer @Inject constructor(
 	}
 
 	private fun onAchievementProgress(event: DomainEvent.AchievementProgress) {
-		val progressFraction = if (event.targetValue <= 0L) 0.0 else event.currentValue.toDouble() / event.targetValue.toDouble()
 		Logger.log(LogData(message = "Achievement progress: ${event.achievementId} ${event.currentValue}/${event.targetValue}", source = GAME_LOG_SOURCE))
-		if (progressFraction >= ACHIEVEMENT_PROGRESS_NOTIFY_THRESHOLD) {
-			val progressPercent = (progressFraction * 100.0).toInt().coerceIn(0, 100)
-			val text = context.getString(R.string.achievement_progress_notification_description, progressPercent, event.currentValue, event.targetValue)
-			NotificationManagerCompat.from(context).notify(
-				NotificationsIds.achievementProgress(event),
-				NotificationCompat.Builder(context, context.getString(com.adsamcik.tracker.shared.base.R.string.channel_achievements_id))
-					.setSmallIcon(R.drawable.ic_achievement_icon)
-					.setContentTitle(context.getString(R.string.achievement_progress_notification_title, event.achievementId))
-					.setContentText(text)
-					.setOnlyAlertOnce(true)
-					.setAutoCancel(true)
-					.build(),
-			)
-		}
 	}
 
 	private fun enqueueAchievementWorker() {
@@ -113,11 +98,9 @@ class GameDomainEventConsumer @Inject constructor(
 
 	companion object {
 		const val CONSUMER_ID = "game-module"
-		private const val ACHIEVEMENT_PROGRESS_NOTIFY_THRESHOLD = 0.90
 	}
 
 	private object NotificationsIds {
 		fun achievementUnlocked(event: DomainEvent.AchievementUnlocked): Int = "${event.achievementId}:${event.timestampMs.raw}:unlocked".hashCode()
-		fun achievementProgress(event: DomainEvent.AchievementProgress): Int = "${event.achievementId}:${event.timestampMs.raw}:progress".hashCode()
 	}
 }

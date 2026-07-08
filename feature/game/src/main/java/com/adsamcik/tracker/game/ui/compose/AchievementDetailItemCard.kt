@@ -16,10 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Stars
-import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.ui.achievement.AchievementFormatting
-import com.adsamcik.tracker.stats.api.AchievementCategory
+import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 
 @Composable
@@ -96,7 +94,7 @@ internal fun AchievementDetailCard(row: AchievementDetailRow) {
 					verticalAlignment = Alignment.CenterVertically,
 					horizontalArrangement = Arrangement.spacedBy(14.dp),
 				) {
-					TierMedal(tier = tier, isUnlocked = isUnlocked, category = row.definition.category)
+					TierMedal(definition = row.definition, isUnlocked = isUnlocked)
 					Column(
 						modifier = Modifier.weight(1f),
 						verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -131,10 +129,10 @@ internal fun AchievementDetailCard(row: AchievementDetailRow) {
 					}
 					if (isUnlocked) {
 						Icon(
-							Icons.Outlined.EmojiEvents,
+							Icons.Outlined.Stars,
 							contentDescription = stringResource(R.string.achievement_unlocked_content_description),
-							tint = tColor,
-							modifier = Modifier.size(24.dp),
+							tint = tColor.copy(alpha = 0.8f),
+							modifier = Modifier.size(20.dp),
 						)
 					} else {
 						Icon(
@@ -177,8 +175,8 @@ internal fun AchievementDetailCard(row: AchievementDetailRow) {
 }
 
 @Composable
-private fun TierMedal(tier: AchievementTier, isUnlocked: Boolean, category: AchievementCategory) {
-	val baseColor = tierColor(tier)
+private fun TierMedal(definition: AchievementDefinition, isUnlocked: Boolean) {
+	val baseColor = tierColor(definition.tier)
 	val displayColor = if (isUnlocked) baseColor else baseColor.copy(alpha = 0.55f)
 	val bgAlpha = if (isUnlocked) 0.28f else 0.10f
 	Box(
@@ -200,11 +198,10 @@ private fun TierMedal(tier: AchievementTier, isUnlocked: Boolean, category: Achi
 			),
 		contentAlignment = Alignment.Center,
 	) {
-		Icon(
-			if (isUnlocked) Icons.Outlined.WorkspacePremium else categoryIcon(category),
-			contentDescription = null,
-			tint = displayColor,
-			modifier = Modifier.size(24.dp),
+		AchievementArtworkIcon(
+			definition = definition,
+			isUnlocked = isUnlocked,
+			modifier = Modifier.size(44.dp),
 		)
 	}
 }

@@ -19,6 +19,7 @@ import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
+import com.adsamcik.tracker.stats.api.roadmatch.RoadMatcher
 import com.adsamcik.tracker.stats.api.speed.SpeedLimitSource
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
@@ -36,6 +37,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationReposito
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
+import com.adsamcik.tracker.stats.data.roadmatch.DefaultRoadMatcher
 import com.adsamcik.tracker.stats.data.speed.DefaultSpeedLimitSource
 import dagger.Binds
 import dagger.Module
@@ -129,6 +131,10 @@ abstract class StatsDataModule {
 	@Binds
 	@Singleton
 	abstract fun bindSpeedLimitSource(impl: DefaultSpeedLimitSource): SpeedLimitSource
+
+	@Binds
+	@Singleton
+	abstract fun bindRoadMatcher(impl: DefaultRoadMatcher): RoadMatcher
 
 	/**
 	 * Companion holds [Provides] functions that need explicit construction

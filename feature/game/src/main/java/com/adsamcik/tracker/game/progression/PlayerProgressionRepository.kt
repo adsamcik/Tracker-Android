@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -29,6 +31,7 @@ import kotlinx.coroutines.withContext
 class PlayerProgressionRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val dispatchers: DispatchersProvider,
+	private val metricDirtyTracker: MetricDirtyTracker,
 ) {
 
 	/**
@@ -73,6 +76,7 @@ class PlayerProgressionRepository @Inject constructor(
 				recomputePlayerProfile()
 			}
 		}
+		metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 	}
 
 	/**
@@ -98,6 +102,38 @@ class PlayerProgressionRepository @Inject constructor(
 				recomputePlayerProfile()
 			}
 		}
+		metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+	}
+
+	/**
+	 * Award XP for meeting a daily goal. The local epoch-day is the ledger source
+	 * id, so each day's goal is credited at most once (idempotent) and the GOAL
+	 * source rows double as the "daily goal met" record consumed by Perfect Week
+	 * and Point Portfolio achievements.
+	 */
+	suspend fun awardGoalXp(earnedAtMs: Long) {
+		val amount = XpCalculator.goalXp()
+		if (amount <= 0) return
+		val dayEpoch = Instant.ofEpochMilli(earnedAtMs)
+			.atZone(ZoneId.systemDefault())
+			.toLocalDate()
+			.toEpochDay()
+
+		withContext(dispatchers.io) {
+			database.withTransaction {
+				val inserted = database.xpLedgerDao().insertOrIgnore(
+					XpLedgerEntity(
+						amount = amount,
+						source = XpSource.GOAL.name,
+						sourceId = dayEpoch,
+						earnedAt = earnedAtMs,
+					),
+				)
+				if (inserted == -1L) return@withTransaction
+				recomputePlayerProfile()
+			}
+		}
+		metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 	}
 
 	/**
@@ -129,5 +165,13 @@ class PlayerProgressionRepository @Inject constructor(
 			.atStartOfDay(zoneId)
 			.toInstant()
 			.toEpochMilli()
+	}
+
+	private companion object {
+		/** Tables whose achievement rules depend on XP/level changes. */
+		private val LEVELING_DIRTY_TABLES = setOf(
+			MetricKeys.TABLE_XP_LEDGER,
+			MetricKeys.TABLE_PLAYER_PROFILE,
+		)
 	}
 }

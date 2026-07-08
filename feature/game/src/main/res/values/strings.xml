@@ -3,26 +3,6 @@
     <!-- Module title for distribution manifest -->
     <string name="module_game_title">Game</string>
 
-    <string name="challenge_easy">Easy</string>
-    <string name="challenge_explorer_description">Collect %1$s new locations</string>
-    <string name="challenge_explorer_title">\'Cause I\'m the wanderer</string>
-    <string name="challenge_hard">Hard</string>
-    <string name="challenge_list_title">Challenges</string>
-    <string name="challenge_medium">Medium</string>
-    <string name="challenge_progress">%1$d%%</string>
-    <string name="challenge_step_description">Take %s steps</string>
-    <string name="challenge_step_title">Walk on with hope in your heart</string>
-    <string name="challenge_very_easy">Very easy</string>
-    <string name="challenge_very_hard">Very hard</string>
-    <string name="challenge_walk_in_the_park_description">Move %s on foot</string>
-    <string name="challenge_walk_in_the_park_title">Be the man who walks a thousand miles</string>
-    <string name="challenge_walk_distance_title">Be the man who walks a thousand miles</string>
-    <string name="challenge_active_time_title">Good Times Roll</string>
-    <string name="challenge_active_time_description">Stay active for %s minutes</string>
-    <string name="challenge_speed_title">Speed Demon</string>
-    <string name="challenge_speed_description">Walk %1$s in a single burst</string>
-    <string name="challenge_consistency_title">Consistency is Key</string>
-    <string name="challenge_consistency_description">Track on %1$d different days</string>
     
     <!-- Mini-Games -->
     <string name="minigame_outrun_name">Outrun</string>
@@ -79,8 +59,6 @@
     <string name="game_steps_week">Week</string>
     
     <!-- Game empty states -->
-    <string name="game_challenges_empty">No active challenges</string>
-    <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
     <string name="game_loading">Loading…</string>
 
     <!-- Hero Level Card -->
@@ -94,27 +72,15 @@
     <string name="game_streak_freezes">%1$d freezes</string>
     <string name="game_streak_best">Best: %1$d</string>
 
-    <!-- Active Challenges Row -->
-    <string name="game_active_challenges">Active Challenges</string>
-    <string name="game_challenge_time_remaining">%1$s remaining</string>
-    <string name="game_challenge_slot_empty">?</string>
-    <string name="game_challenge_start_hint">Start tracking!</string>
-    <string name="game_challenge_picker_title">Start a challenge</string>
-    <string name="game_challenge_picker_message">Pick a challenge to jump straight into its details.</string>
-    <string name="game_challenge_picker_empty_message">No challenge is ready yet. Open Trophy Case to review unlocked goals and challenge progress.</string>
-    <string name="game_challenge_medal_gold_threshold">Gold: finish in %1$s</string>
-    <string name="game_challenge_medal_silver_threshold">Silver: finish in %1$s</string>
 
     <!-- Trophy Summary -->
     <string name="game_trophy_summary">%1$d completed</string>
     <string name="game_trophy_view_all">View Trophy Case</string>
     <string name="game_trophies_title">Trophies</string>
-    <string name="game_no_trophies_yet">Complete challenges to earn trophies!</string>
     
     <!-- Trophy Case Screen -->
     <string name="game_trophy_case_title">Trophy Case</string>
     <string name="game_trophy_case_empty">No trophies yet</string>
-    <string name="game_trophy_case_empty_subtitle">Complete challenges to fill your trophy case</string>
     <string name="game_trophy_filter_all">All</string>
     <string name="game_trophy_filter_gold">Gold</string>
     <string name="game_trophy_filter_silver">Silver</string>
@@ -127,7 +93,6 @@
     <string name="game_personal_records_empty">No records yet — keep challenging yourself!</string>
     <string name="game_personal_record_value">%1$s</string>
     <string name="game_lifetime_stats_title">Lifetime Stats</string>
-    <string name="game_lifetime_total_challenges">Total Challenges</string>
     <string name="game_lifetime_completion_rate">Completion Rate</string>
     <string name="game_lifetime_total_xp">Total XP Earned</string>
     <string name="game_lifetime_medal_breakdown">Medal Breakdown</string>
@@ -167,8 +132,6 @@
     <string name="achievements_none_yet">No achievements unlocked yet. Start exploring!</string>
     <string name="achievement_unlocked_notification_title">Achievement unlocked: %1$s</string>
     <string name="achievement_unlocked_notification_description">Reached %1$s tier</string>
-    <string name="achievement_progress_notification_title">Achievement almost complete: %1$s</string>
-    <string name="achievement_progress_notification_description">%1$d%% complete (%2$d/%3$d)</string>
 
     <string-array name="goals_encouragement">
         <item>Good job</item>
@@ -188,14 +151,9 @@
     <!-- Game progress formatting -->
     <string name="game_progress_format">%1$d / %2$d</string>
 
-    <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
-    <string name="notification_challenge_done_title">%1$s challenge completed</string>
-    <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
 
     <string name="points_earned_today">points earned today</string>
 
-    <string name="settings_game_challenge_category_title">Challenges</string>
-    <string name="settings_game_challenge_enable_title">Enable challenges</string>
     <string name="settings_game_goals_category_title">Goals</string>
     <string name="settings_game_goals_day_steps_title">Daily step goal</string>
     <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
@@ -218,10 +176,8 @@
     <string name="game_unlock_personal_records">Personal Records</string>
     <string name="game_unlock_outrun">Outrun Mini-Game</string>
     <string name="game_unlock_streak_freeze">Streak Freeze</string>
-    <string name="game_unlock_speed_challenge">Speed Challenge</string>
     <string name="game_unlock_territory">Territory Mini-Game</string>
     <string name="game_unlock_lifetime_stats">Lifetime Stats</string>
-    <string name="game_unlock_consistency">Consistency Challenge</string>
     <string name="game_unlock_zen_walk">Zen Walk Mini-Game</string>
     <string name="game_unlock_weekly_rank">Weekly Rank</string>
     <string name="game_unlock_message">You reached Level %1$d!</string>
@@ -259,17 +215,14 @@
     <string name="leaderboard_retry">Retry</string>
 
     <!-- Unlock feature display names -->
-    <string name="unlock_feature_challenges">Challenges</string>
     <string name="unlock_feature_medals">Medals</string>
     <string name="unlock_feature_streaks">Streaks</string>
     <string name="unlock_feature_trophy_case">Trophy Case</string>
     <string name="unlock_feature_personal_records">Personal Records</string>
     <string name="unlock_feature_outrun">Outrun Mini-Game</string>
     <string name="unlock_feature_streak_freeze">Streak Freeze</string>
-    <string name="unlock_feature_speed_challenge">Speed Challenge</string>
     <string name="unlock_feature_territory">Territory Mini-Game</string>
     <string name="unlock_feature_lifetime_stats">Lifetime Stats</string>
-    <string name="unlock_feature_consistency">Consistency Challenge</string>
     <string name="unlock_feature_zen_walk">Zen Walk Mini-Game</string>
     <string name="unlock_feature_weekly_rank">Weekly Rank</string>
     <string name="achievements_mythic">Mythic</string>

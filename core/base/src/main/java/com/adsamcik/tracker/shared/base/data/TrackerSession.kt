@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey
 // TODO: Migrate to TrackerRun + SessionSegment. Active writers: SessionTrackerComponent, GpxImport,
 //  JsonImport. Active readers: statistics (DefaultStatsRepository, SummaryGenerator), impexp
 //  (JsonExporter, ImportExportComposeActivity, ExportPlanWorker), tracker (DefaultDailySummaryProvider,
-//  SessionTrackerComponent), game (ChallengeWorker, DailyStepGoal, WeeklyStepGoal).
+//  SessionTrackerComponent), game (DailyStepGoal, WeeklyStepGoal).
 @Entity(
 		tableName = "tracker_session", foreignKeys = [ForeignKey(
 		entity = SessionActivity::class,

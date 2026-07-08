@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKey
+import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.api.rule.AchievementRules
 import com.adsamcik.tracker.stats.api.rule.RuleEvaluationResult
@@ -150,7 +151,12 @@ class AchievementWorker @AssistedInject constructor(
 				)
 			}
 			.toList()
-		if (updates.isNotEmpty()) achievementDao.upsertAll(updates)
+		if (updates.isNotEmpty()) {
+			achievementDao.upsertAll(updates)
+			// Surface progress writes so meta achievements (backed by the
+			// achievement_progress table) re-evaluate on the next scheduled pass.
+			dirtyTracker.markDirty(MetricKeys.TABLE_ACHIEVEMENT_PROGRESS)
+		}
 		return Result.success()
 	}
 

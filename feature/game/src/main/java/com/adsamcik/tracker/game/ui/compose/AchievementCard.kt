@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.ui.achievement.AchievementFormatting
+import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementListItem
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.NextAchievement
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
@@ -61,7 +62,7 @@ fun AchievementCard(state: AchievementSummaryState, modifier: Modifier = Modifie
 				if (state.recentUnlocks.isNotEmpty()) {
 					Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
 						Text(stringResource(R.string.game_recent_achievements), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-						state.recentUnlocks.forEach { unlock -> Text(achievementTitleFor(unlock.id, unlock.nameRes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface) }
+						state.recentUnlocks.forEach { unlock -> RecentAchievementRow(unlock) }
 					}
 				}
 				if (state.nextUp.isNotEmpty()) {
@@ -76,14 +77,58 @@ fun AchievementCard(state: AchievementSummaryState, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun NextAchievementRow(next: NextAchievement) {
-	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-		Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-			Text(achievementTitleFor(next.id, next.nameRes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-			Text("${(next.progress * PERCENTAGE_MULTIPLIER).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+private fun RecentAchievementRow(unlock: AchievementListItem) {
+	val definition = remember(unlock.id) { AchievementCatalog.byId(unlock.id) }
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(8.dp),
+	) {
+		if (definition != null) {
+			AchievementArtworkIcon(
+				definition = definition,
+				isUnlocked = true,
+				modifier = Modifier.size(28.dp),
+			)
 		}
-		Box(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))) {
-			Box(modifier = Modifier.fillMaxWidth(next.progress).height(6.dp).background(MaterialTheme.colorScheme.primary))
+		Text(
+			achievementTitleFor(unlock.id, unlock.nameRes),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurface,
+			modifier = Modifier.weight(1f),
+		)
+	}
+}
+
+@Composable
+private fun NextAchievementRow(next: NextAchievement) {
+	val definition = remember(next.id) { AchievementCatalog.byId(next.id) }
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(8.dp),
+	) {
+		if (definition != null) {
+			AchievementArtworkIcon(
+				definition = definition,
+				isUnlocked = false,
+				modifier = Modifier.size(30.dp),
+			)
+		}
+		Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+			Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+				Text(
+					achievementTitleFor(next.id, next.nameRes),
+					style = MaterialTheme.typography.bodyMedium,
+					fontWeight = FontWeight.SemiBold,
+					color = MaterialTheme.colorScheme.onSurface,
+					modifier = Modifier.weight(1f),
+				)
+				Text("${(next.progress * PERCENTAGE_MULTIPLIER).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+			}
+			Box(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))) {
+				Box(modifier = Modifier.fillMaxWidth(next.progress).height(6.dp).background(MaterialTheme.colorScheme.primary))
+			}
 		}
 	}
 }

@@ -273,4 +273,39 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 
 	@Query("SELECT MIN(start_time_ms) FROM session_segment")
 	suspend fun minStartTime(): Long?
+
+	/**
+	 * Count segments whose LOCAL start hour is in the half-open range
+	 * `[fromHour, toHour)` (e.g. 0..5 for late-night, 5..8 for dawn).
+	 */
+	@Query(
+		"""
+		SELECT COUNT(*) FROM session_segment
+		WHERE CAST(strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) >= :fromHour
+			AND CAST(strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) < :toHour
+		"""
+	)
+	suspend fun countSessionsStartingBetweenHours(fromHour: Int, toHour: Int): Long
+
+	/** Maximum single-segment distance (meters) for a set of primary activities. */
+	@Query("SELECT CAST(COALESCE(MAX(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	suspend fun maxDistanceByActivities(activityTypes: List<Int>): Long
+
+	/**
+	 * Count distinct LOCAL calendar days that contain at least one walking, one
+	 * cycling and one driving segment (a "triathlete" day).
+	 */
+	@Query(
+		"""
+		SELECT COUNT(*) FROM (
+			SELECT strftime('%Y-%m-%d', start_time_ms / 1000, 'unixepoch', 'localtime') AS day
+			FROM session_segment
+			GROUP BY day
+			HAVING SUM(CASE WHEN primary_activity IN (:walk) THEN 1 ELSE 0 END) > 0
+				AND SUM(CASE WHEN primary_activity IN (:cycle) THEN 1 ELSE 0 END) > 0
+				AND SUM(CASE WHEN primary_activity IN (:drive) THEN 1 ELSE 0 END) > 0
+		)
+		"""
+	)
+	suspend fun countTriathlonDays(walk: List<Int>, cycle: List<Int>, drive: List<Int>): Long
 }

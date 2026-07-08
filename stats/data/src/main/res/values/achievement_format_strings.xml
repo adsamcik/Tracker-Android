@@ -142,6 +142,105 @@
     <string name="ach_title_calendar_winter_solstice">Winter solstice</string>
     <string name="ach_desc_calendar_winter_solstice">Record a session on the shortest day of the year.</string>
 
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Night owl</item>
+        <item quantity="other">%1$s night sessions</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Record %1$d sessions that start between midnight and 5 AM.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Early bird</item>
+        <item quantity="other">%1$s dawn sessions</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Record %1$d sessions that start between 5 and 8 AM.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Hands-on tracker</item>
+        <item quantity="other">Manually start %1$s sessions</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Manually start %1$d tracking sessions yourself.</string>
+    <string name="ach_title_max_cycle_session">Cycle %1$s in one ride</string>
+    <string name="ach_desc_max_cycle_session">Cycle %1$s within a single ride.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Triathlete day</item>
+        <item quantity="other">%d triathlete days</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Walk, cycle and drive all within the same day, on %1$d different days.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">A place for all seasons</item>
+        <item quantity="other">All four seasons in %d places</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Visit %1$d map cells across all four seasons.</string>
+    <string name="ach_title_max_cell_visits">Visit one place %1$d times</string>
+    <string name="ach_desc_max_cell_visits">Visit a single map cell %1$d times.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Thoroughly explore a cell</item>
+        <item quantity="other">Thoroughly explore %1$s cells</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Thoroughly explore %1$d distinct map cells.</string>
+    <string name="ach_title_max_cell_span">Reach %1$s apart</string>
+    <string name="ach_desc_max_cell_span">Discover two map cells at least %1$s apart.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Discover a cell in a day</item>
+        <item quantity="other">Discover %d cells in a day</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Discover %1$d new map cells in a single day.</string>
+    <string name="ach_title_max_cell_revisit_gap">Return after %1$d days</string>
+    <string name="ach_desc_max_cell_revisit_gap">Revisit a map cell %1$d days after first discovering it.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">A perfect month</item>
+        <item quantity="other">%d perfect months</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Track activity on every single day of %1$d calendar months.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Use one export format</item>
+        <item quantity="other">Use %d export formats</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Export your data in %1$d different file formats.</string>
+
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Reach level %1$d</string>
+    <string name="ach_desc_player_level">Climb to player level %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP in a day</string>
+    <string name="ach_desc_best_day_xp">Earn %1$d XP within a single day.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Play your first mini-game</item>
+        <item quantity="other">Play %1$s mini-games</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Finish %1$d mini-game runs.</string>
+
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Climb %1$s</string>
+    <string name="ach_desc_total_ascent">Accumulate %1$s of total elevation gain (ascent) across all your tracking.</string>
+
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Earn from one XP source</item>
+        <item quantity="other">Earn from %d XP sources</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Earn XP from %1$d different sources — tracking sessions, mini-games and goals.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">A perfect week</item>
+        <item quantity="other">%d perfect weeks</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Meet your daily step goal every day for %1$d full weeks.</string>
+
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d-day goal streak</item>
+        <item quantity="other">%d-day goal streak</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Meet your daily step goal %1$d days in a row.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Unlock one achievement</item>
+        <item quantity="other">Unlock %d achievements</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Unlock %1$d achievements in total.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Complete a category</item>
+        <item quantity="other">Complete %d categories</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Unlock every achievement in %1$d different categories.</string>
+
     <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d second</item>

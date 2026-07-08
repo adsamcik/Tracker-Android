@@ -30,8 +30,8 @@ data class PointsAwarded(
 data class AwardSource(val value: String) {
 	companion object {
 		val SESSION: AwardSource = AwardSource("session")
-		val CHALLENGE: AwardSource = AwardSource("challenge")
 		val GOAL: AwardSource = AwardSource("goal")
+		val MINIGAME: AwardSource = AwardSource("minigame")
 	}
 }
 
