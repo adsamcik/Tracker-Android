@@ -138,6 +138,35 @@ class DefaultLockManagerTest {
 		verify(exactly = 0) { anyConstructed<Preferences>().edit(any()) }
 	}
 
+	@Test
+	fun `unlockTimeLock does not force watcher off via watcherPreference argument`() = runTest {
+		// A recharge lock remains active so isLockedRightNow() stays true after the time lock
+		// clears. Previously unlockTimeLock called poke(watcherPreference = isLockedRightNow()),
+		// which routed the lock state into the watcher-preference slot.
+		coEvery {
+			anyConstructed<Preferences>().fetchLong("disabled_time", 0L)
+		} returns Time.nowMillis + 60_000
+		coEvery {
+			anyConstructed<Preferences>().fetchBooleanRes(
+				R.string.settings_disabled_recharge_key,
+				R.string.settings_disabled_recharge_default,
+			)
+		} returns true
+		lockManager.initializeFromPersistence(context)
+
+		lockManager.unlockTimeLock(context)
+
+		verify(exactly = 0) {
+			activityWatcherController.poke(
+				watcherPreference = true,
+				updateInterval = any(),
+				autoTracking = any(),
+				trackerLocked = any(),
+				trackerRunning = any(),
+			)
+		}
+	}
+
 	private class FixedProvider<T>(private val value: T) : Provider<T> {
 		override fun get(): T = value
 	}

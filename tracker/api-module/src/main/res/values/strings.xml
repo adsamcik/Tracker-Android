@@ -78,6 +78,8 @@
     <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>
+    <string name="stop_tracking_dialog_title">Stop tracking?</string>
+    <string name="stop_tracking_dialog_message">Auto-tracking is on and may start a new session again shortly if you just stop.</string>
     <string name="notification_tracker_active_ticker">Recording your route — location in use</string>
     <string name="notification_tracking_active">Tracking</string>
 

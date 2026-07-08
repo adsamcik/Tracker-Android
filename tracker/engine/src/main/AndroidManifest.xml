@@ -22,6 +22,16 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!--
+        HEALTH foreground-service type backs AMBIENT (steps + activity recognition, no GPS)
+        sessions; SPECIAL_USE is the terminal fallback for sessions that hold neither location
+        nor activity permission (e.g. a user-started Wi-Fi/cell-only session) so they can still
+        run a foreground service instead of crashing or stopping. Declaring the location type for
+        a non-GPS session crashes on Android 14+ when location permission is absent and is a Play
+        background-location policy mismatch, so the service downgrades the type to match the
+        permissions actually held.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <permission
@@ -32,8 +42,12 @@
         <service
             android:name="com.adsamcik.tracker.tracker.service.TrackerService"
             android:exported="false"
-            android:foregroundServiceType="location"
-            tools:targetApi="q" />
+            android:foregroundServiceType="location|health|specialUse"
+            tools:targetApi="q">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="SignalTracking" />
+        </service>
 
         <service
             android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"

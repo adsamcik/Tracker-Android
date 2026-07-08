@@ -14,16 +14,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
@@ -32,6 +36,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.launch
+
+/**
+ * Duration used for the "Stop for N minutes" auto-tracking lock offered when stopping a session
+ * that auto-tracking could otherwise silently restart. Matches the duration used by the
+ * equivalent "stop for N minutes" action on the persistent tracking notification.
+ */
+private const val STOP_LOCK_MINUTES = 30
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -78,6 +89,7 @@ fun TrackerRoute(
     // Contextual permission request state
     var showLocationPermissionRequest by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
+    var showStopOptions by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
@@ -176,6 +188,12 @@ fun TrackerRoute(
                     // Request permission contextually
                     showLocationPermissionRequest = true
                 }
+            } else if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
+                // Auto-tracking is enabled and would likely restart the session moments after a
+                // plain stop (see BackgroundTrackingApi's activity callbacks). Let the user pick
+                // how long tracking should actually stay off, mirroring the tracking notification's
+                // "stop for N minutes" / "stop until charging" actions.
+                showStopOptions = true
             } else {
                 TrackerServiceApi.stopService(context)
             }
@@ -203,6 +221,45 @@ fun TrackerRoute(
         onSessionDetailClick = onSessionDetailClick,
         modifier = Modifier.padding(contentPadding),
         snackbarHostState = snackbarHostState
+    )
+
+    StopTrackingOptionsDialog(
+        visible = showStopOptions,
+        title = stringResource(R.string.stop_tracking_dialog_title),
+        message = stringResource(R.string.stop_tracking_dialog_message),
+        stopForMinutesLabel = stringResource(R.string.notification_stop_for_minutes, STOP_LOCK_MINUTES),
+        stopUntilChargingLabel = stringResource(R.string.notification_stop_til_recharge),
+        justStopLabel = stringResource(R.string.notification_stop),
+        cancelLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel),
+        onStopForMinutes = {
+            lockManager.lockTimeLock(context, STOP_LOCK_MINUTES * Time.MINUTE_IN_MILLISECONDS)
+            TrackerServiceApi.stopService(context)
+            showStopOptions = false
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    context.resources.getQuantityString(
+                        R.plurals.notification_auto_tracking_lock,
+                        STOP_LOCK_MINUTES,
+                        STOP_LOCK_MINUTES,
+                    )
+                )
+            }
+        },
+        onStopUntilCharging = {
+            lockManager.lockUntilRecharge(context)
+            TrackerServiceApi.stopService(context)
+            showStopOptions = false
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.settings_disabled_recharge_summary)
+                )
+            }
+        },
+        onJustStop = {
+            TrackerServiceApi.stopService(context)
+            showStopOptions = false
+        },
+        onDismiss = { showStopOptions = false },
     )
 }
 

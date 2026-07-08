@@ -74,8 +74,12 @@ class StandardFlowsTest {
         val stopDescription = context.getString(com.adsamcik.tracker.tracker.R.string.description_tracking_stop)
         composeRule.onNodeWithContentDescription(stopDescription).assertIsDisplayed()
 
-        // 5. Stop Tracking
+        // 5. Stop Tracking. Auto-tracking is on by default, so stopping now prompts a choice
+        // (stop for N minutes / until charging / just stop) instead of stopping immediately —
+        // pick "just stop" to preserve this test's original intent.
         composeRule.onNodeWithTag("tracking_fab").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("stop_tracking_option_just_stop").performClick()
         composeRule.waitForIdle()
 
         // 6. Verify UI returns to "Idle" state

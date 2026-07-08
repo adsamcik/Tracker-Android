@@ -145,9 +145,11 @@ class DefaultLockManager(
     override fun unlockTimeLock(context: Context) {
         synchronized(this) {
             context.alarmManager.cancel(getTimeUnlockBroadcastIntent(context))
+            // setTimeLock(0) -> refreshLockState -> pokeWatcherService already re-evaluates the
+            // watcher with the current lock state via the trackerLocked argument. The previous
+            // extra poke here passed the lock state into the watcherPreference slot, which forced
+            // the watcher off after a normal unlock even when the user had it enabled.
             setTimeLock(context, 0)
-            
-            activityWatcherController.poke(watcherPreference = isLockedRightNow())
         }
     }
     

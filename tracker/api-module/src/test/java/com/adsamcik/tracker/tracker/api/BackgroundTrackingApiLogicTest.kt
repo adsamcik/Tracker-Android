@@ -276,4 +276,64 @@ class BackgroundTrackingApiLogicTest {
 			) shouldBe false
 		}
 	}
+
+	@Nested
+	@DisplayName("resolveAutoTrackingPreferenceAction")
+	inner class ResolveAutoTrackingPreferenceAction {
+		@Test
+		fun `STILL while active disables`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.STILL.ordinal,
+				isActive = true,
+				hasActivityPermission = true,
+			) shouldBe AutoTrackingPreferenceAction.DISABLE
+		}
+
+		@Test
+		fun `STILL while inactive without active subscription does nothing without permission`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.STILL.ordinal,
+				isActive = false,
+				hasActivityPermission = false,
+			) shouldBe AutoTrackingPreferenceAction.NONE
+		}
+
+		@Test
+		fun `movement while inactive with permission enables`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.ON_FOOT.ordinal,
+				isActive = false,
+				hasActivityPermission = true,
+			) shouldBe AutoTrackingPreferenceAction.ENABLE
+		}
+
+		@Test
+		fun `movement while inactive without permission does nothing`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.ON_FOOT.ordinal,
+				isActive = false,
+				hasActivityPermission = false,
+			) shouldBe AutoTrackingPreferenceAction.NONE
+		}
+
+		@Test
+		fun `ON_FOOT to IN_VEHICLE while active reinitializes`() {
+			// Regression: changing the activity requirement between two movement modes while
+			// the watcher is already active must re-register so the new transitions take effect.
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.IN_VEHICLE.ordinal,
+				isActive = true,
+				hasActivityPermission = true,
+			) shouldBe AutoTrackingPreferenceAction.REINITIALIZE
+		}
+
+		@Test
+		fun `IN_VEHICLE to ON_FOOT while active reinitializes`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.ON_FOOT.ordinal,
+				isActive = true,
+				hasActivityPermission = true,
+			) shouldBe AutoTrackingPreferenceAction.REINITIALIZE
+		}
+	}
 }

@@ -24,6 +24,7 @@ import com.adsamcik.tracker.network.NetworkGateway
 import com.adsamcik.tracker.network.NetworkPolicyAggregator
 import com.adsamcik.tracker.network.OkHttpBackedGateway
 import com.adsamcik.tracker.game.goals.GoalResetScheduler
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
@@ -131,6 +132,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
 				activityWatcherController.poke()
+				// Reconcile automatic detection with the current ACTIVITY_RECOGNITION permission:
+				// disables detection if the permission was revoked while backgrounded, and re-arms it
+				// if the user re-granted it (e.g. returning from system settings).
+				BackgroundTrackingApi.revalidatePermissions(this@Application)
 			}
 		})
 	}

@@ -70,6 +70,10 @@ object BackgroundTrackingApi {
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
 	private const val REQUIRED_CONFIDENCE = 75
+
+	// Lower confidence threshold accepted for ON_FOOT auto-start when the step counter independently
+	// confirms recent walking. Only widens starts; never blocks one the full threshold would allow.
+	private const val STEP_CORROBORATED_CONFIDENCE = 50
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val TAG = "BackgroundTrackingApi"
 	private var appContext: Context? = null
@@ -100,6 +104,12 @@ object BackgroundTrackingApi {
 	/** Whether the first TrackingParams emission has been processed. */
 	private var paramsInitialized = false
 
+	/**
+	 * Corroborates lower-confidence ON_FOOT detections with the hardware step counter. Active only
+	 * while the confidence-based change-detection API is registered.
+	 */
+	private val stepCorroborator = StepActivityCorroborator()
+
 	private fun getEntryPoint(context: Context): BackgroundTrackingApiEntryPoint {
 		val cachedEntryPoint = entryPoint
 		if (cachedEntryPoint != null) return cachedEntryPoint
@@ -126,26 +136,40 @@ object BackgroundTrackingApi {
 	// Activity change callback for automatic tracking control
 	// Future: Expose callback configuration in advanced settings
 	private val callback: ActivityChangeRequestCallback = { context, activity, _ ->
-		if (activity.confidence >= REQUIRED_CONFIDENCE) {
-			if (TrackerServiceApi.isActive(context)) {
+		if (!context.hasActivityPermission) {
+			// ACTIVITY_RECOGNITION was revoked while detection was armed. Tear the request down
+			// instead of acting on a now-defunct subscription; it re-arms when re-granted.
+			revalidatePermissions(context)
+		} else if (TrackerServiceApi.isActive(context)) {
+			// Stop evaluation is unchanged: only reconsider continuation at the full confidence
+			// threshold so a borderline reading never tears down an active session.
+			if (activity.confidence >= REQUIRED_CONFIDENCE) {
 				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 				if (!requireNotNull(sessionInfo).isInitiatedByUser &&
 					!canContinueBackgroundTracking(activity.groupedActivity)
 				) {
 					TrackerServiceApi.stopService(context)
 				}
-			} else {
-				if (canBackgroundTrack(context, activity.groupedActivity) &&
-					canTrackerServiceBeStarted(context)
-				) {
-					TrackerServiceApi.startService(context, isUserInitiated = false)
-				}
 			}
+		} else if (
+			isOnFootAutoStartCorroborated(
+				groupedActivity = activity.groupedActivity,
+				confidence = activity.confidence,
+				requiredConfidence = REQUIRED_CONFIDENCE,
+				corroboratedConfidence = STEP_CORROBORATED_CONFIDENCE,
+				hasRecentSteps = stepCorroborator.hasRecentSteps(),
+			) &&
+			canBackgroundTrack(context, activity.groupedActivity) &&
+			canTrackerServiceBeStarted(context)
+		) {
+			TrackerServiceApi.startService(context, isUserInitiated = false)
 		}
 	}
 
 	private val transitionCallback: ActivityTransitionRequestCallback = { context, activity, _ ->
-		if (TrackerServiceApi.isActive(context)) {
+		if (!context.hasActivityPermission) {
+			revalidatePermissions(context)
+		} else if (TrackerServiceApi.isActive(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 			if (!requireNotNull(sessionInfo).isInitiatedByUser &&
 				!canContinueBackgroundTracking(activity.activity.groupedActivity)
@@ -249,8 +273,12 @@ object BackgroundTrackingApi {
 		assertTrue(isActive)
 
 		val requestData = if (useTransitionApi) {
+			// Transition API is already high-confidence; the step corroborator only helps the
+			// confidence-based change API, so release the sensor while transitions are used.
+			stepCorroborator.stop(context)
 			ActivityRequestData(this::class, transitionData = getTransitions())
 		} else {
+			stepCorroborator.start(context)
 			ActivityRequestData(this::class, changeData = getActivityRequest())
 		}
 
@@ -271,6 +299,7 @@ object BackgroundTrackingApi {
 		assertTrue(isActive)
 
 		activityRequestManager(context).removeActivityRequest(context, this::class)
+		stepCorroborator.stop(context)
 		getWatcherController(context).poke()
 
 		isActive = false
@@ -346,10 +375,12 @@ object BackgroundTrackingApi {
 
 	private fun handleTrackingActivityPreferenceChange(value: Int) {
 		val context = appContext ?: return
-		if (value == GroupedActivity.STILL.ordinal && isActive) {
-			disable(context)
-		} else if (!isActive && context.hasActivityPermission) {
-			enable(context)
+		when (resolveAutoTrackingPreferenceAction(value, isActive, context.hasActivityPermission)) {
+			AutoTrackingPreferenceAction.DISABLE -> disable(context)
+			AutoTrackingPreferenceAction.ENABLE -> enable(context)
+			AutoTrackingPreferenceAction.REINITIALIZE ->
+				reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
+			AutoTrackingPreferenceAction.NONE -> Unit
 		}
 	}
 
@@ -357,6 +388,36 @@ object BackgroundTrackingApi {
 		val context = appContext ?: return
 		if (isActive) {
 			reinitializeRequest(context, enabled)
+		}
+	}
+
+	/**
+	 * Reconciles the detection state with the current ACTIVITY_RECOGNITION permission.
+	 *
+	 * Android usually kills the process when a runtime permission is revoked, but not always
+	 * (unused-app auto-reset, appops changes, future OS behaviour). When the permission is lost while
+	 * detection is armed this tears the now-defunct activity-recognition subscription down; when it is
+	 * granted again and automatic tracking is still enabled it re-arms detection. No-op before
+	 * initialization and idempotent.
+	 *
+	 * Called when the app returns to the foreground (process lifecycle) and defensively from the
+	 * activity-recognition callbacks. Must run on the main thread because it touches enable/disable.
+	 */
+	@MainThread
+	fun revalidatePermissions(context: Context) {
+		val ctx = appContext ?: return
+		when (
+			resolveDetectionPermissionAction(
+				isActive = isActive,
+				hasActivityPermission = ctx.hasActivityPermission,
+				autoTrackingMode = cachedParamsSnapshot().autoTrackingMode,
+			)
+		) {
+			AutoTrackingPreferenceAction.DISABLE -> disable(ctx)
+			AutoTrackingPreferenceAction.ENABLE -> enable(ctx)
+			AutoTrackingPreferenceAction.REINITIALIZE,
+			AutoTrackingPreferenceAction.NONE,
+			-> Unit
 		}
 	}
 
@@ -399,6 +460,52 @@ internal fun hasAnythingToTrack(params: TrackingParamsState): Boolean =
 	params.locationEnabled || params.cellEnabled ||
 		params.wifiEnabled || params.wifiLocationCountEnabled || params.wifiNetworkEnabled ||
 		params.activityEnabled || params.stepsEnabled
+
+/** Action to take when the auto-tracking activity requirement preference changes. */
+internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }
+
+/**
+ * Pure logic: reconciles detection state with the current ACTIVITY_RECOGNITION permission.
+ *
+ * Unlike [resolveAutoTrackingPreferenceAction] (which reacts to preference changes and never assumes
+ * permission loss), this focuses on runtime permission revocation/grant: it disables an active
+ * detection that has lost the permission, and re-arms detection that was previously stopped once the
+ * permission is granted again and a movement mode is still selected.
+ */
+internal fun resolveDetectionPermissionAction(
+	isActive: Boolean,
+	hasActivityPermission: Boolean,
+	autoTrackingMode: Int,
+): AutoTrackingPreferenceAction {
+	val shouldDetect = hasActivityPermission && autoTrackingMode != GroupedActivity.STILL.ordinal
+	return when {
+		isActive && !hasActivityPermission -> AutoTrackingPreferenceAction.DISABLE
+		!isActive && shouldDetect -> AutoTrackingPreferenceAction.ENABLE
+		else -> AutoTrackingPreferenceAction.NONE
+	}
+}
+
+/**
+ * Pure logic: resolves how to react to an auto-tracking activity-requirement change.
+ *
+ * [REINITIALIZE] covers the previously-missed case where the requirement changes between
+ * two movement modes (e.g. ON_FOOT -> IN_VEHICLE) while the watcher is already active: the
+ * underlying activity-recognition request/transitions must be re-registered so the new mode
+ * actually takes effect instead of silently keeping the old subscription.
+ */
+internal fun resolveAutoTrackingPreferenceAction(
+	newMode: Int,
+	isActive: Boolean,
+	hasActivityPermission: Boolean,
+): AutoTrackingPreferenceAction {
+	val isStill = newMode == GroupedActivity.STILL.ordinal
+	return when {
+		isStill && isActive -> AutoTrackingPreferenceAction.DISABLE
+		!isActive && hasActivityPermission -> AutoTrackingPreferenceAction.ENABLE
+		isActive && !isStill -> AutoTrackingPreferenceAction.REINITIALIZE
+		else -> AutoTrackingPreferenceAction.NONE
+	}
+}
 
 /** Pure logic: checks if background tracking can be activated for the given activity and preferences. */
 internal fun canBackgroundTrackWithParams(
