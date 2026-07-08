@@ -986,17 +986,6 @@
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        message="Prefer `mutableLongStateOf` instead of `mutableStateOf`"
-        errorLine1="    var gameChallengePickerRequest by remember { mutableStateOf(0L) }"
-        errorLine2="                                                 ~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt"
-            line="114"
-            column="50"/>
-    </issue>
-
-    <issue
         id="UnusedResources"
         message="The resource `R.drawable.color_circle` appears to be unused"
         errorLine1="&lt;shape xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"

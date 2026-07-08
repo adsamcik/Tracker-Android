@@ -95,9 +95,9 @@ The app collects data from multiple device sensors simultaneously:
   - **Frequent**: Every 30 seconds (higher battery usage)
   - **Balanced**: Every 2 minutes (default)
   - **Infrequent**: Every 5 minutes (power-saving)
-- **Activity Requirement**: Choose minimum activity level to trigger auto-tracking:
-  - **On Foot**: Starts for walking/running only
-  - **In Vehicle**: Starts for driving/cycling (includes on-foot)
+- **Activity Requirement**: Choose which detected activities trigger auto-tracking. Each option is inclusive *downward* (a higher setting also covers the activities below it), not a simple minimum:
+  - **On Foot**: Starts for walking/running only (does **not** start for vehicle)
+  - **In Vehicle**: Starts for driving/cycling **and** on-foot
   - **Still**: Disabled (manual tracking only)
 
 ### 1.3 Tracking Parameters
