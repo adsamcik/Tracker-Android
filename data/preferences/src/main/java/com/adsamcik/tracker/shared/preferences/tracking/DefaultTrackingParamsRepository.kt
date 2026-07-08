@@ -34,6 +34,8 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
         .setSkiDetectionEnabled(PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT)
         .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
+        .setSailingDetectionEnabled(false)
+        .setPlaneDetectionEnabled(false)
         .setLegacyMigrated(false)
         .build()
 
@@ -96,6 +98,8 @@ class DefaultTrackingParamsRepository(
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
     override suspend fun setSkiDetectionEnabled(enabled: Boolean) = updateField { setSkiDetectionEnabled(enabled) }
+    override suspend fun setSailingDetectionEnabled(enabled: Boolean) = updateField { setSailingDetectionEnabled(enabled) }
+    override suspend fun setPlaneDetectionEnabled(enabled: Boolean) = updateField { setPlaneDetectionEnabled(enabled) }
     override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) = updateField {
         setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
     }
@@ -179,6 +183,8 @@ class DefaultTrackingParamsRepository(
                     .setPresetName(preset)
                     .setSkiDetectionEnabled(skiDetectionEnabled)
                     .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
+                    .setSailingDetectionEnabled(false)
+                    .setPlaneDetectionEnabled(false)
                     .setLegacyMigrated(true)
                     .build()
             }
@@ -217,6 +223,8 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
             .takeIf { it > 0.0 }
             ?.clampVehicleSpeedLimit()
             ?: TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
+        sailingDetectionEnabled = sailingDetectionEnabled,
+        planeDetectionEnabled = planeDetectionEnabled,
     )
 }
 
@@ -238,6 +246,8 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setPresetName(presetName)
         .setSkiDetectionEnabled(skiDetectionEnabled)
         .setVehicleSpeedLimitBaselineMps(vehicleSpeedLimitBaselineMps.clampVehicleSpeedLimit())
+        .setSailingDetectionEnabled(sailingDetectionEnabled)
+        .setPlaneDetectionEnabled(planeDetectionEnabled)
         .setLegacyMigrated(true)
         .build()
 

@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.plane.RealTimePlaneState
+import com.adsamcik.tracker.stats.engine.sailing.RealTimeSailingState
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
@@ -94,6 +96,20 @@ interface TrackerServiceController {
     val skiStateFlow: StateFlow<RealTimeSkiState?>
 
     /**
+     * Real-time sailing detection state.
+     * Null when sailing detection is not active or no GPS speed data available.
+     * Emits on every collection cycle that produces a sailing state update.
+     */
+    val sailingStateFlow: StateFlow<RealTimeSailingState?>
+
+    /**
+     * Real-time plane/flight detection state.
+     * Null when plane detection is not active or no barometric data available.
+     * Emits on every collection cycle that produces a plane state update.
+     */
+    val planeStateFlow: StateFlow<RealTimePlaneState?>
+
+    /**
      * Flow of database persistence errors.
      * Observers can display to user, log, or take corrective action.
      * Null when no error collector is active (tracking not running).
@@ -147,4 +163,16 @@ interface TrackerServiceController {
      * Called by TrackerService from SkiTrackingComponent's state flow.
      */
     fun updateSkiState(state: RealTimeSkiState?)
+
+    /**
+     * Internal: Update sailing detection state.
+     * Called by TrackerService from SailingTrackingComponent's state flow.
+     */
+    fun updateSailingState(state: RealTimeSailingState?)
+
+    /**
+     * Internal: Update plane/flight detection state.
+     * Called by TrackerService from PlaneTrackingComponent's state flow.
+     */
+    fun updatePlaneState(state: RealTimePlaneState?)
 }

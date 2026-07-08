@@ -42,6 +42,8 @@ data class TrackingSettingsUiState(
     val hasValidSources: Boolean = true,
     val skiDetectionEnabled: Boolean = false,
     val vehicleSpeedLimitKmh: Int = 50,
+    val sailingDetectionEnabled: Boolean = false,
+    val planeDetectionEnabled: Boolean = false,
 )
 
 @HiltViewModel
@@ -85,6 +87,8 @@ class TrackingSettingsViewModel @Inject constructor(
                                 params.stepsEnabled || effectiveWifiEnabled || effectiveCellEnabled,
                         skiDetectionEnabled = params.skiDetectionEnabled,
                         vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
+                        sailingDetectionEnabled = params.sailingDetectionEnabled,
+                        planeDetectionEnabled = params.planeDetectionEnabled,
                     )
                 }
                 recalculateBatteryImpact()
@@ -175,6 +179,18 @@ class TrackingSettingsViewModel @Inject constructor(
     fun setSkiDetectionEnabled(enabled: Boolean) {
         viewModelScope.launch {
             trackingParamsRepository.setSkiDetectionEnabled(enabled)
+        }
+    }
+
+    fun setSailingDetectionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            trackingParamsRepository.setSailingDetectionEnabled(enabled)
+        }
+    }
+
+    fun setPlaneDetectionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            trackingParamsRepository.setPlaneDetectionEnabled(enabled)
         }
     }
 

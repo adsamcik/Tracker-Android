@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.extension.formatAncientRome
 import com.adsamcik.tracker.shared.preferences.extension.formatMetric
 import com.adsamcik.tracker.shared.preferences.extension.formatUscs
+import com.adsamcik.tracker.shared.preferences.extension.formatKnots
 import com.adsamcik.tracker.shared.preferences.extension.formatSailing
 import com.adsamcik.tracker.shared.preferences.extension.formatFlying
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
@@ -60,6 +61,14 @@ fun Resources.formatSpeed(
 		lengthSystem: LengthSystem,
 		speedFormat: SpeedFormat
 ): String {
+	// Knots (nautical miles per hour) are the standard sailing speed unit — there's no
+	// real-world "knots per second/minute", so Sailing always reports speed this way
+	// regardless of the user's chosen speed format.
+	if (lengthSystem == LengthSystem.Sailing) {
+		val nauticalMilesPerHour = metersPerSecond * Time.HOUR_IN_SECONDS / LengthConstants.METERS_IN_NAUTICAL_MILE
+		return formatKnots(nauticalMilesPerHour, digits)
+	}
+
 	return when (speedFormat) {
 		SpeedFormat.Second -> getString(
 				R.string.per_second_abbr,

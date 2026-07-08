@@ -26,6 +26,12 @@ interface TrackingParamsRepository {
     suspend fun setPreset(preset: TrackingPreset)
     suspend fun setSkiDetectionEnabled(enabled: Boolean)
 
+    /** Enable/disable real-time sailing/boating detection (GPS speed + step rate based). */
+    suspend fun setSailingDetectionEnabled(enabled: Boolean)
+
+    /** Enable/disable real-time plane/flight detection (barometric altitude + step rate based). */
+    suspend fun setPlaneDetectionEnabled(enabled: Boolean)
+
     /**
      * Set the user-configured baseline speed limit (m/s) used by the
      * "Vehicle speed compliance" map layer to colour driving routes.

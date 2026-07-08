@@ -15,7 +15,10 @@
     <!-- Sailing units -->
     <string name="fathom_abbr">%s fathom</string>
     <string name="cable_abbr">%s cable</string>
-    <string name="nautical_mile_abbr">%s nmi</string>    <!-- Flying units -->
+    <string name="nautical_mile_abbr">%s nmi</string>
+    <string name="knot_abbr">%s kn</string>
+
+    <!-- Flying units -->
     <string name="flight_level_abbr">FL%s</string>
 
     <!-- Auto unit switch preference -->

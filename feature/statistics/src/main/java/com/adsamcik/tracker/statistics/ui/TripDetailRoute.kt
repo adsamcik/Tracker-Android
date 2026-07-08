@@ -74,6 +74,7 @@ import kotlin.math.roundToInt
 
 private const val MS_TO_KMH = 3.6
 private const val MS_TO_MPH = 2.236936
+private const val MS_TO_KNOTS = 1.9438444924
 private const val METERS_TO_FEET = 3.28084
 private const val METERS_PER_KILOMETER = 1000.0
 private const val METERS_PER_MILE = 1609.344
@@ -584,10 +585,12 @@ private fun Double?.formatSpeed(lengthSystem: LengthSystem): String {
 	if (speed <= 0.0) return "—"
 	val converted = when (lengthSystem) {
 		LengthSystem.Imperial -> speed * MS_TO_MPH
+		LengthSystem.Sailing -> speed * MS_TO_KNOTS
 		else -> speed * MS_TO_KMH
 	}
 	val unit = when (lengthSystem) {
 		LengthSystem.Imperial -> "mph"
+		LengthSystem.Sailing -> "kn"
 		else -> "km/h"
 	}
 	return String.format(Locale.getDefault(), "%.1f %s", converted, unit)

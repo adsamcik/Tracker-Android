@@ -16,6 +16,8 @@ import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
@@ -29,13 +31,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Result of component construction, containing the 3 component lists,
- * session component, persistence error collector, and ski state wiring.
+ * session component, persistence error collector, and ski/sailing/plane state wiring.
  */
 internal data class ComponentSet(
 	val preComponents: List<PreTrackerComponent>,
 	val dataComponents: List<DataTrackerComponent>,
 	val skiTrackingComponent: SkiTrackingComponent?,
 	val skiSegmentWriter: SkiSegmentWriter?,
+	val sailingTrackingComponent: SailingTrackingComponent?,
+	val planeTrackingComponent: PlaneTrackingComponent?,
 	val sessionComponent: SessionTrackerComponent,
 	val errorCollector: DefaultPersistenceErrorCollector,
 )
@@ -111,11 +115,29 @@ internal class TrackerComponentFactory(
 			scope = scope,
 		)
 
+		// Build and enable the sailing tracking component (if sailing detection is enabled)
+		val sailingTracking = buildSailingComponent(
+			context = context,
+			escalationEngine = escalationEngine,
+			controller = controller,
+			scope = scope,
+		)
+
+		// Build and enable the plane tracking component (if plane detection is enabled)
+		val planeTracking = buildPlaneComponent(
+			context = context,
+			escalationEngine = escalationEngine,
+			controller = controller,
+			scope = scope,
+		)
+
 		return ComponentSet(
 			preComponents = preComponents,
 			dataComponents = dataComponents,
 			skiTrackingComponent = skiTracking,
 			skiSegmentWriter = skiWriter,
+			sailingTrackingComponent = sailingTracking,
+			planeTrackingComponent = planeTracking,
 			sessionComponent = sessionComponent,
 			errorCollector = errorCollector,
 		)
@@ -193,5 +215,47 @@ internal class TrackerComponentFactory(
 		segmentWriter.onEnable(context)
 		skiComponent.onEnable(context)
 		return skiComponent to segmentWriter
+	}
+
+	private suspend fun buildSailingComponent(
+		context: Context,
+		escalationEngine: DefaultPolicyEscalationEngine,
+		controller: TrackerServiceController,
+		scope: CoroutineScope,
+	): SailingTrackingComponent? {
+		val sailingEnabled = trackingParamsRepository.data.first().sailingDetectionEnabled
+		if (!sailingEnabled) return null
+
+		val sailingComponent = SailingTrackingComponent().also {
+			it.setEscalationEngine(escalationEngine)
+			scope.launch {
+				it.sailingState.collect { sailingState ->
+					controller.updateSailingState(sailingState)
+				}
+			}
+		}
+		sailingComponent.onEnable(context)
+		return sailingComponent
+	}
+
+	private suspend fun buildPlaneComponent(
+		context: Context,
+		escalationEngine: DefaultPolicyEscalationEngine,
+		controller: TrackerServiceController,
+		scope: CoroutineScope,
+	): PlaneTrackingComponent? {
+		val planeEnabled = trackingParamsRepository.data.first().planeDetectionEnabled
+		if (!planeEnabled) return null
+
+		val planeComponent = PlaneTrackingComponent().also {
+			it.setEscalationEngine(escalationEngine)
+			scope.launch {
+				it.planeState.collect { planeState ->
+					controller.updatePlaneState(planeState)
+				}
+			}
+		}
+		planeComponent.onEnable(context)
+		return planeComponent
 	}
 }

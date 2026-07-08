@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.plane.RealTimePlaneState
+import com.adsamcik.tracker.stats.engine.sailing.RealTimeSailingState
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
@@ -57,6 +59,12 @@ class DefaultTrackerServiceController : TrackerServiceController {
 
     private val _skiStateFlow = MutableStateFlow<RealTimeSkiState?>(null)
     override val skiStateFlow: StateFlow<RealTimeSkiState?> get() = _skiStateFlow
+
+    private val _sailingStateFlow = MutableStateFlow<RealTimeSailingState?>(null)
+    override val sailingStateFlow: StateFlow<RealTimeSailingState?> get() = _sailingStateFlow
+
+    private val _planeStateFlow = MutableStateFlow<RealTimePlaneState?>(null)
+    override val planeStateFlow: StateFlow<RealTimePlaneState?> get() = _planeStateFlow
 
     private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
     override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
@@ -131,5 +139,13 @@ class DefaultTrackerServiceController : TrackerServiceController {
 
     override fun updateSkiState(state: RealTimeSkiState?) {
         _skiStateFlow.value = state
+    }
+
+    override fun updateSailingState(state: RealTimeSailingState?) {
+        _sailingStateFlow.value = state
+    }
+
+    override fun updatePlaneState(state: RealTimePlaneState?) {
+        _planeStateFlow.value = state
     }
 }

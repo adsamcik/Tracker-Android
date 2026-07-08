@@ -95,6 +95,14 @@ class FakeTrackingParamsRepository(
 		_state.update { it.copy(skiDetectionEnabled = enabled) }
 	}
 
+	override suspend fun setSailingDetectionEnabled(enabled: Boolean) {
+		_state.update { it.copy(sailingDetectionEnabled = enabled) }
+	}
+
+	override suspend fun setPlaneDetectionEnabled(enabled: Boolean) {
+		_state.update { it.copy(planeDetectionEnabled = enabled) }
+	}
+
 	override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 		_state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
 	}

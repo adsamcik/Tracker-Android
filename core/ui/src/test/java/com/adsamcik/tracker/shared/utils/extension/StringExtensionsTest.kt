@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.extension.formatAncientRome
 import com.adsamcik.tracker.shared.preferences.extension.formatFlying
+import com.adsamcik.tracker.shared.preferences.extension.formatKnots
 import com.adsamcik.tracker.shared.preferences.extension.formatMetric
 import com.adsamcik.tracker.shared.preferences.extension.formatSailing
 import com.adsamcik.tracker.shared.preferences.extension.formatUscs
@@ -210,6 +211,20 @@ class StringExtensionsTest {
 			)
 
 			result shouldBe "32.8 ft/s"
+		}
+
+		@Test
+		fun `formats speed in knots for Sailing system regardless of speed format`() {
+			val metersPerSecond = 1.0
+			val expectedKnots = metersPerSecond * Time.HOUR_IN_SECONDS / LengthConstants.METERS_IN_NAUTICAL_MILE
+			every { resources.formatKnots(expectedKnots, 1) } returns "1.9 kn"
+
+			val result = resources.formatSpeed(
+				metersPerSecond, 1, LengthSystem.Sailing, SpeedFormat.Second
+			)
+
+			result shouldBe "1.9 kn"
+			verify { resources.formatKnots(expectedKnots, 1) }
 		}
 	}
 }

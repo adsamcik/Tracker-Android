@@ -173,6 +173,8 @@ class TierConfigurationTest {
 				dataComponents = data,
 				skiTrackingComponent = null,
 				skiSegmentWriter = null,
+				sailingTrackingComponent = null,
+				planeTrackingComponent = null,
 				sessionComponent = mockk<SessionTrackerComponent>(relaxed = true),
 				errorCollector = mockk<DefaultPersistenceErrorCollector>(relaxed = true),
 			)
@@ -197,6 +199,8 @@ class TierConfigurationTest {
 				dataComponents = emptyList(),
 				skiTrackingComponent = null,
 				skiSegmentWriter = null,
+				sailingTrackingComponent = null,
+				planeTrackingComponent = null,
 				sessionComponent = session,
 				errorCollector = errorCollector,
 			)

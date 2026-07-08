@@ -176,6 +176,25 @@ class StringExtensionsTest {
 	}
 
 	@Nested
+	inner class FormatKnots {
+
+		@Test
+		fun `formats knots with abbreviation`() {
+			resources.formatKnots(12.0, 1) shouldBe "12 kn"
+		}
+
+		@Test
+		fun `rounds to requested digits`() {
+			resources.formatKnots(6.789, 1) shouldBe "6.8 kn"
+		}
+
+		@Test
+		fun `formats zero knots`() {
+			resources.formatKnots(0.0, 1) shouldBe "0 kn"
+		}
+	}
+
+	@Nested
 	inner class FormatFlying {
 
 		@Test

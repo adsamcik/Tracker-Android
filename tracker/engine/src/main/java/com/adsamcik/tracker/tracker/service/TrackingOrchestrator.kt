@@ -23,6 +23,8 @@ import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -94,6 +96,8 @@ internal class TrackingOrchestrator(
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private var skiTrackingComponent: SkiTrackingComponent? = null
 	private var skiSegmentWriter: SkiSegmentWriter? = null
+	private var sailingTrackingComponent: SailingTrackingComponent? = null
+	private var planeTrackingComponent: PlaneTrackingComponent? = null
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
 	val notificationComponent: NotificationComponent = NotificationComponent()
@@ -182,10 +186,30 @@ internal class TrackingOrchestrator(
 				Log.w(TAG, "Failed to disable ski segment writer: ${component::class.simpleName}", e)
 			}
 		}
+		sailingTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable sailing tracking component: ${component::class.simpleName}", e)
+			}
+		}
+		planeTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable plane tracking component: ${component::class.simpleName}", e)
+			}
+		}
 		preComponentList.clear()
 		dataComponentList.clear()
 		skiTrackingComponent = null
 		skiSegmentWriter = null
+		sailingTrackingComponent = null
+		planeTrackingComponent = null
 
 		// Cleanup previous managers if re-initializing
 		dataProducerManager?.onDisable()
@@ -288,6 +312,8 @@ internal class TrackingOrchestrator(
 		dataComponentList.addAll(componentSet.dataComponents)
 		skiTrackingComponent = componentSet.skiTrackingComponent
 		skiSegmentWriter = componentSet.skiSegmentWriter
+		sailingTrackingComponent = componentSet.sailingTrackingComponent
+		planeTrackingComponent = componentSet.planeTrackingComponent
 
 		persistenceErrorCollector = componentSet.errorCollector
 		controller.updatePersistenceErrorFlow(componentSet.errorCollector.errors)
@@ -416,7 +442,13 @@ internal class TrackingOrchestrator(
 				PreValidationStage(preComponentList),
 				DataCollectionStage(dataComponentList),
 				SessionUpdateStage(requireNotNull(sessionComponent), controller),
-				PostProcessingStage(notificationComponent, skiSegmentWriter, skiTrackingComponent),
+				PostProcessingStage(
+					notificationComponent,
+					skiSegmentWriter,
+					skiTrackingComponent,
+					sailingTrackingComponent,
+					planeTrackingComponent,
+				),
 				SignalDispatchStage(
 					processorPipelineProvider = { processorPipeline },
 					currentTierProvider = { currentTier },
@@ -509,8 +541,28 @@ internal class TrackingOrchestrator(
 				Log.w(TAG, "Failed to disable ski segment writer during shutdown: ${component::class.simpleName}", e)
 			}
 		}
+		sailingTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable sailing tracking component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
+		planeTrackingComponent?.let { component ->
+			try {
+				component.onDisable(context)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to disable plane tracking component during shutdown: ${component::class.simpleName}", e)
+			}
+		}
 		skiTrackingComponent = null
 		skiSegmentWriter = null
+		sailingTrackingComponent = null
+		planeTrackingComponent = null
 
 		// Materialize daily summary from session segments now that the session
 		// component has saved its final segment to the database.

@@ -63,6 +63,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onTransitionDetectionChanged = { trackingVm.setTransitionDetectionEnabled(it) },
         onNotificationStyledChanged = { trackingVm.setNotificationStyled(it) },
         onSkiDetectionChanged = { trackingVm.setSkiDetectionEnabled(it) },
+        onSailingDetectionChanged = { trackingVm.setSailingDetectionEnabled(it) },
+        onPlaneDetectionChanged = { trackingVm.setPlaneDetectionEnabled(it) },
         onMinDistanceChanged = { trackingVm.setMinDistance(it) },
         onMinTimeChanged = { trackingVm.setMinTime(it) },
         onRequiredAccuracyChanged = { trackingVm.setRequiredAccuracy(it) },
@@ -110,6 +112,8 @@ internal fun TrackingSettingsContent(
     onTransitionDetectionChanged: (Boolean) -> Unit = {},
     onNotificationStyledChanged: (Boolean) -> Unit = {},
     onSkiDetectionChanged: (Boolean) -> Unit = {},
+    onSailingDetectionChanged: (Boolean) -> Unit = {},
+    onPlaneDetectionChanged: (Boolean) -> Unit = {},
     onMinDistanceChanged: (Int) -> Unit = {},
     onMinTimeChanged: (Int) -> Unit = {},
     onRequiredAccuracyChanged: (Int) -> Unit = {},
@@ -246,6 +250,22 @@ internal fun TrackingSettingsContent(
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_summary),
                 checked = uiState.skiDetectionEnabled,
                 onCheckedChange = onSkiDetectionChanged,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_sailing_detection_title),
+                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_sailing_detection_summary),
+                checked = uiState.sailingDetectionEnabled,
+                onCheckedChange = onSailingDetectionChanged,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_plane_detection_title),
+                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_plane_detection_summary),
+                checked = uiState.planeDetectionEnabled,
+                onCheckedChange = onPlaneDetectionChanged,
             )
         }
 

@@ -41,6 +41,12 @@ message TrackingParamsProto {
   // 0 means "use default" (50 km/h).
   double vehicle_speed_limit_baseline_mps = 16;
 
+  // Sailing/boating detection (GPS speed + step rate based; see SailingDetectionConfig).
+  bool sailing_detection_enabled = 17;
+
+  // Plane/flight detection (barometric altitude + step rate based; see PlaneDetectionConfig).
+  bool plane_detection_enabled = 18;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

@@ -63,6 +63,15 @@ fun Resources.formatSailing(fathoms: Double, digits: Int): String {
 }
 
 /**
+ * Formats speed in knots (nautical miles per hour), the standard sailing speed unit.
+ * Unlike [formatSailing], this always represents an hourly rate — there is no
+ * "knots per minute"/"knots per second" equivalent in real-world usage.
+ */
+fun Resources.formatKnots(knots: Double, digits: Int): String {
+	return getString(R.string.knot_abbr, knots.formatReadable(digits))
+}
+
+/**
  * Formats distance in Flying length system.
  */
 fun Resources.formatFlying(feet: Double, digits: Int): String {
