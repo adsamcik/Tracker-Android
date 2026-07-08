@@ -7,10 +7,10 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
-import kotlin.math.pow
 
 /**
  * Produces barometric pressure data from the device pressure sensor.
@@ -57,11 +57,15 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 
 	override fun onSensorChanged(event: SensorEvent) {
 		if (event.sensor.type == Sensor.TYPE_PRESSURE) {
-			val pressure = event.values.first()
-			synchronized(lockObject) {
-				pressureSum += pressure.toDouble()
-				sampleCount++
-			}
+			recordPressure(event.values.first())
+		}
+	}
+
+	internal fun recordPressure(pressureHpa: Float) {
+		if (!BarometricAltitudeFormula.isValidPressure(pressureHpa)) return
+		synchronized(lockObject) {
+			pressureSum += pressureHpa.toDouble()
+			sampleCount++
 		}
 	}
 
@@ -70,12 +74,9 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 	companion object {
 		const val PRESSURE_KEY = "pressure"
 
-		/** Standard atmosphere sea-level pressure in hPa. */
-		private const val SEA_LEVEL_PRESSURE_HPA = 1013.25
-
 		/** Converts pressure in hPa to altitude in meters using the standard atmosphere formula. */
 		fun pressureToAltitude(pressureHpa: Float): Float {
-			return (44330.0 * (1.0 - (pressureHpa / SEA_LEVEL_PRESSURE_HPA).pow(0.1903))).toFloat()
+			return BarometricAltitudeFormula.pressureToAltitudeM(pressureHpa)?.toFloat() ?: Float.NaN
 		}
 	}
 }

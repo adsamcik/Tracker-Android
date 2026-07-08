@@ -60,6 +60,22 @@ class AltitudeFusionEngineTest {
 		}
 
 		@Test
+		fun `standard atmosphere pressures convert to known altitudes after sea-level calibration`() {
+			engine.calibrate(0.0, 1013.25f, 0L)
+
+			val seaLevel = engine.pressureToAltitude(1013.25f)
+			val fiveHundredMeters = engine.pressureToAltitude(954.6184f)
+			val oneThousandMeters = engine.pressureToAltitude(898.7646f)
+
+			seaLevel.shouldNotBeNull()
+			fiveHundredMeters.shouldNotBeNull()
+			oneThousandMeters.shouldNotBeNull()
+			abs(seaLevel) shouldBeLessThan 0.1
+			abs(fiveHundredMeters - 500.0) shouldBeLessThan 0.1
+			abs(oneThousandMeters - 1000.0) shouldBeLessThan 0.1
+		}
+
+		@Test
 		fun `needsRecalibration returns true when not calibrated`() {
 			engine.needsRecalibration(0L) shouldBe true
 		}
@@ -157,6 +173,49 @@ class AltitudeFusionEngineTest {
 		@Test
 		fun `returns null with only barometer before calibration`() {
 			engine.update(gpsAltitudeMsl = null, baroPressureHpa = 955f, timeMs = 1000L).shouldBeNull()
+		}
+
+		@Test
+		fun `calibration rejects non-finite altitude and invalid pressure`() {
+			engine.calibrate(Double.NaN, 955f, 1000L)
+			engine.calibrate(Double.POSITIVE_INFINITY, 955f, 1000L)
+			engine.calibrate(500.0, 0f, 1000L)
+			engine.calibrate(500.0, -1f, 1000L)
+			engine.calibrate(500.0, Float.NaN, 1000L)
+			engine.calibrate(500.0, Float.POSITIVE_INFINITY, 1000L)
+
+			engine.isCalibrated shouldBe false
+			engine.currentAltitude.shouldBeNull()
+		}
+
+		@Test
+		fun `pressureToAltitude returns null for invalid pressure`() {
+			engine.calibrate(0.0, 1013.25f, 1000L)
+
+			engine.pressureToAltitude(0f).shouldBeNull()
+			engine.pressureToAltitude(-1f).shouldBeNull()
+			engine.pressureToAltitude(Float.NaN).shouldBeNull()
+			engine.pressureToAltitude(Float.POSITIVE_INFINITY).shouldBeNull()
+		}
+
+		@Test
+		fun `invalid update inputs do not initialize or corrupt fused altitude`() {
+			engine.update(
+				gpsAltitudeMsl = Double.NaN,
+				gpsVerticalAccuracyM = Float.NaN,
+				baroPressureHpa = Float.NaN,
+				timeMs = 1000L
+			).shouldBeNull()
+			engine.currentAltitude.shouldBeNull()
+
+			engine.update(gpsAltitudeMsl = 500.0, gpsVerticalAccuracyM = 5f, timeMs = 2000L)
+			engine.update(
+				gpsAltitudeMsl = Double.POSITIVE_INFINITY,
+				gpsVerticalAccuracyM = -1f,
+				baroPressureHpa = -1f,
+				timeMs = 3000L
+			) shouldBe 500.0
+			engine.currentAltitude shouldBe 500.0
 		}
 
 		@Test

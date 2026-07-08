@@ -138,6 +138,28 @@ class AltitudeKalmanFilterTest {
 	@DisplayName("edge cases")
 	inner class EdgeCases {
 		@Test
+		fun `invalid first measurement does not initialize filter`() {
+			filter.update(Double.NaN, 225.0, 1000L)
+			filter.update(Double.POSITIVE_INFINITY, 225.0, 1000L)
+			filter.update(500.0, Double.NaN, 1000L)
+			filter.update(500.0, -1.0, 1000L)
+
+			filter.isInitialized shouldBe false
+		}
+
+		@Test
+		fun `invalid subsequent measurement does not corrupt state`() {
+			filter.update(500.0, 225.0, 1000L)
+
+			filter.update(Double.NaN, 225.0, 2000L)
+			filter.update(500.0, Double.POSITIVE_INFINITY, 2000L)
+			filter.update(500.0, -1.0, 2000L)
+
+			filter.altitude shouldBe 500.0
+			filter.verticalVelocity shouldBe 0.0
+		}
+
+		@Test
 		fun `predict before initialization is no-op`() {
 			filter.predict(5000L)
 			filter.isInitialized shouldBe false

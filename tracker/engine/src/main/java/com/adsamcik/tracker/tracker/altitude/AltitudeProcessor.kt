@@ -3,8 +3,6 @@ package com.adsamcik.tracker.tracker.altitude
 import android.content.Context
 import android.location.Location
 import androidx.annotation.WorkerThread
-import androidx.core.location.LocationCompat
-import androidx.core.location.altitude.AltitudeConverterCompat
 
 /**
  * Processes raw GPS altitude through a correction and fusion pipeline:
@@ -18,7 +16,8 @@ import androidx.core.location.altitude.AltitudeConverterCompat
  * Thread-safety: All public mutating methods are synchronized via delegation to AltitudeFusionEngine.
  */
 internal class AltitudeProcessor(
-	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M
+	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M,
+	private val geoidAltitudeConverter: GeoidAltitudeConverter = AndroidXGeoidAltitudeConverter
 ) {
 	private val fusionEngine = AltitudeFusionEngine()
 
@@ -60,7 +59,7 @@ internal class AltitudeProcessor(
 	): Double? {
 		// Step 1: Geoid correction (ellipsoid → MSL)
 		val mslAltitude = if (location.hasAltitude()) {
-			applyGeoidCorrection(context, location)
+			geoidAltitudeConverter.toMslAltitude(context, location)
 		} else {
 			null
 		}
@@ -86,28 +85,6 @@ internal class AltitudeProcessor(
 			baroPressureHpa = baroPressureHpa,
 			timeMs = location.time
 		)
-	}
-
-	/**
-	 * Applies geoid correction to convert ellipsoidal altitude to MSL altitude.
-	 * Uses AndroidX AltitudeConverterCompat for backward compatibility.
-	 *
-	 * @return MSL altitude in meters, or null if correction failed.
-	 */
-	@WorkerThread
-	private fun applyGeoidCorrection(context: Context, location: Location): Double? {
-		return try {
-			AltitudeConverterCompat.addMslAltitudeToLocation(context, location)
-			if (LocationCompat.hasMslAltitude(location)) {
-				LocationCompat.getMslAltitudeMeters(location)
-			} else {
-				// Fallback: use raw altitude if geoid model unavailable
-				location.altitude
-			}
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			// Geoid model may not be available; fall back to raw altitude
-			location.altitude
-		}
 	}
 
 	/**

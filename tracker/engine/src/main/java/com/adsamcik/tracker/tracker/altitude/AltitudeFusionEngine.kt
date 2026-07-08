@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.tracker.altitude
 
-import kotlin.math.pow
-
 /**
  * Fuses GPS altitude with barometric pressure using a 1D Kalman filter.
  *
@@ -61,10 +59,10 @@ internal class AltitudeFusionEngine(
 	 */
 	@Synchronized
 	fun calibrate(gpsAltitudeMsl: Double, currentPressureHpa: Float, timeMs: Long) {
-		// Inverse of barometric formula: P0 = P / (1 - alt/44330)^(1/0.1903)
-		val ratio = 1.0 - gpsAltitudeMsl / BAROMETRIC_CONSTANT
-		if (ratio <= 0.0) return // Invalid altitude (above atmosphere)
-		calibratedSeaLevelPressureHpa = currentPressureHpa / ratio.pow(BAROMETRIC_EXPONENT)
+		calibratedSeaLevelPressureHpa = BarometricAltitudeFormula.seaLevelPressureHpa(
+			altitudeM = gpsAltitudeMsl,
+			pressureHpa = currentPressureHpa
+		) ?: return
 		lastCalibrationTimeMs = timeMs
 	}
 
@@ -82,7 +80,10 @@ internal class AltitudeFusionEngine(
 	 */
 	fun pressureToAltitude(pressureHpa: Float): Double? {
 		val seaLevel = calibratedSeaLevelPressureHpa ?: return null
-		return BAROMETRIC_CONSTANT * (1.0 - (pressureHpa / seaLevel).pow(BAROMETRIC_INV_EXPONENT))
+		return BarometricAltitudeFormula.pressureToAltitudeM(
+			pressureHpa = pressureHpa,
+			seaLevelPressureHpa = seaLevel
+		)
 	}
 
 	/**
@@ -106,10 +107,16 @@ internal class AltitudeFusionEngine(
 		baroPressureHpa: Float? = null,
 		timeMs: Long
 	): Double? {
+		val validGpsAltitudeMsl = gpsAltitudeMsl?.takeIf { it.isFinite() }
+		val validGpsVerticalAccuracyM = gpsVerticalAccuracyM
+			?.takeIf { it.isFinite() && it >= 0f }
+		val validBaroPressureHpa = baroPressureHpa
+			?.takeIf(BarometricAltitudeFormula::isValidPressure)
+
 		// Try to calibrate/recalibrate if we have both GPS and barometer
-		if (gpsAltitudeMsl != null && baroPressureHpa != null) {
+		if (validGpsAltitudeMsl != null && validBaroPressureHpa != null) {
 			if (!isCalibrated || needsRecalibration(timeMs)) {
-				calibrate(gpsAltitudeMsl, baroPressureHpa, timeMs)
+				calibrate(validGpsAltitudeMsl, validBaroPressureHpa, timeMs)
 			}
 		}
 
@@ -119,17 +126,17 @@ internal class AltitudeFusionEngine(
 		}
 
 		// GPS measurement update
-		if (gpsAltitudeMsl != null) {
-			val gpsNoise = if (gpsVerticalAccuracyM != null) {
-				(gpsVerticalAccuracyM * gpsVerticalAccuracyM).toDouble()
+		if (validGpsAltitudeMsl != null) {
+			val gpsNoise = if (validGpsVerticalAccuracyM != null) {
+				(validGpsVerticalAccuracyM * validGpsVerticalAccuracyM).toDouble()
 			} else {
 				defaultGpsMeasurementNoiseM2
 			}
-			kalmanFilter.update(gpsAltitudeMsl, gpsNoise, timeMs)
+			kalmanFilter.update(validGpsAltitudeMsl, gpsNoise, timeMs)
 		}
 
 		// Barometer measurement update
-		val baroAltitude = baroPressureHpa?.let { pressureToAltitude(it) }
+		val baroAltitude = validBaroPressureHpa?.let { pressureToAltitude(it) }
 		if (baroAltitude != null) {
 			kalmanFilter.update(baroAltitude, baroMeasurementNoiseM2, timeMs)
 		}
@@ -186,14 +193,5 @@ internal class AltitudeFusionEngine(
 		 * so recalibrating every 5 minutes limits drift error to ~0.7m.
 		 */
 		const val DEFAULT_RECALIBRATION_INTERVAL_MS = 5L * 60L * 1000L
-
-		/** Constant in the barometric altitude formula. */
-		private const val BAROMETRIC_CONSTANT = 44330.0
-
-		/** Exponent in the barometric formula: pressure → altitude. */
-		private const val BAROMETRIC_INV_EXPONENT = 0.1903
-
-		/** Inverse exponent for altitude → pressure back-calculation. */
-		private const val BAROMETRIC_EXPONENT = 1.0 / BAROMETRIC_INV_EXPONENT
 	}
 }

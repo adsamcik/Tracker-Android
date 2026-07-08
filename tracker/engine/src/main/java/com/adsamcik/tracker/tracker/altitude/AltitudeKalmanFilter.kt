@@ -94,6 +94,8 @@ internal class AltitudeKalmanFilter(
 	 */
 	@Synchronized
 	fun update(altitudeM: Double, measurementNoiseM2: Double, timeMs: Long) {
+		if (!altitudeM.isFinite() || !measurementNoiseM2.isFinite() || measurementNoiseM2 < 0.0) return
+
 		if (!initialized) {
 			// First measurement initializes the filter
 			x0 = altitudeM
