@@ -50,6 +50,28 @@ interface ExplorationCellDao {
 	fun getRecentAtLevelFlow(level: Int, limit: Int): Flow<List<ExplorationCellEntity>>
 
 	/**
+	 * Discovered cells at [level] whose centre falls within the given E7-encoded lat/lon box, capped
+	 * at [limit]. Used by the map's seasonal-exploration overlay to load only the visible cells.
+	 */
+	@Query(
+		"""
+		SELECT * FROM exploration_cell
+		WHERE level = :level
+			AND center_lat_e7 BETWEEN :minLatE7 AND :maxLatE7
+			AND center_lon_e7 BETWEEN :minLonE7 AND :maxLonE7
+		LIMIT :limit
+		"""
+	)
+	suspend fun getCellsInBounds(
+		level: Int,
+		minLatE7: Int,
+		maxLatE7: Int,
+		minLonE7: Int,
+		maxLonE7: Int,
+		limit: Int,
+	): List<ExplorationCellEntity>
+
+	/**
 	 * Returns all distinct season_bitmask values across cells at the given level.
 	 * Caller should bitwise-OR these together to determine which seasons have been explored
 	 * (spring=1, summer=2, autumn=4, winter=8).

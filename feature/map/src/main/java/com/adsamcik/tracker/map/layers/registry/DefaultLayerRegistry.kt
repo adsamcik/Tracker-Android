@@ -15,6 +15,8 @@ import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.map.viz.catalog.cellSignalHeatmap
 import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
 import com.adsamcik.tracker.map.viz.catalog.locationDensityHeatmap
+import com.adsamcik.tracker.map.viz.catalog.SEASONAL_RAMP
+import com.adsamcik.tracker.map.viz.catalog.seasonalPalimpsest
 import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
 import com.adsamcik.tracker.map.viz.catalog.speedHeatmap
 import com.adsamcik.tracker.map.viz.catalog.wifiCountHeatmap
@@ -554,6 +556,38 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_location_heatmap_medium, HeatmapColorRamps.LegacyTiles[2].second),
                                     MapLegendValue(R.string.map_layer_location_heatmap_high, HeatmapColorRamps.LegacyTiles[3].second),
                                     MapLegendValue(R.string.map_layer_location_heatmap_peak, HeatmapColorRamps.LegacyTiles[4].second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Seasonal explorer — first new-data visualization: explored cells tinted by primary season.
+        add(
+            LayerDescriptor(
+                id = "seasonal_palimpsest",
+                titleRes = R.string.map_layer_seasonal_title,
+                chipLabelRes = R.string.map_layer_seasonal_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao = AppDatabase.database(ctx).explorationCellDao()
+                            seasonalPalimpsest(dao).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("SeasonalPalimpsest", R.string.map_layer_seasonal_title),
+                            colorList = SEASONAL_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_seasonal_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_season_spring, SEASONAL_RAMP[0].second),
+                                    MapLegendValue(R.string.map_layer_season_summer, SEASONAL_RAMP[1].second),
+                                    MapLegendValue(R.string.map_layer_season_autumn, SEASONAL_RAMP[2].second),
+                                    MapLegendValue(R.string.map_layer_season_winter, SEASONAL_RAMP[3].second),
                                 )
                             )
                         )

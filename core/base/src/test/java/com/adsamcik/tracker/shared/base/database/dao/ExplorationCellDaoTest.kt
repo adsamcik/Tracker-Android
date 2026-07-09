@@ -162,4 +162,44 @@ class ExplorationCellDaoTest {
 		assertEquals(0, dao.countAtLevel(14))
 		assertNull(dao.getByToken("x"))
 	}
+
+	@Test
+	fun getCellsInBoundsFiltersByLevelAndBox() = runBlocking {
+		// Inside the box at level 14.
+		dao.insert(createCell(cellToken = "inside", level = 14, centerLatE7 = 500_500_000, centerLonE7 = 144_500_000))
+		// Correct level but longitude outside the box.
+		dao.insert(createCell(cellToken = "out_lon", level = 14, centerLatE7 = 500_500_000, centerLonE7 = 150_000_000))
+		// Inside the box but a different level.
+		dao.insert(createCell(cellToken = "wrong_level", level = 12, centerLatE7 = 500_500_000, centerLonE7 = 144_500_000))
+
+		val result = dao.getCellsInBounds(
+			level = 14,
+			minLatE7 = 500_000_000,
+			maxLatE7 = 501_000_000,
+			minLonE7 = 144_000_000,
+			maxLonE7 = 145_000_000,
+			limit = 100,
+		)
+
+		assertEquals(1, result.size)
+		assertEquals("inside", result.first().cellToken)
+	}
+
+	@Test
+	fun getCellsInBoundsRespectsLimit() = runBlocking {
+		repeat(5) { i ->
+			dao.insert(createCell(cellToken = "c$i", level = 14, centerLatE7 = 500_000_000 + i, centerLonE7 = 144_000_000))
+		}
+
+		val result = dao.getCellsInBounds(
+			level = 14,
+			minLatE7 = 400_000_000,
+			maxLatE7 = 600_000_000,
+			minLonE7 = 100_000_000,
+			maxLonE7 = 200_000_000,
+			limit = 3,
+		)
+
+		assertEquals(3, result.size)
+	}
 }
