@@ -40,6 +40,7 @@ class CircleEncoder(
 	private val opacity: Float = 0.9f,
 	private val strokeColorArgb: Int = 0xFFFFFFFF.toInt(),
 	private val strokeWidthDp: Float = 1.5f,
+	private val animation: com.adsamcik.tracker.map.presentation.bridge.LayerAnimation? = null,
 ) : Encoder<SpatialData.Markers> {
 
 	override fun encode(field: SpatialData.Markers, ctx: RenderContext): MapLibreLayerConfig? {
@@ -53,6 +54,7 @@ class CircleEncoder(
 			strokeColorArgb = strokeColorArgb,
 			strokeWidthDp = strokeWidthDp,
 			weightProperty = "weight",
+			animation = animation,
 		)
 	}
 }
@@ -60,7 +62,7 @@ class CircleEncoder(
 /**
  * DSL terminal for the circle-marker family. Available only when the pipeline's field type is
  * [SpatialData.Markers], so a circle encoder cannot be paired with any other aggregator output — the
- * mismatch is a compile error.
+ * mismatch is a compile error. Pass an [animation] for a render-time effect (e.g. a gentle pulse).
  */
 fun <Feature> EncodeStep<Feature, SpatialData.Markers>.circles(
 	colorStops: List<Pair<Float, Int>>,
@@ -69,5 +71,6 @@ fun <Feature> EncodeStep<Feature, SpatialData.Markers>.circles(
 	opacity: Float = 0.9f,
 	strokeColorArgb: Int = 0xFFFFFFFF.toInt(),
 	strokeWidthDp: Float = 1.5f,
+	animation: com.adsamcik.tracker.map.presentation.bridge.LayerAnimation? = null,
 ): VizPipeline<Feature, SpatialData.Markers> =
-	encode(CircleEncoder(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp))
+	encode(CircleEncoder(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp, animation))

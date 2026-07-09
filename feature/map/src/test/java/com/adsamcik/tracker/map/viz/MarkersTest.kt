@@ -70,5 +70,20 @@ class MarkersTest {
 			config.maxRadiusDp shouldBe 26f
 			config.weightProperty shouldBe "weight"
 		}
+
+		@Test
+		fun `carries a render-time animation when supplied`() {
+			val pulse = com.adsamcik.tracker.map.presentation.bridge.LayerAnimation.Pulse(
+				periodMs = 1900, minScale = 0.9f, maxScale = 1.1f,
+			)
+			val animated = CircleEncoder(
+				colorStops = listOf(0.0f to 0xFF000000.toInt(), 1.0f to 0xFFFFFFFF.toInt()),
+				minRadiusDp = 6f, maxRadiusDp = 26f, animation = pulse,
+			)
+			val config = animated.encode(
+				SpatialData.Markers(listOf(point(50.0, 0.5))), RenderContext(1f),
+			) as MapLibreLayerConfig.Circle
+			config.animation shouldBe pulse
+		}
 	}
 }

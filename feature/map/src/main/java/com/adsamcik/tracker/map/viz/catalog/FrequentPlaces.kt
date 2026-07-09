@@ -51,9 +51,19 @@ internal val PLACES_RAMP: List<Pair<Float, Int>> = listOf(
 	1.0f to 0xFFEC407A.toInt(),
 )
 
-/** Frequent-place markers sized/coloured by visit frequency. */
+/** Frequent-place markers sized/coloured by visit frequency, gently pulsing so they feel alive. */
 fun frequentPlaces(dao: FrequentPlaceDao): VizPipeline<WeightedGeoFeature, SpatialData.Markers> =
 	mapViz("frequent_places")
 		.source(frequentPlaceSource(dao))
 		.aggregate(MarkerAggregator())
-		.circles(colorStops = PLACES_RAMP, minRadiusDp = 6f, maxRadiusDp = 26f, opacity = 0.85f)
+		.circles(
+			colorStops = PLACES_RAMP,
+			minRadiusDp = 6f,
+			maxRadiusDp = 26f,
+			opacity = 0.85f,
+			animation = com.adsamcik.tracker.map.presentation.bridge.LayerAnimation.Pulse(
+				periodMs = 1900,
+				minScale = 0.92f,
+				maxScale = 1.12f,
+			),
+		)

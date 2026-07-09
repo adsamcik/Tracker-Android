@@ -32,7 +32,7 @@ class LayerEngineTest {
 			lastDateRange = dateRange
 		}
 
-		override suspend fun refreshLayersInPlace(bounds: Bounds?, zoom: Float, dateRange: LongRange) {
+		override suspend fun refreshLayersInPlace(bounds: Bounds?, zoom: Float, dateRange: LongRange, forceReload: Boolean) {
 			refreshCount += 1
 			lastDateRange = dateRange
 		}

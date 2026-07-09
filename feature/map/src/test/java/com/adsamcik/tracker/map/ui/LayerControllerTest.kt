@@ -300,6 +300,29 @@ class LayerControllerTest {
             layer.loadCount shouldBe 2
             (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-2"
         }
+
+        @Test
+        fun `refreshLayersInPlace with forceReload bypasses the viewport cache`() = runTest {
+            // Same viewport twice: without forceReload the second refresh would hit the cache; with
+            // forceReload it must re-query (live data changed even though the viewport did not).
+            val layer = StubMapLayer { loadCount, _ ->
+                MapLibreLayerConfig.Line(
+                    geoJson = "load-$loadCount",
+                    colorArgb = 0xFF0000FF.toInt(),
+                )
+            }
+            val descriptor = stubDescriptor(id = "location_heatmap", layer = layer)
+            val bounds = Bounds(north = 2.0, east = 2.0, south = 1.0, west = 1.0)
+
+            controller.setLayer(context, descriptor, 1.0f, 0L..Long.MAX_VALUE, bounds, zoom = 10f)
+            // Cached refresh at a new viewport, then a forced refresh at the SAME viewport.
+            controller.refreshLayersInPlace(context, bounds, zoom = 11f, dateRange = 0L..Long.MAX_VALUE)
+            controller.refreshLayersInPlace(context, bounds, zoom = 11f, dateRange = 0L..Long.MAX_VALUE, forceReload = true)
+
+            // setLayer=1, first refresh (new zoom key)=2, forced refresh re-queries despite the cache=3.
+            layer.loadCount shouldBe 3
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-3"
+        }
     }
 
     @Nested

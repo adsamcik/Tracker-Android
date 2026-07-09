@@ -39,7 +39,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -79,6 +83,26 @@ class MapStore @Inject constructor(
         private const val NONE_LAYER_ID = "none"
         private const val DEFAULT_LAYER_ID = "location_polyline"
         private const val SPEED_LAYER_ID = "speed_heatmap"
+
+        /**
+         * Layers whose data is derived from the live location-fix stream, so they should re-render in
+         * real time while a tracking session is gathering new fixes. Signal/wifi/exploration/place
+         * layers are excluded — they are not tied to the live fix stream, so reactive refreshes would
+         * add cost with no benefit.
+         */
+        private val LIVE_REACTIVE_LAYER_IDS = setOf(
+            "location_heatmap",
+            "speed_heatmap",
+            "legacy_heatmap",
+            "life_terrain",
+        )
+
+        /**
+         * Debounce for reactive live refreshes. Coalesces a burst of gathered fixes into at most one
+         * refresh per window and gives the tracker's batched writes time to commit before we re-query,
+         * so the refresh sees the newest persisted fixes (any it misses are caught on the next tick).
+         */
+        private const val REACTIVE_REFRESH_DEBOUNCE_MS = 1_500L
 
         /** Zoom levels stepped per zoom-button tap. */
         private const val ZOOM_STEP = 1f
@@ -203,6 +227,7 @@ class MapStore @Inject constructor(
 
     private var applyLayerJob: Job? = null
     private var cameraRefreshJob: Job? = null
+    private var reactiveRefreshJob: Job? = null
     private var speedProbeJob: Job? = null
     private var placeCalloutJob: Job? = null
     private var searchJob: Job? = null
@@ -600,6 +625,7 @@ class MapStore @Inject constructor(
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
                 updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = true)
+                restartReactiveObserver()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 _state.update {
@@ -613,17 +639,56 @@ class MapStore @Inject constructor(
         }
     }
 
-    private fun refreshLayerDataInPlace() {
+    /**
+     * (Re)starts the reactive live-refresh observer for the currently active layers. Called whenever
+     * the active layer set changes. The observer itself is a no-op unless a tracking session is
+     * running and a live-reactive layer is active.
+     *
+     * Concurrency: the collector is a child of [viewModelScope] (cancelled on clear); a burst of
+     * gathered fixes is `debounce`d + `conflate`d into at most one refresh per window; each refresh
+     * goes through the single [applyLayerJob] slot (latest cancels the in-flight one) and the
+     * generation guards in the engine drop any stale compute — so live updates never race the config
+     * that camera moves or layer switches publish.
+     */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun restartReactiveObserver() {
+        reactiveRefreshJob?.cancel()
+        if (_state.value.activeLayerIds.none { it in LIVE_REACTIVE_LAYER_IDS }) {
+            reactiveRefreshJob = null
+            return
+        }
+        reactiveRefreshJob = viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                trackerController.isServiceRunningFlow,
+                trackerController.pathPointsFlow,
+            ) { running, path ->
+                // A monotonically-changing token only while tracking: the live fix count. -1 when
+                // not tracking (filtered out below) so we do zero reactive work off-session.
+                if (running) path?.second?.size ?: 0 else -1
+            }
+                .distinctUntilChanged()
+                .filter { it >= 0 }
+                .debounce(REACTIVE_REFRESH_DEBOUNCE_MS)
+                .conflate()
+                .collect {
+                    // Live data changed but the viewport did not: force a cache-bypassing refresh and
+                    // suppress the loading indicator so live updates don't flash a spinner.
+                    refreshLayerDataInPlace(forceReload = true, showLoading = false)
+                }
+        }
+    }
+
+    private fun refreshLayerDataInPlace(forceReload: Boolean = false, showLoading: Boolean = true) {
         val engine = layerManager ?: return
         applyLayerJob?.cancel()
         applyLayerJob = viewModelScope.launch {
-            _state.update { it.copy(layerLoadingProgress = 50) }
+            if (showLoading) _state.update { it.copy(layerLoadingProgress = 50) }
             try {
                 val s = _state.value
                 val bounds = lastVisibleBounds
                     ?: cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
                 withContext(dispatchers.default) {
-                    engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange)
+                    engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange, forceReload)
                 }
                 updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = false)
                 // Record the viewport bucket now rendered so subsequent micro-pans within it are
@@ -631,7 +696,7 @@ class MapStore @Inject constructor(
                 lastRenderedViewportBucket = viewportBucket(bounds, s.camera.zoom)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _state.update { it.copy(layerLoadingProgress = 0) }
+                if (showLoading) _state.update { it.copy(layerLoadingProgress = 0) }
             }
         }
     }
@@ -849,6 +914,7 @@ class MapStore @Inject constructor(
         super.onCleared()
         applyLayerJob?.cancel()
         cameraRefreshJob?.cancel()
+        reactiveRefreshJob?.cancel()
         overlayUpdateJob?.cancel()
         try {
             layerManager?.destroy()

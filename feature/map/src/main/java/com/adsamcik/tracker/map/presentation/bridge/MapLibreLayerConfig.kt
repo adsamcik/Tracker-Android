@@ -4,6 +4,21 @@ import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.map.shared.CoordinateBounds
 
 /**
+ * An optional render-time animation applied to a layer property. The pipeline produces a static
+ * config; the animation only drives a property per frame (no re-aggregation). See MapDataLayers.
+ */
+@Immutable
+sealed interface LayerAnimation {
+    /** Gently pulses the layer (e.g. a marker's radius) between [minScale] and [maxScale]. */
+    @Immutable
+    data class Pulse(
+        val periodMs: Int = 1600,
+        val minScale: Float = 1f,
+        val maxScale: Float = 1.3f,
+    ) : LayerAnimation
+}
+
+/**
  * Sealed interface replacing Google Maps TileProvider in the rendering pipeline.
  * Layers produce config data that MapLibre renders via native GPU layers.
  */
@@ -76,6 +91,7 @@ sealed interface MapLibreLayerConfig {
         val strokeColorArgb: Int = 0xFFFFFFFF.toInt(),
         val strokeWidthDp: Float = 1.5f,
         val weightProperty: String = "weight",
+        val animation: LayerAnimation? = null,
     ) : MapLibreLayerConfig
 }
 
@@ -115,7 +131,7 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
     is MapLibreLayerConfig.Circle -> MapLibreLayerRenderKey(
         index = index,
         type = "circle",
-        style = CircleStyleKey(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp, weightProperty),
+        style = CircleStyleKey(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp, weightProperty, animation),
     )
 }
 
@@ -160,6 +176,7 @@ private data class CircleStyleKey(
     val strokeColorArgb: Int,
     val strokeWidthDp: Float,
     val weightProperty: String,
+    val animation: LayerAnimation?,
 )
 
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.presentation
 
 import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.bridge.SpeedSummary
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
@@ -62,6 +63,10 @@ class MapStoreTest {
         every { mockLayerEngine.activeLegend() } returns null
         every { mockLayerEngine.activeLayerConfig() } returns null
         every { mockLayerEngine.overlays() } returns persistentListOf()
+        // Deterministic tracker flows so the reactive live-refresh observer is a stable no-op in unit
+        // tests (not tracking -> emits nothing that triggers a refresh).
+        every { mockTrackerController.isServiceRunningFlow } returns MutableStateFlow(false)
+        every { mockTrackerController.pathPointsFlow } returns MutableStateFlow(null)
         mapStore = MapStore(
             SavedStateHandle(),
             mockTrackerController,
@@ -385,13 +390,13 @@ class MapStoreTest {
 
         mapStore.dispatch(MapEvent.CameraMoved(cameraModel, byGesture = true))
         testDispatcher.scheduler.advanceTimeBy(499)
-        coVerify(exactly = 0) { mockLayerEngine.refreshLayersInPlace(any(), any(), any()) }
+        coVerify(exactly = 0) { mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any()) }
 
         testDispatcher.scheduler.advanceTimeBy(1)
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify(exactly = 0) { mockLayerEngine.selectLayers(any(), any(), any(), any(), any()) }
-        coVerify(exactly = 1) { mockLayerEngine.refreshLayersInPlace(any(), eq(15f), any()) }
+        coVerify(exactly = 1) { mockLayerEngine.refreshLayersInPlace(any(), eq(15f), any(), any()) }
     }
 
     @Test

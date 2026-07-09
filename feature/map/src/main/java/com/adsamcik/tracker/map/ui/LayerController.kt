@@ -162,6 +162,7 @@ class LayerController {
         bounds: Bounds? = null,
         zoom: Float = 10f,
         dateRange: LongRange,
+        forceReload: Boolean = false,
     ) {
         if (currentLayers.isEmpty()) return
         // Capture generation up front; only the latest in-flight refresh will be
@@ -177,7 +178,9 @@ class LayerController {
 
                 val key = cacheKey(bounds, zoom, dateRange, currentQuality)
                 val cache = layerConfigCache[descriptor.id]
-                val config = if (cache != null && cache.containsKey(key)) {
+                // Reactive/live refreshes force a reload: the cache is keyed by viewport (not data
+                // version), so a cache hit here would return stale data even though new fixes arrived.
+                val config = if (!forceReload && cache != null && cache.containsKey(key)) {
                     cache.get(key)
                 } else {
                     layer.reloadData(context, bounds, zoom).also { refreshed ->

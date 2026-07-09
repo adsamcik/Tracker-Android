@@ -11,7 +11,13 @@ import kotlinx.collections.immutable.ImmutableList
  */
 interface LayerEngine {
     suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f)
-    suspend fun refreshLayersInPlace(bounds: Bounds? = null, zoom: Float = 10f, dateRange: LongRange)
+    /**
+     * Refresh the active layers' data for the current viewport. When [forceReload] is true the
+     * viewport cache is bypassed and every layer re-queries — used by reactive/live refreshes where
+     * the underlying data changed but the viewport did not (the cache is keyed by viewport, not data
+     * version, so it would otherwise serve stale data).
+     */
+    suspend fun refreshLayersInPlace(bounds: Bounds? = null, zoom: Float = 10f, dateRange: LongRange, forceReload: Boolean = false)
     suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f) {
         selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds, zoom)
     }

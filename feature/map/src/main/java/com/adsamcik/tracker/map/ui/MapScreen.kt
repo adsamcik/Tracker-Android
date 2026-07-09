@@ -57,9 +57,16 @@ import com.adsamcik.tracker.map.data.paddedBounds
 import com.adsamcik.tracker.map.export.resolveOutputSizePx
 import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.MapStore
+import com.adsamcik.tracker.map.presentation.bridge.LayerAnimation
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.bridge.renderKey
 import com.adsamcik.tracker.map.presentation.bridge.boundsOrNull
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
@@ -1339,10 +1346,33 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     data = GeoJsonData.JsonString(config.geoJson),
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
+                // Render-time animation: a Pulse scales the marker radius via an infinite transition.
+                // The pipeline output (geoJson/source) is unchanged — only the radius property is
+                // re-applied each frame, so nothing re-aggregates.
+                val pulse = config.animation as? LayerAnimation.Pulse
+                val radiusScale = if (pulse != null) {
+                    val transition = rememberInfiniteTransition(label = "circle-pulse")
+                    val scale by transition.animateFloat(
+                        initialValue = pulse.minScale,
+                        targetValue = pulse.maxScale,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(pulse.periodMs, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "circle-pulse-scale",
+                    )
+                    scale
+                } else {
+                    1f
+                }
                 CircleLayer(
                     id = "circle-layer-$index",
                     source = source,
-                    radius = buildCircleRadiusExpr(config.weightProperty, config.minRadiusDp, config.maxRadiusDp),
+                    radius = buildCircleRadiusExpr(
+                        config.weightProperty,
+                        config.minRadiusDp * radiusScale,
+                        config.maxRadiusDp * radiusScale,
+                    ),
                     color = buildFillColorExpr(config.colorStops, config.weightProperty),
                     opacity = const(config.opacity),
                     strokeColor = const(Color(config.strokeColorArgb)),
