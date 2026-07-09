@@ -9,6 +9,7 @@ import com.adsamcik.tracker.map.viz.LegacyTileAggregatorStage
 import com.adsamcik.tracker.map.viz.SpatialData
 import com.adsamcik.tracker.map.viz.VizPipeline
 import com.adsamcik.tracker.map.viz.WifiCellAggregator
+import com.adsamcik.tracker.map.viz.extrude
 import com.adsamcik.tracker.map.viz.fill
 import com.adsamcik.tracker.map.viz.heatmap
 import com.adsamcik.tracker.map.viz.mapViz
@@ -93,3 +94,30 @@ fun legacyTileHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, Spat
 			// Faint dark border so individual tiles read as discrete cells (the server-tile look).
 			outlineColorArgb = 0x33000000,
 		)
+
+/**
+ * **Life as terrain** — your location density lifted into 3D. Dwell hotspots (home, work) rise as
+ * tall glowing mesas while one-off places stay low, so the city becomes a topography of your life.
+ * Tilt the camera to see the relief. Uses the engine's 3D [extrude][com.adsamcik.tracker.map.viz.extrude]
+ * shape over a coarse density-tile grid.
+ */
+fun lifeAsTerrain(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.FillCells> =
+	mapViz("life_terrain")
+		.source(rawLocationSource(repo))
+		.aggregate(LegacyTileAggregatorStage(tileMeters = TERRAIN_TILE_METERS))
+		.extrude(colorStops = TERRAIN_RAMP, maxHeightMeters = TERRAIN_MAX_HEIGHT_M, opacity = 0.9f)
+
+/** Coarser than the legacy 25 m tiles so the extruded relief reads as terrain, not a field of spikes. */
+private const val TERRAIN_TILE_METERS = 120.0
+
+/** Tallest mesa (metres) for the densest tile; weight in [0,1] scales linearly to this. */
+private const val TERRAIN_MAX_HEIGHT_M = 1_600f
+
+/** Opaque low-to-high relief ramp: valleys teal-green, ridges warm amber, peaks near-white. */
+internal val TERRAIN_RAMP: List<Pair<Float, Int>> = listOf(
+	0.0f to 0xFF1B5E20.toInt(),
+	0.35f to 0xFF66BB6A.toInt(),
+	0.6f to 0xFFFFEB3B.toInt(),
+	0.8f to 0xFFFF8F00.toInt(),
+	1.0f to 0xFFFFF3E0.toInt(),
+)

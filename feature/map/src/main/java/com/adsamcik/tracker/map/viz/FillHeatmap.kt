@@ -15,17 +15,23 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 
 /**
  * **Aggregator** for the legacy square-tile heatmap: raw fixes -> fixed ground-size grid tiles
- * (~25 m), each weighted by normalised visit count. The tile grid's longitude size is derived from
- * the data's mean latitude so tiles stay roughly square. Fixed tile size means quality has no effect.
+ * ([tileMeters]-wide), each weighted by normalised visit count. The tile grid's longitude size is
+ * derived from the data's mean latitude so tiles stay roughly square. Fixed tile size means quality
+ * has no effect. A larger [tileMeters] yields coarser tiles (used by the 3D terrain view for
+ * smoother "mesas" rather than fine spikes).
  */
-class LegacyTileAggregatorStage : Aggregator<WeightedGeoFeature, SpatialData.FillCells> {
+class LegacyTileAggregatorStage(
+	private val tileMeters: Double = LegacyTileAggregator.TILE_METERS,
+) : Aggregator<WeightedGeoFeature, SpatialData.FillCells> {
 	override fun aggregate(
 		features: List<WeightedGeoFeature>,
 		ctx: AggContext,
 	): SpatialData.FillCells {
 		if (features.isEmpty()) return SpatialData.FillCells(emptyList())
 		val centerLat = features.sumOf { it.lat } / features.size
-		return SpatialData.FillCells(LegacyTileAggregator.tile(points = features, centerLat = centerLat))
+		return SpatialData.FillCells(
+			LegacyTileAggregator.tile(points = features, centerLat = centerLat, tileMeters = tileMeters),
+		)
 	}
 }
 

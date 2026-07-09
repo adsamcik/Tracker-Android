@@ -137,7 +137,8 @@ class DefaultLayerRegistryTest {
                 "vehicle_compliance",
                 "location_polyline",
                 "legacy_heatmap",
-                "seasonal_palimpsest"
+                "seasonal_palimpsest",
+                "life_terrain"
             )
         }
 

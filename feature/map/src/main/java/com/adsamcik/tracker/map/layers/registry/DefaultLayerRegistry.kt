@@ -14,11 +14,13 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.map.viz.catalog.cellSignalHeatmap
 import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
+import com.adsamcik.tracker.map.viz.catalog.lifeAsTerrain
 import com.adsamcik.tracker.map.viz.catalog.locationDensityHeatmap
 import com.adsamcik.tracker.map.viz.catalog.SEASONAL_RAMP
 import com.adsamcik.tracker.map.viz.catalog.seasonalPalimpsest
 import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
 import com.adsamcik.tracker.map.viz.catalog.speedHeatmap
+import com.adsamcik.tracker.map.viz.catalog.TERRAIN_RAMP
 import com.adsamcik.tracker.map.viz.catalog.wifiCountHeatmap
 import com.adsamcik.tracker.map.viz.catalog.wifiSignalHeatmap
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
@@ -588,6 +590,38 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_season_summer, SEASONAL_RAMP[1].second),
                                     MapLegendValue(R.string.map_layer_season_autumn, SEASONAL_RAMP[2].second),
                                     MapLegendValue(R.string.map_layer_season_winter, SEASONAL_RAMP[3].second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Life as terrain — 3D extrusion: location density lifted into physical height.
+        add(
+            LayerDescriptor(
+                id = "life_terrain",
+                titleRes = R.string.map_layer_terrain_title,
+                chipLabelRes = R.string.map_layer_terrain_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
+                            val repo: GeoRepository = GeoRepositoryImpl(dao)
+                            lifeAsTerrain(repo).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("LifeAsTerrain", R.string.map_layer_terrain_title),
+                            colorList = TERRAIN_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_terrain_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_terrain_low, TERRAIN_RAMP[0].second),
+                                    MapLegendValue(R.string.map_layer_terrain_mid, TERRAIN_RAMP[2].second),
+                                    MapLegendValue(R.string.map_layer_terrain_high, TERRAIN_RAMP[4].second),
                                 )
                             )
                         )

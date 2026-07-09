@@ -16,6 +16,7 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.snapshotter.MapSnapshot
 import org.maplibre.android.snapshotter.MapSnapshotter
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.FillExtrusionLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.HeatmapLayer
 import org.maplibre.android.style.layers.LineLayer
@@ -167,6 +168,22 @@ object MapSnapshotRenderer {
 				}
 				builder.withLayer(
 					FillLayer("$idPrefix-fill-layer", sourceId).withProperties(*properties.toTypedArray()),
+				)
+			}
+			is MapLibreLayerConfig.FillExtrusion -> {
+				val sourceId = "$idPrefix-fill-extrusion-source"
+				builder.withSource(GeoJsonSource(sourceId, config.geoJson))
+				builder.withLayer(
+					FillExtrusionLayer("$idPrefix-fill-extrusion-layer", sourceId).withProperties(
+						PropertyFactory.fillExtrusionColor(
+							buildColorStopExpression(config.colorStops, Expression.get(config.weightProperty)),
+						),
+						PropertyFactory.fillExtrusionHeight(
+							Expression.product(Expression.get(config.weightProperty), Expression.literal(config.maxHeightMeters)),
+						),
+						PropertyFactory.fillExtrusionOpacity(config.opacity),
+						PropertyFactory.fillExtrusionVerticalGradient(true),
+					),
 				)
 			}
 		}

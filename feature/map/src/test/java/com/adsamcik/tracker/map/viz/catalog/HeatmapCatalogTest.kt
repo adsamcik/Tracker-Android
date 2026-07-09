@@ -186,5 +186,10 @@ class HeatmapCatalogTest {
 		fun `legacy tile heatmap uses the Fill shape and its registry id`() {
 			legacyTileHeatmap(repo).id shouldBe "legacy_heatmap"
 		}
+
+		@Test
+		fun `life as terrain uses the 3D extrusion shape and its registry id`() {
+			lifeAsTerrain(repo).id shouldBe "life_terrain"
+		}
 	}
 }

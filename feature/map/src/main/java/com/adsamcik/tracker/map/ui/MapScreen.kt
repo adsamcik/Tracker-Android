@@ -87,6 +87,7 @@ import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.FloatValue
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.layers.FillExtrusionLayer
 import org.maplibre.compose.layers.FillLayer
 import org.maplibre.compose.layers.HeatmapLayer
 import org.maplibre.compose.layers.LineLayer
@@ -1318,6 +1319,20 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     outlineColor = const(Color(config.outlineColorArgb ?: 0)),
                 )
             }
+                is MapLibreLayerConfig.FillExtrusion -> {
+                val source = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
+                )
+                FillExtrusionLayer(
+                    id = "fill-extrusion-layer-$index",
+                    source = source,
+                    color = buildFillColorExpr(config.colorStops, config.weightProperty),
+                    height = buildExtrusionHeightExpr(config.weightProperty, config.maxHeightMeters),
+                    opacity = const(config.opacity),
+                    verticalGradient = const(true),
+                )
+            }
                 is MapLibreLayerConfig.Composite -> Unit
             }
         }
@@ -1448,11 +1463,29 @@ private fun buildFillColorExpr(
 
 private fun Float.toNumber(): Number = this
 
+/**
+ * Builds a fill-extrusion height expression: maps a per-feature weight in [0, 1] linearly to
+ * `[0, maxHeightMeters]`, so denser cells stand physically taller.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun buildExtrusionHeightExpr(
+    weightProperty: String,
+    maxHeightMeters: Float,
+): Expression<FloatValue> = interpolate(
+    type = linear(),
+    input = Feature[weightProperty] as Expression<FloatValue>,
+    stops = arrayOf(
+        0f.toNumber() to const(0f),
+        1f.toNumber() to const(maxHeightMeters),
+    ),
+)
+
 private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     null -> false
     is MapLibreLayerConfig.Heatmap -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Line -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Fill -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.FillExtrusion -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
 }
 

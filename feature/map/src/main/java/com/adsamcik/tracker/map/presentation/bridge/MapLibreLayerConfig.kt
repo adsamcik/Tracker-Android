@@ -46,6 +46,20 @@ sealed interface MapLibreLayerConfig {
     data class Composite(
         val layers: List<MapLibreLayerConfig>
     ) : MapLibreLayerConfig
+
+    /**
+     * 3D extruded polygons (MapLibre fill-extrusion). Each polygon is coloured by its per-feature
+     * weight in [0, 1] via [colorStops] and extruded to `weight * maxHeightMeters`. Backs the
+     * "life as terrain" family, where dwell density becomes physical height.
+     */
+    @Immutable
+    data class FillExtrusion(
+        val geoJson: String,
+        val colorStops: List<Pair<Float, Int>>,
+        val maxHeightMeters: Float,
+        val opacity: Float = 0.85f,
+        val weightProperty: String = "weight",
+    ) : MapLibreLayerConfig
 }
 
 @Immutable
@@ -76,6 +90,11 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
         type = "composite",
         style = layers.mapIndexed { childIndex, layer -> layer.renderKey(childIndex) },
     )
+    is MapLibreLayerConfig.FillExtrusion -> MapLibreLayerRenderKey(
+        index = index,
+        type = "fill-extrusion",
+        style = FillExtrusionStyleKey(colorStops, maxHeightMeters, opacity, weightProperty),
+    )
 }
 
 @Immutable
@@ -102,10 +121,19 @@ private data class FillStyleKey(
     val weightProperty: String,
 )
 
+@Immutable
+private data class FillExtrusionStyleKey(
+    val colorStops: List<Pair<Float, Int>>,
+    val maxHeightMeters: Float,
+    val opacity: Float,
+    val weightProperty: String,
+)
+
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.Line -> bounds
     is MapLibreLayerConfig.Heatmap -> null
     is MapLibreLayerConfig.Fill -> null
+    is MapLibreLayerConfig.FillExtrusion -> null
     is MapLibreLayerConfig.Composite -> layers.asSequence()
         .mapNotNull { it.boundsOrNull() }
         .firstOrNull()
