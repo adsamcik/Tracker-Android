@@ -16,6 +16,7 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.snapshotter.MapSnapshot
 import org.maplibre.android.snapshotter.MapSnapshotter
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillExtrusionLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.HeatmapLayer
@@ -183,6 +184,28 @@ object MapSnapshotRenderer {
 						),
 						PropertyFactory.fillExtrusionOpacity(config.opacity),
 						PropertyFactory.fillExtrusionVerticalGradient(true),
+					),
+				)
+			}
+			is MapLibreLayerConfig.Circle -> {
+				val sourceId = "$idPrefix-circle-source"
+				builder.withSource(GeoJsonSource(sourceId, config.geoJson))
+				builder.withLayer(
+					CircleLayer("$idPrefix-circle-layer", sourceId).withProperties(
+						PropertyFactory.circleColor(
+							buildColorStopExpression(config.colorStops, Expression.get(config.weightProperty)),
+						),
+						PropertyFactory.circleRadius(
+							Expression.interpolate(
+								Expression.linear(),
+								Expression.get(config.weightProperty),
+								Expression.stop(0f, Expression.literal(config.minRadiusDp)),
+								Expression.stop(1f, Expression.literal(config.maxRadiusDp)),
+							),
+						),
+						PropertyFactory.circleOpacity(config.opacity),
+						PropertyFactory.circleStrokeColor(config.strokeColorArgb),
+						PropertyFactory.circleStrokeWidth(config.strokeWidthDp),
 					),
 				)
 			}

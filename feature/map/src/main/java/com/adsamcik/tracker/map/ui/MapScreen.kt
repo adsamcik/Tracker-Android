@@ -84,6 +84,7 @@ import org.maplibre.compose.expressions.dsl.heatmapDensity
 import org.maplibre.compose.expressions.dsl.interpolate
 import org.maplibre.compose.expressions.dsl.linear
 import org.maplibre.compose.expressions.value.ColorValue
+import org.maplibre.compose.expressions.value.DpValue
 import org.maplibre.compose.expressions.value.FloatValue
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.layers.CircleLayer
@@ -1333,6 +1334,21 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     verticalGradient = const(true),
                 )
             }
+                is MapLibreLayerConfig.Circle -> {
+                val source = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
+                )
+                CircleLayer(
+                    id = "circle-layer-$index",
+                    source = source,
+                    radius = buildCircleRadiusExpr(config.weightProperty, config.minRadiusDp, config.maxRadiusDp),
+                    color = buildFillColorExpr(config.colorStops, config.weightProperty),
+                    opacity = const(config.opacity),
+                    strokeColor = const(Color(config.strokeColorArgb)),
+                    strokeWidth = const(config.strokeWidthDp.dp),
+                )
+            }
                 is MapLibreLayerConfig.Composite -> Unit
             }
         }
@@ -1480,12 +1496,31 @@ private fun buildExtrusionHeightExpr(
     ),
 )
 
+/**
+ * Builds a circle-radius expression: maps a per-feature weight in [0, 1] linearly to
+ * `[minRadiusDp, maxRadiusDp]`, so busier places render as larger dots.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun buildCircleRadiusExpr(
+    weightProperty: String,
+    minRadiusDp: Float,
+    maxRadiusDp: Float,
+): Expression<DpValue> = interpolate(
+    type = linear(),
+    input = Feature[weightProperty] as Expression<FloatValue>,
+    stops = arrayOf(
+        0f.toNumber() to const(minRadiusDp.dp),
+        1f.toNumber() to const(maxRadiusDp.dp),
+    ),
+)
+
 private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     null -> false
     is MapLibreLayerConfig.Heatmap -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Line -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Fill -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.FillExtrusion -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.Circle -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
 }
 

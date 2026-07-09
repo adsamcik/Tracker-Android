@@ -28,4 +28,11 @@ sealed interface SpatialData {
 	 * heatmap-only and that field/encoder pairing is enforced at compile time.
 	 */
 	data class FillCells(val tiles: List<com.adsamcik.tracker.map.data.GridTile>) : SpatialData
+
+	/**
+	 * Point markers rendered as circles ([MapLibreLayerConfig.Circle][com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig.Circle]),
+	 * each carrying a normalised `[0, 1]` weight that can drive its colour and radius. Backs
+	 * place-marker visualizations (e.g. frequent places sized by visit count).
+	 */
+	data class Markers(val points: List<WeightedGeoFeature>) : SpatialData
 }

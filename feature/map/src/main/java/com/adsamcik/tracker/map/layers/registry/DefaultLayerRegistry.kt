@@ -13,9 +13,11 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.map.viz.catalog.cellSignalHeatmap
+import com.adsamcik.tracker.map.viz.catalog.frequentPlaces
 import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
 import com.adsamcik.tracker.map.viz.catalog.lifeAsTerrain
 import com.adsamcik.tracker.map.viz.catalog.locationDensityHeatmap
+import com.adsamcik.tracker.map.viz.catalog.PLACES_RAMP
 import com.adsamcik.tracker.map.viz.catalog.SEASONAL_RAMP
 import com.adsamcik.tracker.map.viz.catalog.seasonalPalimpsest
 import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
@@ -590,6 +592,37 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_season_summer, SEASONAL_RAMP[1].second),
                                     MapLegendValue(R.string.map_layer_season_autumn, SEASONAL_RAMP[2].second),
                                     MapLegendValue(R.string.map_layer_season_winter, SEASONAL_RAMP[3].second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Frequent places — circle markers sized/coloured by visit frequency (Circle shape).
+        add(
+            LayerDescriptor(
+                id = "frequent_places",
+                titleRes = R.string.map_layer_places_title,
+                chipLabelRes = R.string.map_layer_places_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao = AppDatabase.database(ctx).frequentPlaceDao()
+                            frequentPlaces(dao).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("FrequentPlaces", R.string.map_layer_places_title),
+                            colorList = PLACES_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_places_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_places_rare, PLACES_RAMP[0].second),
+                                    MapLegendValue(R.string.map_layer_places_often, PLACES_RAMP[1].second),
+                                    MapLegendValue(R.string.map_layer_places_anchor, PLACES_RAMP[2].second),
                                 )
                             )
                         )

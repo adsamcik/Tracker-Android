@@ -138,6 +138,7 @@ class DefaultLayerRegistryTest {
                 "location_polyline",
                 "legacy_heatmap",
                 "seasonal_palimpsest",
+                "frequent_places",
                 "life_terrain"
             )
         }

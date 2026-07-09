@@ -192,6 +192,7 @@ class MapLibreLayerConfigTest {
 				MapLibreLayerConfig.Line(geoJson = "", colorArgb = 0),
 				MapLibreLayerConfig.Fill(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.FillExtrusion(geoJson = "", colorStops = emptyList(), maxHeightMeters = 100f),
+				MapLibreLayerConfig.Circle(geoJson = "", colorStops = emptyList(), minRadiusDp = 4f, maxRadiusDp = 20f),
 				MapLibreLayerConfig.Composite(layers = emptyList()),
 			)
 			val labels = configs.map { config ->
@@ -200,10 +201,11 @@ class MapLibreLayerConfigTest {
 					is MapLibreLayerConfig.Line -> "line"
 					is MapLibreLayerConfig.Fill -> "fill"
 					is MapLibreLayerConfig.FillExtrusion -> "fill-extrusion"
+					is MapLibreLayerConfig.Circle -> "circle"
 					is MapLibreLayerConfig.Composite -> "composite"
 				}
 			}
-			labels shouldBe listOf("heatmap", "line", "fill", "fill-extrusion", "composite")
+			labels shouldBe listOf("heatmap", "line", "fill", "fill-extrusion", "circle", "composite")
 		}
 	}
 }

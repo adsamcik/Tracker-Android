@@ -60,6 +60,23 @@ sealed interface MapLibreLayerConfig {
         val opacity: Float = 0.85f,
         val weightProperty: String = "weight",
     ) : MapLibreLayerConfig
+
+    /**
+     * Point markers drawn as circles. Each feature's per-feature weight in [0, 1] drives both its
+     * colour (via [colorStops]) and its radius (interpolated between [minRadiusDp] and [maxRadiusDp]).
+     * Backs place-marker visualizations (frequent places sized by visit count).
+     */
+    @Immutable
+    data class Circle(
+        val geoJson: String,
+        val colorStops: List<Pair<Float, Int>>,
+        val minRadiusDp: Float,
+        val maxRadiusDp: Float,
+        val opacity: Float = 0.9f,
+        val strokeColorArgb: Int = 0xFFFFFFFF.toInt(),
+        val strokeWidthDp: Float = 1.5f,
+        val weightProperty: String = "weight",
+    ) : MapLibreLayerConfig
 }
 
 @Immutable
@@ -95,6 +112,11 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
         type = "fill-extrusion",
         style = FillExtrusionStyleKey(colorStops, maxHeightMeters, opacity, weightProperty),
     )
+    is MapLibreLayerConfig.Circle -> MapLibreLayerRenderKey(
+        index = index,
+        type = "circle",
+        style = CircleStyleKey(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp, weightProperty),
+    )
 }
 
 @Immutable
@@ -129,11 +151,23 @@ private data class FillExtrusionStyleKey(
     val weightProperty: String,
 )
 
+@Immutable
+private data class CircleStyleKey(
+    val colorStops: List<Pair<Float, Int>>,
+    val minRadiusDp: Float,
+    val maxRadiusDp: Float,
+    val opacity: Float,
+    val strokeColorArgb: Int,
+    val strokeWidthDp: Float,
+    val weightProperty: String,
+)
+
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.Line -> bounds
     is MapLibreLayerConfig.Heatmap -> null
     is MapLibreLayerConfig.Fill -> null
     is MapLibreLayerConfig.FillExtrusion -> null
+    is MapLibreLayerConfig.Circle -> null
     is MapLibreLayerConfig.Composite -> layers.asSequence()
         .mapNotNull { it.boundsOrNull() }
         .firstOrNull()
