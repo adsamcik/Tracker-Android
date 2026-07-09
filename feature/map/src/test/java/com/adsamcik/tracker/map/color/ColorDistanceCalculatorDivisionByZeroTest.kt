@@ -2,18 +2,16 @@ package com.adsamcik.tracker.map.color
 
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Regression tests for division-by-zero guards in [ColorDistanceCalculator.simulate].
  * Requires Robolectric because colorblind simulation uses [androidx.core.graphics.ColorUtils].
  */
-@DisplayName("ColorDistanceCalculator division-by-zero guards")
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ColorDistanceCalculatorDivisionByZeroTest {
 

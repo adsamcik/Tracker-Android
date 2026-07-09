@@ -6,12 +6,12 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Pins the contract of [MIGRATION_31_32]: drop every `osm_way_cell` row so the
@@ -19,7 +19,7 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  * the background reindexer; preserve `osm_import` and `osm_way` rows including
  * bbox columns so the reindex needs no polyline decode or re-download.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class V31ToV32MigrationTest {
 
@@ -27,7 +27,7 @@ class V31ToV32MigrationTest {
 	private lateinit var helper: SupportSQLiteOpenHelper
 	private lateinit var db: SupportSQLiteDatabase
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		context.deleteDatabase(TEST_DB)
@@ -51,7 +51,7 @@ class V31ToV32MigrationTest {
 		seedOsmData()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		helper.close()
 		context.deleteDatabase(TEST_DB)

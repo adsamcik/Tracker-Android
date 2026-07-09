@@ -20,14 +20,13 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Assert.assertThrows
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Unit tests for [DefaultActivityRequestManager] covering request lifecycle,
@@ -37,7 +36,7 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  * [ActivityRecognitionBackend], which is mocked here so the tests stay isolated
  * from Google Play Services.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ActivityRequestManagerTest {
 
@@ -47,7 +46,7 @@ class ActivityRequestManagerTest {
     private lateinit var backend: ActivityRecognitionBackend
     private lateinit var manager: DefaultActivityRequestManager
 
-    @BeforeEach
+    @Before
     fun setup() {
         mockkStatic("com.adsamcik.tracker.activity.ActivityLogKt")
         every { com.adsamcik.tracker.activity.logActivity(any()) } just Runs
@@ -64,7 +63,7 @@ class ActivityRequestManagerTest {
         manager = DefaultActivityRequestManager(backend)
     }
 
-    @AfterEach
+    @After
     fun teardown() {
         unmockkAll()
     }
@@ -90,66 +89,62 @@ class ActivityRequestManagerTest {
         )
     }
 
-    @Nested
-    inner class `request activity` {
+    // region request activity
+    @Test
+    fun `request activity returns true on successful request with changeData`() {
+        val request = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = changeRequest()
+        )
 
-        @Test
-        fun `returns true on successful request with changeData`() {
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = changeRequest()
-            )
+        val result = manager.requestActivity(context, request)
 
-            val result = manager.requestActivity(context, request)
-
-            result shouldBe true
-        }
-
-        @Test
-        fun `returns true on successful request with transitionData`() {
-            val transition = ActivityTransitionData(
-                DetectedActivity.WALKING,
-                ActivityTransitionType.ENTER
-            )
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                transitionData = transitionRequest(transition)
-            )
-
-            val result = manager.requestActivity(context, request)
-
-            result shouldBe true
-        }
-
-        @Test
-        fun `throws when both changeData and transitionData are null`() {
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = null,
-                transitionData = null
-            )
-
-            assertThrows<IllegalArgumentException> {
-                manager.requestActivity(context, request)
-            }
-        }
-
-        @Test
-        fun `triggers activity recognition start with permission`() {
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = changeRequest(intervalS = 15)
-            )
-
-            manager.requestActivity(context, request)
-
-            verify { backend.startUpdates(any()) }
-        }
-
+        result shouldBe true
     }
 
-    @Nested
-    inner class `remove activity request` {
+    @Test
+    fun `request activity returns true on successful request with transitionData`() {
+        val transition = ActivityTransitionData(
+            DetectedActivity.WALKING,
+            ActivityTransitionType.ENTER
+        )
+        val request = ActivityRequestData(
+            key = TestClassA::class,
+            transitionData = transitionRequest(transition)
+        )
+
+        val result = manager.requestActivity(context, request)
+
+        result shouldBe true
+    }
+
+    @Test
+    fun `request activity throws when both changeData and transitionData are null`() {
+        val request = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = null,
+            transitionData = null
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            manager.requestActivity(context, request)
+        }
+    }
+
+    @Test
+    fun `request activity triggers activity recognition start with permission`() {
+        val request = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = changeRequest(intervalS = 15)
+        )
+
+        manager.requestActivity(context, request)
+
+        verify { backend.startUpdates(any()) }
+    }
+    // endregion
+
+    // region remove activity request
 
         @Test
         fun `removing non-existent request reports error`() {
@@ -188,10 +183,9 @@ class ActivityRequestManagerTest {
 
             verify(exactly = 0) { backend.stopUpdates() }
         }
-    }
+    // endregion
 
-    @Nested
-    inner class `callback dispatching` {
+    // region callback dispatching
 
         @Test
         fun `onActivityUpdate invokes all registered change callbacks`() {
@@ -285,10 +279,9 @@ class ActivityRequestManagerTest {
 
             changeCallbackInvoked shouldBe false
         }
-    }
+    // endregion
 
-    @Nested
-    inner class `last activity` {
+    // region last activity
 
         @Test
         fun `lastActivity delegates to backend`() {
@@ -297,10 +290,9 @@ class ActivityRequestManagerTest {
 
             manager.lastActivity shouldBe expected
         }
-    }
+    // endregion
 
-    @Nested
-    inner class `request data contracts` {
+    // region request data contracts
 
         @Test
         fun `ActivityTransitionType ENTER has correct value`() {
@@ -343,5 +335,5 @@ class ActivityRequestManagerTest {
 
             data.detectionIntervalS shouldBe 30
         }
-    }
+    // endregion
 }

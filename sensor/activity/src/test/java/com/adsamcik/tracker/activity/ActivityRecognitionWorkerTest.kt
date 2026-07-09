@@ -32,18 +32,15 @@ import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
-@DisplayName("ActivityRecognitionWorker")
 class ActivityRecognitionWorkerTest {
 
 	private val context: Context
@@ -57,7 +54,7 @@ class ActivityRecognitionWorkerTest {
 	private val segmentDao: SessionSegmentDao = mockk(relaxed = true)
 	private lateinit var trackingParamsRepository: FakeTrackingParamsRepository
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		mockkObject(AppDatabase.Companion)
 		mockkObject(Reporter)
@@ -80,7 +77,7 @@ class ActivityRecognitionWorkerTest {
 		)
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		unmockkAll()
 	}
@@ -191,12 +188,8 @@ class ActivityRecognitionWorkerTest {
 		createdAt = timeMs,
 	)
 
-	@Nested
-	@DisplayName("doWork")
-	inner class DoWork {
-
-		@Test
-		fun `returns failure when session id is not set`()  { runTest {
+	@Test
+	fun `doWork returns failure when session id is not set`()  { runTest {
 			val worker = buildWorkerWithNoSessionId()
 
 			val result = worker.doWork()
@@ -205,8 +198,8 @@ class ActivityRecognitionWorkerTest {
 			verify { Reporter.report(any<Throwable>()) }
 		} }
 
-		@Test
-		fun `returns failure when session not found in database`()  { runTest {
+	@Test
+	fun `doWork returns failure when session not found in database`()  { runTest {
 			coEvery { tripDao.getById(42L) } returns null
 			val worker = buildWorker(42L)
 
@@ -215,8 +208,8 @@ class ActivityRecognitionWorkerTest {
 			result shouldBe ListenableWorker.Result.failure()
 		} }
 
-		@Test
-		fun `returns success when no recognizer produces a result`()  { runTest {
+	@Test
+	fun `doWork returns success when no recognizer produces a result`()  { runTest {
 			val trip = createTrip()
 			coEvery { tripDao.getById(1L) } returns trip
 			// Empty locations and no segments needing recognition → success
@@ -228,8 +221,8 @@ class ActivityRecognitionWorkerTest {
 			result shouldBe ListenableWorker.Result.success()
 		} }
 
-		@Test
-		fun `returns success and updates segment for walking activity snapshot`()  { runTest {
+	@Test
+	fun `doWork returns success and updates segment for walking activity snapshot`()  { runTest {
 			val trip = createTrip(id = 5L)
 			coEvery { tripDao.getById(5L) } returns trip
 			val samples = createLocationSamples(count = 20)
@@ -253,8 +246,8 @@ class ActivityRecognitionWorkerTest {
 			updatedSegment?.activityConfidence shouldBe 82
 		} }
 
-		@Test
-		fun `returns success and updates segment for vehicle activity snapshot`()  { runTest {
+	@Test
+	fun `doWork returns success and updates segment for vehicle activity snapshot`()  { runTest {
 			val trip = createTrip(id = 10L)
 			coEvery { tripDao.getById(10L) } returns trip
 			val samples = createLocationSamples(count = 20)
@@ -278,8 +271,8 @@ class ActivityRecognitionWorkerTest {
 			updatedSegment?.activityConfidence shouldBe 91
 		} }
 
-		@Test
-		fun `leaves segment unrecognized when no persisted activity signal exists`()  { runTest {
+	@Test
+	fun `doWork leaves segment unrecognized when no persisted activity signal exists`()  { runTest {
 			val trip = createTrip(id = 12L)
 			coEvery { tripDao.getById(12L) } returns trip
 			val samples = createLocationSamples(count = 20)
@@ -294,8 +287,8 @@ class ActivityRecognitionWorkerTest {
 			coVerify(exactly = 0) { segmentDao.update(any<SessionSegment>()) }
 		} }
 
-		@Test
-		fun `skips pressure loading when ski detection is disabled`()  { runTest {
+	@Test
+	fun `doWork skips pressure loading when ski detection is disabled`()  { runTest {
 			trackingParamsRepository.setSkiDetectionEnabled(false)
 			val trip = createTrip(id = 13L)
 			coEvery { tripDao.getById(13L) } returns trip
@@ -311,8 +304,8 @@ class ActivityRecognitionWorkerTest {
 			coVerify(exactly = 0) { pressureSampleDao.getAllBetween(any(), any()) }
 		} }
 
-		@Test
-		fun `returns failure for negative session id`()  { runTest {
+	@Test
+	fun `doWork returns failure for negative session id`()  { runTest {
 			val inputData = Data.Builder()
 				.putLong(ActivityRecognitionWorker.ARG_SESSION_ID, -5L)
 				.build()
@@ -331,25 +324,19 @@ class ActivityRecognitionWorkerTest {
 
 			result shouldBe ListenableWorker.Result.failure()
 		} }
+
+	@Test
+	fun `companion constants ARG_SESSION_ID has expected value`() {
+		ActivityRecognitionWorker.ARG_SESSION_ID shouldBe "sessionId"
 	}
 
-	@Nested
-	@DisplayName("companion constants")
-	inner class CompanionConstants {
+	@Test
+	fun `companion constants ARG_BATCH_MODE has expected value`() {
+		ActivityRecognitionWorker.ARG_BATCH_MODE shouldBe "batchMode"
+	}
 
-		@Test
-		fun `ARG_SESSION_ID has expected value`() {
-			ActivityRecognitionWorker.ARG_SESSION_ID shouldBe "sessionId"
-		}
-
-		@Test
-		fun `ARG_BATCH_MODE has expected value`() {
-			ActivityRecognitionWorker.ARG_BATCH_MODE shouldBe "batchMode"
-		}
-
-		@Test
-		fun `WORK_TAG has expected value`() {
-			ActivityRecognitionWorker.WORK_TAG shouldBe "ActivityRecognition"
-		}
+	@Test
+	fun `companion constants WORK_TAG has expected value`() {
+		ActivityRecognitionWorker.WORK_TAG shouldBe "ActivityRecognition"
 	}
 }

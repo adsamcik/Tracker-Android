@@ -12,16 +12,12 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.collections.shouldNotContainAnyOf
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.MethodSource
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.io.File
 
 /**
@@ -49,7 +45,7 @@ import java.io.File
  *     is gone, and that the leftover SQLite file remains valid bytes so a
  *     user's upgrade does not crash on a stray file.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class MainBaselineMigrationTest {
 
@@ -61,12 +57,12 @@ class MainBaselineMigrationTest {
 	private val openHelpers = mutableListOf<SupportSQLiteOpenHelper>()
 	private val openedDbNames = mutableSetOf<String>()
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		openHelpers.forEach { runCatching { it.close() } }
 		openHelpers.clear()
@@ -150,11 +146,7 @@ class MainBaselineMigrationTest {
 	// AppDatabase v12 → v32
 	// ==================================================================
 
-	@Nested
-	@DisplayName("AppDatabase: released v12 → dev/v10 v32")
-	inner class AppDatabaseMigration {
-
-		private val v12ToV32 = listOf(
+	private val v12ToV32 = listOf(
 			MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
 			MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
 			MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
@@ -356,7 +348,7 @@ class MainBaselineMigrationTest {
 		}
 
 		@Test
-		fun `activity reference table is preserved through to v32`() {
+		fun `AppDatabase activity reference table is preserved through to v32`() {
 			val db = openAppDb()
 			count(db, "activity") shouldBe 7
 			db.query("SELECT name FROM activity WHERE id = 7").use { cursor ->
@@ -364,15 +356,10 @@ class MainBaselineMigrationTest {
 				cursor.getString(0) shouldBe "Running"
 			}
 		}
-	}
 
-	// ==================================================================
-	// DebugDatabase v1 → v2
-	// ==================================================================
-
-	@Nested
-	@DisplayName("DebugDatabase: released v1 → dev/v10 v2")
-	inner class DebugDatabaseMigration {
+		// ==================================================================
+		// DebugDatabase v1 → v2
+		// ==================================================================
 
 		private fun openDebugDb(): SupportSQLiteDatabase =
 			openBaseline(
@@ -424,34 +411,22 @@ class MainBaselineMigrationTest {
 				cursor.getInt(0) shouldBe 4
 			}
 		}
-	}
 
 	// ==================================================================
 	// Unchanged databases — drift detection
 	// ==================================================================
 
-	@Nested
-	@DisplayName("Unchanged databases: schema must not have drifted")
-	inner class UnchangedDatabaseDrift {
-
-		@ParameterizedTest(name = "{0} ({1}) opens at v{2} without onUpgrade firing")
-		@MethodSource(
-			"com.adsamcik.tracker.shared.base.database.MainBaselineMigrationTest#unchangedDatabaseFixtures",
-		)
-		fun `opens at unchanged version with no upgrade required`(
-			displayName: String,
-			assetName: String,
-			version: Int,
-			expectedTables: List<String>,
-		) {
-			val dbName = "${assetName.removeSuffix(".db")}_baseline_test"
+	@Test
+	fun `unchanged databases open at their unchanged version with no upgrade required`() {
+		unchangedDatabaseFixtures().forEach { fixture ->
+			val dbName = "${fixture.assetName.removeSuffix(".db")}_baseline_test"
 			val db = openBaseline(
-				assetName = assetName,
+				assetName = fixture.assetName,
 				dbName = dbName,
-				targetVersion = version,
+				targetVersion = fixture.version,
 			) { _, oldVersion, newVersion ->
 				error(
-					"Schema drift detected for $displayName: SQLite triggered onUpgrade " +
+					"Schema drift detected for ${fixture.displayName}: SQLite triggered onUpgrade " +
 						"from $oldVersion to $newVersion. Either bump the database version " +
 						"and add a migration, or re-export the baseline fixture.",
 				)
@@ -459,17 +434,13 @@ class MainBaselineMigrationTest {
 			// The fact that onUpgrade never fired is the primary guarantee. Sanity-check
 			// the seed rows are still readable via raw SQL.
 			val tables = listTables(db)
-			tables shouldContainAll expectedTables
+			tables shouldContainAll fixture.expectedTables
 		}
 	}
 
 	// ==================================================================
 	// Removed database — ChallengeDatabase
 	// ==================================================================
-
-	@Nested
-	@DisplayName("ChallengeDatabase: removed on dev/v10, leftover file is harmless")
-	inner class ChallengeRemoved {
 
 		@Test
 		fun `ChallengeDatabase class is no longer on the classpath`() {
@@ -525,7 +496,6 @@ class MainBaselineMigrationTest {
 			count(db, "challenge_explorer") shouldBe 1
 			count(db, "entry") shouldBe 4
 		}
-	}
 
 	// ==================================================================
 	// Helpers
@@ -535,39 +505,45 @@ class MainBaselineMigrationTest {
 		(kotlin.math.abs(this - expected) <= 1L) shouldBe true
 	}
 
+	private data class UnchangedDbFixture(
+		val displayName: String,
+		val assetName: String,
+		val version: Int,
+		val expectedTables: List<String>,
+	)
+
+	private fun unchangedDatabaseFixtures(): List<UnchangedDbFixture> = listOf(
+		UnchangedDbFixture(
+			displayName = "PreferenceDatabase",
+			assetName = "preference_database.db",
+			version = 1,
+			expectedTables = listOf("generic", "notification"),
+		),
+		UnchangedDbFixture(
+			displayName = "LogDatabase",
+			assetName = "debug_database_logger.db",
+			version = 2,
+			expectedTables = listOf("log_data", "crash_data"),
+		),
+		UnchangedDbFixture(
+			displayName = "PointsDatabase",
+			assetName = "points_database.db",
+			version = 1,
+			expectedTables = listOf("points_awarded"),
+		),
+		UnchangedDbFixture(
+			displayName = "StatsDatabase",
+			assetName = "stats_database.db",
+			version = 1,
+			expectedTables = listOf("statCache"),
+		),
+	)
+
 	companion object {
 		private const val APP_DB_BASELINE_VERSION = 12
 		private const val APP_DB_TARGET_VERSION = 32
 		private const val DEBUG_DB_BASELINE_VERSION = 1
 		private const val DEBUG_DB_TARGET_VERSION = 2
 		private const val CHALLENGE_DB_BASELINE_VERSION = 2
-
-		@JvmStatic
-		fun unchangedDatabaseFixtures(): List<Array<Any>> = listOf(
-			arrayOf(
-				"PreferenceDatabase",
-				"preference_database.db",
-				1,
-				listOf("generic", "notification"),
-			),
-			arrayOf(
-				"LogDatabase",
-				"debug_database_logger.db",
-				2,
-				listOf("log_data", "crash_data"),
-			),
-			arrayOf(
-				"PointsDatabase",
-				"points_database.db",
-				1,
-				listOf("points_awarded"),
-			),
-			arrayOf(
-				"StatsDatabase",
-				"stats_database.db",
-				1,
-				listOf("statCache"),
-			),
-		)
 	}
 }

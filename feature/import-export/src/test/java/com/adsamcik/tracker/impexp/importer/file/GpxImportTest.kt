@@ -17,17 +17,14 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.io.ByteArrayInputStream
 
-@DisplayName("GpxImport")
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class GpxImportTest {
 
@@ -42,7 +39,7 @@ class GpxImportTest {
 	private val capturedSegments = mutableListOf<SessionSegment>()
 	private var locationInsertCallCount = 0
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		capturedSamples.clear()
 		capturedSegments.clear()
@@ -76,20 +73,12 @@ class GpxImportTest {
 		return FileImportStream(ByteArrayInputStream(bytes), "test.gpx")
 	}
 
-	@Nested
-	@DisplayName("Properties")
-	inner class Properties {
-
-		@Test
-		fun `supported extensions contains gpx`() {
-			gpxImport.supportedExtensions shouldBe listOf("gpx")
-		}
+	@Test
+	fun `supported extensions contains gpx`() {
+		gpxImport.supportedExtensions shouldBe listOf("gpx")
 	}
 
-	@Nested
-	@DisplayName("Valid GPX Parsing")
-	inner class ValidGpxParsing {
-
+	// region Valid GPX Parsing
 		@Test
 		fun `imports single track with timed waypoints`() = runTest {
 			val gpx = """
@@ -241,11 +230,9 @@ class GpxImportTest {
 
 			capturedSegments.first().distanceM shouldBeGreaterThan 0f
 		}
-	}
+	// endregion
 
-	@Nested
-	@DisplayName("Track Type and Activity")
-	inner class TrackTypeAndActivity {
+	// region Track Type and Activity
 
 		@Test
 		fun `creates new activity from track type`() = runTest {
@@ -320,11 +307,9 @@ class GpxImportTest {
 			coVerify(exactly = 0) { mockActivityDao.find(any()) }
 			coVerify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
 		}
-	}
+	// endregion
 
-	@Nested
-	@DisplayName("Edge Cases")
-	inner class EdgeCases {
+	// region Edge Cases
 
 		@Test
 		fun `empty GPX with no tracks inserts nothing`() = runTest {
@@ -489,11 +474,10 @@ class GpxImportTest {
 
 			capturedSegments.first().sampleCount shouldBe 3
 		}
-	}
+	// endregion
 
-	@Nested
-	@DisplayName("Batching")
-	inner class Batching {
+	// region Batching
+
 
 		@Test
 		fun `locations are batched in chunks of 100`() = runTest {
@@ -520,5 +504,5 @@ class GpxImportTest {
 			// chunked(100) → 100 + 100 + 50 = 3 insert calls
 			locationInsertCallCount shouldBe 3
 		}
-	}
+	// endregion
 }

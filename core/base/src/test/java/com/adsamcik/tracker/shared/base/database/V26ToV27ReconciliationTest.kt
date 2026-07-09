@@ -8,14 +8,14 @@ import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class V26ToV27ReconciliationTest {
 
@@ -23,7 +23,7 @@ class V26ToV27ReconciliationTest {
 	private lateinit var helper: SupportSQLiteOpenHelper
 	private lateinit var db: SupportSQLiteDatabase
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		context.deleteDatabase(TEST_DB)
@@ -47,7 +47,7 @@ class V26ToV27ReconciliationTest {
 		seedCursor()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		helper.close()
 		context.deleteDatabase(TEST_DB)

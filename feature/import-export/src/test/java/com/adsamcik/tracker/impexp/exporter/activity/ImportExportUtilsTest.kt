@@ -4,14 +4,14 @@ import io.mockk.every
 import io.mockk.mockk
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
-import org.junit.jupiter.api.Test
+import org.junit.Test
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.extension.ExtendWith
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ImportExportUtilsTest {
 

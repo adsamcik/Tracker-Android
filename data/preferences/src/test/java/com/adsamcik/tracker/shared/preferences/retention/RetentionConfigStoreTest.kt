@@ -10,21 +10,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RetentionConfigStoreTest {
 
 	private lateinit var context: Context
 	private lateinit var store: RetentionConfigStore
 
-	@BeforeEach
+	@Before
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
 		PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()

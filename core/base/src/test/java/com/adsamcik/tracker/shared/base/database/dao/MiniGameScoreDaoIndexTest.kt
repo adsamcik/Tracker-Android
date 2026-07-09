@@ -6,12 +6,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Regression guard for the `idx_minigame_score_played_at` index added in
@@ -29,21 +29,21 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  * renamed, or the `getRecent` query is reshaped into a form the planner
  * cannot index-seek, this fires.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class MiniGameScoreDaoIndexTest {
 
 	private lateinit var database: AppDatabase
 	private lateinit var dao: MiniGameScoreDao
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		dao = database.miniGameScoreDao()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		database.close()
 	}

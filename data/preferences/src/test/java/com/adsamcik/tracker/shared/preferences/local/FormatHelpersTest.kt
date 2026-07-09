@@ -9,25 +9,21 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotBeEmpty
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.CsvSource
-import org.junit.jupiter.params.provider.EnumSource
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.util.Locale
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FormatHelpersTest {
 
 	private lateinit var context: Context
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		Locale.setDefault(Locale.US)
 		context = RuntimeEnvironment.getApplication()
@@ -49,100 +45,99 @@ class FormatHelpersTest {
 		field.set(TrackerSettingsAccess, value)
 	}
 
-	@Nested
-	inner class Routing {
+	// region Routing
 
-		@ParameterizedTest(name = "{0} with {1}m contains \"{2}\"")
-		@CsvSource(
-			delimiter = '|',
-			value = [
-				"Metric|500|m",
-				"Metric|1500|km",
-				"Imperial|500|ft",
-				"Imperial|5000|mi",
-				"AncientRoman|500|pace",
-				"AncientRoman|2000|roman mile",
-				"Sailing|500|cable",
-				"Sailing|5|fathom",
-				"Flying|500|FL",
-				"Flying|100|ft"
-			]
-		)
-		fun `routes to correct format function`(systemName: String, meters: Int, expectedUnit: String) {
+	private data class RoutingCase(val systemName: String, val meters: Int, val expectedUnit: String)
+
+	private val routingCases = listOf(
+		RoutingCase("Metric", 500, "m"),
+		RoutingCase("Metric", 1500, "km"),
+		RoutingCase("Imperial", 500, "ft"),
+		RoutingCase("Imperial", 5000, "mi"),
+		RoutingCase("AncientRoman", 500, "pace"),
+		RoutingCase("AncientRoman", 2000, "roman mile"),
+		RoutingCase("Sailing", 500, "cable"),
+		RoutingCase("Sailing", 5, "fathom"),
+		RoutingCase("Flying", 500, "FL"),
+		RoutingCase("Flying", 100, "ft"),
+	)
+
+	@Test
+	fun `routes to correct format function`() {
+		routingCases.forEach { (systemName, meters, expectedUnit) ->
 			injectLengthSystem(LengthSystem.valueOf(systemName))
 			val result = FormatHelpers.formatDistance(context, meters, 2)
 			result shouldContain expectedUnit
 		}
 	}
+	// endregion
 
-	@Nested
-	inner class AllSystemsProduce {
+	// region AllSystemsProduce
 
-		@ParameterizedTest(name = "{0} produces output for typical value")
-		@EnumSource(LengthSystem::class)
-		fun `all systems produce non-empty output`(system: LengthSystem) {
+	@Test
+	fun `all systems produce non-empty output`() {
+		LengthSystem.entries.forEach { system ->
 			injectLengthSystem(system)
 			FormatHelpers.formatDistance(context, 1000, 2).shouldNotBeEmpty()
 		}
+	}
 
-		@ParameterizedTest(name = "{0} handles zero meters")
-		@EnumSource(LengthSystem::class)
-		fun `all systems handle zero meters`(system: LengthSystem) {
+	@Test
+	fun `all systems handle zero meters`() {
+		LengthSystem.entries.forEach { system ->
 			injectLengthSystem(system)
 			FormatHelpers.formatDistance(context, 0, 2).shouldNotBeEmpty()
 		}
 	}
+	// endregion
 
-	@Nested
-	inner class MetricFormatting {
+	// region MetricFormatting
 
-		@Test
-		fun `below threshold returns meters`() {
-			injectLengthSystem(LengthSystem.Metric)
-			FormatHelpers.formatDistance(context, 500, 2) shouldBe "500 m"
-		}
-
-		@Test
-		fun `above threshold returns kilometers`() {
-			injectLengthSystem(LengthSystem.Metric)
-			FormatHelpers.formatDistance(context, 1500, 2) shouldBe "1.5 km"
-		}
+	@Test
+	fun `metric below threshold returns meters`() {
+		injectLengthSystem(LengthSystem.Metric)
+		FormatHelpers.formatDistance(context, 500, 2) shouldBe "500 m"
 	}
 
-	@Nested
-	inner class ImperialConversion {
+	@Test
+	fun `metric above threshold returns kilometers`() {
+		injectLengthSystem(LengthSystem.Metric)
+		FormatHelpers.formatDistance(context, 1500, 2) shouldBe "1.5 km"
+	}
+	// endregion
 
-		@Test
-		fun `converts meters to feet`() {
-			injectLengthSystem(LengthSystem.Imperial)
-			val result = FormatHelpers.formatDistance(context, 1000, 2)
-			result shouldContain "3,280.84"
-			result shouldContain "ft"
-		}
+	// region ImperialConversion
 
-		@Test
-		fun `converts large distance to miles`() {
-			injectLengthSystem(LengthSystem.Imperial)
-			val result = FormatHelpers.formatDistance(context, 5000, 2)
-			result shouldContain "mi"
-		}
+	@Test
+	fun `imperial converts meters to feet`() {
+		injectLengthSystem(LengthSystem.Imperial)
+		val result = FormatHelpers.formatDistance(context, 1000, 2)
+		result shouldContain "3,280.84"
+		result shouldContain "ft"
 	}
 
-	@Nested
-	inner class FlyingConversion {
-
-		@Test
-		fun `high altitude shows flight level`() {
-			injectLengthSystem(LengthSystem.Flying)
-			val result = FormatHelpers.formatDistance(context, 10000, 2)
-			result shouldContain "FL"
-		}
-
-		@Test
-		fun `low altitude shows feet`() {
-			injectLengthSystem(LengthSystem.Flying)
-			val result = FormatHelpers.formatDistance(context, 100, 2)
-			result shouldContain "ft"
-		}
+	@Test
+	fun `imperial converts large distance to miles`() {
+		injectLengthSystem(LengthSystem.Imperial)
+		val result = FormatHelpers.formatDistance(context, 5000, 2)
+		result shouldContain "mi"
 	}
+	// endregion
+
+	// region FlyingConversion
+
+	@Test
+	fun `flying high altitude shows flight level`() {
+		injectLengthSystem(LengthSystem.Flying)
+		val result = FormatHelpers.formatDistance(context, 10000, 2)
+		result shouldContain "FL"
+	}
+
+	@Test
+	fun `flying low altitude shows feet`() {
+		injectLengthSystem(LengthSystem.Flying)
+		val result = FormatHelpers.formatDistance(context, 100, 2)
+		result shouldContain "ft"
+	}
+	// endregion
 }

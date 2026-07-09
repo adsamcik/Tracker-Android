@@ -21,17 +21,14 @@ import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@DisplayName("ActivityReceiver")
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ActivityReceiverTest {
 
@@ -42,7 +39,7 @@ class ActivityReceiverTest {
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockRequestManager: DefaultActivityRequestManager
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
@@ -65,7 +62,7 @@ class ActivityReceiverTest {
 		} returns mockEntryPoint
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		unmockkAll()
 	}
@@ -110,12 +107,9 @@ class ActivityReceiverTest {
 		return intent
 	}
 
-	@Nested
-	@DisplayName("onReceive with activity result")
-	inner class ActivityResult {
-
-		@Test
-		fun `updates backend lastActivity on activity recognition result`() {
+	// region onReceive with activity result
+	@Test
+	fun `updates backend lastActivity on activity recognition result`() {
 			val intent = intentWithActivityResult(
 				com.google.android.gms.location.DetectedActivity.WALKING, 85,
 			)
@@ -154,13 +148,11 @@ class ActivityReceiverTest {
 
 			verify(exactly = 1) {
 				mockRequestManager.onActivityUpdate(context, any(), any())
-			}
 		}
 	}
+	// endregion
 
-	@Nested
-	@DisplayName("onReceive with transition result")
-	inner class TransitionResult {
+	// region onReceive with transition result
 
 		@Test
 		fun `calls ActivityRequestManager onActivityTransition`() {
@@ -219,11 +211,9 @@ class ActivityReceiverTest {
 				mockBackend.onTransitionActivityResult(any(), eq(2000L))
 			}
 		}
-	}
+	// endregion
 
-	@Nested
-	@DisplayName("onReceive with no results")
-	inner class NoResults {
+	// region onReceive with no results
 
 		@Test
 		fun `does nothing when neither result type is present`() {
@@ -236,5 +226,5 @@ class ActivityReceiverTest {
 			verify(exactly = 0) { mockRequestManager.onActivityUpdate(any(), any(), any()) }
 			verify(exactly = 0) { mockRequestManager.onActivityTransition(any(), any()) }
 		}
-	}
+	// endregion
 }

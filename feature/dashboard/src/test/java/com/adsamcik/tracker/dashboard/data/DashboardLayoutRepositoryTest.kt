@@ -8,21 +8,19 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DashboardLayoutRepositoryTest {
 
 	private lateinit var repo: DashboardLayoutRepository
 
-	@BeforeEach
+	@Before
 	fun setup() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		repo = DashboardLayoutRepository(context)
@@ -30,147 +28,126 @@ class DashboardLayoutRepositoryTest {
 		repo.resetToDefault()
 	}
 
-	@Nested
-	@DisplayName("Default layout")
-	inner class Defaults {
-		@Test
-		@DisplayName("default layout has default widget order")
-		fun `default layout has default order`() = runTest {
-			val layout = repo.layout.first()
-			layout.widgetOrder shouldBe DashboardWidget.defaultOrder
-		}
-
-		@Test
-		@DisplayName("default layout has no hidden widgets")
-		fun `default layout has no hidden widgets`() = runTest {
-			val layout = repo.layout.first()
-			layout.hiddenWidgets shouldBe emptySet()
-		}
+	// region Default layout
+	@Test
+	fun `default layout has default order`() = runTest {
+		val layout = repo.layout.first()
+		layout.widgetOrder shouldBe DashboardWidget.defaultOrder
 	}
 
-	@Nested
-	@DisplayName("reorder")
-	inner class Reorder {
-		@Test
-		@DisplayName("reorder persists custom order")
-		fun `reorder persists custom order`() = runTest {
-			val customOrder = listOf(
-				"exploration",
-				"streak",
-				"today_progress",
-				"latest_achievement",
-				"recent_trips",
-				"last_session",
-			)
-			repo.reorder(customOrder)
+	@Test
+	fun `default layout has no hidden widgets`() = runTest {
+		val layout = repo.layout.first()
+		layout.hiddenWidgets shouldBe emptySet()
+	}
+	// endregion
 
-			val layout = repo.layout.first()
-			layout.widgetOrder shouldBe customOrder
-		}
+	// region reorder
+	@Test
+	fun `reorder persists custom order`() = runTest {
+		val customOrder = listOf(
+			"exploration",
+			"streak",
+			"today_progress",
+			"latest_achievement",
+			"recent_trips",
+			"last_session",
+		)
+		repo.reorder(customOrder)
 
-		@Test
-		@DisplayName("reorder with partial list appends missing widgets")
-		fun `reorder with partial list appends missing`() = runTest {
-			val partialOrder = listOf("streak", "today_progress")
-			repo.reorder(partialOrder)
-
-			val layout = repo.layout.first()
-			// First two should match our order
-			layout.widgetOrder[0] shouldBe "streak"
-			layout.widgetOrder[1] shouldBe "today_progress"
-			// All 6 widgets should be present
-			layout.widgetOrder shouldHaveSize 6
-		}
-
-		@Test
-		@DisplayName("reorder filters out unknown widget IDs")
-		fun `reorder filters out unknown ids`() = runTest {
-			val orderWithUnknown = listOf(
-				"unknown_widget",
-				"today_progress",
-				"streak",
-				"last_session",
-				"recent_trips",
-				"exploration",
-			)
-			repo.reorder(orderWithUnknown)
-
-			val layout = repo.layout.first()
-			layout.widgetOrder shouldNotContain "unknown_widget"
-			layout.widgetOrder shouldHaveSize 6
-		}
+		val layout = repo.layout.first()
+		layout.widgetOrder shouldBe customOrder
 	}
 
-	@Nested
-	@DisplayName("toggleVisibility")
-	inner class ToggleVisibility {
-		@Test
-		@DisplayName("toggling a widget hides it")
-		fun `toggle hides widget`() = runTest {
-			repo.toggleVisibility("streak")
+	@Test
+	fun `reorder with partial list appends missing`() = runTest {
+		val partialOrder = listOf("streak", "today_progress")
+		repo.reorder(partialOrder)
 
-			val layout = repo.layout.first()
-			layout.hiddenWidgets shouldContain "streak"
-		}
-
-		@Test
-		@DisplayName("toggling a hidden widget shows it")
-		fun `toggle shows hidden widget`() = runTest {
-			repo.toggleVisibility("streak")
-			repo.toggleVisibility("streak")
-
-			val layout = repo.layout.first()
-			layout.hiddenWidgets shouldNotContain "streak"
-		}
-
-		@Test
-		@DisplayName("toggling multiple widgets independently")
-		fun `toggle multiple widgets`() = runTest {
-			repo.toggleVisibility("streak")
-			repo.toggleVisibility("exploration")
-
-			val layout = repo.layout.first()
-			layout.hiddenWidgets shouldContain "streak"
-			layout.hiddenWidgets shouldContain "exploration"
-			layout.hiddenWidgets shouldHaveSize 2
-		}
+		val layout = repo.layout.first()
+		// First two should match our order
+		layout.widgetOrder[0] shouldBe "streak"
+		layout.widgetOrder[1] shouldBe "today_progress"
+		// All 6 widgets should be present
+		layout.widgetOrder shouldHaveSize 6
 	}
 
-	@Nested
-	@DisplayName("resetToDefault")
-	inner class ResetToDefault {
-		@Test
-		@DisplayName("reset clears custom order and hidden widgets")
-		fun `reset clears customizations`() = runTest {
-			repo.reorder(listOf("exploration", "streak", "today_progress", "latest_achievement", "recent_trips", "last_session"))
-			repo.toggleVisibility("streak")
+	@Test
+	fun `reorder filters out unknown ids`() = runTest {
+		val orderWithUnknown = listOf(
+			"unknown_widget",
+			"today_progress",
+			"streak",
+			"last_session",
+			"recent_trips",
+			"exploration",
+		)
+		repo.reorder(orderWithUnknown)
 
-			repo.resetToDefault()
+		val layout = repo.layout.first()
+		layout.widgetOrder shouldNotContain "unknown_widget"
+		layout.widgetOrder shouldHaveSize 6
+	}
+	// endregion
 
-			val layout = repo.layout.first()
-			layout.widgetOrder shouldBe DashboardWidget.defaultOrder
-			layout.hiddenWidgets shouldBe emptySet()
-		}
+	// region toggleVisibility
+	@Test
+	fun `toggle hides widget`() = runTest {
+		repo.toggleVisibility("streak")
+
+		val layout = repo.layout.first()
+		layout.hiddenWidgets shouldContain "streak"
 	}
 
-	@Nested
-	@DisplayName("Serialization")
-	inner class Serialization {
-		@Test
-		@DisplayName("order round-trips through serialization")
-		fun `order round trips`() {
-			val ids = listOf("a", "b", "c")
-			val serialized = DashboardLayoutRepository.serializeOrder(ids)
-			val deserialized = DashboardLayoutRepository.deserializeOrder(serialized)
-			deserialized shouldBe ids
-		}
+	@Test
+	fun `toggle shows hidden widget`() = runTest {
+		repo.toggleVisibility("streak")
+		repo.toggleVisibility("streak")
 
-		@Test
-		@DisplayName("empty list serializes correctly")
-		fun `empty list serializes`() {
-			val serialized = DashboardLayoutRepository.serializeOrder(emptyList())
-			val deserialized = DashboardLayoutRepository.deserializeOrder(serialized)
-			deserialized shouldBe emptyList()
-		}
+		val layout = repo.layout.first()
+		layout.hiddenWidgets shouldNotContain "streak"
 	}
+
+	@Test
+	fun `toggle multiple widgets`() = runTest {
+		repo.toggleVisibility("streak")
+		repo.toggleVisibility("exploration")
+
+		val layout = repo.layout.first()
+		layout.hiddenWidgets shouldContain "streak"
+		layout.hiddenWidgets shouldContain "exploration"
+		layout.hiddenWidgets shouldHaveSize 2
+	}
+	// endregion
+
+	// region resetToDefault
+	@Test
+	fun `reset clears customizations`() = runTest {
+		repo.reorder(listOf("exploration", "streak", "today_progress", "latest_achievement", "recent_trips", "last_session"))
+		repo.toggleVisibility("streak")
+
+		repo.resetToDefault()
+
+		val layout = repo.layout.first()
+		layout.widgetOrder shouldBe DashboardWidget.defaultOrder
+		layout.hiddenWidgets shouldBe emptySet()
+	}
+	// endregion
+
+	// region Serialization
+	@Test
+	fun `order round trips`() {
+		val ids = listOf("a", "b", "c")
+		val serialized = DashboardLayoutRepository.serializeOrder(ids)
+		val deserialized = DashboardLayoutRepository.deserializeOrder(serialized)
+		deserialized shouldBe ids
+	}
+
+	@Test
+	fun `empty list serializes`() {
+		val serialized = DashboardLayoutRepository.serializeOrder(emptyList())
+		val deserialized = DashboardLayoutRepository.deserializeOrder(serialized)
+		deserialized shouldBe emptyList()
+	}
+	// endregion
 }

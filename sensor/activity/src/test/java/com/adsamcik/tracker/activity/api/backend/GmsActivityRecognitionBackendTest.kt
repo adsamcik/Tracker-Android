@@ -12,17 +12,14 @@ import io.mockk.mockkObject
 import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@DisplayName("GmsActivityRecognitionBackend")
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class GmsActivityRecognitionBackendTest {
 
@@ -31,7 +28,7 @@ class GmsActivityRecognitionBackendTest {
 
 	private lateinit var backend: GmsActivityRecognitionBackend
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		backend = GmsActivityRecognitionBackend(context)
 		mockkObject(Assist)
@@ -41,73 +38,61 @@ class GmsActivityRecognitionBackendTest {
 		every { Reporter.report(any<Throwable>()) } just runs
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		unmockkAll()
 	}
 
-	@Nested
-	@DisplayName("isAvailable")
-	inner class IsAvailable {
+	// region isAvailable
+	@Test
+	fun `isAvailable returns false when Play Services unavailable`() {
+		every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
 
-		@Test
-		fun `returns false when Play Services unavailable`() {
-			every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
-
-			backend.isAvailable shouldBe false
-		}
-
-		@Test
-		fun `returns true when Play Services available`() {
-			every { Assist.isPlayServicesAvailable(any<Context>()) } returns true
-
-			backend.isAvailable shouldBe true
-		}
+		backend.isAvailable shouldBe false
 	}
 
-	@Nested
-	@DisplayName("name")
-	inner class Name {
+	@Test
+	fun `isAvailable returns true when Play Services available`() {
+		every { Assist.isPlayServicesAvailable(any<Context>()) } returns true
 
-		@Test
-		fun `returns Google Play Services`() {
-			backend.name shouldBe "Google Play Services"
+		backend.isAvailable shouldBe true
+	}
+	// endregion
+
+	// region name
+	@Test
+	fun `name returns Google Play Services`() {
+		backend.name shouldBe "Google Play Services"
+	}
+	// endregion
+
+	// region startUpdates
+	@Test
+	fun `startUpdates returns false when Play Services unavailable`() {
+		every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
+
+		val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
+
+		result shouldBe false
+		verify {
+			Reporter.report(match<Throwable> {
+				it.message?.contains("Google Play Services unavailable") == true
+			})
 		}
 	}
+	// endregion
 
-	@Nested
-	@DisplayName("startUpdates")
-	inner class StartUpdates {
+	// region onActivityResult
+	@Test
+	fun `onActivityResult updates lastActivity`() {
+		val activity = com.adsamcik.tracker.shared.base.data.ActivityInfo(
+			com.adsamcik.tracker.shared.base.data.DetectedActivity.WALKING, 85,
+		)
 
-		@Test
-		fun `returns false when Play Services unavailable`() {
-			every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
+		backend.onActivityResult(activity, 5000L)
 
-			val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
-
-			result shouldBe false
-			verify {
-				Reporter.report(match<Throwable> {
-					it.message?.contains("Google Play Services unavailable") == true
-				})
-			}
-		}
+		backend.lastActivity shouldBe activity
+		backend.lastActivityElapsedTimeMillis shouldBe 5000L
 	}
-
-	@Nested
-	@DisplayName("onActivityResult")
-	inner class OnActivityResult {
-
-		@Test
-		fun `updates lastActivity`() {
-			val activity = com.adsamcik.tracker.shared.base.data.ActivityInfo(
-				com.adsamcik.tracker.shared.base.data.DetectedActivity.WALKING, 85,
-			)
-
-			backend.onActivityResult(activity, 5000L)
-
-			backend.lastActivity shouldBe activity
-			backend.lastActivityElapsedTimeMillis shouldBe 5000L
-		}
-	}
+	// endregion
 }

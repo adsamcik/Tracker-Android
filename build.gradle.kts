@@ -15,7 +15,6 @@ plugins {
 	alias(libs.plugins.kotlin.compose) apply false
 	alias(libs.plugins.ksp) apply false
 	alias(libs.plugins.hilt) apply false
-	alias(libs.plugins.robolectric.junit5) apply false
 }
 
 // OpenGL map renderer toggle (emulator builds only). See the dependency-substitution block in

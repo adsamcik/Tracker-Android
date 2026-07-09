@@ -9,9 +9,9 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
  *
  * Uses Robolectric because generation methods depend on [android.graphics.Color.HSVToColor].
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ColorGeneratorTest {
 

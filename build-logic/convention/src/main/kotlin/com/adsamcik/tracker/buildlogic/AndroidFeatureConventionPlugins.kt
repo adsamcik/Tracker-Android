@@ -89,7 +89,6 @@ class AndroidTestConventionPlugin : Plugin<Project> {
         addLibrary("testImplementation", "kotlinx-coroutines-test")
         addLibrary("testImplementation", "turbine")
         addLibrary("testImplementation", "robolectric")
-        addLibrary("testImplementation", "junit5-robolectric")
         addLibrary("testImplementation", "androidx-test-core")
         addLibrary("testImplementation", "arch-core-testing")
         addLibrary("testImplementation", "kotest-assertions-core")

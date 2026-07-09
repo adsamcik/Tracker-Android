@@ -23,19 +23,17 @@ import io.mockk.unmockkObject
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.io.File
 import kotlin.math.abs
 
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@DisplayName("JsonExporter Room integration")
 class JsonExporterRoomIntegrationTest {
 
 	private lateinit var context: Context
@@ -44,7 +42,7 @@ class JsonExporterRoomIntegrationTest {
 	private lateinit var sessionSegmentDao: SessionSegmentDao
 	private val tempFiles = mutableListOf<File>()
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -55,7 +53,7 @@ class JsonExporterRoomIntegrationTest {
 		every { AppDatabase.database(any()) } returns database
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		tempFiles.forEach { file ->
 			if (file.exists()) {

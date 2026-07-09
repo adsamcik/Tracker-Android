@@ -14,11 +14,11 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.io.ByteArrayInputStream
 
 /**
@@ -27,7 +27,7 @@ import java.io.ByteArrayInputStream
  * Uses Robolectric because [JsonImport] relies on [android.util.JsonReader]
  * which is only available with the Android runtime.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class JsonImportTest {
 
@@ -41,7 +41,7 @@ class JsonImportTest {
 	private val capturedSegments = mutableListOf<SessionSegment>()
 	private var locationInsertCallCount = 0
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		capturedSamples.clear()
 		capturedSegments.clear()

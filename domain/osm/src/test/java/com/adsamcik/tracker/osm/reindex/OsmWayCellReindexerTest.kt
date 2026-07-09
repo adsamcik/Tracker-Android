@@ -12,12 +12,12 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Validates the contract used by the v31->v32 migration recovery path:
@@ -25,7 +25,7 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  * `osm_way_cell`, [OsmWayCellReindexer] rebuilds the cell rows under the
  * current [OsmGridIndex] cell size with no polyline decode.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class OsmWayCellReindexerTest {
 
@@ -33,7 +33,7 @@ class OsmWayCellReindexerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var reindexer: OsmWayCellReindexer
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -45,7 +45,7 @@ class OsmWayCellReindexerTest {
 		)
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		database.close()
 	}

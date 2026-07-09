@@ -14,12 +14,12 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Verifies the vehicle-only chunk projection used by the
@@ -32,7 +32,7 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
  *    or speed_accuracy_mps above the trusted threshold),
  *  - paginates using the (time_ms, id) stable cursor.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LocationSampleDaoVehicleSpeedTest {
 
@@ -40,7 +40,7 @@ class LocationSampleDaoVehicleSpeedTest {
 	private lateinit var sampleDao: LocationSampleDao
 	private lateinit var segmentDao: SessionSegmentDao
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
@@ -48,7 +48,7 @@ class LocationSampleDaoVehicleSpeedTest {
 		segmentDao = database.sessionSegmentDao()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		database.close()
 	}

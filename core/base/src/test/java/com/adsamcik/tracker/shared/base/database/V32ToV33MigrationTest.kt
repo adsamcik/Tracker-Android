@@ -6,19 +6,19 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Pins the contract of [MIGRATION_32_33]: add `cell_index_built` column to
  * `osm_import` with default 0. All existing rows get the default, ensuring
  * the reindexer self-healing heuristic re-triggers after the migration.
  */
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class V32ToV33MigrationTest {
 
@@ -26,7 +26,7 @@ class V32ToV33MigrationTest {
 	private lateinit var helper: SupportSQLiteOpenHelper
 	private lateinit var db: SupportSQLiteDatabase
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		context.deleteDatabase(TEST_DB)
@@ -50,7 +50,7 @@ class V32ToV33MigrationTest {
 		seedImport()
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		helper.close()
 		context.deleteDatabase(TEST_DB)

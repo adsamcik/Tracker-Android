@@ -21,21 +21,19 @@ import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
-@DisplayName("ActivityReceiver Thread Safety")
-@ExtendWith(RobolectricExtension::class)
+@RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ActivityReceiverThreadSafetyTest {
 
@@ -44,7 +42,7 @@ class ActivityReceiverThreadSafetyTest {
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockRequestManager: DefaultActivityRequestManager
 
-	@BeforeEach
+	@Before
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
@@ -69,7 +67,7 @@ class ActivityReceiverThreadSafetyTest {
 		} returns mockEntryPoint
 	}
 
-	@AfterEach
+	@After
 	fun tearDown() {
 		unmockkAll()
 	}

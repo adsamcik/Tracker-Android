@@ -1,46 +1,46 @@
 [versions]
 # Kotlin / KSP / AGP
-kotlin = "2.2.20"
-ksp = "2.3.2"
-agp = "9.2.1"
+kotlin = "2.4.0"
+ksp = "2.3.8"
+agp = "9.3.0-rc01"
 
 # Tools
-benmanes = "0.52.0"
-googleServices = "4.4.3"
-ossLicenses = "0.10.7"
+benmanes = "0.54.0"
+googleServices = "4.5.0"
+ossLicenses = "0.12.0"
 desugarJdkLibs = "2.1.5"
 
 # AndroidX / Google
-coreKtx = "1.16.0"
-coreLocationAltitude = "1.0.0-alpha02"
+coreKtx = "1.19.0"
+coreLocationAltitude = "1.0.0"
 appcompat = "1.7.1"
-material = "1.13.0-rc01"
+material = "1.14.0"
 constraintLayout = "2.2.1"
 recyclerView = "1.4.0"
 preference = "1.2.1"
-lifecycle = "2.10.0"
-work = "2.11.1"
-paging = "3.4.1"
-activityCompose = "1.12.4"
-splashScreen = "1.0.1"
-navigationCompose = "2.9.7"
+lifecycle = "2.11.0"
+work = "2.11.2"
+paging = "3.5.0"
+activityCompose = "1.13.0"
+splashScreen = "1.2.0"
+navigationCompose = "2.9.8"
 constraintLayoutCompose = "1.1.1"
-composeBom = "2026.02.00"
+composeBom = "2026.06.01"
 accompanist = "0.37.3"
-materialKolor = "3.0.1"
+materialKolor = "4.1.1"
 documentfile = "1.1.0"
-datastore = "1.2.0"
-protobuf = "3.25.3"
-protobufPlugin = "0.9.4"
+datastore = "1.2.1"
+protobuf = "4.35.1"
+protobufPlugin = "0.10.0"
 glance = "1.1.1"
-haze = "1.7.1"
+haze = "1.7.2"
 startupRuntime = "1.2.0"
-hilt = "2.59.2"
-hiltAndroidx = "1.3.0"
+hilt = "2.60.1"
+hiltAndroidx = "1.4.0"
 
 # Google Play Services
-playServicesBase = "18.7.2"
-playLocation = "21.3.0"
+playServicesBase = "18.10.0"
+playLocation = "21.4.0"
 
 # MapLibre
 maplibreCompose = "0.13.0"
@@ -50,11 +50,11 @@ maplibreCompose = "0.13.0"
 maplibreAndroid = "13.0.2"
 
 # KotlinX
-coroutines = "1.10.2"
-kotlinxImmutable = "0.4.0"
+coroutines = "1.11.0"
+kotlinxImmutable = "0.5.1"
 
 # Arrow & Molecule
-arrow = "2.1.2"
+arrow = "2.2.3"
 
 # JSON / DB
 moshi = "1.15.2"
@@ -73,32 +73,31 @@ cardview = "1.0.0"
 
 # OSM PBF parsing (offline, ODbL data shipped by the user via SAF)
 osmpbf = "1.6.1"
-slf4jApi = "2.0.13"
+slf4jApi = "2.0.18"
 
 # HTTP client — routed exclusively through :network NetworkGateway.
 # NO module may import okhttp directly; consumers depend on :network instead.
-okhttp = "4.12.0"
+okhttp = "5.4.0"
 
 # Testing - JUnit 5 (Modern) & JUnit 4 (Android instrumented tests)
-junit5 = "5.11.4"
+junit5 = "5.14.4"
 junit4 = "4.13.2"
 androidxTestRunner = "1.7.0"
-uiautomator = "2.3.0"
+uiautomator = "2.4.0"
 androidxTestExtJunit = "1.3.0"
 archCoreTesting = "2.2.0"
 espresso = "3.7.0"
 
 # Test libs (added)
-robolectric = "4.15.1"
-mockitoAndroid = "5.19.0"
-mockitoKotlin = "6.0.0"
-mockk = "1.13.16"
+robolectric = "4.16.1"
+mockitoAndroid = "5.23.0"
+mockitoKotlin = "6.3.0"
+mockk = "1.14.11"
 turbine = "1.2.1"
 androidxTestCore = "1.7.0"
-kotlinxCoroutinesTest = "1.10.2"
-androidxTestRules = "1.6.1"
-kotest = "6.0.0.M2"
-robolectricJunit5 = "0.9.0"
+kotlinxCoroutinesTest = "1.11.0"
+androidxTestRules = "1.7.0"
+kotest = "6.2.2"
 
 [libraries]
 # Gradle plugin artifacts for convention plugins
@@ -129,7 +128,6 @@ arch-core-testing = { group = "androidx.arch.core", name = "core-testing", versi
 espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
-junit5-robolectric = { module = "tech.apter.junit5.jupiter:robolectric-extension", version.ref = "robolectricJunit5" }
 mockito-android = { module = "org.mockito:mockito-android", version.ref = "mockitoAndroid" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
@@ -208,9 +206,6 @@ suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.r
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 
-# Glance (App Widgets)
-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
@@ -256,7 +251,6 @@ simplify = { group = "com.goebl", name = "simplify", version.ref = "simplify" }
 
 # OSM PBF parser (official OpenStreetMap Java binding for the protobuf binary format, ASL2; offline only).
 osmpbf = { group = "org.openstreetmap.pbf", name = "osmpbf", version.ref = "osmpbf" }
-slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4jApi" }
 
 # HTTP — :network module ONLY. Lint rule (TODO) should prevent any other module from importing okhttp3.
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
@@ -282,4 +276,3 @@ google-services = { id = "com.google.gms.google-services", version.ref = "google
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "com.github.ben-manes.versions", version.ref = "benmanes" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
-robolectric-junit5 = { id = "tech.apter.junit5.jupiter.robolectric-extension-gradle-plugin", version.ref = "robolectricJunit5" }
