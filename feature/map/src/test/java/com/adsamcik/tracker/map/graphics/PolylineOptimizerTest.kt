@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.graphics
 
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
@@ -76,6 +77,61 @@ class PolylineOptimizerTest {
 
             out.size shouldBeLessThanOrEqualTo 4
             out.forEach { point -> points shouldContain point }
+            out.first() shouldBe points.first()
+            out.last() shouldBe points.last()
+        }
+    }
+
+    @Nested
+    @DisplayName("Smoothing")
+    inner class Smoothing {
+
+        @Test
+        fun `cuts the sharp corner while pinning the endpoints`() {
+            val start = LatLngModel(0.0, 0.0)
+            val corner = LatLngModel(0.0, 0.02)
+            val end = LatLngModel(0.02, 0.02)
+            val leg1 = (1..9).map { LatLngModel(0.0, 0.02 * it / 10.0) }
+            val leg2 = (1..9).map { LatLngModel(0.02 * it / 10.0, 0.02) }
+            val points = listOf(start) + leg1 + listOf(corner) + leg2 + listOf(end)
+
+            val out = PolylineOptimizer.optimize(
+                points, toleranceMeters = 8.0, maxPoints = 50, smoothingIterations = 2,
+            )
+
+            // Chaikin shaves the exact corner vertex away, replacing it with nearby cut points,
+            // and the track stays anchored to the real recorded start and end.
+            out shouldNotContain corner
+            out.first() shouldBe start
+            out.last() shouldBe end
+            out.size shouldBeLessThanOrEqualTo 50
+        }
+
+        @Test
+        fun `keeps a straight line straight`() {
+            val points = (0..20).map { LatLngModel(0.0, it / 1000.0) }
+
+            val out = PolylineOptimizer.optimize(
+                points, toleranceMeters = 0.0, maxPoints = 100, smoothingIterations = 2,
+            )
+
+            // Every smoothed vertex stays on the original latitude — smoothing must not bend a
+            // straight path — and the endpoints are preserved.
+            out.forEach { it.lat shouldBe 0.0 }
+            out.first() shouldBe points.first()
+            out.last() shouldBe points.last()
+        }
+
+        @Test
+        fun `respects the point budget after smoothing`() {
+            // A dense zigzag: many corners for Chaikin to round, well over the budget.
+            val points = (0..400).map { LatLngModel(if (it % 2 == 0) 0.0 else 0.001, it / 1000.0) }
+
+            val out = PolylineOptimizer.optimize(
+                points, toleranceMeters = 1.0, maxPoints = 80, smoothingIterations = 2,
+            )
+
+            out.size shouldBeLessThanOrEqualTo 80
             out.first() shouldBe points.first()
             out.last() shouldBe points.last()
         }

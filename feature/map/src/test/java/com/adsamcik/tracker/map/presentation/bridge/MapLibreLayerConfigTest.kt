@@ -101,12 +101,18 @@ class MapLibreLayerConfigTest {
 				geoJson = """{"line":true}""",
 				colorArgb = 0xFF00FF00.toInt(),
 				widthDp = 8f,
-				opacity = 0.6f
+				opacity = 0.6f,
+				casingColorArgb = 0x66002A66,
+				casingWidthDp = 3f,
+				blurDp = 1.5f,
 			)
 			config.geoJson shouldBe """{"line":true}"""
 			config.colorArgb shouldBe 0xFF00FF00.toInt()
 			config.widthDp shouldBe 8f
 			config.opacity shouldBe 0.6f
+			config.casingColorArgb shouldBe 0x66002A66
+			config.casingWidthDp shouldBe 3f
+			config.blurDp shouldBe 1.5f
 		}
 
 		@Test
@@ -117,6 +123,9 @@ class MapLibreLayerConfigTest {
 			)
 			config.widthDp shouldBe 4f
 			config.opacity shouldBe 1f
+			config.casingColorArgb shouldBe null
+			config.casingWidthDp shouldBe 2f
+			config.blurDp shouldBe 0f
 		}
 
 		@Test

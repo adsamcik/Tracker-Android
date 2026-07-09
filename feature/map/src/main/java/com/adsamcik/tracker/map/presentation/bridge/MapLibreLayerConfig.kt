@@ -41,6 +41,15 @@ sealed interface MapLibreLayerConfig {
         val widthDp: Float = 4f,
         val opacity: Float = 1f,
         val bounds: CoordinateBounds? = null,
+        /**
+         * When set, a wider [casingColorArgb] line is drawn *beneath* the main stroke, giving the
+         * route depth and keeping it legible over any basemap (the classic map "route outline").
+         */
+        val casingColorArgb: Int? = null,
+        /** Extra width per side for the casing; total casing width is `widthDp + 2 * casingWidthDp`. */
+        val casingWidthDp: Float = 2f,
+        /** Subtle edge softening (anti-aliased feathering) applied to the main stroke. */
+        val blurDp: Float = 0f,
     ) : MapLibreLayerConfig
 
     /**
@@ -111,7 +120,7 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
     is MapLibreLayerConfig.Line -> MapLibreLayerRenderKey(
         index = index,
         type = "line",
-        style = LineStyleKey(colorArgb, widthDp, opacity),
+        style = LineStyleKey(colorArgb, widthDp, opacity, casingColorArgb, casingWidthDp, blurDp),
     )
     is MapLibreLayerConfig.Fill -> MapLibreLayerRenderKey(
         index = index,
@@ -149,6 +158,9 @@ private data class LineStyleKey(
     val colorArgb: Int,
     val widthDp: Float,
     val opacity: Float,
+    val casingColorArgb: Int?,
+    val casingWidthDp: Float,
+    val blurDp: Float,
 )
 
 @Immutable

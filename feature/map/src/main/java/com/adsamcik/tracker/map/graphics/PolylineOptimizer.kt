@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.graphics
 
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.cos
@@ -22,17 +23,37 @@ object PolylineOptimizer {
      * rounded off), so it defaults to `false` and should only be enabled when a
      * caller specifically wants uniform spacing (e.g. animation) rather than a
      * faithful route shape.
+     *
+     * [smoothingIterations] applies Chaikin corner-cutting *after* simplification,
+     * rounding the shape-defining corners into a flowing curve so a GPS track reads
+     * as smooth rather than a chain of straight segments. `0` (default) leaves the
+     * geometry untouched. Each pass roughly doubles the point count, so the result
+     * is clamped back to [maxPoints] by even-distance resampling of the already-
+     * smooth curve (which stays smooth — there are no corners left to reintroduce).
      */
     fun optimize(
         points: List<LatLngModel>,
         toleranceMeters: Double,
         maxPoints: Int,
         evenSpacing: Boolean = false,
+        smoothingIterations: Int = 0,
     ): List<LatLngModel> {
         if (points.size <= 2 || maxPoints < 2) return points
-        if (points.size <= maxPoints && toleranceMeters <= 0.0) return points
+        if (points.size <= maxPoints && toleranceMeters <= 0.0 && smoothingIterations <= 0) return points
 
         var simplified = if (toleranceMeters > 0.0) douglasPeucker(points, toleranceMeters) else points
+
+        if (smoothingIterations > 0) {
+            // Reserve budget headroom for Chaikin's ~2x-per-pass growth, smooth, then clamp back to
+            // the budget. Resampling an already-smooth curve keeps it smooth (no corners return).
+            val growth = 1 shl smoothingIterations
+            val preBudget = max(2, maxPoints / growth)
+            if (simplified.size > preBudget) simplified = simplifyToBudget(points, preBudget, toleranceMeters)
+            var smoothed = chaikinSmooth(simplified, smoothingIterations)
+            if (smoothed.size > maxPoints) smoothed = resampleEvenDistance(smoothed, maxPoints)
+            return smoothed
+        }
+
         if (simplified.size > maxPoints) {
             // Enforce the point budget by raising the tolerance until the shape
             // fits, instead of dropping points at fixed index intervals.
@@ -41,6 +62,31 @@ object PolylineOptimizer {
 
         if (!evenSpacing) return simplified
         return if (simplified.size <= 2) simplified else resampleEvenDistance(simplified, min(maxPoints, simplified.size))
+    }
+
+    /**
+     * Chaikin corner-cutting: replaces every interior segment with two points at 1/4 and 3/4 of its
+     * length, shaving the sharp corners a GPS track collects at turns into a smooth curve. The first
+     * and last vertices are pinned, so the path stays anchored to the real recorded start and end
+     * (and, for a live track, the tip stays exactly on the newest fix). Each pass ~doubles the count.
+     */
+    private fun chaikinSmooth(points: List<LatLngModel>, iterations: Int): List<LatLngModel> {
+        if (points.size < 3 || iterations <= 0) return points
+        var current = points
+        repeat(iterations) {
+            if (current.size < 3) return current
+            val out = ArrayList<LatLngModel>(current.size * 2)
+            out.add(current.first())
+            for (i in 0 until current.size - 1) {
+                val a = current[i]
+                val b = current[i + 1]
+                out.add(interpolate(a, b, CHAIKIN_NEAR))
+                out.add(interpolate(a, b, CHAIKIN_FAR))
+            }
+            out.add(current.last())
+            current = out
+        }
+        return current
     }
 
     /**
@@ -200,4 +246,8 @@ object PolylineOptimizer {
 
     /** Safety cap on adaptive iterations; growth makes this converge well before the limit. */
     private const val MAX_BUDGET_ITERATIONS = 40
+
+    /** Chaikin corner-cutting ratios: the two cut points sit at 1/4 and 3/4 of each segment. */
+    private const val CHAIKIN_NEAR = 0.25
+    private const val CHAIKIN_FAR = 0.75
 }

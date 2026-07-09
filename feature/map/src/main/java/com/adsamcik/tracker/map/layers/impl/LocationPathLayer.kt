@@ -45,6 +45,7 @@ class LocationPathLayer(
             toleranceMeters = OVERVIEW_SIMPLIFY_TOLERANCE_METERS,
             maxPoints = budgets.maxPolylinePoints,
             evenSpacing = false,
+            smoothingIterations = PATH_SMOOTHING_ITERATIONS,
         )
         val geoJson = GeoJsonConverter.lineToFeatureCollection(simplified)
         return Prepared(geoJson, simplified, simplified.coordinateBoundsOrNull())
@@ -58,6 +59,8 @@ class LocationPathLayer(
             widthDp = 4f,
             opacity = 1f,
             bounds = processed.bounds,
+            casingColorArgb = DEFAULT_POLYLINE_CASING_COLOR,
+            casingWidthDp = 2f,
         )
     }
 
@@ -85,10 +88,23 @@ class LocationPathLayer(
         private const val DEFAULT_POLYLINE_COLOR = 0xFF007AFF.toInt()
 
         /**
+         * Casing colour drawn beneath the route: a translucent dark outline that gives the line
+         * depth and keeps it legible over both light and dark basemaps.
+         */
+        private const val DEFAULT_POLYLINE_CASING_COLOR = 0x66002A66
+
+        /**
          * Douglas-Peucker tolerance (metres) for the route overview. Small enough to
          * keep the route's shape (turns, switchbacks) while removing GPS jitter; the
          * optimizer raises it adaptively if the point budget is still exceeded.
          */
         private const val OVERVIEW_SIMPLIFY_TOLERANCE_METERS = 5.0
+
+        /**
+         * Chaikin smoothing passes applied after simplification so the recorded track reads as a
+         * flowing curve rather than a chain of straight segments. Two passes give a natural,
+         * jitter-free curve without the overshoot a spline would add on noisy GPS.
+         */
+        private const val PATH_SMOOTHING_ITERATIONS = 2
     }
 }

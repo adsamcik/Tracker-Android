@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.currentStateAsState
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
+import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.data.paddedBounds
 import com.adsamcik.tracker.map.export.resolveOutputSizePx
 import com.adsamcik.tracker.map.online.TileProvider
@@ -90,9 +91,12 @@ import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.dsl.heatmapDensity
 import org.maplibre.compose.expressions.dsl.interpolate
 import org.maplibre.compose.expressions.dsl.linear
+import org.maplibre.compose.expressions.dsl.zoom
 import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.DpValue
 import org.maplibre.compose.expressions.value.FloatValue
+import org.maplibre.compose.expressions.value.LineCap
+import org.maplibre.compose.expressions.value.LineJoin
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.layers.CircleLayer
 import org.maplibre.compose.layers.FillExtrusionLayer
@@ -1306,12 +1310,30 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     data = GeoJsonData.JsonString(config.geoJson),
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
+                // Realistic route styling: rounded caps/joins remove the hard spikes a GPS track
+                // gets at turns, the width breathes with zoom instead of being a fixed-dp ribbon,
+                // and an optional casing drawn underneath gives the line depth and legibility over
+                // any basemap. Casing is composed first so it renders beneath the main stroke.
+                config.casingColorArgb?.let { casingArgb ->
+                    LineLayer(
+                        id = "line-casing-$index",
+                        source = source,
+                        color = const(Color(casingArgb)),
+                        width = buildLineWidthExpr(config.widthDp + config.casingWidthDp * 2f),
+                        opacity = const(config.opacity),
+                        cap = const(LineCap.Round),
+                        join = const(LineJoin.Round),
+                    )
+                }
                 LineLayer(
                     id = "line-layer-$index",
                     source = source,
                     color = const(Color(config.colorArgb)),
-                    width = const(config.widthDp.dp),
+                    width = buildLineWidthExpr(config.widthDp),
                     opacity = const(config.opacity),
+                    cap = const(LineCap.Round),
+                    join = const(LineJoin.Round),
+                    blur = const(config.blurDp.dp),
                 )
             }
                 is MapLibreLayerConfig.Fill -> {
@@ -1389,17 +1411,56 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
 private fun MapActiveTrackingLayer(path: List<LatLngModel>) {
     if (path.size < 2) return
 
+    // Smooth the live path exactly like the historical route so the two never look different as a
+    // session becomes history. Chaikin pins the endpoints, so the tip stays on the newest fix.
+    val smoothed = remember(path) {
+        PolylineOptimizer.optimize(
+            path,
+            toleranceMeters = LIVE_PATH_SIMPLIFY_TOLERANCE_METERS,
+            maxPoints = LIVE_PATH_MAX_POINTS,
+            smoothingIterations = LIVE_PATH_SMOOTHING_ITERATIONS,
+        )
+    }
     val source = rememberGeoJsonSource(
-        data = GeoJsonData.JsonString(GeoJsonConverter.lineToFeatureCollection(path))
+        data = GeoJsonData.JsonString(GeoJsonConverter.lineToFeatureCollection(smoothed))
+    )
+    val lineColor = MaterialTheme.colorScheme.primary
+    val casingColor = MaterialTheme.colorScheme.surface
+    // A light casing halo separates the active line from anything beneath and reads as "live".
+    LineLayer(
+        id = "active-tracking-casing",
+        source = source,
+        color = const(casingColor),
+        width = buildLineWidthExpr(LIVE_PATH_WIDTH_DP + LIVE_PATH_CASING_DP * 2f),
+        opacity = const(0.9f),
+        cap = const(LineCap.Round),
+        join = const(LineJoin.Round),
     )
     LineLayer(
         id = "active-tracking-line",
         source = source,
-        color = const(MaterialTheme.colorScheme.primary),
-        width = const(5.dp),
+        color = const(lineColor),
+        width = buildLineWidthExpr(LIVE_PATH_WIDTH_DP),
         opacity = const(0.95f),
+        cap = const(LineCap.Round),
+        join = const(LineJoin.Round),
     )
 }
+
+/** Douglas-Peucker tolerance (m) for smoothing the live tracking path before render. */
+private const val LIVE_PATH_SIMPLIFY_TOLERANCE_METERS = 3.0
+
+/** Point budget for the live tracking path; ample for shape yet cheap to smooth every fix. */
+private const val LIVE_PATH_MAX_POINTS = 1500
+
+/** Chaikin passes applied to the live tracking path (kept light for responsiveness). */
+private const val LIVE_PATH_SMOOTHING_ITERATIONS = 1
+
+/** Base stroke width (dp) of the live tracking line. */
+private const val LIVE_PATH_WIDTH_DP = 5f
+
+/** Extra width (dp) per side for the live tracking line's casing halo. */
+private const val LIVE_PATH_CASING_DP = 2f
 
 /**
  * Declarative user overlay rendering. Replaces imperative applyUserOverlays().
@@ -1508,6 +1569,22 @@ private fun buildFillColorExpr(
 }
 
 private fun Float.toNumber(): Number = this
+
+/**
+ * Builds a zoom-interpolated line width so the stroke stays visually proportional across zoom
+ * levels — a touch thinner when zoomed out, thicker when zoomed in — instead of a fixed-dp ribbon
+ * that looks hairline on a city view and clumsy up close. [zoom] is the top-level interpolate input,
+ * as MapLibre requires.
+ */
+private fun buildLineWidthExpr(baseWidthDp: Float): Expression<DpValue> = interpolate(
+    type = linear(),
+    input = zoom(),
+    stops = arrayOf(
+        10f.toNumber() to const((baseWidthDp * 0.75f).dp),
+        15f.toNumber() to const(baseWidthDp.dp),
+        19f.toNumber() to const((baseWidthDp * 1.5f).dp),
+    ),
+)
 
 /**
  * Builds a fill-extrusion height expression: maps a per-feature weight in [0, 1] linearly to

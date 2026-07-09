@@ -22,6 +22,7 @@ import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.HeatmapLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.style.BaseStyle
@@ -151,11 +152,25 @@ object MapSnapshotRenderer {
 			is MapLibreLayerConfig.Line -> {
 				val sourceId = "$idPrefix-line-source"
 				builder.withSource(GeoJsonSource(sourceId, config.geoJson))
+				// Casing beneath (added first = drawn under) mirrors MapScreen's realistic styling.
+				config.casingColorArgb?.let { casingArgb ->
+					builder.withLayer(
+						LineLayer("$idPrefix-line-casing", sourceId).withProperties(
+							PropertyFactory.lineColor(casingArgb),
+							PropertyFactory.lineWidth(config.widthDp + config.casingWidthDp * 2f),
+							PropertyFactory.lineOpacity(config.opacity),
+							PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+							PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+						),
+					)
+				}
 				builder.withLayer(
 					LineLayer("$idPrefix-line-layer", sourceId).withProperties(
 						PropertyFactory.lineColor(config.colorArgb),
 						PropertyFactory.lineWidth(config.widthDp),
 						PropertyFactory.lineOpacity(config.opacity),
+						PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+						PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
 					),
 				)
 			}
@@ -226,6 +241,8 @@ object MapSnapshotRenderer {
 				PropertyFactory.lineColor(colorArgb),
 				PropertyFactory.lineWidth(5f),
 				PropertyFactory.lineOpacity(0.95f),
+				PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+				PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
 			),
 		)
 	}
