@@ -146,6 +146,46 @@ class MapLibreLayerConfigTest {
 	}
 
 	@Nested
+	@DisplayName("GradientLine")
+	inner class GradientLineTests {
+
+		@Test
+		fun `stores all fields`() {
+			val stops = listOf(0f to 0xFF0000FF.toInt(), 1f to 0xFFFF0000.toInt())
+			val config = MapLibreLayerConfig.GradientLine(
+				geoJson = """{"grad":true}""",
+				gradientStops = stops,
+				widthDp = 7f,
+				opacity = 0.8f,
+				casingColorArgb = 0x66002A66,
+				casingWidthDp = 3f,
+			)
+			config.geoJson shouldBe """{"grad":true}"""
+			config.gradientStops shouldBe stops
+			config.widthDp shouldBe 7f
+			config.opacity shouldBe 0.8f
+			config.casingColorArgb shouldBe 0x66002A66
+			config.casingWidthDp shouldBe 3f
+		}
+
+		@Test
+		fun `default values`() {
+			val config = MapLibreLayerConfig.GradientLine(geoJson = "{}", gradientStops = emptyList())
+			config.widthDp shouldBe 6f
+			config.opacity shouldBe 1f
+			config.casingColorArgb shouldBe null
+			config.casingWidthDp shouldBe 2.5f
+			config.bounds shouldBe null
+		}
+
+		@Test
+		fun `is MapLibreLayerConfig`() {
+			val config: MapLibreLayerConfig = MapLibreLayerConfig.GradientLine(geoJson = "{}", gradientStops = emptyList())
+			config.shouldBeInstanceOf<MapLibreLayerConfig.GradientLine>()
+		}
+	}
+
+	@Nested
 	@DisplayName("Composite")
 	inner class CompositeTests {
 
@@ -202,6 +242,7 @@ class MapLibreLayerConfigTest {
 				MapLibreLayerConfig.Fill(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.FillExtrusion(geoJson = "", colorStops = emptyList(), maxHeightMeters = 100f),
 				MapLibreLayerConfig.Circle(geoJson = "", colorStops = emptyList(), minRadiusDp = 4f, maxRadiusDp = 20f),
+				MapLibreLayerConfig.GradientLine(geoJson = "", gradientStops = emptyList()),
 				MapLibreLayerConfig.Composite(layers = emptyList()),
 			)
 			val labels = configs.map { config ->
@@ -211,10 +252,11 @@ class MapLibreLayerConfigTest {
 					is MapLibreLayerConfig.Fill -> "fill"
 					is MapLibreLayerConfig.FillExtrusion -> "fill-extrusion"
 					is MapLibreLayerConfig.Circle -> "circle"
+					is MapLibreLayerConfig.GradientLine -> "gradient-line"
 					is MapLibreLayerConfig.Composite -> "composite"
 				}
 			}
-			labels shouldBe listOf("heatmap", "line", "fill", "fill-extrusion", "circle", "composite")
+			labels shouldBe listOf("heatmap", "line", "fill", "fill-extrusion", "circle", "gradient-line", "composite")
 		}
 	}
 }

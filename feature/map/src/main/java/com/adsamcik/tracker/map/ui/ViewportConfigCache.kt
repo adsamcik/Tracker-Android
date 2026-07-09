@@ -100,6 +100,7 @@ internal class ViewportConfigCache(private val maxBytes: Long) {
             is MapLibreLayerConfig.Fill -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.FillExtrusion -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.Circle -> config.geoJson.length.toLong() * 2L
+            is MapLibreLayerConfig.GradientLine -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.Composite -> config.layers.sumOf { estimateBytes(it) }
         }
     }

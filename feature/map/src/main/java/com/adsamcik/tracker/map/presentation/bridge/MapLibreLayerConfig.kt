@@ -102,6 +102,24 @@ sealed interface MapLibreLayerConfig {
         val weightProperty: String = "weight",
         val animation: LayerAnimation? = null,
     ) : MapLibreLayerConfig
+
+    /**
+     * A single polyline whose colour flows *along its length* via MapLibre's `line-gradient`
+     * (rendered from a source with line-distance metrics). [gradientStops] maps line progress in
+     * `[0, 1]` to a colour, each stop's colour pre-resolved from the vertex's weight — so speed,
+     * altitude or activity paints the route end-to-end. Round caps/joins + an optional [casingColorArgb]
+     * outline are applied at render for a smooth, realistic ribbon.
+     */
+    @Immutable
+    data class GradientLine(
+        val geoJson: String,
+        val gradientStops: List<Pair<Float, Int>>,
+        val widthDp: Float = 6f,
+        val opacity: Float = 1f,
+        val casingColorArgb: Int? = null,
+        val casingWidthDp: Float = 2.5f,
+        val bounds: CoordinateBounds? = null,
+    ) : MapLibreLayerConfig
 }
 
 @Immutable
@@ -141,6 +159,11 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
         index = index,
         type = "circle",
         style = CircleStyleKey(colorStops, minRadiusDp, maxRadiusDp, opacity, strokeColorArgb, strokeWidthDp, weightProperty, animation),
+    )
+    is MapLibreLayerConfig.GradientLine -> MapLibreLayerRenderKey(
+        index = index,
+        type = "gradient-line",
+        style = GradientLineStyleKey(gradientStops, widthDp, opacity, casingColorArgb, casingWidthDp),
     )
 }
 
@@ -191,8 +214,18 @@ private data class CircleStyleKey(
     val animation: LayerAnimation?,
 )
 
+@Immutable
+private data class GradientLineStyleKey(
+    val gradientStops: List<Pair<Float, Int>>,
+    val widthDp: Float,
+    val opacity: Float,
+    val casingColorArgb: Int?,
+    val casingWidthDp: Float,
+)
+
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.Line -> bounds
+    is MapLibreLayerConfig.GradientLine -> bounds
     is MapLibreLayerConfig.Heatmap -> null
     is MapLibreLayerConfig.Fill -> null
     is MapLibreLayerConfig.FillExtrusion -> null

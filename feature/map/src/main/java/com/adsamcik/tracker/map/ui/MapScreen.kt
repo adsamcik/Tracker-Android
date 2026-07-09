@@ -1035,6 +1035,13 @@ fun MapScreen(
 private val SYNCHRONOUS_GEOJSON_OPTIONS = GeoJsonOptions(synchronousUpdate = true)
 
 /**
+ * Source options for gradient ribbons: [GeoJsonOptions.lineMetrics] computes line-distance metrics,
+ * which MapLibre's `line-gradient` requires to resolve `lineProgress`. Synchronous updates match the
+ * other data sources so live/reactive refreshes don't visibly pop.
+ */
+private val GRADIENT_GEOJSON_OPTIONS = GeoJsonOptions(synchronousUpdate = true, lineMetrics = true)
+
+/**
  * Resolve the [BaseStyle] for the current basemap configuration. Performs disk I/O
  * (MapStyleProvider reads the PMTiles header), so this MUST be called off the main thread — see the
  * produceState that drives it in [MapScreen].
@@ -1401,6 +1408,36 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     strokeWidth = const(config.strokeWidthDp.dp),
                 )
             }
+                is MapLibreLayerConfig.GradientLine -> {
+                // Attributed ribbon: line-gradient paints the route by a per-vertex weight (speed,
+                // altitude, …) that flows along its length. The source carries line-distance metrics
+                // (required by line-gradient); round caps/joins + an optional casing beneath give the
+                // same smooth, realistic look as the polyline. Casing composed first = drawn under.
+                val source = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = GRADIENT_GEOJSON_OPTIONS,
+                )
+                config.casingColorArgb?.let { casingArgb ->
+                    LineLayer(
+                        id = "gradient-line-casing-$index",
+                        source = source,
+                        color = const(Color(casingArgb)),
+                        width = buildLineWidthExpr(config.widthDp + config.casingWidthDp * 2f),
+                        opacity = const(config.opacity),
+                        cap = const(LineCap.Round),
+                        join = const(LineJoin.Round),
+                    )
+                }
+                LineLayer(
+                    id = "gradient-line-$index",
+                    source = source,
+                    gradient = buildLineGradientExpr(config.gradientStops),
+                    width = buildLineWidthExpr(config.widthDp),
+                    opacity = const(config.opacity),
+                    cap = const(LineCap.Round),
+                    join = const(LineJoin.Round),
+                )
+            }
                 is MapLibreLayerConfig.Composite -> Unit
             }
         }
@@ -1587,6 +1624,17 @@ private fun buildLineWidthExpr(baseWidthDp: Float): Expression<DpValue> = interp
 )
 
 /**
+ * Builds a `line-gradient` colour expression from pre-resolved (lineProgress -> ARGB) stops, so the
+ * ribbon's colour flows along the route. Input is [Feature.lineProgress] (valid only on a source
+ * with line metrics); each stop is already the vertex's weight-resolved colour.
+ */
+private fun buildLineGradientExpr(stops: List<Pair<Float, Int>>): Expression<ColorValue> = interpolate(
+    type = linear(),
+    input = Feature.lineProgress(),
+    stops = stops.map { (progress, argb) -> progress.toNumber() to const(Color(argb)) }.toTypedArray(),
+)
+
+/**
  * Builds a fill-extrusion height expression: maps a per-feature weight in [0, 1] linearly to
  * `[0, maxHeightMeters]`, so denser cells stand physically taller.
  */
@@ -1628,6 +1676,7 @@ private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     is MapLibreLayerConfig.Fill -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.FillExtrusion -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Circle -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.GradientLine -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
 }
 

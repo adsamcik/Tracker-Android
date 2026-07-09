@@ -35,4 +35,13 @@ sealed interface SpatialData {
 	 * place-marker visualizations (e.g. frequent places sized by visit count).
 	 */
 	data class Markers(val points: List<WeightedGeoFeature>) : SpatialData
+
+	/**
+	 * An ordered polyline whose vertices each carry a normalised `[0, 1]` weight, rendered as a single
+	 * gradient-coloured line ([MapLibreLayerConfig.GradientLine][com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig.GradientLine]).
+	 * The weight varies *along* the path — e.g. speed, altitude or activity — so the colour flows
+	 * smoothly from one end to the other. Backs "ribbon" visualizations (speed ribbon, altitude
+	 * ribbon, …); the ordering is the path order (typically by time).
+	 */
+	data class Segments(val path: List<WeightedGeoFeature>) : SpatialData
 }

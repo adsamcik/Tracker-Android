@@ -22,6 +22,8 @@ import com.adsamcik.tracker.map.viz.catalog.SEASONAL_RAMP
 import com.adsamcik.tracker.map.viz.catalog.seasonalPalimpsest
 import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
 import com.adsamcik.tracker.map.viz.catalog.speedHeatmap
+import com.adsamcik.tracker.map.viz.catalog.speedRibbon
+import com.adsamcik.tracker.map.viz.catalog.SPEED_RIBBON_RAMP
 import com.adsamcik.tracker.map.viz.catalog.TERRAIN_RAMP
 import com.adsamcik.tracker.map.viz.catalog.wifiCountHeatmap
 import com.adsamcik.tracker.map.viz.catalog.wifiSignalHeatmap
@@ -655,6 +657,41 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_terrain_low, TERRAIN_RAMP[0].second),
                                     MapLegendValue(R.string.map_layer_terrain_mid, TERRAIN_RAMP[2].second),
                                     MapLegendValue(R.string.map_layer_terrain_high, TERRAIN_RAMP[4].second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Speed ribbon — the recorded route coloured continuously by speed (Segments -> GradientLine).
+        add(
+            LayerDescriptor(
+                id = "speed_ribbon",
+                titleRes = R.string.map_layer_speed_ribbon_title,
+                chipLabelRes = R.string.map_layer_speed_ribbon_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
+                            val repo: GeoRepository = GeoRepositoryImpl(dao)
+                            speedRibbon(repo).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("SpeedRibbon", R.string.map_layer_speed_ribbon_title),
+                            colorList = SPEED_RIBBON_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_speed_ribbon_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_speed_very_slow, SPEED_RIBBON_RAMP[0].second),
+                                    MapLegendValue(R.string.map_layer_speed_walking, SPEED_RIBBON_RAMP[1].second),
+                                    MapLegendValue(R.string.map_layer_speed_running, SPEED_RIBBON_RAMP[2].second),
+                                    MapLegendValue(R.string.map_layer_speed_moderate, SPEED_RIBBON_RAMP[3].second),
+                                    MapLegendValue(R.string.map_layer_speed_fast, SPEED_RIBBON_RAMP[4].second),
+                                    MapLegendValue(R.string.map_layer_speed_very_fast, SPEED_RIBBON_RAMP[5].second),
                                 )
                             )
                         )

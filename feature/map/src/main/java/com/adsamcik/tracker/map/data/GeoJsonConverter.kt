@@ -29,6 +29,26 @@ object GeoJsonConverter {
     }
 
     /**
+     * Convert an ordered list of weighted geo features to a GeoJSON FeatureCollection containing a
+     * single LineString (the vertices in path order). The per-vertex weights are carried separately
+     * as pre-resolved gradient stops, so the geometry itself needs no properties.
+     */
+    fun weightedLineToFeatureCollection(path: List<WeightedGeoFeature>): String {
+        val sb = StringBuilder(path.size * 40 + 200)
+        sb.append("""{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[""")
+        path.forEachIndexed { index, point ->
+            if (index > 0) sb.append(',')
+            sb.append('[')
+            sb.append(point.lon)
+            sb.append(',')
+            sb.append(point.lat)
+            sb.append(']')
+        }
+        sb.append("""]},"properties":{}}]}""")
+        return sb.toString()
+    }
+
+    /**
      * Convert a list of coordinate pairs to a GeoJSON FeatureCollection with a single LineString.
      */
     fun lineToFeatureCollection(points: List<LatLngModel>): String {

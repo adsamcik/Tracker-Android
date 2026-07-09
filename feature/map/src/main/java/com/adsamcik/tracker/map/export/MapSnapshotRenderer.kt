@@ -24,6 +24,7 @@ import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.style.BaseStyle
 import kotlin.coroutines.resume
@@ -224,6 +225,31 @@ object MapSnapshotRenderer {
 					),
 				)
 			}
+			is MapLibreLayerConfig.GradientLine -> {
+				val sourceId = "$idPrefix-gradient-line-source"
+				// line-gradient needs line-distance metrics on the source (mirrors GRADIENT_GEOJSON_OPTIONS).
+				builder.withSource(GeoJsonSource(sourceId, config.geoJson, GeoJsonOptions().withLineMetrics(true)))
+				config.casingColorArgb?.let { casingArgb ->
+					builder.withLayer(
+						LineLayer("$idPrefix-gradient-line-casing", sourceId).withProperties(
+							PropertyFactory.lineColor(casingArgb),
+							PropertyFactory.lineWidth(config.widthDp + config.casingWidthDp * 2f),
+							PropertyFactory.lineOpacity(config.opacity),
+							PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+							PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+						),
+					)
+				}
+				builder.withLayer(
+					LineLayer("$idPrefix-gradient-line-layer", sourceId).withProperties(
+						PropertyFactory.lineGradient(buildGradientStopExpression(config.gradientStops)),
+						PropertyFactory.lineWidth(config.widthDp),
+						PropertyFactory.lineOpacity(config.opacity),
+						PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+						PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+					),
+				)
+			}
 		}
 	}
 
@@ -250,6 +276,12 @@ object MapSnapshotRenderer {
 	private fun buildColorStopExpression(colorStops: List<Pair<Float, Int>>, input: Expression): Expression {
 		val stops = colorStops.map { (stop, argb) -> Expression.stop(stop, Expression.color(argb)) }.toTypedArray()
 		return Expression.interpolate(Expression.linear(), input, *stops)
+	}
+
+	/** Classic-API equivalent of MapScreen's buildLineGradientExpr: (lineProgress -> ARGB) stops. */
+	private fun buildGradientStopExpression(gradientStops: List<Pair<Float, Int>>): Expression {
+		val stops = gradientStops.map { (progress, argb) -> Expression.stop(progress, Expression.color(argb)) }.toTypedArray()
+		return Expression.interpolate(Expression.linear(), Expression.lineProgress(), *stops)
 	}
 
 	private fun CameraPosition.toClassic(): ClassicCameraPosition =

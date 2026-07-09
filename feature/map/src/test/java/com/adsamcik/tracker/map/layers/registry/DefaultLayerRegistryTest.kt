@@ -139,7 +139,8 @@ class DefaultLayerRegistryTest {
                 "legacy_heatmap",
                 "seasonal_palimpsest",
                 "frequent_places",
-                "life_terrain"
+                "life_terrain",
+                "speed_ribbon"
             )
         }
 

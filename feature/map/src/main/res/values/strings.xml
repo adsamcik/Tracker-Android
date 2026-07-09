@@ -73,6 +73,9 @@
     <string name="map_layer_places_rare">Rarely</string>
     <string name="map_layer_places_often">Sometimes</string>
     <string name="map_layer_places_anchor">Your anchors</string>
+    <string name="map_layer_speed_ribbon_title">Speed ribbon</string>
+    <string name="map_layer_speed_ribbon_chip">Ribbon</string>
+    <string name="map_layer_speed_ribbon_description">Your route painted by how fast you were moving, flowing colour from a slow violet amble to a red-hot sprint or drive. Unlike the speed heatmap, the ribbon keeps your path intact so you can see exactly where you sped up and slowed down.</string>
     <string name="map_layer_vehicle_compliance_title">Vehicle speed compliance</string>
     <string name="map_layer_vehicle_compliance_description">Polyline of driving samples coloured by how the speed compares to your configured baseline limit.</string>
     <string name="map_layer_vehicle_compliance_way_under">Way under limit</string>
