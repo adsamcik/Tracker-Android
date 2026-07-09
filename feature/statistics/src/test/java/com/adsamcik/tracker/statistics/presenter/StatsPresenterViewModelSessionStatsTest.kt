@@ -186,6 +186,7 @@ class StatsPresenterViewModelSessionStatsTest {
 			sessionStatsRepository = sessionStatsRepository,
 			dailySummaryRepository = dailySummaryRepository,
 			wifiObservationRepository = wifiObservationRepository,
+			cellSignalRepository = io.mockk.mockk(relaxed = true),
 			gpxShareHelper = gpxShareHelper,
 			sessionStatsUiFormatter = sessionStatsUiFormatter,
 		)

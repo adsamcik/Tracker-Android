@@ -50,6 +50,7 @@
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_wifi_label">Wi‑Fi</string>
     <string name="stats_wifi_chip_label">Wi‑Fi stats</string>
+    <string name="stats_cell_signal_chip_label">Cell signal</string>
     <string name="stats_filter_dates">Dates</string>
     <string name="stats_filter_dialog_title">Choose date range</string>
     <string name="stats_filter_active_label">Showing %1$s</string>
@@ -111,6 +112,23 @@
     <string name="stats_wifi_unique_networks">Unique networks seen</string>
     <string name="stats_wifi_total_scans">Total scans</string>
     <string name="stats_wifi_average_per_scan">Average networks per scan</string>
+
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Cell signal report</string>
+    <string name="stats_cell_signal_dialog_loading">Loading cell signal report…</string>
+    <string name="stats_cell_signal_dialog_empty_title">No cell data available</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Cell signal statistics will appear after samples are collected.</string>
+    <string name="stats_cell_signal_dialog_error">Failed to load cell signal report</string>
+    <string name="stats_cell_signal_total_samples">Cell samples</string>
+    <string name="stats_cell_signal_distinct_towers">Distinct towers</string>
+    <string name="stats_cell_signal_section_networks">By network type</string>
+    <string name="stats_cell_signal_section_towers">Most‑seen towers</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s of samples · %2$s towers</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Cell %1$s · %2$s samples</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Carrier %1$s‑%2$s</string>
 
     <!-- Trip detail screen -->
     <string name="trip_detail_title">Trip Details</string>

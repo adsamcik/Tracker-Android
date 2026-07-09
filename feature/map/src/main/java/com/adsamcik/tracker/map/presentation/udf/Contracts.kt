@@ -179,7 +179,6 @@ sealed interface MapEvent {
 }
 
 sealed interface MapEffect {
-    data object ShowFollowCanceled : MapEffect
     data class CenterCamera(val bounds: CoordinateBounds) : MapEffect
 
     /**

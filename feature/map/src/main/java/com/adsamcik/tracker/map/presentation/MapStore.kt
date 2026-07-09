@@ -299,7 +299,6 @@ class MapStore @Inject constructor(
             }
             is MapEvent.FollowCanceled -> {
                 _state.update { it.copy(isFollowing = false) }
-                _effects.tryEmit(MapEffect.ShowFollowCanceled)
             }
             is MapEvent.SetQuality -> {
                 _state.update { it.copy(quality = event.value) }

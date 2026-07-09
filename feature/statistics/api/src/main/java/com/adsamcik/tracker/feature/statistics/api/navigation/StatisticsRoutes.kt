@@ -12,6 +12,9 @@ data object StatsSummary
 data object StatsWifi
 
 @Serializable
+data object StatsSignalReport
+
+@Serializable
 data class TripDetail(val tripId: Long)
 
 @Serializable

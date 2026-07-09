@@ -8,7 +8,7 @@ import kotlin.math.floor
 /**
  * Buckets location fixes into a fixed ground-size grid for the legacy grid-tile heatmap — the look
  * the old Signals/Advention app had when heatmap tiles were rendered server-side as discrete
- * ~10 m × 10 m squares (rather than the smooth GPU heatmap used today).
+ * ~25 m × 25 m squares (rather than the smooth GPU heatmap used today).
  *
  * The latitude cell size is a constant degree span; the longitude cell size is widened by
  * `1 / cos(centerLat)` so tiles stay roughly square on the ground regardless of latitude. Tiles are
@@ -18,7 +18,7 @@ import kotlin.math.floor
 object LegacyTileAggregator {
 
     /** Tile edge length in metres. */
-    const val TILE_METERS: Double = 10.0
+    const val TILE_METERS: Double = 25.0
 
     /** Hard cap on rendered tiles; protects the renderer at low zoom / large viewports. */
     const val MAX_TILES: Int = 25_000

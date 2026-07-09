@@ -268,7 +268,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.work)
 
-    // Glance App Widgets
+    // Glance (App Widgets)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
@@ -278,9 +278,6 @@ dependencies {
     // Compose
     androidTestImplementation(platform(libs.compose.bom))
 
-    // Glance (App Widgets)
-    implementation(libs.glance.appwidget)
-    implementation(libs.glance.material3)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.activity.compose)

@@ -10,6 +10,7 @@ import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
 import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSummary
+import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSignalReport
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsWifi
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
@@ -56,6 +57,11 @@ fun NavGraphBuilder.statsGraph(
                     launchSingleTop = true
                 }
             },
+            onNavigateToSignalReport = {
+                navController.navigate(StatsSignalReport) {
+                    launchSingleTop = true
+                }
+            },
         )
     }
 
@@ -67,6 +73,12 @@ fun NavGraphBuilder.statsGraph(
 
     composable<StatsWifi> {
         com.adsamcik.tracker.statistics.ui.WifiStatsRoute(
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable<StatsSignalReport> {
+        com.adsamcik.tracker.statistics.ui.CellSignalReportRoute(
             onBack = { navController.popBackStack() },
         )
     }

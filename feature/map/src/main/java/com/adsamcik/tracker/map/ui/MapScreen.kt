@@ -439,7 +439,6 @@ fun MapScreen(
         }
     }
 
-    val followCanceledText = stringResource(com.adsamcik.tracker.map.R.string.map_follow_canceled)
     val emptyStateSubtitle = when (activeLayerId) {
         "cell_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_cell)
         "wifi_heatmap",
@@ -534,7 +533,16 @@ fun MapScreen(
                     ornamentOptions = OrnamentOptions(
                         padding = PaddingValues(
                             start = 16.dp,
-                            top = 16.dp,
+                            // The compass defaults to the top-end corner, same as the global
+                            // settings gear button rendered by MainRoot ("settings_global":
+                            // statusBarsPadding() + 4dp top + 8dp end, 48dp icon). A flat 16.dp
+                            // here ignored the status bar/notch inset (leaving the compass
+                            // un-offset from the notification bar) and put it in the same
+                            // corner as the settings button, so the two overlapped. Reuse
+                            // topInsetPadding (status bar height + margin) and push further
+                            // down by the settings button's own footprint plus a gap so the
+                            // compass always renders below it instead of on top of it.
+                            top = topInsetPadding + 44.dp,
                             end = 16.dp,
                             bottom = bottomPaddingDp + 16.dp,
                         ),
@@ -982,15 +990,6 @@ fun MapScreen(
                                 duration = 300.milliseconds,
                             )
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
-                }
-                is MapEffect.ShowFollowCanceled -> {
-                    try {
-                        snackbarHostState.showSnackbar(followCanceledText)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

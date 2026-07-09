@@ -19,8 +19,8 @@ class LegacyTileAggregatorTest {
 	}
 
 	@Test
-	fun `points in the same 10m cell collapse into one tile`() {
-		// Two points ~1 m apart at lat 50 — well within a 10 m cell.
+	fun `points in the same 25m cell collapse into one tile`() {
+		// Two points ~1 m apart at lat 50 — well within a 25 m cell.
 		val points = listOf(point(50.000000, 14.000000), point(50.000005, 14.000005))
 		val tiles = LegacyTileAggregator.tile(points, centerLat = 50.0)
 		tiles shouldHaveSize 1
@@ -51,15 +51,15 @@ class LegacyTileAggregatorTest {
 	}
 
 	@Test
-	fun `tile edges are roughly 10 metres on the ground`() {
+	fun `tile edges are roughly 25 metres on the ground`() {
 		val tiles = LegacyTileAggregator.tile(listOf(point(50.0, 14.0)), centerLat = 50.0)
 		val tile = tiles.single()
-		// Latitude span * metres-per-degree ≈ 10 m.
+		// Latitude span * metres-per-degree ≈ 25 m.
 		val latMeters = (tile.north - tile.south) * 111_320.0
-		latMeters shouldBe (10.0 plusOrMinus 0.01)
-		// Longitude span * metres-per-degree * cos(lat) ≈ 10 m (cos 50° ≈ 0.643).
+		latMeters shouldBe (25.0 plusOrMinus 0.01)
+		// Longitude span * metres-per-degree * cos(lat) ≈ 25 m (cos 50° ≈ 0.643).
 		val lonMeters = (tile.east - tile.west) * 111_320.0 * Math.cos(Math.toRadians(50.0))
-		lonMeters shouldBe (10.0 plusOrMinus 0.1)
+		lonMeters shouldBe (25.0 plusOrMinus 0.1)
 	}
 
 	@Test

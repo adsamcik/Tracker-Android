@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Wifi
@@ -133,6 +134,7 @@ fun StatsScreen(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onOpenSignalReport: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
@@ -180,6 +182,7 @@ fun StatsScreen(
                     onShowSummary = onShowSummary,
                     onShowWeek = onShowWeek,
                     onOpenWifi = onOpenWifi,
+                    onOpenSignalReport = onOpenSignalReport,
                     onNavigateToHistory = onNavigateToHistory,
                     selectedHeaderAction = selectedHeaderAction,
                     weeklyBars = weeklyBars,
@@ -279,6 +282,7 @@ private fun ContentState(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onOpenSignalReport: () -> Unit = {},
     onNavigateToHistory: () -> Unit,
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
@@ -308,6 +312,7 @@ private fun ContentState(
                     onShowSummary = onShowSummary,
                     onShowWeek = onShowWeek,
                     onOpenWifi = onOpenWifi,
+                    onOpenSignalReport = onOpenSignalReport,
                     onNavigateToHistory = onNavigateToHistory,
                     selectedAction = selectedHeaderAction,
                 )
@@ -421,12 +426,14 @@ private fun HeaderActions(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    onOpenSignalReport: () -> Unit,
     onNavigateToHistory: () -> Unit,
     selectedAction: StatsHeaderAction?,
 ) {
     val summaryLabel = stringResource(R.string.stats_sum_title)
     val weekLabel = stringResource(R.string.stats_filter_dates)
     val wifiLabel = stringResource(R.string.stats_wifi_chip_label)
+    val signalLabel = stringResource(R.string.stats_cell_signal_chip_label)
     val historyLabel = stringResource(R.string.history_button_label)
     val scrollState = rememberScrollState()
 
@@ -461,6 +468,11 @@ private fun HeaderActions(
             onClick = onOpenWifi,
             icon = Icons.Filled.Wifi,
             label = wifiLabel,
+        )
+        ActionAssistChip(
+            onClick = onOpenSignalReport,
+            icon = Icons.Filled.SignalCellularAlt,
+            label = signalLabel,
         )
         ActionAssistChip(
             onClick = onNavigateToHistory,

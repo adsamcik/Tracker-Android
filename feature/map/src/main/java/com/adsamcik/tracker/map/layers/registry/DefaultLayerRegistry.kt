@@ -5,19 +5,20 @@ import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
-import com.adsamcik.tracker.map.layers.impl.CellHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
-import com.adsamcik.tracker.map.layers.impl.LegacyHeatmapLayer
-import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
-import com.adsamcik.tracker.map.layers.impl.SpeedHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.VehicleComplianceLayer
-import com.adsamcik.tracker.map.layers.impl.WifiCountHeatmapLayer
-import com.adsamcik.tracker.map.layers.impl.WifiHeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
+import com.adsamcik.tracker.map.viz.catalog.cellSignalHeatmap
+import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
+import com.adsamcik.tracker.map.viz.catalog.locationDensityHeatmap
+import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
+import com.adsamcik.tracker.map.viz.catalog.speedHeatmap
+import com.adsamcik.tracker.map.viz.catalog.wifiCountHeatmap
+import com.adsamcik.tracker.map.viz.catalog.wifiSignalHeatmap
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -88,6 +89,18 @@ class DefaultLayerRegistry(
         )
     }
 
+    private fun signalDeadZoneLegendValues(): List<MapLegendValue> {
+        // Drop the transparent 0.0 stop: it represents "strong signal / no data" and is not a
+        // meaningful legend swatch. The remaining stops run weak → dead zone.
+        val colors = HeatmapColorRamps.SignalDeadZone.drop(1).map { it.second }
+        return listOf(
+            MapLegendValue(R.string.map_layer_signal_coverage_weak, colors[0]),
+            MapLegendValue(R.string.map_layer_signal_coverage_poor, colors[1]),
+            MapLegendValue(R.string.map_layer_signal_coverage_very_poor, colors[2]),
+            MapLegendValue(R.string.map_layer_signal_coverage_dead, colors[3]),
+        )
+    }
+
     private fun buildLayers(): List<LayerDescriptor> = buildList {
         // No layer (legend only; acts as a placeholder)
         add(
@@ -122,7 +135,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            LocationHeatmapLayer(repo, PerformanceManager())
+                            locationDensityHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_location_heatmap_title),
@@ -149,7 +162,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            CellHeatmapLayer(repo, PerformanceManager())
+                            cellSignalHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
@@ -157,6 +170,34 @@ class DefaultLayerRegistry(
                             legend = MapLegend(
                                 description = R.string.map_layer_cell_heatmap_description,
                                 valueList = cellSignalLegendValues()
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Signal Coverage (dead zones) — inverse of Cell Heatmap: highlights weak/absent signal.
+        add(
+            LayerDescriptor(
+                id = "signal_coverage",
+                titleRes = R.string.map_layer_signal_coverage_title,
+                chipLabelRes = R.string.map_layer_signal_coverage_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = true),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
+                            val repo: GeoRepository = GeoRepositoryImpl(dao)
+                            signalCoverageHeatmap(repo).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("SignalCoverageLayer", R.string.map_layer_signal_coverage_title),
+                            colorList = HeatmapColorRamps.SignalDeadZone.drop(1).map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_signal_coverage_description,
+                                valueList = signalDeadZoneLegendValues()
                             )
                         )
                     )
@@ -176,7 +217,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            WifiHeatmapLayer(repo, PerformanceManager())
+                            wifiSignalHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
@@ -213,7 +254,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            WifiCountHeatmapLayer(repo, PerformanceManager())
+                            wifiCountHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),
@@ -248,7 +289,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            SpeedHeatmapLayer(repo, PerformanceManager())
+                            speedHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SpeedHeatmapLayer", R.string.map_layer_speed_heatmap_title),
@@ -500,7 +541,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            LegacyHeatmapLayer(repo, PerformanceManager())
+                            legacyTileHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("LegacyHeatmapLayer", R.string.map_layer_legacy_heatmap_title),

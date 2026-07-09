@@ -7,12 +7,14 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
+import com.adsamcik.tracker.statistics.viewmodel.CellSignalReportLoadState
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
@@ -44,6 +46,7 @@ class StatsPresenterViewModel @Inject constructor(
 	private val sessionStatsRepository: SessionStatsRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
 	private val wifiObservationRepository: WifiObservationRepository,
+	private val cellSignalRepository: CellSignalRepository,
 	private val gpxShareHelper: GpxShareHelper,
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter,
 ) : ViewModel() {
@@ -87,6 +90,11 @@ class StatsPresenterViewModel @Inject constructor(
 
 	private val _wifiStatsState = MutableStateFlow<WifiStatsLoadState>(WifiStatsLoadState.Idle)
 	val wifiStatsState: StateFlow<WifiStatsLoadState> = _wifiStatsState.asStateFlow()
+
+	private val _cellSignalReportState =
+		MutableStateFlow<CellSignalReportLoadState>(CellSignalReportLoadState.Idle)
+	val cellSignalReportState: StateFlow<CellSignalReportLoadState> =
+		_cellSignalReportState.asStateFlow()
 
 	private val _weeklyBars = MutableStateFlow<List<DayBar>>(emptyList())
 	val weeklyBars: StateFlow<List<DayBar>> = _weeklyBars.asStateFlow()
@@ -200,6 +208,24 @@ class StatsPresenterViewModel @Inject constructor(
 						WifiStatsLoadState.Empty
 					} else {
 						WifiStatsLoadState.Success(summary)
+					}
+				},
+			)
+		}
+	}
+
+	fun loadCellSignalReport() {
+		viewModelScope.launch {
+			_cellSignalReportState.value = CellSignalReportLoadState.Loading
+			cellSignalRepository.getReport().fold(
+				ifLeft = { error ->
+					_cellSignalReportState.value = CellSignalReportLoadState.Error(error.message)
+				},
+				ifRight = { report ->
+					_cellSignalReportState.value = if (report.totalSamples == 0L) {
+						CellSignalReportLoadState.Empty
+					} else {
+						CellSignalReportLoadState.Success(report)
 					}
 				},
 			)

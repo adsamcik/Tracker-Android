@@ -31,6 +31,22 @@ internal object HeatmapColorRamps {
     )
 
     /**
+     * Ramp for the signal dead-zone (coverage) layer. Unlike [CellSignal], this layer's weight is
+     * *inverted* — high weight means weak/absent signal — so the ramp runs the opposite way: strong
+     * signal fades to transparent (you have coverage there, nothing to flag) while progressively
+     * weaker signal glows yellow → orange → red. The 0.0 stop MUST stay transparent: MapLibre's
+     * `heatmap-color` is evaluated at every pixel, and strong-signal cells contribute ~0 density, so
+     * an opaque low stop would tint the whole map instead of only the poorly-covered areas.
+     */
+    val SignalDeadZone: List<Pair<Float, Int>> = listOf(
+        0.0f to 0x00FFF176,
+        0.4f to 0xFFFFF176.toInt(),
+        0.6f to 0xFFFFA726.toInt(),
+        0.8f to 0xFFFF7043.toInt(),
+        1.0f to 0xFFD50000.toInt(),
+    )
+
+    /**
      * Five-stop ramp for the vehicle speed compliance layer.
      * Indexes (in bucket order) are: way-under, slow, at-limit, slightly-over, speeding.
      * Plain hex literals are used so unit tests can read the values without an

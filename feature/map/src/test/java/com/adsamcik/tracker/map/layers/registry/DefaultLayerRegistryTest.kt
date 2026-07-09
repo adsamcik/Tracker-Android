@@ -130,6 +130,7 @@ class DefaultLayerRegistryTest {
                 "none",
                 "location_heatmap",
                 "cell_heatmap",
+                "signal_coverage",
                 "wifi_heatmap",
                 "wifi_count_heatmap",
                 "speed_heatmap",
@@ -144,6 +145,7 @@ class DefaultLayerRegistryTest {
             val heatmapIds = listOf(
                 "location_heatmap",
                 "cell_heatmap",
+                "signal_coverage",
                 "wifi_heatmap",
                 "wifi_count_heatmap",
                 "speed_heatmap"

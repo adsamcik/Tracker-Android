@@ -29,6 +29,7 @@ fun StatsRoute(
     onNavigateToTracker: () -> Unit = {},
     onNavigateToSummary: () -> Unit = {},
     onNavigateToWifiStats: () -> Unit = {},
+    onNavigateToSignalReport: () -> Unit = {},
 ) {
     val vm: StatsPresenterViewModel = hiltViewModel()
     val context = LocalContext.current
@@ -67,6 +68,7 @@ fun StatsRoute(
         onShowSummary = onNavigateToSummary,
         onShowWeek = { showDateRangeDialog = true },
         onOpenWifi = onNavigateToWifiStats,
+        onOpenSignalReport = onNavigateToSignalReport,
         onNavigateToHistory = onNavigateToHistory,
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,

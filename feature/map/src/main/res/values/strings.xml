@@ -35,6 +35,13 @@
     <string name="map_layer_cell_signal_good" translatable="false">Good signal</string>
     <string name="map_layer_cell_signal_strong" translatable="false">Strong signal</string>
     <string name="map_layer_cell_signal_excellent" translatable="false">Excellent signal</string>
+    <string name="map_layer_signal_coverage_title">Signal dead zones</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Highlights where your cell signal was weak or missing. The redder the area, the worse the coverage; well-covered areas stay clear.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
     <string name="map_layer_speed_heatmap_description">Heatmap representing the speed of movement across different areas.</string>
     <string name="map_layer_speed_very_slow">Very Slow</string>
     <string name="map_layer_speed_walking">Walking Pace</string>
@@ -186,7 +193,6 @@
     <string name="map_zoom_out">Zoom out</string>
     <string name="map_loading">Loading map…</string>
     <string name="map_basemap_unavailable">Map basemap could not be prepared. Close and reopen the map to try again.</string>
-    <string name="map_follow_canceled">Stopped centering on your location</string>
     <string name="map_legend_button">Legend</string>
     <string name="map_generating_tiles">Generating %d tiles…</string>
     <string name="map_a11y_map_overview">Map overview</string>
