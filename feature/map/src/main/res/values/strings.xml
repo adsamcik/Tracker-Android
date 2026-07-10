@@ -76,6 +76,16 @@
     <string name="map_layer_speed_ribbon_title">Speed ribbon</string>
     <string name="map_layer_speed_ribbon_chip">Ribbon</string>
     <string name="map_layer_speed_ribbon_description">Your route painted by how fast you were moving, flowing colour from a slow violet amble to a red-hot sprint or drive. Unlike the speed heatmap, the ribbon keeps your path intact so you can see exactly where you sped up and slowed down.</string>
+    <string name="map_layer_fog_title">Explorer\u2019s fog</string>
+    <string name="map_layer_fog_chip">Fog</string>
+    <string name="map_layer_fog_description">The world emerging from the fog: every area you\u2019ve touched is revealed, glowing brighter the more thoroughly you got to know it. Places you merely passed through stay a faint haze; somewhere you explored deeply burns solid gold. Unexplored ground stays dark.</string>
+    <string name="map_layer_fog_faint">Passed through</string>
+    <string name="map_layer_fog_known">Well explored</string>
+    <string name="map_layer_first_contact_title">First contact</string>
+    <string name="map_layer_first_contact_chip">Discovery</string>
+    <string name="map_layer_first_contact_description">A timeline of your discoveries: each area is coloured by how recently you first set foot there. The places you found long ago fade to deep indigo, while ground you broke this week glows bright cyan\u2014read the story of your exploration outward to your newest frontiers.</string>
+    <string name="map_layer_first_contact_old">Long ago</string>
+    <string name="map_layer_first_contact_recent">Just discovered</string>
     <string name="map_layer_vehicle_compliance_title">Vehicle speed compliance</string>
     <string name="map_layer_vehicle_compliance_description">Polyline of driving samples coloured by how the speed compares to your configured baseline limit.</string>
     <string name="map_layer_vehicle_compliance_way_under">Way under limit</string>

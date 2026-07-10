@@ -13,6 +13,10 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.map.viz.catalog.cellSignalHeatmap
+import com.adsamcik.tracker.map.viz.catalog.firstContact
+import com.adsamcik.tracker.map.viz.catalog.FIRST_CONTACT_RAMP
+import com.adsamcik.tracker.map.viz.catalog.fogOfWonder
+import com.adsamcik.tracker.map.viz.catalog.FOG_RAMP
 import com.adsamcik.tracker.map.viz.catalog.frequentPlaces
 import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
 import com.adsamcik.tracker.map.viz.catalog.lifeAsTerrain
@@ -692,6 +696,66 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_speed_moderate, SPEED_RIBBON_RAMP[3].second),
                                     MapLegendValue(R.string.map_layer_speed_fast, SPEED_RIBBON_RAMP[4].second),
                                     MapLegendValue(R.string.map_layer_speed_very_fast, SPEED_RIBBON_RAMP[5].second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // Explorer's fog — explored cells revealed by discovery quality (Fill shape, alpha ramp).
+        add(
+            LayerDescriptor(
+                id = "fog_of_wonder",
+                titleRes = R.string.map_layer_fog_title,
+                chipLabelRes = R.string.map_layer_fog_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao = AppDatabase.database(ctx).explorationCellDao()
+                            fogOfWonder(dao).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("FogOfWonder", R.string.map_layer_fog_title),
+                            colorList = FOG_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_fog_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_fog_faint, FOG_RAMP.first().second),
+                                    MapLegendValue(R.string.map_layer_fog_known, FOG_RAMP.last().second),
+                                )
+                            )
+                        )
+                    )
+                })
+            )
+        )
+
+        // First contact — explored cells coloured by how recently first discovered (Fill shape).
+        add(
+            LayerDescriptor(
+                id = "first_contact",
+                titleRes = R.string.map_layer_first_contact_title,
+                chipLabelRes = R.string.map_layer_first_contact_chip,
+                iconRes = null,
+                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
+                recipe = LayerRecipe(factory = LayerFactory {
+                    LayerEntry(
+                        build = { ctx ->
+                            val dao = AppDatabase.database(ctx).explorationCellDao()
+                            firstContact(dao).toLayer()
+                        },
+                        legend = MapLayerData(
+                            info = MapLayerInfo("FirstContact", R.string.map_layer_first_contact_title),
+                            colorList = FIRST_CONTACT_RAMP.map { it.second },
+                            legend = MapLegend(
+                                description = R.string.map_layer_first_contact_description,
+                                valueList = listOf(
+                                    MapLegendValue(R.string.map_layer_first_contact_old, FIRST_CONTACT_RAMP.first().second),
+                                    MapLegendValue(R.string.map_layer_first_contact_recent, FIRST_CONTACT_RAMP.last().second),
                                 )
                             )
                         )

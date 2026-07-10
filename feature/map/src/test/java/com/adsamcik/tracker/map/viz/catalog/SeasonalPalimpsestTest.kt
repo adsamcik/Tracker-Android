@@ -103,6 +103,7 @@ class SeasonalPalimpsestTest {
 
 		private fun feature(season: Int) = ExplorationCellFeature(
 			lat = 50.0, lon = 14.0, level = 14, seasonBitmask = season, quality = 2,
+			firstDiscoveredAt = 0L, visitCount = 1,
 		)
 
 		private val ctx = AggContext(zoom = 12f, quality = 1f, maxPoints = 20_000)

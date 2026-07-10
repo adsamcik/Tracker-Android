@@ -140,7 +140,9 @@ class DefaultLayerRegistryTest {
                 "seasonal_palimpsest",
                 "frequent_places",
                 "life_terrain",
-                "speed_ribbon"
+                "speed_ribbon",
+                "fog_of_wonder",
+                "first_contact"
             )
         }
 
