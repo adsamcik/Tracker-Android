@@ -61,6 +61,8 @@ internal object SignalSerializer {
 			append(",\"c\":")
 			append(act.confidence.raw)
 			append('}')
+			append(",\"af\":")
+			append(signal.activityFresh)
 		}
 
 		signal.steps?.let { s ->
@@ -146,6 +148,7 @@ internal object SignalSerializer {
 			elapsedRealtimeNanos = obj.optLong("ern", 0L),
 			location = obj.optJSONObject("loc")?.toLocationSignal(),
 			activity = obj.optJSONObject("act")?.toActivitySignal(),
+			activityFresh = obj.optBoolean("af", obj.has("act")),
 			steps = obj.optJSONObject("stp")?.toStepSignal(),
 			cells = obj.optJSONArray("cel")?.toCellSignal(),
 			wifi = obj.optJSONArray("wfi")?.toWifiSignal(),

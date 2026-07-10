@@ -50,11 +50,12 @@ dependencies {
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))
     implementation(project(":stats:api"))
-    api(project(":stats:engine"))
+    implementation(project(":stats:engine"))
 
     // Core
     implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.collections.immutable)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.location.altitude)

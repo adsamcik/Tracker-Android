@@ -23,11 +23,16 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.toLiveState
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import com.adsamcik.tracker.logger.Reporter
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Result of component construction, containing the 3 component lists,
@@ -85,62 +90,101 @@ internal class TrackerComponentFactory(
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 	): ComponentSet {
-		val sessionComponent = SessionTrackerComponent(
-			isSessionUserInitiated,
-			appDatabase.sessionSegmentDao(),
-			trackingParamsRepository,
-		).apply {
-			onEnable(context)
+		var sessionComponent: SessionTrackerComponent? = null
+		var preComponents: List<PreTrackerComponent> = emptyList()
+		var dataComponents: List<DataTrackerComponent> = emptyList()
+		var notificationEnabled = false
+		var skiTracking: SkiTrackingComponent? = null
+		var skiWriter: SkiSegmentWriter? = null
+		var sailingTracking: SailingTrackingComponent? = null
+		var planeTracking: PlaneTrackingComponent? = null
+		val stateCollectorJobs = mutableListOf<Job>()
+
+		try {
+			sessionComponent = SessionTrackerComponent(
+				isSessionUserInitiated,
+				appDatabase.sessionSegmentDao(),
+				trackingParamsRepository,
+			).apply {
+				onEnable(context)
+			}
+
+			// Single snapshot of the user's per-source toggles. Component/pre-component existence is
+			// derived purely from these toggles, so any combination of sources can be tracked
+			// independently of the battery tier.
+			val params = trackingParamsRepository.data.first()
+
+			preComponents = buildPreComponents(context, trackingPolicyManager, controller, params)
+			dataComponents = buildDataComponents(context, params)
+
+			if (enableNotifications) {
+				notificationComponent.onEnable(context)
+				notificationEnabled = true
+			}
+
+			buildSkiComponents(
+				context = context,
+				escalationEngine = escalationEngine,
+				controller = controller,
+				scope = scope,
+				stateCollectorJobs = stateCollectorJobs,
+			).also {
+				skiTracking = it.first
+				skiWriter = it.second
+			}
+			sailingTracking = buildSailingComponent(
+				context,
+				escalationEngine,
+				controller,
+				scope,
+				stateCollectorJobs,
+			)
+			planeTracking = buildPlaneComponent(
+				context,
+				escalationEngine,
+				controller,
+				scope,
+				stateCollectorJobs,
+			)
+
+			return ComponentSet(
+				preComponents = preComponents,
+				dataComponents = dataComponents,
+				skiTrackingComponent = skiTracking,
+				skiSegmentWriter = skiWriter,
+				sailingTrackingComponent = sailingTracking,
+				planeTrackingComponent = planeTracking,
+				sessionComponent = requireNotNull(sessionComponent),
+				errorCollector = DefaultPersistenceErrorCollector(),
+			)
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				stateCollectorJobs.forEach(Job::cancel)
+				rollback("plane component") { planeTracking?.onDisable(context) }
+				rollback("sailing component") { sailingTracking?.onDisable(context) }
+				rollback("ski component") { skiTracking?.onDisable(context) }
+				rollback("ski writer") { skiWriter?.onDisable(context) }
+				if (notificationEnabled) {
+					rollback("notification component") { notificationComponent.onDisable(context) }
+				}
+				dataComponents.asReversed().forEach { component ->
+					rollback("data component") { component.onDisable(context) }
+				}
+				preComponents.asReversed().forEach { component ->
+					rollback("pre component") { component.onDisable(context) }
+				}
+				rollback("session component") { sessionComponent?.onDisable(context) }
+			}
+			throw failure
 		}
+	}
 
-		// Single snapshot of the user's per-source toggles. Component/pre-component existence is
-		// derived purely from these toggles, so any combination of sources can be tracked
-		// independently of the battery tier.
-		val params = trackingParamsRepository.data.first()
-
-		val preComponents = buildPreComponents(context, trackingPolicyManager, params)
-		val dataComponents = buildDataComponents(context, params)
-		val errorCollector = DefaultPersistenceErrorCollector()
-
-		// Enable notification component directly (no longer in generic list).
-		if (enableNotifications) {
-			notificationComponent.onEnable(context)
+	private suspend fun rollback(label: String, block: suspend () -> Unit) {
+		try {
+			block()
+		} catch (cleanupFailure: Exception) {
+			Reporter.report(IllegalStateException("Failed to roll back $label", cleanupFailure))
 		}
-
-		// Build and enable ski components (if ski detection is enabled)
-		val (skiTracking, skiWriter) = buildSkiComponents(
-			context = context,
-			escalationEngine = escalationEngine,
-			controller = controller,
-			scope = scope,
-		)
-
-		// Build and enable the sailing tracking component (if sailing detection is enabled)
-		val sailingTracking = buildSailingComponent(
-			context = context,
-			escalationEngine = escalationEngine,
-			controller = controller,
-			scope = scope,
-		)
-
-		// Build and enable the plane tracking component (if plane detection is enabled)
-		val planeTracking = buildPlaneComponent(
-			context = context,
-			escalationEngine = escalationEngine,
-			controller = controller,
-			scope = scope,
-		)
-
-		return ComponentSet(
-			preComponents = preComponents,
-			dataComponents = dataComponents,
-			skiTrackingComponent = skiTracking,
-			skiSegmentWriter = skiWriter,
-			sailingTrackingComponent = sailingTracking,
-			planeTrackingComponent = planeTracking,
-			sessionComponent = sessionComponent,
-			errorCollector = errorCollector,
-		)
 	}
 
 	/**
@@ -154,6 +198,7 @@ internal class TrackerComponentFactory(
 	private suspend fun buildPreComponents(
 		context: Context,
 		trackingPolicyManager: TrackingPolicyManager?,
+		controller: TrackerServiceController,
 		params: TrackingParamsState,
 	): List<PreTrackerComponent> {
 		if (!params.locationEnabled) return emptyList()
@@ -162,13 +207,27 @@ internal class TrackerComponentFactory(
 			trackingPolicyManager?.let { policyMgr ->
 				add(PolicyAwareLocationPreTrackerComponent(
 					policyFlow = policyMgr.currentPolicy,
+					effectiveTierFlow = controller.policyTierFlow,
 					trackingParamsRepository = trackingParamsRepository,
 				))
 			} ?: run {
 				add(LocationPreTrackerComponent(trackingParamsRepository = trackingParamsRepository))
 			}
 		}
-		for (component in components) { component.onEnable(context) }
+		val enabled = mutableListOf<PreTrackerComponent>()
+		try {
+			for (component in components) {
+				component.onEnable(context)
+				enabled += component
+			}
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				enabled.asReversed().forEach { component ->
+					rollback("pre component") { component.onDisable(context) }
+				}
+			}
+			throw failure
+		}
 		return components
 	}
 
@@ -189,7 +248,20 @@ internal class TrackerComponentFactory(
 			if (params.cellEnabled) add(CellTrackerComponent())
 			if (params.wifiEnabled) add(WifiTrackerComponent())
 		}
-		for (component in components) { component.onEnable(context) }
+		val enabled = mutableListOf<DataTrackerComponent>()
+		try {
+			for (component in components) {
+				component.onEnable(context)
+				enabled += component
+			}
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				enabled.asReversed().forEach { component ->
+					rollback("data component") { component.onDisable(context) }
+				}
+			}
+			throw failure
+		}
 		return components
 	}
 
@@ -198,6 +270,7 @@ internal class TrackerComponentFactory(
 		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
+		stateCollectorJobs: MutableList<Job>,
 	): Pair<SkiTrackingComponent?, SkiSegmentWriter?> {
 		val skiEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
 		if (!skiEnabled) return null to null
@@ -206,15 +279,23 @@ internal class TrackerComponentFactory(
 		val skiComponent = SkiTrackingComponent().also {
 			it.setEscalationEngine(escalationEngine)
 			it.setSecondaryListener(segmentWriter)
-			scope.launch {
+			stateCollectorJobs += scope.launch {
 				it.skiState.collect { skiState ->
-					controller.updateSkiState(skiState)
+					controller.updateSkiState(skiState?.toLiveState())
 				}
 			}
 		}
-		segmentWriter.onEnable(context)
-		skiComponent.onEnable(context)
-		return skiComponent to segmentWriter
+		try {
+			segmentWriter.onEnable(context)
+			skiComponent.onEnable(context)
+			return skiComponent to segmentWriter
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				rollback("ski component") { skiComponent.onDisable(context) }
+				rollback("ski writer") { segmentWriter.onDisable(context) }
+			}
+			throw failure
+		}
 	}
 
 	private suspend fun buildSailingComponent(
@@ -222,20 +303,28 @@ internal class TrackerComponentFactory(
 		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
+		stateCollectorJobs: MutableList<Job>,
 	): SailingTrackingComponent? {
 		val sailingEnabled = trackingParamsRepository.data.first().sailingDetectionEnabled
 		if (!sailingEnabled) return null
 
 		val sailingComponent = SailingTrackingComponent().also {
 			it.setEscalationEngine(escalationEngine)
-			scope.launch {
+			stateCollectorJobs += scope.launch {
 				it.sailingState.collect { sailingState ->
-					controller.updateSailingState(sailingState)
+					controller.updateSailingState(sailingState?.toLiveState())
 				}
 			}
 		}
-		sailingComponent.onEnable(context)
-		return sailingComponent
+		try {
+			sailingComponent.onEnable(context)
+			return sailingComponent
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				rollback("sailing component") { sailingComponent.onDisable(context) }
+			}
+			throw failure
+		}
 	}
 
 	private suspend fun buildPlaneComponent(
@@ -243,19 +332,27 @@ internal class TrackerComponentFactory(
 		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
+		stateCollectorJobs: MutableList<Job>,
 	): PlaneTrackingComponent? {
 		val planeEnabled = trackingParamsRepository.data.first().planeDetectionEnabled
 		if (!planeEnabled) return null
 
 		val planeComponent = PlaneTrackingComponent().also {
 			it.setEscalationEngine(escalationEngine)
-			scope.launch {
+			stateCollectorJobs += scope.launch {
 				it.planeState.collect { planeState ->
-					controller.updatePlaneState(planeState)
+					controller.updatePlaneState(planeState?.toLiveState())
 				}
 			}
 		}
-		planeComponent.onEnable(context)
-		return planeComponent
+		try {
+			planeComponent.onEnable(context)
+			return planeComponent
+		} catch (failure: Exception) {
+			withContext(NonCancellable) {
+				rollback("plane component") { planeComponent.onDisable(context) }
+			}
+			throw failure
+		}
 	}
 }

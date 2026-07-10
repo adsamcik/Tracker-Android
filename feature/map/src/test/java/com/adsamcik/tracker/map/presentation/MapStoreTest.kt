@@ -21,7 +21,7 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.testing.fake.FakeMapSettingsRepository
 import com.adsamcik.tracker.testing.fake.FakeOnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Test
 class MapStoreTest {
 
     private val mockLayerEngine: LayerEngine = mockk(relaxed = true)
-    private val mockTrackerController: TrackerServiceController = mockk(relaxed = true)
+    private val mockTrackerController: TrackerStateReader = mockk(relaxed = true)
     private val mockReverseGeocoder: ReverseGeocoder = mockk(relaxed = true)
     private val mockMapImageShareHelper: com.adsamcik.tracker.map.export.MapImageShareHelper = mockk(relaxed = true)
 

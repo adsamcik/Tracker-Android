@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import io.mockk.every
@@ -90,6 +91,26 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val result = component.onNewData(cycle)
 
 		assertFalse(result, "ACTIVE_MODERATE should reject tracking without location")
+	}
+
+	@Test
+	fun `battery capped ambient tier preserves locationless non-GPS cycles`() = runTest {
+		policyFlow.value = TrackingPolicy.USER_INITIATED
+		val effectiveTier = MutableStateFlow(PolicyTier.AMBIENT)
+		val component = PolicyAwareLocationPreTrackerComponent(
+			policyFlow = policyFlow,
+			effectiveTierFlow = effectiveTier,
+		)
+		component.onEnable(context)
+
+		val result = component.onNewData(
+			TrackingCycle(
+				timestampMs = System.currentTimeMillis(),
+				elapsedRealtimeNanos = 0L,
+			),
+		)
+
+		assertTrue(result, "AMBIENT effective tier must not require a GPS fix")
 	}
 
 	@Test

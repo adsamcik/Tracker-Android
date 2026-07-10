@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
@@ -36,15 +37,38 @@ import com.adsamcik.tracker.tracker.data.withDatabaseRetry
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Unified persistence processor that writes all tracking data to Room.
+ * Unified persistence processor that writes all tracking data to Room, backed
+ * by a durable write-ahead log ([DurableSignalBuffer]) so no signal is lost if
+ * a flush fails or the process dies mid-write.
  *
- * [onSignal] only buffers data — no I/O. [onFlush] writes buffered data
- * to Room DAOs with per-table error isolation. A failure in one table
- * (e.g. cell) does not lose data for another (e.g. wifi).
+ * ### Per-signal lifecycle
+ *
+ * 1. [onSignal] parses the signal into the typed destination buffers **and**
+ *    stages the raw signal in [durableBuffer] — no I/O, must be fast.
+ * 2. [onFlush]/[onStop] first [DurableSignalBuffer.checkpoint]s the staged
+ *    signals to the WAL (durable), then, in a **single** transaction, inserts
+ *    the buffered destination rows and deletes the exact WAL rows that backed
+ *    them ([persistBufferedAndAcknowledge]). Either everything commits or
+ *    everything rolls back and stays retryable.
+ * 3. [onStart] recovers any WAL rows left over from a previous process by the
+ *    same transactional persist-then-acknowledge path.
+ *
+ * ### Failure handling
+ *
+ * - A checkpoint failure preserves the staged signals and skips the flush.
+ * - A destination/transaction failure preserves the in-memory typed buffers and
+ *   the pending WAL IDs so the next flush retries them; the WAL rows are never
+ *   deleted until their destination writes commit.
+ * - Cancellation propagates, leaving all buffers/IDs intact.
+ * - Corrupted WAL rows are logged and acknowledged inside the transaction so
+ *   recovery always makes progress and never loops forever.
  *
  * ### Thread-safety contract
  *
@@ -58,6 +82,7 @@ import javax.inject.Inject
  *
  * If this invariant changes, the buffers **must** be guarded by a lock.
  */
+@Singleton
 class PersistenceProcessor @Inject constructor(
 	private val locationSampleDao: LocationSampleDao,
 	private val cellSampleDao: CellSampleDao,
@@ -65,7 +90,9 @@ class PersistenceProcessor @Inject constructor(
 	private val pressureSampleDao: PressureSampleDao,
 	private val stepIntervalDao: StepIntervalDao,
 	private val activitySnapshotDao: ActivitySnapshotDao,
+	private val pendingSignalDao: PendingSignalDao,
 	private val durableBuffer: DurableSignalBuffer,
+	private val transactor: TrackingPersistenceTransactor,
 	private val errorCollector: PersistenceErrorCollector,
 ) : SignalProcessor {
 
@@ -84,29 +111,38 @@ class PersistenceProcessor @Inject constructor(
 	private val stepBuffer = mutableListOf<StepInterval>()
 	private val activityBuffer = mutableListOf<ActivitySnapshot>()
 
+	/**
+	 * WAL row IDs that have been durably checkpointed but whose destination
+	 * writes have not yet committed. Cleared only when the transaction that
+	 * persists their destination rows succeeds; retained (with the typed
+	 * buffers) on failure so the next flush retries the exact same rows.
+	 */
+	private val pendingIds = mutableListOf<Long>()
+	private var recoveryIncomplete = false
+
 	override suspend fun onStart(context: ProcessorContext) {
 		durableBuffer.setSessionId(context.sessionId)
+		if (hasRetainedInMemoryState() && !flushAll()) {
+			return
+		}
 		clearBuffers()
+		pendingIds.clear()
 		recoverPendingSignals()
 	}
 
 	/**
-	 * Buffer incoming signal data. No I/O — must be fast.
+	 * Buffer incoming signal data and stage it for durable checkpointing.
+	 * No I/O — must be fast.
 	 */
 	override fun onSignal(signal: TrackingSignal) {
-		val location = signal.location
-		val policyName = signal.policy?.policyName
-
-		bufferLocation(signal, location, policyName)
-		bufferCells(signal, location)
-		bufferWifi(signal, location)
-		bufferPressure(signal)
-		bufferSteps(signal)
-		bufferActivity(signal)
+		bufferSignal(signal)
+		durableBuffer.stage(signal)
 	}
 
 	override suspend fun onFlush(): List<DomainEvent> {
-		flushAll()
+		if (flushAll() && recoveryIncomplete) {
+			recoverPendingSignals()
+		}
 		return emptyList()
 	}
 
@@ -119,6 +155,19 @@ class PersistenceProcessor @Inject constructor(
 
 	override fun restore(state: ByteArray) {
 		// No checkpoint support yet
+	}
+
+	/** Parse [signal] into the typed destination buffers (no staging, no I/O). */
+	private fun bufferSignal(signal: TrackingSignal) {
+		val location = signal.location
+		val policyName = signal.policy?.policyName
+
+		bufferLocation(signal, location, policyName)
+		bufferCells(signal, location)
+		bufferWifi(signal, location)
+		bufferPressure(signal)
+		bufferSteps(signal)
+		bufferActivity(signal)
 	}
 
 	// -----------------------------------------------------------------------
@@ -240,6 +289,7 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	private fun bufferActivity(signal: TrackingSignal) {
+		if (!signal.activityFresh) return
 		val activity = signal.activity ?: return
 		activityBuffer.add(
 			ActivitySnapshot(
@@ -253,89 +303,174 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	// -----------------------------------------------------------------------
-	// Flushing (I/O, per-table error isolation)
+	// Flushing (durable checkpoint + transactional persist/acknowledge)
 	// -----------------------------------------------------------------------
 
-	private suspend fun flushAll() {
-		flushTable("location_sample", locationBuffer, LOCATION_BATCH_SIZE) { batch ->
-			withDatabaseRetry { locationSampleDao.insert(batch.map { it.toEntity() }) }
-		}
-		flushTable("cell_sample", cellBuffer, CELL_BATCH_SIZE) { batch ->
-			withDatabaseRetry { cellSampleDao.insert(batch) }
-		}
-		flushTable("wifi_observation", wifiBuffer, WIFI_BATCH_SIZE) { batch ->
-			withDatabaseRetry { wifiObservationDao.insert(batch) }
-		}
-		flushTable("pressure_sample", pressureBuffer, PRESSURE_BATCH_SIZE) { batch ->
-			withDatabaseRetry { pressureSampleDao.insert(batch) }
-		}
-		flushTable("step_interval", stepBuffer, STEP_BATCH_SIZE) { batch ->
-			withDatabaseRetry { stepIntervalDao.insert(batch) }
-		}
-		flushTable("activity_snapshot", activityBuffer, ACTIVITY_BATCH_SIZE) { batch ->
-			withDatabaseRetry { activitySnapshotDao.insert(batch) }
-		}
-	}
-
-	private suspend fun recoverPendingSignals() {
-		while (durableBuffer.hasPendingEntries()) {
-			val recoveredSignals = durableBuffer.drainBatch(DurableSignalBuffer.DRAIN_BATCH_SIZE)
-			if (recoveredSignals.isEmpty()) {
-				continue
+	/**
+	 * Durably checkpoint the staged signals to the WAL, then persist the
+	 * buffered destination rows and acknowledge the WAL rows in one transaction.
+	 *
+	 * If the checkpoint fails the staged signals are preserved and the flush is
+	 * skipped (retried next interval). The typed buffers hold rows whose signals
+	 * are still only in [durableBuffer.stage]-ing until the checkpoint succeeds,
+	 * so persisting them without a WAL backing could double-count them on
+	 * recovery — hence the early return.
+	 */
+	private suspend fun flushAll(): Boolean {
+		try {
+			withDatabaseRetry {
+				durableBuffer.checkpoint { ids -> pendingIds.addAll(ids) }
 			}
-
-			for (signal in recoveredSignals) {
-				processRecoveredSignal(signal)
-			}
-			flushAll()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			Log.w(TAG, "Durable checkpoint failed; staged signals retained", e)
+			errorCollector.reportError(
+				PersistenceError(
+					source = PROCESSOR_ID,
+					operation = "checkpoint",
+					recordCount = durableBuffer.stagingSize,
+					cause = e,
+				),
+			)
+			return false
 		}
-	}
 
-	private fun processRecoveredSignal(signal: TrackingSignal) {
-		onSignal(signal)
+		return persistBufferedAndAcknowledge()
 	}
 
 	/**
-	 * Drains [buffer] in chunks of [batchSize], calling [insert] for each chunk.
-	 *
-	 * Each chunk is written independently so a failure in chunk N does not
-	 * prevent chunks N+1…M from being persisted. On [CancellationException]
-	 * the current chunk plus all remaining chunks are put back into [buffer]
-	 * so they survive a coroutine cancellation (e.g. service shutdown timeout).
+	 * Persist every buffered destination row and delete the acknowledged WAL
+	 * rows ([pendingIds]) inside a single transaction. On success the persisted
+	 * in-memory snapshots and acknowledged IDs are cleared; on failure they are
+	 * retained for retry and the error is reported (cancellation propagates).
 	 */
-	private suspend fun <T> flushTable(
-		tableName: String,
-		buffer: MutableList<T>,
-		batchSize: Int,
-		insert: suspend (List<T>) -> Unit,
-	) {
-		if (buffer.isEmpty()) return
+	private suspend fun persistBufferedAndAcknowledge(): Boolean {
+		if (isAllBuffersEmpty() && pendingIds.isEmpty()) return true
 
-		val snapshot = buffer.toList()
-		buffer.clear()
+		val ackIds = pendingIds.toList()
+		val recordCount = totalBufferedCount()
 
-		val chunks = snapshot.chunked(batchSize)
-		for ((index, chunk) in chunks.withIndex()) {
-			try {
-				insert(chunk)
-			} catch (e: CancellationException) {
-				// Put back this chunk + all remaining chunks
-				val remaining = chunks.subList(index, chunks.size).flatten()
-				buffer.addAll(0, remaining)
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Flush failed for $tableName chunk $index (${chunk.size} records)", e)
-				errorCollector.reportError(
-					PersistenceError(
-						source = PROCESSOR_ID,
-						operation = "flush $tableName chunk $index",
-						recordCount = chunk.size,
-						cause = e,
-					),
-				)
+		try {
+			withContext(NonCancellable) {
+				withDatabaseRetry {
+					transactor.inTransaction {
+						insertBufferedDestinations()
+						if (ackIds.isNotEmpty()) {
+							pendingSignalDao.deleteByIds(ackIds)
+						}
+					}
+				}
+				// Keep in-memory acknowledgement in the same non-cancellable section
+				// as the committed transaction so a delivered cancellation cannot
+				// cause the just-persisted rows to be inserted a second time.
+				clearBuffers()
+				pendingIds.removeAll(ackIds.toSet())
+			}
+		} catch (e: CancellationException) {
+			throw e
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			Log.w(TAG, "Persist transaction failed; buffers and WAL retained for retry", e)
+			errorCollector.reportError(
+				PersistenceError(
+					source = PROCESSOR_ID,
+					operation = "flush",
+					recordCount = recordCount,
+					cause = e,
+				),
+			)
+			return false
+		}
+
+		return true
+	}
+
+	/**
+	 * Insert all buffered destination rows in [batch]-sized chunks. Runs inside
+	 * a transaction, so any failure aborts the whole transaction (no per-table
+	 * isolation — durability comes from the WAL retry instead).
+	 */
+	private suspend fun insertBufferedDestinations() {
+		locationBuffer.chunked(LOCATION_BATCH_SIZE).forEach { chunk ->
+			locationSampleDao.insert(chunk.map { it.toEntity() })
+		}
+		cellBuffer.chunked(CELL_BATCH_SIZE).forEach { chunk ->
+			cellSampleDao.insert(chunk)
+		}
+		wifiBuffer.chunked(WIFI_BATCH_SIZE).forEach { chunk ->
+			wifiObservationDao.insert(chunk)
+		}
+		pressureBuffer.chunked(PRESSURE_BATCH_SIZE).forEach { chunk ->
+			pressureSampleDao.insert(chunk)
+		}
+		stepBuffer.chunked(STEP_BATCH_SIZE).forEach { chunk ->
+			stepIntervalDao.insert(chunk)
+		}
+		activityBuffer.chunked(ACTIVITY_BATCH_SIZE).forEach { chunk ->
+			activitySnapshotDao.insert(chunk)
+		}
+	}
+
+	/**
+	 * Replay WAL rows left over from a previous process. Rows are peeked
+	 * **across all sessions** (a restart mints a new session id, so the prior
+	 * session's rows must not be filtered out), read but not deleted, parsed
+	 * into the typed buffers and persisted via the same transactional
+	 * [persistBufferedAndAcknowledge]. Corrupted rows are logged and still
+	 * acknowledged so recovery always makes progress; if the persist fails the
+	 * loop stops (no infinite retry) and leaves the rows in the WAL for a later
+	 * flush.
+	 */
+	private suspend fun recoverPendingSignals() {
+		recoveryIncomplete = false
+		while (true) {
+			val peeked = durableBuffer.peekBatch(DurableSignalBuffer.RECOVERY_BATCH_SIZE)
+			if (peeked.isEmpty()) break
+
+			clearBuffers()
+			pendingIds.clear()
+
+			for (entry in peeked) {
+				val signal = entry.signal
+				if (signal == null) {
+					Log.w(TAG, "Corrupted WAL entry id=${entry.id}; acknowledging to avoid replay loop")
+				} else {
+					bufferSignal(signal)
+				}
+			}
+
+			// Acknowledge every peeked row (including corrupted ones) once the
+			// destination writes commit.
+			pendingIds.addAll(peeked.map { it.id })
+			val persisted = persistBufferedAndAcknowledge()
+
+			if (!persisted) {
+				// Persist failed: WAL rows remain for a later retry. Stop now so
+				// we do not spin re-reading the same un-acknowledged rows.
+				recoveryIncomplete = true
+				break
 			}
 		}
 	}
+
+	private fun hasRetainedInMemoryState(): Boolean =
+		!isAllBuffersEmpty() || pendingIds.isNotEmpty() || durableBuffer.stagingSize > 0
+
+	private fun isAllBuffersEmpty(): Boolean =
+		locationBuffer.isEmpty() &&
+			cellBuffer.isEmpty() &&
+			wifiBuffer.isEmpty() &&
+			pressureBuffer.isEmpty() &&
+			stepBuffer.isEmpty() &&
+			activityBuffer.isEmpty()
+
+	private fun totalBufferedCount(): Int =
+		locationBuffer.size +
+			cellBuffer.size +
+			wifiBuffer.size +
+			pressureBuffer.size +
+			stepBuffer.size +
+			activityBuffer.size
 
 	private fun clearBuffers() {
 		locationBuffer.clear()

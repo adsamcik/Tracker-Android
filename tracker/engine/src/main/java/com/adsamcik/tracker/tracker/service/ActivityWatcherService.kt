@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
@@ -16,12 +15,12 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.data.toLegacyActivityInfo
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
@@ -37,7 +36,7 @@ class ActivityWatcherService : CoreService() {
 	@Inject
 	lateinit var activityRequestManager: ActivityRequestManager
 
-	private var pollingJob: Job? = null
+	private var activityUpdatesJob: Job? = null
 
 	private lateinit var notificationManager: NotificationManager
 
@@ -47,9 +46,7 @@ class ActivityWatcherService : CoreService() {
 		TrackerNotificationChannels.ensureActivityWatcherChannel(this)
 
 		activityWatcherController.attachService(this)
-		activityInfo = activityRequestManager.lastActivity
-
-		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
+		activityInfo = activityRequestManager.lastActivity.toLegacyActivityInfo()
 
 		startForegroundCompat(updateNotification())
 
@@ -58,13 +55,11 @@ class ActivityWatcherService : CoreService() {
 		BackgroundTrackingApi.initialize(this)
 		activityWatcherController.poke()
 
-		// M2 fix: Replace java.util.Timer with coroutine-based polling
-		pollingJob = launch {
-			while (isActive) {
-				delay(updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS)
-				val newActivityInfo = activityRequestManager.lastActivity
-				if (newActivityInfo != activityInfo) {
-					activityInfo = newActivityInfo
+		activityUpdatesJob = launch {
+			activityRequestManager.activityUpdates.collect { update ->
+				val legacyActivity = update.activity.toLegacyActivityInfo()
+				if (legacyActivity != activityInfo) {
+					activityInfo = legacyActivity
 					notificationManager.notify(NOTIFICATION_ID, updateNotification())
 				}
 			}
@@ -74,8 +69,8 @@ class ActivityWatcherService : CoreService() {
 	override fun onDestroy() {
 		super.onDestroy()
 		activityWatcherController.detachService()
-		pollingJob?.cancel()
-		pollingJob = null
+		activityUpdatesJob?.cancel()
+		activityUpdatesJob = null
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -136,7 +131,6 @@ class ActivityWatcherService : CoreService() {
 	}
 
 	companion object {
-		private const val TAG = "ActivityWatcherService"
 		private const val NOTIFICATION_ID = -568465
 	}
 }

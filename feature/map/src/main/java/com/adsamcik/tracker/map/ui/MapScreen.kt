@@ -77,6 +77,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.PlaceCalloutModel
 import com.adsamcik.tracker.map.presentation.udf.SpeedProbeModel
 import com.adsamcik.tracker.map.shared.MapStyleProvider
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import kotlin.coroutines.cancellation.CancellationException
@@ -189,18 +190,17 @@ fun MapScreen(
     val isTracking by trackerController.isServiceRunningFlow.collectAsState()
     val activeSession by trackerController.sessionFlow.collectAsState()
     val livePathPoints by trackerController.pathPointsFlow.collectAsState()
-    val activeTrackingPath by remember(isTracking, activeSession, livePathPoints) {
-        derivedStateOf {
-            if (!isTracking) {
-                emptyList()
-            } else {
-                val sessionId = activeSession?.id
-                val path = livePathPoints
-                if (sessionId != null && path != null && path.first == sessionId) {
-                    path.second.map { LatLngModel(lat = it.latitude, lng = it.longitude) }
-                } else {
-                    emptyList()
-                }
+    val activeSessionId = activeSession?.id
+    val livePathMapper = remember(activeSessionId) { AppendOnlyPathMapper<Location, LatLngModel>() }
+    val activeTrackingPath = remember(isTracking, activeSessionId, livePathPoints) {
+        val path = livePathPoints
+        if (isTracking && activeSessionId != null && path != null && path.first == activeSessionId) {
+            livePathMapper.update(path.second) {
+                LatLngModel(lat = it.latitude, lng = it.longitude)
+            }
+        } else {
+            livePathMapper.update(emptyList()) {
+                LatLngModel(lat = it.latitude, lng = it.longitude)
             }
         }
     }

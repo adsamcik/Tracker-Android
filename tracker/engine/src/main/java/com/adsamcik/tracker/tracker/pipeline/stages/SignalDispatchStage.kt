@@ -30,8 +30,12 @@ internal class SignalDispatchStage(
 		val signal = try {
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
+			val activity = collectionData.activity
 
-			val cellTowers = cycle.cellScan?.registeredCells?.map { cell ->
+			val cellTowers = cycle.cellScan
+				?.takeIf { cycle.cellScanFresh }
+				?.registeredCells
+				?.map { cell ->
 				com.adsamcik.tracker.stats.api.signal.CellTowerReading(
 					cellId = cell.cellId,
 					mcc = cell.networkOperator.mcc,
@@ -60,8 +64,9 @@ internal class SignalDispatchStage(
 				speed = collectionData.location?.speed,
 				altitude = collectionData.location?.altitude?.toFloat(),
 				rawGpsAltitude = cycle.rawGpsAltitude?.toFloat(),
-				activityTypeCode = collectionData.activity?.activityType,
-				activityConfidence = collectionData.activity?.confidence,
+				activityTypeCode = activity?.activityType,
+				activityConfidence = activity?.confidence,
+				activityFresh = cycle.activityFresh,
 				stepDelta = cycle.stepDelta,
 				totalStepsSinceBoot = cycle.totalStepsSinceBoot,
 				stepSensorValueStart = cycle.stepSensorValueStart,

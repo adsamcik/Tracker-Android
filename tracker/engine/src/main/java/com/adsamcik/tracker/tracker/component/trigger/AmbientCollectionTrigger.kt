@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
  * requiring any permissions (no GPS). Default interval is 60 seconds,
  * responsive enough for policy escalation detection via steps/activity.
  */
-internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
+internal class AmbientCollectionTrigger(
+	dispatcher: CoroutineDispatcher = Dispatchers.Main,
+) : DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
 	override val titleRes: Int
@@ -27,7 +30,7 @@ internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private var repeatEveryMs: Long = DEFAULT_INTERVAL_MS
 
-	private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+	private val scope = CoroutineScope(dispatcher + SupervisorJob())
 	private var timerJob: Job? = null
 
 	@Volatile

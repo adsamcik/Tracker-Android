@@ -6,7 +6,9 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -15,11 +17,12 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Hilt EntryPoint for accessing TrackerServiceController from static context
+ * Hilt EntryPoint for accessing read-only tracker state from static context
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
-interface TrackerServiceApiEntryPoint {
+internal interface TrackerServiceApiEntryPoint {
+	fun trackerStateReader(): TrackerStateReader
 	fun trackerServiceController(): TrackerServiceController
 }
 
@@ -46,8 +49,8 @@ object TrackerServiceApi {
 		}
 	}
 	
-	private fun getController(context: Context): TrackerServiceController {
-		return getEntryPoint(context).trackerServiceController()
+	private fun getStateReader(context: Context): TrackerStateReader {
+		return getEntryPoint(context).trackerStateReader()
 	}
 
 	private fun startServiceInternal(context: Context, isUserInitiated: Boolean, isAmbient: Boolean) {
@@ -92,13 +95,13 @@ object TrackerServiceApi {
 	 * Information about current tracking session as Flow. Null if no session is currently active.
 	 */
 	fun sessionInfoFlow(context: Context): StateFlow<TrackerSessionInfo?> = 
-		getController(context).sessionInfoFlow
+		getStateReader(context).sessionInfoFlow
 
 	/**
 	 * Indicates whether tracker service is active.
 	 */
 	fun isActive(context: Context): Boolean = 
-		getController(context).isServiceRunning
+		getStateReader(context).isServiceRunning
 
 	/**
 	 * Checks the Android service manager directly to detect stale UI state after
@@ -116,6 +119,23 @@ object TrackerServiceApi {
 		return runningServices.any { info ->
 			info.service.className == TrackerServiceContract.SERVICE_CLASS_NAME
 		}
+	}
+
+	/**
+	 * Clears application-scoped tracker state after Android reports that the service process is gone.
+	 */
+	fun repairStoppedServiceState(context: Context) {
+		val controller = getEntryPoint(context).trackerServiceController()
+		controller.updateServiceRunning(false)
+		controller.updateSessionInfo(null)
+		controller.updateSession(null)
+		controller.updateCollectionData(null)
+		controller.updatePersistenceErrorFlow(null)
+		controller.updatePolicyState(null)
+		controller.updatePolicyTier(PolicyTier.OFF)
+		controller.updateSkiState(null)
+		controller.updateSailingState(null)
+		controller.updatePlaneState(null)
 	}
 
 	/**

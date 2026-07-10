@@ -54,11 +54,12 @@ internal class DataProducerManager(
 	 * simply never enabled (it never joins [activeProducerList]).
 	 */
 	@Suppress("unused")
+	private val stepProducer = StepDataProducer(this@DataProducerManager, trackingParamsRepository)
 	private val producerList = listOf(
 		WifiDataProducer(this@DataProducerManager, trackingParamsRepository),
 		CellDataProducer(this@DataProducerManager, trackingParamsRepository),
 		ActivityDataProducer(this@DataProducerManager, trackingParamsRepository),
-		StepDataProducer(this@DataProducerManager, trackingParamsRepository),
+		stepProducer,
 		BarometerDataProducer(this@DataProducerManager),
 	)
 
@@ -98,6 +99,12 @@ internal class DataProducerManager(
 		activeProducerList.clear()
 	}
 
+	suspend fun flushPendingSensorBatches() {
+		if (stepProducer.isEnabled) {
+			stepProducer.flushPendingEvents()
+		}
+	}
+
 	/**
 	 * Runs all active producers, merges their output with the trigger-supplied
 	 * [incomingCycle] (which may already carry location data from a GPS trigger),
@@ -128,4 +135,3 @@ internal class DataProducerManager(
 		private const val TAG = "DataProducerManager"
 	}
 }
-

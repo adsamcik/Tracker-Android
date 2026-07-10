@@ -66,10 +66,6 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 @Composable
 internal fun StatusAndQuickStatsCard(
@@ -96,20 +92,18 @@ internal fun StatusAndQuickStatsCard(
     val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
     val durationText = durationMillis.formatAsDuration(context)
     val isMoving = (currentSpeed ?: 0f) > 0.5f
-    val derivedDistanceMeters = remember(pathPoints) {
-        pathPoints.orEmpty().windowed(size = 2).sumOf { (start, end) ->
-            start.distanceFlatMeters(end)
-        }.toFloat()
+    val pathMetricsAccumulator = remember(sessionData?.id) { PathMetricsAccumulator() }
+    val pathMetrics = remember(pathPoints, pathMetricsAccumulator) {
+        pathMetricsAccumulator.update(pathPoints)
     }
+    val derivedDistanceMeters = pathMetrics.distanceMeters.toFloat()
     val distanceMeters = maxOf(sessionData?.distanceInM ?: 0f, derivedDistanceMeters)
     val distanceText = resources.formatDistance(
         distanceMeters,
         digits = if (distanceMeters >= 1000f) 1 else 0,
         unit = settings.lengthSystem
     )
-    val avgSpeed = remember(pathPoints) {
-        calculateMovingAverageSpeed(pathPoints)
-    }
+    val avgSpeed = pathMetrics.movingAverageSpeedMps
     val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
     val altitudeText = collectionData?.location?.altitude?.let {
@@ -365,47 +359,6 @@ private fun ActiveStatItem(
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
-}
-
-private fun calculateMovingAverageSpeed(
-    pathPoints: List<Location>?
-): Double {
-    if (pathPoints.isNullOrEmpty() || pathPoints.size < 2) return 0.0
-
-    var movingDistanceMeters = 0.0
-    var movingDurationSeconds = 0.0
-
-    pathPoints.windowed(size = 2).forEach { (start, end) ->
-        val deltaMillis = end.time - start.time
-        if (deltaMillis <= 0L) return@forEach
-
-        val segmentDistanceMeters = start.distanceFlatMeters(end)
-        if (segmentDistanceMeters <= 0.0) return@forEach
-
-        movingDistanceMeters += segmentDistanceMeters
-        movingDurationSeconds += deltaMillis.toDouble() / 1000.0
-    }
-
-    return if (movingDurationSeconds > 0.0) {
-        movingDistanceMeters / movingDurationSeconds
-    } else {
-        0.0
-    }
-}
-
-private const val EARTH_CIRCUMFERENCE_METERS = 40_075_000.0
-
-private fun Location.distanceFlatMeters(other: Location): Double {
-    val lat1Rad = Math.toRadians(latitude)
-    val lat2Rad = Math.toRadians(other.latitude)
-    val latDistance = Math.toRadians(other.latitude - latitude)
-    val lonDistance = Math.toRadians(other.longitude - longitude)
-    val sinLatDistance = sin(latDistance / 2)
-    val sinLonDistance = sin(lonDistance / 2)
-    val a = sinLatDistance * sinLatDistance +
-        cos(lat1Rad) * cos(lat2Rad) * sinLonDistance * sinLonDistance
-    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return (EARTH_CIRCUMFERENCE_METERS / (2 * Math.PI)) * c
 }
 
 @Composable

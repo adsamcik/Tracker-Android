@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 internal class PolicyAwareLocationPreTrackerComponent(
 	private val policyFlow: StateFlow<com.adsamcik.tracker.tracker.policy.TrackingPolicy>,
+	private val effectiveTierFlow: StateFlow<PolicyTier>? = null,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 	private val trackingParamsRepository: TrackingParamsRepository? = null,
 ) : PreTrackerComponent {
@@ -83,7 +85,7 @@ internal class PolicyAwareLocationPreTrackerComponent(
 	override suspend fun onNewData(cycle: TrackingCycle): Boolean {
 		val currentPolicy = policyFlow.value
 
-		val requiresLocation = when (currentPolicy) {
+		val requiresLocation = effectiveTierFlow?.value?.isGpsEnabled ?: when (currentPolicy) {
 			com.adsamcik.tracker.tracker.policy.TrackingPolicy.PASSIVE_LOW -> false
 			com.adsamcik.tracker.tracker.policy.TrackingPolicy.MOVEMENT_SUSPECTED -> false
 			com.adsamcik.tracker.tracker.policy.TrackingPolicy.ACTIVE_MODERATE -> true

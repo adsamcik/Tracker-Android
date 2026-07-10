@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
  * Default implementation of LockManager.
  * 
  * Contract:
- * - Input: TrackerServiceController for session state monitoring
+ * - Input: TrackerStateReader for session state monitoring
  * - Output: Reactive StateFlow for lock state + lock/unlock operations
  * - Thread-safety: Synchronized blocks protect mutable state
  * - Lifecycle: Application-scoped singleton (wired in AppGraph)
@@ -37,7 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
  * Persists lock state to DataStore for cross-session restoration.
  */
 class DefaultLockManager(
-    private val trackerServiceController: TrackerServiceController,
+    private val trackerStateReader: TrackerStateReader,
     private val activityWatcherController: ActivityWatcherServiceController,
 ) : LockManager {
     private val persistenceInitialized = AtomicBoolean(false)
@@ -194,7 +194,7 @@ class DefaultLockManager(
         pokeWatcherService(context)
         
         // Stop non-user-initiated tracking sessions when locked
-        val sessionInfo = trackerServiceController.sessionInfoFlow.value
+        val sessionInfo = trackerStateReader.sessionInfoFlow.value
         if (isLockedRightNow && sessionInfo?.isInitiatedByUser == false) {
             context.stopService<TrackerService>()
         }

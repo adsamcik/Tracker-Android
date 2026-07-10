@@ -83,6 +83,7 @@ internal class CellDataProducer(
 			if (scanData != null) {
 				lastCellScanData = scanData
 				lastCellScanElapsedRealtimeMillis = now
+				builder.cellScanFresh = true
 			}
 		}
 

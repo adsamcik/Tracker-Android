@@ -10,6 +10,9 @@ import com.adsamcik.tracker.stats.engine.processor.SegmentDetectorProcessor
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,6 +33,14 @@ object ProcessorPipelineModule {
 	@Singleton
 	fun providePersistenceErrorCollector(): PersistenceErrorCollector {
 		return DefaultPersistenceErrorCollector()
+	}
+
+	@Provides
+	@Singleton
+	fun provideTrackingPersistenceTransactor(
+		database: AppDatabase,
+	): TrackingPersistenceTransactor {
+		return RoomPersistenceTransactor(database)
 	}
 
 	@Provides

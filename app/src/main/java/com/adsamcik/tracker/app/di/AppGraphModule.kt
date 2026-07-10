@@ -24,6 +24,7 @@ import com.adsamcik.tracker.tracker.controller.DefaultLockManager
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.di.DefaultDailySummaryProvider
 import com.adsamcik.tracker.tracker.feed.DefaultTrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
@@ -58,14 +59,20 @@ object AppGraphModule {
 
     @Provides
     @Singleton
-    fun provideTrackerLiveLocationFeed(
+    fun provideTrackerStateReader(
         controller: TrackerServiceController,
+    ): TrackerStateReader = controller
+
+    @Provides
+    @Singleton
+    fun provideTrackerLiveLocationFeed(
+        controller: TrackerStateReader,
     ): TrackerLiveLocationFeed = DefaultTrackerLiveLocationFeed(controller)
 
     @Provides
     @Singleton
     fun provideLockManager(
-        controller: TrackerServiceController,
+        controller: TrackerStateReader,
         watcherController: ActivityWatcherServiceController,
     ): LockManager {
         return DefaultLockManager(controller, watcherController)

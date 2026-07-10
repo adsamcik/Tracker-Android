@@ -2,7 +2,7 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -13,7 +13,7 @@ import javax.inject.Provider
 class ActivityWatcherServiceControllerTest {
 
 	private val context: Context = mockk(relaxed = true)
-	private val trackerServiceController: TrackerServiceController = mockk()
+	private val trackerStateReader: TrackerStateReader = mockk()
 	private val lockManager: LockManager = mockk()
 
 	private lateinit var controller: ActivityWatcherServiceController
@@ -23,7 +23,7 @@ class ActivityWatcherServiceControllerTest {
 		every { context.applicationContext } returns context
 		controller = ActivityWatcherServiceController(
 			context = context,
-			trackerServiceController = trackerServiceController,
+			trackerStateReader = trackerStateReader,
 			lockManagerProvider = FixedProvider(lockManager),
 		)
 	}
@@ -33,7 +33,7 @@ class ActivityWatcherServiceControllerTest {
 		val service = mockk<ActivityWatcherService>(relaxed = true)
 		controller.serviceInstance = service
 		every { lockManager.isLocked } returns true
-		every { trackerServiceController.isServiceRunning } returns false
+		every { trackerStateReader.isServiceRunning } returns false
 
 		controller.poke(
 			watcherPreference = true,
@@ -49,7 +49,7 @@ class ActivityWatcherServiceControllerTest {
 		val service = mockk<ActivityWatcherService>(relaxed = true)
 		controller.serviceInstance = service
 		every { lockManager.isLocked } returns false
-		every { trackerServiceController.isServiceRunning } returns true
+		every { trackerStateReader.isServiceRunning } returns true
 
 		controller.poke(
 			watcherPreference = true,

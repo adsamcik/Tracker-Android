@@ -2,16 +2,33 @@ package com.adsamcik.tracker.activity.api.backend
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockkObject
 import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -21,16 +38,19 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
+@OptIn(ExperimentalCoroutinesApi::class)
 class GmsActivityRecognitionBackendTest {
 
 	private val context: Context
 		get() = ApplicationProvider.getApplicationContext()
 
 	private lateinit var backend: GmsActivityRecognitionBackend
+	private lateinit var appScope: CoroutineScope
 
 	@Before
 	fun setUp() {
-		backend = GmsActivityRecognitionBackend(context)
+		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+		backend = GmsActivityRecognitionBackend(context, appScope)
 		mockkObject(Assist)
 		mockkObject(Logger)
 		mockkObject(Reporter)
@@ -40,6 +60,7 @@ class GmsActivityRecognitionBackendTest {
 
 	@After
 	fun tearDown() {
+		appScope.cancel()
 		unmockkAll()
 	}
 
@@ -85,14 +106,74 @@ class GmsActivityRecognitionBackendTest {
 	// region onActivityResult
 	@Test
 	fun `onActivityResult updates lastActivity`() {
-		val activity = com.adsamcik.tracker.shared.base.data.ActivityInfo(
-			com.adsamcik.tracker.shared.base.data.DetectedActivity.WALKING, 85,
-		)
+		val activity = RecognizedActivity(DetectedActivityType.WALKING, 85)
 
 		backend.onActivityResult(activity, 5000L)
 
 		backend.lastActivity shouldBe activity
 		backend.lastActivityElapsedTimeMillis shouldBe 5000L
+	}
+
+	@Test
+	fun `transition activity updates last state and emits watcher update`() = runTest {
+		val activity = RecognizedActivity(DetectedActivityType.WALKING, 100)
+		val update = async { backend.activityUpdates.first() }
+		runCurrent()
+
+		backend.onTransitionActivityResult(activity, 5_000_000_000L)
+
+		update.await() shouldBe ActivityUpdate(activity, 5_000L)
+		backend.lastActivityElapsedTimeMillis shouldBe 5_000L
+	}
+
+	@Test
+	fun `activity burst is delivered without dropping updates`() = runTest {
+		val releaseCollector = CompletableDeferred<Unit>()
+		val received = mutableListOf<ActivityUpdate>()
+		val collector = launch {
+			backend.activityUpdates
+				.onEach {
+					received += it
+					releaseCollector.await()
+				}
+				.take(32)
+				.collect {}
+		}
+		runCurrent()
+
+		repeat(32) { index ->
+			backend.onActivityResult(
+				activity = RecognizedActivity(DetectedActivityType.WALKING, 80),
+				elapsedTimeMillis = index.toLong(),
+			)
+		}
+		releaseCollector.complete(Unit)
+		advanceUntilIdle()
+
+		received shouldHaveSize 32
+		collector.cancel()
+	}
+
+	@Test
+	fun `transition events are emitted as one ordered batch`() = runTest {
+		val updates = listOf(
+			TransitionUpdate(
+				activityType = DetectedActivityType.STILL,
+				transitionType = ActivityTransitionType.ENTER,
+				elapsedRealTimeNanos = 1L,
+			),
+			TransitionUpdate(
+				activityType = DetectedActivityType.WALKING,
+				transitionType = ActivityTransitionType.ENTER,
+				elapsedRealTimeNanos = 2L,
+			),
+		)
+		val emitted = async { backend.transitionUpdates.first() }
+		runCurrent()
+
+		backend.onTransitionResult(updates)
+
+		emitted.await() shouldBe updates
 	}
 	// endregion
 }

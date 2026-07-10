@@ -219,6 +219,7 @@ class CellDataProducerTest {
 			val builder1 = createBuilder()
 			producer.onDataRequest(builder1)
 			builder1.cellScan.shouldNotBeNull()
+			builder1.cellScanFresh shouldBe true
 
 			// Immediately return empty allCellInfo to prove cache is used
 			every { mockTelephonyManager.allCellInfo } returns null
@@ -227,6 +228,7 @@ class CellDataProducerTest {
 			val builder2 = createBuilder()
 			producer.onDataRequest(builder2)
 			builder2.cellScan.shouldNotBeNull()
+			builder2.cellScanFresh shouldBe false
 		}
 	}
 }

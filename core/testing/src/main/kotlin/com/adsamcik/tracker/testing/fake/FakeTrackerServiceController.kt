@@ -5,11 +5,11 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.stats.engine.plane.RealTimePlaneState
-import com.adsamcik.tracker.stats.engine.sailing.RealTimeSailingState
-import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.controller.LivePlaneState
+import com.adsamcik.tracker.tracker.controller.LiveSailingState
+import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,14 +69,14 @@ class FakeTrackerServiceController : TrackerServiceController {
     private val _policyStateFlow = MutableStateFlow<PolicyState?>(null)
     override val policyStateFlow: StateFlow<PolicyState?> get() = _policyStateFlow
 
-    private val _skiStateFlow = MutableStateFlow<RealTimeSkiState?>(null)
-    override val skiStateFlow: StateFlow<RealTimeSkiState?> get() = _skiStateFlow
+    private val _skiStateFlow = MutableStateFlow<LiveSkiState?>(null)
+    override val skiStateFlow: StateFlow<LiveSkiState?> get() = _skiStateFlow
 
-    private val _sailingStateFlow = MutableStateFlow<RealTimeSailingState?>(null)
-    override val sailingStateFlow: StateFlow<RealTimeSailingState?> get() = _sailingStateFlow
+    private val _sailingStateFlow = MutableStateFlow<LiveSailingState?>(null)
+    override val sailingStateFlow: StateFlow<LiveSailingState?> get() = _sailingStateFlow
 
-    private val _planeStateFlow = MutableStateFlow<RealTimePlaneState?>(null)
-    override val planeStateFlow: StateFlow<RealTimePlaneState?> get() = _planeStateFlow
+    private val _planeStateFlow = MutableStateFlow<LivePlaneState?>(null)
+    override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
     private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
     override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
@@ -115,15 +115,15 @@ class FakeTrackerServiceController : TrackerServiceController {
         _policyStateFlow.value = state
     }
 
-    override fun updateSkiState(state: RealTimeSkiState?) {
+    override fun updateSkiState(state: LiveSkiState?) {
         _skiStateFlow.value = state
     }
 
-    override fun updateSailingState(state: RealTimeSailingState?) {
+    override fun updateSailingState(state: LiveSailingState?) {
         _sailingStateFlow.value = state
     }
 
-    override fun updatePlaneState(state: RealTimePlaneState?) {
+    override fun updatePlaneState(state: LivePlaneState?) {
         _planeStateFlow.value = state
     }
 

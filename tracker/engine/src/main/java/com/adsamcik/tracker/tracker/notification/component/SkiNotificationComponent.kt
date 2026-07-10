@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponentEntryPoint
+import com.adsamcik.tracker.tracker.controller.LiveSkiPhase
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import dagger.hilt.android.EntryPointAccessors
 
@@ -39,13 +40,13 @@ internal class SkiNotificationComponent : TrackerNotificationComponent() {
 			context.applicationContext,
 			NotificationComponentEntryPoint::class.java
 		)
-		val skiState = entryPoint.trackerServiceController().skiStateFlow.value
+		val skiState = entryPoint.trackerStateReader().skiStateFlow.value
 			?: return null
 
 		if (!skiState.isConfirmedSkiSession) return null
 
 		// During LIFT_UP, show lift type instead of run stats
-		if (skiState.state == com.adsamcik.tracker.stats.engine.ski.SkiState.LIFT_UP) {
+		if (skiState.state == LiveSkiPhase.LIFT_UP) {
 			val liftEmoji = liftTypeEmoji(skiState.currentLiftType)
 			return context.getString(R.string.ski_notification_lift, liftEmoji)
 		}

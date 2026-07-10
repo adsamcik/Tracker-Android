@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
@@ -12,7 +13,11 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TestCycleFactory
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -42,6 +47,52 @@ class SignalDispatchStageTest {
 		processor.observedTiers.shouldContainExactly(PolicyTier.AMBIENT, PolicyTier.PRECISION)
 	}
 
+	@Test
+	fun `dispatches cached activity context with separate freshness metadata`() = runTest {
+		val processor = CapturingProcessor()
+		val processorPipeline = ProcessorPipeline(
+			processors = setOf(processor),
+			scope = this,
+		)
+		val stage = SignalDispatchStage(
+			processorPipelineProvider = { processorPipeline },
+			currentTierProvider = { PolicyTier.AMBIENT },
+		)
+		val activity = ActivityInfo(activityType = 7, confidence = 80)
+
+		processorPipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		stage.process(
+			context,
+			cycleContext(
+				TrackingCycle(
+					timestampMs = 1_000L,
+					elapsedRealtimeNanos = 1_000_000_000L,
+					activity = activity,
+					activityFresh = false,
+				),
+				activity,
+			),
+		)
+		stage.process(
+			context,
+			cycleContext(
+				TrackingCycle(
+					timestampMs = 2_000L,
+					elapsedRealtimeNanos = 2_000_000_000L,
+					activity = activity,
+					activityFresh = true,
+				),
+				activity,
+			),
+		)
+
+		processor.observedSignals[0].activity.shouldNotBeNull()
+		processor.observedSignals[0].activityFresh shouldBe false
+		processor.observedSignals[1].activity.shouldNotBeNull()
+		processor.observedSignals[1].activityFresh shouldBe true
+	}
+
 	private fun cycleContext(timestampMs: Long): CycleContext {
 		return CycleContext(
 			cycle = TestCycleFactory.minimal(timestampMs = timestampMs),
@@ -49,8 +100,19 @@ class SignalDispatchStageTest {
 		)
 	}
 
+	private fun cycleContext(cycle: TrackingCycle, observedActivity: ActivityInfo): CycleContext {
+		val collectionData = mockk<MutableCollectionData>(relaxed = true) {
+			every { activity } returns observedActivity
+		}
+		return CycleContext(
+			cycle = cycle,
+			collectionData = collectionData,
+		)
+	}
+
 	private class CapturingProcessor : SignalProcessor {
 		val observedTiers = mutableListOf<PolicyTier>()
+		val observedSignals = mutableListOf<TrackingSignal>()
 
 		override val descriptor = ProcessorDescriptor(
 			id = "capturing-policy-tier",
@@ -62,6 +124,7 @@ class SignalDispatchStageTest {
 		override suspend fun onStart(context: ProcessorContext) = Unit
 
 		override fun onSignal(signal: TrackingSignal) {
+			observedSignals += signal
 			signal.policy?.tier?.let(observedTiers::add)
 		}
 

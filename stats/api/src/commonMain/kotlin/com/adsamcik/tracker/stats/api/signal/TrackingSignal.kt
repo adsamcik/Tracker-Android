@@ -14,6 +14,7 @@ data class TrackingSignal(
 	val elapsedRealtimeNanos: Long = 0L,
 	val location: LocationSignal? = null,
 	val activity: ActivitySignal? = null,
+	val activityFresh: Boolean = true,
 	val steps: StepSignal? = null,
 	val cells: CellSignal? = null,
 	val wifi: WifiSignal? = null,

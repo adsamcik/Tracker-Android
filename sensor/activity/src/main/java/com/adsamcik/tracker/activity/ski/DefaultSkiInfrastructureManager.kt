@@ -6,7 +6,7 @@ import android.net.Uri
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.logger.Reporter
 import dagger.hilt.android.qualifiers.ApplicationContext
-import com.adsamcik.tracker.stats.engine.ski.SkiLift
+import com.adsamcik.tracker.stats.api.ski.SkiLift
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File

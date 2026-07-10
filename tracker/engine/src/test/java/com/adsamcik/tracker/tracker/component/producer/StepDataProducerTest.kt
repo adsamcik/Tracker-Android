@@ -6,6 +6,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.nulls.shouldBeNull
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -156,11 +157,11 @@ class StepDataProducerTest {
 	}
 
 	@Test
-	fun `reports zero steps when no steps accumulated`() {
+	fun `does not emit a step interval when no steps accumulated`() {
 		val builder = createBuilder()
 		producer.onDataRequest(builder)
 
-		builder.stepDelta shouldBe 0
+		builder.stepDelta.shouldBeNull()
 	}
 
 	@Test

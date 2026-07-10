@@ -32,7 +32,7 @@ class DefaultLockManagerTest {
 	private val context: Context = mockk(relaxed = true)
 	private val resources: Resources = mockk(relaxed = true)
 	private val alarmManager: AlarmManager = mockk(relaxed = true)
-	private val trackerServiceController: TrackerServiceController = mockk(relaxed = true)
+	private val trackerStateReader: TrackerStateReader = mockk(relaxed = true)
 	private val watcherLockManager: LockManager = mockk(relaxed = true)
 
 	private lateinit var activityWatcherController: ActivityWatcherServiceController
@@ -47,14 +47,14 @@ class DefaultLockManagerTest {
 		every { context.getSystemService(Context.ALARM_SERVICE) } returns alarmManager
 		mockkStatic(PendingIntent::class)
 		every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
-		every { trackerServiceController.sessionInfoFlow } returns MutableStateFlow(null)
-		every { trackerServiceController.isServiceRunning } returns true
+		every { trackerStateReader.sessionInfoFlow } returns MutableStateFlow(null)
+		every { trackerStateReader.isServiceRunning } returns true
 		every { watcherLockManager.isLocked } returns false
 
 		activityWatcherController = spyk(
 			ActivityWatcherServiceController(
 				context = context,
-				trackerServiceController = trackerServiceController,
+				trackerStateReader = trackerStateReader,
 				lockManagerProvider = FixedProvider(watcherLockManager),
 			)
 		)
@@ -63,7 +63,7 @@ class DefaultLockManagerTest {
 		every { anyConstructed<Preferences>().edit(any()) } just runs
 
 		lockManager = DefaultLockManager(
-			trackerServiceController = trackerServiceController,
+			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 		)
 	}

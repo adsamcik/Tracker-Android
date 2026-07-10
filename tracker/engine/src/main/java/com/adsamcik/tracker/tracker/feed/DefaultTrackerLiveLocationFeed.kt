@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.feed
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -14,10 +14,10 @@ import javax.inject.Singleton
 
 /**
  * Default [TrackerLiveLocationFeed] implementation that adapts the live state
- * exposed by [TrackerServiceController] into the read-only feed contract.
+ * exposed by [TrackerStateReader] into the read-only feed contract.
  *
  * Singleton so every consumer shares the same upstream StateFlow without
- * adding fan-out machinery; the underlying [TrackerServiceController.collectionDataFlow]
+ * adding fan-out machinery; the underlying [TrackerStateReader.collectionDataFlow]
  * is already a StateFlow and broadcasts to all collectors.
  *
  * The implementation lives in `:tracker` (rather than `:stats-api`) because
@@ -34,7 +34,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class DefaultTrackerLiveLocationFeed @Inject constructor(
-	private val controller: TrackerServiceController,
+	private val controller: TrackerStateReader,
 ) : TrackerLiveLocationFeed {
 
 	override val isActiveFlow: StateFlow<Boolean>

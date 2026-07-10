@@ -1,11 +1,12 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
-import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import javax.inject.Singleton
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -13,15 +14,19 @@ import javax.inject.Inject
  * Durable write-ahead buffer for [TrackingSignal]s.
  *
  * Signals are first staged in a fast in-memory list (via [stage]).
- * Periodically, [checkpoint] serializes them to the `pending_signal`
- * Room table so they survive process death. [drainBatch] reads and
- * deletes entries for replay into the destination tables.
+ * [checkpoint] serializes them to the `pending_signal` Room table so they
+ * survive process death, returning the generated row IDs. [peekBatch] reads
+ * (but does NOT delete) the oldest entries so callers can persist them to the
+ * destination tables and only then acknowledge the exact IDs — in a single
+ * transaction — via [PendingSignalDao.deleteByIds].
  *
  * Thread safety:
- * - [stage] and [checkpoint] synchronize on [stagingLock].
- * - [drainBatch], [hasPendingEntries], and [clear] are pure DAO
- *   calls and do not touch the staging list.
+ * - [stage], [stagingSize] and [checkpoint]'s staging mutation synchronize on
+ *   [stagingLock].
+ * - [peekBatch], [hasPendingEntries] and [clear] are DAO reads/writes and do
+ *   not touch the staging list.
  */
+@Singleton
 class DurableSignalBuffer @Inject constructor(
 	private val pendingSignalDao: PendingSignalDao,
 	private val dispatchers: DispatchersProvider,
@@ -48,18 +53,21 @@ class DurableSignalBuffer @Inject constructor(
 	val stagingSize: Int get() = synchronized(stagingLock) { staging.size }
 
 	/**
-	 * Write all staged signals to the Room WAL table.
-	 * After this returns, the signals are durable on disk.
+	 * Durably write all currently-staged signals to the Room WAL table.
+	 *
+	 * The staged signals are **only** removed from the in-memory buffer after
+	 * the insert succeeds. If the insert throws (including cancellation), the
+	 * staging list is left untouched so the signals can be retried on the next
+	 * checkpoint. Returns the generated WAL row IDs (empty when nothing was
+	 * staged).
 	 */
-	suspend fun checkpoint() {
-		val signals: List<TrackingSignal>
-		synchronized(stagingLock) {
-			if (staging.isEmpty()) return
-			signals = staging.toList()
-			staging.clear()
+	suspend fun checkpoint(onCommitted: (List<Long>) -> Unit = {}): List<Long> {
+		val signals: List<TrackingSignal> = synchronized(stagingLock) {
+			if (staging.isEmpty()) return emptyList()
+			staging.toList()
 		}
 
-		withContext(dispatchers.io) {
+		return withContext(NonCancellable + dispatchers.io) {
 			val now = Time.nowMillis
 			val entities = signals.map { signal ->
 				PendingSignalEntity(
@@ -68,34 +76,51 @@ class DurableSignalBuffer @Inject constructor(
 					createdAt = now,
 				)
 			}
-			pendingSignalDao.insertAll(entities)
+			val ids = pendingSignalDao.insertAll(entities)
+
+			// Keep the WAL commit, staging removal, and caller ID registration in
+			// one non-cancellable section. This closes the post-commit cancellation
+			// window that could otherwise checkpoint the same signals twice.
+			synchronized(stagingLock) {
+				val count = signals.size
+				if (count >= staging.size) {
+					staging.clear()
+				} else {
+					repeat(count) { staging.removeAt(0) }
+				}
+			}
+			onCommitted(ids)
+
+			ids
 		}
 	}
 
 	/**
-	 * Read and atomically delete the oldest batch of WAL entries.
-	 * Returns deserialized [TrackingSignal]s. Corrupted entries
-	 * are silently skipped (logged).
+	 * Read the oldest batch of WAL entries **across all sessions** without
+	 * deleting them.
+	 *
+	 * Recovery is intentionally session-agnostic: a restarted process mints a
+	 * new session id, so filtering by the current session would strand rows
+	 * written under the previous one. Each returned [PeekedSignal] pairs the row
+	 * [PeekedSignal.id] with the deserialized [PeekedSignal.signal] (null when
+	 * the row is corrupted). The caller acknowledges the exact IDs (via
+	 * [PendingSignalDao.deleteByIds]) once the destination writes commit, so a
+	 * failure before that leaves the rows available for retry.
 	 */
-	suspend fun drainBatch(limit: Int = DRAIN_BATCH_SIZE): List<TrackingSignal> =
+	suspend fun peekBatch(limit: Int = RECOVERY_BATCH_SIZE): List<PeekedSignal> =
 		withContext(dispatchers.io) {
-			val entities = pendingSignalDao.getOldest(sessionId, limit)
-			if (entities.isEmpty()) return@withContext emptyList()
-
-			val signals = entities.mapNotNull { entity ->
-				SignalSerializer.deserialize(entity.signalJson).also {
-					if (it == null) {
-						Log.w(TAG, "Skipped corrupted WAL entry id=${entity.id}")
-					}
-				}
+			val entities = pendingSignalDao.getOldestAcrossSessions(limit)
+			entities.map { entity ->
+				PeekedSignal(
+					id = entity.id,
+					signal = SignalSerializer.deserialize(entity.signalJson),
+				)
 			}
-			pendingSignalDao.deleteByIds(entities.map { it.id })
-			signals
 		}
 
-	/** True when there are no more WAL entries for this session. */
+	/** True when there are still WAL entries for **any** session (recovery scope). */
 	suspend fun hasPendingEntries(): Boolean = withContext(dispatchers.io) {
-		pendingSignalDao.countForSession(sessionId) > 0
+		pendingSignalDao.countAll() > 0
 	}
 
 	/** Delete all WAL entries for the current session. */
@@ -103,8 +128,16 @@ class DurableSignalBuffer @Inject constructor(
 		pendingSignalDao.deleteBySession(sessionId)
 	}
 
+	/**
+	 * A single peeked WAL row: its primary key plus the deserialized signal,
+	 * or `null` [signal] when the stored JSON could not be parsed (corruption).
+	 */
+	data class PeekedSignal(
+		val id: Long,
+		val signal: TrackingSignal?,
+	)
+
 	companion object {
-		private const val TAG = "DurableSignalBuffer"
-		internal const val DRAIN_BATCH_SIZE = 100
+		internal const val RECOVERY_BATCH_SIZE = 100
 	}
 }

@@ -11,17 +11,20 @@ import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.tasks.Task
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +39,7 @@ import javax.inject.Singleton
 @SuppressLint("MissingPermission")
 class GmsActivityRecognitionBackend @Inject constructor(
 	@ApplicationContext private val context: Context,
+	@ApplicationScope appScope: CoroutineScope,
 ) : ActivityRecognitionBackend {
 
 	override val name: String = "Google Play Services"
@@ -46,7 +50,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	private val activityStateLock = Any()
 
 	@Volatile
-	override var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+	override var lastActivity: RecognizedActivity = RecognizedActivity.UNKNOWN
 		private set
 
 	@Volatile
@@ -62,11 +66,26 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	@Volatile
 	private var transitionClientTask: Task<*>? = null
 
-	private val _activityUpdates = MutableSharedFlow<ActivityUpdate>(extraBufferCapacity = 16)
+	private val activityUpdateQueue = Channel<ActivityUpdate>(Channel.UNLIMITED)
+	private val transitionUpdateQueue = Channel<List<TransitionUpdate>>(Channel.UNLIMITED)
+	private val _activityUpdates = MutableSharedFlow<ActivityUpdate>()
 	override val activityUpdates: Flow<ActivityUpdate> = _activityUpdates.asSharedFlow()
 
-	private val _transitionUpdates = MutableSharedFlow<TransitionUpdate>(extraBufferCapacity = 16)
-	override val transitionUpdates: Flow<TransitionUpdate> = _transitionUpdates.asSharedFlow()
+	private val _transitionUpdates = MutableSharedFlow<List<TransitionUpdate>>()
+	override val transitionUpdates: Flow<List<TransitionUpdate>> = _transitionUpdates.asSharedFlow()
+
+	init {
+		appScope.launch {
+			for (update in activityUpdateQueue) {
+				_activityUpdates.emit(update)
+			}
+		}
+		appScope.launch {
+			for (updates in transitionUpdateQueue) {
+				_transitionUpdates.emit(updates)
+			}
+		}
+	}
 
 	@Synchronized
 	override fun startUpdates(config: RecognitionConfig): Boolean {
@@ -118,25 +137,39 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	}
 
 	// Called by ActivityReceiver when it receives an activity recognition result
-	internal fun onActivityResult(activity: ActivityInfo, elapsedTimeMillis: Long) {
+	internal fun onActivityResult(activity: RecognizedActivity, elapsedTimeMillis: Long) {
 		synchronized(activityStateLock) {
 			lastActivity = activity
 			lastActivityElapsedTimeMillis = elapsedTimeMillis
 		}
-		_activityUpdates.tryEmit(ActivityUpdate(activity, elapsedTimeMillis))
+		enqueue(activityUpdateQueue, ActivityUpdate(activity, elapsedTimeMillis), "activity")
 	}
 
 	// Called by ActivityReceiver when it receives a transition-only result (no activity result)
-	internal fun onTransitionActivityResult(activity: ActivityInfo, elapsedRealTimeNanos: Long) {
+	internal fun onTransitionActivityResult(activity: RecognizedActivity, elapsedRealTimeNanos: Long) {
+		val elapsedTimeMillis = elapsedRealTimeNanos / 1_000_000L
 		synchronized(activityStateLock) {
 			lastActivity = activity
-			lastActivityElapsedTimeMillis = elapsedRealTimeNanos
+			lastActivityElapsedTimeMillis = elapsedTimeMillis
 		}
+		enqueue(activityUpdateQueue, ActivityUpdate(activity, elapsedTimeMillis), "transition activity")
 	}
 
 	// Called by ActivityReceiver for each transition event
 	internal fun onTransitionResult(updates: List<TransitionUpdate>) {
-		updates.forEach { _transitionUpdates.tryEmit(it) }
+		if (updates.isNotEmpty()) {
+			enqueue(transitionUpdateQueue, updates.toList(), "transition batch")
+		}
+	}
+
+	private fun <T> enqueue(queue: Channel<T>, value: T, updateType: String) {
+		val result = queue.trySend(value)
+		if (result.isFailure) {
+			com.adsamcik.tracker.logger.Reporter.report(
+				result.exceptionOrNull()
+					?: IllegalStateException("Unable to enqueue $updateType update"),
+			)
+		}
 	}
 
 	private fun requestActivityRecognition(
@@ -190,7 +223,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 
 	private fun buildTransition(transition: ActivityTransitionData): ActivityTransition {
 		return ActivityTransition.Builder()
-			.setActivityType(transition.activity.value)
+			.setActivityType(ActivityTypeMapping.toPlayServicesCode(transition.activity))
 			.setActivityTransition(transition.type.value)
 			.build()
 	}

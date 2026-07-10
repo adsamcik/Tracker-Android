@@ -21,6 +21,7 @@ import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
@@ -38,13 +39,16 @@ import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
-import com.adsamcik.tracker.tracker.pipeline.stages.PreValidationStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -71,6 +75,7 @@ internal class TrackingOrchestrator(
 	trackerSettingsRepository: TrackerSettingsRepository,
 	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
 	private val enableNotifications: Boolean = true,
+	private val runtimeTierAdjuster: (PolicyTier) -> PolicyTier = { it },
 	/**
 	 * Optional callback invoked AFTER the in-orchestrator `DailySummaryAggregator` writes a row.
 	 * The unified rule engine injects a callback that marks the `daily_summary` table dirty in
@@ -92,6 +97,7 @@ internal class TrackingOrchestrator(
 	private var trackingPipeline: TrackingPipeline? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var persistenceErrorCollector: PersistenceErrorCollector? = null
+	private var sessionJob: Job? = null
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private var skiTrackingComponent: SkiTrackingComponent? = null
@@ -139,101 +145,16 @@ internal class TrackingOrchestrator(
 		timerReceiver: TrackerTimerReceiver,
 		timerAccessor: TrackerTierEscalationHandler.TimerAccessor,
 	) = componentMutex.withLock {
+		val previousSessionJob = sessionJob
+		if (hasSessionState()) {
+			destroyComponents(context)
+		}
+		previousSessionJob?.cancelAndJoin()
+
+		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
+		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
+		sessionJob = newSessionJob
 		currentTier = initialTier
-
-		// Clear existing components to prevent duplicates and ConcurrentModificationException
-		// if onStartCommand is called multiple times or concurrently with onUpdate.
-		preComponentList.forEach { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable pre-component: ${component::class.simpleName}", e)
-			}
-		}
-		dataComponentList.forEach { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable data-component: ${component::class.simpleName}", e)
-			}
-		}
-		try {
-			notificationComponent.onDisable(context)
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			Log.w(TAG, "Failed to disable notification component: ${notificationComponent::class.simpleName}", e)
-		}
-		skiTrackingComponent?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable ski tracking component: ${component::class.simpleName}", e)
-			}
-		}
-		skiSegmentWriter?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable ski segment writer: ${component::class.simpleName}", e)
-			}
-		}
-		sailingTrackingComponent?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable sailing tracking component: ${component::class.simpleName}", e)
-			}
-		}
-		planeTrackingComponent?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable plane tracking component: ${component::class.simpleName}", e)
-			}
-		}
-		preComponentList.clear()
-		dataComponentList.clear()
-		skiTrackingComponent = null
-		skiSegmentWriter = null
-		sailingTrackingComponent = null
-		planeTrackingComponent = null
-
-		// Cleanup previous managers if re-initializing
-		dataProducerManager?.onDisable()
-		trackingPolicyManager?.stop()
-		// Stop the prior ProcessorPipeline (if any) before overwriting the field —
-		// otherwise a re-entrant initialize would leave the old pipeline's supervisor
-		// + processors running until full service shutdown, racing the new pipeline
-		// for processor state. processorPipeline.stop() drains in-flight flushes
-		// before tearing down.
-		processorPipeline?.let { existing ->
-			try {
-				existing.stop()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to stop prior ProcessorPipeline on re-init: ${e.message}")
-			}
-			processorPipeline = null
-			// tierEscalationHandler is `lateinit` and only assigned later in this
-			// method — clear its pipeline pointer only if it's already initialized.
-			if (::tierEscalationHandler.isInitialized) {
-				tierEscalationHandler.processorPipeline = null
-			}
-		}
 
 		dataProducerManager = DataProducerManager(
 			context = context,
@@ -248,7 +169,7 @@ internal class TrackingOrchestrator(
 			context = context,
 			isUserInitiated = isSessionUserInitiated,
 			escalationEngine = escalationEngine,
-			scope = scope,
+			scope = sessionScope,
 			database = appDatabase,
 			dispatchers = dispatchers,
 			initialTier = initialTier,
@@ -257,7 +178,7 @@ internal class TrackingOrchestrator(
 		}
 
 		// Observe engine state changes for UI and timer updates
-		scope.launch {
+		sessionScope.launch {
 			escalationEngine.policyState.collect { state ->
 				controller.updatePolicyState(state)
 			}
@@ -269,6 +190,9 @@ internal class TrackingOrchestrator(
 			componentMutex = componentMutex,
 			controller = controller,
 			trackingParamsRepository = trackingParamsRepository,
+			tierAdjuster = runtimeTierAdjuster,
+			ambientTriggerFactory = { AmbientCollectionTrigger(dispatchers.main) },
+			onEffectiveTierChanged = { currentTier = it },
 		).apply {
 			this.currentTier = initialTier
 			this.processorPipeline = null // set below after pipeline creation
@@ -277,13 +201,13 @@ internal class TrackingOrchestrator(
 
 		// Observe policy changes and delegate tier/interval updates
 		trackingPolicyManager?.let { policyManager ->
-			scope.launch {
+			sessionScope.launch {
 				policyManager.currentPolicy.collect { newPolicy ->
 					tierEscalationHandler.onPolicyChanged(
 						policy = newPolicy,
 						context = context,
 						timerReceiver = timerReceiver,
-						scope = scope,
+						scope = sessionScope,
 					)
 				}
 			}
@@ -304,7 +228,7 @@ internal class TrackingOrchestrator(
 			trackingPolicyManager = trackingPolicyManager,
 			escalationEngine = escalationEngine,
 			controller = controller,
-			scope = scope,
+			scope = sessionScope,
 		)
 
 		sessionComponent = componentSet.sessionComponent
@@ -324,7 +248,7 @@ internal class TrackingOrchestrator(
 		// Initialize the stats ProcessorPipeline
 		val pipeline = ProcessorPipeline(
 			processors = signalProcessors,
-			scope = scope,
+			scope = sessionScope,
 			onDomainEvents = { events -> domainEventRepository.persist(events) },
 		)
 		processorPipeline = pipeline
@@ -333,7 +257,7 @@ internal class TrackingOrchestrator(
 			startTimestamp = EpochMs(Time.nowMillis),
 			sessionId = session.id,
 		)
-		trackingPipeline = createTrackingPipeline(scope)
+		trackingPipeline = createTrackingPipeline(sessionScope)
 
 		// Wire mutable references into tier escalation handler
 		tierEscalationHandler.processorPipeline = processorPipeline
@@ -370,7 +294,10 @@ internal class TrackingOrchestrator(
 		preShutdown: (suspend () -> Unit)? = null,
 	): ShutdownResult = componentMutex.withLock {
 		preShutdown?.invoke()
-		destroyComponents(context)
+		val result = destroyComponents(context)
+		sessionJob?.cancelAndJoin()
+		sessionJob = null
+		result
 	}
 
 	internal fun enqueueDailySummaryFallback(context: Context): Boolean {
@@ -381,6 +308,15 @@ internal class TrackingOrchestrator(
 			Log.w(TAG, "Failed to enqueue one-shot daily summary worker", e)
 			false
 		}
+	}
+
+	fun onBatteryLevelChanged(
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+		scope: CoroutineScope,
+	) {
+		val policy = trackingPolicyManager?.currentPolicy?.value ?: return
+		tierEscalationHandler.onPolicyChanged(policy, context, timerReceiver, scope)
 	}
 
 	/**
@@ -395,12 +331,29 @@ internal class TrackingOrchestrator(
 		controller.updatePersistenceErrorFlow(null)
 		controller.updatePolicyState(null)
 		controller.updatePolicyTier(PolicyTier.OFF)
+		controller.updateSkiState(null)
+		controller.updateSailingState(null)
+		controller.updatePlaneState(null)
 		// Ensure error collector scope is always cancelled
 		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
 		persistenceErrorCollector = null
 	}
 
 	// ---- private implementation ----
+
+	private fun hasSessionState(): Boolean {
+		return dataProducerManager != null ||
+			trackingPolicyManager != null ||
+			processorPipeline != null ||
+			trackingPipeline != null ||
+			sessionComponent != null ||
+			preComponentList.isNotEmpty() ||
+			dataComponentList.isNotEmpty() ||
+			skiTrackingComponent != null ||
+			skiSegmentWriter != null ||
+			sailingTrackingComponent != null ||
+			planeTrackingComponent != null
+	}
 
 	/**
 	 * Collects data from producers/components, feeds the processor pipeline,
@@ -410,8 +363,19 @@ internal class TrackingOrchestrator(
 		context: Context,
 		triggerCycle: TrackingCycle,
 	) {
-		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
+		for (component in preComponentList) {
+			if (!component.requirementsMet(triggerCycle)) continue
+			val accepted = tryWithResultAndReport({ true }) {
+				component.onNewData(triggerCycle)
+			}
+			if (!accepted) return
+		}
 
+		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
+		executeCycle(context, cycle)
+	}
+
+	private suspend fun executeCycle(context: Context, cycle: TrackingCycle) {
 		val cycleContext = CycleContext(
 			cycle = cycle,
 			collectionData = MutableCollectionData(cycle.timestampMs),
@@ -439,7 +403,6 @@ internal class TrackingOrchestrator(
 	private fun createTrackingPipeline(scope: CoroutineScope): TrackingPipeline {
 		return TrackingPipeline(
 			stages = listOf(
-				PreValidationStage(preComponentList),
 				DataCollectionStage(dataComponentList),
 				SessionUpdateStage(requireNotNull(sessionComponent), controller),
 				PostProcessingStage(
@@ -460,6 +423,19 @@ internal class TrackingOrchestrator(
 	}
 
 	private suspend fun destroyComponents(context: Context): ShutdownResult {
+		dataProducerManager?.let { manager ->
+			manager.flushPendingSensorBatches()
+			val finalCycle = manager.getData(
+				TrackingCycle(
+					timestampMs = Time.nowMillis,
+					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				),
+			)
+			if (finalCycle.stepDelta != null) {
+				executeCycle(context, finalCycle)
+			}
+		}
+
 		// Finalize session data BEFORE stopping the pipeline. The pipeline's
 		// stop() calls AggregatorProcessor.onStop() which emits SessionEnded.
 		// Downstream consumers (AchievementWorker,
@@ -489,6 +465,7 @@ internal class TrackingOrchestrator(
 		}
 
 		dataProducerManager?.onDisable()
+		dataProducerManager = null
 		try {
 			trackingPolicyManager?.stop()
 		} catch (e: CancellationException) {
@@ -516,6 +493,8 @@ internal class TrackingOrchestrator(
 				Log.w(TAG, "Failed to disable data-component during shutdown: ${component::class.simpleName}", e)
 			}
 		}
+		preComponentList.clear()
+		dataComponentList.clear()
 		try {
 			notificationComponent.onDisable(context)
 		} catch (e: CancellationException) {
@@ -563,6 +542,9 @@ internal class TrackingOrchestrator(
 		skiSegmentWriter = null
 		sailingTrackingComponent = null
 		planeTrackingComponent = null
+		if (::tierEscalationHandler.isInitialized) {
+			tierEscalationHandler.processorPipeline = null
+		}
 
 		// Materialize daily summary from session segments now that the session
 		// component has saved its final segment to the database.

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.activity
 
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.google.android.gms.location.ActivityTransition
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -23,12 +22,12 @@ class ActivityRequestDataTest {
 
         @Test
         fun `ENTER maps to ACTIVITY_TRANSITION_ENTER`() {
-            ActivityTransitionType.ENTER.value shouldBe ActivityTransition.ACTIVITY_TRANSITION_ENTER
+            ActivityTransitionType.ENTER.value shouldBe 0
         }
 
         @Test
         fun `EXIT maps to ACTIVITY_TRANSITION_EXIT`() {
-            ActivityTransitionType.EXIT.value shouldBe ActivityTransition.ACTIVITY_TRANSITION_EXIT
+            ActivityTransitionType.EXIT.value shouldBe 1
         }
 
         @Test
@@ -52,39 +51,39 @@ class ActivityRequestDataTest {
 
         @Test
         fun `stores activity and type correctly`() {
-            val data = ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
+            val data = ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER)
 
-            data.activity shouldBe DetectedActivity.WALKING
+            data.activity shouldBe DetectedActivityType.WALKING
             data.type shouldBe ActivityTransitionType.ENTER
         }
 
         @Test
         fun `equals works for identical data`() {
-            val a = ActivityTransitionData(DetectedActivity.IN_VEHICLE, ActivityTransitionType.EXIT)
-            val b = ActivityTransitionData(DetectedActivity.IN_VEHICLE, ActivityTransitionType.EXIT)
+            val a = ActivityTransitionData(DetectedActivityType.IN_VEHICLE, ActivityTransitionType.EXIT)
+            val b = ActivityTransitionData(DetectedActivityType.IN_VEHICLE, ActivityTransitionType.EXIT)
 
             a shouldBe b
         }
 
         @Test
         fun `differs when activity differs`() {
-            val a = ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
-            val b = ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER)
+            val a = ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER)
+            val b = ActivityTransitionData(DetectedActivityType.RUNNING, ActivityTransitionType.ENTER)
 
             a shouldNotBe b
         }
 
         @Test
         fun `differs when transition type differs`() {
-            val a = ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
-            val b = ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.EXIT)
+            val a = ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER)
+            val b = ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.EXIT)
 
             a shouldNotBe b
         }
 
         @Test
         fun `copy preserves fields`() {
-            val original = ActivityTransitionData(DetectedActivity.ON_BICYCLE, ActivityTransitionType.EXIT)
+            val original = ActivityTransitionData(DetectedActivityType.ON_BICYCLE, ActivityTransitionType.EXIT)
             val copy = original.copy()
 
             copy shouldBe original
@@ -92,10 +91,10 @@ class ActivityRequestDataTest {
 
         @Test
         fun `copy can override activity`() {
-            val original = ActivityTransitionData(DetectedActivity.ON_BICYCLE, ActivityTransitionType.EXIT)
-            val modified = original.copy(activity = DetectedActivity.STILL)
+            val original = ActivityTransitionData(DetectedActivityType.ON_BICYCLE, ActivityTransitionType.EXIT)
+            val modified = original.copy(activity = DetectedActivityType.STILL)
 
-            modified.activity shouldBe DetectedActivity.STILL
+            modified.activity shouldBe DetectedActivityType.STILL
             modified.type shouldBe ActivityTransitionType.EXIT
         }
     }
@@ -108,36 +107,18 @@ class ActivityRequestDataTest {
     @DisplayName("ActivityChangeRequestData")
     inner class ChangeRequestDataTests {
 
-        private val stubCallback: ActivityChangeRequestCallback = { _, _, _ -> }
-
         @Test
         fun `stores detection interval correctly`() {
-            val data = ActivityChangeRequestData(
-                detectionIntervalS = 30,
-                callback = stubCallback
-            )
+            val data = ActivityChangeRequestData(detectionIntervalS = 30)
 
             data.detectionIntervalS shouldBe 30
         }
 
         @Test
         fun `stores zero interval`() {
-            val data = ActivityChangeRequestData(
-                detectionIntervalS = 0,
-                callback = stubCallback
-            )
+            val data = ActivityChangeRequestData(detectionIntervalS = 0)
 
             data.detectionIntervalS shouldBe 0
-        }
-
-        @Test
-        fun `callback reference is preserved`() {
-            val data = ActivityChangeRequestData(
-                detectionIntervalS = 10,
-                callback = stubCallback
-            )
-
-            data.callback shouldBe stubCallback
         }
     }
 
@@ -149,40 +130,22 @@ class ActivityRequestDataTest {
     @DisplayName("ActivityTransitionRequestData")
     inner class TransitionRequestDataTests {
 
-        private val stubTransitionCallback: ActivityTransitionRequestCallback = { _, _, _ -> }
-
         @Test
         fun `stores transition list correctly`() {
             val transitions = listOf(
-                ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER),
-                ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.EXIT)
+                ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER),
+                ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.EXIT)
             )
-            val data = ActivityTransitionRequestData(
-                transitionList = transitions,
-                callback = stubTransitionCallback
-            )
+            val data = ActivityTransitionRequestData(transitionList = transitions)
 
             data.transitionList shouldBe transitions
         }
 
         @Test
         fun `empty transition list is allowed`() {
-            val data = ActivityTransitionRequestData(
-                transitionList = emptyList(),
-                callback = stubTransitionCallback
-            )
+            val data = ActivityTransitionRequestData(transitionList = emptyList())
 
             data.transitionList.size shouldBe 0
-        }
-
-        @Test
-        fun `callback reference is preserved`() {
-            val data = ActivityTransitionRequestData(
-                transitionList = emptyList(),
-                callback = stubTransitionCallback
-            )
-
-            data.callback shouldBe stubTransitionCallback
         }
     }
 
@@ -193,9 +156,6 @@ class ActivityRequestDataTest {
     @Nested
     @DisplayName("ActivityRequestData")
     inner class RequestDataTests {
-
-        private val stubCallback: ActivityChangeRequestCallback = { _, _, _ -> }
-        private val stubTransitionCallback: ActivityTransitionRequestCallback = { _, _, _ -> }
 
         @Test
         fun `default changeData is null`() {
@@ -220,10 +180,7 @@ class ActivityRequestDataTest {
 
         @Test
         fun `stores changeData when provided`() {
-            val changeData = ActivityChangeRequestData(
-                detectionIntervalS = 15,
-                callback = stubCallback
-            )
+            val changeData = ActivityChangeRequestData(detectionIntervalS = 15)
             val data = ActivityRequestData(
                 key = String::class,
                 changeData = changeData
@@ -236,12 +193,9 @@ class ActivityRequestDataTest {
         @Test
         fun `stores transitionData when provided`() {
             val transitions = listOf(
-                ActivityTransitionData(DetectedActivity.IN_VEHICLE, ActivityTransitionType.ENTER)
+                ActivityTransitionData(DetectedActivityType.IN_VEHICLE, ActivityTransitionType.ENTER)
             )
-            val transitionData = ActivityTransitionRequestData(
-                transitionList = transitions,
-                callback = stubTransitionCallback
-            )
+            val transitionData = ActivityTransitionRequestData(transitionList = transitions)
             val data = ActivityRequestData(
                 key = String::class,
                 transitionData = transitionData
@@ -253,15 +207,11 @@ class ActivityRequestDataTest {
 
         @Test
         fun `stores both changeData and transitionData`() {
-            val changeData = ActivityChangeRequestData(
-                detectionIntervalS = 10,
-                callback = stubCallback
-            )
+            val changeData = ActivityChangeRequestData(detectionIntervalS = 10)
             val transitionData = ActivityTransitionRequestData(
                 transitionList = listOf(
-                    ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.EXIT)
-                ),
-                callback = stubTransitionCallback
+                    ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.EXIT)
+                )
             )
             val data = ActivityRequestData(
                 key = String::class,
@@ -275,10 +225,7 @@ class ActivityRequestDataTest {
 
         @Test
         fun `equality is based on all fields`() {
-            val changeData = ActivityChangeRequestData(
-                detectionIntervalS = 5,
-                callback = stubCallback
-            )
+            val changeData = ActivityChangeRequestData(detectionIntervalS = 5)
             val a = ActivityRequestData(key = String::class, changeData = changeData)
             val b = ActivityRequestData(key = String::class, changeData = changeData)
 

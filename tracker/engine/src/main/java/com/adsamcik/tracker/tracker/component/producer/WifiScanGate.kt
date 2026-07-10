@@ -33,5 +33,7 @@ internal object WifiScanGate {
         return scanAgeNanos <= maxAgeNanos
     }
 
+    fun shouldBufferBroadcastResults(resultsUpdated: Boolean?): Boolean = resultsUpdated != false
+
     private const val MICROS_TO_NANOS = 1_000L
 }

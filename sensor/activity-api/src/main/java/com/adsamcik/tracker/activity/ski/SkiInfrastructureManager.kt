@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.activity.ski
 
 import android.net.Uri
-import com.adsamcik.tracker.stats.engine.ski.SkiLift
+import com.adsamcik.tracker.stats.api.ski.SkiLift
 
 /**
  * Contract for the optional, user-imported ski infrastructure database.

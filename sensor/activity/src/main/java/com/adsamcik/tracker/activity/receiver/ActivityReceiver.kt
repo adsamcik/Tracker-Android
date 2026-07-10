@@ -4,17 +4,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
-import com.adsamcik.tracker.activity.api.DefaultActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
@@ -31,7 +31,6 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface ActivityReceiverEntryPoint {
 	fun backend(): GmsActivityRecognitionBackend
-	fun defaultActivityRequestManager(): DefaultActivityRequestManager
 }
 
 /**
@@ -42,8 +41,6 @@ interface ActivityReceiverEntryPoint {
  * results to [GmsActivityRecognitionBackend], which exposes them as Flows
  * via the [ActivityRecognitionBackend] interface.
  *
- * It also notifies [DefaultActivityRequestManager] for backward-compatible callback
- * dispatching to existing request holders.
  */
 internal class ActivityReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
@@ -62,16 +59,15 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			ActivityReceiverEntryPoint::class.java,
 		)
 		val backend = entryPoint.backend()
-		val requestManager = entryPoint.defaultActivityRequestManager()
 
 		if (hasActivityResult) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
-			onActivityResult(context, result, backend, requestManager)
+			onActivityResult(result, backend)
 		}
 
 		if (hasActivityTransitionResult) {
 			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
-			onActivityTransitionResult(context, result, backend, requestManager)
+			onActivityTransitionResult(result, backend)
 
 			if (!hasActivityResult) {
 				setActivityResultFromTransition(result.transitionEvents.last(), backend)
@@ -80,12 +76,14 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	}
 
 	private fun onActivityResult(
-		context: Context,
 		result: ActivityRecognitionResult,
 		backend: GmsActivityRecognitionBackend,
-		requestManager: DefaultActivityRequestManager,
 	) {
-		val detectedActivity = ActivityInfo(result.mostProbableActivity)
+		val mostProbableActivity = result.mostProbableActivity
+		val detectedActivity = RecognizedActivity(
+			type = ActivityTypeMapping.fromPlayServicesCode(mostProbableActivity.type),
+			confidence = mostProbableActivity.confidence.coerceIn(0, 100),
+		)
 		val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
 		Companion.lastActivity = detectedActivity
@@ -99,7 +97,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			),
 		)
 
-		requestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
 	}
 
 	/**
@@ -110,7 +107,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		transition: ActivityTransitionEvent,
 		backend: GmsActivityRecognitionBackend,
 	) {
-		val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
+		val detectedActivity = RecognizedActivity(
+			type = ActivityTypeMapping.fromPlayServicesCode(transition.activityType),
+			confidence = TRANSITION_ACTIVITY_CONFIDENCE,
+		)
 		Companion.lastActivity = detectedActivity
 		backend.onTransitionActivityResult(detectedActivity, transition.elapsedRealTimeNanos)
 
@@ -124,10 +124,8 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	}
 
 	private fun onActivityTransitionResult(
-		context: Context,
 		result: ActivityTransitionResult,
 		backend: GmsActivityRecognitionBackend,
-		requestManager: DefaultActivityRequestManager,
 	) {
 		result.transitionEvents.forEach {
 			logActivity(
@@ -139,16 +137,22 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			)
 		}
 
-		val transitionUpdates = result.transitionEvents.map { event ->
+		val transitionUpdates = result.transitionEvents.mapNotNull { event ->
+			val transitionType = ActivityTransitionType.entries
+				.firstOrNull { it.value == event.transitionType }
+			if (transitionType == null) {
+				com.adsamcik.tracker.logger.Reporter.report(
+					IllegalArgumentException("Unknown activity transition type ${event.transitionType}"),
+				)
+				return@mapNotNull null
+			}
 			TransitionUpdate(
-				activityType = event.activityType,
-				transitionType = event.transitionType,
+				activityType = ActivityTypeMapping.fromPlayServicesCode(event.activityType),
+				transitionType = transitionType,
 				elapsedRealTimeNanos = event.elapsedRealTimeNanos,
 			)
 		}
 		backend.onTransitionResult(transitionUpdates)
-
-		requestManager.onActivityTransition(context, result)
 	}
 
 	companion object {
@@ -158,11 +162,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		 * The most recently detected activity.  Updated on each activity or transition
 		 * broadcast received.  Defaults to UNKNOWN before the first update.
 		 *
-		 * Written only by [ActivityReceiver.onReceive]; read by callers like
-		 * [DefaultActivityRequestManager] that need last-known activity without a context.
+		 * Written only by [ActivityReceiver.onReceive].
 		 */
 		@Volatile
-		var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+		var lastActivity: RecognizedActivity = RecognizedActivity.UNKNOWN
 			internal set
 
 		/**

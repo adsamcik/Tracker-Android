@@ -12,10 +12,12 @@ import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
@@ -264,6 +266,24 @@ class DefaultTrackerServiceControllerTest {
 		}
 
 		@Test
+		fun `stores path points in a structurally shared persistent list`() {
+			setupDistanceMock(100f)
+			controller.updateSession(createSession(id = 10L))
+
+			controller.updateCollectionData(
+				createCollectionDataWithLocation(createLocation(50.0, 14.0))
+			)
+			controller.updateCollectionData(
+				createCollectionDataWithLocation(createLocation(50.001, 14.001))
+			)
+
+			controller.pathPointsFlow.value
+				.shouldNotBeNull()
+				.second
+				.shouldBeInstanceOf<PersistentList<*>>()
+		}
+
+		@Test
 		fun `appends path point when distance exceeds 10m`() {
 			setupDistanceMock(50f)
 			val session = createSession(id = 10L)
@@ -383,14 +403,15 @@ class DefaultTrackerServiceControllerTest {
 		}
 
 		@Test
-		fun `also updates policy tier from state`() {
+		fun `raw policy state does not overwrite effective policy tier`() {
+			controller.updatePolicyTier(PolicyTier.AMBIENT)
 			val state = PolicyState(
 				tier = PolicyTier.PRECISION,
 				transitionReason = PolicyState.TransitionReason.USER_INITIATED
 			)
 			controller.updatePolicyState(state)
 
-			controller.policyTierFlow.value shouldBe PolicyTier.PRECISION
+			controller.policyTierFlow.value shouldBe PolicyTier.AMBIENT
 		}
 
 		@Test
@@ -400,6 +421,63 @@ class DefaultTrackerServiceControllerTest {
 
 			controller.policyStateFlow.value.shouldBeNull()
 			controller.policyTierFlow.value shouldBe PolicyTier.ACTIVE
+		}
+	}
+
+	@Nested
+	inner class `update live detector states` {
+		@Test
+		fun `sets ski projection state`() {
+			val state = LiveSkiState(
+				state = LiveSkiPhase.DOWNHILL_RUN,
+				stateEntryTimeMs = 1L,
+				stateDurationMs = 2L,
+				completedRunCount = 3,
+				isConfirmedSkiSession = true,
+				currentRunVerticalM = 4f,
+				currentRunMaxSpeedMps = 5f,
+				totalVerticalM = 6f,
+				totalRunCount = 7,
+			)
+
+			controller.updateSkiState(state)
+
+			controller.skiStateFlow.value shouldBe state
+		}
+
+		@Test
+		fun `sets sailing projection state`() {
+			val state = LiveSailingState(
+				state = LiveSailingPhase.SAILING,
+				stateEntryTimeMs = 1L,
+				stateDurationMs = 2L,
+				totalSailingDurationMs = 3L,
+				totalSailingDistanceM = 4f,
+				isConfirmedSailingSession = true,
+				currentSpeedMps = 5f,
+				maxSpeedMps = 6f,
+			)
+
+			controller.updateSailingState(state)
+
+			controller.sailingStateFlow.value shouldBe state
+		}
+
+		@Test
+		fun `sets plane projection state`() {
+			val state = LivePlaneState(
+				state = LivePlanePhase.CLIMBING,
+				stateEntryTimeMs = 1L,
+				stateDurationMs = 2L,
+				totalAirborneDurationMs = 3L,
+				isConfirmedFlight = true,
+				currentVerticalRateMps = 4f,
+				maxSpeedMps = 5f,
+			)
+
+			controller.updatePlaneState(state)
+
+			controller.planeStateFlow.value shouldBe state
 		}
 	}
 

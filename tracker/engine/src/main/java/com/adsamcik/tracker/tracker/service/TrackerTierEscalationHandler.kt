@@ -10,11 +10,13 @@ import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.PolicyTierMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -22,13 +24,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Handles tier changes and escalation from AMBIENT to ACTIVE/PRECISION.
+ * Handles effective-tier changes between ambient and GPS-capable collection.
  *
  * Manages timer interval updates when the [TrackingPolicy] changes, and performs a timer swap
- * (ambient → GPS) when escalating from a non-GPS tier to a GPS-enabled tier — but only when the
- * user actually enabled location. Producers and data components for every enabled source are built
- * up-front by toggle (see [TrackerComponentFactory]), so escalation no longer mutates component or
- * producer lists; it only changes the collection trigger and escalates the stats pipeline.
+ * timer swap when crossing the GPS boundary in either direction. GPS is used only when the
+ * effective tier is GPS-capable and the user enabled location. Producers and data components for
+ * every enabled source are built up-front by toggle (see [TrackerComponentFactory]), so tier changes
+ * no longer mutate component or producer lists.
  *
  * Extracted from [TrackerService] to isolate tier-escalation concerns.
  */
@@ -36,6 +38,12 @@ internal class TrackerTierEscalationHandler(
 	private val componentMutex: Mutex,
 	private val controller: TrackerServiceController,
 	private val trackingParamsRepository: TrackingParamsRepository,
+	private val tierAdjuster: (PolicyTier) -> PolicyTier = { it },
+	private val gpsTriggerFactory: suspend (Context) -> CollectionTriggerComponent = {
+		TrackerTimerManager.getSelected(it)
+	},
+	private val ambientTriggerFactory: () -> CollectionTriggerComponent = { AmbientCollectionTrigger() },
+	private val onEffectiveTierChanged: (PolicyTier) -> Unit = {},
 ) {
 
 	/**
@@ -53,9 +61,8 @@ internal class TrackerTierEscalationHandler(
 	var processorPipeline: ProcessorPipeline? = null
 
 	/**
-	 * Called when the tracking policy changes. Updates the timer interval and
-	 * triggers a tier escalation if the tier boundary crosses from
-	 * non-GPS to GPS-enabled.
+	 * Called when the tracking policy changes. Applies runtime caps, updates the timer interval,
+	 * and swaps collection triggers when the effective tier crosses the GPS boundary.
 	 */
 	fun onPolicyChanged(
 		policy: TrackingPolicy,
@@ -63,57 +70,102 @@ internal class TrackerTierEscalationHandler(
 		timerReceiver: TrackerTimerReceiver,
 		scope: CoroutineScope,
 	) {
-		val newTier = PolicyTierMapper.toTier(policy)
-		val oldTier = currentTier
+		val requestedTier = PolicyTierMapper.toTier(policy)
+		val newTier = tierAdjuster(requestedTier)
+		val intervalPolicy = if (newTier < requestedTier) {
+			PolicyTierMapper.toTrackingPolicy(newTier)
+		} else {
+			policy
+		}
 
-		if (newTier != oldTier) {
-			currentTier = newTier
-			controller.updatePolicyTier(newTier)
+		scope.launch {
+			componentMutex.withLock {
+				val oldTier = currentTier
+				if (newTier != oldTier) {
+					val triggerTransition = prepareTriggerTransition(
+						oldTier = oldTier,
+						newTier = newTier,
+						context = context,
+						timerReceiver = timerReceiver,
+					)
+					if (triggerTransition == TriggerTransition.Failed) {
+						return@withLock
+					}
 
-			if (!oldTier.isGpsEnabled && newTier.isGpsEnabled) {
-				onTierEscalation(newTier, context, timerReceiver, scope)
+					try {
+						processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
+						triggerTransition.commit(context, timerAccessor)
+					} catch (e: CancellationException) {
+						triggerTransition.rollback(context)
+						throw e
+					} catch (e: Exception) {
+						triggerTransition.rollback(context)
+						Reporter.report(e)
+						return@withLock
+					}
+
+					currentTier = newTier
+					onEffectiveTierChanged(newTier)
+					controller.updatePolicyTier(newTier)
+				}
+				updateTimerInterval(context, intervalPolicy)
 			}
 		}
+	}
 
-		val timer = timerAccessor.get()
-		if (timer !is DynamicIntervalCollectionTrigger) {
-			return
+	private suspend fun prepareTriggerTransition(
+		oldTier: PolicyTier,
+		newTier: PolicyTier,
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+	): TriggerTransition {
+		val locationEnabled = trackingParamsRepository.data.first().locationEnabled
+		val shouldUseGps = newTier.isGpsEnabled && locationEnabled
+
+		return when {
+			shouldUseGps && !oldTier.isGpsEnabled -> prepareGpsTrigger(context, timerReceiver)
+			!shouldUseGps && oldTier.isGpsEnabled -> prepareAmbientTrigger(context, timerReceiver)
+			else -> TriggerTransition.NotNeeded
 		}
+	}
+
+	private suspend fun prepareGpsTrigger(
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+	): TriggerTransition {
+		val oldTimer = timerAccessor.get()
+		val gpsTimer = gpsTriggerFactory(context)
+		return if (gpsTimer.hasRequiredPermissions(context)) {
+			gpsTimer.onEnable(context, timerReceiver)
+			TriggerTransition.Ready(oldTimer, gpsTimer)
+		} else {
+			Reporter.report("Missing permissions for GPS timer during escalation")
+			TriggerTransition.Failed
+		}
+	}
+
+	private fun prepareAmbientTrigger(
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+	): TriggerTransition {
+		val oldTimer = timerAccessor.get()
+		val ambientTimer = ambientTriggerFactory()
+		return if (ambientTimer.hasRequiredPermissions(context)) {
+			ambientTimer.onEnable(context, timerReceiver)
+			TriggerTransition.Ready(oldTimer, ambientTimer)
+		} else {
+			Reporter.report("Missing permissions for ambient timer during de-escalation")
+			TriggerTransition.Failed
+		}
+	}
+
+	private fun updateTimerInterval(context: Context, policy: TrackingPolicy) {
+		val timer = timerAccessor.get()
+		if (timer !is DynamicIntervalCollectionTrigger) return
 
 		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
 		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
 		timer.updateInterval(context, intervalSeconds, minDistanceMeters)
-	}
-
-	private fun onTierEscalation(
-		newTier: PolicyTier,
-		context: Context,
-		timerReceiver: TrackerTimerReceiver,
-		scope: CoroutineScope,
-	) {
-		scope.launch {
-			componentMutex.withLock {
-				// Only escalate to a GPS trigger when the user wants location. Without location we
-				// keep the lightweight non-GPS trigger so Wi-Fi/cell/activity/step cycles keep
-				// firing at the ambient cadence. Producers/components for every enabled source were
-				// already created up-front, so escalation just begins delivering real GPS fixes.
-				val locationEnabled = trackingParamsRepository.data.first().locationEnabled
-				if (locationEnabled) {
-					timerAccessor.get().onDisable(context)
-					val gpsTimer = TrackerTimerManager.getSelected(context)
-					timerAccessor.set(gpsTimer)
-					if (gpsTimer.hasRequiredPermissions(context)) {
-						gpsTimer.onEnable(context, timerReceiver)
-					} else {
-						Reporter.report("Missing permissions for GPS timer during escalation")
-					}
-				}
-
-				// Escalate the stats ProcessorPipeline regardless of location so tier-aware
-				// metrics stay correct.
-				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
-			}
-		}
 	}
 
 	/**
@@ -122,5 +174,27 @@ internal class TrackerTierEscalationHandler(
 	internal interface TimerAccessor {
 		fun get(): CollectionTriggerComponent
 		fun set(timer: CollectionTriggerComponent)
+	}
+
+	private sealed interface TriggerTransition {
+		fun commit(context: Context, timerAccessor: TimerAccessor) = Unit
+		fun rollback(context: Context) = Unit
+
+		data object NotNeeded : TriggerTransition
+		data object Failed : TriggerTransition
+
+		data class Ready(
+			private val oldTimer: CollectionTriggerComponent,
+			private val newTimer: CollectionTriggerComponent,
+		) : TriggerTransition {
+			override fun commit(context: Context, timerAccessor: TimerAccessor) {
+				oldTimer.onDisable(context)
+				timerAccessor.set(newTimer)
+			}
+
+			override fun rollback(context: Context) {
+				newTimer.onDisable(context)
+			}
+		}
 	}
 }

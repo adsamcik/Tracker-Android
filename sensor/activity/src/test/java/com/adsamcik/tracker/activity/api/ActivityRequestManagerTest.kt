@@ -8,9 +8,11 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
+import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.every
@@ -20,6 +22,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.flow.MutableSharedFlow
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -74,18 +77,14 @@ class ActivityRequestManagerTest {
     private class TestClassC
 
     private fun changeRequest(intervalS: Int = 10): ActivityChangeRequestData {
-        return ActivityChangeRequestData(
-            detectionIntervalS = intervalS,
-            callback = { _, _, _ -> }
-        )
+        return ActivityChangeRequestData(detectionIntervalS = intervalS)
     }
 
     private fun transitionRequest(
         vararg transitions: ActivityTransitionData
     ): ActivityTransitionRequestData {
         return ActivityTransitionRequestData(
-            transitionList = transitions.toList(),
-            callback = { _, _, _ -> }
+            transitionList = transitions.toList()
         )
     }
 
@@ -105,7 +104,7 @@ class ActivityRequestManagerTest {
     @Test
     fun `request activity returns true on successful request with transitionData`() {
         val transition = ActivityTransitionData(
-            DetectedActivity.WALKING,
+            DetectedActivityType.WALKING,
             ActivityTransitionType.ENTER
         )
         val request = ActivityRequestData(
@@ -185,110 +184,30 @@ class ActivityRequestManagerTest {
         }
     // endregion
 
-    // region callback dispatching
-
-        @Test
-        fun `onActivityUpdate invokes all registered change callbacks`() {
-            var callbackAInvoked = false
-            var callbackBInvoked = false
-
-            val requestA = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = ActivityChangeRequestData(
-                    detectionIntervalS = 10,
-                    callback = { _, _, _ -> callbackAInvoked = true }
-                )
-            )
-            val requestB = ActivityRequestData(
-                key = TestClassB::class,
-                changeData = ActivityChangeRequestData(
-                    detectionIntervalS = 20,
-                    callback = { _, _, _ -> callbackBInvoked = true }
-                )
-            )
-            manager.requestActivity(context, requestA)
-            manager.requestActivity(context, requestB)
-
-            val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            manager.onActivityUpdate(context, activity, 1000L)
-
-            callbackAInvoked shouldBe true
-            callbackBInvoked shouldBe true
-        }
-
-        @Test
-        fun `onActivityUpdate passes correct activity info to callback`() {
-            var receivedActivity: ActivityInfo? = null
-            var receivedElapsed: Long? = null
-
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = ActivityChangeRequestData(
-                    detectionIntervalS = 10,
-                    callback = { _, activity, elapsed ->
-                        receivedActivity = activity
-                        receivedElapsed = elapsed
-                    }
-                )
-            )
-            manager.requestActivity(context, request)
-
-            val activity = ActivityInfo(DetectedActivity.RUNNING, 95)
-            manager.onActivityUpdate(context, activity, 5000L)
-
-            receivedActivity shouldBe activity
-            receivedElapsed shouldBe 5000L
-        }
-
-        @Test
-        fun `removed request callback is not invoked`() {
-            var callbackInvoked = false
-
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                changeData = ActivityChangeRequestData(
-                    detectionIntervalS = 10,
-                    callback = { _, _, _ -> callbackInvoked = true }
-                )
-            )
-            manager.requestActivity(context, request)
-            manager.removeActivityRequest(context, TestClassA::class)
-
-            val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            manager.onActivityUpdate(context, activity, 1000L)
-
-            callbackInvoked shouldBe false
-        }
-
-        @Test
-        fun `transition-only requests do not receive change callbacks`() {
-            var changeCallbackInvoked = false
-
-            val transition = ActivityTransitionData(
-                DetectedActivity.WALKING,
-                ActivityTransitionType.ENTER
-            )
-            val request = ActivityRequestData(
-                key = TestClassA::class,
-                transitionData = transitionRequest(transition)
-            )
-            manager.requestActivity(context, request)
-
-            val activity = ActivityInfo(DetectedActivity.WALKING, 80)
-            manager.onActivityUpdate(context, activity, 1000L)
-
-            changeCallbackInvoked shouldBe false
-        }
-    // endregion
-
     // region last activity
 
         @Test
         fun `lastActivity delegates to backend`() {
-            val expected = ActivityInfo(DetectedActivity.RUNNING, 85)
+            val expected = RecognizedActivity(DetectedActivityType.RUNNING, 85)
             every { backend.lastActivity } returns expected
 
             manager.lastActivity shouldBe expected
+        }
+
+        @Test
+        fun `activityUpdates delegates to backend flow`() {
+            val updates = MutableSharedFlow<ActivityUpdate>()
+            every { backend.activityUpdates } returns updates
+
+            manager.activityUpdates shouldBe updates
+        }
+
+        @Test
+        fun `transitionUpdates delegates to backend flow`() {
+            val updates = MutableSharedFlow<List<TransitionUpdate>>()
+            every { backend.transitionUpdates } returns updates
+
+            manager.transitionUpdates shouldBe updates
         }
     // endregion
 
@@ -306,9 +225,9 @@ class ActivityRequestManagerTest {
 
         @Test
         fun `ActivityTransitionData stores activity and type`() {
-            val data = ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
+            val data = ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER)
 
-            data.activity shouldBe DetectedActivity.WALKING
+            data.activity shouldBe DetectedActivityType.WALKING
             data.type shouldBe ActivityTransitionType.ENTER
         }
 
@@ -316,7 +235,7 @@ class ActivityRequestManagerTest {
         fun `ActivityRequestData stores all fields`() {
             val change = changeRequest(15)
             val transition = transitionRequest(
-                ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.EXIT)
+                ActivityTransitionData(DetectedActivityType.RUNNING, ActivityTransitionType.EXIT)
             )
             val data = ActivityRequestData(
                 key = TestClassA::class,

@@ -26,7 +26,7 @@ import com.adsamcik.tracker.map.shared.CoordinateBounds
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -60,7 +60,7 @@ import kotlin.math.floor
 @HiltViewModel
 class MapStore @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    val trackerController: TrackerServiceController,
+    val trackerController: TrackerStateReader,
     private val dispatchers: DispatchersProvider,
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
     private val mapSettingsRepository: MapSettingsRepository,

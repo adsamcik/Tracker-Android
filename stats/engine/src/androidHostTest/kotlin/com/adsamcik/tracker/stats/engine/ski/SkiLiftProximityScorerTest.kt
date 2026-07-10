@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.engine.ski
 
+import com.adsamcik.tracker.stats.api.ski.SkiLift
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.doubles.plusOrMinus

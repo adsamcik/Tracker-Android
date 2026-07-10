@@ -11,11 +11,9 @@ android {
 }
 
 dependencies {
-    api(project(":core:base"))
-    api(project(":stats:engine"))
+    api(project(":stats:api"))
 
     api(libs.kotlinx.coroutines.core)
     implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.google.play.services.location)
 }

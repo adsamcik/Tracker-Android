@@ -20,6 +20,10 @@ import androidx.room.PrimaryKey
 			value = ["session_id", "created_at"],
 			name = "idx_pending_signal_session_time",
 		),
+		Index(
+			value = ["created_at", "id"],
+			name = "idx_pending_signal_recovery_order",
+		),
 	],
 )
 data class PendingSignalEntity(

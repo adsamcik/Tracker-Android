@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.activity.api.backend
 
 import app.cash.turbine.test
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.testing.fake.FakeActivityRecognitionBackend
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -93,7 +93,7 @@ class FakeActivityRecognitionBackendTest {
 		@Test
 		fun `emitUpdate delivers to activityUpdates flow`() = runTest {
 			val update = ActivityUpdate(
-				activity = ActivityInfo(DetectedActivity.WALKING, 85),
+				activity = RecognizedActivity(DetectedActivityType.WALKING, 85),
 				elapsedTimeMillis = 1000L,
 			)
 
@@ -107,7 +107,7 @@ class FakeActivityRecognitionBackendTest {
 
 		@Test
 		fun `emitUpdate updates lastActivity`() = runTest {
-			val activity = ActivityInfo(DetectedActivity.RUNNING, 90)
+			val activity = RecognizedActivity(DetectedActivityType.RUNNING, 90)
 			backend.emitUpdate(ActivityUpdate(activity, 2000L))
 
 			backend.lastActivity shouldBe activity
@@ -115,16 +115,16 @@ class FakeActivityRecognitionBackendTest {
 		}
 
 		@Test
-		fun `emitTransition delivers to transitionUpdates flow`() = runTest {
+		fun `emitTransitions delivers a batch to transitionUpdates flow`() = runTest {
 			val transition = TransitionUpdate(
-				activityType = DetectedActivity.WALKING.value,
-				transitionType = 0,
+				activityType = DetectedActivityType.WALKING,
+				transitionType = ActivityTransitionType.ENTER,
 				elapsedRealTimeNanos = 5000L,
 			)
 
 			backend.transitionUpdates.test {
-				backend.emitTransition(transition)
-				awaitItem() shouldBe transition
+				backend.emitTransitions(listOf(transition))
+				awaitItem() shouldBe listOf(transition)
 				cancelAndIgnoreRemainingEvents()
 			}
 		}

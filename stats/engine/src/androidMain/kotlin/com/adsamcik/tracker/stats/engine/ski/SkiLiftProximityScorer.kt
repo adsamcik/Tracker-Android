@@ -1,19 +1,6 @@
 package com.adsamcik.tracker.stats.engine.ski
 
-/**
- * Represents a ski lift from the infrastructure database.
- */
-data class SkiLift(
-	val id: Long,
-	val liftType: String,
-	val name: String?,
-	val startLat: Double,
-	val startLon: Double,
-	val startElev: Double?,
-	val endLat: Double,
-	val endLon: Double,
-	val endElev: Double?
-)
+import com.adsamcik.tracker.stats.api.ski.SkiLift
 
 /**
  * Result of proximity scoring for a track against ski infrastructure.

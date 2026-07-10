@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 34         │ 400         │ 🚧 UNRELEASED - Global WAL recovery     │
+ * │            │             │    ordering index on pending_signal.     │
  * │ 33         │ 400         │ 🚧 UNRELEASED - Add cell_index_built    │
  * │            │             │    column to osm_import for crash-safe   │
  * │            │             │    reindex progress tracking.            │
@@ -1430,6 +1432,20 @@ val MIGRATION_32_33: Migration = object : Migration(32, 33) {
 		android.util.Log.i(
 			"AppDatabase",
 			"Migration 32->33: Added cell_index_built column to osm_import",
+		)
+	}
+}
+
+/**
+ * Adds the global chronological index used by cross-session WAL recovery.
+ */
+val MIGRATION_33_34: Migration = object : Migration(33, 34) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"""
+			CREATE INDEX IF NOT EXISTS idx_pending_signal_recovery_order
+			ON pending_signal(created_at, id)
+			""".trimIndent(),
 		)
 	}
 }

@@ -41,12 +41,17 @@ import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Android lifecycle shell for the tracking service.
@@ -100,13 +105,21 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private var lockObservationJob: Job? = null
 	private var initializationJob: Job? = null
+	private var batteryObservationJob: Job? = null
 	private var timerComponent: CollectionTriggerComponent = NoTimer()
+	private lateinit var cycleDispatcher: TrackingCycleDispatcher
+	private var cycleDispatcherScope: CoroutineScope? = null
+	private var serviceGeneration: Long = 0L
 
 	// Kept here for intent recovery and power-save check
 	private var sessionInfo: TrackerSessionInfo? = null
 
 	override fun onCreate() {
 		super.onCreate()
+		synchronized(SERVICE_GENERATION_LOCK) {
+			serviceGeneration = SERVICE_GENERATION_COUNTER.incrementAndGet()
+			activeServiceGeneration = serviceGeneration
+		}
 
 		// At onCreate the start intent is not yet available, so prefer the location type only
 		// when location permission is held (covers GPS sessions); otherwise start as a health
@@ -129,12 +142,14 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
+			runtimeTierAdjuster = batteryAwarePolicy::adjustForBattery,
 			onDailySummaryWritten = {
 				metricDirtyTracker.markDirty(
 					com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
 				)
 			},
 		)
+		createCycleDispatcher()
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 			Shortcuts.updateShortcut(
@@ -184,11 +199,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		controller.updateSessionInfo(this.sessionInfo)
 
+		// A user-initiated restart must also remove the automatic-session observer;
+		// otherwise a later lock emission can stop the replacement user session.
+		lockObservationJob?.cancel()
+		lockObservationJob = null
 		if (!isUserInitiated) {
-			// Cancel any prior lock observer so a second START intent (e.g. Android
-			// re-delivers START_STICKY while the first one is still mid-init) doesn't
-			// leak a second collector that races stopSelf() against the new session.
-			lockObservationJob?.cancel()
 			lockObservationJob = launch {
 				lockManager.isLockedFlow.collect { isLocked ->
 					if (isLocked) stopSelf()
@@ -202,8 +217,19 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// initialization coroutine is still suspended would race the orchestrator's
 		// component teardown/setup. Cancel the previous init before starting a new
 		// one so only one initialization is in flight at a time.
-		initializationJob?.cancel()
+		val previousInitialization = initializationJob
+		previousInitialization?.cancel()
 		initializationJob = launch {
+			previousInitialization?.cancelAndJoin()
+			timerComponent.onDisable(this@TrackerService)
+			timerComponent = NoTimer()
+			if (::cycleDispatcher.isInitialized) {
+				cycleDispatcher.closeAndDrain()
+				cycleDispatcher.cancel()
+				cycleDispatcherScope?.cancel()
+			}
+			createCycleDispatcher()
+
 			// The collection trigger is chosen from BOTH the battery tier and whether the user
 			// wants location. A GPS trigger only runs when location is enabled AND the tier is
 			// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
@@ -221,7 +247,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			timerComponent = if (useGpsTrigger) {
 				TrackerTimerManager.getSelected(this@TrackerService)
 			} else {
-				AmbientCollectionTrigger()
+				AmbientCollectionTrigger(dispatchers.main)
 			}
 
 			val timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {
@@ -240,6 +266,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					timerReceiver = this@TrackerService,
 					timerAccessor = timerAccessor,
 				)
+			}
+
+			batteryObservationJob?.cancel()
+			batteryObservationJob = launch {
+				batteryAwarePolicy.batteryLevelUpdates.collect {
+					orchestrator.onBatteryLevelChanged(
+						context = this@TrackerService,
+						timerReceiver = this@TrackerService,
+						scope = this@TrackerService,
+					)
+				}
 			}
 
 			if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
@@ -319,7 +356,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		stopSelf()
 	}
 
-	override fun onUpdate(cycle: TrackingCycle): Job = launch(dispatchers.default) {
+	override fun onUpdate(cycle: TrackingCycle): Job = cycleDispatcher.enqueue(cycle)
+
+	private suspend fun processCycleUpdate(cycle: TrackingCycle) {
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
 			orchestrator.onCycleUpdate(this@TrackerService, cycle)
@@ -328,13 +367,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)
 		} finally {
-			wakeLock.release()
+			if (wakeLock.isHeld) wakeLock.release()
 		}
 
 		// Power-save check (Android concern, kept in service)
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) {
 			stopSelf()
 		}
+	}
+
+	private fun createCycleDispatcher() {
+		val dispatcherScope = CoroutineScope(SupervisorJob() + dispatchers.default)
+		cycleDispatcherScope = dispatcherScope
+		cycleDispatcher = TrackingCycleDispatcher(
+			scope = dispatcherScope,
+			dispatcher = dispatchers.default,
+			capacity = TRACKING_CYCLE_QUEUE_CAPACITY,
+			onFailure = Reporter::report,
+			processCycle = ::processCycleUpdate,
+		)
 	}
 
 	override fun onError(errorData: TrackerTimerErrorData) {
@@ -353,6 +404,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// Capture references before super.onDestroy() cancels the coroutine scope
 		val timerRef = timerComponent
 		val context: Context = this
+		try {
+			timerRef.onDisable(context)
+		} catch (e: Exception) {
+			Reporter.report(IllegalStateException("Failed to disable collection trigger during shutdown", e))
+		}
 
 		super.onDestroy()
 		stopForeground(STOP_FOREGROUND_REMOVE)
@@ -360,6 +416,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// Cancel lock observation job to prevent leaks
 		lockObservationJob?.cancel()
 		lockObservationJob = null
+		batteryObservationJob?.cancel()
+		batteryObservationJob = null
 
 		// Fire-and-forget cleanup on an independent scope to avoid blocking the main thread.
 		// CoreService.onDestroy() already cancelled our CoroutineScope, so we use a standalone
@@ -370,14 +428,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		cleanupScope.launch {
 			try {
 				val shutdownResult = kotlinx.coroutines.withTimeoutOrNull(4_000L) {
-					orchestrator.shutdown(context) { timerRef.onDisable(context) }
+					if (::cycleDispatcher.isInitialized) {
+						cycleDispatcher.closeAndDrain()
+					}
+					orchestrator.shutdown(context)
 				}
 				if (shutdownResult == null) {
 					Reporter.log("Tracker shutdown cleanup timed out; enqueueing daily summary fallback")
 					orchestrator.enqueueDailySummaryFallback(context)
 				}
 			} finally {
-				orchestrator.resetMetadata()
+				if (::cycleDispatcher.isInitialized) cycleDispatcher.cancel()
+				cycleDispatcherScope?.cancel()
+				cycleDispatcherScope = null
+				synchronized(SERVICE_GENERATION_LOCK) {
+					if (activeServiceGeneration == serviceGeneration) {
+						orchestrator.resetMetadata()
+						activeServiceGeneration = 0L
+					}
+				}
 				cleanupScope.cancel()
 			}
 		}
@@ -399,9 +468,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	companion object {
+		private val SERVICE_GENERATION_LOCK = Any()
+		private val SERVICE_GENERATION_COUNTER = AtomicLong()
+
+		@Volatile
+		private var activeServiceGeneration: Long = 0L
+
 		const val ARG_IS_USER_INITIATED = TrackerServiceContract.ARG_IS_USER_INITIATED
 		const val ARG_IS_AMBIENT = TrackerServiceContract.ARG_IS_AMBIENT
 		private const val DEFAULT_IS_USER_INITIATED = false
+		private const val TRACKING_CYCLE_QUEUE_CAPACITY = 64
 	}
 }
 

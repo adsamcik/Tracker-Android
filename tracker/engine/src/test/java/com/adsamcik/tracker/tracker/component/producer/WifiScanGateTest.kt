@@ -66,4 +66,17 @@ class WifiScanGateTest {
             maxAgeNanos = maxAge,
         ) shouldBe true
     }
+
+    @Test
+    @DisplayName("ignores a scan broadcast that reports unchanged results")
+    fun ignoresUnchangedBroadcastResults() {
+        WifiScanGate.shouldBufferBroadcastResults(resultsUpdated = false) shouldBe false
+    }
+
+    @Test
+    @DisplayName("accepts updated or legacy scan broadcasts")
+    fun acceptsUpdatedOrLegacyBroadcastResults() {
+        WifiScanGate.shouldBufferBroadcastResults(resultsUpdated = true) shouldBe true
+        WifiScanGate.shouldBufferBroadcastResults(resultsUpdated = null) shouldBe true
+    }
 }

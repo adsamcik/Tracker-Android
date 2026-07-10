@@ -194,6 +194,17 @@ internal class WifiDataProducer(
         override fun onReceive(context: Context, intent: Intent) {
             scanDataLock.withLock {
                 isScanRequested = false
+                val resultsUpdated = if (
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    intent.hasExtra(WifiManager.EXTRA_RESULTS_UPDATED)
+                ) {
+                    intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)
+                } else {
+                    null
+                }
+                if (!WifiScanGate.shouldBufferBroadcastResults(resultsUpdated)) {
+                    return@withLock
+                }
                 scanTime = Time.nowMillis
                 scanTimeRelative = Time.elapsedRealtimeNanos
                 scanData = readScanResultsOrNull()

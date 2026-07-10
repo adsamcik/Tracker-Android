@@ -5,10 +5,8 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
-import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.CoordinateE7
@@ -16,11 +14,16 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -37,21 +40,37 @@ class DurableSignalBufferTest {
 
 	/**
 	 * In-memory fake of [PendingSignalDao] for unit testing without Room.
-	 * Auto-generates IDs to simulate autoGenerate = true.
+	 * Auto-generates IDs to simulate autoGenerate = true and returns them from
+	 * [insertAll] just like a real Room `@Insert` returning `List<Long>`.
 	 */
 	private class FakePendingSignalDao : PendingSignalDao {
 		val store = mutableListOf<PendingSignalEntity>()
 		private var nextId = 1L
 
-		override suspend fun insertAll(signals: List<PendingSignalEntity>) {
-			signals.forEach { signal ->
-				store.add(signal.copy(id = nextId++))
+		/** When true, [insertAll] throws to simulate a failed checkpoint. */
+		var failInsert = false
+		var afterInsert: (() -> Unit)? = null
+
+		override suspend fun insertAll(signals: List<PendingSignalEntity>): List<Long> {
+			if (failInsert) error("simulated insert failure")
+			val ids = signals.map { signal ->
+				val id = nextId++
+				store.add(signal.copy(id = id))
+				id
 			}
+			afterInsert?.invoke()
+			return ids
 		}
 
 		override suspend fun getOldest(sessionId: Long, limit: Int): List<PendingSignalEntity> {
 			return store
 				.filter { it.sessionId == sessionId }
+				.sortedWith(compareBy({ it.createdAt }, { it.id }))
+				.take(limit)
+		}
+
+		override suspend fun getOldestAcrossSessions(limit: Int): List<PendingSignalEntity> {
+			return store
 				.sortedWith(compareBy({ it.createdAt }, { it.id }))
 				.take(limit)
 		}
@@ -80,7 +99,6 @@ class DurableSignalBufferTest {
 	// region Test fixtures
 
 	private lateinit var fakeDao: FakePendingSignalDao
-	private lateinit var dispatchers: DispatchersProvider
 	private lateinit var buffer: DurableSignalBuffer
 
 	private val sessionId = 42L
@@ -126,6 +144,7 @@ class DurableSignalBufferTest {
 
 	// endregion
 
+	// region stage
 
 	@Test
 	fun stageAddsToMemory() = runTest {
@@ -151,6 +170,9 @@ class DurableSignalBufferTest {
 		fakeDao.store.shouldBeEmpty()
 	}
 
+	// endregion
+
+	// region checkpoint
 
 	@Test
 	fun checkpointMovesToDao() = runTest {
@@ -169,12 +191,26 @@ class DurableSignalBufferTest {
 	}
 
 	@Test
+	fun checkpointReturnsGeneratedIds() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
+
+		createDistinctSignals(3).forEach { buffer.stage(it) }
+
+		val ids = buffer.checkpoint()
+
+		ids shouldHaveSize 3
+		ids shouldBe fakeDao.store.map { it.id }
+	}
+
+	@Test
 	fun emptyCheckpointIsNoop() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
-		buffer.checkpoint()
+		val ids = buffer.checkpoint()
 
+		ids.shouldBeEmpty()
 		fakeDao.store.shouldBeEmpty()
 	}
 
@@ -193,9 +229,51 @@ class DurableSignalBufferTest {
 		fakeDao.store shouldHaveSize 3
 	}
 
+	@Test
+	fun checkpointFailureRetainsStagedSignals() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
+
+		createDistinctSignals(3).forEach { buffer.stage(it) }
+		fakeDao.failInsert = true
+
+		shouldThrow<IllegalStateException> { buffer.checkpoint() }
+
+		// Nothing durably written, and staging is intact for the next attempt.
+		fakeDao.store.shouldBeEmpty()
+		buffer.stagingSize shouldBe 3
+
+		// A subsequent successful checkpoint recovers the staged signals.
+		fakeDao.failInsert = false
+		buffer.checkpoint()
+		fakeDao.store shouldHaveSize 3
+		buffer.stagingSize shouldBe 0
+	}
 
 	@Test
-	fun returnsDeserializedSignals() = runTest {
+	fun cancellationAfterWalCommitDoesNotRestageCommittedSignals() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
+		buffer.stage(createSignal())
+		lateinit var checkpointJob: Job
+		fakeDao.afterInsert = { checkpointJob.cancel() }
+
+		checkpointJob = launch { buffer.checkpoint() }
+		checkpointJob.join()
+
+		fakeDao.store shouldHaveSize 1
+		buffer.stagingSize shouldBe 0
+		fakeDao.afterInsert = null
+		buffer.checkpoint()
+		fakeDao.store shouldHaveSize 1
+	}
+
+	// endregion
+
+	// region peekBatch (read without delete)
+
+	@Test
+	fun peekReturnsDeserializedSignalsWithoutDeleting() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
@@ -203,77 +281,103 @@ class DurableSignalBufferTest {
 		signals.forEach { buffer.stage(it) }
 		buffer.checkpoint()
 
-		val drained = buffer.drainBatch()
+		val peeked = buffer.peekBatch()
 
-		drained shouldHaveSize 3
-		drained.map { it.timestampMs } shouldBe signals.map { it.timestampMs }
+		peeked shouldHaveSize 3
+		peeked.mapNotNull { it.signal?.timestampMs } shouldBe signals.map { it.timestampMs }
+		// peek MUST NOT delete — rows stay until explicitly acknowledged.
+		fakeDao.store shouldHaveSize 3
 	}
 
 	@Test
-	fun deletesFromDao() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
-
-		createDistinctSignals(3).forEach { buffer.stage(it) }
-		buffer.checkpoint()
-
-		buffer.drainBatch()
-
-		fakeDao.store.shouldBeEmpty()
-	}
-
-	@Test
-	fun respectsLimit() = runTest {
+	fun peekRespectsLimit() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
 		createDistinctSignals(10).forEach { buffer.stage(it) }
 		buffer.checkpoint()
 
-		val drained = buffer.drainBatch(limit = 3)
+		val peeked = buffer.peekBatch(limit = 3)
 
-		drained shouldHaveSize 3
-		// Should have returned the oldest 3
-		drained[0].timestampMs shouldBe EpochMs(1_700_000_000_000L)
-		drained[1].timestampMs shouldBe EpochMs(1_700_000_001_000L)
-		drained[2].timestampMs shouldBe EpochMs(1_700_000_002_000L)
-		// 7 should remain
-		fakeDao.store shouldHaveSize 7
+		peeked shouldHaveSize 3
+		peeked[0].signal?.timestampMs shouldBe EpochMs(1_700_000_000_000L)
+		peeked[1].signal?.timestampMs shouldBe EpochMs(1_700_000_001_000L)
+		peeked[2].signal?.timestampMs shouldBe EpochMs(1_700_000_002_000L)
+		// All 10 remain — peek never deletes.
+		fakeDao.store shouldHaveSize 10
 	}
 
 	@Test
-	fun emptyDaoReturnsEmpty() = runTest {
+	fun peekEmptyDaoReturnsEmpty() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
-		val drained = buffer.drainBatch()
-
-		drained.shouldBeEmpty()
+		buffer.peekBatch().shouldBeEmpty()
 	}
 
 	@Test
-	fun multipleDrains() = runTest {
+	fun peekReturnsOldestAcrossAllSessions() = runTest {
+		val sharedDispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+
+		val buf42 = DurableSignalBuffer(fakeDao, sharedDispatchers)
+		buf42.setSessionId(42L)
+		buf42.stage(createSignal(1_700_000_000_000L))
+		buf42.checkpoint()
+
+		val buf99 = DurableSignalBuffer(fakeDao, sharedDispatchers)
+		buf99.setSessionId(99L)
+		buf99.stage(createSignal(1_700_000_099_000L))
+		buf99.checkpoint()
+
+		// Recovery is session-agnostic: peeking under session 42 still surfaces
+		// session 99's row (oldest-first) so no session's WAL is orphaned.
+		val peeked = buf42.peekBatch()
+
+		peeked shouldHaveSize 2
+		peeked[0].signal?.timestampMs shouldBe EpochMs(1_700_000_000_000L)
+		peeked[1].signal?.timestampMs shouldBe EpochMs(1_700_000_099_000L)
+		// Nothing deleted.
+		fakeDao.store shouldHaveSize 2
+	}
+
+	@Test
+	fun peekReturnsNullSignalForCorruptedRows() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
-		createDistinctSignals(5).forEach { buffer.stage(it) }
-		buffer.checkpoint()
+		fakeDao.insertAll(
+			listOf(
+				PendingSignalEntity(
+					sessionId = sessionId,
+					signalJson = SignalSerializer.serialize(createSignal()),
+					createdAt = 1L,
+				),
+				PendingSignalEntity(
+					sessionId = sessionId,
+					signalJson = "{corrupt garbage!!!",
+					createdAt = 2L,
+				),
+				PendingSignalEntity(
+					sessionId = sessionId,
+					signalJson = SignalSerializer.serialize(createSignal(1_700_000_099_000L)),
+					createdAt = 3L,
+				),
+			),
+		)
 
-		val first = buffer.drainBatch(limit = 2)
-		first shouldHaveSize 2
+		val peeked = buffer.peekBatch()
 
-		val second = buffer.drainBatch(limit = 2)
-		second shouldHaveSize 2
-
-		val third = buffer.drainBatch(limit = 2)
-		third shouldHaveSize 1
-
-		val fourth = buffer.drainBatch(limit = 2)
-		fourth.shouldBeEmpty()
-
-		fakeDao.store.shouldBeEmpty()
+		peeked shouldHaveSize 3
+		peeked[0].signal.shouldNotBeNull()
+		peeked[1].signal.shouldBeNull()
+		peeked[2].signal.shouldNotBeNull()
+		// Corruption is surfaced to the caller, not silently deleted here.
+		fakeDao.store shouldHaveSize 3
 	}
 
+	// endregion
+
+	// region hasPendingEntries
 
 	@Test
 	fun falseWhenEmpty() = runTest {
@@ -295,27 +399,33 @@ class DurableSignalBufferTest {
 	}
 
 	@Test
-	fun falseAfterDrainAll() = runTest {
+	fun trueReflectsDaoNotStaging() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
+		// Only stage, don't checkpoint — DAO still empty.
 		buffer.stage(createSignal())
-		buffer.checkpoint()
-		buffer.drainBatch()
-
 		buffer.hasPendingEntries().shouldBeFalse()
 	}
 
 	@Test
-	fun trueReflectsDao() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
+	fun hasPendingEntriesSeesOtherSessions() = runTest {
+		val sharedDispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
 
-		// Only stage, don't checkpoint — DAO still empty
-		buffer.stage(createSignal())
-		buffer.hasPendingEntries().shouldBeFalse()
+		val bufA = DurableSignalBuffer(fakeDao, sharedDispatchers)
+		bufA.setSessionId(1L)
+		bufA.stage(createSignal())
+		bufA.checkpoint()
+
+		// A buffer for a brand-new session must still see the prior session's WAL.
+		val bufB = DurableSignalBuffer(fakeDao, sharedDispatchers)
+		bufB.setSessionId(2L)
+		bufB.hasPendingEntries().shouldBeTrue()
 	}
 
+	// endregion
+
+	// region clear
 
 	@Test
 	fun clearRemovesAll() = runTest {
@@ -337,11 +447,9 @@ class DurableSignalBufferTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
-		// Stage and checkpoint for current session
 		buffer.stage(createSignal())
 		buffer.checkpoint()
 
-		// Manually insert an entry for a different session
 		fakeDao.insertAll(
 			listOf(
 				PendingSignalEntity(
@@ -355,124 +463,54 @@ class DurableSignalBufferTest {
 
 		buffer.clear()
 
-		// Only the other session's entry should remain
 		fakeDao.store shouldHaveSize 1
 		fakeDao.store.first().sessionId shouldBe 999L
 	}
 
+	// endregion
+
+	// region cross-process recovery
 
 	@Test
-	fun newInstanceRecovery() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		val sharedDispatchers = TestDispatchersProvider(testDispatcher)
+	fun newInstanceSeesCheckpointedSignals() = runTest {
+		val sharedDispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
 
-		// "First process" — stage and checkpoint
+		// "First process" — stage and checkpoint.
 		val buffer1 = createBufferWithDispatchers(sharedDispatchers)
 		val signals = createDistinctSignals(5)
 		signals.forEach { buffer1.stage(it) }
 		buffer1.checkpoint()
 
-		// "Process dies" — buffer1 is lost, but DAO persists
-		// "New process" — create a new buffer with the same DAO
+		// "New process" — a fresh buffer over the same DAO.
 		val buffer2 = DurableSignalBuffer(fakeDao, sharedDispatchers)
 		buffer2.setSessionId(sessionId)
 
-		// Recovery: new buffer should see the checkpointed signals
 		buffer2.hasPendingEntries().shouldBeTrue()
-		buffer2.stagingSize shouldBe 0 // In-memory staging is gone
+		buffer2.stagingSize shouldBe 0
 
-		val recovered = buffer2.drainBatch()
+		val recovered = buffer2.peekBatch()
 		recovered shouldHaveSize 5
-		recovered.map { it.timestampMs } shouldBe signals.map { it.timestampMs }
-
-		buffer2.hasPendingEntries().shouldBeFalse()
+		recovered.mapNotNull { it.signal?.timestampMs } shouldBe signals.map { it.timestampMs }
+		// Recovery reads without deleting.
+		buffer2.hasPendingEntries().shouldBeTrue()
 	}
 
 	@Test
 	fun stagingLostOnCrash() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		val sharedDispatchers = TestDispatchersProvider(testDispatcher)
+		val sharedDispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
 
-		// Stage without checkpoint
 		val buffer1 = createBufferWithDispatchers(sharedDispatchers)
 		buffer1.stage(createSignal())
 		buffer1.stage(createSignal())
 		// No checkpoint! Simulating crash before checkpoint.
 
-		// New buffer — staging is gone, DAO is empty
 		val buffer2 = DurableSignalBuffer(fakeDao, sharedDispatchers)
 		buffer2.setSessionId(sessionId)
 
 		buffer2.hasPendingEntries().shouldBeFalse()
 		buffer2.stagingSize shouldBe 0
-		buffer2.drainBatch().shouldBeEmpty()
+		buffer2.peekBatch().shouldBeEmpty()
 	}
 
-
-	@Test
-	fun drainOnlyCurrentSession() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		val sharedDispatchers = TestDispatchersProvider(testDispatcher)
-
-		// Buffer for session 42
-		val buf42 = DurableSignalBuffer(fakeDao, sharedDispatchers)
-		buf42.setSessionId(42L)
-		buf42.stage(createSignal(1_700_000_000_000L))
-		buf42.checkpoint()
-
-		// Buffer for session 99
-		val buf99 = DurableSignalBuffer(fakeDao, sharedDispatchers)
-		buf99.setSessionId(99L)
-		buf99.stage(createSignal(1_700_000_099_000L))
-		buf99.checkpoint()
-
-		fakeDao.store shouldHaveSize 2
-
-		// Drain only session 42
-		val drained = buf42.drainBatch()
-		drained shouldHaveSize 1
-		drained.first().timestampMs shouldBe EpochMs(1_700_000_000_000L)
-
-		// Session 99 still there
-		fakeDao.store shouldHaveSize 1
-		fakeDao.store.first().sessionId shouldBe 99L
-	}
-
-
-	@Test
-	fun corruptedEntriesSkipped() = runTest {
-		val testDispatcher = StandardTestDispatcher(testScheduler)
-		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
-
-		// Insert valid and corrupted entries directly
-		val validSignal = createSignal()
-		fakeDao.insertAll(
-			listOf(
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(validSignal),
-					createdAt = 1L,
-				),
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = "{corrupt garbage!!!",
-					createdAt = 2L,
-				),
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(
-						createSignal(1_700_000_099_000L),
-					),
-					createdAt = 3L,
-				),
-			),
-		)
-
-		val drained = buffer.drainBatch()
-
-		// Corrupted entry is silently skipped; 2 valid signals returned
-		drained shouldHaveSize 2
-		// But all 3 entries are deleted from DAO (including the corrupted one)
-		fakeDao.store.shouldBeEmpty()
-	}
+	// endregion
 }

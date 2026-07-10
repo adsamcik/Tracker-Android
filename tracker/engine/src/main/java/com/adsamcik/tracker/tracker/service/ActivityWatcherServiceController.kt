@@ -8,8 +8,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,7 +39,7 @@ interface ActivityWatcherControllerEntryPoint {
 @Singleton
 class ActivityWatcherServiceController @Inject constructor(
 	@ApplicationContext private val context: Context,
-	private val trackerServiceController: TrackerServiceController,
+	private val trackerStateReader: TrackerStateReader,
 	private val lockManagerProvider: Provider<LockManager>,
 ) : ActivityWatcherController {
 	private val tag = "ActivityWatcherService"
@@ -69,7 +68,7 @@ class ActivityWatcherServiceController @Inject constructor(
 			updateInterval = BackgroundTrackingApi.activityFreqSeconds,
 			autoTracking = BackgroundTrackingApi.cachedParams.autoTrackingMode,
 			trackerLocked = currentTrackerLocked(),
-			trackerRunning = trackerServiceController.isServiceRunning,
+			trackerRunning = trackerStateReader.isServiceRunning,
 		)
 	}
 
@@ -79,7 +78,7 @@ class ActivityWatcherServiceController @Inject constructor(
 		updateInterval: Int = BackgroundTrackingApi.activityFreqSeconds,
 		autoTracking: Int = BackgroundTrackingApi.cachedParams.autoTrackingMode,
 		trackerLocked: Boolean = currentTrackerLocked(),
-		trackerRunning: Boolean = trackerServiceController.isServiceRunning,
+		trackerRunning: Boolean = trackerStateReader.isServiceRunning,
 	) {
 		if (updateInterval > 0 && autoTracking > 0) {
 			if (watcherPreference && !trackerLocked && !trackerRunning) {

@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.activity.api.backend
 
 import com.adsamcik.tracker.activity.ActivityTransitionData
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -32,11 +33,11 @@ interface ActivityRecognitionBackend {
 	/** Flow of activity updates from this backend. */
 	val activityUpdates: Flow<ActivityUpdate>
 
-	/** Flow of activity transition events (enter/exit). */
-	val transitionUpdates: Flow<TransitionUpdate>
+	/** Flow of chronologically ordered activity-transition batches (enter/exit). */
+	val transitionUpdates: Flow<List<TransitionUpdate>>
 
 	/** Last known activity from this backend. */
-	val lastActivity: ActivityInfo
+	val lastActivity: RecognizedActivity
 
 	/** Elapsed time millis of the last known activity. */
 	val lastActivityElapsedTimeMillis: Long
@@ -60,9 +61,18 @@ data class RecognitionConfig(
  * @param elapsedTimeMillis Elapsed real-time millis at detection time
  */
 data class ActivityUpdate(
-	val activity: ActivityInfo,
+	val activity: RecognizedActivity,
 	val elapsedTimeMillis: Long,
 )
+
+data class RecognizedActivity(
+	val type: DetectedActivityType,
+	val confidence: Int,
+) {
+	companion object {
+		val UNKNOWN = RecognizedActivity(DetectedActivityType.UNKNOWN, 0)
+	}
+}
 
 /**
  * Activity transition event from the recognition backend.
@@ -73,7 +83,7 @@ data class ActivityUpdate(
  * @param elapsedRealTimeNanos Elapsed real-time nanos of the transition
  */
 data class TransitionUpdate(
-	val activityType: Int,
-	val transitionType: Int,
+	val activityType: DetectedActivityType,
+	val transitionType: ActivityTransitionType,
 	val elapsedRealTimeNanos: Long,
 )

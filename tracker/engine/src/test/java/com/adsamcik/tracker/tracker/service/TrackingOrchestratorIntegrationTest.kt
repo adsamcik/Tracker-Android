@@ -27,12 +27,16 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
+import com.adsamcik.tracker.tracker.controller.LivePlaneState
+import com.adsamcik.tracker.tracker.controller.LiveSailingState
+import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -141,6 +145,89 @@ class TrackingOrchestratorIntegrationTest {
 		stopProcessor.segmentCountWhenSessionEnded shouldBe 1L
 		database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE) shouldHaveSize 1
 		domainEvents.persisted.filterIsInstance<DomainEvent.SessionEnded>() shouldHaveSize 1
+	}
+
+	@Test
+	fun `reinitialize cancels prior session collectors and shutdown clears current collectors`() = runTest(testDispatcher) {
+		val controller = DefaultTrackerServiceController()
+		val orchestrator = TrackingOrchestrator(
+			controller = controller,
+			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
+			signalProcessors = emptySet(),
+			domainEventRepository = RecordingDomainEventRepository(),
+			dispatchers = testDispatcherProvider,
+			appDatabase = database,
+			trackingParamsRepository = FakeTrackingParamsRepository(
+				TrackingParamsState(
+					activityEnabled = false,
+					stepsEnabled = false,
+					wifiEnabled = false,
+					cellEnabled = false,
+					skiDetectionEnabled = false,
+				),
+			),
+			trackerSettingsRepository = FakeTrackerSettingsRepository(),
+			dailySummaryFallbackEnqueuer = {},
+			enableNotifications = false,
+		)
+		fun activeChildJobs(): Int = requireNotNull(backgroundScope.coroutineContext[Job])
+			.children
+			.count { it.isActive }
+
+		controller.updateServiceRunning(true)
+		orchestrator.initialize(
+			context = context,
+			isSessionUserInitiated = false,
+			initialTier = PolicyTier.AMBIENT,
+			scope = backgroundScope,
+			timerReceiver = mockk(relaxed = true),
+			timerAccessor = NoOpTimerAccessor(),
+		)
+		advanceUntilIdle()
+		val activeAfterFirstInitialize = activeChildJobs()
+
+		orchestrator.initialize(
+			context = context,
+			isSessionUserInitiated = false,
+			initialTier = PolicyTier.AMBIENT,
+			scope = backgroundScope,
+			timerReceiver = mockk(relaxed = true),
+			timerAccessor = NoOpTimerAccessor(),
+		)
+		advanceUntilIdle()
+
+		activeChildJobs() shouldBe activeAfterFirstInitialize
+
+		orchestrator.shutdown(context)
+		advanceUntilIdle()
+
+		activeChildJobs() shouldBe 0
+	}
+
+	@Test
+	fun `reset metadata clears detector states after collector shutdown`() {
+		val controller = DefaultTrackerServiceController()
+		val orchestrator = TrackingOrchestrator(
+			controller = controller,
+			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
+			signalProcessors = emptySet(),
+			domainEventRepository = RecordingDomainEventRepository(),
+			dispatchers = testDispatcherProvider,
+			appDatabase = database,
+			trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
+			trackerSettingsRepository = FakeTrackerSettingsRepository(),
+			dailySummaryFallbackEnqueuer = {},
+			enableNotifications = false,
+		)
+		controller.updateSkiState(mockk<LiveSkiState>())
+		controller.updateSailingState(mockk<LiveSailingState>())
+		controller.updatePlaneState(mockk<LivePlaneState>())
+
+		orchestrator.resetMetadata()
+
+		controller.skiStateFlow.value shouldBe null
+		controller.sailingStateFlow.value shouldBe null
+		controller.planeStateFlow.value shouldBe null
 	}
 
 	private fun location(timeMs: Long, latitude: Double, longitude: Double): Location {

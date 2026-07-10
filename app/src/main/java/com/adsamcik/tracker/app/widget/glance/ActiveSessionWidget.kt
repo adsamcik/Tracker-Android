@@ -61,7 +61,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                 context.applicationContext,
                 TrackerWidgetEntryPoint::class.java,
             )
-            val controller = entryPoint.trackerServiceController()
+            val controller = entryPoint.trackerStateReader()
             isRunning = controller.isServiceRunning
             session = controller.sessionFlow.value
             policyTier = controller.policyTierFlow.value

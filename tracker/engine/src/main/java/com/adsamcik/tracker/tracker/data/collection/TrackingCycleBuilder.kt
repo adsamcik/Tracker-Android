@@ -18,10 +18,16 @@ internal class TrackingCycleBuilder(
 	var activity: ActivityInfo? = null
 
 	@Volatile
+	var activityFresh: Boolean = false
+
+	@Volatile
 	var location: LocationData? = null
 
 	@Volatile
 	var cellScan: CellScanData? = null
+
+	@Volatile
+	var cellScanFresh: Boolean = false
 
 	@Volatile
 	var wifiScan: WifiScanData? = null
@@ -51,8 +57,10 @@ internal class TrackingCycleBuilder(
 		timestampMs = timestampMs,
 		elapsedRealtimeNanos = elapsedRealtimeNanos,
 		activity = activity,
+		activityFresh = activityFresh,
 		location = location,
 		cellScan = cellScan,
+		cellScanFresh = cellScanFresh,
 		wifiScan = wifiScan,
 		stepDelta = stepDelta,
 		totalStepsSinceBoot = totalStepsSinceBoot,

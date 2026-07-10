@@ -63,7 +63,7 @@ fun DashboardRoute(
 	val viewModel: DashboardViewModel = hiltViewModel()
 
 	// Dependencies via ViewModel (Hilt-injected)
-	val controller = viewModel.trackerController
+	val trackerState = viewModel.trackerStateReader
 	val lockManager = viewModel.lockManager
 
 	// Permission state from ViewModel
@@ -83,15 +83,15 @@ fun DashboardRoute(
 	}
 
 	// Observe tracking state
-	val isTracking by controller.isServiceRunningFlow.collectAsState()
-	val sessionInfo by controller.sessionInfoFlow.collectAsState()
+	val isTracking by trackerState.isServiceRunningFlow.collectAsState()
+	val sessionInfo by trackerState.sessionInfoFlow.collectAsState()
 	val isLocked by lockManager.isLockedFlow.collectAsState()
-	val policyTier by controller.policyTierFlow.collectAsState()
-	val sessionData by controller.sessionFlow.collectAsState()
-	val collectionData by controller.collectionDataFlow.collectAsState()
-	val pathPoints by controller.pathPointsFlow.collectAsState()
-	val lastSessionData by controller.lastSessionFlow.collectAsState()
-	val lastPathPoints by controller.lastPathPointsFlow.collectAsState()
+	val policyTier by trackerState.policyTierFlow.collectAsState()
+	val sessionData by trackerState.sessionFlow.collectAsState()
+	val collectionData by trackerState.collectionDataFlow.collectAsState()
+	val pathPoints by trackerState.pathPointsFlow.collectAsState()
+	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
+	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val trackingParams by viewModel.trackingParams.collectAsState()
 
 	// Observe daily/gamification state
@@ -143,10 +143,8 @@ fun DashboardRoute(
 				continue
 			}
 
-			if (controller.isServiceRunning) {
-				controller.updateServiceRunning(false)
-				controller.updateSessionInfo(null)
-				controller.updatePolicyTier(com.adsamcik.tracker.stats.api.PolicyTier.OFF)
+			if (trackerState.isServiceRunning) {
+				TrackerServiceApi.repairStoppedServiceState(context)
 			}
 
 			if (!userRequestedStop) {

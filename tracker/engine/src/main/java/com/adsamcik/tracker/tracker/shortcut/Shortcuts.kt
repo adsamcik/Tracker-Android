@@ -8,7 +8,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.shortcutManager
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -16,12 +16,12 @@ import dagger.hilt.components.SingletonComponent
 import java.util.ArrayList
 
 /**
- * Hilt EntryPoint for accessing TrackerServiceController from Shortcuts singleton
+ * Hilt EntryPoint for accessing read-only tracker state from Shortcuts singleton
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface ShortcutsEntryPoint {
-	fun trackerServiceController(): TrackerServiceController
+	fun trackerStateReader(): TrackerStateReader
 }
 
 /**
@@ -51,7 +51,7 @@ object Shortcuts {
 			context.applicationContext,
 			ShortcutsEntryPoint::class.java
 		)
-		val isServiceRunning = entryPoint.trackerServiceController().isServiceRunning
+		val isServiceRunning = entryPoint.trackerStateReader().isServiceRunning
 		if (!isServiceRunning) {
 			shortcuts.add(
 					createShortcut(

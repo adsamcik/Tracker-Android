@@ -28,7 +28,7 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,7 +61,7 @@ class DashboardViewModel @Inject constructor(
 	private val layoutRepository: DashboardLayoutRepository,
 	private val sessionInsightsGenerator: SessionInsightsGenerator,
 	val widgetRegistry: DashboardWidgetRegistry,
-	val trackerController: TrackerServiceController,
+	val trackerStateReader: TrackerStateReader,
 	val lockManager: LockManager,
 	private val dailySummaryProvider: Provider<DailySummaryProvider>,
 	private val dailyPointsProviderFactory: Provider<DailyPointsProvider>,
@@ -87,7 +87,7 @@ class DashboardViewModel @Inject constructor(
 	val trackingParams: StateFlow<TrackingParamsState> = trackingParamsRepository.data
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TrackingParamsState())
 
-	val isTracking: StateFlow<Boolean> = trackerController.isServiceRunningFlow
+	val isTracking: StateFlow<Boolean> = trackerStateReader.isServiceRunningFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 	val isLocked: StateFlow<Boolean> = lockManager.isLockedFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)

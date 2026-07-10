@@ -46,7 +46,7 @@ class QuickStartWidget : GlanceAppWidget() {
                 context.applicationContext,
                 TrackerWidgetEntryPoint::class.java,
             )
-            val controller = entryPoint.trackerServiceController()
+            val controller = entryPoint.trackerStateReader()
             isRunning = controller.isServiceRunning
             val session = controller.sessionFlow.value
             durationText = if (isRunning && session != null) {

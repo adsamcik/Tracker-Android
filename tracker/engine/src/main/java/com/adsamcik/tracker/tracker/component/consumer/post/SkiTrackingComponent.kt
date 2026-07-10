@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
+import com.adsamcik.tracker.stats.api.ski.SkiLift
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.logging.api.ReporterFacade
@@ -203,7 +204,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	}
 
 	/** Cached nearby lifts from proximity check. */
-	private var nearbyLifts: List<com.adsamcik.tracker.stats.engine.ski.SkiLift> = emptyList()
+	private var nearbyLifts: List<SkiLift> = emptyList()
 
 	/**
 	 * One-shot proximity check against OSM ski infrastructure.

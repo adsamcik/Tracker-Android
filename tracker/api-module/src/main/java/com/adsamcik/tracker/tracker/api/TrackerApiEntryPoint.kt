@@ -1,17 +1,17 @@
 package com.adsamcik.tracker.tracker.api
 
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Hilt EntryPoint for API classes to access TrackerServiceController and LockManager.
+ * Hilt EntryPoint for API classes to access tracker state/controller services.
  * 
  * Used by:
- * - TrackerServiceApi: For session state queries
- * - BackgroundTrackingApi: For automatic tracking decisions
+ * - TrackerServiceApi: For session state queries via [TrackerStateReader]
+ * - BackgroundTrackingApi: For automatic tracking decisions via [TrackerStateReader]
  * 
  * Architecture rationale:
  * - API objects are static utilities consumed by UI and background tasks
@@ -21,6 +21,6 @@ import dagger.hilt.components.SingletonComponent
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface TrackerApiEntryPoint {
-	fun trackerServiceController(): TrackerServiceController
+	fun trackerStateReader(): TrackerStateReader
 	fun lockManager(): LockManager
 }

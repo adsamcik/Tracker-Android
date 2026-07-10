@@ -3,9 +3,10 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -24,12 +25,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
 /**
- * Hilt EntryPoint for accessing TrackerServiceController from NotificationComponent
+ * Hilt EntryPoint for accessing read-only tracker state from NotificationComponent
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface NotificationComponentEntryPoint {
-	fun trackerServiceController(): TrackerServiceController
+	fun trackerStateReader(): TrackerStateReader
 	fun trackingParamsRepository(): TrackingParamsRepository
 }
 
@@ -45,6 +46,8 @@ internal class NotificationComponent :
 	private val titleComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
 
 	private val contentComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
+	private val updateGate = NotificationUpdateGate(MAX_REFRESH_INTERVAL_NANOS)
+	private val notificationLock = Any()
 
 	// Separator for notification text components
 	// Uses comma-space which is appropriate for most locales
@@ -54,6 +57,7 @@ internal class NotificationComponent :
 		trackerNotificationManager = null
 		contentComponentList.clear()
 		titleComponentList.clear()
+		synchronized(notificationLock) { updateGate.reset() }
 	}
 
 	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
@@ -71,7 +75,7 @@ internal class NotificationComponent :
 			context.applicationContext,
 			NotificationComponentEntryPoint::class.java
 		)
-		val sessionInfoFlow = entryPoint.trackerServiceController().sessionInfoFlow
+		val sessionInfoFlow = entryPoint.trackerStateReader().sessionInfoFlow
 		val sessionInfo = requireNotNull(sessionInfoFlow.value) {
 			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
 		}
@@ -83,6 +87,7 @@ internal class NotificationComponent :
 		)
 
 		preferenceUpdate.await()
+		synchronized(notificationLock) { updateGate.reset() }
 	}
 
 	override fun onNewData(
@@ -91,14 +96,25 @@ internal class NotificationComponent :
 			collectionData: CollectionData,
 			cycle: TrackingCycle
 	) {
-		notify(generateNotification(context, collectionData, session))
+		val payload = NotificationPayload(
+			title = generateTitle(context, collectionData, session),
+			text = buildNotificationText(context, session, collectionData),
+		)
+		synchronized(notificationLock) {
+			if (updateGate.shouldUpdate(payload, cycle.elapsedRealtimeNanos)) {
+				notify(generateNotification(payload))
+			}
+		}
 	}
 
 	fun onError(context: Context, @StringRes textRes: Int) {
 		val manager = trackerNotificationManager ?: return
-		val builder = manager.createBuilder()
-		builder.setContentTitle(context.getString(textRes))
-		notify(builder)
+		synchronized(notificationLock) {
+			updateGate.reset()
+			val builder = manager.createBuilder()
+			builder.setContentTitle(context.getString(textRes))
+			notify(builder)
+		}
 	}
 
 	private fun notify(builder: NotificationCompat.Builder) =
@@ -106,17 +122,12 @@ internal class NotificationComponent :
 
 
 	private fun buildContent(
-			context: Context,
 			builder: NotificationCompat.Builder,
-			session: TrackerSession,
-			data: CollectionData
+			payload: NotificationPayload,
 	) {
-		builder.setContentTitle(generateTitle(context, data, session))
-
-		val notificationText = buildNotificationText(context, session, data)
-
-		builder.setStyle(NotificationCompat.BigTextStyle().bigText(notificationText))
-		builder.setContentText(notificationText)
+		builder.setContentTitle(payload.title)
+		builder.setStyle(NotificationCompat.BigTextStyle().bigText(payload.text))
+		builder.setContentText(payload.text)
 	}
 
 	private fun generateTitle(
@@ -139,12 +150,10 @@ internal class NotificationComponent :
 	}
 
 	private fun generateNotification(
-			context: Context,
-			data: CollectionData,
-			session: TrackerSession
+			payload: NotificationPayload,
 	): NotificationCompat.Builder {
 		val builder = requireTNotificationManager.createBuilder()
-		buildContent(context, builder, session, data)
+		buildContent(builder, payload)
 		return builder
 	}
 
@@ -167,6 +176,6 @@ internal class NotificationComponent :
 
 	companion object {
 		const val stopForMinutes = 30
+		private const val MAX_REFRESH_INTERVAL_NANOS = 60 * Time.SECOND_IN_NANOSECONDS
 	}
 }
-

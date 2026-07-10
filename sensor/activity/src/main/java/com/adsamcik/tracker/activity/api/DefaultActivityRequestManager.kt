@@ -8,18 +8,18 @@ import androidx.core.util.isNotEmpty
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
-import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
+import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.google.android.gms.location.ActivityTransitionEvent
-import com.google.android.gms.location.ActivityTransitionResult
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
 import kotlin.reflect.KClass
 
 /**
@@ -34,7 +34,9 @@ class DefaultActivityRequestManager @Inject constructor(
     private var minInterval = Integer.MAX_VALUE
     private var transitions: Collection<ActivityTransitionData> = emptyList()
 
-    override val lastActivity: ActivityInfo get() = backend.lastActivity
+    override val lastActivity: RecognizedActivity get() = backend.lastActivity
+    override val activityUpdates: Flow<ActivityUpdate> get() = backend.activityUpdates
+    override val transitionUpdates: Flow<List<TransitionUpdate>> get() = backend.transitionUpdates
 
     @Synchronized
     override fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
@@ -128,33 +130,4 @@ class DefaultActivityRequestManager @Inject constructor(
         return if (min == Integer.MAX_VALUE) Integer.MIN_VALUE else min
     }
 
-    internal fun onActivityUpdate(context: Context, result: ActivityInfo, elapsedMillis: Long) {
-        activeRequestArray.forEach { _, value ->
-            value.changeData?.callback?.invoke(context, result, elapsedMillis)
-        }
-    }
-
-    private fun onActivityTransition(
-        context: Context,
-        requestData: ActivityTransitionRequestData,
-        descendingEvents: List<ActivityTransitionEvent>,
-    ) {
-        requestData.transitionList.forEach {
-            descendingEvents.forEach { transition ->
-                if (transition.transitionType == it.type.value &&
-                    transition.activityType == it.activity.value
-                ) {
-                    requestData.callback.invoke(context, it, transition.elapsedRealTimeNanos)
-                    return
-                }
-            }
-        }
-    }
-
-    internal fun onActivityTransition(context: Context, result: ActivityTransitionResult) {
-        val reversedEvents = result.transitionEvents.reversed()
-        activeRequestArray.forEach { _, value ->
-            value.transitionData?.let { onActivityTransition(context, it, reversedEvents) }
-        }
-    }
 }

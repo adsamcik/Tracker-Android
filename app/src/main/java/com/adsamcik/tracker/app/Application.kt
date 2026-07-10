@@ -33,7 +33,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -91,7 +91,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var networkPolicyAggregator: NetworkPolicyAggregator
 
 	@Inject
-	lateinit var trackerServiceControllerProvider: Provider<TrackerServiceController>
+	lateinit var trackerStateReaderProvider: Provider<TrackerStateReader>
 
 	@Inject
 	lateinit var lockManagerProvider: Provider<LockManager>
@@ -181,7 +181,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	 */
 	@WorkerThread
 	private fun warmUp() {
-		trackerServiceControllerProvider.get()
+		trackerStateReaderProvider.get()
 		lockManagerProvider.get()
 	}
 

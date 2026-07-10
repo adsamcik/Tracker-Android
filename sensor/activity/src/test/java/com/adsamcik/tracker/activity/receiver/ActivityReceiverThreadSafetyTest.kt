@@ -2,12 +2,11 @@ package com.adsamcik.tracker.activity.receiver
 
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.activity.api.DefaultActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionResult
 import dagger.hilt.android.EntryPointAccessors
@@ -40,7 +39,6 @@ class ActivityReceiverThreadSafetyTest {
 	private val receiver = ActivityReceiver()
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
-	private lateinit var mockRequestManager: DefaultActivityRequestManager
 
 	@Before
 	fun setUp() {
@@ -53,13 +51,10 @@ class ActivityReceiverThreadSafetyTest {
 
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)
-		every { mockBackend.lastActivity } returns ActivityInfo(DetectedActivity.UNKNOWN, 0)
+		every { mockBackend.lastActivity } returns RecognizedActivity(DetectedActivityType.UNKNOWN, 0)
 		every { mockBackend.lastActivityElapsedTimeMillis } returns 0L
-		mockRequestManager = mockk(relaxed = true)
-
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
-			every { defaultActivityRequestManager() } returns mockRequestManager
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {

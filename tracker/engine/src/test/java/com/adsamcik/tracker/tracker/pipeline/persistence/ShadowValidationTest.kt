@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
@@ -72,9 +73,14 @@ class ShadowValidationTest {
 	private lateinit var pressureDao: PressureSampleDao
 	private lateinit var stepDao: StepIntervalDao
 	private lateinit var activityDao: ActivitySnapshotDao
+	private lateinit var pendingSignalDao: PendingSignalDao
 	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
+
+	private val transactor = object : TrackingPersistenceTransactor {
+		override suspend fun <R> inTransaction(block: suspend () -> R): R = block()
+	}
 
 	@BeforeEach
 	fun setup() {
@@ -84,6 +90,7 @@ class ShadowValidationTest {
 		pressureDao = mockk(relaxed = true)
 		stepDao = mockk(relaxed = true)
 		activityDao = mockk(relaxed = true)
+		pendingSignalDao = mockk(relaxed = true)
 		durableBuffer = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
@@ -94,6 +101,7 @@ class ShadowValidationTest {
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
+		coEvery { durableBuffer.checkpoint(any()) } returns emptyList()
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -102,7 +110,9 @@ class ShadowValidationTest {
 			pressureSampleDao = pressureDao,
 			stepIntervalDao = stepDao,
 			activitySnapshotDao = activityDao,
+			pendingSignalDao = pendingSignalDao,
 			durableBuffer = durableBuffer,
+			transactor = transactor,
 			errorCollector = errorCollector,
 		)
 	}

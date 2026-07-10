@@ -1,11 +1,18 @@
 package com.adsamcik.tracker.tracker.policy
 
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.BatteryManager
 import com.adsamcik.tracker.stats.api.PolicyTier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Adjusts the tracking [PolicyTier] based on current battery level.
@@ -24,6 +31,20 @@ import javax.inject.Singleton
 class BatteryAwarePolicy @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) {
+	val batteryLevelUpdates: Flow<Int> = callbackFlow {
+		val receiver = object : BroadcastReceiver() {
+			override fun onReceive(context: Context, intent: Intent) {
+				trySend(intent.batteryPercentageOrNull() ?: currentBatteryLevel())
+			}
+		}
+		val stickyIntent = context.registerReceiver(
+			receiver,
+			IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+		)
+		trySend(stickyIntent?.batteryPercentageOrNull() ?: currentBatteryLevel())
+		awaitClose { context.unregisterReceiver(receiver) }
+	}.distinctUntilChanged { old, new -> batteryCap(old) == batteryCap(new) }
+
 	/**
 	 * Adjusts [baseTier] downward based on current battery level.
 	 *
@@ -55,6 +76,22 @@ class BatteryAwarePolicy @Inject constructor(
 			?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
 			?.takeIf { it in 0..100 }
 			?: DEFAULT_BATTERY_LEVEL
+	}
+
+	private fun batteryCap(level: Int): PolicyTier = when {
+		level <= LOW_LEVEL -> PolicyTier.AMBIENT
+		level <= MEDIUM_LEVEL -> PolicyTier.ACTIVE
+		else -> PolicyTier.PRECISION
+	}
+
+	private fun Intent.batteryPercentageOrNull(): Int? {
+		val level = getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+		val scale = getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+		return if (level >= 0 && scale > 0) {
+			(level * 100 / scale).coerceIn(0, 100)
+		} else {
+			null
+		}
 	}
 
 	internal companion object {

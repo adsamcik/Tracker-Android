@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
+import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
@@ -14,6 +15,8 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class StepDataProducer(
 	changeReceiver: TrackerDataProducerObserver,
@@ -21,12 +24,14 @@ internal class StepDataProducer(
 ) : TrackerDataProducerComponent(
 		changeReceiver,
 		enabledFlow = trackingParamsRepository?.data?.map { it.stepsEnabled },
-), SensorEventListener {
+), SensorEventListener2 {
 	private val lockObject = Object()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
 	private var stepValueAtCollectionStart: Int = -1
 	private var sensorResetDetected: Boolean = false
+	private var sensorManager: SensorManager? = null
+	private var flushCompletion: CompletableDeferred<Unit>? = null
 
 	override val preferenceKey: String
 		get() = PreferenceKeys.STEPS_ENABLED
@@ -34,26 +39,36 @@ internal class StepDataProducer(
 		get() = PreferenceKeys.STEPS_ENABLED_DEFAULT
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
-		if (stepCountSinceLastCollection >= 0) {
-			synchronized(lockObject) {
+		val invalidCount = synchronized(lockObject) {
+			if (stepCountSinceLastCollection < 0) {
+				true
+			} else {
+				if (stepCountSinceLastCollection > 0) {
 				builder.stepDelta = stepCountSinceLastCollection
 				builder.totalStepsSinceBoot = if (lastStepCount >= 0) lastStepCount.toLong() else null
 				builder.stepSensorValueStart = stepValueAtCollectionStart
 				builder.stepSensorValueEnd = lastStepCount
 				builder.stepSensorReset = sensorResetDetected
+				}
 				stepCountSinceLastCollection = 0
 				stepValueAtCollectionStart = lastStepCount
 				sensorResetDetected = false
+				false
 			}
-		} else {
+		}
+		if (invalidCount) {
 			Reporter.report("Negative step count since last collection $stepCountSinceLastCollection")
 		}
 	}
 
 	override fun onDisable(context: Context) {
 		super.onDisable(context)
-		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
-		sensorManager.unregisterListener(this)
+		sensorManager?.unregisterListener(this)
+		sensorManager = null
+		synchronized(lockObject) {
+			flushCompletion?.cancel()
+			flushCompletion = null
+		}
 	}
 
 	override fun onEnable(context: Context) {
@@ -61,8 +76,34 @@ internal class StepDataProducer(
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+			this.sensorManager = sensorManager
 			val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-			sensorManager.registerListener(this, stepCounter, SensorManager.SENSOR_DELAY_NORMAL)
+				?: return
+			sensorManager.registerListener(
+				this,
+				stepCounter,
+				SensorManager.SENSOR_DELAY_NORMAL,
+				SensorBatching.stepCounterMaxReportLatencyUs(stepCounter),
+			)
+		}
+	}
+
+	suspend fun flushPendingEvents() {
+		val manager = sensorManager ?: return
+		val completion = CompletableDeferred<Unit>()
+		synchronized(lockObject) {
+			flushCompletion?.cancel()
+			flushCompletion = completion
+		}
+		if (!manager.flush(this)) {
+			synchronized(lockObject) {
+				if (flushCompletion === completion) flushCompletion = null
+			}
+			return
+		}
+		withTimeoutOrNull(FLUSH_TIMEOUT_MS) { completion.await() }
+		synchronized(lockObject) {
+			if (flushCompletion === completion) flushCompletion = null
 		}
 	}
 
@@ -92,7 +133,14 @@ internal class StepDataProducer(
 
 	override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
+	override fun onFlushCompleted(sensor: Sensor?) {
+		synchronized(lockObject) {
+			flushCompletion?.complete(Unit)
+		}
+	}
+
 	companion object {
 		const val NEW_STEPS_ARG = "newSteps"
+		private const val FLUSH_TIMEOUT_MS = 1_000L
 	}
 }

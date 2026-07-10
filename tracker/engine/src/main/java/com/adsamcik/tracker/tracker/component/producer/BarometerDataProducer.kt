@@ -51,7 +51,11 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		val pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
 		if (pressureSensor != null) {
-			sensorManager.registerListener(this, pressureSensor, SensorManager.SENSOR_DELAY_NORMAL)
+			sensorManager.registerListener(
+				this,
+				pressureSensor,
+				SensorManager.SENSOR_DELAY_NORMAL,
+			)
 		}
 	}
 

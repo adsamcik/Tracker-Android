@@ -1,7 +1,11 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -334,6 +338,62 @@ class BackgroundTrackingApiLogicTest {
 				isActive = true,
 				hasActivityPermission = true,
 			) shouldBe AutoTrackingPreferenceAction.REINITIALIZE
+		}
+	}
+
+	@Nested
+	@DisplayName("transition batch selection")
+	inner class TransitionBatchSelection {
+		@Test
+		fun `newest matching transition wins when a batch contains stale still then walking`() {
+			val still = ActivityTransitionData(
+				activity = DetectedActivityType.STILL,
+				type = ActivityTransitionType.ENTER,
+			)
+			val walking = ActivityTransitionData(
+				activity = DetectedActivityType.WALKING,
+				type = ActivityTransitionType.ENTER,
+			)
+
+			selectNewestConfiguredTransition(
+				configuredTransitions = listOf(still, walking),
+				updates = listOf(
+					TransitionUpdate(
+						activityType = DetectedActivityType.STILL,
+						transitionType = ActivityTransitionType.ENTER,
+						elapsedRealTimeNanos = 1L,
+					),
+					TransitionUpdate(
+						activityType = DetectedActivityType.WALKING,
+						transitionType = ActivityTransitionType.ENTER,
+						elapsedRealTimeNanos = 2L,
+					),
+				),
+			) shouldBe walking
+		}
+
+		@Test
+		fun `unconfigured newer events do not hide the newest configured transition`() {
+			val still = ActivityTransitionData(
+				activity = DetectedActivityType.STILL,
+				type = ActivityTransitionType.ENTER,
+			)
+
+			selectNewestConfiguredTransition(
+				configuredTransitions = listOf(still),
+				updates = listOf(
+					TransitionUpdate(
+						activityType = DetectedActivityType.STILL,
+						transitionType = ActivityTransitionType.ENTER,
+						elapsedRealTimeNanos = 1L,
+					),
+					TransitionUpdate(
+						activityType = DetectedActivityType.WALKING,
+						transitionType = ActivityTransitionType.EXIT,
+						elapsedRealTimeNanos = 2L,
+					),
+				),
+			) shouldBe still
 		}
 	}
 }
