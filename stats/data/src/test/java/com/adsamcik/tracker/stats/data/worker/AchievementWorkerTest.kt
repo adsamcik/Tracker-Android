@@ -167,6 +167,7 @@ class AchievementWorkerTest {
 		val metricsProvider = mockk<AchievementMetricsProvider>()
 		coEvery { metricsProvider.collect() } returns MetricSnapshot.of(
 			MetricKey.DISTANCE_TOTAL_M to 10_000,
+			MetricKey.ACTIVE_DAYS_TOTAL to 3,
 		)
 
 		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.policy
 
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -37,21 +38,21 @@ class PolicyIntervalMapperTest {
         }
 
         @Test
-        fun `ACTIVE_MODERATE returns 30 second interval`() {
+        fun `ACTIVE_MODERATE uses selected 2 second interval`() {
             val intervalMs = PolicyIntervalMapper.getIntervalMs(TrackingPolicy.ACTIVE_MODERATE)
-            intervalMs shouldBe 30 * Time.SECOND_IN_MILLISECONDS
+            intervalMs shouldBe 2 * Time.SECOND_IN_MILLISECONDS
         }
 
         @Test
-        fun `ACTIVE_ELEVATED returns 10 second interval`() {
+        fun `ACTIVE_ELEVATED uses selected 2 second interval`() {
             val intervalMs = PolicyIntervalMapper.getIntervalMs(TrackingPolicy.ACTIVE_ELEVATED)
-            intervalMs shouldBe 10 * Time.SECOND_IN_MILLISECONDS
+            intervalMs shouldBe 2 * Time.SECOND_IN_MILLISECONDS
         }
 
         @Test
-        fun `USER_INITIATED returns 10 second interval`() {
+        fun `USER_INITIATED uses selected 2 second interval`() {
             val intervalMs = PolicyIntervalMapper.getIntervalMs(TrackingPolicy.USER_INITIATED)
-            intervalMs shouldBe 10 * Time.SECOND_IN_MILLISECONDS
+            intervalMs shouldBe 2 * Time.SECOND_IN_MILLISECONDS
         }
     }
 
@@ -72,21 +73,21 @@ class PolicyIntervalMapperTest {
         }
 
         @Test
-        fun `ACTIVE_MODERATE returns 30 second interval`() {
+        fun `ACTIVE_MODERATE uses selected 2 second interval`() {
             val intervalSec = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_MODERATE)
-            intervalSec shouldBe 30
+            intervalSec shouldBe 2
         }
 
         @Test
-        fun `ACTIVE_ELEVATED returns 10 second interval`() {
+        fun `ACTIVE_ELEVATED uses selected 2 second interval`() {
             val intervalSec = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_ELEVATED)
-            intervalSec shouldBe 10
+            intervalSec shouldBe 2
         }
 
         @Test
-        fun `USER_INITIATED returns 10 second interval`() {
+        fun `USER_INITIATED uses selected 2 second interval`() {
             val intervalSec = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.USER_INITIATED)
-            intervalSec shouldBe 10
+            intervalSec shouldBe 2
         }
     }
 
@@ -111,11 +112,11 @@ class PolicyIntervalMapperTest {
         }
 
         @Test
-        fun `interval decreases from ACTIVE_MODERATE to ACTIVE_ELEVATED`() {
+        fun `active GPS policies preserve the same selected interval`() {
             val activeModerateInterval = PolicyIntervalMapper.getIntervalMs(TrackingPolicy.ACTIVE_MODERATE)
             val activeElevatedInterval = PolicyIntervalMapper.getIntervalMs(TrackingPolicy.ACTIVE_ELEVATED)
 
-            activeElevatedInterval shouldBeLessThan activeModerateInterval
+            activeElevatedInterval shouldBe activeModerateInterval
         }
 
         @Test
@@ -142,8 +143,8 @@ class PolicyIntervalMapperTest {
         }
 
         @Test
-        fun `ACTIVE_MODERATE returns 15m distance threshold`() {
-            PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_MODERATE) shouldBe 15
+        fun `ACTIVE_MODERATE uses selected 10m distance threshold`() {
+            PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_MODERATE) shouldBe 10
         }
 
         @Test
@@ -178,11 +179,11 @@ class PolicyIntervalMapperTest {
         }
 
         @Test
-        fun `distance threshold decreases from ACTIVE_MODERATE to ACTIVE_ELEVATED`() {
+        fun `active GPS policies preserve the same selected distance threshold`() {
             val activeModerateDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_MODERATE)
             val activeElevatedDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_ELEVATED)
 
-            activeElevatedDistance shouldBeLessThan activeModerateDistance
+            activeElevatedDistance shouldBe activeModerateDistance
         }
 
         @Test
@@ -230,6 +231,20 @@ class PolicyIntervalMapperTest {
 
                 intervalSec shouldBe expectedSec
             }
+        }
+    }
+    @Test
+    fun `active GPS policies honor custom cadence and distance`() {
+        val params = TrackingParamsState(minTimeSeconds = 7, minDistanceMeters = 42)
+        val activePolicies = listOf(
+            TrackingPolicy.ACTIVE_MODERATE,
+            TrackingPolicy.ACTIVE_ELEVATED,
+            TrackingPolicy.USER_INITIATED,
+        )
+
+        activePolicies.forEach { policy ->
+            PolicyIntervalMapper.getIntervalSeconds(policy, params) shouldBe 7
+            PolicyIntervalMapper.getMinDistanceMeters(policy, params) shouldBe 42
         }
     }
 }

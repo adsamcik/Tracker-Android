@@ -116,25 +116,31 @@ class AchievementWorker @AssistedInject constructor(
 					lastValue = existing?.lastValue ?: 0.0,
 				)
 			}
-			when (val result = RuleEvaluator.evaluate(instance, currentValue.toLong())) {
+			if (accum.lastValue != currentValue) {
+				accum.lastValue = currentValue
+				accum.changed = true
+			}
+
+			val definition = instance.attachment as? AchievementDefinition
+			if (definition != null && definition.minimumActiveDays > 1) {
+				val pacingDays = snapshot.valueOf(definition.pacingMetric).toLong()
+				if (!definition.isEligible(pacingDays)) continue
+			}
+			// Eligibility can change while the raw metric is unchanged. Force a
+			// threshold check; previousTier still prevents duplicate unlocks.
+			val effectiveInstance = if ((definition?.minimumActiveDays ?: 1) > 1) instance.copy(previousValue = null) else instance
+			when (val result = RuleEvaluator.evaluate(effectiveInstance, currentValue.toLong())) {
 				is RuleEvaluationResult.Unchanged -> {
 					// Nothing to persist — the instance's previousValue already
 					// matches the current quantized value.
 				}
 				is RuleEvaluationResult.TierUnlocked -> {
-					val definition = instance.attachment as? AchievementDefinition
 					if (definition != null && definition.tierIndex > accum.lastTierIndex) {
 						accum.lastTierIndex = definition.tierIndex
 					}
-					if (accum.lastValue != currentValue) accum.lastValue = currentValue
 					accum.changed = true
 				}
-				is RuleEvaluationResult.ProgressUpdated -> {
-					if (accum.lastValue != currentValue) {
-						accum.lastValue = currentValue
-						accum.changed = true
-					}
-				}
+				is RuleEvaluationResult.ProgressUpdated -> Unit
 			}
 		}
 

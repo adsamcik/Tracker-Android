@@ -17,9 +17,20 @@ sealed interface SpatialData {
 	/**
 	 * Aggregated weighted grid cells fed to MapLibre's native GPU heatmap. Each cell's [weight]
 	 * (carried in [WeightedGeoFeature.weight], in `[0, 1]`) is the density (count) or value (mean)
-	 * the colour ramp maps to a colour. Backs the location/speed/cell/wifi heatmap family.
+	 * the colour ramp maps to a colour. Backs the cell/wifi heatmap family.
 	 */
 	data class WeightedCells(val cells: List<WeightedGeoFeature>) : SpatialData
+
+	/**
+	 * A spatiotemporal heat field. [isolatedCells] contains stale or stationary observations rendered
+	 * as direct-colour glow/core circles. [paths] contains temporally continuous movement rendered as
+	 * equivalently sized weighted lines. The shapes are exclusive and every feature weight is the
+	 * final stable heat/value for its spatial cell in `[0, 1]`.
+	 */
+	data class HeatField(
+		val isolatedCells: List<WeightedGeoFeature>,
+		val paths: List<List<WeightedGeoFeature>>,
+	) : SpatialData
 
 	/**
 	 * Discrete tessellation tiles (rectangular grid cells) each carrying a normalised `[0, 1]` weight,

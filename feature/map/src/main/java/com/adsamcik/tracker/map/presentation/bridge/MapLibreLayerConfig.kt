@@ -44,6 +44,23 @@ sealed interface MapLibreLayerConfig {
         val animation: LayerAnimation? = null,
     ) : MapLibreLayerConfig
 
+    /**
+     * Discontinuous movement paths coloured directly by a per-edge heat/value property. A broad,
+     * blurred stroke under the crisp core gives continuous heatmap-like coverage without adding
+     * overlapping point kernels that would falsely saturate travelled routes.
+     */
+    @Immutable
+    data class HeatLine(
+        val geoJson: String,
+        val colorStops: List<Pair<Float, Int>>,
+        val widthDp: Float = 5f,
+        val opacity: Float = 0.95f,
+        val glowWidthDp: Float = 12f,
+        val glowOpacity: Float = 0.28f,
+        val glowBlurDp: Float = 2f,
+        val weightProperty: String = "weight",
+    ) : MapLibreLayerConfig
+
     @Immutable
     data class Line(
         val geoJson: String,
@@ -162,6 +179,11 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
         type = "heatmap",
         style = HeatmapStyleKey(colorStops, radiusPx, intensity, opacity, weightProperty, animation),
     )
+    is MapLibreLayerConfig.HeatLine -> MapLibreLayerRenderKey(
+        index = index,
+        type = "heat-line",
+        style = HeatLineStyleKey(colorStops, widthDp, opacity, glowWidthDp, glowOpacity, glowBlurDp, weightProperty),
+    )
     is MapLibreLayerConfig.Line -> MapLibreLayerRenderKey(
         index = index,
         type = "line",
@@ -212,6 +234,17 @@ private data class HeatmapStyleKey(
     val opacity: Float,
     val weightProperty: String,
     val animation: LayerAnimation?,
+)
+
+@Immutable
+private data class HeatLineStyleKey(
+    val colorStops: List<Pair<Float, Int>>,
+    val widthDp: Float,
+    val opacity: Float,
+    val glowWidthDp: Float,
+    val glowOpacity: Float,
+    val glowBlurDp: Float,
+    val weightProperty: String,
 )
 
 @Immutable
@@ -286,6 +319,7 @@ fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.GradientLine -> bounds
     is MapLibreLayerConfig.Symbol -> bounds
     is MapLibreLayerConfig.Heatmap -> null
+    is MapLibreLayerConfig.HeatLine -> null
     is MapLibreLayerConfig.Fill -> null
     is MapLibreLayerConfig.FillExtrusion -> null
     is MapLibreLayerConfig.Circle -> null

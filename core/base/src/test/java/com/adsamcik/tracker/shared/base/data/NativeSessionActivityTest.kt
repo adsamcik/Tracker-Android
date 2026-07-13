@@ -84,4 +84,22 @@ class NativeSessionActivityTest {
 			}
 		}
 	}
+
+	@Nested
+	@DisplayName("Achievement activity groups")
+	inner class AchievementActivityGroups {
+		@Test
+		fun `cycling is human powered and never motorized`() {
+			(DetectedActivity.ON_BICYCLE.value in SessionActivityIds.CYCLING) shouldBe true
+			(DetectedActivity.ON_BICYCLE.value in SessionActivityIds.HUMAN_POWERED) shouldBe true
+			(DetectedActivity.ON_BICYCLE.value in SessionActivityIds.IN_VEHICLE) shouldBe false
+		}
+
+		@Test
+		fun `driving water and air are motorized`() {
+			SessionActivityIds.DRIVING.all { it in SessionActivityIds.IN_VEHICLE } shouldBe true
+			SessionActivityIds.WATER.all { it in SessionActivityIds.IN_VEHICLE } shouldBe true
+			SessionActivityIds.AIR.all { it in SessionActivityIds.IN_VEHICLE } shouldBe true
+		}
+	}
 }

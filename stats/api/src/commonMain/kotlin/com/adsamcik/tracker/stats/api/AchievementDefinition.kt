@@ -28,7 +28,12 @@ data class AchievementDefinition(
 	val tierIndex: Int,
 	val isCompound: Boolean = false,
 	val dependsOn: Set<MetricKey> = setOf(metric),
+	/** Minimum distinct tracking days required before this tier can unlock. */
+	val minimumActiveDays: Int = 1,
+	/** Day counter used by [minimumActiveDays]; total days by default, mode days when appropriate. */
+	val pacingMetric: MetricKey = MetricKey.ACTIVE_DAYS_TOTAL,
 ) {
 	val targetValue: Long get() = threshold.toLong()
 	fun dependsOnAnyOf(changedMetrics: Set<MetricKey>): Boolean = dependsOn.any { it in changedMetrics }
+	fun isEligible(activeDays: Long): Boolean = activeDays >= minimumActiveDays
 }

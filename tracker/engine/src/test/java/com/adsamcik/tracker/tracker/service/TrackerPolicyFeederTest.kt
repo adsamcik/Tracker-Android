@@ -34,10 +34,12 @@ class TrackerPolicyFeederTest {
 	private fun createCycle(
 		timestampMs: Long = 1000L,
 		stepDelta: Int? = null,
+		activityFresh: Boolean = false,
 	): TrackingCycle = TrackingCycle(
 		timestampMs = timestampMs,
 		elapsedRealtimeNanos = 0L,
 		stepDelta = stepDelta,
+		activityFresh = activityFresh,
 	)
 
 	private fun createCollectionData(
@@ -55,7 +57,7 @@ class TrackerPolicyFeederTest {
 	inner class ActivityTransition {
 
 		@Test
-		fun `first activity does not trigger transition`() = runTest {
+		fun `stale cached activity does not trigger policy update`() = runTest {
 			val activity = ActivityInfo(activityType = 7, confidence = 80)
 			val collectionData = createCollectionData(activity = activity)
 			val cycle = createCycle()
@@ -66,15 +68,16 @@ class TrackerPolicyFeederTest {
 		}
 
 		@Test
-		fun `same activity type does not trigger transition`() = runTest {
+		fun `fresh repeated activity continues to provide motion evidence`() = runTest {
 			val activity1 = ActivityInfo(activityType = 7, confidence = 80)
 			val activity2 = ActivityInfo(activityType = 7, confidence = 90)
-			val cycle = createCycle()
+			val cycle = createCycle(activityFresh = true)
 
 			feeder.feed(policyManager, createCollectionData(activity = activity1), cycle, this)
 			feeder.feed(policyManager, createCollectionData(activity = activity2), cycle, this)
+			testScheduler.advanceUntilIdle()
 
-			coVerify(exactly = 0) { policyManager.onActivityTransition(any(), any(), any()) }
+			coVerify(exactly = 2) { policyManager.onActivityTransition(any(), any(), any()) }
 		}
 
 		@Test
@@ -84,8 +87,8 @@ class TrackerPolicyFeederTest {
 			val activity1 = ActivityInfo(activityType = 3, confidence = 80) // STILL
 			val activity2 = ActivityInfo(activityType = 7, confidence = 85) // WALKING
 
-			feeder.feed(policyManager, createCollectionData(activity = activity1), createCycle(1000L), scope)
-			feeder.feed(policyManager, createCollectionData(activity = activity2), createCycle(2000L), scope)
+			feeder.feed(policyManager, createCollectionData(activity = activity1), createCycle(1000L, activityFresh = true), scope)
+			feeder.feed(policyManager, createCollectionData(activity = activity2), createCycle(2000L, activityFresh = true), scope)
 
 			coVerify(exactly = 1) {
 				policyManager.onActivityTransition(
@@ -157,7 +160,7 @@ class TrackerPolicyFeederTest {
 			every { location.speed } returns 1.5f
 			feeder.feed(policyManager, createCollectionData(location = location), createCycle(), this)
 
-			verify(exactly = 1) { policyManager.escalationEngine?.updateSpeed(1.5f) }
+			verify(exactly = 1) { policyManager.escalationEngine?.updateSpeed(1.5f, 1000L) }
 			coVerify(exactly = 0) { policyManager.onLocationChange(any(), any()) }
 		}
 	}
@@ -182,7 +185,7 @@ class TrackerPolicyFeederTest {
 		}
 
 		@Test
-		fun `reset clears activity state`() = runTest {
+		fun `reset does not replay stale activity`() = runTest {
 			val dispatcher = UnconfinedTestDispatcher(testScheduler)
 			val scope = kotlinx.coroutines.CoroutineScope(dispatcher)
 			val activity = ActivityInfo(activityType = 7, confidence = 80)

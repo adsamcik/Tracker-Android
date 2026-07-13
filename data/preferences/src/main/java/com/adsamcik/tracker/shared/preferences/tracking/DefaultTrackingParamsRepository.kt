@@ -203,6 +203,11 @@ class DefaultTrackingParamsRepository(
 
 private fun TrackingParamsProto.toDomain(): TrackingParamsState {
     if (!legacyMigrated) return TrackingParamsState()
+    val preset = TrackingPreset.fromName(presetName)
+    val usePresetCadence = preset == TrackingPreset.HIGH_ACCURACY &&
+        minDistanceMeters == 5 &&
+        minTimeSeconds == 1 &&
+        requiredAccuracyMeters == 100
     return TrackingParamsState(
         locationEnabled = locationEnabled,
         activityEnabled = activityEnabled,
@@ -214,10 +219,13 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         autoTrackingMode = autoTrackingMode,
         transitionDetectionEnabled = transitionDetectionEnabled,
         notificationStyled = notificationStyled,
-        minDistanceMeters = minDistanceMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_DISTANCE,
-        minTimeSeconds = minTimeSeconds.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_TIME,
-        requiredAccuracyMeters = requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
-        presetName = TrackingPreset.fromName(presetName).name,
+        minDistanceMeters = if (usePresetCadence) preset.minDistanceMeters
+            else minDistanceMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_DISTANCE,
+        minTimeSeconds = if (usePresetCadence) preset.minTimeSeconds
+            else minTimeSeconds.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_TIME,
+        requiredAccuracyMeters = if (usePresetCadence) preset.requiredAccuracyMeters
+            else requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
+        presetName = preset.name,
         skiDetectionEnabled = skiDetectionEnabled,
         vehicleSpeedLimitBaselineMps = vehicleSpeedLimitBaselineMps
             .takeIf { it > 0.0 }

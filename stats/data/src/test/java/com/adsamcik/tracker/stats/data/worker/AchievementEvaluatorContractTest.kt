@@ -74,9 +74,31 @@ class AchievementEvaluatorContractTest {
 	@Test
 	fun `processor and worker agree on a single-metric multi-tier unlock`() = runTest {
 		assertEvaluatorsAgree(
-			snapshot = MetricSnapshot.of(MetricKey.DISTANCE_TOTAL_M to 12_000),
+			snapshot = MetricSnapshot.of(
+				MetricKey.DISTANCE_TOTAL_M to 12_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 3,
+			),
 			dirtyTables = setOf("daily_summary"),
 			priorProgress = emptyList(),
+		)
+	}
+
+	@Test
+	fun `one motorized day unlocks only onboarding distance and active-day tiers`() = runTest {
+		assertEvaluatorsAgree(
+			snapshot = MetricSnapshot.of(
+				MetricKey.DISTANCE_TOTAL_M to 500_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 1,
+				MetricKey.VEHICLE_DISTANCE_M to 500_000,
+				MetricKey.VEHICLE_ACTIVE_DAYS to 1,
+			),
+			dirtyTables = setOf("daily_summary", "session_segment"),
+			priorProgress = emptyList(),
+			expectedUnlockCount = 3,
+			expectedFinalTier = mapOf(
+				MetricKey.DISTANCE_TOTAL_M to 0,
+				MetricKey.VEHICLE_DISTANCE_M to 0,
+			),
 		)
 	}
 
@@ -85,6 +107,7 @@ class AchievementEvaluatorContractTest {
 		assertEvaluatorsAgree(
 			snapshot = MetricSnapshot.of(
 				MetricKey.DISTANCE_TOTAL_M to 50_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 7,
 				MetricKey.STEPS_TOTAL to 150_000,
 				MetricKey.SESSIONS_TOTAL to 25,
 			),
@@ -104,7 +127,10 @@ class AchievementEvaluatorContractTest {
 		)
 		// Snapshot now 60_000 — should unlock tiers 3 and 4 but NOT re-fire 0..2.
 		assertEvaluatorsAgree(
-			snapshot = MetricSnapshot.of(MetricKey.DISTANCE_TOTAL_M to 60_000),
+			snapshot = MetricSnapshot.of(
+				MetricKey.DISTANCE_TOTAL_M to 60_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 7,
+			),
 			dirtyTables = setOf("daily_summary"),
 			priorProgress = listOf(priorDistanceRow),
 		)
@@ -120,7 +146,10 @@ class AchievementEvaluatorContractTest {
 		)
 		// Bump of 200m — no new tier, no progress event at the long level.
 		assertEvaluatorsAgree(
-			snapshot = MetricSnapshot.of(MetricKey.DISTANCE_TOTAL_M to 1_700),
+			snapshot = MetricSnapshot.of(
+				MetricKey.DISTANCE_TOTAL_M to 1_700,
+				MetricKey.ACTIVE_DAYS_TOTAL to 1,
+			),
 			dirtyTables = setOf("daily_summary"),
 			priorProgress = listOf(priorDistanceRow),
 		)
@@ -147,17 +176,18 @@ class AchievementEvaluatorContractTest {
 		// large data imports or first-launch backfill. This is the scenario that
 		// most stresses ordering and count: 5 distance tiers (1k/5k/10k/50k/100k)
 		// + 4 step tiers (1k/10k/100k/1M) + 4 session tiers (1/10/100/1000) =
-		// 13 simultaneous unlock events. The max-tier-per-metric check would only
-		// see 3 numbers; the stream check sees all 13.
+		// 15 simultaneous unlock events including active-day tiers at days 1 and 7.
+		// The max-tier-per-metric check sees all four metric families.
 		assertEvaluatorsAgree(
 			snapshot = MetricSnapshot.of(
 				MetricKey.DISTANCE_TOTAL_M to 100_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 14,
 				MetricKey.STEPS_TOTAL to 1_000_000,
 				MetricKey.SESSIONS_TOTAL to 1_000,
 			),
 			dirtyTables = setOf("daily_summary", "aggregator_state"),
 			priorProgress = emptyList(),
-			expectedUnlockCount = 13,
+			expectedUnlockCount = 15,
 		)
 	}
 
@@ -211,6 +241,7 @@ class AchievementEvaluatorContractTest {
 				// Without filtering, this would unlock several step tiers.
 				MetricKey.STEPS_TOTAL to 5_000_000,
 				MetricKey.DISTANCE_TOTAL_M to 12_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 3,
 			),
 			dirtyTables = setOf("daily_summary", "aggregator_state"),
 			priorProgress = priorRows,
@@ -220,8 +251,8 @@ class AchievementEvaluatorContractTest {
 					excludedMetrics = setOf(MetricKey.STEPS_TOTAL),
 				)
 			},
-			// 3 distance tiers crossed (1k, 5k, 10k); STEPS filtered out entirely.
-			expectedUnlockCount = 3,
+			// 3 distance tiers plus the first active-day tier; STEPS is filtered out entirely.
+			expectedUnlockCount = 4,
 		)
 	}
 

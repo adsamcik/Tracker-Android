@@ -16,9 +16,9 @@ enum class TrackingPreset(
         cellEnabled = true,
         activityEnabled = true,
         stepsEnabled = true,
-        minDistanceMeters = 5,
-        minTimeSeconds = 1,
-        requiredAccuracyMeters = 100,
+        minDistanceMeters = 10,
+        minTimeSeconds = 2,
+        requiredAccuracyMeters = 50,
     ),
     BALANCED(
         locationEnabled = true,

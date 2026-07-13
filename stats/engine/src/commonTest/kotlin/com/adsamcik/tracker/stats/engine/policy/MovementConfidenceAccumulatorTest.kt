@@ -35,14 +35,14 @@ class MovementConfidenceAccumulatorTest {
 			accumulator.decay(currentTimeMs)
 
 			accumulator.currentConfidence shouldBeLessThan initial
-			// 15 - (2.0 * 5) = 5.0
-			accumulator.currentConfidence shouldBe 5.0
+			// 15 - (0.05 * 5) = 14.75
+			accumulator.currentConfidence shouldBe 14.75
 		}
 
 		@Test
 		fun `decay never goes below zero`() {
 			accumulator.onSignificantMotion(currentTimeMs)
-			currentTimeMs += 60_000L // 60 seconds - way more than needed
+			currentTimeMs += 600_000L // 10 minutes - enough to decay below zero
 			accumulator.decay(currentTimeMs)
 
 			accumulator.currentConfidence shouldBe 0.0
@@ -232,15 +232,14 @@ class MovementConfidenceAccumulatorTest {
 			)
 			accumulator.tier shouldBe PolicyTier.AMBIENT
 
-			// Wait long enough for de-escalation + let confidence decay to 0
-			currentTimeMs += 300_000L // 5 min
-			accumulator.decay(currentTimeMs)
+			// A single STILL reading starts confirmation but cannot drop tracking.
+			currentTimeMs += 300_000L
+			accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			accumulator.tier shouldBe PolicyTier.AMBIENT
 
-			// Feed a signal to trigger evaluation
-			val result = accumulator.onActivityDetected(
-				DetectedActivityType.STILL, 100, currentTimeMs
-			)
-
+			// Sustained high-confidence stillness may lower one tier after confirmation.
+			currentTimeMs += MovementConfidenceAccumulator.STILLNESS_CONFIRMATION_MS
+			accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
 			accumulator.tier shouldBe PolicyTier.OFF
 		}
 
@@ -297,12 +296,11 @@ class MovementConfidenceAccumulatorTest {
 				MovementConfidenceAccumulator.THRESHOLD_AMBIENT
 			)
 
-			// De-escalate by waiting
+			// De-escalate only after confirmed stillness.
 			currentTimeMs += 300_000L
-			accumulator.decay(currentTimeMs)
-			accumulator.onActivityDetected(
-				DetectedActivityType.STILL, 100, currentTimeMs
-			)
+			accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			currentTimeMs += MovementConfidenceAccumulator.STILLNESS_CONFIRMATION_MS
+			accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
 
 			// Try to immediately re-escalate
 			currentTimeMs += 100L
@@ -312,6 +310,39 @@ class MovementConfidenceAccumulatorTest {
 
 			// Should be blocked by cooldown
 			result.shouldBeNull()
+		}
+	}
+
+	@Nested
+	inner class MotionRetentionTests {
+		@Test
+		fun `moving speed after long callback gap prevents downgrade`() {
+			accumulator.setTier(PolicyTier.PRECISION, currentTimeMs)
+			currentTimeMs += 20 * 60_000L
+
+			accumulator.onSpeedObserved(5f, currentTimeMs)
+
+			accumulator.tier shouldBe PolicyTier.PRECISION
+		}
+
+		@Test
+		fun `one still reading does not downgrade active tracking`() {
+			accumulator.setTier(PolicyTier.ACTIVE, currentTimeMs)
+			currentTimeMs += 10 * 60_000L
+
+			accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+
+			accumulator.tier shouldBe PolicyTier.ACTIVE
+		}
+
+		@Test
+		fun `prolonged silence lowers at most one tier`() {
+			accumulator.setTier(PolicyTier.PRECISION, currentTimeMs)
+			currentTimeMs += MovementConfidenceAccumulator.NO_MOTION_TIMEOUT_MS + 1L
+
+			accumulator.onActivityDetected(DetectedActivityType.UNKNOWN, 0, currentTimeMs)
+
+			accumulator.tier shouldBe PolicyTier.ACTIVE
 		}
 	}
 
@@ -377,8 +408,8 @@ class MovementConfidenceAccumulatorTest {
 		}
 
 		// Feed events with enough spacing to satisfy dwell times.
-		// Each RUNNING event adds +30. Decay is 2.0/s.
-		// Feeding every 5s: decay = 10, net gain = +20 per event.
+		// Each RUNNING event adds +30. Decay is intentionally slow (0.05/s).
+		// Feeding every 5s: decay = 0.25, net gain = +29.75 per event.
 		// After 7 events in 35s: net ~140 confidence, past 30s dwell.
 		var iterations = 0
 		while (accumulator.tier < targetTier && iterations < 100) {

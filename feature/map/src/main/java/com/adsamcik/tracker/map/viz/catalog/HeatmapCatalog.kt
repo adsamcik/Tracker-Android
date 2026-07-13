@@ -7,33 +7,45 @@ import com.adsamcik.tracker.map.viz.CellWeighting
 import com.adsamcik.tracker.map.viz.GridHeatmapAggregator
 import com.adsamcik.tracker.map.viz.LegacyTileAggregatorStage
 import com.adsamcik.tracker.map.viz.SpatialData
+import com.adsamcik.tracker.map.viz.TemporalHeatMetric
+import com.adsamcik.tracker.map.viz.TemporalHeatmapAggregator
 import com.adsamcik.tracker.map.viz.VizPipeline
 import com.adsamcik.tracker.map.viz.WifiCellAggregator
 import com.adsamcik.tracker.map.viz.extrude
 import com.adsamcik.tracker.map.viz.fill
 import com.adsamcik.tracker.map.viz.heatmap
 import com.adsamcik.tracker.map.viz.mapViz
+import com.adsamcik.tracker.map.viz.temporalHeatmap
 
 /**
- * Catalog of grid-heatmap visualizations, each authored declaratively with the engine DSL. A layer
- * differs from its siblings only in its [VizSource][com.adsamcik.tracker.map.viz.VizSource], its
- * [CellWeighting] (value-vs-mass) and its colour ramp / radius — the `Source -> Aggregator -> Encoder`
- * machinery is shared. Adding a new grid heatmap is a few declarative lines here, not a new class.
+ * Catalog of heat visualizations authored with the engine DSL. Location and speed use the temporal
+ * field so continuous movement becomes a line; cell and Wi-Fi observations retain independent grid
+ * aggregation because they do not imply a continuous sensor path. Every family still shares the
+ * typed `Source -> Aggregator -> Encoder` pipeline.
  */
 
-/** Location-density heatmap: colour = how often you were somewhere (visit count, log-scaled). */
-fun locationDensityHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
+/**
+ * Location heatmap: colour = accuracy-weighted independent visits. Continuous movement is a line;
+ * repeated fixes in one visit add no heat, and short-interval returns add very little.
+ */
+fun locationDensityHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.HeatField> =
 	mapViz("location_heatmap")
 		.source(locationDensitySource(repo))
-		.aggregate(GridHeatmapAggregator(CellWeighting.Density))
-		.heatmap(colorStops = HeatmapColorRamps.LocationDensity, baseRadiusPx = 20f)
+		.aggregate(TemporalHeatmapAggregator(TemporalHeatMetric.VisitDensity))
+		.temporalHeatmap(
+			colorStops = HeatmapColorRamps.LocationDensity,
+			baseRadiusPx = 18f,
+		)
 
 /** Speed heatmap: colour = mean speed travelled in a cell (value, not count). */
-fun speedHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
+fun speedHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.HeatField> =
 	mapViz("speed_heatmap")
 		.source(speedSource(repo))
-		.aggregate(GridHeatmapAggregator(CellWeighting.Average))
-		.heatmap(colorStops = HeatmapColorRamps.Speed, baseRadiusPx = 20f)
+		.aggregate(TemporalHeatmapAggregator(TemporalHeatMetric.AverageValue))
+		.temporalHeatmap(
+			colorStops = HeatmapColorRamps.Speed,
+			baseRadiusPx = 18f,
+		)
 
 /** Cell-signal heatmap: colour = mean technology-normalised signal strength in a cell. */
 fun cellSignalHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =

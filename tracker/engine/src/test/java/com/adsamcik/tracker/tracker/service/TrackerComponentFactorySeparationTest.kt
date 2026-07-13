@@ -15,7 +15,6 @@ import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
-import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -95,7 +94,7 @@ class TrackerComponentFactorySeparationTest {
 	}
 
 	@Test
-	fun `location only builds location component and a location pre-tracker`() = runTest(testDispatcher) {
+	fun `location toggle does not remove live-toggle consumers or add a cycle-wide gate`() = runTest(testDispatcher) {
 		val set = createComponentSet(
 			TrackingParamsState(
 				locationEnabled = true,
@@ -110,15 +109,15 @@ class TrackerComponentFactorySeparationTest {
 		advanceUntilIdle()
 
 		set.dataComponents.count { it is LocationTrackerComponent } shouldBe 1
-		set.dataComponents.any { it is WifiTrackerComponent } shouldBe false
-		set.dataComponents.any { it is CellTrackerComponent } shouldBe false
-		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe false
-		set.preComponents shouldHaveSize 1
-		set.preComponents.all { it is LocationPreTrackerComponent } shouldBe true
+		set.dataComponents.any { it is WifiTrackerComponent } shouldBe true
+		set.dataComponents.any { it is CellTrackerComponent } shouldBe true
+		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe true
+		set.dataComponents shouldHaveSize 4
+		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
-	fun `wifi only builds wifi component and NO location pre-tracker`() = runTest(testDispatcher) {
+	fun `wifi toggle does not remove live-toggle consumers or add a cycle-wide gate`() = runTest(testDispatcher) {
 		val set = createComponentSet(
 			TrackingParamsState(
 				locationEnabled = false,
@@ -133,14 +132,15 @@ class TrackerComponentFactorySeparationTest {
 		advanceUntilIdle()
 
 		set.dataComponents.count { it is WifiTrackerComponent } shouldBe 1
-		set.dataComponents.any { it is LocationTrackerComponent } shouldBe false
+		set.dataComponents.any { it is LocationTrackerComponent } shouldBe true
 		// Critical: with location disabled there must be NO location pre-tracker, otherwise every
 		// non-location cycle would be rejected for lack of a GPS fix.
+		set.dataComponents shouldHaveSize 4
 		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
-	fun `cell only builds cell component and NO location pre-tracker`() = runTest(testDispatcher) {
+	fun `cell toggle does not remove live-toggle consumers or add a cycle-wide gate`() = runTest(testDispatcher) {
 		val set = createComponentSet(
 			TrackingParamsState(
 				locationEnabled = false,
@@ -155,12 +155,13 @@ class TrackerComponentFactorySeparationTest {
 		advanceUntilIdle()
 
 		set.dataComponents.count { it is CellTrackerComponent } shouldBe 1
-		set.dataComponents.any { it is LocationTrackerComponent } shouldBe false
+		set.dataComponents.any { it is LocationTrackerComponent } shouldBe true
+		set.dataComponents shouldHaveSize 4
 		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
-	fun `activity only builds activity component and NO location pre-tracker`() = runTest(testDispatcher) {
+	fun `activity toggle does not remove live-toggle consumers or add a cycle-wide gate`() = runTest(testDispatcher) {
 		val set = createComponentSet(
 			TrackingParamsState(
 				locationEnabled = false,
@@ -175,12 +176,13 @@ class TrackerComponentFactorySeparationTest {
 		advanceUntilIdle()
 
 		set.dataComponents.count { it is ActivityTrackerComponent } shouldBe 1
-		set.dataComponents.any { it is LocationTrackerComponent } shouldBe false
+		set.dataComponents.any { it is LocationTrackerComponent } shouldBe true
+		set.dataComponents shouldHaveSize 4
 		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
-	fun `all sources enabled builds all four data components`() = runTest(testDispatcher) {
+	fun `all sources enabled keeps all consumers without a cycle-wide gate`() = runTest(testDispatcher) {
 		val set = createComponentSet(
 			TrackingParamsState(
 				locationEnabled = true,
@@ -199,6 +201,6 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.any { it is CellTrackerComponent } shouldBe true
 		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
-		set.preComponents shouldHaveSize 1
+		set.preComponents.shouldBeEmpty()
 	}
 }

@@ -24,12 +24,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Verifies JSON serialization round-trip for all [DomainEvent] subtypes
  * through [DefaultDomainEventRepository]'s persist/getUnconsumed public API.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class DefaultDomainEventRepositoryTest {
 
 	private val dao: DomainEventDao = mockk()

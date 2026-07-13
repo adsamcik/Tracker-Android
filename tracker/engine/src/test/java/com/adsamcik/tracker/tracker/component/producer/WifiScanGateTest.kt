@@ -79,4 +79,20 @@ class WifiScanGateTest {
         WifiScanGate.shouldBufferBroadcastResults(resultsUpdated = true) shouldBe true
         WifiScanGate.shouldBufferBroadcastResults(resultsUpdated = null) shouldBe true
     }
+	@Test
+	fun `fingerprint ignores AP ordering and small RSSI noise`() {
+		val first = listOf(
+			WifiFingerprintNetwork("AA:BB", 2412, -61, "[WPA2]"),
+			WifiFingerprintNetwork("CC:DD", 5180, -70, "[WPA3]"),
+		)
+		val reordered = listOf(first[1], first[0].copy(levelDbm = -62))
+		WifiScanGate.fingerprint(first) shouldBe WifiScanGate.fingerprint(reordered)
+	}
+
+	@Test
+	fun `changed WiFi set records immediately while duplicate waits for heartbeat`() {
+		WifiScanGate.shouldRecordSnapshot("new", "old", 10, 9, 100) shouldBe true
+		WifiScanGate.shouldRecordSnapshot("same", "same", 50, 10, 100) shouldBe false
+		WifiScanGate.shouldRecordSnapshot("same", "same", 110, 10, 100) shouldBe true
+	}
 }

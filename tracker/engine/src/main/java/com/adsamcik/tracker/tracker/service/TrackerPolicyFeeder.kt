@@ -40,7 +40,7 @@ internal class TrackerPolicyFeeder {
 	) {
 		val currentTimeMs = cycle.timestampMs
 
-		feedActivityTransition(policyManager, collectionData, currentTimeMs, scope)
+		feedActivityTransition(policyManager, collectionData, cycle.activityFresh, currentTimeMs, scope)
 		feedLocationChange(policyManager, collectionData, currentTimeMs, scope)
 		feedStepUpdate(policyManager, cycle, currentTimeMs, scope)
 	}
@@ -57,12 +57,13 @@ internal class TrackerPolicyFeeder {
 	private fun feedActivityTransition(
 		policyManager: TrackingPolicyManager,
 		collectionData: CollectionData,
+		activityFresh: Boolean,
 		currentTimeMs: Long,
 		scope: CoroutineScope,
 	) {
 		collectionData.activity?.let { activity ->
 			val currentActivityType = activity.activityType
-			if (lastActivityType >= 0 && lastActivityType != currentActivityType) {
+			if (activityFresh) {
 				scope.launch {
 					policyManager.onActivityTransition(
 						activityType = currentActivityType,
@@ -83,7 +84,7 @@ internal class TrackerPolicyFeeder {
 	) {
 		collectionData.location?.let { location ->
 			val modelLocation = location.toModel()
-			policyManager.escalationEngine?.updateSpeed(modelLocation.speed)
+			policyManager.escalationEngine?.updateSpeed(modelLocation.speed, currentTimeMs)
 
 			lastLocation?.let { prevLocation ->
 				val distance = distanceMeters(prevLocation, modelLocation).toFloat()

@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import kotlin.math.min
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import kotlin.math.abs
 
@@ -27,29 +28,32 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 	) {
 		val scanData = requireNotNull(cycle.wifiScan)
 		val locationData = cycle.location
+		var geotagged = false
 		if (locationData != null) {
 			val location = locationData.lastLocation
 			val locations = locationData.locations
 			if (locations.size >= 2) {
-				val nearestLocation = locations.sortedBy {
+				val nearestLocations = locations.sortedBy {
 					abs(scanData.relativeTimeNanos - it.elapsedRealtimeNanos)
-				}
-						.take(2)
-				val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
-
-				val first = nearestLocation[firstIndex]
-				val second = nearestLocation[(firstIndex + 1).rem(2)]
-				setWifi(scanData, collectionData, first, second, first.distanceTo(second))
+				}.take(2).sortedBy { it.elapsedRealtimeNanos }
+				val first = nearestLocations[0]
+				val second = nearestLocations[1]
+				geotagged = setWifi(
+					scanData,
+					collectionData,
+					first,
+					second,
+					first.distanceTo(second),
+				)
 			} else {
 				val previousLocation = locationData.previousLocation
 				val distance = locationData.distance
 				if (previousLocation != null && distance != null) {
-					setWifi(scanData, collectionData, previousLocation, location, distance)
+					geotagged = setWifi(scanData, collectionData, previousLocation, location, distance)
 				}
 			}
-		} else {
-			setWifi(scanData, collectionData)
 		}
+		if (!geotagged) setWifi(scanData, collectionData)
 	}
 
 	private fun setWifi(scanData: WifiScanData, collectionData: MutableCollectionData) {
@@ -67,22 +71,29 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 			firstLocation: Location,
 			secondLocation: Location,
 			distanceBetweenFirstAndSecond: Float
-	) {
+	): Boolean {
+		val elapsedDelta = secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos
+		if (elapsedDelta <= 0L) return false
+
 		val timeDelta = (scanData.relativeTimeNanos - firstLocation.elapsedRealtimeNanos).toDouble() /
-				(secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
-		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
-		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {
-			val interpolatedLocation = LocationExtensions.interpolateLocation(
-					firstLocation,
-					secondLocation, timeDelta
-			)
-			collectionData.setWifi(
-					interpolatedLocation,
-					scanData.timeMillis,
-					scanData.data,
-					requireNotNull(wifiManager)
-			)
-		}
+			elapsedDelta.toDouble()
+		if (timeDelta !in 0.0..1.0) return false
+
+		val distanceToClosestFix = distanceBetweenFirstAndSecond * min(timeDelta, 1.0 - timeDelta)
+		if (distanceToClosestFix > MAX_DISTANCE_TO_WIFI) return false
+
+		val interpolatedLocation = LocationExtensions.interpolateLocation(
+			firstLocation,
+			secondLocation,
+			timeDelta,
+		)
+		collectionData.setWifi(
+			interpolatedLocation,
+			scanData.timeMillis,
+			scanData.data,
+			requireNotNull(wifiManager),
+		)
+		return true
 	}
 
 	override suspend fun onEnable(context: Context) {

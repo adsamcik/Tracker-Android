@@ -12,6 +12,7 @@
     back to humanizeResourceKey.
 -->
 <resources>
+	<string name="ach_desc_with_active_days">%1$s Track on at least %2$d different days to unlock it.</string>
 
     <!-- Distance-based -->
     <string name="ach_title_distance_total">Travel %1$s</string>
@@ -26,8 +27,8 @@
     <string name="ach_desc_on_foot_distance">Cover %1$s on foot (walking or running combined).</string>
     <string name="ach_title_cycling_distance">Cycle %1$s</string>
     <string name="ach_desc_cycling_distance">Cycle %1$s in total.</string>
-    <string name="ach_title_vehicle_distance">Drive %1$s</string>
-    <string name="ach_desc_vehicle_distance">Cover %1$s in a vehicle (car, bus, train).</string>
+    <string name="ach_title_vehicle_distance">Motorized travel %1$s</string>
+    <string name="ach_desc_vehicle_distance">Cover %1$s by car, bus, train, boat, or plane.</string>
 
     <!-- Steps -->
     <string name="ach_title_steps_total">Take %1$s steps</string>
@@ -161,10 +162,10 @@
     <string name="ach_title_max_cycle_session">Cycle %1$s in one ride</string>
     <string name="ach_desc_max_cycle_session">Cycle %1$s within a single ride.</string>
     <plurals name="ach_title_triathlon_days">
-        <item quantity="one">Triathlete day</item>
-        <item quantity="other">%d triathlete days</item>
+        <item quantity="one">Multi-modal day</item>
+        <item quantity="other">%d multi-modal days</item>
     </plurals>
-    <string name="ach_desc_triathlon_days">Walk, cycle and drive all within the same day, on %1$d different days.</string>
+    <string name="ach_desc_triathlon_days">Travel on foot, by bicycle, and by motorized transport within the same day, on %1$d different days.</string>
     <plurals name="ach_title_cell_all_seasons">
         <item quantity="one">A place for all seasons</item>
         <item quantity="other">All four seasons in %d places</item>

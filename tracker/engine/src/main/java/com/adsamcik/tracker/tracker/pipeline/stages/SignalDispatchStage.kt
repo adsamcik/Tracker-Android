@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 internal class SignalDispatchStage(
 	private val processorPipelineProvider: () -> ProcessorPipeline?,
 	private val currentTierProvider: () -> PolicyTier,
+	private val currentPolicyNameProvider: () -> String? = { null },
 ) : PipelineStage {
 	private var lastEffectiveActivity: ActivityInfo? = null
 
@@ -35,6 +36,7 @@ internal class SignalDispatchStage(
 		val signal = try {
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
+			val rawLocation = cycle.location?.lastLocation
 
 			val cellTowers = cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }
@@ -46,16 +48,17 @@ internal class SignalDispatchStage(
 					mnc = cell.networkOperator.mnc,
 					networkType = cell.type.ordinal,
 					signalStrength = cell.asu,
+					areaCode = cell.areaCode,
 				)
 			}
 
-			val wifiNetworks = cycle.wifiScan?.data?.map { sr ->
+			val wifiNetworks = collectionData.wifi?.inRange?.map { network ->
 				com.adsamcik.tracker.stats.api.signal.WifiNetworkReading(
-					bssid = sr.BSSID ?: "",
-					ssid = sr.SSID ?: "",
-					capabilities = sr.capabilities ?: "",
-					frequency = sr.frequency,
-					level = sr.level,
+					bssid = network.bssid,
+					ssid = network.ssid.orEmpty(),
+					capabilities = network.capabilities,
+					frequency = network.frequency,
+					level = network.level,
 				)
 			}
 
@@ -67,7 +70,11 @@ internal class SignalDispatchStage(
 				accuracy = collectionData.location?.horizontalAccuracy,
 				speed = collectionData.location?.speed,
 				altitude = collectionData.location?.altitude?.toFloat(),
-				rawGpsAltitude = cycle.rawGpsAltitude?.toFloat(),
+				rawGpsAltitude = collectionData.rawGpsAltitudeM,
+				verticalAccuracy = collectionData.location?.verticalAccuracy,
+				speedAccuracy = collectionData.location?.speedAccuracy,
+				distanceDelta = collectionData.distanceFromPreviousM,
+				provider = rawLocation?.provider ?: "unknown",
 				activityTypeCode = effectiveActivity?.activityType,
 				activityConfidence = effectiveActivity?.confidence,
 				activityFresh = cycle.activityFresh ||
@@ -80,8 +87,17 @@ internal class SignalDispatchStage(
 				cellTowers = cellTowers,
 				wifiNetworks = wifiNetworks,
 				pressureHpa = cycle.pressure?.pressureHpa,
+				wifiTimestampMs = collectionData.wifi?.time,
+				wifiLatitude = collectionData.wifi?.location?.latitude,
+				wifiLongitude = collectionData.wifi?.location?.longitude,
+				wifiCoordinateProvenance = if (collectionData.wifi?.location != null) {
+					com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance.INTERPOLATED
+				} else {
+					com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance.UNKNOWN
+				},
 				pressureAltitudeM = cycle.pressure?.altitudeM,
 				policyTier = currentTierProvider(),
+				policyName = currentPolicyNameProvider(),
 			)
 			signal
 		} catch (e: CancellationException) {

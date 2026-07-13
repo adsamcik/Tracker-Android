@@ -62,12 +62,22 @@ data class CellTowerReading(
 	val mnc: String,
 	val networkType: Int,
 	val signalStrength: Int,
+	val areaCode: Int = 0,
 )
 
 /** WiFi scan data for a single cycle. */
 data class WifiSignal(
 	val networks: List<WifiNetworkReading>,
+	val timestampMs: EpochMs? = null,
+	val coordinate: CoordinateE7? = null,
+	val coordinateProvenance: ObservationCoordinateProvenance = ObservationCoordinateProvenance.UNKNOWN,
 )
+
+enum class ObservationCoordinateProvenance {
+	UNKNOWN,
+	DIRECT,
+	INTERPOLATED,
+}
 
 /** Individual WiFi network reading (platform-independent). */
 data class WifiNetworkReading(

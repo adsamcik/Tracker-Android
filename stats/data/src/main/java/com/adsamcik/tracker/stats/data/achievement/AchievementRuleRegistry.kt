@@ -22,9 +22,11 @@ class AchievementRuleRegistry @Inject constructor(
 
 	override suspend fun instancesAffectedByTables(dirtyTables: Set<String>): List<RuleInstance> {
 		if (dirtyTables.isEmpty()) return emptyList()
-		val affected = MetricKey.entries.asSequence()
+		val changedMetrics = MetricKey.entries.asSequence()
 			.filter { metric -> metric.sourceTables.any { it in dirtyTables } }
-			.flatMap { metric -> AchievementCatalog.byMetric(metric).asSequence() }
+			.toSet()
+		val affected = changedMetrics.asSequence()
+			.flatMap { metric -> AchievementCatalog.byDependency[metric].orEmpty().asSequence() }
 			.distinctBy { it.id }
 			.toList()
 		return if (affected.isEmpty()) emptyList() else toInstances(affected, progressDao.getAll())

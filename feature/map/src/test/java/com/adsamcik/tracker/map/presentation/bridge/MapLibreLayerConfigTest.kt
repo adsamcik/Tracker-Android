@@ -94,6 +94,50 @@ class MapLibreLayerConfigTest {
 	}
 
 	@Nested
+	@DisplayName("HeatLine")
+	inner class HeatLineTests {
+
+		@Test
+		fun `stores data driven line and glow style`() {
+			val stops = listOf(0f to 0x00000000, 1f to 0xFFFF0000.toInt())
+			val config = MapLibreLayerConfig.HeatLine(
+				geoJson = """{"line":true}""",
+				colorStops = stops,
+				widthDp = 6f,
+				opacity = 0.9f,
+				glowWidthDp = 14f,
+				glowOpacity = 0.3f,
+				glowBlurDp = 3f,
+				weightProperty = "heat",
+			)
+
+			config.geoJson shouldBe """{"line":true}"""
+			config.colorStops shouldBe stops
+			config.widthDp shouldBe 6f
+			config.opacity shouldBe 0.9f
+			config.glowWidthDp shouldBe 14f
+			config.glowOpacity shouldBe 0.3f
+			config.glowBlurDp shouldBe 3f
+			config.weightProperty shouldBe "heat"
+		}
+
+		@Test
+		fun `render key ignores geometry but includes style`() {
+			val stops = listOf(0f to 0, 1f to 1)
+			val first = MapLibreLayerConfig.HeatLine(geoJson = "a", colorStops = stops)
+			val sameStyle = MapLibreLayerConfig.HeatLine(geoJson = "b", colorStops = stops)
+			val changedStyle = MapLibreLayerConfig.HeatLine(
+				geoJson = "a",
+				colorStops = stops,
+				widthDp = 9f,
+			)
+
+			first.renderKey(0) shouldBe sameStyle.renderKey(0)
+			first.renderKey(0) shouldNotBe changedStyle.renderKey(0)
+		}
+	}
+
+	@Nested
 	@DisplayName("Line")
 	inner class LineTests {
 
@@ -295,6 +339,7 @@ class MapLibreLayerConfigTest {
 		fun `when expression covers all subtypes`() {
 			val configs: List<MapLibreLayerConfig> = listOf(
 				MapLibreLayerConfig.Heatmap(geoJson = "", colorStops = emptyList()),
+				MapLibreLayerConfig.HeatLine(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.Line(geoJson = "", colorArgb = 0),
 				MapLibreLayerConfig.Fill(geoJson = "", colorStops = emptyList()),
 				MapLibreLayerConfig.FillExtrusion(geoJson = "", colorStops = emptyList(), maxHeightMeters = 100f),
@@ -306,6 +351,7 @@ class MapLibreLayerConfigTest {
 			val labels = configs.map { config ->
 				when (config) {
 					is MapLibreLayerConfig.Heatmap -> "heatmap"
+					is MapLibreLayerConfig.HeatLine -> "heat-line"
 					is MapLibreLayerConfig.Line -> "line"
 					is MapLibreLayerConfig.Fill -> "fill"
 					is MapLibreLayerConfig.FillExtrusion -> "fill-extrusion"
@@ -316,7 +362,8 @@ class MapLibreLayerConfigTest {
 				}
 			}
 			labels shouldBe listOf(
-				"heatmap", "line", "fill", "fill-extrusion", "circle", "gradient-line", "symbol", "composite",
+				"heatmap", "heat-line", "line", "fill", "fill-extrusion",
+				"circle", "gradient-line", "symbol", "composite",
 			)
 		}
 	}

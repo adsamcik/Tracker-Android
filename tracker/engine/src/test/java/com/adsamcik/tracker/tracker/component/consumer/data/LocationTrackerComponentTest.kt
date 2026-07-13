@@ -40,7 +40,8 @@ class LocationTrackerComponentTest {
 			this.latitude = latitude
 			this.longitude = longitude
 			this.time = time
-			elapsedRealtimeNanos = System.nanoTime()
+			accuracy = 5f
+			elapsedRealtimeNanos = time * 1_000_000L
 			if (altitude != null) {
 				this.altitude = altitude
 			}
@@ -241,7 +242,9 @@ class LocationTrackerComponentTest {
 		val loc1 = createAndroidLocation(altitude = 500.0, verticalAccuracy = 10f, time = 1000L)
 		component.onDataUpdated(createCycle(loc1, stablePressure), MutableCollectionData())
 
-		val loc2 = createAndroidLocation(altitude = 500.0, verticalAccuracy = 10f, time = 2000L)
+		val loc2 = createAndroidLocation(
+			altitude = 500.0, verticalAccuracy = 10f, latitude = 50.00001, time = 2000L,
+		)
 		component.onDataUpdated(createCycle(loc2, stablePressure), MutableCollectionData())
 
 		// GPS spikes while barometer stable

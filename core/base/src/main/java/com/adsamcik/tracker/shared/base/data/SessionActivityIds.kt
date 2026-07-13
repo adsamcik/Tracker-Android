@@ -30,7 +30,9 @@ object SessionActivityIds {
 	val SLOPE_SPORTS: Set<Int> = setOf(NativeSessionActivity.SLOPE_SPORTS.id.toInt())
 
 	val ON_FOOT: Set<Int> = WALKING + RUNNING
-	val IN_VEHICLE: Set<Int> = DRIVING + CYCLING + WATER + AIR
+	/** Motorised travel. Cycling is deliberately excluded: it is human-powered. */
+	val IN_VEHICLE: Set<Int> = DRIVING + WATER + AIR
+	val HUMAN_POWERED: Set<Int> = ON_FOOT + CYCLING
 }
 
 fun NativeSessionActivity.toSegmentPrimaryActivityId(): Int = when (this) {

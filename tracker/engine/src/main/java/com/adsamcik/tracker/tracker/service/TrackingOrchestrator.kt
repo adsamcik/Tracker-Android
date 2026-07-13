@@ -51,6 +51,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -220,6 +222,20 @@ internal class TrackingOrchestrator(
 					)
 				}
 			}
+		}
+
+		// Apply cadence, fidelity preset, and location-toggle changes to the running trigger.
+		// Producers already observe their individual toggles; consumers are always present.
+		sessionScope.launch {
+			trackingParamsRepository.data
+				.distinctUntilChanged()
+				.drop(1)
+				.collect {
+					val policy = trackingPolicyManager?.currentPolicy?.value ?: return@collect
+					tierEscalationHandler.onPolicyChanged(
+						policy, context, timerReceiver, sessionScope,
+					)
+				}
 		}
 
 		// Reset policy feeder state for new session
@@ -436,6 +452,7 @@ internal class TrackingOrchestrator(
 				SignalDispatchStage(
 					processorPipelineProvider = { processorPipeline },
 					currentTierProvider = { currentTier },
+					currentPolicyNameProvider = { trackingPolicyManager?.currentPolicy?.value?.name },
 				),
 				PolicyUpdateStage(policyFeeder, trackingPolicyManager, scope),
 			),

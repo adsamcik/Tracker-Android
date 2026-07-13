@@ -14,6 +14,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
+import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -52,7 +54,7 @@ class SessionSegmentDaoTest {
 		assertEquals(60L, summary.collectionCount)
 		assertEquals(2_100f, summary.distanceM, 0.001f)
 		assertEquals(300f, summary.onFootDistanceM, 0.001f)
-		assertEquals(700f, summary.inVehicleDistanceM, 0.001f)
+		assertEquals(300f, summary.inVehicleDistanceM, 0.001f)
 		assertEquals(120L, summary.stepCount)
 	}
 
@@ -75,7 +77,7 @@ class SessionSegmentDaoTest {
 		assertEquals(30L, summary.collectionCount)
 		assertEquals(900f, summary.distanceM, 0.001f)
 		assertEquals(200f, summary.onFootDistanceM, 0.001f)
-		assertEquals(700f, summary.inVehicleDistanceM, 0.001f)
+		assertEquals(300f, summary.inVehicleDistanceM, 0.001f)
 		assertEquals(60L, summary.stepCount)
 	}
 
@@ -162,6 +164,25 @@ class SessionSegmentDaoTest {
 		assertEquals(3L, result)
 	}
 
+	@Test
+	fun `countDistinctDaysByActivities separates motorized and cycling days`() = runBlocking {
+		val dayOne = LocalDate.of(2026, 1, 10).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+		val dayTwo = LocalDate.of(2026, 1, 11).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+		dao.insert(createSegment(dayOne + 1_000L, dayOne + 2_000L, 100f, DetectedActivity.IN_VEHICLE.value))
+		dao.insert(createSegment(dayOne + 3_000L, dayOne + 4_000L, 100f, DetectedActivity.IN_VEHICLE.value))
+		dao.insert(createSegment(dayTwo + 1_000L, dayTwo + 2_000L, 100f, DetectedActivity.IN_VEHICLE.value))
+		dao.insert(createSegment(dayTwo + 3_000L, dayTwo + 4_000L, 100f, DetectedActivity.ON_BICYCLE.value))
+
+		assertEquals(
+			2L,
+			dao.countDistinctDaysByActivities(listOf(DetectedActivity.IN_VEHICLE.value)),
+		)
+		assertEquals(
+			1L,
+			dao.countDistinctDaysByActivities(listOf(DetectedActivity.ON_BICYCLE.value)),
+		)
+	}
+
 	private companion object {
 		val ON_FOOT_ACTIVITY_TYPES = listOf(
 			DetectedActivity.WALKING.value,
@@ -170,7 +191,6 @@ class SessionSegmentDaoTest {
 		)
 		val IN_VEHICLE_ACTIVITY_TYPES = listOf(
 			DetectedActivity.IN_VEHICLE.value,
-			DetectedActivity.ON_BICYCLE.value,
 		)
 	}
 }

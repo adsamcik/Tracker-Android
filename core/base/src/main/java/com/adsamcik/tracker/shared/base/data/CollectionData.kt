@@ -85,6 +85,11 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		get() = if (bundle.containsKey(DISTANCE)) bundle.getFloat(DISTANCE) else null
 		set(value) = set(DISTANCE, value)
 
+	/** Raw WGS-84 GPS altitude before geoid correction or barometer fusion. */
+	var rawGpsAltitudeM: Float?
+		get() = if (bundle.containsKey(RAW_GPS_ALTITUDE)) bundle.getFloat(RAW_GPS_ALTITUDE) else null
+		set(value) = set(RAW_GPS_ALTITUDE, value)
+
 
 	/**
 	 * Retrieve long value with key.
@@ -195,6 +200,7 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		private const val LOCATION = "Location"
 		private const val ACTIVITY = "Activity"
 		private const val DISTANCE = "Distance"
+		private const val RAW_GPS_ALTITUDE = "RawGpsAltitude"
 	}
 }
 

@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
@@ -64,11 +65,7 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		val minDistanceInMeters = BackgroundTrackingApi.cachedParams.minDistanceMeters
 
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.Builder(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(selectPriority(context))
-			.setMinUpdateDistanceMeters(minDistanceInMeters.toFloat())
-			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.build()
+		val request = buildRequest(context, minUpdateDelayInSeconds, minDistanceInMeters)
 
 		try {
 			// checked by component manager
@@ -95,11 +92,7 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
 		// Re-requesting updates with the same callback updates delivery parameters without a forced stop/start gap.
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.Builder(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(selectPriority(context))
-			.setMinUpdateDistanceMeters(minDistanceMeters.toFloat())
-			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.build()
+		val request = buildRequest(context, intervalSeconds, minDistanceMeters)
 
 		try {
 			// checked by component manager
@@ -115,6 +108,28 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 				)
 			)
 		}
+	}
+
+	private fun buildRequest(
+		context: Context,
+		intervalSeconds: Int,
+		minDistanceMeters: Int,
+	): LocationRequest {
+		val intervalMs = intervalSeconds.coerceAtLeast(1) * Time.SECOND_IN_MILLISECONDS
+		val batchingMultiplier = when (BackgroundTrackingApi.cachedParams.preset) {
+			TrackingPreset.POWER_SAVE -> 3L
+			TrackingPreset.BALANCED -> 2L
+			TrackingPreset.HIGH_ACCURACY,
+			TrackingPreset.CUSTOM,
+			-> 1L
+		}
+		return LocationRequest.Builder(intervalMs)
+			.setPriority(selectPriority(context))
+			.setMinUpdateDistanceMeters(minDistanceMeters.coerceAtLeast(0).toFloat())
+			.setMinUpdateIntervalMillis(intervalMs)
+			.setMaxUpdateDelayMillis(intervalMs * batchingMultiplier)
+			.setWaitForAccurateLocation(true)
+			.build()
 	}
 
 	private fun selectPriority(context: Context): Int {

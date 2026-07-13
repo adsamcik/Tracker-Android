@@ -123,7 +123,7 @@ class WifiDataProducerTest {
 	}
 
 	@Test
-	fun `handles empty scan results array`() {
+	fun `ignores empty scan results array`() {
 		initializeProducerForDataRequests()
 		val scanResults = emptyArray<ScanResult>()
 		setScanData(scanResults)
@@ -131,9 +131,7 @@ class WifiDataProducerTest {
 		val builder = createBuilder()
 		producer.onDataRequest(builder)
 
-		val wifiData = builder.wifiScan
-		wifiData.shouldNotBeNull()
-		wifiData.data shouldHaveSize 0
+		builder.wifiScan.shouldBeNull()
 	}
 
 	@Test

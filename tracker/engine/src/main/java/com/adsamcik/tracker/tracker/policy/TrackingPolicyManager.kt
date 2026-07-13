@@ -237,9 +237,12 @@ class TrackingPolicyManager(
 	 * Update policy based on significant location change.
 	 */
 	suspend fun onLocationChange(displacementMeters: Float, timeMs: Long) {
-		// Engine doesn't use displacement directly — it uses activity + steps.
-		// We still pass to legacy path for backward compat.
-		if (escalationEngine != null) return
+		escalationEngine?.let { engine ->
+			if (displacementMeters > DISPLACEMENT_THRESHOLD_METERS) {
+				engine.onSignificantMotion(timeMs)
+			}
+			return
+		}
 
 		stateMutex.withLock {
 			if (isUserInitiated) return@withLock

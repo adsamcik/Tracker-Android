@@ -60,6 +60,8 @@ internal class WifiDataProducer(
     // each distinct scan only once, even when the cached-results fallback observes it repeatedly.
     @Volatile
     private var lastRecordedScanMicros: Long = Long.MIN_VALUE
+    private var lastSnapshotFingerprint: String? = null
+    private var lastSnapshotRecordedAtNanos: Long = -1L
 
     private val scanDataLock = ReentrantLock()
 
@@ -100,15 +102,9 @@ internal class WifiDataProducer(
             }
         }
 
-        // A fresh SCAN_RESULTS_AVAILABLE broadcast always means a new scan completed — record it
-        // unconditionally (do not run it through the de-duplication gate, which would wrongly drop
-        // scans on devices/emulators whose ScanResult.timestamp does not advance every scan). Track
-        // its timestamp so the cached fallback below does not re-record the same scan.
+        // Broadcasts prove a scan completed, but the AP set may still be identical to the last one.
         if (buffered != null) {
-            buffered.data.maxOfOrNull { it.timestamp }?.let {
-                lastRecordedScanMicros = maxOf(lastRecordedScanMicros, it)
-            }
-            return buffered
+            return recordIfMeaningfullyChanged(buffered)
         }
 
         // No fresh broadcast: fall back to the system's most recent cached results, recording each
@@ -124,8 +120,34 @@ internal class WifiDataProducer(
         ) {
             return null
         }
-        lastRecordedScanMicros = freshestMicros
-        return cached
+        return recordIfMeaningfullyChanged(cached)
+    }
+
+    private fun recordIfMeaningfullyChanged(scan: WifiScanData): WifiScanData? {
+        scan.data.maxOfOrNull { it.timestamp }?.let {
+            lastRecordedScanMicros = maxOf(lastRecordedScanMicros, it)
+        }
+        val fingerprint = WifiScanGate.fingerprint(
+            scan.data.map { result ->
+                WifiFingerprintNetwork(
+                    bssid = result.BSSID.orEmpty(),
+                    frequency = result.frequency,
+                    levelDbm = result.level,
+                    capabilities = result.capabilities.orEmpty(),
+                )
+            }
+        )
+        val now = Time.elapsedRealtimeNanos
+        if (!WifiScanGate.shouldRecordSnapshot(
+                fingerprint,
+                lastSnapshotFingerprint,
+                now,
+                lastSnapshotRecordedAtNanos,
+                SNAPSHOT_HEARTBEAT_NANOS,
+            )) return null
+        lastSnapshotFingerprint = fingerprint
+        lastSnapshotRecordedAtNanos = now
+        return scan
     }
 
     private fun readCachedScanOrNull(): WifiScanData? {
@@ -142,9 +164,7 @@ internal class WifiDataProducer(
         }
         val now = SystemClock.elapsedRealtime()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (now - lastScanRequest > Time.SECOND_IN_MILLISECONDS * 15 &&
-                (scanTime == -1L || now - scanTimeRelative > Time.SECOND_IN_MILLISECONDS * 10)
-            ) {
+            if (now - lastScanRequest >= MIN_SCAN_REQUEST_INTERVAL_MS) {
                 @Suppress("deprecation")
                 isScanRequested = wifiManager.startScan()
                 lastScanRequest = now
@@ -160,6 +180,9 @@ internal class WifiDataProducer(
 
     override suspend fun onDisable(context: Context) {
         scope.cancel()
+        lastSnapshotFingerprint = null
+        lastSnapshotRecordedAtNanos = -1L
+        lastRecordedScanMicros = Long.MIN_VALUE
         context.unregisterReceiver(receiver)
         super.onDisable(context)
     }
@@ -230,6 +253,9 @@ internal class WifiDataProducer(
     }
 
     private companion object {
+        private const val MIN_SCAN_REQUEST_INTERVAL_MS = 30 * Time.SECOND_IN_MILLISECONDS
+        private val SNAPSHOT_HEARTBEAT_NANOS = 5 * 60 * Time.SECOND_IN_NANOSECONDS
+
         private const val MICROS_TO_NANOS = 1_000L
 
         // A cached scan older than this is considered stale and is not recorded. Two minutes keeps

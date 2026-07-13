@@ -2,15 +2,15 @@ package com.adsamcik.tracker.tracker.policy
 
 import com.adsamcik.tracker.shared.base.Time
 
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 /**
  * Maps tracking policy levels to collection intervals.
  *
  * Interval Strategy:
  * - PASSIVE_LOW: 5 minutes (300s) - Minimal battery impact, detect long-term patterns
  * - MOVEMENT_SUSPECTED: 2 minutes (120s) - Moderate sampling, confirm movement
- * - ACTIVE_MODERATE: 30 seconds - Frequent updates for walking/cycling
- * - ACTIVE_ELEVATED: 10 seconds - High-frequency for running/active sports
- * - USER_INITIATED: 10 seconds - Manual tracking expects detailed data
+ * - GPS-capable policies: the user's selected cadence. Policy chooses whether GPS runs; it must
+ *   not silently replace an explicit fidelity setting once GPS is active.
  *
  * Rationale:
  * - Passive states use longer intervals to conserve battery while still detecting activity changes
@@ -24,13 +24,17 @@ internal object PolicyIntervalMapper {
 	 * @param policy Current tracking policy
 	 * @return Interval in milliseconds
 	 */
-	fun getIntervalMs(policy: TrackingPolicy): Long {
+	fun getIntervalMs(
+		policy: TrackingPolicy,
+		params: TrackingParamsState = TrackingParamsState(),
+	): Long {
 		return when (policy) {
 			TrackingPolicy.PASSIVE_LOW -> 5 * Time.MINUTE_IN_MILLISECONDS
 			TrackingPolicy.MOVEMENT_SUSPECTED -> 2 * Time.MINUTE_IN_MILLISECONDS
-			TrackingPolicy.ACTIVE_MODERATE -> 30 * Time.SECOND_IN_MILLISECONDS
-			TrackingPolicy.ACTIVE_ELEVATED -> 10 * Time.SECOND_IN_MILLISECONDS
-			TrackingPolicy.USER_INITIATED -> 10 * Time.SECOND_IN_MILLISECONDS
+			TrackingPolicy.ACTIVE_MODERATE,
+			TrackingPolicy.ACTIVE_ELEVATED,
+			TrackingPolicy.USER_INITIATED,
+			-> params.minTimeSeconds.coerceAtLeast(1) * Time.SECOND_IN_MILLISECONDS
 		}
 	}
 
@@ -40,8 +44,11 @@ internal object PolicyIntervalMapper {
 	 * @param policy Current tracking policy
 	 * @return Interval in seconds
 	 */
-	fun getIntervalSeconds(policy: TrackingPolicy): Int {
-		return (getIntervalMs(policy) / Time.SECOND_IN_MILLISECONDS).toInt()
+	fun getIntervalSeconds(
+		policy: TrackingPolicy,
+		params: TrackingParamsState = TrackingParamsState(),
+	): Int {
+		return (getIntervalMs(policy, params) / Time.SECOND_IN_MILLISECONDS).toInt()
 	}
 
 	/**
@@ -51,13 +58,17 @@ internal object PolicyIntervalMapper {
 	 * @param policy Current tracking policy
 	 * @return Minimum distance in meters
 	 */
-	fun getMinDistanceMeters(policy: TrackingPolicy): Int {
+	fun getMinDistanceMeters(
+		policy: TrackingPolicy,
+		params: TrackingParamsState = TrackingParamsState(),
+	): Int {
 		return when (policy) {
 			TrackingPolicy.PASSIVE_LOW -> 50 // Large threshold for passive tracking
 			TrackingPolicy.MOVEMENT_SUSPECTED -> 30 // Moderate threshold
-			TrackingPolicy.ACTIVE_MODERATE -> 15 // Smaller threshold for active
-			TrackingPolicy.ACTIVE_ELEVATED -> 10 // Precise tracking
-			TrackingPolicy.USER_INITIATED -> 10 // Precise tracking
+			TrackingPolicy.ACTIVE_MODERATE,
+			TrackingPolicy.ACTIVE_ELEVATED,
+			TrackingPolicy.USER_INITIATED,
+			-> params.minDistanceMeters.coerceAtLeast(1)
 		}
 	}
 }

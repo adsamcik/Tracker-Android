@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -93,6 +94,8 @@ internal object SignalSerializer {
 				append(t.networkType)
 				append(",\"sig\":")
 				append(t.signalStrength)
+				append(",\"lac\":")
+				append(t.areaCode)
 				append('}')
 			}
 			append(']')
@@ -115,6 +118,21 @@ internal object SignalSerializer {
 				append('}')
 			}
 			append(']')
+			w.timestampMs?.let {
+				append(",\"wft\":")
+				append(it.raw)
+			}
+			w.coordinate?.let { coordinate ->
+				append(",\"wfc\":{\"lat\":")
+				append(coordinate.lat.raw)
+				append(",\"lon\":")
+				append(coordinate.lon.raw)
+				append('}')
+			}
+			if (w.coordinateProvenance != ObservationCoordinateProvenance.UNKNOWN) {
+				append(",\"wfp\":")
+				append(w.coordinateProvenance.ordinal)
+			}
 		}
 
 		signal.pressure?.let { p ->
@@ -151,7 +169,7 @@ internal object SignalSerializer {
 			activityFresh = obj.optBoolean("af", obj.has("act")),
 			steps = obj.optJSONObject("stp")?.toStepSignal(),
 			cells = obj.optJSONArray("cel")?.toCellSignal(),
-			wifi = obj.optJSONArray("wfi")?.toWifiSignal(),
+			wifi = obj.toWifiSignal(),
 			pressure = obj.optJSONObject("prs")?.toPressureSignal(),
 			policy = obj.optJSONObject("pol")?.toPolicySignal(),
 		)
@@ -203,14 +221,16 @@ internal object SignalSerializer {
 				mnc = t.getString("mnc"),
 				networkType = t.getInt("net"),
 				signalStrength = t.getInt("sig"),
+				areaCode = t.optInt("lac", 0),
 			)
 		}
 		return CellSignal(towers)
 	}
 
-	private fun JSONArray.toWifiSignal(): WifiSignal {
-		val networks = (0 until length()).map { i ->
-			val n = getJSONObject(i)
+	private fun JSONObject.toWifiSignal(): WifiSignal? {
+		val array = optJSONArray("wfi") ?: return null
+		val networks = (0 until array.length()).map { i ->
+			val n = array.getJSONObject(i)
 			WifiNetworkReading(
 				bssid = n.getString("b"),
 				ssid = n.getString("s"),
@@ -219,7 +239,21 @@ internal object SignalSerializer {
 				level = n.getInt("l"),
 			)
 		}
-		return WifiSignal(networks)
+		val provenanceOrdinal = optInt("wfp", ObservationCoordinateProvenance.UNKNOWN.ordinal)
+		val provenance = ObservationCoordinateProvenance.entries
+			.getOrElse(provenanceOrdinal) { ObservationCoordinateProvenance.UNKNOWN }
+		val coordinate = optJSONObject("wfc")?.let {
+			CoordinateE7(
+				lat = LatE7(it.getInt("lat")),
+				lon = LonE7(it.getInt("lon")),
+			)
+		}
+		return WifiSignal(
+			networks = networks,
+			timestampMs = if (has("wft")) EpochMs(getLong("wft")) else null,
+			coordinate = coordinate,
+			coordinateProvenance = provenance,
+		)
 	}
 
 	private fun JSONObject.toPressureSignal() = PressureSignal(

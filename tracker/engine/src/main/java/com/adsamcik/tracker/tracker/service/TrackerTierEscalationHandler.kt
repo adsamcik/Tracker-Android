@@ -81,29 +81,30 @@ internal class TrackerTierEscalationHandler(
 		scope.launch {
 			componentMutex.withLock {
 				val oldTier = currentTier
-				if (newTier != oldTier) {
-					val triggerTransition = prepareTriggerTransition(
-						oldTier = oldTier,
-						newTier = newTier,
-						context = context,
-						timerReceiver = timerReceiver,
-					)
-					if (triggerTransition == TriggerTransition.Failed) {
-						return@withLock
-					}
+				val triggerTransition = prepareTriggerTransition(
+					newTier = newTier,
+					context = context,
+					timerReceiver = timerReceiver,
+				)
+				if (triggerTransition == TriggerTransition.Failed) {
+					return@withLock
+				}
 
-					try {
+				try {
+					if (newTier != oldTier) {
 						processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
-						triggerTransition.commit(context, timerAccessor)
-					} catch (e: CancellationException) {
-						triggerTransition.rollback(context)
-						throw e
-					} catch (e: Exception) {
-						triggerTransition.rollback(context)
-						Reporter.report(e)
-						return@withLock
 					}
+					triggerTransition.commit(context, timerAccessor)
+				} catch (e: CancellationException) {
+					triggerTransition.rollback(context)
+					throw e
+				} catch (e: Exception) {
+					triggerTransition.rollback(context)
+					Reporter.report(e)
+					return@withLock
+				}
 
+				if (newTier != oldTier) {
 					currentTier = newTier
 					onEffectiveTierChanged(newTier)
 					controller.updatePolicyTier(newTier)
@@ -114,17 +115,17 @@ internal class TrackerTierEscalationHandler(
 	}
 
 	private suspend fun prepareTriggerTransition(
-		oldTier: PolicyTier,
 		newTier: PolicyTier,
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
 	): TriggerTransition {
 		val locationEnabled = trackingParamsRepository.data.first().locationEnabled
 		val shouldUseGps = newTier.isGpsEnabled && locationEnabled
+		val currentlyUsesGps = timerAccessor.get().isLocationTrigger
 
 		return when {
-			shouldUseGps && !oldTier.isGpsEnabled -> prepareGpsTrigger(context, timerReceiver)
-			!shouldUseGps && oldTier.isGpsEnabled -> prepareAmbientTrigger(context, timerReceiver)
+			shouldUseGps && !currentlyUsesGps -> prepareGpsTrigger(context, timerReceiver)
+			!shouldUseGps && currentlyUsesGps -> prepareAmbientTrigger(context, timerReceiver)
 			else -> TriggerTransition.NotNeeded
 		}
 	}
@@ -159,12 +160,13 @@ internal class TrackerTierEscalationHandler(
 		}
 	}
 
-	private fun updateTimerInterval(context: Context, policy: TrackingPolicy) {
+	private suspend fun updateTimerInterval(context: Context, policy: TrackingPolicy) {
 		val timer = timerAccessor.get()
 		if (timer !is DynamicIntervalCollectionTrigger) return
 
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
+		val params = trackingParamsRepository.data.first()
+		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy, params)
+		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy, params)
 		timer.updateInterval(context, intervalSeconds, minDistanceMeters)
 	}
 

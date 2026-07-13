@@ -32,6 +32,8 @@ class MovementConfidenceAccumulator(
 	private var falseEscalationCount: Int = 0
 	private var falseEscalationWindowStartMs: Long = 0L
 	private var thresholdMultiplier: Double = 1.0
+	private var lastMotionEvidenceMs: Long = 0L
+	private var stillnessStartedMs: Long = 0L
 
 	/**
 	 * Current confidence value (0 to ~200).
@@ -74,6 +76,8 @@ class MovementConfidenceAccumulator(
 	): PolicyTier? {
 		decay(timestampMs)
 
+		observeActivityEvidence(activity, apiConfidence, timestampMs)
+
 		val weight = activityWeight(activity, apiConfidence)
 		confidence = (confidence + weight).coerceIn(0.0, MAX_CONFIDENCE)
 		lastUpdateMs = timestampMs
@@ -95,6 +99,7 @@ class MovementConfidenceAccumulator(
 			val deltaSteps = cumulativeStepCount - lastStepCount
 			val deltaTimeMin = (timestampMs - lastStepTimeMs).coerceAtLeast(1L) / 60_000.0
 			if (deltaTimeMin > 0.0 && deltaSteps > 0) {
+				markMotionEvidence(timestampMs)
 				val stepsPerMin = deltaSteps / deltaTimeMin
 				val weight = stepRateWeight(stepsPerMin)
 				confidence = (confidence + weight).coerceIn(0.0, MAX_CONFIDENCE)
@@ -116,10 +121,26 @@ class MovementConfidenceAccumulator(
 	 */
 	fun onSignificantMotion(timestampMs: Long): PolicyTier? {
 		decay(timestampMs)
+		markMotionEvidence(timestampMs)
 
 		confidence = (confidence + SIGNIFICANT_MOTION_WEIGHT).coerceIn(0.0, MAX_CONFIDENCE)
 		lastUpdateMs = timestampMs
 
+		return evaluateTierTransition(timestampMs)
+	}
+
+	/**
+	 * Feed a speed observation from an accepted location fix. Sustained non-trivial speed is
+	 * positive motion evidence even when step and activity callbacks are sparse (for example,
+	 * while travelling in a vehicle).
+	 */
+	fun onSpeedObserved(speedMps: Float?, timestampMs: Long): PolicyTier? {
+		decay(timestampMs)
+		if (speedMps != null && speedMps.isFinite() && speedMps >= MIN_MOVING_SPEED_MPS) {
+			markMotionEvidence(timestampMs)
+			confidence = (confidence + SPEED_MOTION_WEIGHT).coerceIn(0.0, MAX_CONFIDENCE)
+		}
+		lastUpdateMs = timestampMs
 		return evaluateTierTransition(timestampMs)
 	}
 
@@ -137,6 +158,8 @@ class MovementConfidenceAccumulator(
 		falseEscalationCount = 0
 		falseEscalationWindowStartMs = 0L
 		thresholdMultiplier = 1.0
+		lastMotionEvidenceMs = 0L
+		stillnessStartedMs = 0L
 	}
 
 	/**
@@ -145,36 +168,62 @@ class MovementConfidenceAccumulator(
 	fun setTier(tier: PolicyTier, timestampMs: Long) {
 		currentTier = tier
 		tierEntryTimeMs = timestampMs
+		confidence = maxOf(confidence, confidenceFloorForTier(tier))
+		lastUpdateMs = timestampMs
+		lastMotionEvidenceMs = if (tier.isGpsEnabled) timestampMs else 0L
+		stillnessStartedMs = 0L
+	}
+
+	private fun observeActivityEvidence(
+		activity: DetectedActivityType,
+		apiConfidence: Int,
+		timestampMs: Long,
+	) {
+		val isMoving = activity == DetectedActivityType.RUNNING ||
+			activity == DetectedActivityType.ON_BICYCLE ||
+			activity == DetectedActivityType.IN_VEHICLE ||
+			activity == DetectedActivityType.WALKING ||
+			activity == DetectedActivityType.ON_FOOT
+		when {
+			isMoving && apiConfidence >= MIN_MOTION_ACTIVITY_CONFIDENCE ->
+				markMotionEvidence(timestampMs)
+			activity == DetectedActivityType.STILL &&
+				apiConfidence >= MIN_STILL_ACTIVITY_CONFIDENCE &&
+				stillnessStartedMs == 0L -> stillnessStartedMs = timestampMs
+		}
+	}
+
+	private fun markMotionEvidence(timestampMs: Long) {
+		lastMotionEvidenceMs = timestampMs
+		stillnessStartedMs = 0L
 	}
 
 	private fun evaluateTierTransition(timestampMs: Long): PolicyTier? {
-		val newTier = tierFromConfidence(confidence)
+		val requestedTier = tierFromConfidence(confidence)
 
-		if (newTier == currentTier) return null
+		if (requestedTier == currentTier) return null
 
-		// Escalation
-		if (newTier > currentTier) {
+		if (requestedTier > currentTier) {
 			if (!canEscalate(timestampMs)) return null
 			val previousTier = currentTier
-			currentTier = newTier
+			currentTier = requestedTier
 			tierEntryTimeMs = timestampMs
-			// Track potential false escalation
-			if (previousTier < PolicyTier.ACTIVE && newTier >= PolicyTier.ACTIVE) {
+			if (previousTier < PolicyTier.ACTIVE && requestedTier >= PolicyTier.ACTIVE) {
 				trackEscalation(timestampMs)
 			}
-			return newTier
+			return requestedTier
 		}
 
-		// De-escalation — requires longer dwell time (asymmetric)
-		if (newTier < currentTier) {
-			if (!canDeEscalate(timestampMs)) return null
-			currentTier = newTier
-			tierEntryTimeMs = timestampMs
-			lastDeEscalationTimeMs = timestampMs
-			return newTier
-		}
+		if (!canDeEscalate(timestampMs)) return null
 
-		return null
+		// Never jump from GPS directly to OFF because one sparse or stale signal should not end a
+		// moving track. Each lower tier must independently satisfy its own dwell/evidence window.
+		val nextLowerTier = PolicyTier.entries[currentTier.ordinal - 1]
+		val effectiveTier = maxOf(requestedTier, nextLowerTier)
+		currentTier = effectiveTier
+		tierEntryTimeMs = timestampMs
+		lastDeEscalationTimeMs = timestampMs
+		return effectiveTier
 	}
 
 	private fun tierFromConfidence(value: Double): PolicyTier {
@@ -205,9 +254,16 @@ class MovementConfidenceAccumulator(
 	}
 
 	private fun canDeEscalate(timestampMs: Long): Boolean {
-		// De-escalation requires longer sustained stillness (asymmetric)
-		val minDeEscalationDwell = deEscalationDwellTimeMs(currentTier)
-		return timestampMs - tierEntryTimeMs >= minDeEscalationDwell
+		val minDwell = deEscalationDwellTimeMs(currentTier)
+		if (timestampMs - tierEntryTimeMs < minDwell) return false
+
+		val motionBaseline = maxOf(lastMotionEvidenceMs, tierEntryTimeMs)
+		val quietDurationMs = (timestampMs - motionBaseline).coerceAtLeast(0L)
+		val confirmedStillness = stillnessStartedMs > 0L &&
+			timestampMs - stillnessStartedMs >= STILLNESS_CONFIRMATION_MS
+		val prolongedAbsenceOfMotion = quietDurationMs >= NO_MOTION_TIMEOUT_MS
+
+		return confirmedStillness || prolongedAbsenceOfMotion
 	}
 
 	private fun trackEscalation(timestampMs: Long) {
@@ -226,7 +282,7 @@ class MovementConfidenceAccumulator(
 
 	companion object {
 		/** Confidence decay rate: points per second of silence. */
-		const val DECAY_RATE = 2.0
+		const val DECAY_RATE = 0.05
 
 		/** Threshold to enter AMBIENT tier. */
 		const val THRESHOLD_AMBIENT = 40.0
@@ -242,6 +298,13 @@ class MovementConfidenceAccumulator(
 
 		/** Weight for significant motion sensor trigger. */
 		const val SIGNIFICANT_MOTION_WEIGHT = 15.0
+
+		internal const val SPEED_MOTION_WEIGHT = 5.0
+		internal const val MIN_MOVING_SPEED_MPS = 1.0f
+		internal const val STILLNESS_CONFIRMATION_MS = 5 * 60_000L
+		internal const val NO_MOTION_TIMEOUT_MS = 15 * 60_000L
+		private const val MIN_MOTION_ACTIVITY_CONFIDENCE = 50
+		private const val MIN_STILL_ACTIVITY_CONFIDENCE = 70
 
 		/** Minimum dwell times per tier (milliseconds). */
 		private const val MIN_DWELL_OFF_MS = 0L
@@ -264,6 +327,13 @@ class MovementConfidenceAccumulator(
 		private const val FALSE_ESCALATION_WINDOW_MS = 3_600_000L // 1 hour
 		private const val FALSE_ESCALATION_LIMIT = 3
 		private const val MAX_THRESHOLD_MULTIPLIER = 4.0
+
+		private fun confidenceFloorForTier(tier: PolicyTier): Double = when (tier) {
+			PolicyTier.OFF -> 0.0
+			PolicyTier.AMBIENT -> THRESHOLD_AMBIENT
+			PolicyTier.ACTIVE -> THRESHOLD_ACTIVE
+			PolicyTier.PRECISION -> THRESHOLD_PRECISION
+		}
 
 		/**
 		 * Calculate weight for an activity recognition event.

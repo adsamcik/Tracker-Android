@@ -50,7 +50,10 @@ object AchievementFormatting {
 			MetricKey.CELLS_DISTINCT_LIFETIME -> res.getQuantityString(R.plurals.ach_title_distinct_cells, n, formatCount(def.threshold.toLong()))
 			MetricKey.COUNTRIES_VISITED -> res.getQuantityString(R.plurals.ach_title_countries_visited, n, n)
 
-			MetricKey.ACTIVE_DAYS_TOTAL -> res.getQuantityString(R.plurals.ach_title_active_days, n, formatCount(def.threshold.toLong()))
+			MetricKey.ACTIVE_DAYS_TOTAL,
+			MetricKey.ON_FOOT_ACTIVE_DAYS,
+			MetricKey.CYCLING_ACTIVE_DAYS,
+			MetricKey.VEHICLE_ACTIVE_DAYS -> res.getQuantityString(R.plurals.ach_title_active_days, n, formatCount(def.threshold.toLong()))
 			MetricKey.STREAK_DAYS_CURRENT -> res.getQuantityString(R.plurals.ach_title_current_streak, n, n)
 			MetricKey.STREAK_DAYS_MAX -> res.getQuantityString(R.plurals.ach_title_best_streak, n, n)
 			MetricKey.MONTHS_ACTIVE -> res.getQuantityString(R.plurals.ach_title_months_active, n, n)
@@ -104,7 +107,7 @@ object AchievementFormatting {
 
 	fun formatDescription(context: Context, def: AchievementDefinition): String {
 		val res = context.resources
-		return when (def.metric) {
+		val description = when (def.metric) {
 			MetricKey.DISTANCE_TOTAL_M -> context.getString(R.string.ach_desc_distance_total, distance(res, def.threshold))
 			MetricKey.WEEK_DISTANCE_M -> context.getString(R.string.ach_desc_week_distance, distance(res, def.threshold))
 			MetricKey.BEST_DAY_DISTANCE_M -> context.getString(R.string.ach_desc_best_day_distance, distance(res, def.threshold))
@@ -120,7 +123,10 @@ object AchievementFormatting {
 			MetricKey.CELLS_DISTINCT_LIFETIME -> context.getString(R.string.ach_desc_distinct_cells, formatCount(def.threshold.toLong()))
 			MetricKey.COUNTRIES_VISITED -> context.getString(R.string.ach_desc_countries_visited, def.threshold.toInt())
 
-			MetricKey.ACTIVE_DAYS_TOTAL -> context.getString(R.string.ach_desc_active_days, formatCount(def.threshold.toLong()))
+			MetricKey.ACTIVE_DAYS_TOTAL,
+			MetricKey.ON_FOOT_ACTIVE_DAYS,
+			MetricKey.CYCLING_ACTIVE_DAYS,
+			MetricKey.VEHICLE_ACTIVE_DAYS -> context.getString(R.string.ach_desc_active_days, formatCount(def.threshold.toLong()))
 			MetricKey.STREAK_DAYS_CURRENT -> context.getString(R.string.ach_desc_current_streak, def.threshold.toInt())
 			MetricKey.STREAK_DAYS_MAX -> context.getString(R.string.ach_desc_best_streak, def.threshold.toInt())
 			MetricKey.MONTHS_ACTIVE -> context.getString(R.string.ach_desc_months_active, def.threshold.toInt())
@@ -170,6 +176,9 @@ object AchievementFormatting {
 			MetricKey.ACHIEVEMENTS_UNLOCKED -> context.getString(R.string.ach_desc_achievements_unlocked, def.threshold.toInt())
 			MetricKey.CATEGORIES_COMPLETED -> context.getString(R.string.ach_desc_categories_completed, def.threshold.toInt())
 		}
+		return if (def.minimumActiveDays > 1) {
+			context.getString(R.string.ach_desc_with_active_days, description, def.minimumActiveDays)
+		} else description
 	}
 
 	/** Returns "current / target unit" for an in-progress achievement. */

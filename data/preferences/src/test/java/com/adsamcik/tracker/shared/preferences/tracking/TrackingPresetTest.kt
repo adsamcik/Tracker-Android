@@ -60,9 +60,9 @@ class TrackingPresetTest {
 		@Test
 		fun `HIGH_ACCURACY has aggressive distance and time settings`() {
 			val preset = TrackingPreset.HIGH_ACCURACY
-			preset.minDistanceMeters shouldBe 5
-			preset.minTimeSeconds shouldBe 1
-			preset.requiredAccuracyMeters shouldBe 100
+			preset.minDistanceMeters shouldBe 10
+			preset.minTimeSeconds shouldBe 2
+			preset.requiredAccuracyMeters shouldBe 50
 		}
 
 		@Test

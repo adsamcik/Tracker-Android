@@ -1356,6 +1356,34 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                     color = buildHeatmapColorExpr(config.colorStops),
                 )
             }
+                is MapLibreLayerConfig.HeatLine -> {
+                val source = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(config.geoJson),
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
+                )
+                // A soft halo keeps the path visually part of the heat field, while the narrow
+                // core preserves the actual travelled geometry. Colour reads the edge's resolved
+                // heat directly, so neighbouring segments cannot add together and turn red.
+                LineLayer(
+                    id = "heat-line-glow-$index",
+                    source = source,
+                    color = buildFillColorExpr(config.colorStops, config.weightProperty),
+                    width = buildLineWidthExpr(config.glowWidthDp),
+                    opacity = const(config.glowOpacity),
+                    cap = const(LineCap.Round),
+                    join = const(LineJoin.Round),
+                    blur = const(config.glowBlurDp.dp),
+                )
+                LineLayer(
+                    id = "heat-line-core-$index",
+                    source = source,
+                    color = buildFillColorExpr(config.colorStops, config.weightProperty),
+                    width = buildLineWidthExpr(config.widthDp),
+                    opacity = const(config.opacity),
+                    cap = const(LineCap.Round),
+                    join = const(LineJoin.Round),
+                )
+            }
                 is MapLibreLayerConfig.Line -> {
                 val source = rememberLayerGeoJsonSource(
                     geoJson = config.geoJson,
@@ -1788,6 +1816,7 @@ private fun buildCircleRadiusExpr(
 private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     null -> false
     is MapLibreLayerConfig.Heatmap -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.HeatLine -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Line -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Fill -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.FillExtrusion -> geoJson.hasRenderableGeoJsonData()

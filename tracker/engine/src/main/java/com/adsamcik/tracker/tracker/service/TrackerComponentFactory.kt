@@ -114,7 +114,10 @@ internal class TrackerComponentFactory(
 			// independently of the battery tier.
 			val params = trackingParamsRepository.data.first()
 
-			preComponents = buildPreComponents(context, trackingPolicyManager, controller, params)
+			// Location quality is validated by LocationTrackerComponent only. A bad/missing GPS fix
+			// must never reject Wi-Fi, cell, activity, step, or pressure data acquired in the same
+			// cycle.
+			preComponents = emptyList()
 			dataComponents = buildDataComponents(context, params)
 
 			if (enableNotifications) {
@@ -238,16 +241,17 @@ internal class TrackerComponentFactory(
 	 * the battery tier. Components also self-skip when their data is absent (see
 	 * `TrackerComponentRequirement`), so a built-but-starved component is harmless.
 	 */
+	@Suppress("UNUSED_PARAMETER")
 	private suspend fun buildDataComponents(
 		context: Context,
 		params: TrackingParamsState,
 	): List<DataTrackerComponent> {
-		val components = mutableListOf<DataTrackerComponent>().apply {
-			if (params.activityEnabled) add(ActivityTrackerComponent())
-			if (params.locationEnabled) add(LocationTrackerComponent())
-			if (params.cellEnabled) add(CellTrackerComponent())
-			if (params.wifiEnabled) add(WifiTrackerComponent())
-		}
+		val components = listOf(
+			ActivityTrackerComponent(),
+			LocationTrackerComponent(trackingParamsRepository, dispatchers),
+			CellTrackerComponent(),
+			WifiTrackerComponent(),
+		)
 		val enabled = mutableListOf<DataTrackerComponent>()
 		try {
 			for (component in components) {

@@ -122,7 +122,10 @@ internal fun achievementPictogramSpec(definition: AchievementDefinition): Achiev
 private fun metricPictogramRes(metric: MetricKey): Int = when (metric) {
 	MetricKey.DISTANCE_TOTAL_M -> R.drawable.achievement_pictogram_distance_total_m
 	MetricKey.STEPS_TOTAL -> R.drawable.achievement_pictogram_steps_total
-	MetricKey.ACTIVE_DAYS_TOTAL -> R.drawable.achievement_pictogram_active_days_total
+	MetricKey.ACTIVE_DAYS_TOTAL,
+	MetricKey.ON_FOOT_ACTIVE_DAYS,
+	MetricKey.CYCLING_ACTIVE_DAYS,
+	MetricKey.VEHICLE_ACTIVE_DAYS -> R.drawable.achievement_pictogram_active_days_total
 	MetricKey.SESSIONS_TOTAL -> R.drawable.achievement_pictogram_sessions_total
 	MetricKey.CELLS_DISTINCT_LIFETIME -> R.drawable.achievement_pictogram_cells_distinct_lifetime
 	MetricKey.MAX_SESSION_DISTANCE_M -> R.drawable.achievement_pictogram_max_session_distance_m

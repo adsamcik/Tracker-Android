@@ -188,12 +188,13 @@ class HeatmapCatalogTest {
 		fun `location heatmap pipeline has the expected id and field type`() {
 			val pipeline = locationDensityHeatmap(repo)
 			pipeline.id shouldBe "location_heatmap"
-			// Field type is SpatialData.WeightedCells by construction (compile-checked); assert usage.
-			val field: SpatialData.WeightedCells = pipeline.aggregator.aggregate(
+			// Field type is SpatialData.HeatField by construction (compile-checked); assert usage.
+			val field: SpatialData.HeatField = pipeline.aggregator.aggregate(
 				emptyList(),
 				com.adsamcik.tracker.map.viz.AggContext(17f, 1f, 1000),
 			)
-			field.cells shouldHaveSize 0
+			field.isolatedCells shouldHaveSize 0
+			field.paths shouldHaveSize 0
 		}
 
 		@Test

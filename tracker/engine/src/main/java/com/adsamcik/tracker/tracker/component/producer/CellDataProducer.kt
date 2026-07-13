@@ -51,6 +51,8 @@ internal class CellDataProducer(
 	// Simple TTL cache to avoid expensive telephonyManager.allCellInfo calls every collection tick.
 	private var lastCellScanData: CellScanData? = null
 	private var lastCellScanElapsedRealtimeMillis: Long = -1L
+	private var lastPersistedFingerprint: String? = null
+	private var lastPersistedElapsedRealtimeMillis: Long = -1L
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val context = requireNotNull(context)
@@ -83,7 +85,26 @@ internal class CellDataProducer(
 			if (scanData != null) {
 				lastCellScanData = scanData
 				lastCellScanElapsedRealtimeMillis = now
-				builder.cellScanFresh = true
+				val fingerprint = CellSnapshotGate.fingerprint(
+					scanData.registeredCells.map { cell ->
+						CellFingerprintReading(
+							cellId = cell.cellId,
+							areaCode = cell.areaCode,
+							mcc = cell.networkOperator.mcc,
+							mnc = cell.networkOperator.mnc,
+							networkType = cell.type.ordinal,
+							signalStrengthAsu = cell.asu,
+						)
+					}
+				)
+				if (CellSnapshotGate.shouldRecordSnapshot(
+						fingerprint, lastPersistedFingerprint, now,
+						lastPersistedElapsedRealtimeMillis, CELL_SNAPSHOT_HEARTBEAT_MS,
+					)) {
+					builder.cellScanFresh = true
+					lastPersistedFingerprint = fingerprint
+					lastPersistedElapsedRealtimeMillis = now
+				}
 			}
 		}
 
@@ -234,6 +255,8 @@ internal class CellDataProducer(
 		telephonyManager = null
 		subscriptionManager = null
 		lastCellScanData = null
+		lastPersistedFingerprint = null
+		lastPersistedElapsedRealtimeMillis = -1L
 		lastCellScanElapsedRealtimeMillis = -1L
 		super.onDisable(context)
 	}
@@ -241,5 +264,6 @@ internal class CellDataProducer(
 	companion object {
 		// Chosen to balance freshness vs radio / framework overhead. Adjust after profiling if needed.
 		private const val CELL_SCAN_CACHE_TTL_MS = 60_000L
+		private const val CELL_SNAPSHOT_HEARTBEAT_MS = 5 * 60_000L
 	}
 }

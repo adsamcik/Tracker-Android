@@ -5,6 +5,8 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
@@ -16,6 +18,7 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PlausibilityResult
 import com.adsamcik.tracker.stats.api.TripPlausibility
 
@@ -64,6 +67,8 @@ internal class SessionTrackerComponent(
 	private var minDistanceInMeters = -1
 	private var collectedLocationCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
+	private val activityEvidence = mutableMapOf<Int, ActivityEvidence>()
+	private data class ActivityEvidence(var confidenceScore: Long = 0L, var confidenceTotal: Long = 0L, var observations: Int = 0)
 
 	override suspend fun onDataUpdated(
 		cycle: TrackingCycle,
@@ -71,6 +76,9 @@ internal class SessionTrackerComponent(
 	) {
 		sessionMutex.withLock {
 			mutableSession.run {
+				if (cycle.activityFresh) {
+					cycle.activity?.let(::recordActivityEvidence)
+				}
 				val locationData = cycle.location
 				if (locationData != null) {
 					collectedLocationCount++
@@ -160,11 +168,12 @@ internal class SessionTrackerComponent(
 	private suspend fun upsertSessionSegment(session: TrackerSession) {
 		if (session.end < session.start) return
 
+		val dominantActivity = dominantActivity()
 		val durationMs = session.end - session.start
 		val hasAnomaly = TripPlausibility.evaluate(
 			distanceM = session.distanceInM,
 			durationMs = durationMs,
-			activityType = null,
+			activityType = dominantActivity?.first?.toDetectedActivityType(),
 		) is PlausibilityResult.Implausible
 
 		val segment = SessionSegment(
@@ -173,8 +182,8 @@ internal class SessionTrackerComponent(
 			endTimeMs = session.end,
 			distanceM = session.distanceInM,
 			steps = session.steps,
-			primaryActivity = null,
-			activityConfidence = null,
+			primaryActivity = dominantActivity?.first,
+			activityConfidence = dominantActivity?.second,
 			sampleCount = session.collections,
 			source = if (isUserInitiated) SegmentSource.USER_CREATED else SegmentSource.INFERRED_HIGH_CONFIDENCE,
 			inferenceVersion = "tracker_v2",
@@ -192,7 +201,38 @@ internal class SessionTrackerComponent(
 		}
 	}
 
+	private fun recordActivityEvidence(activity: ActivityInfo) {
+		if (activity.activityType !in MOVEMENT_ACTIVITY_IDS) return
+		val confidence = activity.confidence.coerceIn(0, 100)
+		val evidence = activityEvidence.getOrPut(activity.activityType) { ActivityEvidence() }
+		// Only fresh recognizer updates reach this method. Confidence weighting
+		// avoids a single weak classification replacing sustained strong evidence.
+		evidence.confidenceScore += confidence.coerceAtLeast(1)
+		evidence.confidenceTotal += confidence
+		evidence.observations++
+	}
+
+	private fun dominantActivity(): Pair<Int, Int>? = activityEvidence
+		.maxWithOrNull(
+			compareBy<Map.Entry<Int, ActivityEvidence>> { it.value.confidenceScore }
+				.thenBy { it.value.observations }
+				.thenBy { it.key },
+		)
+		?.let { (activityType, evidence) ->
+			activityType to (evidence.confidenceTotal / evidence.observations.coerceAtLeast(1)).toInt()
+		}
+
+	private fun Int.toDetectedActivityType(): DetectedActivityType? = when (this) {
+		DetectedActivity.WALKING.value -> DetectedActivityType.WALKING
+		DetectedActivity.RUNNING.value -> DetectedActivityType.RUNNING
+		DetectedActivity.ON_FOOT.value -> DetectedActivityType.ON_FOOT
+		DetectedActivity.ON_BICYCLE.value -> DetectedActivityType.ON_BICYCLE
+		DetectedActivity.IN_VEHICLE.value -> DetectedActivityType.IN_VEHICLE
+		else -> null
+	}
+
 	override suspend fun onEnable(context: Context) {
+		activityEvidence.clear()
 		val repository = trackingParamsRepository
 		if (repository != null) {
 			val params = repository.data.first()
@@ -262,5 +302,12 @@ internal class SessionTrackerComponent(
 
 	companion object {
 		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS
+		private val MOVEMENT_ACTIVITY_IDS = setOf(
+			DetectedActivity.WALKING.value,
+			DetectedActivity.RUNNING.value,
+			DetectedActivity.ON_FOOT.value,
+			DetectedActivity.ON_BICYCLE.value,
+			DetectedActivity.IN_VEHICLE.value,
+		)
 	}
 }

@@ -56,6 +56,52 @@ class GeoJsonConverterTest {
 	}
 
 	@Nested
+	@DisplayName("weightedSegmentsToFeatureCollection")
+	inner class WeightedSegmentsTests {
+
+		@Test
+		fun `empty paths produce an empty FeatureCollection`() {
+			GeoJsonConverter.weightedSegmentsToFeatureCollection(emptyList()) shouldBe
+				"""{"type":"FeatureCollection","features":[]}"""
+		}
+
+		@Test
+		fun `each edge is a valid weighted LineString feature`() {
+			val paths = listOf(
+				listOf(
+					WeightedGeoFeature(50.0, 14.0, 0L, 0.2),
+					WeightedGeoFeature(51.0, 15.0, 1L, 0.6),
+				),
+			)
+
+			GeoJsonConverter.weightedSegmentsToFeatureCollection(paths) shouldBe
+				"""{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[14.0,50.0],[15.0,51.0]]},"properties":{"weight":0.4}}]}"""
+		}
+
+		@Test
+		fun `near duplicate traversals emit only one edge`() {
+			val paths = listOf(
+				listOf(
+					WeightedGeoFeature(50.0, 14.0, 0L, 0.2),
+					WeightedGeoFeature(50.001, 14.001, 1L, 0.6),
+				),
+				listOf(
+					WeightedGeoFeature(50.00001, 14.00001, 10L, 0.8),
+					WeightedGeoFeature(50.00101, 14.00101, 11L, 0.8),
+				),
+			)
+
+			val result = GeoJsonConverter.weightedSegmentsToFeatureCollection(
+				paths = paths,
+				mergeToleranceDegrees = 0.00005,
+			)
+
+			result shouldBe
+				"""{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[14.00001,50.00001],[14.00101,50.00101]]},"properties":{"weight":0.8}}]}"""
+		}
+	}
+
+	@Nested
 	@DisplayName("tilesToFeatureCollection")
 	inner class TilesToFeatureCollectionTests {
 

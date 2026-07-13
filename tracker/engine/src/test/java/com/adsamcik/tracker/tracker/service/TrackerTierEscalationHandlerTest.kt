@@ -23,7 +23,7 @@ class TrackerTierEscalationHandlerTest {
 
 	@Test
 	fun `GPS to ambient transition disables GPS trigger and enables ambient trigger`() = runTest {
-		val gpsTrigger = RecordingTrigger()
+		val gpsTrigger = RecordingTrigger(isLocationTrigger = true)
 		val ambientTrigger = RecordingTrigger()
 		val accessor = RecordingTimerAccessor(gpsTrigger)
 		val controller = mockk<TrackerServiceController>(relaxed = true)
@@ -149,6 +149,7 @@ class TrackerTierEscalationHandlerTest {
 
 	private class RecordingTrigger(
 		private val hasPermissions: Boolean = true,
+		override val isLocationTrigger: Boolean = false,
 	) : DynamicIntervalCollectionTrigger {
 		override val titleRes: Int = 0
 		override val requiredPermissions: Collection<String> = emptyList()

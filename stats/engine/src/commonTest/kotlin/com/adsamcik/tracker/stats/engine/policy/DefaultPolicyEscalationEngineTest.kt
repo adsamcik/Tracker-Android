@@ -68,7 +68,7 @@ class DefaultPolicyEscalationEngineTest {
 		}
 
 		@Test
-		fun `start() resets accumulator state`() {
+		fun `start seeds accumulator to the initial tier`() {
 			engine.start(PolicyTier.AMBIENT, currentTimeMs)
 			// Push some signals
 			repeat(5) {
@@ -79,7 +79,7 @@ class DefaultPolicyEscalationEngineTest {
 
 			// Restart
 			engine.start(PolicyTier.AMBIENT, currentTimeMs)
-			engine.policyState.value.accumulatorValue shouldBe 0.0
+			engine.policyState.value.accumulatorValue shouldBe MovementConfidenceAccumulator.THRESHOLD_AMBIENT
 		}
 	}
 
@@ -130,8 +130,8 @@ class DefaultPolicyEscalationEngineTest {
 			engine.start(PolicyTier.AMBIENT, currentTimeMs)
 
 			// Feed enough running events to escalate through tiers
-			// Each RUNNING@100 adds +30. Decay is 2/s.
-			// With 5s spacing: decay=10, net +20 per event.
+			// Each RUNNING@100 adds +30 with slow confidence decay.
+			// With 5s spacing: decay=0.25, net +29.75 per event.
 			pushToTier(PolicyTier.ACTIVE)
 
 			assert(engine.currentTier >= PolicyTier.ACTIVE) {
@@ -147,11 +147,18 @@ class DefaultPolicyEscalationEngineTest {
 			pushToTier(PolicyTier.ACTIVE)
 			val escalatedTier = engine.currentTier
 
-			// Wait long enough for confidence to decay and de-escalation to occur
-			currentTimeMs += 600_000L // 10 min
+			// One STILL event only starts confirmation.
+			currentTimeMs += 600_000L
 			engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			engine.currentTier shouldBe escalatedTier
 
-			engine.currentTier shouldBe PolicyTier.OFF
+			repeat(5) {
+				currentTimeMs += 60_000L
+				engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			}
+
+			val expectedTier = PolicyTier.entries[escalatedTier.ordinal - 1]
+			engine.currentTier shouldBe expectedTier
 		}
 
 		@Test
@@ -161,6 +168,10 @@ class DefaultPolicyEscalationEngineTest {
 
 			currentTimeMs += 600_000L
 			engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			repeat(5) {
+				currentTimeMs += 60_000L
+				engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			}
 
 			engine.policyState.value.transitionReason shouldBe TransitionReason.STILLNESS_DE_ESCALATION
 		}
@@ -212,11 +223,13 @@ class DefaultPolicyEscalationEngineTest {
 
 			engine.policyState.value.minimumTierLock.shouldBeNull()
 
-			// Now de-escalation should work
+			// De-escalation requires sustained stillness and proceeds one tier at a time.
 			currentTimeMs += 600_000L
 			engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+			currentTimeMs += MovementConfidenceAccumulator.STILLNESS_CONFIRMATION_MS
+			engine.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
 
-			engine.currentTier shouldBe PolicyTier.OFF
+			engine.currentTier shouldBe PolicyTier.AMBIENT
 		}
 
 		@Test

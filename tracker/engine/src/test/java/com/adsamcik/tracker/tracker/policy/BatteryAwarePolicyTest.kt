@@ -161,4 +161,8 @@ class BatteryAwarePolicyTest {
 			}
 		}
 	}
+	@Test
+	fun `charging bypasses battery caps`() {
+		subject.adjustForBatteryLevel(PolicyTier.PRECISION, 5, isCharging = true) shouldBe PolicyTier.PRECISION
+	}
 }

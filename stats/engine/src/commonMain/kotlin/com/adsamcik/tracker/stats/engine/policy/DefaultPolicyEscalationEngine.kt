@@ -50,20 +50,20 @@ class DefaultPolicyEscalationEngine(
 		confidence: Int,
 		timestampMs: Long,
 	) = synchronized(lock) {
-		if (!isRunning) return
+		if (!isRunning) return@synchronized
 		lastActivity = activity
 		val tierChange = accumulator.onActivityDetected(activity, confidence, timestampMs)
 		applyTierChange(tierChange, TransitionReason.ACCUMULATOR_ESCALATION, timestampMs)
 	}
 
 	override fun onStepCount(stepCount: Long, timestampMs: Long) = synchronized(lock) {
-		if (!isRunning) return
+		if (!isRunning) return@synchronized
 		val tierChange = accumulator.onStepCount(stepCount, timestampMs)
 		applyTierChange(tierChange, TransitionReason.ACCUMULATOR_ESCALATION, timestampMs)
 	}
 
 	override fun onSignificantMotion(timestampMs: Long) = synchronized(lock) {
-		if (!isRunning) return
+		if (!isRunning) return@synchronized
 		val tierChange = accumulator.onSignificantMotion(timestampMs)
 		applyTierChange(tierChange, TransitionReason.ACCUMULATOR_ESCALATION, timestampMs)
 	}
@@ -135,8 +135,13 @@ class DefaultPolicyEscalationEngine(
 	 * Update the last known speed. Called by the tracker service when a
 	 * location fix includes speed information.
 	 */
-	fun updateSpeed(speedMps: Float?) {
-		lastSpeedMps = speedMps
+	fun updateSpeed(speedMps: Float?, timestampMs: Long = clock()) {
+		synchronized(lock) {
+			lastSpeedMps = speedMps
+			if (!isRunning) return
+			val tierChange = accumulator.onSpeedObserved(speedMps, timestampMs)
+			applyTierChange(tierChange, TransitionReason.ACCUMULATOR_ESCALATION, timestampMs)
+		}
 	}
 
 	private fun applyTierChange(

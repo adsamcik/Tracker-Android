@@ -12,7 +12,6 @@ import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Adjusts the tracking [PolicyTier] based on current battery level.
@@ -43,7 +42,7 @@ class BatteryAwarePolicy @Inject constructor(
 		)
 		trySend(stickyIntent?.batteryPercentageOrNull() ?: currentBatteryLevel())
 		awaitClose { context.unregisterReceiver(receiver) }
-	}.distinctUntilChanged { old, new -> batteryCap(old) == batteryCap(new) }
+	}
 
 	/**
 	 * Adjusts [baseTier] downward based on current battery level.
@@ -53,14 +52,20 @@ class BatteryAwarePolicy @Inject constructor(
 	 */
 	fun adjustForBattery(baseTier: PolicyTier): PolicyTier {
 		val level = currentBatteryLevel()
-		return adjustForBatteryLevel(baseTier, level)
+		val isCharging = context.getSystemService(BatteryManager::class.java)?.isCharging == true
+		return adjustForBatteryLevel(baseTier, level, isCharging)
 	}
 
 	/**
 	 * Pure function for testability: adjusts tier given a battery level.
 	 */
-	internal fun adjustForBatteryLevel(baseTier: PolicyTier, batteryLevel: Int): PolicyTier {
+	internal fun adjustForBatteryLevel(
+		baseTier: PolicyTier,
+		batteryLevel: Int,
+		isCharging: Boolean = false,
+	): PolicyTier {
 		if (baseTier == PolicyTier.OFF) return PolicyTier.OFF
+		if (isCharging) return baseTier
 
 		return when {
 			batteryLevel <= CRITICAL_LEVEL -> PolicyTier.AMBIENT
@@ -78,11 +83,6 @@ class BatteryAwarePolicy @Inject constructor(
 			?: DEFAULT_BATTERY_LEVEL
 	}
 
-	private fun batteryCap(level: Int): PolicyTier = when {
-		level <= LOW_LEVEL -> PolicyTier.AMBIENT
-		level <= MEDIUM_LEVEL -> PolicyTier.ACTIVE
-		else -> PolicyTier.PRECISION
-	}
 
 	private fun Intent.batteryPercentageOrNull(): Int? {
 		val level = getIntExtra(BatteryManager.EXTRA_LEVEL, -1)

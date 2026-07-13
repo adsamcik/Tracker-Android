@@ -199,7 +199,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 		val expectedInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_ELEVATED)
 		val expectedDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_ELEVATED)
 
-		assertEquals(10, expectedInterval)
+		assertEquals(2, expectedInterval)
 		assertEquals(10, expectedDistance)
 	}
 
@@ -305,7 +305,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 	}
 
 	@Test
-	fun `policy downgrade after extended inactivity reduces intervals`() = runTest {
+	fun `policy cooldown downgrades tier without overriding selected GPS cadence`() = runTest {
 		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		startAndAwait(manager)
 
@@ -316,15 +316,17 @@ class TrackerServiceTimerUpdateIntegrationTest {
 		onStepUpdateAndAwait(manager, stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
 		onStepUpdateAndAwait(manager, stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
 		onStepUpdateAndAwait(manager, stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
-		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+		val elevatedPolicy = manager.currentPolicy.value
+		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(elevatedPolicy)
 
 		// Extended period (>300s cooldown) with minimal movement
 		onStepUpdateAndAwait(manager, stepCount = 148, timeMs = baseTime + 600_000) // 5 steps/min after long pause
 
-		val passiveInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+		val cooledPolicy = manager.currentPolicy.value
+		val cooledInterval = PolicyIntervalMapper.getIntervalSeconds(cooledPolicy)
 
-		// Passive interval should be longer (less frequent collection) after cooldown de-escalation
-		assertTrue(passiveInterval > elevatedInterval, "Passive policy should have longer intervals after cooldown")
+		assertTrue(cooledPolicy.ordinal < elevatedPolicy.ordinal, "Cooldown should lower the policy tier")
+		assertEquals(elevatedInterval, cooledInterval, "GPS policies preserve the selected cadence")
 	}
 
 	@Test
@@ -425,15 +427,15 @@ class TrackerServiceTimerUpdateIntegrationTest {
 				assertEquals(30, expectedDistance)
 			}
 			TrackingPolicy.ACTIVE_MODERATE -> {
-				assertEquals(30, expectedInterval) // 30 seconds
-				assertEquals(15, expectedDistance)
+				assertEquals(2, expectedInterval) // selected high-fidelity cadence
+				assertEquals(10, expectedDistance)
 			}
 			TrackingPolicy.ACTIVE_ELEVATED -> {
-				assertEquals(10, expectedInterval) // 10 seconds
+				assertEquals(2, expectedInterval) // selected high-fidelity cadence
 				assertEquals(10, expectedDistance)
 			}
 			TrackingPolicy.USER_INITIATED -> {
-				assertEquals(10, expectedInterval) // 10 seconds
+				assertEquals(2, expectedInterval) // selected high-fidelity cadence
 				assertEquals(10, expectedDistance)
 			}
 		}

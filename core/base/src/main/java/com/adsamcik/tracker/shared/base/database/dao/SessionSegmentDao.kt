@@ -206,6 +206,17 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes)")
 	suspend fun countByActivities(activityTypes: List<Int>): Long
 
+	/** Count distinct local calendar days containing a classified activity. */
+	@Query(
+		"""
+		SELECT COUNT(DISTINCT strftime('%Y-%m-%d', start_time_ms / 1000, 'unixepoch', 'localtime'))
+		FROM session_segment
+		WHERE primary_activity IN (:activityTypes)
+			AND sample_count > 0
+		"""
+	)
+	suspend fun countDistinctDaysByActivities(activityTypes: List<Int>): Long
+
 	/**
 	 * Count segments by a set of primary activities that OVERLAP the closed time
 	 * interval `[fromMs, toMs]`. Includes segments fully inside the interval AND

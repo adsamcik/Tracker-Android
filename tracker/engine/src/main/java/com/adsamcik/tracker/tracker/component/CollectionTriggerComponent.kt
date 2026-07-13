@@ -21,6 +21,9 @@ internal interface CollectionTriggerComponent {
 	 */
 	val requiredPermissions: Collection<String>
 
+	/** Whether this trigger actively requests device location. */
+	val isLocationTrigger: Boolean get() = false
+
 	/**
 	 * Checks if component has all required permissions to run.
 	 * For location permissions, accepts partial grants (either fine OR coarse).

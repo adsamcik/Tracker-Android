@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer
 
 import android.content.Context
 import android.location.Location
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
@@ -250,6 +252,28 @@ class SessionTrackerComponentTest {
 
 		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 		coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun freshCyclingEvidenceIsPersistedSeparatelyFromMotorizedTravel() = runTest {
+		val component = createComponent()
+		setSession(component, nonEmptySession(id = 42L))
+		val persisted = mutableListOf<SessionSegment>()
+		coEvery { mockSegmentDao.update(capture(persisted)) } returns Unit
+
+		component.onDataUpdated(
+			cycle = TrackingCycle(
+				timestampMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000_000L,
+				activity = ActivityInfo(DetectedActivity.ON_BICYCLE, confidence = 92),
+				activityFresh = true,
+			),
+			collectionData = MutableCollectionData(2_000L),
+		)
+
+		val segment = persisted.last()
+		segment.primaryActivity shouldBe DetectedActivity.ON_BICYCLE.value
+		segment.activityConfidence shouldBe 92
 	}
 
 

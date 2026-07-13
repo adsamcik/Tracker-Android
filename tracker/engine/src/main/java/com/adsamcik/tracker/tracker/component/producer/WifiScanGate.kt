@@ -1,5 +1,12 @@
 package com.adsamcik.tracker.tracker.component.producer
 
+internal data class WifiFingerprintNetwork(
+    val bssid: String,
+    val frequency: Int,
+    val levelDbm: Int,
+    val capabilities: String,
+)
+
 /**
  * Pure decision logic for whether a Wi-Fi scan should be recorded.
  *
@@ -33,7 +40,29 @@ internal object WifiScanGate {
         return scanAgeNanos <= maxAgeNanos
     }
 
+    fun fingerprint(networks: List<WifiFingerprintNetwork>): String = networks
+        .sortedWith(compareBy(WifiFingerprintNetwork::bssid, WifiFingerprintNetwork::frequency))
+        .joinToString(separator = ";") { network ->
+            val levelBucket = Math.floorDiv(network.levelDbm, RSSI_BUCKET_DB)
+            network.bssid.lowercase() + "|" + network.frequency + "|" + levelBucket + "|" +
+                network.capabilities
+        }
+
+    fun shouldRecordSnapshot(
+        candidateFingerprint: String,
+        previousFingerprint: String?,
+        nowElapsedRealtimeNanos: Long,
+        lastRecordedElapsedRealtimeNanos: Long,
+        heartbeatNanos: Long,
+    ): Boolean {
+        if (candidateFingerprint.isEmpty()) return false
+        if (candidateFingerprint != previousFingerprint) return true
+        if (lastRecordedElapsedRealtimeNanos < 0L) return true
+        return nowElapsedRealtimeNanos - lastRecordedElapsedRealtimeNanos >= heartbeatNanos
+    }
+
     fun shouldBufferBroadcastResults(resultsUpdated: Boolean?): Boolean = resultsUpdated != false
+    private const val RSSI_BUCKET_DB = 5
 
     private const val MICROS_TO_NANOS = 1_000L
 }

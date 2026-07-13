@@ -66,7 +66,10 @@ data class CellInfo
 		 * Signal strength as int 0...4 calculated by device
 		 */
 		@Ignore
-		var level: Int = 0
+		var level: Int = 0,
+		/** Location/tracking area code (LAC/TAC); zero when unavailable. */
+		@Ignore
+		var areaCode: Int = 0
 ) : Parcelable {
 
 	constructor(networkOperator: NetworkOperator, type: CellType, cellId: Long, asu: Int)
@@ -91,7 +94,8 @@ data class CellInfo
 			CellType.GSM,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level
+			signalStrength.level,
+			validAreaCode(identity.lac)
 	)
 
 
@@ -115,7 +119,8 @@ data class CellInfo
 			CellType.WCDMA,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level
+			signalStrength.level,
+			validAreaCode(identity.lac)
 	)
 
 
@@ -137,7 +142,8 @@ data class CellInfo
 			CellType.LTE,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level
+			signalStrength.level,
+			validAreaCode(identity.tac)
 	)
 
 
@@ -161,10 +167,12 @@ data class CellInfo
 			CellType.NR,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level
+			signalStrength.level,
+			validAreaCode(identity.tac)
 	)
 
 	companion object {
+		private fun validAreaCode(value: Int): Int = value.takeIf { it in 0 until Int.MAX_VALUE } ?: 0
 		/**
 		 * Creates new instance of CellInfo from CDMA cell info
 		 *
@@ -186,7 +194,8 @@ data class CellInfo
 					CellType.CDMA,
 					signalStrength.asuLevel,
 					signalStrength.dbm,
-					signalStrength.level
+					signalStrength.level,
+					validAreaCode(identity.networkId)
 			)
 		}
 	}

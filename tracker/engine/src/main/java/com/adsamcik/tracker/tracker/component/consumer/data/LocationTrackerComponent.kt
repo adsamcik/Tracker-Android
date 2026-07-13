@@ -3,14 +3,29 @@ package com.adsamcik.tracker.tracker.component.consumer.data
 import android.content.Context
 import android.location.Location
 import com.adsamcik.tracker.shared.base.Time
+import android.os.Build
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.cancel
 import kotlin.math.abs
 
-internal class LocationTrackerComponent : DataTrackerComponent {
+internal class LocationTrackerComponent(
+	private val trackingParamsRepository: TrackingParamsRepository? = null,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
 			TrackerComponentRequirement.LOCATION
 	)
@@ -19,6 +34,9 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 	private var context: Context? = null
 	private var lastAcceptedLocation: Location? = null
 	private var lastSmoothedSpeed: Float = 0f
+	private var settingsScope: CoroutineScope? = null
+	private var settingsJob: Job? = null
+	@Volatile private var requiredAccuracyMeters = TrackingParamsState.DEFAULT_REQUIRED_ACCURACY
 
 	/**
 	 * Raw GPS altitude (before fusion) from the most recent location update.
@@ -29,6 +47,13 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 	override suspend fun onEnable(context: Context) {
 		this.context = context.applicationContext
+		trackingParamsRepository?.let { repository ->
+			requiredAccuracyMeters = repository.data.first().requiredAccuracyMeters
+			settingsScope = CoroutineScope(SupervisorJob() + dispatchers.default)
+			settingsJob = repository.data
+				.onEach { requiredAccuracyMeters = it.requiredAccuracyMeters }
+				.launchIn(requireNotNull(settingsScope))
+		}
 		altitudeProcessor = AltitudeProcessor()
 		lastAcceptedLocation = null
 		lastSmoothedSpeed = 0f
@@ -37,6 +62,10 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 	override suspend fun onDisable(context: Context) {
 		altitudeProcessor?.reset()
 		altitudeProcessor = null
+		settingsJob?.cancel()
+		settingsJob = null
+		settingsScope?.cancel()
+		settingsScope = null
 		this.context = null
 		lastRawGpsAltitudeM = null
 		lastAcceptedLocation = null
@@ -109,6 +138,49 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		return null
 	}
 
+	private fun isLocationUsable(location: Location): Boolean {
+		val isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+			location.isMock
+		} else {
+			@Suppress("DEPRECATION")
+			location.isFromMockProvider
+		}
+		if (isMock || !location.hasAccuracy()) return false
+		if (location.accuracy > requiredAccuracyMeters) return false
+
+		val previous = lastAcceptedLocation ?: return true
+		val currentElapsed = location.elapsedRealtimeNanos
+		val previousElapsed = previous.elapsedRealtimeNanos
+		if (currentElapsed > 0L && previousElapsed > 0L) {
+			if (currentElapsed <= previousElapsed) return false
+		} else if (location.time <= previous.time) {
+			return false
+		}
+
+		// Providers can repeat their last fix. Persisting it adds I/O and storage without adding
+		// information, and can distort downstream duration/sample-rate calculations.
+		if (location.latitude != previous.latitude ||
+			location.longitude != previous.longitude ||
+			location.accuracy != previous.accuracy ||
+			location.speed != previous.speed ||
+			location.bearing != previous.bearing ||
+			location.hasAltitude() != previous.hasAltitude() ||
+			(location.hasAltitude() && location.altitude != previous.altitude)
+		) return true
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			if (location.hasVerticalAccuracy() != previous.hasVerticalAccuracy() ||
+				(location.hasVerticalAccuracy() &&
+					location.verticalAccuracyMeters != previous.verticalAccuracyMeters) ||
+				location.hasSpeedAccuracy() != previous.hasSpeedAccuracy() ||
+				(location.hasSpeedAccuracy() &&
+					location.speedAccuracyMetersPerSecond != previous.speedAccuracyMetersPerSecond)
+			) return true
+		}
+
+		return false
+	}
+
 	override suspend fun onDataUpdated(
 			cycle: TrackingCycle,
 			collectionData: MutableCollectionData
@@ -117,6 +189,8 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 		val location = locationResult.lastLocation
 		val previousLocation = lastAcceptedLocation ?: locationResult.previousLocation
+		if (!isLocationUsable(location)) return
+
 		if (previousLocation != null && isTeleportJump(previousLocation, location)) {
 			// Rebase to the teleported location so tracking can recover.
 			lastAcceptedLocation = Location(location)
@@ -140,6 +214,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		// Apply altitude processing pipeline (geoid correction + accuracy gating + Kalman fusion)
 		val ctx = context
 		val processor = altitudeProcessor
+		collectionData.rawGpsAltitudeM = lastRawGpsAltitudeM?.toFloat()
 		if (ctx != null && processor != null) {
 			// Get barometer pressure from cycle if available
 			val pressureReading = cycle.pressure

@@ -81,6 +81,10 @@ object SignalAdapter {
 		cellTowers: List<CellTowerReading>? = null,
 		wifiNetworks: List<WifiNetworkReading>? = null,
 		pressureHpa: Float? = null,
+		wifiTimestampMs: Long? = null,
+		wifiLatitude: Double? = null,
+		wifiLongitude: Double? = null,
+		wifiCoordinateProvenance: com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance = com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance.UNKNOWN,
 		pressureAltitudeM: Float? = null,
 		policyTier: PolicyTier? = null,
 		policyName: String? = null,
@@ -131,8 +135,21 @@ object SignalAdapter {
 			null
 		}
 
+		val wifiCoordinate = if (wifiLatitude != null && wifiLongitude != null) {
+			CoordinateE7(
+				lat = LatE7.fromDegrees(wifiLatitude),
+				lon = LonE7.fromDegrees(wifiLongitude),
+			)
+		} else {
+			null
+		}
 		val wifiSignal = if (!wifiNetworks.isNullOrEmpty()) {
-			WifiSignal(networks = wifiNetworks)
+			WifiSignal(
+				networks = wifiNetworks,
+				timestampMs = wifiTimestampMs?.let(::EpochMs),
+				coordinate = wifiCoordinate,
+				coordinateProvenance = wifiCoordinateProvenance,
+			)
 		} else {
 			null
 		}

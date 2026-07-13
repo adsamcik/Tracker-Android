@@ -157,6 +157,30 @@ object MapSnapshotRenderer {
 					),
 				)
 			}
+			is MapLibreLayerConfig.HeatLine -> {
+				val sourceId = "$idPrefix-heat-line-source"
+				builder.withSource(GeoJsonSource(sourceId, config.geoJson))
+				val color = buildColorStopExpression(config.colorStops, Expression.get(config.weightProperty))
+				builder.withLayer(
+					LineLayer("$idPrefix-heat-line-glow", sourceId).withProperties(
+						PropertyFactory.lineColor(color),
+						PropertyFactory.lineWidth(config.glowWidthDp),
+						PropertyFactory.lineOpacity(config.glowOpacity),
+						PropertyFactory.lineBlur(config.glowBlurDp),
+						PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+						PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+					),
+				)
+				builder.withLayer(
+					LineLayer("$idPrefix-heat-line-core", sourceId).withProperties(
+						PropertyFactory.lineColor(color),
+						PropertyFactory.lineWidth(config.widthDp),
+						PropertyFactory.lineOpacity(config.opacity),
+						PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+						PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+					),
+				)
+			}
 			is MapLibreLayerConfig.Line -> {
 				val sourceId = "$idPrefix-line-source"
 				builder.withSource(GeoJsonSource(sourceId, config.geoJson))

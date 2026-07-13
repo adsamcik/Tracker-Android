@@ -27,6 +27,7 @@ import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
@@ -145,9 +146,18 @@ class PersistenceProcessor @Inject constructor(
 	 * No I/O — must be fast.
 	 */
 	override fun onSignal(signal: TrackingSignal) {
+		if (!signal.hasPersistablePayload()) return
 		bufferSignal(signal)
 		durableBuffer.stage(signal)
 	}
+
+	private fun TrackingSignal.hasPersistablePayload(): Boolean =
+		location != null ||
+			(activityFresh && activity != null) ||
+			steps != null ||
+			cells != null ||
+			wifi != null ||
+			pressure != null
 
 	override suspend fun onFlush(): List<DomainEvent> {
 		if (flushAll() && recoveryIncomplete) {
@@ -253,7 +263,7 @@ class PersistenceProcessor @Inject constructor(
 				CellSample(
 					timeMs = timeMs,
 					cellId = tower.cellId,
-					lac = 0,
+					lac = tower.areaCode,
 					mcc = tower.mcc.toIntOrNull() ?: 0,
 					mnc = tower.mnc.toIntOrNull() ?: 0,
 					networkType = tower.networkType,
@@ -269,10 +279,17 @@ class PersistenceProcessor @Inject constructor(
 
 	private fun bufferWifi(signal: TrackingSignal, location: LocationSignal?) {
 		val wifi = signal.wifi ?: return
-		val timeMs = signal.timestampMs.raw
-		val latE7 = location?.coordinate?.lat?.raw
-		val lonE7 = location?.coordinate?.lon?.raw
-		val provenance = if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
+		val timeMs = wifi.timestampMs?.raw ?: signal.timestampMs.raw
+		val coordinate = wifi.coordinate ?: location?.coordinate
+		val latE7 = coordinate?.lat?.raw
+		val lonE7 = coordinate?.lon?.raw
+		val provenance = if (wifi.coordinate != null) {
+			when (wifi.coordinateProvenance) {
+				ObservationCoordinateProvenance.UNKNOWN -> CoordinateProvenance.UNKNOWN
+				ObservationCoordinateProvenance.DIRECT -> CoordinateProvenance.DIRECT
+				ObservationCoordinateProvenance.INTERPOLATED -> CoordinateProvenance.INTERPOLATED
+			}
+		} else if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
 		val now = Time.nowMillis
 
 		for (network in wifi.networks) {

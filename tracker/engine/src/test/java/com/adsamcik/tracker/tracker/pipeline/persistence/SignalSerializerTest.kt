@@ -61,6 +61,7 @@ class SignalSerializerTest {
 			towers = listOf(
 				CellTowerReading(
 					cellId = 12345678L,
+					areaCode = 4321,
 					mcc = "230",
 					mnc = "01",
 					networkType = 13,
@@ -68,6 +69,7 @@ class SignalSerializerTest {
 				),
 				CellTowerReading(
 					cellId = 87654321L,
+					areaCode = 876,
 					mcc = "230",
 					mnc = "02",
 					networkType = 13,

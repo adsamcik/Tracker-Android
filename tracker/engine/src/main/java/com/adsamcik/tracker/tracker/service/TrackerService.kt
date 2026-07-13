@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -149,7 +150,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
-			runtimeTierAdjuster = batteryAwarePolicy::adjustForBattery,
+			runtimeTierAdjuster = { requestedTier ->
+				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
+					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
+					TrackingPreset.HIGH_ACCURACY
+				if (preserveRequestedFidelity) requestedTier else batteryAwarePolicy.adjustForBattery(requestedTier)
+			},
 			onDailySummaryWritten = {
 				metricDirtyTracker.markDirty(
 					com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
@@ -253,14 +259,20 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					// wants location. A GPS trigger only runs when location is enabled AND the tier is
 					// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
 					// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
-					val locationEnabled = trackingParamsRepository.data.first().locationEnabled
-					val initialTier = batteryAwarePolicy.adjustForBattery(
-						resolveInitialPolicyTier(
-							isUserInitiated = isUserInitiated,
-							isAmbient = isAmbient,
-							locationEnabled = locationEnabled,
-						),
+					val trackingParams = trackingParamsRepository.data.first()
+					val locationEnabled = trackingParams.locationEnabled
+					val requestedInitialTier = resolveInitialPolicyTier(
+						isUserInitiated = isUserInitiated,
+						isAmbient = isAmbient,
+						locationEnabled = locationEnabled,
 					)
+					val initialTier = if (
+						isUserInitiated || trackingParams.preset == TrackingPreset.HIGH_ACCURACY
+					) {
+						requestedInitialTier
+					} else {
+						batteryAwarePolicy.adjustForBattery(requestedInitialTier)
+					}
 					controller.updatePolicyTier(initialTier)
 					val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
 					timerComponent = if (useGpsTrigger) {

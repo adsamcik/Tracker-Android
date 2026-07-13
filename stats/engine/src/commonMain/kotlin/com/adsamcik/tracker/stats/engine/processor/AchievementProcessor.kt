@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.engine.processor
 
+import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
@@ -49,9 +50,11 @@ class AchievementProcessor(
 	)
 
 	private val previousProgress = mutableMapOf<String, Pair<Long, AchievementTier?>>()
+	private val previousPacingDays = mutableMapOf<String, Long>()
 
 	override suspend fun onStart(context: ProcessorContext) {
 		previousProgress.clear()
+		previousPacingDays.clear()
 	}
 
 	override fun onSignal(signal: TrackingSignal) {
@@ -135,13 +138,32 @@ class AchievementProcessor(
 		metrics: MetricSnapshot,
 		now: EpochMs,
 	): DomainEvent? {
+		val definition = instance.attachment as? AchievementDefinition
+		var pacingChanged = false
+		if (definition != null && definition.minimumActiveDays > 1) {
+			val pacingDays = metrics.asMap()[definition.pacingMetric]
+			// The live session snapshot intentionally contains only cheap streaming
+			// metrics. In that case defer paced tiers to the persisted evaluator.
+			if (pacingDays == null) return null
+			pacingChanged = previousPacingDays.put(instance.rule.id, pacingDays.toLong()) != pacingDays.toLong()
+			if (!definition.isEligible(pacingDays.toLong())) return null
+		}
 		val cached = previousProgress[instance.rule.id]
-		val effectiveInstance = if (previousProgress.containsKey(instance.rule.id)) {
+		var effectiveInstance = if (previousProgress.containsKey(instance.rule.id)) {
 			instance.copy(previousValue = cached?.first, previousTier = cached?.second)
 		} else {
 			instance
 		}
 		val currentValue = metrics.valueOf(instance.rule.metric).toLong()
+		// Each catalog tier is an independent single-target rule. Once that tier is
+		// unlocked it has no further progress to report; higher tiers have their own
+		// rule instances. Refresh the cache silently so later day/metric changes do
+		// not produce completed-tier noise.
+		if (effectiveInstance.previousTier != null) {
+			previousProgress[instance.rule.id] = currentValue to effectiveInstance.previousTier
+			return null
+		}
+		if (pacingChanged) effectiveInstance = effectiveInstance.copy(previousValue = null)
 		return when (val result = ruleEvaluator.evaluate(effectiveInstance, currentValue)) {
 			is RuleEvaluationResult.Unchanged -> null
 			is RuleEvaluationResult.TierUnlocked -> {
@@ -196,6 +218,7 @@ class AchievementProcessor(
 	override fun restore(state: ByteArray) {
 		val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(state))
 		previousProgress.clear()
+		previousPacingDays.clear()
 		val size = dis.readInt()
 		repeat(size) {
 			val key = dis.readUTF()
