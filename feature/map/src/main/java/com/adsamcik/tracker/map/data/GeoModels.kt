@@ -112,7 +112,9 @@ data class GeoQuery(
     val timeTo: Long? = null,
     val limit: Int? = null,
     val extraColumns: List<String> = emptyList(),
-    val weight: String? = null
+    val weight: String? = null,
+    val sampleLimit: Int? = null,
+    val newestLimit: Int? = null,
 )
 
 sealed interface GeoFeature {

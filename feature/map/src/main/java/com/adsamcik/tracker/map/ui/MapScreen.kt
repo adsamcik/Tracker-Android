@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map.ui
 
 import android.os.StrictMode
+import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapLibreInitializer
@@ -38,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +50,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
@@ -60,8 +65,10 @@ import com.adsamcik.tracker.map.online.TileProvider
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.LayerAnimation
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.bridge.buildFlowGradientStops
 import com.adsamcik.tracker.map.presentation.bridge.renderKey
 import com.adsamcik.tracker.map.presentation.bridge.boundsOrNull
+import com.adsamcik.tracker.map.presentation.bridge.flattenedLeaves
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -83,27 +90,35 @@ import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.Feature
+import org.maplibre.compose.expressions.dsl.asString
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.format
 import org.maplibre.compose.expressions.dsl.heatmapDensity
+import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.expressions.dsl.interpolate
 import org.maplibre.compose.expressions.dsl.linear
+import org.maplibre.compose.expressions.dsl.offset
+import org.maplibre.compose.expressions.dsl.span
 import org.maplibre.compose.expressions.dsl.zoom
 import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.DpValue
 import org.maplibre.compose.expressions.value.FloatValue
 import org.maplibre.compose.expressions.value.LineCap
 import org.maplibre.compose.expressions.value.LineJoin
+import org.maplibre.compose.expressions.value.SymbolAnchor
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.layers.CircleLayer
 import org.maplibre.compose.layers.FillExtrusionLayer
 import org.maplibre.compose.layers.FillLayer
 import org.maplibre.compose.layers.HeatmapLayer
 import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.map.GestureOptions
 import org.maplibre.compose.map.MapOptions
 import org.maplibre.compose.map.MaplibreMap
@@ -1288,33 +1303,62 @@ private fun BoundingBox.toPaddedBounds(paddingFraction: Double = 0.5): Bounds? =
 @Composable
 private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
     if (layerConfig == null) return
+    val animationsEnabled = rememberSystemAnimationsEnabled()
 
-    val configs = when (layerConfig) {
-        is MapLibreLayerConfig.Composite -> layerConfig.layers
-        else -> listOf(layerConfig)
+    val configs = remember(layerConfig) { layerConfig.flattenedLeaves() }
+    val hasAnimatedFlow = animationsEnabled && configs.any {
+        it is MapLibreLayerConfig.GradientLine && it.animation is LayerAnimation.Flow
+    }
+    val flowClockMs by produceState(0L, hasAnimatedFlow) {
+        while (hasAnimatedFlow) {
+            value = SystemClock.uptimeMillis()
+            delay(FLOW_ANIMATION_FRAME_MILLIS)
+        }
     }
 
     configs.forEachIndexed { index, config ->
         key(config.renderKey(index)) {
             when (config) {
             is MapLibreLayerConfig.Heatmap -> {
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
+                val pulse = config.animation as? LayerAnimation.Pulse
+                val pulseScale = if (pulse != null && animationsEnabled) {
+                    val transition = rememberInfiniteTransition(label = "heatmap-pulse-$index")
+                    val scale by transition.animateFloat(
+                        initialValue = pulse.minScale,
+                        targetValue = pulse.maxScale,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(pulse.periodMs, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "heatmap-pulse-scale-$index",
+                    )
+                    scale
+                } else {
+                    1f
+                }
+                val opacityScale = if (pulse != null && animationsEnabled) {
+                    val span = (pulse.maxScale - pulse.minScale).takeIf { it > 0f } ?: 1f
+                    0.85f + 0.15f * ((pulseScale - pulse.minScale) / span).coerceIn(0f, 1f)
+                } else {
+                    1f
+                }
                 HeatmapLayer(
                     id = "heatmap-layer-$index",
                     source = source,
-                    radius = const(config.radiusPx.dp),
-                    intensity = const(config.intensity),
-                    opacity = const(config.opacity),
+                    radius = const((config.radiusPx * pulseScale).dp),
+                    intensity = const(config.intensity * pulseScale),
+                    opacity = const(config.opacity * opacityScale),
                     weight = Feature[config.weightProperty] as Expression<FloatValue>,
                     color = buildHeatmapColorExpr(config.colorStops),
                 )
             }
                 is MapLibreLayerConfig.Line -> {
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 // Realistic route styling: rounded caps/joins remove the hard spikes a GPS track
@@ -1344,8 +1388,8 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                 )
             }
                 is MapLibreLayerConfig.Fill -> {
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 FillLayer(
@@ -1357,8 +1401,8 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                 )
             }
                 is MapLibreLayerConfig.FillExtrusion -> {
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 FillExtrusionLayer(
@@ -1371,15 +1415,15 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                 )
             }
                 is MapLibreLayerConfig.Circle -> {
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = SYNCHRONOUS_GEOJSON_OPTIONS,
                 )
                 // Render-time animation: a Pulse scales the marker radius via an infinite transition.
                 // The pipeline output (geoJson/source) is unchanged — only the radius property is
                 // re-applied each frame, so nothing re-aggregates.
                 val pulse = config.animation as? LayerAnimation.Pulse
-                val radiusScale = if (pulse != null) {
+                val radiusScale = if (pulse != null && animationsEnabled) {
                     val transition = rememberInfiniteTransition(label = "circle-pulse")
                     val scale by transition.animateFloat(
                         initialValue = pulse.minScale,
@@ -1413,10 +1457,25 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                 // altitude, …) that flows along its length. The source carries line-distance metrics
                 // (required by line-gradient); round caps/joins + an optional casing beneath give the
                 // same smooth, realistic look as the polyline. Casing composed first = drawn under.
-                val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(config.geoJson),
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
                     options = GRADIENT_GEOJSON_OPTIONS,
                 )
+                val flow = config.animation as? LayerAnimation.Flow
+                val gradientStops = if (flow != null && animationsEnabled) {
+                    val periodMs = flow.periodMs.coerceAtLeast(1)
+                    val phase = (flowClockMs % periodMs).toFloat() / periodMs + flow.phaseOffset
+                    remember(flow.colorArgb, phase, flow.trailFraction) {
+                        buildFlowGradientStops(
+                            colorArgb = flow.colorArgb,
+                            phase = phase,
+                            trailFraction = flow.trailFraction,
+                            sampleCount = FLOW_GRADIENT_SAMPLE_COUNT,
+                        )
+                    }
+                } else {
+                    config.gradientStops
+                }
                 config.casingColorArgb?.let { casingArgb ->
                     LineLayer(
                         id = "gradient-line-casing-$index",
@@ -1431,16 +1490,73 @@ private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
                 LineLayer(
                     id = "gradient-line-$index",
                     source = source,
-                    gradient = buildLineGradientExpr(config.gradientStops),
+                    gradient = buildLineGradientExpr(gradientStops),
                     width = buildLineWidthExpr(config.widthDp),
                     opacity = const(config.opacity),
                     cap = const(LineCap.Round),
                     join = const(LineJoin.Round),
                 )
             }
+
+                is MapLibreLayerConfig.Symbol -> {
+                val source = rememberLayerGeoJsonSource(
+                    geoJson = config.geoJson,
+                    options = SYNCHRONOUS_GEOJSON_OPTIONS,
+                )
+                val context = LocalContext.current
+                val iconBitmap = remember(context, config.iconRes, config.iconSizeDp) {
+                    requireNotNull(
+                        sdfBitmapFromVector(context, config.iconRes, config.iconSizeDp),
+                    ) {
+                        "Unable to load map symbol drawable ${config.iconRes}"
+                    }.asImageBitmap()
+                }
+                SymbolLayer(
+                    id = "symbol-layer-$index",
+                    source = source,
+                    iconImage = image(
+                        value = iconBitmap,
+                        isSdf = true,
+                    ),
+                    iconColor = const(Color(config.iconColorArgb)),
+                    iconHaloColor = const(Color(config.iconHaloColorArgb)),
+                    iconHaloWidth = const(1.5f.dp),
+                    iconAllowOverlap = const(config.allowOverlap),
+                    textField = format(span(Feature[config.labelProperty].asString())),
+                    textColor = const(Color(config.textColorArgb)),
+                    textHaloColor = const(Color(config.textHaloColorArgb)),
+                    textHaloWidth = const(1.5f.dp),
+                    textSize = const(config.textSizeSp.sp),
+                    textOffset = offset(0f.em, 1.5f.em),
+                    textAnchor = const(SymbolAnchor.Center),
+                    textOptional = const(true),
+                    textAllowOverlap = const(config.allowOverlap),
+                )
+            }
                 is MapLibreLayerConfig.Composite -> Unit
             }
         }
+    }
+}
+
+@Composable
+private fun rememberLayerGeoJsonSource(
+    geoJson: String,
+    options: GeoJsonOptions,
+) = rememberGeoJsonSource(
+    data = remember(geoJson) { GeoJsonData.JsonString(geoJson) },
+    options = options,
+)
+
+@Composable
+private fun rememberSystemAnimationsEnabled(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) > 0f
     }
 }
 
@@ -1677,8 +1793,12 @@ private fun MapLibreLayerConfig?.hasRenderableData(): Boolean = when (this) {
     is MapLibreLayerConfig.FillExtrusion -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Circle -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.GradientLine -> geoJson.hasRenderableGeoJsonData()
+    is MapLibreLayerConfig.Symbol -> geoJson.hasRenderableGeoJsonData()
     is MapLibreLayerConfig.Composite -> layers.any { it.hasRenderableData() }
 }
+
+private const val FLOW_ANIMATION_FRAME_MILLIS = 83L
+private const val FLOW_GRADIENT_SAMPLE_COUNT = 16
 
 private fun String.hasRenderableGeoJsonData(): Boolean =
     !contains(""""features":[]""") && !contains(""""coordinates":[]""")

@@ -2,6 +2,9 @@ package com.adsamcik.tracker.map.presentation
 
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.bridge.SpeedSummary
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
@@ -45,6 +48,8 @@ import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapStoreTest {
@@ -53,9 +58,12 @@ class MapStoreTest {
     private val mockTrackerController: TrackerStateReader = mockk(relaxed = true)
     private val mockReverseGeocoder: ReverseGeocoder = mockk(relaxed = true)
     private val mockMapImageShareHelper: com.adsamcik.tracker.map.export.MapImageShareHelper = mockk(relaxed = true)
+    private val mockMapDataChangeObserver: MapDataChangeObserver = mockk()
 
     private lateinit var mapStore: MapStore
     private val testDispatcher = StandardTestDispatcher()
+    private val serviceRunningFlow = MutableStateFlow(false)
+    private val mapDataChanges = MutableSharedFlow<MapDataChange>(extraBufferCapacity = 16)
 
     @BeforeEach
     fun setup() {
@@ -63,10 +71,11 @@ class MapStoreTest {
         every { mockLayerEngine.activeLegend() } returns null
         every { mockLayerEngine.activeLayerConfig() } returns null
         every { mockLayerEngine.overlays() } returns persistentListOf()
-        // Deterministic tracker flows so the reactive live-refresh observer is a stable no-op in unit
-        // tests (not tracking -> emits nothing that triggers a refresh).
-        every { mockTrackerController.isServiceRunningFlow } returns MutableStateFlow(false)
-        every { mockTrackerController.pathPointsFlow } returns MutableStateFlow(null)
+        every { mockTrackerController.isServiceRunningFlow } returns serviceRunningFlow
+        every { mockMapDataChangeObserver.changes() } returns flow {
+            emit(MapDataChange.Ready)
+            emitAll(mapDataChanges)
+        }
         mapStore = MapStore(
             SavedStateHandle(),
             mockTrackerController,
@@ -75,6 +84,7 @@ class MapStoreTest {
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
@@ -117,6 +127,7 @@ class MapStoreTest {
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
 
         val state = tripStore.state.first()
@@ -144,6 +155,7 @@ class MapStoreTest {
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
 
         tripStore.state.first().activeLayerIds shouldBe persistentSetOf("location_polyline")
@@ -273,6 +285,7 @@ class MapStoreTest {
             FakeMapSettingsRepository(),
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
         tripStore.setLayerEngine(mockLayerEngine)
 
@@ -375,9 +388,27 @@ class MapStoreTest {
         state.camera shouldBe cameraModel
     }
 
-    @Test
-    fun `camera moved for bounds-sensitive layer refreshes in place`() = runTest {
-        mapStore.dispatch(MapEvent.SelectLayer("location_heatmap"))
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "location_heatmap",
+            "cell_heatmap",
+            "signal_coverage",
+            "signal_aurora",
+            "wifi_heatmap",
+            "wifi_count_heatmap",
+            "speed_heatmap",
+            "legacy_heatmap",
+            "life_terrain",
+            "ski_xray",
+            "trip_constellations",
+            "seasonal_palimpsest",
+            "fog_of_wonder",
+            "first_contact",
+        ],
+    )
+    fun `camera moved for bounds-sensitive layer refreshes in place`(layerId: String) = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer(layerId))
         testDispatcher.scheduler.advanceUntilIdle()
         io.mockk.clearMocks(mockLayerEngine, answers = false)
         val cameraModel = com.adsamcik.tracker.map.presentation.udf.CameraModel(
@@ -397,6 +428,104 @@ class MapStoreTest {
 
         coVerify(exactly = 0) { mockLayerEngine.selectLayers(any(), any(), any(), any(), any()) }
         coVerify(exactly = 1) { mockLayerEngine.refreshLayersInPlace(any(), eq(15f), any(), any()) }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["cell_heatmap", "signal_coverage", "signal_aurora"])
+    fun `cell sample layers participate in live reactive refreshes`(layerId: String) {
+        (layerId in MapStore.LIVE_REACTIVE_LAYER_IDS) shouldBe true
+    }
+
+    @Test
+    fun `database observer registration does not trigger a redundant refresh`() = runTest {
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `committed stationary location sample refreshes the active location layer`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Location)))
+        testDispatcher.scheduler.advanceTimeBy(1_499)
+        coVerify(exactly = 0) { mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any()) }
+
+        testDispatcher.scheduler.advanceTimeBy(1)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), eq(true))
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["cell_heatmap", "signal_coverage", "signal_aurora"])
+    fun `committed cell sample refreshes the active cell layer`(layerId: String) = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer(layerId))
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Cell)))
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), eq(true))
+        }
+    }
+
+    @Test
+    fun `cell-only commit does not refresh the active location layer`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Cell)))
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `rapid committed samples are debounced into one live refresh`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        repeat(3) {
+            mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Location)))
+            testDispatcher.scheduler.advanceTimeBy(400)
+        }
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), eq(true))
+        }
+    }
+
+    @Test
+    fun `pending live refresh cannot cancel a newer layer selection`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Location)))
+        testDispatcher.scheduler.advanceTimeBy(1_000)
+        mapStore.dispatch(MapEvent.SelectLayer("cell_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLayerEngine.selectLayers(eq(setOf("cell_heatmap")), any(), any(), any(), any())
+        }
+        coVerify(exactly = 0) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
+        }
     }
 
     @Test
@@ -421,6 +550,7 @@ class MapStoreTest {
             settingsRepo,
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -654,6 +784,7 @@ class MapStoreTest {
             settingsRepo,
             mockReverseGeocoder,
             mockMapImageShareHelper,
+            mockMapDataChangeObserver,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 

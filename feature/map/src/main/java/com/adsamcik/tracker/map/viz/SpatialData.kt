@@ -37,11 +37,19 @@ sealed interface SpatialData {
 	data class Markers(val points: List<WeightedGeoFeature>) : SpatialData
 
 	/**
-	 * An ordered polyline whose vertices each carry a normalised `[0, 1]` weight, rendered as a single
-	 * gradient-coloured line ([MapLibreLayerConfig.GradientLine][com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig.GradientLine]).
-	 * The weight varies *along* the path — e.g. speed, altitude or activity — so the colour flows
-	 * smoothly from one end to the other. Backs "ribbon" visualizations (speed ribbon, altitude
-	 * ribbon, …); the ordering is the path order (typically by time).
+	 * Point annotations rendered as collision-aware icons with optional labels. Symbols carry a
+	 * semantic icon key rather than renderer resources; the encoder resolves that key to style.
 	 */
-	data class Segments(val path: List<WeightedGeoFeature>) : SpatialData
+	data class Symbols(val points: List<SymbolFeature>) : SpatialData
+
+	/** Curved directed journeys rendered as stable base arcs with property-only flow animation. */
+	data class Arcs(val arcs: List<FlowArc>) : SpatialData
+
+	/**
+	 * Contiguous ordered polylines whose vertices each carry a normalised `[0, 1]` weight. Keeping
+	 * separate [paths] prevents a broad date range from drawing synthetic chords across long gaps
+	 * between tracking sessions. The weight varies *along* each path — e.g. speed, altitude or
+	 * activity — so colour flows smoothly from one end to the other.
+	 */
+	data class Segments(val paths: List<List<WeightedGeoFeature>>) : SpatialData
 }

@@ -23,7 +23,7 @@ class SpeedRibbonTest {
 	fun `speed ribbon uses the Segments shape`() {
 		val field: SpatialData.Segments = SpatialData.Segments(emptyList())
 		// Type-checks: the pipeline's field is Segments, so it can only pair with a gradient-line encoder.
-		field.path.isEmpty() shouldBe true
+		field.paths.isEmpty() shouldBe true
 	}
 
 	@Test

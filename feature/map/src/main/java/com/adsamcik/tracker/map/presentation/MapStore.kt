@@ -30,6 +30,7 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -66,6 +68,7 @@ class MapStore @Inject constructor(
     private val mapSettingsRepository: MapSettingsRepository,
     private val reverseGeocoder: ReverseGeocoder,
     val mapImageShareHelper: MapImageShareHelper,
+    private val mapDataChangeObserver: MapDataChangeObserver,
 ) : ViewModel() {
 
     internal val dispatchersProvider: DispatchersProvider
@@ -78,29 +81,46 @@ class MapStore @Inject constructor(
         val value: Double
     )
 
+    private data class MapDataRevisions(
+        val location: Long = 0L,
+        val cell: Long = 0L,
+    ) {
+        fun increment(sources: Set<MapDataSource>) = copy(
+            location = location + if (MapDataSource.Location in sources) 1 else 0,
+            cell = cell + if (MapDataSource.Cell in sources) 1 else 0,
+        )
+
+        fun changedSourcesSince(previous: MapDataRevisions): Set<MapDataSource> = buildSet {
+            if (location != previous.location) add(MapDataSource.Location)
+            if (cell != previous.cell) add(MapDataSource.Cell)
+        }
+    }
+
     companion object {
         private const val SELECTED_LAYER_ID_KEY = "selected_layer_id"
         private const val NONE_LAYER_ID = "none"
         private const val DEFAULT_LAYER_ID = "location_polyline"
         private const val SPEED_LAYER_ID = "speed_heatmap"
 
-        /**
-         * Layers whose data is derived from the live location-fix stream, so they should re-render in
-         * real time while a tracking session is gathering new fixes. Signal/wifi/exploration/place
-         * layers are excluded — they are not tied to the live fix stream, so reactive refreshes would
-         * add cost with no benefit.
-         */
-        private val LIVE_REACTIVE_LAYER_IDS = setOf(
-            "location_heatmap",
-            "speed_heatmap",
-            "legacy_heatmap",
-            "life_terrain",
+        internal val LIVE_REACTIVE_LAYER_SOURCES = mapOf(
+            "location_polyline" to setOf(MapDataSource.Location),
+            "location_heatmap" to setOf(MapDataSource.Location),
+            "cell_heatmap" to setOf(MapDataSource.Cell),
+            "signal_coverage" to setOf(MapDataSource.Cell),
+            "speed_heatmap" to setOf(MapDataSource.Location),
+            "speed_ribbon" to setOf(MapDataSource.Location),
+            "altitude_ribbon" to setOf(MapDataSource.Location),
+            "activity_ribbon" to setOf(MapDataSource.Location),
+            "signal_aurora" to setOf(MapDataSource.Cell),
+            "legacy_heatmap" to setOf(MapDataSource.Location),
+            "life_terrain" to setOf(MapDataSource.Location),
         )
+        internal val LIVE_REACTIVE_LAYER_IDS = LIVE_REACTIVE_LAYER_SOURCES.keys
 
         /**
          * Debounce for reactive live refreshes. Coalesces a burst of gathered fixes into at most one
-         * refresh per window and gives the tracker's batched writes time to commit before we re-query,
-         * so the refresh sees the newest persisted fixes (any it misses are caught on the next tick).
+         * refresh per window. The source flow is emitted by Room only after a successful commit, so
+         * no additional delay is needed to guess whether the tracker has finished writing.
          */
         private const val REACTIVE_REFRESH_DEBOUNCE_MS = 1_500L
 
@@ -231,6 +251,8 @@ class MapStore @Inject constructor(
     private var speedProbeJob: Job? = null
     private var placeCalloutJob: Job? = null
     private var searchJob: Job? = null
+    private val mapDataObserverReady = CompletableDeferred<Unit>()
+    private val mapDataRevisions = MutableStateFlow(MapDataRevisions())
     /**
      * Latest real viewport bounds reported by the map projection (see
      * [MapEvent.CameraMoved.visibleBounds]). Preferred over the camera-derived [cameraToBounds]
@@ -259,6 +281,23 @@ class MapStore @Inject constructor(
     private var lastKnownUserLocation: LatLngModel? = null
 
     init {
+        viewModelScope.launch {
+            try {
+                mapDataChangeObserver.changes().collect { change ->
+                    when (change) {
+                        MapDataChange.Ready -> mapDataObserverReady.complete(Unit)
+                        is MapDataChange.Committed -> {
+                            mapDataRevisions.update { it.increment(change.sources) }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                mapDataObserverReady.completeExceptionally(e)
+                Reporter.report(e)
+            }
+        }
+
         // Heatmap quality is configured in the Map settings screen (not an in-map pill anymore).
         // Observe it here so the persisted value at startup and any later setting change drive the
         // rendered quality. Reuses the existing SetQuality reducer (updates state + re-applies the
@@ -610,6 +649,8 @@ class MapStore @Inject constructor(
     private fun applyLayer() {
         val engine = layerManager ?: return
         cameraRefreshJob?.cancel()
+        reactiveRefreshJob?.cancel()
+        reactiveRefreshJob = null
         applyLayerJob?.cancel()
         // A full re-select renders fresh data (possibly a new layer / quality / date range); the
         // previously-rendered viewport bucket no longer reflects what's drawn, so invalidate it and
@@ -618,6 +659,8 @@ class MapStore @Inject constructor(
         applyLayerJob = viewModelScope.launch {
             _state.update { it.copy(layerLoadingProgress = 50) }
             try {
+                mapDataObserverReady.await()
+                val revisionsBeforeQuery = mapDataRevisions.value
                 val s = _state.value
                 val bounds = lastVisibleBounds
                     ?: cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
@@ -625,7 +668,7 @@ class MapStore @Inject constructor(
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
                 updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = true)
-                restartReactiveObserver()
+                restartReactiveObserver(revisionsBeforeQuery)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 _state.update {
@@ -640,9 +683,9 @@ class MapStore @Inject constructor(
     }
 
     /**
-     * (Re)starts the reactive live-refresh observer for the currently active layers. Called whenever
-     * the active layer set changes. The observer itself is a no-op unless a tracking session is
-     * running and a live-reactive layer is active.
+     * (Re)starts the reactive live-refresh observer for the currently active layers. Refreshes are
+     * driven by committed Room table invalidations rather than the display-path size, which
+     * intentionally ignores stationary fixes.
      *
      * Concurrency: the collector is a child of [viewModelScope] (cancelled on clear); a burst of
      * gathered fixes is `debounce`d + `conflate`d into at most one refresh per window; each refresh
@@ -651,23 +694,24 @@ class MapStore @Inject constructor(
      * that camera moves or layer switches publish.
      */
     @OptIn(kotlinx.coroutines.FlowPreview::class)
-    private fun restartReactiveObserver() {
+    private fun restartReactiveObserver(revisionsBeforeQuery: MapDataRevisions) {
         reactiveRefreshJob?.cancel()
         if (_state.value.activeLayerIds.none { it in LIVE_REACTIVE_LAYER_IDS }) {
             reactiveRefreshJob = null
             return
         }
         reactiveRefreshJob = viewModelScope.launch {
-            kotlinx.coroutines.flow.combine(
-                trackerController.isServiceRunningFlow,
-                trackerController.pathPointsFlow,
-            ) { running, path ->
-                // A monotonically-changing token only while tracking: the live fix count. -1 when
-                // not tracking (filtered out below) so we do zero reactive work off-session.
-                if (running) path?.second?.size ?: 0 else -1
-            }
-                .distinctUntilChanged()
-                .filter { it >= 0 }
+            var observedRevisions = revisionsBeforeQuery
+            mapDataRevisions
+                .mapNotNull { currentRevisions ->
+                    val changedSources = currentRevisions.changedSourcesSince(observedRevisions)
+                    observedRevisions = currentRevisions
+                    changedSources.takeIf {
+                        _state.value.activeLayerIds.any { layerId ->
+                            LIVE_REACTIVE_LAYER_SOURCES[layerId]?.any(changedSources::contains) == true
+                        }
+                    }
+                }
                 .debounce(REACTIVE_REFRESH_DEBOUNCE_MS)
                 .conflate()
                 .collect {
@@ -800,9 +844,18 @@ class MapStore @Inject constructor(
     private fun isBoundsSensitiveLayer(layerId: String): Boolean = layerId in setOf(
         "location_heatmap",
         "cell_heatmap",
+        "signal_coverage",
+        "signal_aurora",
         "wifi_heatmap",
         "wifi_count_heatmap",
         "speed_heatmap",
+        "legacy_heatmap",
+        "life_terrain",
+        "ski_xray",
+        "trip_constellations",
+        "seasonal_palimpsest",
+        "fog_of_wonder",
+        "first_contact",
     )
 
     /**

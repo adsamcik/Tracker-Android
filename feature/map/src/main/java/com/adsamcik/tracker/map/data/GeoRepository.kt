@@ -30,6 +30,8 @@ class GeoRepositoryImpl(
         query.bounds?.let { builder.bounds(it.north, it.east, it.south, it.west) }
         builder.timeRange(query.timeFrom, query.timeTo)
         query.limit?.let { builder.limit(it) }
+        query.sampleLimit?.let { builder.sample(it) }
+        query.newestLimit?.let { builder.newest(it) }
         if (query.extraColumns.isNotEmpty()) builder.columns(*query.extraColumns.toTypedArray())
         val weight = query.weight
         if (weight != null) builder.weight(weight)
@@ -60,6 +62,8 @@ class GeoRepositoryImpl(
         weightedQuery.bounds?.let { builder.bounds(it.north, it.east, it.south, it.west) }
         builder.timeRange(weightedQuery.timeFrom, weightedQuery.timeTo)
         weightedQuery.limit?.let { builder.limit(it) }
+        weightedQuery.sampleLimit?.let { builder.sample(it) }
+        weightedQuery.newestLimit?.let { builder.newest(it) }
         if (weightedQuery.extraColumns.isNotEmpty()) builder.columns(*weightedQuery.extraColumns.toTypedArray())
         builder.weight(weightColumn)
         val sql = builder.build()
@@ -76,6 +80,8 @@ class GeoRepositoryImpl(
         query.bounds?.let { builder.bounds(it.north, it.east, it.south, it.west) }
         builder.timeRange(query.timeFrom, query.timeTo)
         query.limit?.let { builder.limit(it) }
+        query.sampleLimit?.let { builder.sample(it) }
+        query.newestLimit?.let { builder.newest(it) }
         builder.columns("network_type")
         builder.weight("asu")
         val sql = builder.build()

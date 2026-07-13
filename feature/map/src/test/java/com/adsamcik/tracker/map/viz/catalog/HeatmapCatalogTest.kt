@@ -78,6 +78,19 @@ class HeatmapCatalogTest {
 			locationDensitySource(repo).load(VizRequest(0L..Long.MAX_VALUE, bounds))
 			q.captured.bounds shouldBe bounds
 		}
+
+		@Test
+		fun `source budget is passed as representative database sampling`() = runTest {
+			val q = slot<GeoQuery>()
+			every { repo.queryWeighted(capture(q), any()) } returns flowOf(emptyList())
+
+			locationDensitySource(repo).load(
+				VizRequest(0L..Long.MAX_VALUE, bounds = null, maxFeatures = 15_000),
+			)
+
+			q.captured.sampleLimit shouldBe 15_000
+			q.captured.newestLimit shouldBe null
+		}
 	}
 
 	@Nested
@@ -94,6 +107,20 @@ class HeatmapCatalogTest {
 				),
 			)
 			speedSource(repo).load(allTime).map { it.weight } shouldBe listOf(3.5 / 30.0, 12.0 / 30.0, 1.0)
+		}
+
+		@Test
+		fun `sequence-safe speed source requests the newest ordered window`() = runTest {
+			val q = slot<GeoQuery>()
+			every { repo.queryWeighted(capture(q), eq("speed")) } returns flowOf(emptyList())
+
+			speedSource(repo, SourceRowSelection.NewestOrdered).load(
+				VizRequest(0L..Long.MAX_VALUE, bounds = null, maxFeatures = 40_000),
+			)
+
+			q.captured.sampleLimit shouldBe null
+			q.captured.newestLimit shouldBe 40_000
+			q.captured.bounds shouldBe null
 		}
 	}
 

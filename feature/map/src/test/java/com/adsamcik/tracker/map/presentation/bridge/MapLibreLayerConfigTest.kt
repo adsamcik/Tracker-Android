@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.presentation.bridge
 
+import com.adsamcik.tracker.map.shared.CoordinateBounds
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -45,6 +46,7 @@ class MapLibreLayerConfigTest {
 			config.intensity shouldBe 1f
 			config.opacity shouldBe 0.8f
 			config.weightProperty shouldBe "weight"
+			config.animation shouldBe null
 		}
 
 		@Test
@@ -143,6 +145,38 @@ class MapLibreLayerConfigTest {
 			val c2 = MapLibreLayerConfig.Line(geoJson = "x", colorArgb = 123)
 			c1 shouldBe c2
 		}
+
+		@Test
+		fun `bounds union covers every child layer`() {
+			val first = MapLibreLayerConfig.Line(
+				geoJson = "a",
+				colorArgb = 0,
+				bounds = CoordinateBounds(
+					topBound = 50.0,
+					rightBound = 14.0,
+					bottomBound = 49.0,
+					leftBound = 13.0,
+				),
+			)
+			val second = MapLibreLayerConfig.Line(
+				geoJson = "b",
+				colorArgb = 0,
+				bounds = CoordinateBounds(
+					topBound = 52.0,
+					rightBound = 16.0,
+					bottomBound = 51.0,
+					leftBound = 15.0,
+				),
+			)
+
+			MapLibreLayerConfig.Composite(listOf(first, second)).boundsOrNull() shouldBe
+				CoordinateBounds(
+					topBound = 52.0,
+					rightBound = 16.0,
+					bottomBound = 49.0,
+					leftBound = 13.0,
+				)
+		}
 	}
 
 	@Nested
@@ -176,6 +210,7 @@ class MapLibreLayerConfigTest {
 			config.casingColorArgb shouldBe null
 			config.casingWidthDp shouldBe 2.5f
 			config.bounds shouldBe null
+			config.animation shouldBe null
 		}
 
 		@Test
@@ -199,6 +234,26 @@ class MapLibreLayerConfigTest {
 			composite.layers[1].shouldBeInstanceOf<MapLibreLayerConfig.Line>()
 		}
 
+		@Nested
+		@DisplayName("Symbol")
+		inner class SymbolTests {
+
+			@Test
+			fun `stores icon and label styling`() {
+				val config = MapLibreLayerConfig.Symbol(
+					geoJson = """{"symbols":true}""",
+					iconRes = 123,
+					iconColorArgb = 0xFF00AAFF.toInt(),
+					textColorArgb = 0xFFFFFFFF.toInt(),
+				)
+
+				config.iconRes shouldBe 123
+				config.iconColorArgb shouldBe 0xFF00AAFF.toInt()
+				config.textColorArgb shouldBe 0xFFFFFFFF.toInt()
+				config.labelProperty shouldBe "label"
+			}
+		}
+
 		@Test
 		fun `empty composite`() {
 			val composite = MapLibreLayerConfig.Composite(layers = emptyList())
@@ -213,6 +268,8 @@ class MapLibreLayerConfigTest {
 			val outer = MapLibreLayerConfig.Composite(layers = listOf(inner))
 			outer.layers shouldHaveSize 1
 			outer.layers[0].shouldBeInstanceOf<MapLibreLayerConfig.Composite>()
+			outer.flattenedLeaves() shouldHaveSize 1
+			outer.flattenedLeaves().single().shouldBeInstanceOf<MapLibreLayerConfig.Line>()
 		}
 
 		@Test
@@ -243,6 +300,7 @@ class MapLibreLayerConfigTest {
 				MapLibreLayerConfig.FillExtrusion(geoJson = "", colorStops = emptyList(), maxHeightMeters = 100f),
 				MapLibreLayerConfig.Circle(geoJson = "", colorStops = emptyList(), minRadiusDp = 4f, maxRadiusDp = 20f),
 				MapLibreLayerConfig.GradientLine(geoJson = "", gradientStops = emptyList()),
+				MapLibreLayerConfig.Symbol(geoJson = "", iconRes = 0),
 				MapLibreLayerConfig.Composite(layers = emptyList()),
 			)
 			val labels = configs.map { config ->
@@ -253,10 +311,13 @@ class MapLibreLayerConfigTest {
 					is MapLibreLayerConfig.FillExtrusion -> "fill-extrusion"
 					is MapLibreLayerConfig.Circle -> "circle"
 					is MapLibreLayerConfig.GradientLine -> "gradient-line"
+					is MapLibreLayerConfig.Symbol -> "symbol"
 					is MapLibreLayerConfig.Composite -> "composite"
 				}
 			}
-			labels shouldBe listOf("heatmap", "line", "fill", "fill-extrusion", "circle", "gradient-line", "composite")
+			labels shouldBe listOf(
+				"heatmap", "line", "fill", "fill-extrusion", "circle", "gradient-line", "symbol", "composite",
+			)
 		}
 	}
 }

@@ -42,6 +42,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signal aurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Cell signal rendered as an aurora-like glow: a broad violet halo beneath a bright cyan-green core. The glow breathes without reloading data and becomes static when system animations are disabled.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Faint signal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Strong signal</string>
     <string name="map_layer_speed_heatmap_description">Heatmap representing the speed of movement across different areas.</string>
     <string name="map_layer_speed_very_slow">Very Slow</string>
     <string name="map_layer_speed_walking">Walking Pace</string>
@@ -76,6 +81,32 @@
     <string name="map_layer_speed_ribbon_title">Speed ribbon</string>
     <string name="map_layer_speed_ribbon_chip">Ribbon</string>
     <string name="map_layer_speed_ribbon_description">Your route painted by how fast you were moving, flowing colour from a slow violet amble to a red-hot sprint or drive. Unlike the speed heatmap, the ribbon keeps your path intact so you can see exactly where you sped up and slowed down.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Altitude ribbon</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitude</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Your route painted by absolute elevation, from deep blue lowlands through cyan foothills to warm mountain heights. The scale stays fixed as you pan, so the same altitude always keeps the same colour.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Lowlands</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Foothills</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">High mountains</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Activity ribbon</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Activity</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Your route painted by the reliable motion state recorded with each fix: grey where state was unknown, blue while still, and green while moving.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Unknown</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Still</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Moving</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Ski X-ray</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski X-ray</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">A diagnostic view of detected ski segments. Downhill runs, lifts, walks, and pauses are anchored to the nearest recorded location and labelled with their key metrics.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Downhill run</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Walk or pause</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Trip constellations</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Trips</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Repeated journeys between your frequent places become curved constellations. A stable arc shows each route while a comet travels along it; thicker arcs mean you made that journey more often.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Walking</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cycling</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Driving</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transit</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Other</string>
     <string name="map_layer_fog_title">Explorer\u2019s fog</string>
     <string name="map_layer_fog_chip">Fog</string>
     <string name="map_layer_fog_description">The world emerging from the fog: every area you\u2019ve touched is revealed, glowing brighter the more thoroughly you got to know it. Places you merely passed through stay a faint haze; somewhere you explored deeply burns solid gold. Unexplored ground stays dark.</string>

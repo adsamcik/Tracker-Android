@@ -131,6 +131,7 @@ class DefaultLayerRegistryTest {
                 "location_heatmap",
                 "cell_heatmap",
                 "signal_coverage",
+                "signal_aurora",
                 "wifi_heatmap",
                 "wifi_count_heatmap",
                 "speed_heatmap",
@@ -141,6 +142,10 @@ class DefaultLayerRegistryTest {
                 "frequent_places",
                 "life_terrain",
                 "speed_ribbon",
+                "altitude_ribbon",
+                "activity_ribbon",
+                "ski_xray",
+                "trip_constellations",
                 "fog_of_wonder",
                 "first_contact"
             )

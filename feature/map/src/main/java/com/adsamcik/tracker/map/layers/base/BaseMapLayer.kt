@@ -200,6 +200,10 @@ abstract class BaseMapLayer<I, P>(
         budgets: PerformanceManager.PerformanceBudgets
     ): P
 
+    /** Current quality/zoom budget, available to sources that can bound database materialization. */
+    protected fun currentPerformanceBudgets(): PerformanceManager.PerformanceBudgets =
+        performanceManager.budgets(quality, zoom)
+
     /** Implement: produce a [MapLibreLayerConfig] from processed data. */
     protected abstract fun produceConfig(processed: P): MapLibreLayerConfig?
 

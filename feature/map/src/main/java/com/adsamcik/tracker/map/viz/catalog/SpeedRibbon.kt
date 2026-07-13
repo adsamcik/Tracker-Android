@@ -36,6 +36,6 @@ val SPEED_RIBBON_RAMP: List<Pair<Float, Int>> = listOf(
 /** Speed ribbon: the recorded route coloured continuously by movement speed. */
 fun speedRibbon(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.Segments> =
 	mapViz("speed_ribbon")
-		.source(speedSource(repo))
+		.source(speedSource(repo, SourceRowSelection.NewestOrdered))
 		.aggregate(SegmentsAggregator())
 		.gradientLine(colorStops = SPEED_RIBBON_RAMP, widthDp = 6f)

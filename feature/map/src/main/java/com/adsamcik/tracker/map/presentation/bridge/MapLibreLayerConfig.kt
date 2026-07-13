@@ -16,6 +16,15 @@ sealed interface LayerAnimation {
         val minScale: Float = 1f,
         val maxScale: Float = 1.3f,
     ) : LayerAnimation
+
+    /** A comet trail moving along a line without changing its source geometry. */
+    @Immutable
+    data class Flow(
+        val periodMs: Int = 4_200,
+        val colorArgb: Int,
+        val trailFraction: Float = 0.2f,
+        val phaseOffset: Float = 0f,
+    ) : LayerAnimation
 }
 
 /**
@@ -31,7 +40,8 @@ sealed interface MapLibreLayerConfig {
         val radiusPx: Float = 20f,
         val intensity: Float = 1f,
         val opacity: Float = 0.8f,
-        val weightProperty: String = "weight"
+        val weightProperty: String = "weight",
+        val animation: LayerAnimation? = null,
     ) : MapLibreLayerConfig
 
     @Immutable
@@ -119,6 +129,23 @@ sealed interface MapLibreLayerConfig {
         val casingColorArgb: Int? = null,
         val casingWidthDp: Float = 2.5f,
         val bounds: CoordinateBounds? = null,
+        val animation: LayerAnimation? = null,
+    ) : MapLibreLayerConfig
+
+    /** Collision-aware SDF icon annotations with optional labels from [labelProperty]. */
+    @Immutable
+    data class Symbol(
+        val geoJson: String,
+        val iconRes: Int,
+        val iconColorArgb: Int = 0xFFFFFFFF.toInt(),
+        val iconHaloColorArgb: Int = 0xCC000000.toInt(),
+        val iconSizeDp: Float = 24f,
+        val textColorArgb: Int = 0xFFFFFFFF.toInt(),
+        val textHaloColorArgb: Int = 0xCC000000.toInt(),
+        val textSizeSp: Float = 12f,
+        val labelProperty: String = "label",
+        val allowOverlap: Boolean = false,
+        val bounds: CoordinateBounds? = null,
     ) : MapLibreLayerConfig
 }
 
@@ -133,7 +160,7 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
     is MapLibreLayerConfig.Heatmap -> MapLibreLayerRenderKey(
         index = index,
         type = "heatmap",
-        style = HeatmapStyleKey(colorStops, radiusPx, intensity, opacity, weightProperty),
+        style = HeatmapStyleKey(colorStops, radiusPx, intensity, opacity, weightProperty, animation),
     )
     is MapLibreLayerConfig.Line -> MapLibreLayerRenderKey(
         index = index,
@@ -163,7 +190,17 @@ fun MapLibreLayerConfig.renderKey(index: Int): MapLibreLayerRenderKey = when (th
     is MapLibreLayerConfig.GradientLine -> MapLibreLayerRenderKey(
         index = index,
         type = "gradient-line",
-        style = GradientLineStyleKey(gradientStops, widthDp, opacity, casingColorArgb, casingWidthDp),
+        style = GradientLineStyleKey(
+            gradientStops, widthDp, opacity, casingColorArgb, casingWidthDp, animation,
+        ),
+    )
+    is MapLibreLayerConfig.Symbol -> MapLibreLayerRenderKey(
+        index = index,
+        type = "symbol",
+        style = SymbolStyleKey(
+            iconRes, iconColorArgb, iconHaloColorArgb, iconSizeDp, textColorArgb,
+            textHaloColorArgb, textSizeSp, labelProperty, allowOverlap,
+        ),
     )
 }
 
@@ -174,6 +211,7 @@ private data class HeatmapStyleKey(
     val intensity: Float,
     val opacity: Float,
     val weightProperty: String,
+    val animation: LayerAnimation?,
 )
 
 @Immutable
@@ -221,16 +259,44 @@ private data class GradientLineStyleKey(
     val opacity: Float,
     val casingColorArgb: Int?,
     val casingWidthDp: Float,
+    val animation: LayerAnimation?,
 )
+
+@Immutable
+private data class SymbolStyleKey(
+    val iconRes: Int,
+    val iconColorArgb: Int,
+    val iconHaloColorArgb: Int,
+    val iconSizeDp: Float,
+    val textColorArgb: Int,
+    val textHaloColorArgb: Int,
+    val textSizeSp: Float,
+    val labelProperty: String,
+    val allowOverlap: Boolean,
+)
+
+/** Recursively lowers composites so every renderer receives the same ordered leaf layer sequence. */
+fun MapLibreLayerConfig.flattenedLeaves(): List<MapLibreLayerConfig> = when (this) {
+    is MapLibreLayerConfig.Composite -> layers.flatMap { it.flattenedLeaves() }
+    else -> listOf(this)
+}
 
 fun MapLibreLayerConfig.boundsOrNull(): CoordinateBounds? = when (this) {
     is MapLibreLayerConfig.Line -> bounds
     is MapLibreLayerConfig.GradientLine -> bounds
+    is MapLibreLayerConfig.Symbol -> bounds
     is MapLibreLayerConfig.Heatmap -> null
     is MapLibreLayerConfig.Fill -> null
     is MapLibreLayerConfig.FillExtrusion -> null
     is MapLibreLayerConfig.Circle -> null
     is MapLibreLayerConfig.Composite -> layers.asSequence()
         .mapNotNull { it.boundsOrNull() }
-        .firstOrNull()
+        .reduceOrNull { accumulated, child ->
+            CoordinateBounds(
+                topBound = maxOf(accumulated.top, child.top),
+                rightBound = maxOf(accumulated.right, child.right),
+                bottomBound = minOf(accumulated.bottom, child.bottom),
+                leftBound = minOf(accumulated.left, child.left),
+            )
+        }
 }

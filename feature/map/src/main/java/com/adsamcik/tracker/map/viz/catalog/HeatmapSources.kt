@@ -16,14 +16,25 @@ import kotlinx.coroutines.flow.first
  * only as confidence metadata; value heatmaps (speed, signal) use it as the measured quantity.
  */
 
-/** Builds a bounds/time-filtered [GeoQuery] from a [VizRequest]. */
-internal fun VizRequest.toQuery(source: GeoSource, weightColumn: String? = null): GeoQuery =
+enum class SourceRowSelection {
+	EvenlySampled,
+	NewestOrdered,
+}
+
+/** Builds a bounds/time-filtered and source-budgeted [GeoQuery] from a [VizRequest]. */
+internal fun VizRequest.toQuery(
+	source: GeoSource,
+	weightColumn: String? = null,
+	rowSelection: SourceRowSelection = SourceRowSelection.EvenlySampled,
+): GeoQuery =
 	GeoQuery(
 		source = source,
-		bounds = bounds,
+		bounds = bounds.takeIf { rowSelection != SourceRowSelection.NewestOrdered },
 		timeFrom = dateRange.first.takeIf { it > 0L },
 		timeTo = dateRange.last.takeIf { it < Long.MAX_VALUE },
 		weight = weightColumn,
+		sampleLimit = maxFeatures.takeIf { rowSelection == SourceRowSelection.EvenlySampled },
+		newestLimit = maxFeatures.takeIf { rowSelection == SourceRowSelection.NewestOrdered },
 	)
 
 /** Accuracy above this (metres) yields a confidence weight of 0 (5 m -> 0.9, 25 m -> 0.5). */
@@ -31,6 +42,10 @@ private const val MAX_ACCURACY_METERS = 50.0
 
 /** 30 m/s (~108 km/h) saturates the speed ramp to its hottest bucket. */
 private const val MAX_SPEED_MPS = 30.0
+
+/** Stable altitude domain used across viewports: Dead Sea vicinity through high mountain travel. */
+private const val MIN_ALTITUDE_METERS = -100.0
+private const val MAX_ALTITUDE_METERS = 4_000.0
 
 /**
  * Location fixes weighted by GPS-accuracy confidence: `hor_acc` (metres, lower = better) is inverted
@@ -45,9 +60,36 @@ fun locationDensitySource(repo: GeoRepository): VizSource<WeightedGeoFeature> = 
  * Location fixes weighted by speed: raw m/s normalised to `[0, 1]` against [MAX_SPEED_MPS] so the
  * colour ramp maps meaningfully and MapLibre's `heatmap-weight` doesn't saturate on one sample.
  */
-fun speedSource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSource { request ->
-	repo.queryWeighted(request.toQuery(GeoSource.LOCATION, "speed"), "speed").first()
+fun speedSource(
+	repo: GeoRepository,
+	rowSelection: SourceRowSelection = SourceRowSelection.EvenlySampled,
+): VizSource<WeightedGeoFeature> = VizSource { request ->
+	repo.queryWeighted(request.toQuery(GeoSource.LOCATION, "speed", rowSelection), "speed").first()
 		.map { it.copy(weight = (it.weight / MAX_SPEED_MPS).coerceIn(0.0, 1.0)) }
+}
+
+/** Location fixes weighted by altitude against a fixed global range, never viewport-relative. */
+fun altitudeSource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSource { request ->
+	repo.queryWeighted(
+		request.toQuery(GeoSource.LOCATION, "alt", SourceRowSelection.NewestOrdered),
+		"alt",
+	).first()
+		.map { it.copy(weight = altitudeWeight(it.weight)) }
+}
+
+internal fun altitudeWeight(altitudeMeters: Double): Double =
+	((altitudeMeters - MIN_ALTITUDE_METERS) / (MAX_ALTITUDE_METERS - MIN_ALTITUDE_METERS))
+		.coerceIn(0.0, 1.0)
+
+/**
+ * Location fixes weighted by the persisted motion state: unknown = 0, still = 0.5, moving = 1.
+ * This deliberately avoids the historically ambiguous rich activity ordinal.
+ */
+fun activitySource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSource { request ->
+	repo.queryWeighted(
+		request.toQuery(GeoSource.LOCATION, "motion", SourceRowSelection.NewestOrdered),
+		"motion",
+	).first()
 }
 
 /**

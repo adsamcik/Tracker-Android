@@ -20,7 +20,13 @@ internal class PipelineLayer<Feature, F : SpatialData>(
 	override var dateRange: LongRange = 0L..Long.MAX_VALUE
 
 	override suspend fun loadData(context: Context, bounds: Bounds?): List<Feature> =
-		pipeline.source.load(VizRequest(dateRange, bounds))
+		pipeline.source.load(
+			VizRequest(
+				dateRange = dateRange,
+				bounds = bounds,
+				maxFeatures = currentPerformanceBudgets().maxPoints,
+			),
+		)
 
 	override fun processData(
 		input: List<Feature>,

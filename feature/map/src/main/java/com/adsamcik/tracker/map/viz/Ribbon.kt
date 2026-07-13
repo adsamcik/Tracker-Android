@@ -9,28 +9,60 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
- * The engine's fifth render shape: an attributed polyline drawn as a single line whose colour flows
- * along its length ([SpatialData.Segments] -> [MapLibreLayerConfig.GradientLine]). Where the heatmap
+ * The engine's fifth render shape: contiguous attributed polylines whose colour flows along each
+ * path ([SpatialData.Segments] -> [MapLibreLayerConfig.GradientLine]). Where the heatmap
  * family answers "where", a ribbon answers "how it changed along the way" — speed, altitude, or
  * activity painted continuously over the route. This is the shared shape behind every "ribbon"
  * visualization; a new one is just a different source + colour ramp.
  */
 
 /**
- * **Aggregator**: orders weighted fixes into a path (by time) and, if it exceeds [maxPoints],
- * evenly down-samples while preserving the per-vertex weight and always keeping the real endpoints.
- * Even-stride sampling keeps the weight profile representative without inventing interpolated fixes.
+ * **Aggregator**: orders weighted fixes by time, splits on sampling gaps longer than [maxGapMs], and
+ * evenly down-samples the resulting paths within [maxPoints]. Splitting prevents unrelated sessions
+ * from being joined by synthetic map-spanning chords.
  */
 class SegmentsAggregator(
 	private val maxPoints: Int = 2_000,
+	private val maxGapMs: Long = DEFAULT_MAX_GAP_MS,
+	private val maxPaths: Int = DEFAULT_MAX_PATHS,
 ) : Aggregator<WeightedGeoFeature, SpatialData.Segments> {
 
 	override fun aggregate(features: List<WeightedGeoFeature>, ctx: AggContext): SpatialData.Segments {
-		if (features.size < 2) return SpatialData.Segments(features)
-		val ordered = features.sortedBy { it.time }
+		if (features.size < 2) {
+			return SpatialData.Segments(features.takeIf { it.isNotEmpty() }?.let(::listOf).orEmpty())
+		}
+		val ordered = features.orderedByTime()
 		val budget = min(maxPoints, ctx.maxPoints.takeIf { it >= 2 } ?: maxPoints)
-		val path = if (ordered.size > budget) downSampleKeepingWeights(ordered, budget) else ordered
-		return SpatialData.Segments(path)
+		val contiguous = splitOnGaps(ordered).filter { it.size >= 2 }
+		if (contiguous.isEmpty()) return SpatialData.Segments(emptyList())
+		return SpatialData.Segments(downSamplePaths(contiguous, budget))
+	}
+
+	private fun splitOnGaps(points: List<WeightedGeoFeature>): List<List<WeightedGeoFeature>> {
+		val paths = mutableListOf<MutableList<WeightedGeoFeature>>()
+		points.forEach { point ->
+			val current = paths.lastOrNull()
+			if (current == null || point.time - current.last().time > maxGapMs) {
+				paths += mutableListOf(point)
+			} else {
+				current += point
+			}
+		}
+		return paths
+	}
+
+	private fun downSamplePaths(
+		paths: List<List<WeightedGeoFeature>>,
+		budget: Int,
+	): List<List<WeightedGeoFeature>> {
+		val kept = paths.takeLast(minOf(maxPaths, (budget / 2).coerceAtLeast(1)))
+		if (kept.sumOf { it.size } <= budget) return kept
+		val baseBudget = (budget / kept.size).coerceAtLeast(2)
+		val remainder = budget - baseBudget * kept.size
+		return kept.mapIndexed { index, path ->
+			val pathBudget = (baseBudget + if (index < remainder) 1 else 0).coerceAtMost(path.size)
+			if (path.size > pathBudget) downSampleKeepingWeights(path, pathBudget) else path
+		}
 	}
 
 	private fun downSampleKeepingWeights(
@@ -47,10 +79,15 @@ class SegmentsAggregator(
 		if (out.last() !== points.last()) out[out.lastIndex] = points.last()
 		return out
 	}
+
+	companion object {
+		internal const val DEFAULT_MAX_GAP_MS = 5 * 60_000L
+		internal const val DEFAULT_MAX_PATHS = 64
+	}
 }
 
 /**
- * **Encoder**: [SpatialData.Segments] + style -> a MapLibre gradient-line config. Each vertex's
+ * **Encoder**: [SpatialData.Segments] + style -> one MapLibre gradient-line config per path. Each vertex's
  * weight is resolved to a colour via [colorStops] and placed at its cumulative-distance fraction
  * along the path, so `line-gradient` interpolates a smooth colour flow between them. Returns null for
  * a path with fewer than two distinct vertices.
@@ -64,18 +101,27 @@ class GradientLineEncoder(
 ) : Encoder<SpatialData.Segments> {
 
 	override fun encode(field: SpatialData.Segments, ctx: RenderContext): MapLibreLayerConfig? {
-		val path = field.path
+		val configs = field.paths.mapNotNull(::encodePath)
+		return when (configs.size) {
+			0 -> null
+			1 -> configs.single()
+			else -> MapLibreLayerConfig.Composite(configs)
+		}
+	}
+
+	private fun encodePath(path: List<WeightedGeoFeature>): MapLibreLayerConfig.GradientLine? {
 		if (path.size < 2) return null
-		val stops = buildGradientStops(path, colorStops)
+		val renderPath = path.unwrapLongitudes()
+		val stops = buildGradientStops(renderPath, colorStops)
 		if (stops.size < 2) return null
 		return MapLibreLayerConfig.GradientLine(
-			geoJson = GeoJsonConverter.weightedLineToFeatureCollection(path),
+			geoJson = GeoJsonConverter.weightedLineToFeatureCollection(renderPath),
 			gradientStops = stops,
 			widthDp = widthDp,
 			opacity = opacity,
 			casingColorArgb = casingColorArgb,
 			casingWidthDp = casingWidthDp,
-			bounds = path.coordinateBoundsOrNull(),
+			bounds = renderPath.coordinateBoundsOrNull(),
 		)
 	}
 
@@ -165,12 +211,42 @@ private fun channel(argb: Int, shift: Int): Int = (argb ushr shift) and 0xFF
 /** Equirectangular metre approximation — accurate enough at track scale and far cheaper than haversine. */
 private fun approxMeters(a: WeightedGeoFeature, b: WeightedGeoFeature): Double {
 	val meanLatRad = Math.toRadians((a.lat + b.lat) / 2.0)
-	val x = Math.toRadians(b.lon - a.lon) * cos(meanLatRad)
+	val x = Math.toRadians(shortestLongitudeDelta(a.lon, b.lon)) * cos(meanLatRad)
 	val y = Math.toRadians(b.lat - a.lat)
 	return sqrt(x * x + y * y) * EARTH_RADIUS_METERS
 }
 
 private const val EARTH_RADIUS_METERS = 6_371_000.0
+
+private fun List<WeightedGeoFeature>.orderedByTime(): List<WeightedGeoFeature> {
+	for (index in 1 until size) {
+		if (this[index - 1].time > this[index].time) {
+			return sortedBy(WeightedGeoFeature::time)
+		}
+	}
+	return this
+}
+
+private fun List<WeightedGeoFeature>.unwrapLongitudes(): List<WeightedGeoFeature> {
+	if (size < 2) return this
+	val unwrapped = ArrayList<WeightedGeoFeature>(size)
+	unwrapped += first()
+	var previousLongitude = first().lon
+	for (index in 1 until size) {
+		val point = this[index]
+		val longitude = previousLongitude + shortestLongitudeDelta(previousLongitude, point.lon)
+		unwrapped += if (longitude == point.lon) point else point.copy(lon = longitude)
+		previousLongitude = longitude
+	}
+	return unwrapped
+}
+
+private fun shortestLongitudeDelta(from: Double, to: Double): Double {
+	var delta = (to - from) % 360.0
+	if (delta > 180.0) delta -= 360.0
+	if (delta < -180.0) delta += 360.0
+	return delta
+}
 
 private fun List<WeightedGeoFeature>.coordinateBoundsOrNull(): CoordinateBounds? {
 	if (isEmpty()) return null

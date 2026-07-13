@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.ui.sdfBitmapFromVector
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -23,6 +24,7 @@ import org.maplibre.android.style.layers.HeatmapLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.compose.camera.CameraPosition
@@ -101,7 +103,7 @@ object MapSnapshotRenderer {
 				is BaseStyle.Json -> fromJson(baseStyle.json)
 				is BaseStyle.Uri -> fromUri(baseStyle.uri)
 			}
-			layerConfig?.let { addLayerConfig(this, it, "share") }
+			layerConfig?.let { addLayerConfig(context, this, it, "share") }
 			addActiveTrackingPath(this, activeTrackingPath, activeTrackingColorArgb)
 		}
 
@@ -132,10 +134,15 @@ object MapSnapshotRenderer {
 	}
 
 	/** Mirrors MapScreen's MapDataLayers, using the classic Layer/Source builder API instead of Compose. */
-	private fun addLayerConfig(builder: Style.Builder, config: MapLibreLayerConfig, idPrefix: String) {
+	private fun addLayerConfig(
+		context: Context,
+		builder: Style.Builder,
+		config: MapLibreLayerConfig,
+		idPrefix: String,
+	) {
 		when (config) {
 			is MapLibreLayerConfig.Composite -> config.layers.forEachIndexed { index, child ->
-				addLayerConfig(builder, child, "$idPrefix-$index")
+				addLayerConfig(context, builder, child, "$idPrefix-$index")
 			}
 			is MapLibreLayerConfig.Heatmap -> {
 				val sourceId = "$idPrefix-heatmap-source"
@@ -250,8 +257,46 @@ object MapSnapshotRenderer {
 					),
 				)
 			}
+			is MapLibreLayerConfig.Symbol -> {
+				val sourceId = "$idPrefix-symbol-source"
+				val imageId = "$idPrefix-symbol-image"
+				val bitmap = requireNotNull(
+					sdfBitmapFromVector(context, config.iconRes, config.iconSizeDp),
+				) {
+					"Unable to load map symbol drawable ${config.iconRes}"
+				}
+				builder.withImage(imageId, bitmap, true)
+				builder.withSource(GeoJsonSource(sourceId, config.geoJson))
+				builder.withLayer(
+					SymbolLayer("$idPrefix-symbol-layer", sourceId).withProperties(
+						PropertyFactory.iconImage(imageId),
+						PropertyFactory.iconColor(config.iconColorArgb),
+						PropertyFactory.iconHaloColor(config.iconHaloColorArgb),
+						PropertyFactory.iconHaloWidth(1.5f),
+						PropertyFactory.iconSize(1f),
+						PropertyFactory.iconAllowOverlap(config.allowOverlap),
+						PropertyFactory.textField(Expression.get(config.labelProperty)),
+						PropertyFactory.textColor(config.textColorArgb),
+						PropertyFactory.textHaloColor(config.textHaloColorArgb),
+						PropertyFactory.textHaloWidth(1.5f),
+						PropertyFactory.textSize(
+							snapshotTextSizePx(
+								textSizeSp = config.textSizeSp,
+								fontScale = context.resources.configuration.fontScale,
+							),
+						),
+						PropertyFactory.textOffset(arrayOf(0f, 1.5f)),
+						PropertyFactory.textOptional(true),
+						PropertyFactory.textAllowOverlap(config.allowOverlap),
+					),
+				)
+			}
+
 		}
 	}
+
+	internal fun snapshotTextSizePx(textSizeSp: Float, fontScale: Float): Float =
+		textSizeSp * fontScale
 
 	/** Mirrors MapScreen's MapActiveTrackingLayer. */
 	private fun addActiveTrackingPath(

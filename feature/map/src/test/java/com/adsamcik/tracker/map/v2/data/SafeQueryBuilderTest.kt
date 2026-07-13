@@ -54,6 +54,26 @@ class SafeQueryBuilderTest {
     }
 
     @Test
+    fun `altitude weighted query excludes missing altitude`() {
+        val q = SafeQueryBuilder.location().weight("alt").build()
+        val sql = (q as SimpleSQLiteQuery).sql
+
+        sql shouldContain "alt_m AS weight"
+        sql shouldContain "alt_m IS NOT NULL"
+    }
+
+    @Test
+    fun `motion weighted query maps the persisted movement state truthfully`() {
+        val q = SafeQueryBuilder.location().weight("motion").build()
+        val sql = (q as SimpleSQLiteQuery).sql
+
+        sql shouldContain "CASE motion_state"
+        sql shouldContain "WHEN 'MOVING' THEN 1.0"
+        sql shouldContain "WHEN 'STILL' THEN 0.5"
+        sql shouldContain "ELSE 0.0 END AS weight"
+    }
+
+    @Test
     fun `reject disallowed weight`() {
         shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().weight("not_col")
@@ -79,6 +99,36 @@ class SafeQueryBuilderTest {
         sql shouldContain "AS time"
         sql shouldContain "FROM cell_sample"
         sql shouldEndWith "LIMIT 50"
+    }
+
+    @Test
+    fun `sample query keeps filters in database and applies a bounded representative limit`() {
+        val q = SafeQueryBuilder.location()
+            .timeRange(100L, 200L)
+            .sample(50)
+            .build() as SimpleSQLiteQuery
+
+        q.sql shouldContain "SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM location_sample"
+        q.sql shouldContain "sample_bounds.max_id - sample_bounds.min_id"
+        q.sql shouldContain "MAX(1,"
+        q.sql shouldEndWith "LIMIT 50"
+        q.sql.count { it == '?' } shouldBe 5
+    }
+
+    @Test
+    fun `newest query returns a bounded chronological window`() {
+        val q = SafeQueryBuilder.location().newest(80).build() as SimpleSQLiteQuery
+
+        q.sql shouldStartWith "SELECT lat, lon, time FROM (SELECT"
+        q.sql shouldContain "ORDER BY time_ms DESC LIMIT 80"
+        q.sql shouldEndWith ") ORDER BY time ASC"
+    }
+
+    @Test
+    fun `rejects combining incompatible row limits`() {
+        shouldThrow<IllegalArgumentException> {
+            SafeQueryBuilder.location().sample(50).newest(50)
+        }
     }
 
     @Test

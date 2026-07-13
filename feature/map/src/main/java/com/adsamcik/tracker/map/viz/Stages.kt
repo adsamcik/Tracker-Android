@@ -17,6 +17,7 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 data class VizRequest(
 	val dateRange: LongRange,
 	val bounds: Bounds?,
+	val maxFeatures: Int? = null,
 )
 
 /** Zoom, render quality and the per-refresh point budget available to an [Aggregator]. */
