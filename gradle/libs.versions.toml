@@ -7,7 +7,7 @@ agp = "9.3.0-rc01"
 # Tools
 benmanes = "0.54.0"
 googleServices = "4.5.0"
-ossLicenses = "0.12.0"
+ossLicenses = "0.13.0"
 desugarJdkLibs = "2.1.5"
 
 # AndroidX / Google
@@ -142,6 +142,7 @@ kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.
 kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 
 # UI Effects

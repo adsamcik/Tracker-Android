@@ -84,7 +84,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
@@ -95,6 +94,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -105,7 +105,7 @@ internal val defaultDispatchers = DefaultDispatchersProvider
 internal data class TrackerDashboardUiState(
     val isTracking: Boolean = false,
     val isLocked: Boolean = false,
-    val sessionData: TrackerSession? = null,
+    val sessionData: TrackerSessionSnapshot? = null,
     val collectionData: CollectionData? = null,
     val hasLocationPermission: Boolean = false,
     val pathPoints: List<Location>? = null,
@@ -212,7 +212,7 @@ internal fun TrackerDashboard(
  */
 @Composable
 private fun MilestoneHapticEffect(
-    sessionData: TrackerSession?,
+    sessionData: TrackerSessionSnapshot?,
     isTracking: Boolean,
     haptics: androidx.compose.ui.hapticfeedback.HapticFeedback
 ) {
@@ -385,7 +385,7 @@ private fun rememberWallClockMillis(isTracking: Boolean): Long {
 
 @Composable
 private fun TrackingContent(
-    sessionData: TrackerSession?,
+    sessionData: TrackerSessionSnapshot?,
     collectionData: CollectionData?,
     isTracking: Boolean,
     isLocked: Boolean,

@@ -172,7 +172,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		 * Starts activity recognition via the Hilt-provided backend.
 		 * Callers should check [android.Manifest.permission.ACTIVITY_RECOGNITION] before calling.
 		 */
-		fun startActivityRecognition(
+		suspend fun startActivityRecognition(
 			context: Context,
 			interval: Int,
 			transitions: Collection<ActivityTransitionData>,
@@ -187,7 +187,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		/**
 		 * Stops activity recognition via the Hilt-provided backend.
 		 */
-		fun stopActivityRecognition(context: Context) {
+		suspend fun stopActivityRecognition(context: Context) {
 			val backend = EntryPointAccessors.fromApplication(
 				context.applicationContext,
 				ActivityReceiverEntryPoint::class.java,

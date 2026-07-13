@@ -25,7 +25,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
@@ -34,6 +33,7 @@ import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -163,9 +163,9 @@ fun DashboardRoute(
 	}
 
 	// Resolve display session (active → controller last → DB last)
-	val dbLastSessionAsTracker: TrackerSession? = remember(dbLastSession) {
+	val dbLastSessionAsTracker: TrackerSessionSnapshot? = remember(dbLastSession) {
 		dbLastSession?.let { trip ->
-			TrackerSession(
+			TrackerSessionSnapshot(
 				id = trip.id,
 				start = trip.startTimeMs,
 				end = trip.endTimeMs,

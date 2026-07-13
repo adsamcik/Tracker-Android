@@ -4,6 +4,8 @@ import android.content.Context
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -21,9 +23,11 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.data.toLegacyActivityInfo
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -103,28 +107,46 @@ internal class ActivityDataProducer(
 		}
 	}
 
-	override fun onEnable(context: Context) {
-		super.onEnable(context)
+	override suspend fun onEnable(context: Context) {
 		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
 		val requestManager = activityRequestManager(context)
 		activityUpdatesJob?.cancel()
 		activityUpdatesJob = requestManager.activityUpdates
-			.onEach { recordActivity(it.activity.toLegacyActivityInfo(), it.elapsedTimeMillis) }
+			.onEach(::recordActivity)
 			.launchIn(activityScope)
-		requestManager.requestActivity(
-				context,
-				ActivityRequestData(
-						this::class,
-						ActivityChangeRequestData(minUpdateDelayInSeconds)
-				)
-		)
+		try {
+			val requestStarted = requestManager.requestActivity(
+					context,
+					ActivityRequestData(
+							this::class,
+							ActivityChangeRequestData(minUpdateDelayInSeconds)
+					)
+			)
+			if (!requestStarted) {
+				error("Unable to start activity recognition request")
+			}
+			super.onEnable(context)
+		} catch (exception: CancellationException) {
+			activityUpdatesJob?.cancelAndJoin()
+			activityUpdatesJob = null
+			throw exception
+		} catch (exception: Exception) {
+			activityUpdatesJob?.cancelAndJoin()
+			activityUpdatesJob = null
+			throw exception
+		}
 	}
 
-	override fun onDisable(context: Context) {
-		super.onDisable(context)
+	override suspend fun onDisable(context: Context) {
 		activityUpdatesJob?.cancel()
 		activityUpdatesJob = null
 		activityRequestManager(context).removeActivityRequest(context, this::class)
+		super.onDisable(context)
+	}
+
+	internal fun recordActivity(update: ActivityUpdate) {
+		if (update.source != ActivityUpdateSource.RECOGNITION) return
+		recordActivity(update.activity.toLegacyActivityInfo(), update.elapsedTimeMillis)
 	}
 
 	companion object {

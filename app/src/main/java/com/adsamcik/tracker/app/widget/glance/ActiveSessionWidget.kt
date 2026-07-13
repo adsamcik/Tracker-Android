@@ -33,9 +33,9 @@ import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.EntryPointAccessors
 
 /**
@@ -51,7 +51,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val isRunning: Boolean
-        val session: TrackerSession?
+        val session: TrackerSessionSnapshot?
         val policyTier: PolicyTier
         val collectionData: CollectionData?
         val pathPoints: List<Location>
@@ -101,7 +101,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
 @Composable
 private fun ActiveSessionContent(
     isRunning: Boolean,
-    session: TrackerSession?,
+    session: TrackerSessionSnapshot?,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
     context: Context,
@@ -163,7 +163,7 @@ private fun IdleContent(context: Context) {
 
 @Composable
 private fun TrackingContent(
-    session: TrackerSession,
+    session: TrackerSessionSnapshot,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
     context: Context,

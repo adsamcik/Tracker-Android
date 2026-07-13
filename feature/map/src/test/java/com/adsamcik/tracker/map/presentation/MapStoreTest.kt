@@ -436,6 +436,12 @@ class MapStoreTest {
         (layerId in MapStore.LIVE_REACTIVE_LAYER_IDS) shouldBe true
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = ["wifi_heatmap", "wifi_count_heatmap"])
+    fun `wifi sample layers participate in live reactive refreshes`(layerId: String) {
+        (layerId in MapStore.LIVE_REACTIVE_LAYER_IDS) shouldBe true
+    }
+
     @Test
     fun `database observer registration does not trigger a redundant refresh`() = runTest {
         testDispatcher.scheduler.advanceTimeBy(1_500)
@@ -471,6 +477,22 @@ class MapStoreTest {
         io.mockk.clearMocks(mockLayerEngine, answers = false)
 
         mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Cell)))
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), eq(true))
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["wifi_heatmap", "wifi_count_heatmap"])
+    fun `committed wifi sample refreshes the active wifi layer`(layerId: String) = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer(layerId))
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Wifi)))
         testDispatcher.scheduler.advanceTimeBy(1_500)
         testDispatcher.scheduler.advanceUntilIdle()
 

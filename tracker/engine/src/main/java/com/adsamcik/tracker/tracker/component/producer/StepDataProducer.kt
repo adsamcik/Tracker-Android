@@ -31,6 +31,7 @@ internal class StepDataProducer(
 	private var stepValueAtCollectionStart: Int = -1
 	private var sensorResetDetected: Boolean = false
 	private var sensorManager: SensorManager? = null
+	private var batchingEnabled = false
 	private var flushCompletion: CompletableDeferred<Unit>? = null
 
 	override val preferenceKey: String
@@ -61,49 +62,77 @@ internal class StepDataProducer(
 		}
 	}
 
-	override fun onDisable(context: Context) {
-		super.onDisable(context)
+	override suspend fun onDisable(context: Context) {
 		sensorManager?.unregisterListener(this)
 		sensorManager = null
+		batchingEnabled = false
 		synchronized(lockObject) {
 			flushCompletion?.cancel()
 			flushCompletion = null
 		}
+		super.onDisable(context)
 	}
 
-	override fun onEnable(context: Context) {
-		super.onEnable(context)
+	override suspend fun onEnable(context: Context) {
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
-			this.sensorManager = sensorManager
 			val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-				?: return
-			sensorManager.registerListener(
-				this,
-				stepCounter,
-				SensorManager.SENSOR_DELAY_NORMAL,
-				SensorBatching.stepCounterMaxReportLatencyUs(stepCounter),
-			)
+			if (stepCounter != null) {
+				val maxReportLatencyUs = SensorBatching.stepCounterMaxReportLatencyUs(stepCounter)
+				val registered = sensorManager.registerListener(
+					this,
+					stepCounter,
+					SensorManager.SENSOR_DELAY_NORMAL,
+					maxReportLatencyUs,
+				)
+				if (registered) {
+					this.sensorManager = sensorManager
+					batchingEnabled = maxReportLatencyUs > 0
+				}
+			}
 		}
+		super.onEnable(context)
 	}
 
 	suspend fun flushPendingEvents() {
 		val manager = sensorManager ?: return
+		if (!batchingEnabled) return
+		val previousCompletion = synchronized(lockObject) { flushCompletion }
+		if (previousCompletion != null) {
+			val previousCompleted = withTimeoutOrNull(FLUSH_TIMEOUT_MS) {
+				previousCompletion.await()
+				true
+			} == true
+			if (!previousCompleted) {
+				error("Timed out waiting for the prior batched step flush to settle")
+			}
+			synchronized(lockObject) {
+				if (flushCompletion === previousCompletion) flushCompletion = null
+			}
+		}
+
 		val completion = CompletableDeferred<Unit>()
 		synchronized(lockObject) {
-			flushCompletion?.cancel()
 			flushCompletion = completion
 		}
 		if (!manager.flush(this)) {
 			synchronized(lockObject) {
 				if (flushCompletion === completion) flushCompletion = null
 			}
-			return
+			error("Step sensor rejected the final batched-event flush")
 		}
-		withTimeoutOrNull(FLUSH_TIMEOUT_MS) { completion.await() }
-		synchronized(lockObject) {
-			if (flushCompletion === completion) flushCompletion = null
+		val completed = withTimeoutOrNull(FLUSH_TIMEOUT_MS) {
+			completion.await()
+			true
+		} == true
+		if (completed) {
+			synchronized(lockObject) {
+				if (flushCompletion === completion) flushCompletion = null
+			}
+		}
+		check(completed) {
+			"Timed out waiting for final batched step events"
 		}
 	}
 

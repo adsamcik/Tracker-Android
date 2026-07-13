@@ -9,10 +9,13 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.logger.assertFalse
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -30,14 +33,18 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 /**
  * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
@@ -67,6 +74,8 @@ object BackgroundTrackingApi {
 	private var activityFreqJob: Job? = null
 	private var activityWatcherJob: Job? = null
 	private var recognitionUpdatesJob: Job? = null
+	private var requestMutationJob: Job? = null
+	private var requestMutationGeneration = 0L
 
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
@@ -270,34 +279,80 @@ object BackgroundTrackingApi {
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
 		assertTrue(isActive)
+		val generation = ++requestMutationGeneration
 
 		val requestData = if (useTransitionApi) {
-			// Transition API is already high-confidence; the step corroborator only helps the
-			// confidence-based change API, so release the sensor while transitions are used.
-			stepCorroborator.stop(context)
 			ActivityRequestData(this::class, transitionData = getTransitions())
 		} else {
-			stepCorroborator.start(context)
 			ActivityRequestData(this::class, changeData = getActivityRequest())
 		}
 
 		val requestManager = activityRequestManager(context)
-		recognitionUpdatesJob?.cancel()
-		recognitionUpdatesJob = if (useTransitionApi) {
-			val configuredTransitions = requireNotNull(requestData.transitionData).transitionList
-			requestManager.transitionUpdates
-				.onEach { updates ->
-					selectNewestConfiguredTransition(configuredTransitions, updates)
-						?.let { handleTransitionUpdate(context, it) }
+		val watcherController = getWatcherController(context)
+		enqueueRequestMutation {
+			try {
+				check(requestManager.requestActivity(context, requestData)) {
+					"Unable to apply background activity recognition request"
 				}
-				.launchIn(requireNotNull(preferenceScope))
-		} else {
-			requestManager.activityUpdates
-				.onEach { handleActivityUpdate(context, it.activity) }
-				.launchIn(requireNotNull(preferenceScope))
+				if (generation != requestMutationGeneration || !isActive) {
+					return@enqueueRequestMutation
+				}
+
+				val replacementJob = if (useTransitionApi) {
+					// Transition API is already high-confidence; the step corroborator only helps the
+					// confidence-based change API, so release the sensor while transitions are used.
+					stepCorroborator.stop(context)
+					val configuredTransitions = requireNotNull(requestData.transitionData).transitionList
+					requestManager.transitionUpdates
+						.onEach { updates ->
+							selectNewestConfiguredTransition(configuredTransitions, updates)
+								?.let { handleTransitionUpdate(context, it) }
+						}
+						.launchIn(requireNotNull(preferenceScope))
+				} else {
+					stepCorroborator.start(context)
+					requestManager.activityUpdates
+						.filter(::isChangeDetectionUpdate)
+						.onEach { handleActivityUpdate(context, it.activity) }
+						.launchIn(requireNotNull(preferenceScope))
+				}
+				recognitionUpdatesJob?.cancel()
+				recognitionUpdatesJob = replacementJob
+				watcherController.poke()
+			} catch (exception: CancellationException) {
+				throw exception
+			} catch (exception: Exception) {
+				if (generation == requestMutationGeneration && isActive) {
+					isActive = false
+					val cleanupGeneration = ++requestMutationGeneration
+					recognitionUpdatesJob?.cancel()
+					recognitionUpdatesJob = null
+					stepCorroborator.stop(context)
+					var cleanupFailureAttached = false
+					val removed = reconcileActivityRequestRemoval(
+						shouldContinue = {
+							cleanupGeneration == requestMutationGeneration && !isActive
+						},
+						onFailure = { cleanupFailure ->
+							if (!cleanupFailureAttached) {
+								exception.addSuppressed(cleanupFailure)
+								cleanupFailureAttached = true
+							}
+							Reporter.report(
+								IllegalStateException(
+									"Failed to remove background activity recognition request",
+									cleanupFailure,
+								),
+							)
+						},
+					) {
+						requestManager.removeActivityRequest(context, this::class)
+					}
+					if (removed) watcherController.poke()
+				}
+				throw exception
+			}
 		}
-		requestManager.requestActivity(context, requestData)
-		getWatcherController(context).poke()
 	}
 
 	private fun getWatcherController(context: Context): ActivityWatcherController =
@@ -311,14 +366,48 @@ object BackgroundTrackingApi {
 
 	private fun disable(context: Context) {
 		assertTrue(isActive)
-
-		activityRequestManager(context).removeActivityRequest(context, this::class)
-		recognitionUpdatesJob?.cancel()
-		recognitionUpdatesJob = null
-		stepCorroborator.stop(context)
-		getWatcherController(context).poke()
-
 		isActive = false
+		val generation = ++requestMutationGeneration
+
+		val requestManager = activityRequestManager(context)
+		val watcherController = getWatcherController(context)
+		enqueueRequestMutation {
+			if (generation != requestMutationGeneration || isActive) {
+				return@enqueueRequestMutation
+			}
+			recognitionUpdatesJob?.cancel()
+			recognitionUpdatesJob = null
+			stepCorroborator.stop(context)
+			val removed = reconcileActivityRequestRemoval(
+				shouldContinue = { generation == requestMutationGeneration && !isActive },
+				onFailure = { failure ->
+					Reporter.report(
+						IllegalStateException(
+							"Failed to disable background activity recognition",
+							failure,
+						),
+					)
+				},
+			) {
+				requestManager.removeActivityRequest(context, this::class)
+			}
+			if (removed) watcherController.poke()
+		}
+	}
+
+	private fun enqueueRequestMutation(block: suspend () -> Unit) {
+		val scope = requireNotNull(preferenceScope)
+		val previousMutation = requestMutationJob
+		requestMutationJob = scope.launch {
+			previousMutation?.join()
+			try {
+				block()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Reporter.report(IllegalStateException("Failed to update activity recognition request", e))
+			}
+		}
 	}
 
 	/**
@@ -459,7 +548,16 @@ object BackgroundTrackingApi {
 		activityWatcherJob = null
 		recognitionUpdatesJob?.cancel()
 		recognitionUpdatesJob = null
-		preferenceScope?.cancel()
+		val scope = preferenceScope
+		val finalMutation = requestMutationJob
+		if (scope != null) {
+			if (finalMutation == null) {
+				scope.cancel()
+			} else {
+				finalMutation.invokeOnCompletion { scope.cancel() }
+			}
+		}
+		requestMutationJob = null
 		preferenceScope = null
 		appContext = null
 		entryPoint = null
@@ -471,6 +569,38 @@ object BackgroundTrackingApi {
 		activityWatcherEnabled = false
 		paramsInitialized = false
 	}
+}
+
+internal suspend fun reconcileActivityRequestRemoval(
+	initialRetryDelayMillis: Long = 500L,
+	maxRetryDelayMillis: Long = 5_000L,
+	maxAttempts: Int = 6,
+	shouldContinue: () -> Boolean,
+	onFailure: (Exception) -> Unit,
+	remove: suspend () -> Unit,
+): Boolean {
+	require(initialRetryDelayMillis >= 0L)
+	require(maxRetryDelayMillis >= initialRetryDelayMillis)
+	require(maxAttempts > 0)
+
+	var retryDelayMillis = initialRetryDelayMillis
+	repeat(maxAttempts) { attempt ->
+		if (!shouldContinue()) return false
+		try {
+			remove()
+			return true
+		} catch (exception: CancellationException) {
+			throw exception
+		} catch (exception: Exception) {
+			onFailure(exception)
+			if (!shouldContinue()) return false
+			if (attempt < maxAttempts - 1) {
+				delay(retryDelayMillis)
+				retryDelayMillis = (retryDelayMillis * 2).coerceAtMost(maxRetryDelayMillis)
+			}
+		}
+	}
+	return false
 }
 
 private fun ActivityTransitionData.matches(update: TransitionUpdate): Boolean =
@@ -501,6 +631,9 @@ internal fun selectNewestConfiguredTransition(
 	}
 	.maxWithOrNull(compareBy<Triple<Long, Int, ActivityTransitionData>>({ it.first }, { it.second }))
 	?.third
+
+internal fun isChangeDetectionUpdate(update: ActivityUpdate): Boolean =
+	update.source == ActivityUpdateSource.RECOGNITION
 
 /** Pure logic: checks if at least one trackable data source is enabled. */
 internal fun hasAnythingToTrack(params: TrackingParamsState): Boolean =

@@ -34,13 +34,16 @@ import com.adsamcik.tracker.stats.api.signal.WifiSignal
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.withDatabaseRetry
+import com.adsamcik.tracker.tracker.pipeline.DurableSignalProcessor
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 
 /**
@@ -94,7 +97,7 @@ class PersistenceProcessor @Inject constructor(
 	private val durableBuffer: DurableSignalBuffer,
 	private val transactor: TrackingPersistenceTransactor,
 	private val errorCollector: PersistenceErrorCollector,
-) : SignalProcessor {
+) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
 		id = PROCESSOR_ID,
@@ -119,6 +122,13 @@ class PersistenceProcessor @Inject constructor(
 	 */
 	private val pendingIds = mutableListOf<Long>()
 	private var recoveryIncomplete = false
+	private var commitStatusUnknown = false
+
+	private enum class CommitResolution {
+		COMMITTED,
+		ROLLED_BACK,
+		UNKNOWN,
+	}
 
 	override suspend fun onStart(context: ProcessorContext) {
 		durableBuffer.setSessionId(context.sessionId)
@@ -147,8 +157,32 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	override suspend fun onStop(): List<DomainEvent> {
-		flushAll()
+		check(flushAll()) {
+			"Final persistence flush failed; retaining buffered signals for retry"
+		}
 		return emptyList()
+	}
+
+	override suspend fun checkpointStagedSignals(): Boolean {
+		try {
+			withDatabaseRetry {
+				durableBuffer.checkpoint { ids -> pendingIds.addAll(ids) }
+			}
+		} catch (e: CancellationException) {
+			throw e
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			Log.w(TAG, "Durable checkpoint failed; staged signals retained", e)
+			errorCollector.reportError(
+				PersistenceError(
+					source = PROCESSOR_ID,
+					operation = "checkpoint",
+					recordCount = durableBuffer.stagingSize,
+					cause = e,
+				),
+			)
+			return false
+		}
+		return true
 	}
 
 	override fun checkpoint(): ByteArray? = null
@@ -317,24 +351,8 @@ class PersistenceProcessor @Inject constructor(
 	 * recovery — hence the early return.
 	 */
 	private suspend fun flushAll(): Boolean {
-		try {
-			withDatabaseRetry {
-				durableBuffer.checkpoint { ids -> pendingIds.addAll(ids) }
-			}
-		} catch (e: CancellationException) {
-			throw e
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Log.w(TAG, "Durable checkpoint failed; staged signals retained", e)
-			errorCollector.reportError(
-				PersistenceError(
-					source = PROCESSOR_ID,
-					operation = "checkpoint",
-					recordCount = durableBuffer.stagingSize,
-					cause = e,
-				),
-			)
-			return false
-		}
+		if (commitStatusUnknown && reconcileUnknownCommit() == CommitResolution.UNKNOWN) return false
+		if (!checkpointStagedSignals()) return false
 
 		return persistBufferedAndAcknowledge()
 	}
@@ -352,37 +370,99 @@ class PersistenceProcessor @Inject constructor(
 		val recordCount = totalBufferedCount()
 
 		try {
-			withContext(NonCancellable) {
+			withTimeout(PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS) {
 				withDatabaseRetry {
 					transactor.inTransaction {
 						insertBufferedDestinations()
 						if (ackIds.isNotEmpty()) {
-							pendingSignalDao.deleteByIds(ackIds)
+							ackIds.chunked(ACK_DELETE_BATCH_SIZE).forEach { chunk ->
+								pendingSignalDao.deleteByIds(chunk)
+							}
 						}
 					}
 				}
-				// Keep in-memory acknowledgement in the same non-cancellable section
-				// as the committed transaction so a delivered cancellation cannot
-				// cause the just-persisted rows to be inserted a second time.
+			}
+			withContext(NonCancellable) {
 				clearBuffers()
 				pendingIds.removeAll(ackIds.toSet())
 			}
+		} catch (e: TimeoutCancellationException) {
+			commitStatusUnknown = true
+			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
+			reportFlushFailure(recordCount, e)
+			return false
 		} catch (e: CancellationException) {
+			commitStatusUnknown = true
+			withContext(NonCancellable) {
+				reconcileUnknownCommit()
+			}
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Log.w(TAG, "Persist transaction failed; buffers and WAL retained for retry", e)
-			errorCollector.reportError(
-				PersistenceError(
-					source = PROCESSOR_ID,
-					operation = "flush",
-					recordCount = recordCount,
-					cause = e,
-				),
-			)
+			commitStatusUnknown = true
+			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
+			reportFlushFailure(recordCount, e)
 			return false
 		}
 
 		return true
+	}
+
+	private suspend fun reconcileUnknownCommit(): CommitResolution {
+		val ackIds = pendingIds.distinct()
+		if (ackIds.isEmpty()) {
+			commitStatusUnknown = false
+			return CommitResolution.COMMITTED
+		}
+
+		val remainingCount = try {
+			withTimeout(PERSISTENCE_RECONCILIATION_TIMEOUT_MILLIS) {
+				var count = 0
+				ackIds.chunked(ACK_DELETE_BATCH_SIZE).forEach { chunk ->
+					count += pendingSignalDao.countByIds(chunk)
+				}
+				count
+			}
+		} catch (e: TimeoutCancellationException) {
+			Log.w(TAG, "Timed out reconciling persistence commit status", e)
+			return CommitResolution.UNKNOWN
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Log.w(TAG, "Unable to reconcile persistence commit status", e)
+			return CommitResolution.UNKNOWN
+		}
+
+		return when (remainingCount) {
+			0 -> {
+				clearBuffers()
+				pendingIds.removeAll(ackIds.toSet())
+				commitStatusUnknown = false
+				CommitResolution.COMMITTED
+			}
+			ackIds.size -> {
+				commitStatusUnknown = false
+				CommitResolution.ROLLED_BACK
+			}
+			else -> {
+				Log.e(
+					TAG,
+					"Persistence commit status is inconsistent: $remainingCount of ${ackIds.size} WAL rows remain",
+				)
+				CommitResolution.UNKNOWN
+			}
+		}
+	}
+
+	private suspend fun reportFlushFailure(recordCount: Int, exception: Exception) {
+		Log.w(TAG, "Persist transaction failed; buffers and WAL retained for retry", exception)
+		errorCollector.reportError(
+			PersistenceError(
+				source = PROCESSOR_ID,
+				operation = "flush",
+				recordCount = recordCount,
+				cause = exception,
+			),
+		)
 	}
 
 	/**
@@ -486,6 +566,8 @@ class PersistenceProcessor @Inject constructor(
 		internal const val PROCESSOR_ID = "persistence"
 		internal const val FLUSH_INTERVAL_MS = 5000L
 		internal const val PRIORITY = 0
+		private const val PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS = 3_000L
+		private const val PERSISTENCE_RECONCILIATION_TIMEOUT_MILLIS = 2_000L
 
 		internal const val LOCATION_BATCH_SIZE = 10
 		internal const val PRESSURE_BATCH_SIZE = 5
@@ -493,6 +575,7 @@ class PersistenceProcessor @Inject constructor(
 		internal const val WIFI_BATCH_SIZE = 50
 		internal const val STEP_BATCH_SIZE = 20
 		internal const val ACTIVITY_BATCH_SIZE = 20
+		internal const val ACK_DELETE_BATCH_SIZE = 900
 
 		private const val HIGH_ACCURACY_THRESHOLD = 10f
 		private const val MEDIUM_ACCURACY_THRESHOLD = 50f

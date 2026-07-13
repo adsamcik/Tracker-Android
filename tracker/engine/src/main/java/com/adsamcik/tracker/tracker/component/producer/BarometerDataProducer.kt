@@ -40,14 +40,13 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 		}
 	}
 
-	override fun onDisable(context: Context) {
-		super.onDisable(context)
+	override suspend fun onDisable(context: Context) {
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
+		super.onDisable(context)
 	}
 
-	override fun onEnable(context: Context) {
-		super.onEnable(context)
+	override suspend fun onEnable(context: Context) {
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		val pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
 		if (pressureSensor != null) {
@@ -57,6 +56,7 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 				SensorManager.SENSOR_DELAY_NORMAL,
 			)
 		}
+		super.onEnable(context)
 	}
 
 	override fun onSensorChanged(event: SensorEvent) {

@@ -5,10 +5,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -96,6 +98,81 @@ class DataProducerManagerFailureIsolationTest {
 		assertTrue(producer2.wasInvoked)
 	}
 
+	@Test
+	fun `failed preference disable is retried until the producer is stopped`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val manager = DataProducerManager(context, testDispatchers(testDispatcher))
+		val producer = FailingDisableProducer()
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		activateProducer(manager, producer)
+
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+		advanceUntilIdle()
+
+		assertTrue(!producer.isEnabled)
+		assertTrue(producer.disableAttempts >= 2)
+	}
+
+	@Test
+	fun `failed physical disable stops logical collection immediately`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val manager = DataProducerManager(context, testDispatchers(testDispatcher))
+		val producer = FailingDisableProducer()
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		activateProducer(manager, producer)
+
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+		manager.getData(
+			TrackingCycle(
+				timestampMs = System.currentTimeMillis(),
+				elapsedRealtimeNanos = System.nanoTime(),
+			),
+		)
+
+		producer.dataRequests shouldBe 0
+	}
+
+	@Test
+	fun `re-enabling during cleanup retry restores logical collection without duplicate enable`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val manager = DataProducerManager(context, testDispatchers(testDispatcher))
+		val producer = FailingDisableProducer()
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		activateProducer(manager, producer)
+
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+		manager.onStateChange(shouldBeEnabled = true, component = producer)
+		manager.getData(
+			TrackingCycle(
+				timestampMs = System.currentTimeMillis(),
+				elapsedRealtimeNanos = System.nanoTime(),
+			),
+		)
+
+		producer.dataRequests shouldBe 1
+	}
+
+	@Test
+	fun `preference changes replace the pending disable retry instead of multiplying it`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val manager = DataProducerManager(context, testDispatchers(testDispatcher))
+		val producer = FailingDisableProducer(failuresBeforeSuccess = 2)
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		activateProducer(manager, producer)
+
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+		manager.onStateChange(shouldBeEnabled = true, component = producer)
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+		advanceUntilIdle()
+
+		assertTrue(!producer.isEnabled)
+		producer.disableAttempts shouldBe 3
+	}
+
 	// --- Helpers ---
 
 	private fun activateProducer(manager: DataProducerManager, component: TrackerDataProducerComponent) {
@@ -115,7 +192,10 @@ class DataProducerManagerFailureIsolationTest {
 
 	private class ThrowingProducer(private val exception: Exception) : TrackerDataProducerComponent(
 		object : TrackerDataProducerObserver {
-			override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {}
+			override suspend fun onStateChange(
+				shouldBeEnabled: Boolean,
+				component: TrackerDataProducerComponent,
+			) {}
 		}
 	) {
 		override val preferenceKey: String = "throwing-producer"
@@ -127,7 +207,10 @@ class DataProducerManagerFailureIsolationTest {
 
 	private class RecordingProducer : TrackerDataProducerComponent(
 		object : TrackerDataProducerObserver {
-			override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {}
+			override suspend fun onStateChange(
+				shouldBeEnabled: Boolean,
+				component: TrackerDataProducerComponent,
+			) {}
 		}
 	) {
 		var wasInvoked = false
@@ -137,6 +220,35 @@ class DataProducerManagerFailureIsolationTest {
 		override val preferenceDefault: Boolean = false
 		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			wasInvoked = true
+		}
+	}
+
+	private class FailingDisableProducer(
+		private val failuresBeforeSuccess: Int = 1,
+	) : TrackerDataProducerComponent(
+		object : TrackerDataProducerObserver {
+			override suspend fun onStateChange(
+				shouldBeEnabled: Boolean,
+				component: TrackerDataProducerComponent,
+			) {}
+		}
+	) {
+		var disableAttempts = 0
+			private set
+		var dataRequests = 0
+			private set
+
+		override val preferenceKey: String = "failing-disable-producer"
+		override val preferenceDefault: Boolean = false
+
+		override suspend fun onDisable(context: Context) {
+			disableAttempts++
+			if (disableAttempts <= failuresBeforeSuccess) error("stop failed")
+			super.onDisable(context)
+		}
+
+		override fun onDataRequest(builder: TrackingCycleBuilder) {
+			dataRequests++
 		}
 	}
 }

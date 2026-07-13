@@ -143,7 +143,10 @@ class TrackingOrchestratorIntegrationTest {
 		shutdownResult.fallbackEnqueued shouldBe false
 		fallbackEnqueueCount shouldBe 0
 		stopProcessor.segmentCountWhenSessionEnded shouldBe 1L
-		database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE) shouldHaveSize 1
+		val persistedSegment = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
+			.single()
+		orchestrator.resetMetadata()
+		controller.lastSessionFlow.value?.end shouldBe persistedSegment.endTimeMs
 		domainEvents.persisted.filterIsInstance<DomainEvent.SessionEnded>() shouldHaveSize 1
 	}
 

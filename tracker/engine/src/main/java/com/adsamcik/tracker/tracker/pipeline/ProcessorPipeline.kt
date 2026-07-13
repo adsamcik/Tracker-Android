@@ -9,13 +9,16 @@ import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
+
+internal interface DurableSignalProcessor : SignalProcessor {
+	suspend fun checkpointStagedSignals(): Boolean
+}
 
 /**
  * Central pipeline orchestrating all [SignalProcessor] instances.
@@ -31,19 +34,20 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Thread safety:
  * - Signal delivery + state mutation protected by [mutex].
  * - Flush I/O runs **outside** the mutex to avoid blocking signal delivery.
- * - Domain event dispatch is fire-and-forget via [supervisorJob].
+ * - Domain events are persisted in producer order before later batches can overtake them.
  *
  * Lifecycle: [start] → [onSignal]* → [stop]. Calling [start] twice
  * without [stop] throws [IllegalStateException].
  */
 class ProcessorPipeline(
 	private val processors: Set<SignalProcessor>,
-	private val scope: CoroutineScope,
+	@Suppress("UNUSED_PARAMETER") scope: CoroutineScope,
 	private val onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
 ) {
 	private companion object {
 		const val TAG = "ProcessorPipeline"
 		const val MAX_CONSECUTIVE_FAILURES = 5
+		const val DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS = 3_000L
 	}
 
 	private val mutex = Mutex()
@@ -61,8 +65,11 @@ class ProcessorPipeline(
 	@Volatile
 	private var isRunning = false
 	private val lastFlushTime = mutableMapOf<String, Long>()
-	private var supervisorJob = SupervisorJob()
-	private val inFlightDispatches = mutableListOf<Job>()
+	private val pendingRuntimeEvents = mutableListOf<DomainEvent>()
+	private val pendingStopProcessors = ArrayDeque<SignalProcessor>()
+	private val pendingStopEvents = mutableListOf<DomainEvent>()
+	private val startedProcessors = mutableSetOf<SignalProcessor>()
+	private val quarantinedProcessors = mutableSetOf<SignalProcessor>()
 
 	/** Cached active processors. Rebuilt on start/escalate — never recomputed in hot path. */
 	private var cachedActiveProcessors: List<SignalProcessor> = emptyList()
@@ -77,7 +84,9 @@ class ProcessorPipeline(
 
 	private fun rebuildActiveProcessors() {
 		cachedActiveProcessors = sortedProcessors.filter {
-			it.descriptor.requiredTier <= currentTier && it.descriptor.id !in _disabledProcessors
+			it.descriptor.requiredTier <= currentTier &&
+				it.descriptor.id !in _disabledProcessors &&
+				it !in quarantinedProcessors
 		}
 	}
 
@@ -115,33 +124,72 @@ class ProcessorPipeline(
 		startTimestamp: EpochMs,
 		isResuming: Boolean = false,
 		sessionId: Long = 0L,
-	) = mutex.withLock {
-		check(!isRunning) { "Pipeline already running — call stop() first" }
-		supervisorJob = SupervisorJob()
-		currentTier = tier
-		isRunning = true
-		lastFlushTime.clear()
-		failureCounts.clear()
-		_disabledProcessors.clear()
-		rebuildActiveProcessors()
-
-		val context = ProcessorContext(
-			startTimestamp = startTimestamp,
-			isResuming = isResuming,
-			sessionId = sessionId,
-		)
-
-		for (processor in cachedActiveProcessors) {
-			val id = processor.descriptor.id
-			try {
-				processor.onStart(context)
-				lastFlushTime[id] = startTimestamp.raw
-				resetFailureCount(id)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				recordFailure(id, "start", e)
+	) {
+		var fatalStartupFailure: IllegalStateException? = null
+		mutex.withLock {
+			check(!isRunning) { "Pipeline already running — call stop() first" }
+			check(
+				pendingRuntimeEvents.isEmpty() &&
+					pendingStopProcessors.isEmpty() &&
+					pendingStopEvents.isEmpty() &&
+					startedProcessors.isEmpty() &&
+					quarantinedProcessors.isEmpty()
+			) {
+				"Pipeline shutdown is incomplete — retry stop() before starting a new session"
 			}
+			currentTier = tier
+			isRunning = true
+			lastFlushTime.clear()
+			failureCounts.clear()
+			_disabledProcessors.clear()
+			pendingRuntimeEvents.clear()
+			pendingStopProcessors.clear()
+			pendingStopEvents.clear()
+			startedProcessors.clear()
+			quarantinedProcessors.clear()
+			rebuildActiveProcessors()
+
+			val context = ProcessorContext(
+				startTimestamp = startTimestamp,
+				isResuming = isResuming,
+				sessionId = sessionId,
+			)
+
+			for (processor in cachedActiveProcessors.toList()) {
+				val id = processor.descriptor.id
+				startedProcessors.add(processor)
+				try {
+					processor.onStart(context)
+					lastFlushTime[id] = startTimestamp.raw
+					resetFailureCount(id)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					recordFailure(id, "start", e)
+					quarantinedProcessors.add(processor)
+					cachedActiveProcessors = cachedActiveProcessors.filterNot { it === processor }
+					lastFlushTime.remove(id)
+					if (processor is DurableSignalProcessor) {
+						isRunning = false
+						pendingStopProcessors.clear()
+						pendingStopProcessors.addAll(startedProcessors.sortedBy { it.descriptor.priority })
+						fatalStartupFailure = IllegalStateException(
+							"Durability processor failed during pipeline startup",
+							e,
+						)
+						break
+					}
+				}
+			}
+		}
+
+		fatalStartupFailure?.let { failure ->
+			try {
+				stop()
+			} catch (cleanupFailure: Exception) {
+				failure.addSuppressed(cleanupFailure)
+			}
+			throw failure
 		}
 	}
 
@@ -151,7 +199,10 @@ class ProcessorPipeline(
 	 * Fast path (inside mutex): signal fan-out + identify flush candidates.
 	 * Slow path (outside mutex): execute flushes + dispatch events.
 	 */
-	suspend fun onSignal(signal: TrackingSignal) {
+	suspend fun onSignal(
+		signal: TrackingSignal,
+		onAccepted: () -> Unit = {},
+	) {
 		val processorsToFlush: List<SignalProcessor>
 
 		// Fast path: deliver signal + identify flush candidates under lock
@@ -170,6 +221,7 @@ class ProcessorPipeline(
 					recordFailure(id, "signal", e)
 				}
 			}
+			onAccepted()
 
 			val now = signal.timestampMs.raw
 			for (processor in cachedActiveProcessors) {
@@ -183,13 +235,15 @@ class ProcessorPipeline(
 			processorsToFlush = flushCandidates.toList()
 		}
 
-		// Slow path: flush outside the signal-delivery mutex so signal delivery isn't
-		// blocked by I/O. Serialized via slowPathSerializer so stop() can guarantee no
-		// flush is in flight when it tears down processor state.
-		if (processorsToFlush.isEmpty()) return
-		val events = mutableListOf<DomainEvent>()
+		// Slow path: flush outside the signal-delivery mutex. Event persistence shares the
+		// same serializer so batches cannot overtake one another or the final SessionEnded.
 		slowPathSerializer.withLock {
 			if (!isRunning) return  // stop() set the flag before we acquired the lock
+			checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
+			persistPendingEvents(pendingRuntimeEvents, "runtime")
+			if (processorsToFlush.isEmpty()) return
+
+			val events = mutableListOf<DomainEvent>()
 			for (processor in processorsToFlush) {
 				val id = processor.descriptor.id
 				try {
@@ -201,17 +255,10 @@ class ProcessorPipeline(
 					mutex.withLock { recordFailure(id, "flush", e) }
 				}
 			}
-		}
-
-		if (events.isNotEmpty() && isRunning) {
-			val job = scope.launch(supervisorJob) {
-				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
-					Log.e(TAG, "Timed out dispatching domain events")
-				}
-			}
-			synchronized(inFlightDispatches) {
-				inFlightDispatches.add(job)
-				job.invokeOnCompletion { synchronized(inFlightDispatches) { inFlightDispatches.remove(job) } }
+			if (events.isNotEmpty()) {
+				mutex.withLock { pendingRuntimeEvents.addAll(events) }
+				checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
+				persistPendingEvents(pendingRuntimeEvents, "runtime")
 			}
 		}
 	}
@@ -224,67 +271,74 @@ class ProcessorPipeline(
 		newTier: PolicyTier,
 		timestamp: EpochMs,
 	) {
-		val toStop: Set<SignalProcessor>
-
-		mutex.withLock {
-			if (!isRunning) return
-
-			val oldActive = cachedActiveProcessors.toSet()
-			currentTier = newTier
-			rebuildActiveProcessors()
-			val newActive = cachedActiveProcessors.toSet()
-
-			// Start newly active processors
-			val toStart = newActive - oldActive
-			val context = ProcessorContext(startTimestamp = timestamp)
-			for (processor in toStart) {
-				val id = processor.descriptor.id
-				try {
-					processor.onStart(context)
-					lastFlushTime[id] = timestamp.raw
-					resetFailureCount(id)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					recordFailure(id, "escalation-start", e)
-				}
-			}
-
-			toStop = oldActive - newActive
-		}
-
-		// Stop de-escalated processors outside mutex but inside slow-path serializer
-		// so a concurrent slow flush (or stop()) doesn't race the processor.onStop()
-		// state mutation.
-		if (toStop.isEmpty()) return
-		val events = mutableListOf<DomainEvent>()
 		slowPathSerializer.withLock {
 			if (!isRunning) return
-			for (processor in toStop) {
-				val id = processor.descriptor.id
-				try {
-					events.addAll(processor.onStop())
-					mutex.withLock {
+
+			var failedPendingEventCount: Int? = null
+			try {
+				checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
+				persistPendingEvents(pendingRuntimeEvents, "runtime")
+			} catch (e: IllegalStateException) {
+				failedPendingEventCount = mutex.withLock { pendingRuntimeEvents.size }
+				Log.w(TAG, "Deferring pending tier-transition event persistence", e)
+			}
+
+			mutex.withLock {
+				val desiredActive = sortedProcessors.filter {
+					it.descriptor.requiredTier <= newTier &&
+						it.descriptor.id !in _disabledProcessors &&
+						it !in quarantinedProcessors
+				}.toSet()
+				val active = cachedActiveProcessors.toMutableSet()
+				val context = ProcessorContext(startTimestamp = timestamp)
+
+				for (processor in desiredActive - active) {
+					val id = processor.descriptor.id
+					startedProcessors.add(processor)
+					try {
+						processor.onStart(context)
+						active.add(processor)
+						cachedActiveProcessors = active.sortedBy { it.descriptor.priority }
+						lastFlushTime[id] = timestamp.raw
+						quarantinedProcessors.remove(processor)
+						resetFailureCount(id)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordFailure(id, "escalation-start", e)
+						quarantinedProcessors.add(processor)
+					}
+				}
+
+				for (processor in active.toSet() - desiredActive) {
+					val id = processor.descriptor.id
+					try {
+						pendingRuntimeEvents.addAll(processor.onStop())
+						active.remove(processor)
+						startedProcessors.remove(processor)
+						cachedActiveProcessors = active.sortedBy { it.descriptor.priority }
 						lastFlushTime.remove(id)
 						resetFailureCount(id)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordFailure(id, "de-escalation-stop", e)
 					}
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					mutex.withLock { recordFailure(id, "de-escalation-stop", e) }
 				}
+				currentTier = newTier
 			}
-		}
 
-		if (events.isNotEmpty() && isRunning) {
-			val job = scope.launch(supervisorJob) {
-				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
-					Log.e(TAG, "Timed out dispatching domain events")
-				}
+			val shouldPersistTransitionEvents = mutex.withLock {
+				pendingRuntimeEvents.isNotEmpty() &&
+					(failedPendingEventCount == null || pendingRuntimeEvents.size > failedPendingEventCount)
 			}
-			synchronized(inFlightDispatches) {
-				inFlightDispatches.add(job)
-				job.invokeOnCompletion { synchronized(inFlightDispatches) { inFlightDispatches.remove(job) } }
+			if (shouldPersistTransitionEvents) {
+				try {
+					checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
+					persistPendingEvents(pendingRuntimeEvents, "runtime")
+				} catch (e: IllegalStateException) {
+					Log.w(TAG, "Deferring tier-transition event persistence", e)
+				}
 			}
 		}
 	}
@@ -297,60 +351,121 @@ class ProcessorPipeline(
 	 *    enters the slow path (it checks the flag again after acquiring its mutex).
 	 * 2. Acquire [slowPathSerializer] — waits for any in-flight slow flush to finish
 	 *    so processor state is stable when we call onStop on each one.
-	 * 3. Call `processor.onStop()` on each active processor and collect final events.
-	 * 4. Dispatch the final event batch.
-	 * 5. Join in-flight event-dispatch jobs.
-	 * 6. Cancel the supervisor.
+	 * 3. Persist any earlier runtime event batches.
+	 * 4. Call `processor.onStop()` on each active processor and collect final events.
+	 * 5. Persist the final event batch before releasing the serializer.
 	 */
 	suspend fun stop() {
-		val events = mutableListOf<DomainEvent>()
-
 		// Step 1: stop accepting new flushes.
 		mutex.withLock {
-			if (!isRunning) return
-			isRunning = false
+			if (isRunning) {
+				isRunning = false
+				pendingStopProcessors.clear()
+				pendingStopProcessors.addAll(startedProcessors.sortedBy { it.descriptor.priority })
+				pendingStopEvents.clear()
+			} else if (
+				pendingRuntimeEvents.isEmpty() &&
+				pendingStopProcessors.isEmpty() &&
+				pendingStopEvents.isEmpty()
+			) {
+				return
+			}
 		}
 
 		// Step 2: wait for any in-flight slow flush to drain before mutating processors.
-		// Step 3: call onStop sequentially while holding the serializer so no slow flush
-		// can sneak in. We acquire mutex again only to keep failure-tracking access safe.
+		// Step 3: stop processors sequentially while retaining progress. If one fails,
+		// later processors are not stopped and no final events are emitted. A retry
+		// resumes at the failed processor, preventing SessionEnded from being published
+		// before earlier durability-critical processors finish successfully.
 		slowPathSerializer.withLock {
-			mutex.withLock {
-				for (processor in cachedActiveProcessors) {
-					val id = processor.descriptor.id
-					try {
-						events.addAll(processor.onStop())
-					} catch (e: CancellationException) {
-						throw e
-					} catch (e: Exception) {
-						recordFailure(id, "stop", e)
-					}
+			val durabilityProcessor = mutex.withLock {
+				pendingStopProcessors.firstOrNull { it is DurableSignalProcessor }
+			}
+			if (durabilityProcessor != null) {
+				stopProcessor(durabilityProcessor)
+			}
+			persistPendingEvents(pendingRuntimeEvents, "runtime")
+			while (true) {
+				val processor = mutex.withLock { pendingStopProcessors.firstOrNull() } ?: break
+				stopProcessor(processor)
+			}
+			withContext(NonCancellable) {
+				mutex.withLock {
+					lastFlushTime.clear()
+					cachedActiveProcessors = emptyList()
+					quarantinedProcessors.clear()
 				}
+			}
+			persistPendingEvents(pendingStopEvents, "final")
+		}
+	}
 
-				lastFlushTime.clear()
-				cachedActiveProcessors = emptyList()
+	private suspend fun checkpointSignalsBeforePendingEvents(
+		pendingEvents: MutableList<DomainEvent>,
+	) {
+		val durabilityProcessor = mutex.withLock {
+			if (pendingEvents.isEmpty()) {
+				null
+			} else {
+				cachedActiveProcessors.filterIsInstance<DurableSignalProcessor>().firstOrNull()
 			}
 		}
+		if (durabilityProcessor != null) {
+			check(durabilityProcessor.checkpointStagedSignals()) {
+				"Unable to checkpoint tracking signals before domain event dispatch"
+			}
+		}
+	}
 
-		// Step 4: deliver final events BEFORE cancelling the supervisor job
-		if (events.isNotEmpty()) {
+	private suspend fun stopProcessor(processor: SignalProcessor) {
+		val id = processor.descriptor.id
+		val events = try {
+			processor.onStop()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			mutex.withLock { recordFailure(id, "stop", e) }
+			throw IllegalStateException("Processor $id failed during final shutdown", e)
+		}
+
+		withContext(NonCancellable) {
+			mutex.withLock {
+				pendingStopEvents.addAll(events)
+				pendingStopProcessors.remove(processor)
+				startedProcessors.remove(processor)
+				lastFlushTime.remove(id)
+				resetFailureCount(id)
+			}
+		}
+	}
+
+	private suspend fun persistPendingEvents(
+		pendingEvents: MutableList<DomainEvent>,
+		phase: String,
+	) {
+		val events = mutex.withLock { pendingEvents.toList() }
+		if (events.isEmpty()) return
+
+		// Keep successful persistence and the in-memory acknowledgement atomic against
+		// cancellation so a shutdown timeout cannot cause duplicate event retries.
+		withContext(NonCancellable) {
 			try {
-				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
-					Log.e(TAG, "Timed out dispatching final domain events")
+				withTimeout(DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS) {
+					onDomainEvents(events)
 				}
+			} catch (e: TimeoutCancellationException) {
+				throw IllegalStateException(
+					"$phase domain event dispatch timed out after ${DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS}ms",
+					e,
+				)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Final domain event dispatch failed: ${e.message}")
+				throw IllegalStateException("$phase domain event dispatch failed", e)
+			}
+			mutex.withLock {
+				pendingEvents.subList(0, events.size).clear()
 			}
 		}
-
-		// Step 5: join in-flight event dispatches, then step 6: cancel the supervisor.
-		val pendingJobs: List<Job>
-		synchronized(inFlightDispatches) {
-			pendingJobs = inFlightDispatches.toList()
-		}
-		pendingJobs.forEach { it.join() }
-		supervisorJob.cancelAndJoin()
 	}
 }

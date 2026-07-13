@@ -25,10 +25,10 @@ interface ActivityRecognitionBackend {
 	 * @param config Recognition configuration including interval and transitions
 	 * @return true if recognition was started successfully
 	 */
-	fun startUpdates(config: RecognitionConfig): Boolean
+	suspend fun startUpdates(config: RecognitionConfig): Boolean
 
 	/** Stop receiving all activity updates. */
-	fun stopUpdates()
+	suspend fun stopUpdates()
 
 	/** Flow of activity updates from this backend. */
 	val activityUpdates: Flow<ActivityUpdate>
@@ -63,7 +63,13 @@ data class RecognitionConfig(
 data class ActivityUpdate(
 	val activity: RecognizedActivity,
 	val elapsedTimeMillis: Long,
+	val source: ActivityUpdateSource = ActivityUpdateSource.RECOGNITION,
 )
+
+enum class ActivityUpdateSource {
+	RECOGNITION,
+	TRANSITION,
+}
 
 data class RecognizedActivity(
 	val type: DetectedActivityType,

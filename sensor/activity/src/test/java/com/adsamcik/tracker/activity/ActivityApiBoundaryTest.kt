@@ -59,6 +59,34 @@ class ActivityApiBoundaryTest {
 	}
 
 	@Test
+	fun `activity api Gradle dependencies stay GMS-free and engine-free`() {
+		val buildFile = apiModuleDir.resolve("build.gradle.kts").readText()
+		val dependencyDeclarations = buildFile.lineSequence()
+			.map(String::trim)
+			.filter { line ->
+				line.startsWith("api(") ||
+					line.startsWith("implementation(") ||
+					line.startsWith("compileOnly(") ||
+					line.startsWith("runtimeOnly(")
+			}
+			.joinToString("\n")
+		val gmsAlias = Regex(
+			pattern = """libs\.[A-Za-z0-9_.-]*(gms|play\.services|playServices)""",
+			option = RegexOption.IGNORE_CASE,
+		)
+
+		assertFalse(
+			gmsAlias.containsMatchIn(dependencyDeclarations) ||
+				dependencyDeclarations.contains("com.google.android.gms"),
+			"Activity API must not depend on Google Play Services",
+		)
+		assertFalse(
+			dependencyDeclarations.contains("project(\":stats:engine\")"),
+			"Activity API must depend on stats contracts, not stats engine implementation",
+		)
+	}
+
+	@Test
 	fun `activity request contracts do not contain callbacks`() {
 		val requestData = apiModuleDir
 			.resolve("src/main/java/com/adsamcik/tracker/activity/ActivityRequestData.kt")

@@ -7,6 +7,8 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -84,6 +86,31 @@ class TrackingCycleDispatcherTest {
 		failures shouldContainExactly listOf(expectedFailure)
 		processedTimes shouldContainExactly listOf(2L)
 		subject.cancel()
+	}
+
+	@Test
+	fun `cancelAndJoin waits for in-flight processing to terminate`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val processingStarted = CompletableDeferred<Unit>()
+		val subject = TrackingCycleDispatcher(
+			scope = this,
+			dispatcher = dispatcher,
+			capacity = 1,
+			onFailure = { throw AssertionError("Unexpected processing failure", it) },
+			processCycle = {
+				processingStarted.complete(Unit)
+				awaitCancellation()
+			},
+		)
+		val completion = subject.enqueue(cycleWithFixes(1L))
+		runCurrent()
+		processingStarted.await()
+
+		val cancellation = launch { subject.cancelAndJoin() }
+		advanceUntilIdle()
+
+		cancellation.isCompleted shouldBe true
+		completion.isCancelled shouldBe true
 	}
 
 	private fun cycleWithFixes(vararg times: Long): TrackingCycle {

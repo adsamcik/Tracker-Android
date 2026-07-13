@@ -68,7 +68,7 @@ class FakeActivityRecognitionBackend(
 	var stopCount: Int = 0
 		private set
 
-	override fun startUpdates(config: RecognitionConfig): Boolean {
+	override suspend fun startUpdates(config: RecognitionConfig): Boolean {
 		if (!isAvailable) return false
 		lastConfig = config
 		isRunning = true
@@ -76,7 +76,7 @@ class FakeActivityRecognitionBackend(
 		return true
 	}
 
-	override fun stopUpdates() {
+	override suspend fun stopUpdates() {
 		isRunning = false
 		stopCount++
 	}

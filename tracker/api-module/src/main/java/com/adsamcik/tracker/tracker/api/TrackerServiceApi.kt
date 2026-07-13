@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 internal interface TrackerServiceApiEntryPoint {
 	fun trackerStateReader(): TrackerStateReader
 	fun trackerServiceController(): TrackerServiceController
+	fun activityWatcherController(): ActivityWatcherController
 }
 
 object TrackerServiceContract {
@@ -125,7 +127,17 @@ object TrackerServiceApi {
 	 * Clears application-scoped tracker state after Android reports that the service process is gone.
 	 */
 	fun repairStoppedServiceState(context: Context) {
-		val controller = getEntryPoint(context).trackerServiceController()
+		val entryPoint = getEntryPoint(context)
+		repairStoppedServiceState(
+			controller = entryPoint.trackerServiceController(),
+			activityWatcherController = entryPoint.activityWatcherController(),
+		)
+	}
+
+	internal fun repairStoppedServiceState(
+		controller: TrackerServiceController,
+		activityWatcherController: ActivityWatcherController,
+	) {
 		controller.updateServiceRunning(false)
 		controller.updateSessionInfo(null)
 		controller.updateSession(null)
@@ -136,6 +148,7 @@ object TrackerServiceApi {
 		controller.updateSkiState(null)
 		controller.updateSailingState(null)
 		controller.updatePlaneState(null)
+		activityWatcherController.poke()
 	}
 
 	/**

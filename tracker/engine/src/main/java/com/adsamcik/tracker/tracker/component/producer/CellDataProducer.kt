@@ -222,20 +222,20 @@ internal class CellDataProducer(
 		}
 	}
 
-	override fun onEnable(context: Context) {
-		super.onEnable(context)
+	override suspend fun onEnable(context: Context) {
 		this.context = context
 		telephonyManager = context.telephonyManager
 		subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+		super.onEnable(context)
 	}
 
-	override fun onDisable(context: Context) {
-		super.onDisable(context)
+	override suspend fun onDisable(context: Context) {
 		this.context = null
 		telephonyManager = null
 		subscriptionManager = null
 		lastCellScanData = null
 		lastCellScanElapsedRealtimeMillis = -1L
+		super.onDisable(context)
 	}
 
 	companion object {

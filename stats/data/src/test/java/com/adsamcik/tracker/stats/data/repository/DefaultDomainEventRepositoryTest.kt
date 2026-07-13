@@ -42,7 +42,7 @@ class DefaultDomainEventRepositoryTest {
 
 	private suspend fun verifyRoundTrip(event: DomainEvent) {
 		val entitySlot = slot<List<DomainEventEntity>>()
-		coEvery { dao.insertAll(capture(entitySlot)) } just runs
+		coEvery { dao.insertAllIdempotent(capture(entitySlot)) } just runs
 
 		repo.persist(listOf(event))
 

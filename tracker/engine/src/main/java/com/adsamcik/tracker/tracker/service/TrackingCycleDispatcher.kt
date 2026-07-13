@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -113,6 +114,11 @@ internal class TrackingCycleDispatcher(
 		}
 		pending.forEach { it.cancel() }
 		signal.close()
+	}
+
+	suspend fun cancelAndJoin() {
+		cancel()
+		worker.cancelAndJoin()
 	}
 
 	private suspend fun processQueued(queued: QueuedCycle) {

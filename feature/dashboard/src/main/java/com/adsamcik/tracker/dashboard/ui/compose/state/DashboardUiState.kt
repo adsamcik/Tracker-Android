@@ -2,13 +2,13 @@ package com.adsamcik.tracker.dashboard.ui.compose.state
 
 import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.tracker.insights.SessionInsight
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /**
  * Unified UI state for the Dashboard screen.
@@ -32,7 +32,7 @@ data class DashboardUiState(
 	val policyTier: PolicyTier = PolicyTier.OFF,
 
 	// ─── Live session data (tracking mode) ───────────────────────────
-	val sessionData: TrackerSession? = null,
+	val sessionData: TrackerSessionSnapshot? = null,
 	val collectionData: CollectionData? = null,
 	val pathPoints: List<Location>? = null,
 

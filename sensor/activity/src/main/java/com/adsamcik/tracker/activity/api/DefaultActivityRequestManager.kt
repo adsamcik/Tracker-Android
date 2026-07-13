@@ -19,7 +19,12 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.reflect.KClass
 
 /**
@@ -30,16 +35,20 @@ class DefaultActivityRequestManager @Inject constructor(
     private val backend: ActivityRecognitionBackend,
 ) : ActivityRequestManager {
     private val activeRequestArray = SparseArray<ActivityRequestData>()
+    private val requestMutex = Mutex()
 
     private var minInterval = Integer.MAX_VALUE
     private var transitions: Collection<ActivityTransitionData> = emptyList()
+    private var configurationKnown = false
 
     override val lastActivity: RecognizedActivity get() = backend.lastActivity
     override val activityUpdates: Flow<ActivityUpdate> get() = backend.activityUpdates
     override val transitionUpdates: Flow<List<TransitionUpdate>> get() = backend.transitionUpdates
 
-    @Synchronized
-    override fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
+    override suspend fun requestActivity(
+        context: Context,
+        requestData: ActivityRequestData,
+    ): Boolean = requestMutex.withLock {
         require(requestData.transitionData != null || requestData.changeData != null)
 
         logActivity(
@@ -51,33 +60,84 @@ class DefaultActivityRequestManager @Inject constructor(
         )
 
         val hash = requestData.key.hashCode()
+        val previousRequest = activeRequestArray.get(hash)
         activeRequestArray.put(hash, requestData)
-        onRequestChange(context)
-        return true
-    }
-
-    @Synchronized
-    override fun removeActivityRequest(context: Context, tClass: KClass<*>) {
-        val index = activeRequestArray.indexOfKey(tClass.hashCode())
-        if (index >= 0) {
-            activeRequestArray.removeAt(index)
-
-            logActivity(
-                LogData(
-                    message = "removed request for ${tClass.java.name}",
-                    source = ACTIVITY_LOG_SOURCE,
-                ),
-            )
-
-            if (activeRequestArray.isNotEmpty()) {
-                onRequestChange(context)
+        try {
+            if (applyCurrentRequests(context)) {
+                return@withLock true
             }
-        } else {
-            Reporter.report("Trying to remove class that is not subscribed (${tClass.java.name})")
+        } catch (exception: Exception) {
+            if (previousRequest == null) {
+                activeRequestArray.remove(hash)
+            } else {
+                activeRequestArray.put(hash, previousRequest)
+            }
+            withContext(NonCancellable) {
+                restorePreviousConfiguration(context)
+            }
+            throw exception
         }
 
-        if (activeRequestArray.isEmpty()) {
-            backend.stopUpdates()
+        if (previousRequest == null) {
+            activeRequestArray.remove(hash)
+        } else {
+            activeRequestArray.put(hash, previousRequest)
+        }
+        restorePreviousConfiguration(context)
+        false
+    }
+
+    override suspend fun removeActivityRequest(
+        context: Context,
+        tClass: KClass<*>,
+    ) = requestMutex.withLock {
+        val index = activeRequestArray.indexOfKey(tClass.hashCode())
+        if (index < 0) {
+            if (!configurationKnown) {
+                if (activeRequestArray.isEmpty()) {
+                    backend.stopUpdates()
+                    minInterval = Integer.MAX_VALUE
+                    transitions = emptyList()
+                    configurationKnown = true
+                } else {
+                    check(applyCurrentRequests(context, force = true)) {
+                        "Unable to restore active activity recognition requests"
+                    }
+                }
+                return@withLock
+            }
+            Reporter.report("Trying to remove class that is not subscribed (${tClass.java.name})")
+            return@withLock
+        }
+
+        val removedRequest = activeRequestArray.valueAt(index)
+        activeRequestArray.removeAt(index)
+        logActivity(
+            LogData(
+                message = "removed request for ${tClass.java.name}",
+                source = ACTIVITY_LOG_SOURCE,
+            ),
+        )
+
+        try {
+            val updated = if (activeRequestArray.isEmpty()) {
+                backend.stopUpdates()
+                minInterval = Integer.MAX_VALUE
+                transitions = emptyList()
+                configurationKnown = true
+                true
+            } else {
+                applyCurrentRequests(context)
+            }
+            if (!updated) {
+                error("Unable to update activity recognition after removing ${tClass.java.name}")
+            }
+        } catch (exception: Exception) {
+            activeRequestArray.put(tClass.hashCode(), removedRequest)
+            withContext(NonCancellable) {
+                restorePreviousConfiguration(context)
+            }
+            throw exception
         }
     }
 
@@ -91,32 +151,57 @@ class DefaultActivityRequestManager @Inject constructor(
         return list
     }
 
-    private fun onRequestChange(context: Context) {
-        val minInterval = getMinInterval()
-        val transitions = getTransitions()
-
-        if (minInterval != this.minInterval ||
-            transitions.size != this.transitions.size ||
-            !transitions.containsAll(this.transitions)
-        ) {
-            updateActivityService(context, minInterval, transitions)
-        }
-    }
-
-    private fun updateActivityService(
+    private suspend fun applyCurrentRequests(
         context: Context,
-        interval: Int,
-        transitions: Collection<ActivityTransitionData>,
-    ) {
-        minInterval = interval
-        this.transitions = transitions
+        force: Boolean = false,
+    ): Boolean {
+        val requestedInterval = getMinInterval()
+        val requestedTransitions = getTransitions()
+        val unchanged = configurationKnown &&
+            requestedInterval == minInterval &&
+            requestedTransitions.size == transitions.size &&
+            requestedTransitions.containsAll(transitions)
+        if (unchanged && !force) return true
 
-        if (context.hasActivityPermission) {
-            backend.startUpdates(RecognitionConfig(minInterval, transitions))
-        } else {
+        if (!context.hasActivityPermission) {
             val message = "activity recognition permission missing; request not started"
             logActivity(LogData(message = message, source = ACTIVITY_LOG_SOURCE))
             Reporter.log(message)
+            return false
+        }
+
+        configurationKnown = false
+        val started = backend.startUpdates(
+            RecognitionConfig(requestedInterval, requestedTransitions),
+        )
+        if (started) {
+            minInterval = requestedInterval
+            transitions = requestedTransitions.toList()
+            configurationKnown = true
+        }
+        return started
+    }
+
+    private suspend fun restorePreviousConfiguration(context: Context) {
+        try {
+            if (activeRequestArray.isEmpty()) {
+                backend.stopUpdates()
+                minInterval = Integer.MAX_VALUE
+                transitions = emptyList()
+                configurationKnown = true
+            } else {
+                check(applyCurrentRequests(context, force = true)) {
+                    "Unable to restore previous activity recognition configuration"
+                }
+            }
+        } catch (exception: CancellationException) {
+            configurationKnown = false
+            throw exception
+        } catch (exception: Exception) {
+            configurationKnown = false
+            Reporter.report(
+                IllegalStateException("Failed to restore activity recognition configuration", exception),
+            )
         }
     }
 

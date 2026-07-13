@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /**
  * Triggers haptic feedback when tracking milestones are reached.
@@ -21,7 +21,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
  */
 @Composable
 internal fun MilestoneHapticEffect(
-	sessionData: TrackerSession?,
+	sessionData: TrackerSessionSnapshot?,
 	isTracking: Boolean,
 	haptics: HapticFeedback,
 ) {

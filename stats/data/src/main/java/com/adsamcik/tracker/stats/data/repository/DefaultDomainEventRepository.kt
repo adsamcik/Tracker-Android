@@ -27,7 +27,7 @@ class DefaultDomainEventRepository @Inject constructor(
 
 	override suspend fun persist(events: List<DomainEvent>) {
 		if (events.isEmpty()) return
-		dao.insertAll(events.map { it.toEntity() })
+		dao.insertAllIdempotent(events.map { it.toEntity() })
 	}
 
 	override fun observeEvents(since: EpochMs): Flow<List<DomainEvent>> {

@@ -2,15 +2,20 @@ package com.adsamcik.tracker.tracker.component.producer
 
 import android.hardware.Sensor
 import android.hardware.SensorEvent
+import android.hardware.SensorManager
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,6 +77,17 @@ class StepDataProducerTest {
 		val field = StepDataProducer::class.java.getDeclaredField("stepCountSinceLastCollection")
 		field.isAccessible = true
 		field.setInt(producer, value)
+	}
+
+	private fun setFlushState(sensorManager: SensorManager, batchingEnabled: Boolean) {
+		StepDataProducer::class.java.getDeclaredField("sensorManager").apply {
+			isAccessible = true
+			set(producer, sensorManager)
+		}
+		StepDataProducer::class.java.getDeclaredField("batchingEnabled").apply {
+			isAccessible = true
+			setBoolean(producer, batchingEnabled)
+		}
 	}
 
 
@@ -201,6 +217,57 @@ class StepDataProducerTest {
 		// Should be a no-op
 		producer.onAccuracyChanged(null, 0)
 		producer.onAccuracyChanged(mockk(relaxed = true), Sensor.TYPE_STEP_COUNTER)
+	}
+
+	@Test
+	fun `rejected batched sensor flush remains retryable`() = runTest {
+		val sensorManager = mockk<SensorManager>()
+		every { sensorManager.flush(producer) } returns false
+		setFlushState(sensorManager, batchingEnabled = true)
+
+		shouldThrow<IllegalStateException> {
+			producer.flushPendingEvents()
+		}
+	}
+
+	@Test
+	fun `timed out batched sensor flush remains retryable`() = runTest {
+		val sensorManager = mockk<SensorManager>()
+		every { sensorManager.flush(producer) } returns true
+		setFlushState(sensorManager, batchingEnabled = true)
+
+		shouldThrow<IllegalStateException> {
+			producer.flushPendingEvents()
+		}
+	}
+
+	@Test
+	fun `late callback settles only the timed out flush before retrying`() = runTest {
+		val sensorManager = mockk<SensorManager>()
+		every { sensorManager.flush(producer) } returns true
+		setFlushState(sensorManager, batchingEnabled = true)
+		shouldThrow<IllegalStateException> {
+			producer.flushPendingEvents()
+		}
+
+		val retry = async { producer.flushPendingEvents() }
+		runCurrent()
+		producer.onFlushCompleted(null)
+		runCurrent()
+		producer.onFlushCompleted(null)
+
+		retry.await()
+		io.mockk.verify(exactly = 2) { sensorManager.flush(producer) }
+	}
+
+	@Test
+	fun `non-batched sensor does not request an unnecessary flush`() = runTest {
+		val sensorManager = mockk<SensorManager>(relaxed = true)
+		setFlushState(sensorManager, batchingEnabled = false)
+
+		producer.flushPendingEvents()
+
+		io.mockk.verify(exactly = 0) { sensorManager.flush(any()) }
 	}
 
 

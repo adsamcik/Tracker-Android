@@ -12,6 +12,9 @@ class DefaultLocationSampleRepository @Inject constructor(
 	override suspend fun getSamplesBetween(fromMs: Long, toMs: Long) =
 		locationSampleDao.getAllBetweenChunked(fromMs, toMs).map { it.toModel() }
 
+	override suspend fun getNearestWithCoordinates(timeMs: Long, toleranceMs: Long) =
+		locationSampleDao.getNearestWithCoordinates(timeMs, toleranceMs)?.toModel()
+
 	override suspend fun getOrderedChunkBetween(
 		fromMs: Long,
 		toMs: Long,

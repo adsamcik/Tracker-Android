@@ -51,7 +51,7 @@ class FakeActivityRecognitionBackendTest {
 	inner class Lifecycle {
 
 		@Test
-		fun `startUpdates sets isRunning to true`() {
+		fun `startUpdates sets isRunning to true`() = runTest {
 			backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
 
 			backend.isRunning shouldBe true
@@ -59,7 +59,7 @@ class FakeActivityRecognitionBackendTest {
 		}
 
 		@Test
-		fun `stopUpdates sets isRunning to false`() {
+		fun `stopUpdates sets isRunning to false`() = runTest {
 			backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
 			backend.stopUpdates()
 
@@ -68,7 +68,7 @@ class FakeActivityRecognitionBackendTest {
 		}
 
 		@Test
-		fun `startUpdates stores config`() {
+		fun `startUpdates stores config`() = runTest {
 			val config = RecognitionConfig(intervalSeconds = 5)
 			backend.startUpdates(config)
 
@@ -76,7 +76,7 @@ class FakeActivityRecognitionBackendTest {
 		}
 
 		@Test
-		fun `startUpdates returns false when unavailable`() {
+		fun `startUpdates returns false when unavailable`() = runTest {
 			val unavailable = FakeActivityRecognitionBackend(isAvailable = false)
 
 			val result = unavailable.startUpdates(RecognitionConfig(intervalSeconds = 10))
@@ -135,7 +135,7 @@ class FakeActivityRecognitionBackendTest {
 	inner class Reset {
 
 		@Test
-		fun `reset clears all state`() {
+		fun `reset clears all state`() = runTest {
 			backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
 			backend.reset()
 

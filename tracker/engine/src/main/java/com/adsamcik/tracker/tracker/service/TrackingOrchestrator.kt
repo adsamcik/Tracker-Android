@@ -95,6 +95,7 @@ internal class TrackingOrchestrator(
 	private var trackingPolicyManager: TrackingPolicyManager? = null
 	private var processorPipeline: ProcessorPipeline? = null
 	private var trackingPipeline: TrackingPipeline? = null
+	private var pendingFinalCycle: TrackingCycle? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var persistenceErrorCollector: PersistenceErrorCollector? = null
 	private var sessionJob: Job? = null
@@ -146,10 +147,18 @@ internal class TrackingOrchestrator(
 		timerAccessor: TrackerTierEscalationHandler.TimerAccessor,
 	) = componentMutex.withLock {
 		val previousSessionJob = sessionJob
-		if (hasSessionState()) {
-			destroyComponents(context)
+		try {
+			if (hasSessionState()) {
+				retryTrackingShutdown {
+					destroyComponents(context)
+				}
+			}
+		} finally {
+			previousSessionJob?.cancelAndJoin()
+			if (sessionJob === previousSessionJob) {
+				sessionJob = null
+			}
 		}
-		previousSessionJob?.cancelAndJoin()
 
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
@@ -294,10 +303,12 @@ internal class TrackingOrchestrator(
 		preShutdown: (suspend () -> Unit)? = null,
 	): ShutdownResult = componentMutex.withLock {
 		preShutdown?.invoke()
-		val result = destroyComponents(context)
-		sessionJob?.cancelAndJoin()
-		sessionJob = null
-		result
+		try {
+			destroyComponents(context)
+		} finally {
+			sessionJob?.cancelAndJoin()
+			sessionJob = null
+		}
 	}
 
 	internal fun enqueueDailySummaryFallback(context: Context): Boolean {
@@ -337,6 +348,10 @@ internal class TrackingOrchestrator(
 		// Ensure error collector scope is always cancelled
 		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
 		persistenceErrorCollector = null
+	}
+
+	fun markServiceStopped() {
+		controller.updateServiceRunning(false)
 	}
 
 	// ---- private implementation ----
@@ -393,10 +408,16 @@ internal class TrackingOrchestrator(
 
 		// Notify listeners only when the pipeline completed (not skipped)
 		if (result.completedSuccessfully) {
-			val session = requireNotNull(cycleContext.session) {
-				"Session must be populated by SessionUpdateStage"
+			val session = cycleContext.session
+			if (session != null) {
+				try {
+					trackerListenerManager.send(context, session, cycleContext.collectionData)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					Reporter.report(IllegalStateException("Failed to notify tracking listeners", e))
+				}
 			}
-			trackerListenerManager.send(context, session, cycleContext.collectionData)
 		}
 	}
 
@@ -423,16 +444,52 @@ internal class TrackingOrchestrator(
 	}
 
 	private suspend fun destroyComponents(context: Context): ShutdownResult {
-		dataProducerManager?.let { manager ->
-			manager.flushPendingSensorBatches()
-			val finalCycle = manager.getData(
-				TrackingCycle(
-					timestampMs = Time.nowMillis,
-					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-				),
-			)
-			if (finalCycle.stepDelta != null) {
-				executeCycle(context, finalCycle)
+		var shutdownFailure: IllegalStateException? = null
+		fun recordCriticalFailure(message: String, exception: Exception) {
+			val failure = IllegalStateException(message, exception)
+			Reporter.report(failure)
+			if (shutdownFailure == null) shutdownFailure = failure
+		}
+
+		if (sessionComponent != null && trackingPipeline != null) {
+			val manager = dataProducerManager
+			if (manager != null) {
+				if (pendingFinalCycle != null) {
+					try {
+						executeCycle(context, requireNotNull(pendingFinalCycle))
+						pendingFinalCycle = null
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordCriticalFailure("Failed to replay final tracking cycle", e)
+					}
+				}
+			}
+			if (manager != null && pendingFinalCycle == null) {
+				try {
+					manager.flushPendingSensorBatches()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					recordCriticalFailure("Failed to flush final sensor batches", e)
+				}
+				try {
+					val finalCycle = manager.getData(
+						TrackingCycle(
+							timestampMs = Time.nowMillis,
+							elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+						),
+					)
+					if (finalCycle.stepDelta != null) {
+						pendingFinalCycle = finalCycle
+						executeCycle(context, requireNotNull(pendingFinalCycle))
+						pendingFinalCycle = null
+					}
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					recordCriticalFailure("Failed to process final tracking cycle", e)
+				}
 			}
 		}
 
@@ -441,133 +498,157 @@ internal class TrackingOrchestrator(
 		// Downstream consumers (AchievementWorker,
 		// DailySummaryMaterializationWorker) read session_segment rows after
 		// receiving SessionEnded, so the final row must already be persisted.
-		sessionComponent?.let { component ->
-			try {
-				component.onDisable(context)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable session component during shutdown: ${component::class.simpleName}", e)
+		if (shutdownFailure == null) {
+			sessionComponent?.let { component ->
+				try {
+					component.onDisable(context)
+					controller.updateSession(component.session)
+					sessionComponent = null
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					recordCriticalFailure("Failed to finalize tracking session", e)
+				}
 			}
 		}
-		sessionComponent = null
 
 		// Stop the stats ProcessorPipeline (final flush + SessionEnded delivery)
-		try {
-			processorPipeline?.stop()
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			Reporter.report(IllegalStateException("Failed to stop processor pipeline during shutdown", e))
-		} finally {
-			processorPipeline = null
-			trackingPipeline = null
+		if (shutdownFailure == null) {
+			try {
+				processorPipeline?.stop()
+				processorPipeline = null
+				trackingPipeline = null
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				recordCriticalFailure("Failed to stop tracking processor pipeline", e)
+			}
 		}
 
-		dataProducerManager?.onDisable()
-		dataProducerManager = null
+		shutdownFailure?.let { throw it }
+
+		dataProducerManager?.let { manager ->
+			try {
+				manager.onDisable()
+				dataProducerManager = null
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				recordCriticalFailure("Failed to disable tracking data producers", e)
+			}
+		}
 		try {
 			trackingPolicyManager?.stop()
+			trackingPolicyManager = null
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Reporter.report(IllegalStateException("Failed to stop tracking policy manager during shutdown", e))
-		} finally {
-			trackingPolicyManager = null
+			recordCriticalFailure("Failed to stop tracking policy manager during shutdown", e)
 		}
-		preComponentList.forEach { component ->
+		preComponentList.toList().forEach { component ->
 			try {
 				component.onDisable(context)
+				preComponentList.remove(component)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable pre-component during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure(
+					"Failed to disable pre-component ${component::class.simpleName}",
+					e,
+				)
 			}
 		}
-		dataComponentList.forEach { component ->
+		dataComponentList.toList().forEach { component ->
 			try {
 				component.onDisable(context)
+				dataComponentList.remove(component)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable data-component during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure(
+					"Failed to disable data-component ${component::class.simpleName}",
+					e,
+				)
 			}
 		}
-		preComponentList.clear()
-		dataComponentList.clear()
 		try {
 			notificationComponent.onDisable(context)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Log.w(TAG, "Failed to disable notification component during shutdown: ${notificationComponent::class.simpleName}", e)
+			recordCriticalFailure("Failed to disable notification component", e)
 		}
 		skiTrackingComponent?.let { component ->
 			try {
 				component.onDisable(context)
+				skiTrackingComponent = null
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable ski tracking component during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure("Failed to disable ski tracking component", e)
 			}
 		}
 		skiSegmentWriter?.let { component ->
 			try {
 				component.onDisable(context)
+				skiSegmentWriter = null
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable ski segment writer during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure("Failed to disable ski segment writer", e)
 			}
 		}
 		sailingTrackingComponent?.let { component ->
 			try {
 				component.onDisable(context)
+				sailingTrackingComponent = null
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable sailing tracking component during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure("Failed to disable sailing tracking component", e)
 			}
 		}
 		planeTrackingComponent?.let { component ->
 			try {
 				component.onDisable(context)
+				planeTrackingComponent = null
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to disable plane tracking component during shutdown: ${component::class.simpleName}", e)
+				recordCriticalFailure("Failed to disable plane tracking component", e)
 			}
 		}
-		skiTrackingComponent = null
-		skiSegmentWriter = null
-		sailingTrackingComponent = null
-		planeTrackingComponent = null
 		if (::tierEscalationHandler.isInitialized) {
 			tierEscalationHandler.processorPipeline = null
 		}
 
 		// Materialize daily summary from session segments now that the session
 		// component has saved its final segment to the database.
-		val dailySummaryMaterialized = try {
-			val aggregator = DailySummaryAggregator(
-				dailySummaryDao = appDatabase.dailySummaryDao(),
-				sessionSegmentDao = appDatabase.sessionSegmentDao(),
-				onDailySummaryWritten = onDailySummaryWritten,
-			)
-			aggregator.materializeToday()
-			true
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			Log.w(TAG, "Failed to materialize daily summary on shutdown", e)
+		val dailySummaryMaterialized = if (sessionComponent == null) {
+			try {
+				val aggregator = DailySummaryAggregator(
+					dailySummaryDao = appDatabase.dailySummaryDao(),
+					sessionSegmentDao = appDatabase.sessionSegmentDao(),
+					onDailySummaryWritten = onDailySummaryWritten,
+				)
+				aggregator.materializeToday()
+				true
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to materialize daily summary on shutdown", e)
+				false
+			}
+		} else {
 			false
 		}
 
-		val fallbackEnqueued = if (dailySummaryMaterialized) {
+		val fallbackEnqueued = if (dailySummaryMaterialized || sessionComponent != null) {
 			false
 		} else {
 			enqueueDailySummaryFallback(context)
 		}
+		shutdownFailure?.let { throw it }
 		return ShutdownResult(
 			dailySummaryMaterialized = dailySummaryMaterialized,
 			fallbackEnqueued = fallbackEnqueued,

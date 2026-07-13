@@ -39,6 +39,7 @@ import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -46,6 +47,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
@@ -98,6 +100,9 @@ class PersistenceProcessorTest {
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
 		coEvery { durableBuffer.checkpoint(any()) } returns emptyList()
+		coEvery { pendingSignalDao.countByIds(any()) } answers {
+			firstArg<List<Long>>().size
+		}
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -242,6 +247,7 @@ class PersistenceProcessorTest {
 					emptyList()
 				}
 			}
+			coEvery { pendingSignalDao.countByIds(listOf(41L)) } returns 0
 			lateinit var flushJob: Job
 			val cancelAfterCommitTransactor = object : TrackingPersistenceTransactor {
 				override suspend fun <R> inTransaction(block: suspend () -> R): R {
@@ -276,12 +282,53 @@ class PersistenceProcessorTest {
 		}
 
 		@Test
+		fun `transaction timeout reconciles a commit before retrying buffered rows`() = runTest {
+			var checkpointed = false
+			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
+				val ids = if (checkpointed) emptyList() else listOf(43L)
+				checkpointed = true
+				ids.also(firstArg<(List<Long>) -> Unit>())
+			}
+			coEvery { pendingSignalDao.countByIds(listOf(43L)) } returns 0
+			val commitThenStallTransactor = object : TrackingPersistenceTransactor {
+				override suspend fun <R> inTransaction(block: suspend () -> R): R {
+					block()
+					awaitCancellation()
+				}
+			}
+			val timeoutSafeProcessor = PersistenceProcessor(
+				locationSampleDao = locationDao,
+				cellSampleDao = cellDao,
+				wifiObservationDao = wifiDao,
+				pressureSampleDao = pressureDao,
+				stepIntervalDao = stepDao,
+				activitySnapshotDao = activityDao,
+				pendingSignalDao = pendingSignalDao,
+				durableBuffer = durableBuffer,
+				transactor = commitThenStallTransactor,
+				errorCollector = errorCollector,
+			)
+			timeoutSafeProcessor.onStart(
+				ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L),
+			)
+			timeoutSafeProcessor.onSignal(signalWithLocation())
+
+			timeoutSafeProcessor.onFlush()
+			timeoutSafeProcessor.onFlush()
+
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(43L)) }
+		}
+
+		@Test
 		fun `restart retries typed buffers retained after final checkpoint failure`() = runTest {
 			coEvery { durableBuffer.checkpoint(any()) } throws RuntimeException("wal write failed")
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L))
 			processor.onSignal(signalWithLocation())
-			processor.onStop()
+			shouldThrow<IllegalStateException> {
+				processor.onStop()
+			}
 
 			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
 				listOf(42L).also(firstArg<(List<Long>) -> Unit>())
@@ -312,6 +359,25 @@ class PersistenceProcessorTest {
 			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
 			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(10L, 11L)) }
+		}
+
+		@Test
+		fun `large WAL acknowledgement is deleted within SQLite bind limits`() = runTest {
+			val ids = (1L..901L).toList()
+			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
+				ids.also(firstArg<(List<Long>) -> Unit>())
+			}
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onFlush()
+
+			coVerify(exactly = 1) {
+				pendingSignalDao.deleteByIds(ids.take(PersistenceProcessor.ACK_DELETE_BATCH_SIZE))
+			}
+			coVerify(exactly = 1) {
+				pendingSignalDao.deleteByIds(ids.drop(PersistenceProcessor.ACK_DELETE_BATCH_SIZE))
+			}
+			coVerify(exactly = 2) { pendingSignalDao.deleteByIds(any()) }
 		}
 
 		@Test
@@ -603,6 +669,22 @@ class PersistenceProcessorTest {
 
 			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
+		}
+
+		@Test
+		fun `onStop fails when final signals cannot be checkpointed durably`() = runTest {
+			coEvery { durableBuffer.checkpoint(any()) } throws IllegalStateException("WAL unavailable")
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithLocation())
+
+			shouldThrow<IllegalStateException> {
+				processor.onStop()
+			}
+
+			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
+			coVerify(exactly = 1) {
+				errorCollector.reportError(match<PersistenceError> { it.operation == "checkpoint" })
+			}
 		}
 	}
 

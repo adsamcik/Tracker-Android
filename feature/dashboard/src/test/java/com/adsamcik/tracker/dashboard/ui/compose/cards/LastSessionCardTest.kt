@@ -6,7 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.model.Location
 import org.junit.Assert.assertTrue
@@ -27,9 +27,9 @@ class LastSessionCardTest {
 		distanceInM: Float = 1500f,
 		steps: Int = 3000,
 		durationMs: Long = 1_800_000L,
-	): TrackerSession {
+	): TrackerSessionSnapshot {
 		val now = System.currentTimeMillis()
-		return TrackerSession(
+		return TrackerSessionSnapshot(
 			id = 1L,
 			start = now - durationMs,
 			end = now,

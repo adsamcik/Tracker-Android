@@ -41,16 +41,23 @@ import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -218,71 +225,93 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// component teardown/setup. Cancel the previous init before starting a new
 		// one so only one initialization is in flight at a time.
 		val previousInitialization = initializationJob
+		val previousServiceTeardown = synchronized(SERVICE_GENERATION_LOCK) {
+			lastTeardownGate
+		}
 		previousInitialization?.cancel()
 		initializationJob = launch {
-			previousInitialization?.cancelAndJoin()
-			timerComponent.onDisable(this@TrackerService)
-			timerComponent = NoTimer()
-			if (::cycleDispatcher.isInitialized) {
-				cycleDispatcher.closeAndDrain()
-				cycleDispatcher.cancel()
-				cycleDispatcherScope?.cancel()
-			}
-			createCycleDispatcher()
-
-			// The collection trigger is chosen from BOTH the battery tier and whether the user
-			// wants location. A GPS trigger only runs when location is enabled AND the tier is
-			// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
-			// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
-			val locationEnabled = trackingParamsRepository.data.first().locationEnabled
-			val initialTier = batteryAwarePolicy.adjustForBattery(
-				resolveInitialPolicyTier(
-					isUserInitiated = isUserInitiated,
-					isAmbient = isAmbient,
-					locationEnabled = locationEnabled,
-				),
-			)
-			controller.updatePolicyTier(initialTier)
-			val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
-			timerComponent = if (useGpsTrigger) {
-				TrackerTimerManager.getSelected(this@TrackerService)
-			} else {
-				AmbientCollectionTrigger(dispatchers.main)
-			}
-
-			val timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {
-				override fun get() = timerComponent
-				override fun set(timer: CollectionTriggerComponent) {
-					timerComponent = timer
+			try {
+				if (previousInitialization != null) {
+					withTimeout(PREVIOUS_INITIALIZATION_WAIT_TIMEOUT_MILLIS) {
+						previousInitialization.cancelAndJoin()
+					}
 				}
-			}
+				TRACKING_LIFECYCLE_BARRIER.runAfter(
+					previousTeardown = previousServiceTeardown?.job,
+					waitTimeoutMillis = PREVIOUS_TEARDOWN_WAIT_TIMEOUT_MILLIS,
+				) {
+					recoverIncompleteTeardown(previousServiceTeardown)
+					timerComponent.onDisable(this@TrackerService)
+					timerComponent = NoTimer()
+					if (!quiesceCycleDispatcherForReplacement()) {
+						stopSelf()
+						return@runAfter
+					}
+					createCycleDispatcher()
 
-			withContext(dispatchers.default) {
-				orchestrator.initialize(
-					context = this@TrackerService,
-					isSessionUserInitiated = isUserInitiated,
-					initialTier = initialTier,
-					scope = this@TrackerService,
-					timerReceiver = this@TrackerService,
-					timerAccessor = timerAccessor,
-				)
-			}
-
-			batteryObservationJob?.cancel()
-			batteryObservationJob = launch {
-				batteryAwarePolicy.batteryLevelUpdates.collect {
-					orchestrator.onBatteryLevelChanged(
-						context = this@TrackerService,
-						timerReceiver = this@TrackerService,
-						scope = this@TrackerService,
+					// The collection trigger is chosen from BOTH the battery tier and whether the user
+					// wants location. A GPS trigger only runs when location is enabled AND the tier is
+					// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
+					// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
+					val locationEnabled = trackingParamsRepository.data.first().locationEnabled
+					val initialTier = batteryAwarePolicy.adjustForBattery(
+						resolveInitialPolicyTier(
+							isUserInitiated = isUserInitiated,
+							isAmbient = isAmbient,
+							locationEnabled = locationEnabled,
+						),
 					)
-				}
-			}
+					controller.updatePolicyTier(initialTier)
+					val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
+					timerComponent = if (useGpsTrigger) {
+						TrackerTimerManager.getSelected(this@TrackerService)
+					} else {
+						AmbientCollectionTrigger(dispatchers.main)
+					}
 
-			if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
-				timerComponent.onEnable(this@TrackerService, this@TrackerService)
-			} else {
-				Reporter.report("Missing permissions for ${timerComponent.javaClass}")
+					val timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {
+						override fun get() = timerComponent
+						override fun set(timer: CollectionTriggerComponent) {
+							timerComponent = timer
+						}
+					}
+
+					withContext(dispatchers.default) {
+						orchestrator.initialize(
+							context = this@TrackerService,
+							isSessionUserInitiated = isUserInitiated,
+							initialTier = initialTier,
+							scope = this@TrackerService,
+							timerReceiver = this@TrackerService,
+							timerAccessor = timerAccessor,
+						)
+					}
+
+					batteryObservationJob?.cancel()
+					batteryObservationJob = launch {
+						batteryAwarePolicy.batteryLevelUpdates.collect {
+							orchestrator.onBatteryLevelChanged(
+								context = this@TrackerService,
+								timerReceiver = this@TrackerService,
+								scope = this@TrackerService,
+							)
+						}
+					}
+
+					if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
+						timerComponent.onEnable(this@TrackerService, this@TrackerService)
+					} else {
+						Reporter.report("Missing permissions for ${timerComponent.javaClass}")
+						stopSelf()
+					}
+				}
+			} catch (e: TimeoutCancellationException) {
+				Reporter.report(IllegalStateException("Timed out waiting for prior tracking lifecycle work", e))
+				stopSelf()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Reporter.report(IllegalStateException("Failed to initialize tracking service", e))
 				stopSelf()
 			}
 		}
@@ -388,6 +417,43 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 	}
 
+	private suspend fun quiesceCycleDispatcherForReplacement(): Boolean {
+		if (!::cycleDispatcher.isInitialized) return true
+
+		val drained = try {
+			withTimeoutOrNull(CYCLE_DRAIN_TIMEOUT_MILLIS) {
+				cycleDispatcher.closeAndDrain()
+				true
+			} == true
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Reporter.report(IllegalStateException("Failed to drain tracking cycles before restart", e))
+			false
+		}
+		if (!drained) {
+			Reporter.log("Tracker cycle drain timed out before session restart")
+		}
+
+		val cancelled = try {
+			withTimeoutOrNull(CYCLE_CANCEL_TIMEOUT_MILLIS) {
+				cycleDispatcher.cancelAndJoin()
+				true
+			} == true
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			Reporter.report(IllegalStateException("Failed to cancel tracking cycles before restart", e))
+			false
+		}
+		cycleDispatcherScope?.cancel()
+		cycleDispatcherScope = null
+		if (!cancelled) {
+			Reporter.report("Tracking cycle cancellation timed out before session restart")
+		}
+		return cancelled
+	}
+
 	override fun onError(errorData: TrackerTimerErrorData) {
 		when (errorData.severity) {
 			TrackerTimerErrorSeverity.STOP_SERVICE -> stopSelf()
@@ -403,6 +469,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onDestroy() {
 		// Capture references before super.onDestroy() cancels the coroutine scope
 		val timerRef = timerComponent
+		val initializationRef = initializationJob
+		val precedingTeardown = synchronized(SERVICE_GENERATION_LOCK) {
+			lastTeardownGate
+		}
+		initializationRef?.cancel()
+		initializationJob = null
 		val context: Context = this
 		try {
 			timerRef.onDisable(context)
@@ -420,36 +492,51 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		batteryObservationJob = null
 
 		// Fire-and-forget cleanup on an independent scope to avoid blocking the main thread.
-		// CoreService.onDestroy() already cancelled our CoroutineScope, so we use a standalone
-		// scope with a bounded lifetime to ensure cleanup completes without causing ANR.
+		// Replacement initialization awaits this deferred, so cleanup keeps retrying until
+		// shared singleton processors and hardware producers are actually quiescent.
 		val cleanupScope = kotlinx.coroutines.CoroutineScope(
 			dispatchers.default + kotlinx.coroutines.SupervisorJob()
 		)
-		cleanupScope.launch {
+		val cleanupGate = TrackingTeardownGate {
+			performTeardown(context)
+		}
+		lateinit var cleanupJob: Deferred<Unit>
+		cleanupJob = cleanupScope.async(start = CoroutineStart.LAZY) {
+			var shutdownCompleted = false
 			try {
-				val shutdownResult = kotlinx.coroutines.withTimeoutOrNull(4_000L) {
-					if (::cycleDispatcher.isInitialized) {
-						cycleDispatcher.closeAndDrain()
-					}
-					orchestrator.shutdown(context)
-				}
-				if (shutdownResult == null) {
-					Reporter.log("Tracker shutdown cleanup timed out; enqueueing daily summary fallback")
-					orchestrator.enqueueDailySummaryFallback(context)
+				precedingTeardown?.job?.join()
+				TRACKING_LIFECYCLE_BARRIER.runAfter(initializationRef) {
+					recoverIncompleteTeardown(precedingTeardown)
+					cleanupGate.recovery()
+					cleanupGate.cleanupComplete.set(true)
+					shutdownCompleted = true
 				}
 			} finally {
-				if (::cycleDispatcher.isInitialized) cycleDispatcher.cancel()
-				cycleDispatcherScope?.cancel()
-				cycleDispatcherScope = null
 				synchronized(SERVICE_GENERATION_LOCK) {
 					if (activeServiceGeneration == serviceGeneration) {
-						orchestrator.resetMetadata()
+						if (shutdownCompleted) {
+							orchestrator.resetMetadata()
+						} else {
+							orchestrator.markServiceStopped()
+						}
 						activeServiceGeneration = 0L
 					}
 				}
-				cleanupScope.cancel()
 			}
 		}
+		cleanupGate.job = cleanupJob
+		synchronized(SERVICE_GENERATION_LOCK) {
+			lastTeardownGate = cleanupGate
+		}
+		cleanupJob.invokeOnCompletion {
+			cleanupScope.cancel()
+			synchronized(SERVICE_GENERATION_LOCK) {
+				if (cleanupGate.cleanupComplete.get() && lastTeardownGate === cleanupGate) {
+					lastTeardownGate = null
+				}
+			}
+		}
+		cleanupJob.start()
 
 		activityWatcherController.poke(trackerRunning = false)
 
@@ -467,18 +554,214 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
+	private suspend fun recoverIncompleteTeardown(gate: TrackingTeardownGate?) {
+		if (gate == null || gate.cleanupComplete.get()) return
+
+		gate.recovery()
+		gate.cleanupComplete.set(true)
+		synchronized(SERVICE_GENERATION_LOCK) {
+			if (lastTeardownGate === gate) {
+				lastTeardownGate = null
+			}
+		}
+	}
+
+	private suspend fun performTeardown(context: Context) {
+		try {
+			timerComponent.onDisable(context)
+		} catch (e: Exception) {
+			Reporter.report(
+				IllegalStateException("Failed to disable late collection trigger during shutdown", e)
+			)
+		} finally {
+			timerComponent = NoTimer()
+		}
+		val shutdownSequence = try {
+			drainCyclesThenShutdown(
+				drain = {
+					if (::cycleDispatcher.isInitialized) {
+						cycleDispatcher.closeAndDrain()
+					}
+				},
+				cancelPendingCycles = {
+					if (::cycleDispatcher.isInitialized) {
+						cycleDispatcher.cancelAndJoin()
+					}
+				},
+				shutdown = {
+					retryTrackingShutdown {
+						orchestrator.shutdown(context)
+					}
+				},
+			)
+		} finally {
+			cycleDispatcherScope?.cancel()
+			cycleDispatcherScope = null
+		}
+		shutdownSequence.drainFailure?.let { failure ->
+			Reporter.report(IllegalStateException("Failed to drain tracking cycles during shutdown", failure))
+		}
+		shutdownSequence.shutdownFailure?.let { failure ->
+			Reporter.report(IllegalStateException("Failed to finalize tracking shutdown", failure))
+		}
+		var finalCycleCancellationFailure = shutdownSequence.cycleCancellationFailure
+		finalCycleCancellationFailure?.let { failure ->
+			Reporter.report(IllegalStateException("Failed to cancel tracking cycles during shutdown", failure))
+			if (::cycleDispatcher.isInitialized) {
+				try {
+					retryTrackingShutdown(
+						maxAttempts = FINAL_CYCLE_CANCEL_MAX_ATTEMPTS,
+						retryDelayMillis = FINAL_CYCLE_CANCEL_RETRY_DELAY_MILLIS,
+						attemptTimeoutMillis = CYCLE_CANCEL_TIMEOUT_MILLIS,
+					) {
+						cycleDispatcher.cancelAndJoin()
+					}
+					finalCycleCancellationFailure = null
+				} catch (e: Exception) {
+					finalCycleCancellationFailure = e
+					Reporter.report(
+						IllegalStateException("Failed final tracking-cycle cancellation", e)
+					)
+				}
+			}
+		}
+		if (!shutdownSequence.drained) {
+			Reporter.log("Tracker cycle drain timed out; cancelled queued cycles before teardown")
+		}
+		if (
+			finalCycleCancellationFailure != null ||
+			shutdownSequence.shutdownResult == null
+		) {
+			Reporter.log("Tracker shutdown cleanup failed; enqueueing daily summary fallback")
+			orchestrator.enqueueDailySummaryFallback(context)
+			retryTrackingShutdown(
+				maxAttempts = FINAL_TEARDOWN_MAX_ATTEMPTS,
+				retryDelayMillis = FINAL_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS,
+				maxRetryDelayMillis = FINAL_TEARDOWN_MAX_RETRY_DELAY_MILLIS,
+				attemptTimeoutMillis = FINAL_TEARDOWN_ATTEMPT_TIMEOUT_MILLIS,
+			) {
+				orchestrator.shutdown(context)
+			}
+		}
+		finalCycleCancellationFailure?.let { failure ->
+			throw IllegalStateException(
+				"Tracking cycles remained active after bounded shutdown retries",
+				failure,
+			)
+		}
+	}
+
 	companion object {
 		private val SERVICE_GENERATION_LOCK = Any()
 		private val SERVICE_GENERATION_COUNTER = AtomicLong()
+		private val TRACKING_LIFECYCLE_BARRIER = TrackingLifecycleBarrier()
 
 		@Volatile
 		private var activeServiceGeneration: Long = 0L
+		private var lastTeardownGate: TrackingTeardownGate? = null
 
 		const val ARG_IS_USER_INITIATED = TrackerServiceContract.ARG_IS_USER_INITIATED
 		const val ARG_IS_AMBIENT = TrackerServiceContract.ARG_IS_AMBIENT
 		private const val DEFAULT_IS_USER_INITIATED = false
 		private const val TRACKING_CYCLE_QUEUE_CAPACITY = 64
+		private const val CYCLE_DRAIN_TIMEOUT_MILLIS = 4_000L
+		private const val CYCLE_CANCEL_TIMEOUT_MILLIS = 2_000L
+		private const val PREVIOUS_TEARDOWN_WAIT_TIMEOUT_MILLIS = 40_000L
+		private const val PREVIOUS_INITIALIZATION_WAIT_TIMEOUT_MILLIS = 10_000L
+		private const val FINAL_CYCLE_CANCEL_MAX_ATTEMPTS = 2
+		private const val FINAL_CYCLE_CANCEL_RETRY_DELAY_MILLIS = 250L
+		private const val FINAL_TEARDOWN_MAX_ATTEMPTS = 3
+		private const val FINAL_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS = 500L
+		private const val FINAL_TEARDOWN_MAX_RETRY_DELAY_MILLIS = 2_000L
+		private const val FINAL_TEARDOWN_ATTEMPT_TIMEOUT_MILLIS = 5_000L
 	}
+}
+
+private class TrackingTeardownGate(
+	val recovery: suspend () -> Unit,
+) {
+	lateinit var job: Deferred<Unit>
+	val cleanupComplete = AtomicBoolean(false)
+}
+
+internal data class TrackingShutdownSequenceResult<T : Any>(
+	val drained: Boolean,
+	val drainFailure: Throwable?,
+	val cycleCancellationFailure: Throwable?,
+	val shutdownResult: T?,
+	val shutdownFailure: Throwable?,
+)
+
+/**
+ * Gives queued cycles and orchestrator teardown independent timeout budgets.
+ * Teardown must run even when draining stalls or fails.
+ */
+internal suspend fun <T : Any> drainCyclesThenShutdown(
+	drainTimeoutMillis: Long = 4_000L,
+	cancelTimeoutMillis: Long = 2_000L,
+	shutdownTimeoutMillis: Long = 4_000L,
+	drain: suspend () -> Unit,
+	cancelPendingCycles: suspend () -> Unit,
+	shutdown: suspend () -> T,
+): TrackingShutdownSequenceResult<T> {
+	var drainFailure: Throwable? = null
+	val drained = try {
+		withTimeoutOrNull(drainTimeoutMillis) {
+			drain()
+			true
+		} == true
+	} catch (exception: CancellationException) {
+		throw exception
+	} catch (exception: Exception) {
+		drainFailure = exception
+		false
+	}
+
+	var cycleCancellationFailure: Throwable? = null
+	val cyclesCancelled = try {
+		withTimeoutOrNull(cancelTimeoutMillis) {
+			cancelPendingCycles()
+			true
+		} == true
+	} catch (exception: CancellationException) {
+		throw exception
+	} catch (exception: Exception) {
+		cycleCancellationFailure = exception
+		false
+	}
+	if (!cyclesCancelled && cycleCancellationFailure == null) {
+		cycleCancellationFailure = IllegalStateException(
+			"Tracking cycle cancellation timed out after ${cancelTimeoutMillis}ms"
+		)
+	}
+
+	var shutdownFailure: Throwable? = null
+	val shutdownResult = if (cyclesCancelled) {
+		try {
+			withTimeoutOrNull(shutdownTimeoutMillis) { shutdown() }.also { result ->
+				if (result == null) {
+					shutdownFailure = IllegalStateException(
+						"Tracking shutdown timed out after ${shutdownTimeoutMillis}ms"
+					)
+				}
+			}
+		} catch (exception: CancellationException) {
+			throw exception
+		} catch (exception: Exception) {
+			shutdownFailure = exception
+			null
+		}
+	} else {
+		null
+	}
+
+	return TrackingShutdownSequenceResult(
+		drained = drained,
+		drainFailure = drainFailure,
+		cycleCancellationFailure = cycleCancellationFailure,
+		shutdownResult = shutdownResult,
+		shutdownFailure = shutdownFailure,
+	)
 }
 
 /**

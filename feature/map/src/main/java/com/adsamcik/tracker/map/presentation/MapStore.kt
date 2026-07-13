@@ -84,15 +84,18 @@ class MapStore @Inject constructor(
     private data class MapDataRevisions(
         val location: Long = 0L,
         val cell: Long = 0L,
+        val wifi: Long = 0L,
     ) {
         fun increment(sources: Set<MapDataSource>) = copy(
             location = location + if (MapDataSource.Location in sources) 1 else 0,
             cell = cell + if (MapDataSource.Cell in sources) 1 else 0,
+            wifi = wifi + if (MapDataSource.Wifi in sources) 1 else 0,
         )
 
         fun changedSourcesSince(previous: MapDataRevisions): Set<MapDataSource> = buildSet {
             if (location != previous.location) add(MapDataSource.Location)
             if (cell != previous.cell) add(MapDataSource.Cell)
+            if (wifi != previous.wifi) add(MapDataSource.Wifi)
         }
     }
 
@@ -107,6 +110,8 @@ class MapStore @Inject constructor(
             "location_heatmap" to setOf(MapDataSource.Location),
             "cell_heatmap" to setOf(MapDataSource.Cell),
             "signal_coverage" to setOf(MapDataSource.Cell),
+            "wifi_heatmap" to setOf(MapDataSource.Wifi),
+            "wifi_count_heatmap" to setOf(MapDataSource.Wifi),
             "speed_heatmap" to setOf(MapDataSource.Location),
             "speed_ribbon" to setOf(MapDataSource.Location),
             "altitude_ribbon" to setOf(MapDataSource.Location),

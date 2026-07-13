@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -45,7 +46,7 @@ interface TrackerStateReader {
      * Contains all runtime metrics: distance, steps, collections, timestamps.
      * Null when no session is active.
      */
-    val sessionFlow: StateFlow<TrackerSession?>
+    val sessionFlow: StateFlow<TrackerSessionSnapshot?>
     
     /**
      * Current collection data as Flow.
@@ -65,7 +66,7 @@ interface TrackerStateReader {
      * The last active session data (retained after service stop).
      * Used to display summary immediately after tracking stops.
      */
-    val lastSessionFlow: StateFlow<TrackerSession?>
+    val lastSessionFlow: StateFlow<TrackerSessionSnapshot?>
 
     /**
      * The path points of the last active session.

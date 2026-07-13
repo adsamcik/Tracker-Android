@@ -3,7 +3,7 @@ package com.adsamcik.tracker.dashboard.ui.compose.tracking
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -25,7 +25,7 @@ class TrackingStatsGridTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				TrackingStatsGrid(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = now - 120_000L,
 						end = now,
@@ -48,7 +48,7 @@ class TrackingStatsGridTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				TrackingStatsGrid(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = now - 120_000L,
 						end = now,
@@ -71,7 +71,7 @@ class TrackingStatsGridTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				TrackingStatsGrid(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = now - 60_000L,
 						end = now,
@@ -93,7 +93,7 @@ class TrackingStatsGridTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				TrackingStatsGrid(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = now - 60_000L,
 						end = now,

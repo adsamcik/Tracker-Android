@@ -19,7 +19,12 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -56,7 +61,7 @@ class ProcessorPipelineTest {
 		)
 
 	/** A [SignalProcessor] fake that records every lifecycle call. */
-	private class RecordingProcessor(
+	private open class RecordingProcessor(
 		override val descriptor: ProcessorDescriptor,
 	) : SignalProcessor {
 		val signals = mutableListOf<TrackingSignal>()
@@ -68,6 +73,7 @@ class ProcessorPipelineTest {
 		var onSignalAction: (TrackingSignal) -> Unit = {}
 		var onFlushAction: suspend () -> Unit = {}
 		var onStartAction: suspend () -> Unit = {}
+		var onStopAction: suspend () -> Unit = {}
 
 		override suspend fun onStart(context: ProcessorContext) {
 			startCalls.add(context)
@@ -87,11 +93,29 @@ class ProcessorPipelineTest {
 
 		override suspend fun onStop(): List<DomainEvent> {
 			stopCount++
+			onStopAction()
 			return stopEvents()
 		}
 
 		override fun checkpoint(): ByteArray? = null
 		override fun restore(state: ByteArray) {}
+	}
+
+	private class DurableRecordingProcessor(
+		descriptor: ProcessorDescriptor = ProcessorDescriptor(
+			id = "persistence",
+			requiredTier = PolicyTier.AMBIENT,
+			flushIntervalMs = 30_000L,
+			priority = 0,
+		),
+	) : RecordingProcessor(descriptor), DurableSignalProcessor {
+		var checkpointCount = 0
+		var checkpointHealthy = true
+
+		override suspend fun checkpointStagedSignals(): Boolean {
+			checkpointCount++
+			return checkpointHealthy
+		}
 	}
 
 	private fun ambientProcessor(id: String = "ambient", priority: Int = 0) = RecordingProcessor(
@@ -156,6 +180,55 @@ class ProcessorPipelineTest {
 	}
 
 	@Test
+	fun `failed processor start quarantines signal delivery but retains cleanup ownership`() = runTest {
+		val processor = ambientProcessor().apply {
+			onStartAction = { error("start failed") }
+		}
+		val pipeline = createPipeline(setOf(processor), this)
+
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+		pipeline.onSignal(testSignal())
+		pipeline.stop()
+
+		processor.signals shouldHaveSize 0
+		processor.stopCount shouldBe 1
+	}
+
+	@Test
+	fun `tier changes do not restart a quarantined processor before cleanup`() = runTest {
+		val processor = ambientProcessor().apply {
+			onStartAction = { error("start failed") }
+		}
+		val pipeline = createPipeline(setOf(processor), this)
+
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+		pipeline.escalate(PolicyTier.ACTIVE, EpochMs(2_000L))
+		pipeline.escalate(PolicyTier.AMBIENT, EpochMs(3_000L))
+		pipeline.stop()
+
+		processor.startCalls shouldHaveSize 1
+		processor.stopCount shouldBe 1
+	}
+
+	@Test
+	fun `durability processor start failure aborts pipeline startup`() = runTest {
+		val persistence = DurableRecordingProcessor().apply {
+			onStartAction = { error("recovery failed") }
+		}
+		val healthy = ambientProcessor(id = "healthy", priority = 10)
+		val pipeline = createPipeline(setOf(persistence, healthy), this)
+
+		shouldThrow<IllegalStateException> {
+			pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+		}
+		pipeline.onSignal(testSignal())
+
+		persistence.signals shouldHaveSize 0
+		healthy.signals shouldHaveSize 0
+		persistence.stopCount shouldBe 1
+	}
+
+	@Test
 	fun `double start throws IllegalStateException`() = runTest {
 		val pipeline = createPipeline(setOf(ambientProcessor()), this)
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
@@ -176,6 +249,80 @@ class ProcessorPipelineTest {
 
 		a.stopCount shouldBe 1
 		b.stopCount shouldBe 1
+	}
+
+	@Test
+	fun `stop failure blocks later final events and resumes from failed processor`() = runTest {
+		val collectedEvents = mutableListOf<DomainEvent>()
+		var persistenceHealthy = false
+		val persistence = ambientProcessor(id = "persistence", priority = 0).apply {
+			onStopAction = {
+				if (!persistenceHealthy) error("final flush failed")
+			}
+		}
+		val aggregator = ambientProcessor(id = "aggregator", priority = 10).apply {
+			stopEvents = { listOf(testStopEvent()) }
+		}
+		val pipeline = createPipeline(setOf(aggregator, persistence), this) {
+			collectedEvents.addAll(it)
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
+
+		shouldThrow<IllegalStateException> { pipeline.stop() }
+
+		persistence.stopCount shouldBe 1
+		aggregator.stopCount shouldBe 0
+		collectedEvents shouldHaveSize 0
+
+		persistenceHealthy = true
+		pipeline.stop()
+
+		persistence.stopCount shouldBe 2
+		aggregator.stopCount shouldBe 1
+		collectedEvents shouldHaveSize 1
+	}
+
+	@Test
+	fun `final event failure blocks restart and retries without stopping processors twice`() = runTest {
+		val expectedEvent = testStopEvent()
+		val processor = ambientProcessor().apply {
+			stopEvents = { listOf(expectedEvent) }
+		}
+		var eventPersistenceHealthy = false
+		val collectedEvents = mutableListOf<DomainEvent>()
+		val pipeline = createPipeline(setOf(processor), this) { events ->
+			if (!eventPersistenceHealthy) error("event persistence failed")
+			collectedEvents.addAll(events)
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
+
+		shouldThrow<IllegalStateException> { pipeline.stop() }
+		shouldThrow<IllegalStateException> {
+			pipeline.start(PolicyTier.AMBIENT, EpochMs(2000L))
+		}
+
+		eventPersistenceHealthy = true
+		pipeline.stop()
+
+		processor.stopCount shouldBe 1
+		collectedEvents shouldContainExactly listOf(expectedEvent)
+	}
+
+	@Test
+	fun `cancellation after processor stop does not repeat non-idempotent stop`() = runTest {
+		val processor = ambientProcessor().apply {
+			onStopAction = {
+				currentCoroutineContext()[Job]?.cancel()
+			}
+		}
+		val pipeline = createPipeline(setOf(processor), this)
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		val cancelledStop = launch { pipeline.stop() }
+		cancelledStop.join()
+		pipeline.stop()
+
+		processor.stopCount shouldBe 1
 	}
 
 	@Test
@@ -327,6 +474,141 @@ class ProcessorPipelineTest {
 	}
 
 	@Test
+	fun `failed runtime events retry before final events`() = runTest {
+		val runtimeEvent = testEvent(100L)
+		val finalEvent = testStopEvent(5000L)
+		val processor = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "ordered-events",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 0,
+			),
+		).apply {
+			flushEvents = { listOf(runtimeEvent) }
+			stopEvents = { listOf(finalEvent) }
+		}
+		var persistenceHealthy = false
+		val collectedEvents = mutableListOf<DomainEvent>()
+		val pipeline = createPipeline(setOf(processor), this) { events ->
+			if (!persistenceHealthy) error("event persistence failed")
+			collectedEvents.addAll(events)
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		shouldThrow<IllegalStateException> {
+			pipeline.onSignal(testSignal(200L))
+		}
+
+		persistenceHealthy = true
+		pipeline.stop()
+
+		collectedEvents shouldContainExactly listOf(runtimeEvent, finalEvent)
+	}
+
+	@Test
+	fun `runtime events checkpoint raw signals before first persistence attempt`() = runTest {
+		val persistence = DurableRecordingProcessor()
+		val eventProcessor = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "event-emitter",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 10,
+			),
+		).apply {
+			flushEvents = { listOf(testEvent()) }
+		}
+		val pipeline = createPipeline(setOf(persistence, eventProcessor), this)
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		pipeline.onSignal(testSignal(200L))
+
+		persistence.checkpointCount shouldBe 1
+	}
+
+	@Test
+	fun `pending event failure checkpoints newer raw signals before retrying events`() = runTest {
+		val persistence = DurableRecordingProcessor()
+		val eventProcessor = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "event-emitter",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 10,
+			),
+		).apply {
+			flushEvents = { listOf(testEvent()) }
+		}
+		var eventPersistenceHealthy = false
+		val pipeline = createPipeline(setOf(persistence, eventProcessor), this) {
+			if (!eventPersistenceHealthy) error("event persistence failed")
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		shouldThrow<IllegalStateException> {
+			pipeline.onSignal(testSignal(200L))
+		}
+		shouldThrow<IllegalStateException> {
+			pipeline.onSignal(testSignal(300L))
+		}
+
+		persistence.signals shouldHaveSize 2
+		persistence.checkpointCount shouldBe 2
+
+		eventPersistenceHealthy = true
+		pipeline.stop()
+	}
+
+	@Test
+	fun `tier transition checkpoints raw signals before retrying pending events`() = runTest {
+		val persistence = DurableRecordingProcessor()
+		val eventProcessor = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "event-emitter",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 10,
+			),
+		).apply {
+			flushEvents = { listOf(testEvent()) }
+		}
+		var eventPersistenceHealthy = false
+		val pipeline = createPipeline(setOf(persistence, eventProcessor), this) {
+			if (!eventPersistenceHealthy) error("event persistence failed")
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+		shouldThrow<IllegalStateException> {
+			pipeline.onSignal(testSignal(200L))
+		}
+
+		pipeline.escalate(PolicyTier.ACTIVE, EpochMs(300L))
+
+		persistence.checkpointCount shouldBe 2
+		eventPersistenceHealthy = true
+		pipeline.stop()
+	}
+
+	@Test
+	fun `stalled final event persistence times out and retries without stopping twice`() = runTest {
+		val finalEvent = testStopEvent()
+		val processor = ambientProcessor().apply {
+			stopEvents = { listOf(finalEvent) }
+		}
+		var persistenceHealthy = false
+		val pipeline = createPipeline(setOf(processor), this) {
+			if (!persistenceHealthy) awaitCancellation()
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		shouldThrow<IllegalStateException> { pipeline.stop() }
+		persistenceHealthy = true
+		pipeline.stop()
+
+		processor.stopCount shouldBe 1
+	}
+
+	@Test
 	fun `domain events from stop are dispatched`() = runTest {
 		val collectedEvents = mutableListOf<DomainEvent>()
 		val p = ambientProcessor().apply {
@@ -389,6 +671,32 @@ class ProcessorPipelineTest {
 
 		active.stopCount shouldBe 1
 		ambient.stopCount shouldBe 0 // still running
+	}
+
+	@Test
+	fun `failed de-escalation stop remains active and retries on the next transition`() = runTest {
+		var stopHealthy = false
+		val ambient = ambientProcessor()
+		val active = activeProcessor().apply {
+			onStopAction = {
+				if (!stopHealthy) error("stop failed")
+			}
+		}
+		val pipeline = createPipeline(setOf(ambient, active), this)
+		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
+
+		pipeline.escalate(PolicyTier.AMBIENT, EpochMs(2000L))
+		pipeline.onSignal(testSignal(2500L))
+
+		active.stopCount shouldBe 1
+		active.signals shouldHaveSize 1
+
+		stopHealthy = true
+		pipeline.escalate(PolicyTier.AMBIENT, EpochMs(3000L))
+		pipeline.onSignal(testSignal(3500L))
+
+		active.stopCount shouldBe 2
+		active.signals shouldHaveSize 1
 	}
 
 	@Test
@@ -458,6 +766,20 @@ class ProcessorPipelineTest {
 		pipeline.onSignal(testSignal(200L)) // triggers flush on both
 
 		healthy.flushCount shouldBe 1
+	}
+
+	@Test
+	fun `disabled processor remains lifecycle-owned until final stop`() = runTest {
+		val failing = ambientProcessor(id = "failing").apply {
+			onSignalAction = { throw RuntimeException("boom") }
+		}
+		val pipeline = createPipeline(setOf(failing), this)
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		repeat(5) { pipeline.onSignal(testSignal(it.toLong())) }
+		pipeline.stop()
+
+		failing.stopCount shouldBe 1
 	}
 
 	// endregion

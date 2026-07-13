@@ -54,6 +54,16 @@ class DomainEventDaoTest {
 	}
 
 	@Test
+	fun `idempotent insert ignores an already committed event batch`() = runTest {
+		val event = eventAt(1_000L)
+
+		dao.insertAllIdempotent(listOf(event))
+		dao.insertAllIdempotent(listOf(event))
+
+		dao.getUnconsumedBatchSeek(lastMs = 0L, lastId = 0L, limit = 10) shouldHaveSize 1
+	}
+
+	@Test
 	fun `lagging cursor preserves unconsumed events during retention clamp`() = runTest {
 		dao.insertAll(listOf(eventAt(1_000L), eventAt(2_000L), eventAt(3_000L)))
 		dao.upsertCursor(DomainEventCursorEntity(consumerId = "fast", lastProcessedMs = 10_000L))

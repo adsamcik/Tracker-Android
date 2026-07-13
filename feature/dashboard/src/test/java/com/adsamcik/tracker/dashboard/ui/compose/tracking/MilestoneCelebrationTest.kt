@@ -3,7 +3,7 @@ package com.adsamcik.tracker.dashboard.ui.compose.tracking
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +23,7 @@ class MilestoneCelebrationTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				MilestoneCelebrationOverlay(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = System.currentTimeMillis() - 60_000L,
 						end = System.currentTimeMillis(),
@@ -60,7 +60,7 @@ class MilestoneCelebrationTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				MilestoneCelebrationOverlay(
-					sessionData = TrackerSession(
+					sessionData = TrackerSessionSnapshot(
 						id = 1L,
 						start = now - 300_000L,
 						end = now,

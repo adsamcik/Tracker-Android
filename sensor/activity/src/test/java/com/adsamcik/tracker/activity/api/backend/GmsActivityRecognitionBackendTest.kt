@@ -89,7 +89,7 @@ class GmsActivityRecognitionBackendTest {
 
 	// region startUpdates
 	@Test
-	fun `startUpdates returns false when Play Services unavailable`() {
+	fun `startUpdates returns false when Play Services unavailable`() = runTest {
 		every { Assist.isPlayServicesAvailable(any<Context>()) } returns false
 
 		val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
@@ -122,7 +122,11 @@ class GmsActivityRecognitionBackendTest {
 
 		backend.onTransitionActivityResult(activity, 5_000_000_000L)
 
-		update.await() shouldBe ActivityUpdate(activity, 5_000L)
+		update.await() shouldBe ActivityUpdate(
+			activity = activity,
+			elapsedTimeMillis = 5_000L,
+			source = ActivityUpdateSource.TRANSITION,
+		)
 		backend.lastActivityElapsedTimeMillis shouldBe 5_000L
 	}
 

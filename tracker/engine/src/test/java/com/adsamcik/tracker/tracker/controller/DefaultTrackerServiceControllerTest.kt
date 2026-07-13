@@ -170,6 +170,25 @@ class DefaultTrackerServiceControllerTest {
 		}
 
 		@Test
+		fun `publishes an immutable session snapshot`() {
+			val session = TrackerSession(
+				id = 7L,
+				start = 100L,
+				distanceInM = 12f,
+				collections = 3,
+			)
+			controller.updateSession(session)
+
+			session.distanceInM = 99f
+			session.collections = 10
+
+			controller.sessionFlow.value.shouldNotBeNull().apply {
+				distanceInM shouldBe 12f
+				collections shouldBe 3
+			}
+		}
+
+		@Test
 		fun `setting null retains last session`() {
 			val session = createSession(id = 42L)
 			controller.updateSession(session)

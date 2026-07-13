@@ -5,7 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.model.Location
 import org.junit.Rule
@@ -33,7 +33,7 @@ class TrackerDashboardStatsCardsAdditionalTest {
 		steps: Int = 3000,
 		collections: Int = 50,
 		start: Long = Time.nowMillis - 1800_000L,
-	) = TrackerSession(
+	) = TrackerSessionSnapshot(
 		id = 1L,
 		start = start,
 		end = Time.nowMillis,

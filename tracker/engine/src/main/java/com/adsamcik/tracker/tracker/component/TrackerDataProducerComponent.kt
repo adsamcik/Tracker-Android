@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -43,21 +44,20 @@ internal abstract class TrackerDataProducerComponent(
 			.launchIn(preferenceScope)
 	}
 
-	fun onDetach(context: Context) {
-		preferenceJob?.cancel()
+	suspend fun onDetach(context: Context) {
+		preferenceJob?.cancelAndJoin()
 		preferenceJob = null
 		// Only cancel the job, not the scope — scope is reused across attach/detach cycles
 	}
 
 	@CallSuper
-	open fun onEnable(context: Context) {
+	open suspend fun onEnable(context: Context) {
 		assertTrue(canBeEnabled)
 		isEnabled = true
 	}
 
 	@CallSuper
-	open fun onDisable(context: Context) {
-		assertTrue(isEnabled)
+	open suspend fun onDisable(context: Context) {
 		isEnabled = false
 	}
 

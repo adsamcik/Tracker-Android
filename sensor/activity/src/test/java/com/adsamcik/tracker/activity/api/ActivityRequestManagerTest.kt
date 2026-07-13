@@ -14,7 +14,10 @@ import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.Runs
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -23,8 +26,9 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
 import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,6 +67,7 @@ class ActivityRequestManagerTest {
         // With @Config(sdk = [28]) the check passes automatically (no runtime
         // permission existed before Android Q), so startUpdates is reached.
         backend = mockk(relaxed = true)
+        coEvery { backend.startUpdates(any()) } returns true
         manager = DefaultActivityRequestManager(backend)
     }
 
@@ -90,7 +95,7 @@ class ActivityRequestManagerTest {
 
     // region request activity
     @Test
-    fun `request activity returns true on successful request with changeData`() {
+    fun `request activity returns true on successful request with changeData`() = runTest {
         val request = ActivityRequestData(
             key = TestClassA::class,
             changeData = changeRequest()
@@ -102,7 +107,7 @@ class ActivityRequestManagerTest {
     }
 
     @Test
-    fun `request activity returns true on successful request with transitionData`() {
+    fun `request activity returns true on successful request with transitionData`() = runTest {
         val transition = ActivityTransitionData(
             DetectedActivityType.WALKING,
             ActivityTransitionType.ENTER
@@ -118,20 +123,20 @@ class ActivityRequestManagerTest {
     }
 
     @Test
-    fun `request activity throws when both changeData and transitionData are null`() {
+    fun `request activity throws when both changeData and transitionData are null`() = runTest {
         val request = ActivityRequestData(
             key = TestClassA::class,
             changeData = null,
             transitionData = null
         )
 
-        assertThrows(IllegalArgumentException::class.java) {
+        shouldThrow<IllegalArgumentException> {
             manager.requestActivity(context, request)
         }
     }
 
     @Test
-    fun `request activity triggers activity recognition start with permission`() {
+    fun `request activity triggers activity recognition start with permission`() = runTest {
         val request = ActivityRequestData(
             key = TestClassA::class,
             changeData = changeRequest(intervalS = 15)
@@ -139,21 +144,92 @@ class ActivityRequestManagerTest {
 
         manager.requestActivity(context, request)
 
-        verify { backend.startUpdates(any()) }
+        coVerify { backend.startUpdates(any()) }
+    }
+
+    @Test
+    fun `failed start is not cached and an identical request retries`() = runTest {
+        var attempts = 0
+        coEvery { backend.startUpdates(any()) } answers {
+            attempts++
+            attempts > 1
+        }
+        val request = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = changeRequest(intervalS = 15),
+        )
+
+        manager.requestActivity(context, request) shouldBe false
+        manager.requestActivity(context, request) shouldBe true
+
+        coVerify(exactly = 2) { backend.startUpdates(any()) }
+    }
+
+    @Test
+    fun `failed restoration invalidates the applied configuration cache`() = runTest {
+        coEvery { backend.startUpdates(any()) } returnsMany listOf(true, false, false, true)
+        val original = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = changeRequest(intervalS = 15),
+        )
+        val replacement = ActivityRequestData(
+            key = TestClassB::class,
+            changeData = changeRequest(intervalS = 5),
+        )
+
+        manager.requestActivity(context, original) shouldBe true
+        manager.requestActivity(context, replacement) shouldBe false
+        manager.requestActivity(context, original) shouldBe true
+
+        coVerify(exactly = 4) { backend.startUpdates(any()) }
+    }
+
+    @Test
+    fun `cancellation during restoration is propagated`() = runTest {
+        coEvery { backend.startUpdates(any()) } returns true andThen false andThenThrows
+            CancellationException("cancelled")
+        val original = ActivityRequestData(
+            key = TestClassA::class,
+            changeData = changeRequest(intervalS = 15),
+        )
+        val replacement = ActivityRequestData(
+            key = TestClassB::class,
+            changeData = changeRequest(intervalS = 5),
+        )
+
+        manager.requestActivity(context, original) shouldBe true
+
+        shouldThrow<CancellationException> {
+            manager.requestActivity(context, replacement)
+        }
     }
     // endregion
 
     // region remove activity request
 
         @Test
-        fun `removing non-existent request reports error`() {
+        fun `removing from unknown initial state cleans possible stale backend subscription`() = runTest {
+            manager.removeActivityRequest(context, TestClassC::class)
+
+            coVerify(exactly = 1) { backend.stopUpdates() }
+        }
+
+        @Test
+        fun `removing non-existent request reports error once empty configuration is known`() = runTest {
+            val request = ActivityRequestData(
+                key = TestClassA::class,
+                changeData = changeRequest(),
+            )
+            manager.requestActivity(context, request)
+            manager.removeActivityRequest(context, TestClassA::class)
+
             manager.removeActivityRequest(context, TestClassC::class)
 
             verify { Reporter.report(match<String> { it.contains("not subscribed") }) }
         }
 
         @Test
-        fun `removing last request stops recognition`() {
+        fun `removing last request stops recognition`() = runTest {
             val request = ActivityRequestData(
                 key = TestClassA::class,
                 changeData = changeRequest()
@@ -162,11 +238,71 @@ class ActivityRequestManagerTest {
 
             manager.removeActivityRequest(context, TestClassA::class)
 
-            verify { backend.stopUpdates() }
+            coVerify { backend.stopUpdates() }
         }
 
         @Test
-        fun `removing one of many requests does not stop recognition`() {
+        fun `failed stop retains the request for cleanup retry`() = runTest {
+            var stopAttempts = 0
+            coEvery { backend.stopUpdates() } coAnswers {
+                stopAttempts++
+                if (stopAttempts == 1) error("remove failed")
+            }
+            val request = ActivityRequestData(
+                key = TestClassA::class,
+                changeData = changeRequest(),
+            )
+            manager.requestActivity(context, request)
+
+            shouldThrow<IllegalStateException> {
+                manager.removeActivityRequest(context, TestClassA::class)
+            }
+            manager.removeActivityRequest(context, TestClassA::class)
+
+            coVerify(exactly = 2) { backend.stopUpdates() }
+        }
+
+        @Test
+        fun `failed initial registration cleanup remains retryable`() = runTest {
+            coEvery { backend.startUpdates(any()) } returns false
+            var stopAttempts = 0
+            coEvery { backend.stopUpdates() } coAnswers {
+                stopAttempts++
+                if (stopAttempts == 1) error("partial registration cleanup failed")
+            }
+            val request = ActivityRequestData(
+                key = TestClassA::class,
+                changeData = changeRequest(),
+            )
+
+            manager.requestActivity(context, request) shouldBe false
+            manager.removeActivityRequest(context, TestClassA::class)
+
+            coVerify(exactly = 2) { backend.stopUpdates() }
+        }
+
+        @Test
+        fun `cleanup retry for absent failed request preserves remaining active requests`() = runTest {
+            coEvery { backend.startUpdates(any()) } returnsMany listOf(true, false, false, true)
+            val activeRequest = ActivityRequestData(
+                key = TestClassA::class,
+                changeData = changeRequest(intervalS = 15),
+            )
+            val failedRequest = ActivityRequestData(
+                key = TestClassB::class,
+                changeData = changeRequest(intervalS = 5),
+            )
+
+            manager.requestActivity(context, activeRequest) shouldBe true
+            manager.requestActivity(context, failedRequest) shouldBe false
+            manager.removeActivityRequest(context, TestClassB::class)
+
+            coVerify(exactly = 0) { backend.stopUpdates() }
+            coVerify(exactly = 4) { backend.startUpdates(any()) }
+        }
+
+        @Test
+        fun `removing one of many requests does not stop recognition`() = runTest {
             val requestA = ActivityRequestData(
                 key = TestClassA::class,
                 changeData = changeRequest(intervalS = 10)
@@ -180,7 +316,7 @@ class ActivityRequestManagerTest {
 
             manager.removeActivityRequest(context, TestClassA::class)
 
-            verify(exactly = 0) { backend.stopUpdates() }
+            coVerify(exactly = 0) { backend.stopUpdates() }
         }
     // endregion
 

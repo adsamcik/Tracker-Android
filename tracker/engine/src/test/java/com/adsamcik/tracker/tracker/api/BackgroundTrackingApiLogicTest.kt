@@ -2,11 +2,15 @@ package com.adsamcik.tracker.tracker.api
 
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -394,6 +398,96 @@ class BackgroundTrackingApiLogicTest {
 					),
 				),
 			) shouldBe still
+		}
+	}
+
+	@Nested
+	@DisplayName("activity update source")
+	inner class ActivityUpdateSourceSelection {
+		private val walking = RecognizedActivity(DetectedActivityType.WALKING, 100)
+
+		@Test
+		fun `confidence recognition updates drive change detection`() {
+			isChangeDetectionUpdate(
+				ActivityUpdate(
+					activity = walking,
+					elapsedTimeMillis = 1L,
+					source = ActivityUpdateSource.RECOGNITION,
+				),
+			) shouldBe true
+		}
+
+		@Test
+		fun `transition-derived watcher updates do not drive change detection`() {
+			isChangeDetectionUpdate(
+				ActivityUpdate(
+					activity = walking,
+					elapsedTimeMillis = 1L,
+					source = ActivityUpdateSource.TRANSITION,
+				),
+			) shouldBe false
+		}
+	}
+
+	@Nested
+	@DisplayName("activity request removal reconciliation")
+	inner class ActivityRequestRemovalReconciliation {
+		@Test
+		fun `retries removal until cleanup succeeds`() = runTest {
+			var attempts = 0
+			var failures = 0
+
+			val removed = reconcileActivityRequestRemoval(
+				initialRetryDelayMillis = 0L,
+				maxRetryDelayMillis = 0L,
+				shouldContinue = { true },
+				onFailure = { failures++ },
+			) {
+				attempts++
+				if (attempts < 3) error("remove failed")
+			}
+
+			removed shouldBe true
+			attempts shouldBe 3
+			failures shouldBe 2
+		}
+
+		@Test
+		fun `stops retrying when removal is no longer desired`() = runTest {
+			var shouldContinue = true
+			var attempts = 0
+
+			val removed = reconcileActivityRequestRemoval(
+				initialRetryDelayMillis = 0L,
+				maxRetryDelayMillis = 0L,
+				shouldContinue = { shouldContinue },
+				onFailure = { shouldContinue = false },
+			) {
+				attempts++
+				error("remove failed")
+			}
+
+			removed shouldBe false
+			attempts shouldBe 1
+		}
+
+		@Test
+		fun `permanent removal failure stops at the configured attempt budget`() = runTest {
+			var attempts = 0
+
+			val removed = reconcileActivityRequestRemoval(
+				initialRetryDelayMillis = 0L,
+				maxRetryDelayMillis = 0L,
+				maxAttempts = 3,
+				shouldContinue = { true },
+				onFailure = {},
+			) {
+				attempts++
+				error("remove failed")
+			}
+
+			removed shouldBe false
+			attempts shouldBe 3
 		}
 	}
 }

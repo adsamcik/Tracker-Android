@@ -30,8 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import kotlinx.coroutines.delay
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 private const val MILESTONE_DISPLAY_DURATION_MS = 3000L
 
@@ -47,7 +47,7 @@ private const val MILESTONE_DISPLAY_DURATION_MS = 3000L
  */
 @Composable
 internal fun MilestoneCelebrationOverlay(
-	sessionData: TrackerSession?,
+	sessionData: TrackerSessionSnapshot?,
 	isTracking: Boolean,
 	modifier: Modifier = Modifier,
 ) {

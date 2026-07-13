@@ -53,6 +53,9 @@ interface PendingSignalDao {
 	@Query("DELETE FROM pending_signal WHERE id IN (:ids)")
 	suspend fun deleteByIds(ids: List<Long>)
 
+	@Query("SELECT COUNT(*) FROM pending_signal WHERE id IN (:ids)")
+	suspend fun countByIds(ids: List<Long>): Int
+
 	@Query("DELETE FROM pending_signal WHERE session_id = :sessionId")
 	suspend fun deleteBySession(sessionId: Long)
 

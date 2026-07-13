@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.model.Location
 import org.junit.Rule
@@ -39,7 +39,7 @@ class TrackerDashboardSessionCardsAdditionalTest {
 		distanceInVehicleInM: Float = 1000f,
 		steps: Int = 7500,
 		collections: Int = 120,
-	) = TrackerSession(
+	) = TrackerSessionSnapshot(
 		id = id,
 		start = start,
 		end = end,

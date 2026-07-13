@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
 import kotlin.test.assertFalse
@@ -72,5 +73,26 @@ class TrackerApiBoundaryTest {
 			.toList()
 
 		violations.shouldBeEmpty()
+	}
+
+	@Test
+	fun `tracker state reader does not expose mutable Room session entities`() {
+		val readerFile = apiModuleDir.resolve(
+			"src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt"
+		)
+		val readerSource = readerFile.readText()
+			.substringAfter("interface TrackerStateReader")
+			.substringBefore("interface TrackerServiceController")
+		val stateFlowProperties = Regex(
+			"""val\s+(\w+)\s*:\s*StateFlow\s*<\s*([^>]+)\s*>"""
+		).findAll(readerSource)
+			.associate { match -> match.groupValues[1] to match.groupValues[2].replace(" ", "") }
+
+		stateFlowProperties["sessionFlow"] shouldBe "TrackerSessionSnapshot?"
+		stateFlowProperties["lastSessionFlow"] shouldBe "TrackerSessionSnapshot?"
+		stateFlowProperties
+			.filterValues { type -> type.removeSuffix("?").substringAfterLast('.') == "TrackerSession" }
+			.keys
+			.shouldBeEmpty()
 	}
 }

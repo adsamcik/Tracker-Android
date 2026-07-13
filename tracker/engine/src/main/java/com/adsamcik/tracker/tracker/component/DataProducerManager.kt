@@ -16,9 +16,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import android.util.Log
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
@@ -64,44 +70,174 @@ internal class DataProducerManager(
 	)
 
 	private val activeProducerList = CopyOnWriteArrayList<TrackerDataProducerComponent>()
+	private val lifecycleMutex = Mutex()
+	private val disableRetryLock = Any()
+	private val disableRetryJobs = mutableMapOf<TrackerDataProducerComponent, Job>()
 
-	suspend fun onEnable() = coroutineScope {
-		producerList.forEach {
-			if (it.canBeEnabled) {
-				it.onEnable(appContext)
+	suspend fun onEnable() = lifecycleMutex.withLock {
+		producerList.forEach { producer ->
+			if (producer.canBeEnabled && !producer.isEnabled) {
+				producer.onEnable(appContext)
+				activeProducerList.addIfAbsent(producer)
 			}
-			it.onAttach(appContext)
+			producer.onAttach(appContext)
 		}
 	}
 
-	override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {
-		if (component.canBeEnabled == shouldBeEnabled) return
-
-		component.canBeEnabled = shouldBeEnabled
+	override suspend fun onStateChange(
+		shouldBeEnabled: Boolean,
+		component: TrackerDataProducerComponent,
+	) = lifecycleMutex.withLock {
+		if (component.canBeEnabled == shouldBeEnabled && component.isEnabled == shouldBeEnabled) {
+			return@withLock
+		}
 
 		if (shouldBeEnabled) {
-			activeProducerList.add(component)
-			component.onEnable(appContext)
-		} else {
+			cancelDisableRetry(component)
+			val previousCanBeEnabled = component.canBeEnabled
+			component.canBeEnabled = true
+			if (component.isEnabled) {
+				activeProducerList.addIfAbsent(component)
+				return@withLock
+			}
+			try {
+				component.onEnable(appContext)
+				activeProducerList.addIfAbsent(component)
+			} catch (e: CancellationException) {
+				component.canBeEnabled = previousCanBeEnabled
+				throw e
+			} catch (e: Exception) {
+				try {
+					component.onDisable(appContext)
+				} catch (cleanupFailure: Exception) {
+					e.addSuppressed(cleanupFailure)
+				}
+				component.canBeEnabled = previousCanBeEnabled
+				Log.e(TAG, "Failed to enable ${component::class.simpleName}", e)
+			}
+		} else if (component.isEnabled) {
+			component.canBeEnabled = false
 			activeProducerList.remove(component)
-			component.onDisable(appContext)
+			try {
+				component.onDisable(appContext)
+				cancelDisableRetry(component)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.e(TAG, "Failed to disable ${component::class.simpleName}", e)
+				scheduleDisableRetry(component)
+			}
+		} else {
+			component.canBeEnabled = false
+			activeProducerList.remove(component)
+			cancelDisableRetry(component)
 		}
 	}
 
 
-	suspend fun onDisable() = coroutineScope {
-		producerList.forEach {
-			if (it.isEnabled) {
-				it.onDisable(appContext)
+	suspend fun onDisable() {
+		cancelAllDisableRetries()
+		lifecycleMutex.withLock {
+			val failures = mutableListOf<IllegalStateException>()
+			producerList.forEach { producer ->
+				try {
+					producer.onDetach(appContext)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					failures += IllegalStateException(
+						"Failed to detach ${producer::class.simpleName}",
+						e,
+					)
+				}
 			}
-			it.onDetach(appContext)
+			producerList.forEach { producer ->
+				producer.canBeEnabled = false
+				activeProducerList.remove(producer)
+				try {
+					if (producer.isEnabled) {
+						producer.onDisable(appContext)
+					}
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					failures += IllegalStateException(
+						"Failed to disable ${producer::class.simpleName}",
+						e,
+					)
+				}
+			}
+			if (failures.isNotEmpty()) {
+				throw IllegalStateException(
+					"Failed to clean up ${failures.size} tracking data producer operation(s)",
+					failures.first(),
+				).also { aggregate ->
+					failures.drop(1).forEach(aggregate::addSuppressed)
+				}
+			}
 		}
-		activeProducerList.clear()
+	}
+
+	private fun scheduleDisableRetry(component: TrackerDataProducerComponent) {
+		val retryJob = launch(start = CoroutineStart.LAZY) {
+			var retryDelayMillis = PRODUCER_CLEANUP_RETRY_DELAY_MILLIS
+			val currentJob = currentCoroutineContext()[Job]
+			try {
+				while (!component.canBeEnabled && component.isEnabled) {
+					delay(retryDelayMillis)
+					val cleaned = lifecycleMutex.withLock {
+						if (component.canBeEnabled || !component.isEnabled) {
+							true
+						} else {
+							try {
+								component.onDisable(appContext)
+								activeProducerList.remove(component)
+								true
+							} catch (e: CancellationException) {
+								throw e
+							} catch (e: Exception) {
+								Log.e(TAG, "Retry failed to disable ${component::class.simpleName}", e)
+								false
+							}
+						}
+					}
+					if (cleaned) return@launch
+					retryDelayMillis = (retryDelayMillis * 2)
+						.coerceAtMost(PRODUCER_CLEANUP_MAX_RETRY_DELAY_MILLIS)
+				}
+			} finally {
+				synchronized(disableRetryLock) {
+					if (disableRetryJobs[component] === currentJob) {
+						disableRetryJobs.remove(component)
+					}
+				}
+			}
+		}
+		val previousJob = synchronized(disableRetryLock) {
+			disableRetryJobs.put(component, retryJob)
+		}
+		previousJob?.cancel()
+		retryJob.start()
+	}
+
+	private fun cancelDisableRetry(component: TrackerDataProducerComponent) {
+		synchronized(disableRetryLock) {
+			disableRetryJobs.remove(component)
+		}?.cancel()
+	}
+
+	private fun cancelAllDisableRetries() {
+		val jobs = synchronized(disableRetryLock) {
+			disableRetryJobs.values.toList().also { disableRetryJobs.clear() }
+		}
+		jobs.forEach(Job::cancel)
 	}
 
 	suspend fun flushPendingSensorBatches() {
-		if (stepProducer.isEnabled) {
-			stepProducer.flushPendingEvents()
+		lifecycleMutex.withLock {
+			if (stepProducer.isEnabled) {
+				stepProducer.flushPendingEvents()
+			}
 		}
 	}
 
@@ -133,5 +269,7 @@ internal class DataProducerManager(
 
 	companion object {
 		private const val TAG = "DataProducerManager"
+		private const val PRODUCER_CLEANUP_RETRY_DELAY_MILLIS = 1_000L
+		private const val PRODUCER_CLEANUP_MAX_RETRY_DELAY_MILLIS = 30_000L
 	}
 }

@@ -7,7 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -47,7 +47,7 @@ class TrackingContentTest {
 	@Test
 	fun withSessionData_showsTrackingActiveText() {
 		val now = System.currentTimeMillis()
-		val session = TrackerSession(
+		val session = TrackerSessionSnapshot(
 			id = 1L,
 			start = now - 60_000L,
 			end = now,
@@ -104,7 +104,7 @@ class TrackingContentTest {
 				TrackingContent(
 					state = DashboardUiState(
 						isTracking = true,
-						sessionData = TrackerSession(
+						sessionData = TrackerSessionSnapshot(
 							id = 1L,
 							start = now - 60_000L,
 							end = now,

@@ -1,10 +1,14 @@
 package com.adsamcik.tracker.tracker.component.producer
 
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +53,23 @@ class ActivityDataProducerTest {
 
 		secondBuilder.activity shouldBe activity
 		secondBuilder.activityFresh shouldBe false
+	}
+
+	@Test
+	fun `ignores transition-derived updates in confidence-based session collection`() {
+		producer.recordActivity(
+			ActivityUpdate(
+				activity = RecognizedActivity(DetectedActivityType.WALKING, confidence = 100),
+				elapsedTimeMillis = Time.elapsedRealtimeMillis,
+				source = ActivityUpdateSource.TRANSITION,
+			),
+		)
+
+		val builder = builder()
+		producer.onDataRequest(builder)
+
+		builder.activity shouldBe ActivityInfo.UNKNOWN
+		builder.activityFresh shouldBe false
 	}
 
 	private fun builder() = TrackingCycleBuilder(

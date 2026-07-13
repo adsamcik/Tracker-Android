@@ -16,7 +16,7 @@ interface ActivityRequestManager {
     val activityUpdates: Flow<ActivityUpdate>
     val transitionUpdates: Flow<List<TransitionUpdate>>
 
-    fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean
+    suspend fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean
 
-    fun removeActivityRequest(context: Context, tClass: KClass<*>)
+    suspend fun removeActivityRequest(context: Context, tClass: KClass<*>)
 }

@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -49,6 +48,7 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.style.compose.ActivityColors
 import com.adsamcik.tracker.tracker.R as TrackerR
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /**
  * 3-column responsive stats grid showing secondary tracking metrics.
@@ -59,7 +59,7 @@ import com.adsamcik.tracker.tracker.R as TrackerR
  */
 @Composable
 internal fun TrackingStatsGrid(
-	sessionData: TrackerSession,
+	sessionData: TrackerSessionSnapshot,
 	collectionData: CollectionData?,
 	modifier: Modifier = Modifier,
 ) {

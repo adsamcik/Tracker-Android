@@ -158,14 +158,13 @@ internal class WifiDataProducer(
         }
     }
 
-    override fun onDisable(context: Context) {
-        super.onDisable(context)
+    override suspend fun onDisable(context: Context) {
         scope.cancel()
         context.unregisterReceiver(receiver)
+        super.onDisable(context)
     }
 
-    override fun onEnable(context: Context) {
-        super.onEnable(context)
+    override suspend fun onEnable(context: Context) {
         // Recreate scope on each enable (previous scope cancelled in onDisable)
         scope = CoroutineScope(
             SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
@@ -188,6 +187,7 @@ internal class WifiDataProducer(
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
         }
+        super.onEnable(context)
     }
 
     private inner class WifiReceiver : BroadcastReceiver() {

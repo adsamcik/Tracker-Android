@@ -18,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -178,7 +179,7 @@ class CellDataProducerTest {
 	inner class OnDisable {
 
 		@Test
-		fun `clears all state on disable`() {
+		fun `clears all state on disable`() = runTest {
 			// Set canBeEnabled and isEnabled so onDisable doesn't assert
 			producer.canBeEnabled = true
 			val isEnabledField = producer.javaClass.superclass.getDeclaredField("isEnabled")

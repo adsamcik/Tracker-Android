@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Location
@@ -9,6 +8,7 @@ import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -36,8 +36,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _sessionInfoFlow = MutableStateFlow<TrackerSessionInfo?>(null)
     override val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = _sessionInfoFlow
     
-    private val _sessionFlow = MutableStateFlow<TrackerSession?>(null)
-    override val sessionFlow: StateFlow<TrackerSession?> get() = _sessionFlow
+    private val _sessionFlow = MutableStateFlow<TrackerSessionSnapshot?>(null)
+    override val sessionFlow: StateFlow<TrackerSessionSnapshot?> get() = _sessionFlow
     
     private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
     override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
@@ -45,8 +45,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _pathPointsFlow
 
-    private val _lastSessionFlow = MutableStateFlow<TrackerSession?>(null)
-    override val lastSessionFlow: StateFlow<TrackerSession?> get() = _lastSessionFlow
+    private val _lastSessionFlow = MutableStateFlow<TrackerSessionSnapshot?>(null)
+    override val lastSessionFlow: StateFlow<TrackerSessionSnapshot?> get() = _lastSessionFlow
 
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
@@ -82,12 +82,12 @@ class DefaultTrackerServiceController : TrackerServiceController {
             // Service stopping, retain last session data
             val currentSession = _sessionFlow.value
             if (currentSession != null) {
-                _lastSessionFlow.value = MutableTrackerSession(currentSession)
+                _lastSessionFlow.value = currentSession
                 _lastPathPointsFlow.value = _pathPointsFlow.value
             }
             _pathPointsFlow.value = null
         }
-        _sessionFlow.value = session?.let(::MutableTrackerSession)
+        _sessionFlow.value = session?.toSnapshot()
     }
     
     override fun updateCollectionData(data: CollectionData?) {
@@ -145,4 +145,17 @@ class DefaultTrackerServiceController : TrackerServiceController {
     override fun updatePlaneState(state: LivePlaneState?) {
         _planeStateFlow.value = state
     }
+
+    private fun TrackerSession.toSnapshot() = TrackerSessionSnapshot(
+        id = id,
+        start = start,
+        end = end,
+        isUserInitiated = isUserInitiated,
+        collections = collections,
+        distanceInM = distanceInM,
+        distanceOnFootInM = distanceOnFootInM,
+        distanceInVehicleInM = distanceInVehicleInM,
+        steps = steps,
+        sessionActivityId = sessionActivityId,
+    )
 }

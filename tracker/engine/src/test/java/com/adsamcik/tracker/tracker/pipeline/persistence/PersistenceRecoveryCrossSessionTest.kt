@@ -72,6 +72,9 @@ class PersistenceRecoveryCrossSessionTest {
 			store.removeAll { it.id in ids }
 		}
 
+		override suspend fun countByIds(ids: List<Long>): Int =
+			store.count { it.id in ids }
+
 		override suspend fun deleteBySession(sessionId: Long) {
 			store.removeAll { it.sessionId == sessionId }
 		}

@@ -29,6 +29,7 @@ import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,7 +142,7 @@ class DashboardViewModel @Inject constructor(
 	 * Loads historical data from Room when not actively tracking.
 	 * [lastSessionData] is the controller's last session — if null, falls back to DB.
 	 */
-	fun loadHistoricalData(isTracking: Boolean, lastSessionData: TrackerSession?) {
+	fun loadHistoricalData(isTracking: Boolean, lastSessionData: TrackerSessionSnapshot?) {
 		if (isTracking) return
 
 		viewModelScope.launch {
@@ -164,7 +165,7 @@ class DashboardViewModel @Inject constructor(
 		}
 	}
 
-	fun refreshSessionInsights(isTracking: Boolean, session: TrackerSession?) {
+	fun refreshSessionInsights(isTracking: Boolean, session: TrackerSessionSnapshot?) {
 		if (isTracking || session == null) {
 			_sessionInsights.value = emptyList()
 			return
@@ -172,13 +173,26 @@ class DashboardViewModel @Inject constructor(
 
 		viewModelScope.launch {
 			_sessionInsights.value = runCatching {
-				sessionInsightsGenerator.generate(session)
+				sessionInsightsGenerator.generate(session.toTrackerSession())
 			}.getOrElse {
 				Reporter.report(it)
 				emptyList()
 			}
 		}
 	}
+
+	private fun TrackerSessionSnapshot.toTrackerSession() = TrackerSession(
+		id = id,
+		start = start,
+		end = end,
+		isUserInitiated = isUserInitiated,
+		collections = collections,
+		distanceInM = distanceInM,
+		distanceOnFootInM = distanceOnFootInM,
+		distanceInVehicleInM = distanceInVehicleInM,
+		steps = steps,
+		sessionActivityId = sessionActivityId,
+	)
 
 	private suspend fun loadExplorationData(db: AppDatabase) {
 		val cellDao = db.explorationCellDao()

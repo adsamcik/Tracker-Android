@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 
 /**
@@ -50,7 +50,7 @@ internal fun TrackingPill(
 	visible: Boolean,
 	isTracking: Boolean,
 	hasPermission: Boolean,
-	sessionData: TrackerSession?,
+	sessionData: TrackerSessionSnapshot?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -80,7 +80,7 @@ internal fun TrackingPill(
 private fun PillContent(
 	isTracking: Boolean,
 	hasPermission: Boolean,
-	sessionData: TrackerSession?,
+	sessionData: TrackerSessionSnapshot?,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,39 @@ interface DomainEventDao {
 
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun insertAll(events: List<DomainEventEntity>)
+
+	@Query(
+		"""
+		SELECT COUNT(*)
+		FROM domain_event
+		WHERE event_type = :eventType
+			AND processor_id = :processorId
+			AND timestamp_ms = :timestampMs
+			AND payload = :payload
+		"""
+	)
+	suspend fun countMatching(
+		eventType: String,
+		processorId: String,
+		timestampMs: Long,
+		payload: String,
+	): Int
+
+	@Transaction
+	suspend fun insertAllIdempotent(events: List<DomainEventEntity>) {
+		events.forEach { event ->
+			if (
+				countMatching(
+					eventType = event.eventType,
+					processorId = event.processorId,
+					timestampMs = event.timestampMs,
+					payload = event.payload,
+				) == 0
+			) {
+				insertAll(listOf(event))
+			}
+		}
+	}
 
 	/** Look up a consumer's current cursor position. Returns null when the consumer has never acked. */
 	@Query("SELECT * FROM domain_event_cursor WHERE consumer_id = :consumerId")

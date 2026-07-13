@@ -25,13 +25,13 @@ class FakeActivityRequestManager(
 	var removeCount: Int = 0
 		private set
 
-	override fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
+	override suspend fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
 		activeRequests[requestData.key] = requestData
 		requestCount++
 		return true
 	}
 
-	override fun removeActivityRequest(context: Context, tClass: KClass<*>) {
+	override suspend fun removeActivityRequest(context: Context, tClass: KClass<*>) {
 		activeRequests.remove(tClass)
 		removeCount++
 	}
