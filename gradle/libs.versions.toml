@@ -2,7 +2,7 @@
 # Kotlin / KSP / AGP
 kotlin = "2.4.0"
 ksp = "2.3.8"
-agp = "9.3.0-rc01"
+agp = "9.3.0-rc02"
 
 # Tools
 benmanes = "0.54.0"
