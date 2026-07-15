@@ -47,6 +47,7 @@ dependencies {
     runtimeOnly(libs.junit5.jupiter.engine)
     // Vintage engine for JUnit 4 compatibility during migration
     runtimeOnly(libs.junit5.vintage.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
 
     // AndroidX Test (JUnit 4 for instrumented tests)
     implementation(libs.junit4)
