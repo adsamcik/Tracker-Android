@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,6 +31,8 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Activity for viewing crash logs using Jetpack Compose
@@ -220,6 +223,11 @@ private fun CrashItem(crash: CrashData) {
 
 @Composable
 private fun FileCrashItem(file: java.io.File) {
+    val locale = LocalLocale.current.platformLocale
+    val modifiedAt = remember(file, locale) {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", locale).format(Date(file.lastModified()))
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -254,7 +262,7 @@ private fun FileCrashItem(file: java.io.File) {
             )
             
             Text(
-                text = "Modified: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified()))}",
+                text = "Modified: $modifiedAt",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.padding(top = 2.dp)

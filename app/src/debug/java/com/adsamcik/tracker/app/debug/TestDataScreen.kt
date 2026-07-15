@@ -21,8 +21,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -45,7 +45,6 @@ fun TestDataScreen(
 ) {
     if (!BuildConfig.DEBUG) return
 
-    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var sessionCountInput by remember { mutableStateOf(DEFAULT_SESSION_COUNT.toString()) }
     var pendingAction by remember { mutableStateOf<TestDataAction?>(null) }
@@ -163,8 +162,8 @@ fun TestDataScreen(
         visible = action != null,
         title = action?.title,
         message = action?.message.orEmpty(),
-        confirmLabel = context.getString(BaseR.string.generic_yes),
-        dismissLabel = context.getString(BaseR.string.generic_no),
+        confirmLabel = stringResource(BaseR.string.generic_yes),
+        dismissLabel = stringResource(BaseR.string.generic_no),
         onConfirm = {
             when (action) {
                 TestDataAction.ResetOnboarding -> viewModel.resetOnboarding()

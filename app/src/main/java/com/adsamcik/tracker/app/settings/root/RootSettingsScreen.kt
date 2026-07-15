@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,7 +61,6 @@ import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
-import java.util.Locale
 import android.content.res.Configuration
 
 @Composable
@@ -184,7 +184,10 @@ internal fun RootSettingsContent(
                 // Language
                 SettingsItem(
                     title = stringResource(R.string.settings_language_title),
-                    subtitle = stringResource(R.string.settings_language_summary, Locale.getDefault().displayLanguage),
+                    subtitle = stringResource(
+                        R.string.settings_language_summary,
+                        LocalLocale.current.platformLocale.displayLanguage,
+                    ),
                     icon = Icons.Default.Translate,
                     onClick = {
                         context.startActivity(Intent(Settings.ACTION_LOCALE_SETTINGS))
