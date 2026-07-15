@@ -276,7 +276,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					controller.updatePolicyTier(initialTier)
 					val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
 					timerComponent = if (useGpsTrigger) {
-						TrackerTimerManager.getSelected(this@TrackerService)
+						TrackerTimerManager.getSelected(this@TrackerService, dispatchers.main)
 					} else {
 						AmbientCollectionTrigger(dispatchers.main)
 					}

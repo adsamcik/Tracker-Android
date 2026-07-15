@@ -24,10 +24,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
  */
 internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
-		get() = listOf(
-			Manifest.permission.ACCESS_FINE_LOCATION,
-			Manifest.permission.ACCESS_COARSE_LOCATION
-		)
+		get() = REQUIRED_PERMISSIONS
 
 	// GPS_PROVIDER requires FINE location — override OR-logic from base interface
 	override fun hasRequiredPermissions(context: Context): Boolean {
@@ -35,7 +32,7 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 	}
 
 	override val titleRes: Int
-		get() = R.string.settings_tracker_timer_location
+		get() = TITLE_RES
 
 	private val locationListener: LocationListener = object : LocationListener {
 		override fun onLocationChanged(location: Location) {
@@ -114,5 +111,13 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 				)
 			)
 		}
+	}
+
+	companion object {
+		val REQUIRED_PERMISSIONS = listOf(
+			Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_COARSE_LOCATION,
+		)
+		const val TITLE_RES = R.string.settings_tracker_timer_location
 	}
 }

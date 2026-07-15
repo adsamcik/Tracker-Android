@@ -92,6 +92,7 @@ class OnAppUpdateReceiverTest {
 
 			verify(timeout = 2000) { mockMutable.remove("goalWeekReached") }
 			verify(timeout = 2000) { mockMutable.remove("goalDayReached") }
+			verify(timeout = 2000) { pendingResult.finish() }
 		}
 
 		@Test
@@ -115,6 +116,7 @@ class OnAppUpdateReceiverTest {
 			verify(timeout = 2000) {
 				mockMutable.setLong("key_last_app_version", 400L)
 			}
+			verify(timeout = 2000) { pendingResult.finish() }
 		}
 
 		@Test

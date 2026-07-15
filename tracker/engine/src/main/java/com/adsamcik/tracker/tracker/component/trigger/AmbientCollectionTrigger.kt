@@ -9,7 +9,6 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -21,7 +20,7 @@ import kotlinx.coroutines.launch
  * responsive enough for policy escalation detection via steps/activity.
  */
 internal class AmbientCollectionTrigger(
-	dispatcher: CoroutineDispatcher = Dispatchers.Main,
+	dispatcher: CoroutineDispatcher,
 ) : DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 

@@ -8,9 +8,7 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
-import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
@@ -39,10 +37,8 @@ internal class TrackerTierEscalationHandler(
 	private val controller: TrackerServiceController,
 	private val trackingParamsRepository: TrackingParamsRepository,
 	private val tierAdjuster: (PolicyTier) -> PolicyTier = { it },
-	private val gpsTriggerFactory: suspend (Context) -> CollectionTriggerComponent = {
-		TrackerTimerManager.getSelected(it)
-	},
-	private val ambientTriggerFactory: () -> CollectionTriggerComponent = { AmbientCollectionTrigger() },
+	private val gpsTriggerFactory: suspend (Context) -> CollectionTriggerComponent,
+	private val ambientTriggerFactory: () -> CollectionTriggerComponent,
 	private val onEffectiveTierChanged: (PolicyTier) -> Unit = {},
 ) {
 

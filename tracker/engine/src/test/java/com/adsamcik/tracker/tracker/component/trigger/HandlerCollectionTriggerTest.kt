@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -49,7 +50,7 @@ class HandlerCollectionTriggerTest {
 		
 		context = ApplicationProvider.getApplicationContext()
 		receiver = mockk(relaxed = true)
-		trigger = HandlerCollectionTrigger()
+		trigger = HandlerCollectionTrigger(Dispatchers.Main)
 	}
 
 	@After

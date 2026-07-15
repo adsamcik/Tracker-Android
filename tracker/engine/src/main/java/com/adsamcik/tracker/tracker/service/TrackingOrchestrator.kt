@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.engine.BuildConfig
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
+import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
@@ -202,6 +203,7 @@ internal class TrackingOrchestrator(
 			controller = controller,
 			trackingParamsRepository = trackingParamsRepository,
 			tierAdjuster = runtimeTierAdjuster,
+			gpsTriggerFactory = { TrackerTimerManager.getSelected(it, dispatchers.main) },
 			ambientTriggerFactory = { AmbientCollectionTrigger(dispatchers.main) },
 			onEffectiveTierChanged = { currentTier = it },
 		).apply {

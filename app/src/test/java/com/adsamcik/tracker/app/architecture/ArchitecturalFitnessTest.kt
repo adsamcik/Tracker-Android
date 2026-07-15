@@ -345,13 +345,7 @@ class ArchitecturalFitnessTest {
 			// should migrate to injected `DispatchersProvider.io` so tests can
 			// steer through the test scheduler instead of relying on real I/O
 			// pool threads.
-			"osm/src/main/java/com/adsamcik/tracker/osm/imp/OsmImportWorker.kt:",
 			"app/src/main/java/com/adsamcik/tracker/app/settings/osm/OsmImportSettingsViewModel.kt:",
-			// `CoroutineScope(Dispatchers.Main + SupervisorJob())` initialised at
-			// field-declaration time, before any DI runs. Migrating requires
-			// restructuring trigger ownership so the scope is constructor-injected.
-			"tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/HandlerCollectionTrigger.kt:",
-			"tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AmbientCollectionTrigger.kt:",
 			// `withContext(Dispatchers.IO)` in DefaultNetworkGateway.request — being
 			// migrated to constructor-injected `@IoDispatcher CoroutineDispatcher` as
 			// part of the R1 round-7 finding `r1r7-defaultgateway-hardcoded-io`. The
@@ -361,20 +355,20 @@ class ArchitecturalFitnessTest {
 		)
 
 		private val LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST = listOf(
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/altitude/AltitudeProcessorTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTriggerTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTriggerTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycleTest.kt:",
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/altitude/AltitudeProcessorTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponentTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTriggerTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycleTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingCycleDispatcherTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/TrackingOrchestratorIntegrationTest.kt:",
 			// Multi-session lifecycle integration test (commit f8410a8e5) drives
 			// the orchestrator with real LocationData payloads — LocationData
 			// wraps List<android.location.Location>, so the test needs the
 			// platform type to construct fixtures. Replace once a
 			// TestLocations.location(...) helper lands in :testing-common.
-			"tracker/src/test/java/com/adsamcik/tracker/tracker/service/MultiSessionLifecycleTest.kt:",
-			"map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt:",
+			"tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/MultiSessionLifecycleTest.kt:",
+			"feature/map/src/test/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManagerTest.kt:",
 		)
 	}
 }

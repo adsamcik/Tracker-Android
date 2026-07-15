@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +34,7 @@ class AmbientCollectionTriggerTest {
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
 		receiver = mockk(relaxed = true)
-		trigger = AmbientCollectionTrigger()
+		trigger = AmbientCollectionTrigger(Dispatchers.Main)
 	}
 
 	@Test

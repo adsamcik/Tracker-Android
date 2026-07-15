@@ -8,8 +8,8 @@ import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -19,15 +19,17 @@ import kotlinx.coroutines.launch
  * Collection trigger that uses coroutines to periodically trigger collections.
  * Supports dynamic interval updates for policy-based adaptation.
  */
-internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
+internal class HandlerCollectionTrigger(
+	dispatcher: CoroutineDispatcher,
+) : DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
 	override val titleRes: Int
-		get() = R.string.settings_tracker_timer_clock
+		get() = TITLE_RES
 
 	private var repeatEveryMs: Long = -1L
 
-	private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+	private val scope = CoroutineScope(dispatcher + SupervisorJob())
 	private var timerJob: Job? = null
 
 	@Volatile
@@ -67,4 +69,7 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 		startTimer()
 	}
 
+	companion object {
+		const val TITLE_RES = R.string.settings_tracker_timer_clock
+	}
 }

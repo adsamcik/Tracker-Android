@@ -27,13 +27,10 @@ import com.google.android.gms.location.Priority
  */
 internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
-		get() = listOf(
-			Manifest.permission.ACCESS_FINE_LOCATION,
-			Manifest.permission.ACCESS_COARSE_LOCATION
-		)
+		get() = REQUIRED_PERMISSIONS
 
 	override val titleRes: Int
-		get() = R.string.settings_tracker_timer_fused
+		get() = TITLE_RES
 
 	private val locationCallback: LocationCallback = object : LocationCallback() {
 		override fun onLocationResult(result: LocationResult) {
@@ -138,5 +135,13 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		} else {
 			Priority.PRIORITY_BALANCED_POWER_ACCURACY
 		}
+	}
+
+	companion object {
+		val REQUIRED_PERMISSIONS = listOf(
+			Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_COARSE_LOCATION,
+		)
+		const val TITLE_RES = R.string.settings_tracker_timer_fused
 	}
 }

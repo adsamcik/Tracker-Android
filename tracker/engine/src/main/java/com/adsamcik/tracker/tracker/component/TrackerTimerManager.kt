@@ -15,38 +15,63 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.trigger.FusedLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.trigger.HandlerCollectionTrigger
+import kotlinx.coroutines.CoroutineDispatcher
 
 /**
  * Provides simple access to tracker timers.
  */
 object TrackerTimerManager {
-	private val availableTimers: List<CollectionTriggerComponent>
-		get() = listOf(
-			FusedLocationCollectionTrigger(),
-			AndroidLocationCollectionTrigger(),
-			HandlerCollectionTrigger()
-		)
+	private data class TimerDefinition(
+		val key: String,
+		val titleRes: Int,
+		val requiredPermissions: Collection<String>,
+		val factory: (CoroutineDispatcher) -> CollectionTriggerComponent,
+	)
 
-	private val default get() = availableTimers[0]
+	private val timerDefinitions = listOf(
+		TimerDefinition(
+			key = FusedLocationCollectionTrigger::class.java.simpleName,
+			titleRes = FusedLocationCollectionTrigger.TITLE_RES,
+			requiredPermissions = FusedLocationCollectionTrigger.REQUIRED_PERMISSIONS,
+			factory = { FusedLocationCollectionTrigger() },
+		),
+		TimerDefinition(
+			key = AndroidLocationCollectionTrigger::class.java.simpleName,
+			titleRes = AndroidLocationCollectionTrigger.TITLE_RES,
+			requiredPermissions = AndroidLocationCollectionTrigger.REQUIRED_PERMISSIONS,
+			factory = { AndroidLocationCollectionTrigger() },
+		),
+		TimerDefinition(
+			key = HandlerCollectionTrigger::class.java.simpleName,
+			titleRes = HandlerCollectionTrigger.TITLE_RES,
+			requiredPermissions = emptyList(),
+			factory = ::HandlerCollectionTrigger,
+		)
+	)
+
+	private val defaultDefinition get() = timerDefinitions.first()
 
 	val availableTimerData: List<Pair<String, Int>>
-		get() = availableTimers.map { getKey(it) to it.titleRes }
+		get() = timerDefinitions.map { it.key to it.titleRes }
 
-	private fun getKey(timerComponent: CollectionTriggerComponent) =
-		timerComponent::class.java.simpleName
-
-	internal suspend fun getSelected(context: Context): CollectionTriggerComponent {
+	internal suspend fun getSelected(
+		context: Context,
+		dispatcher: CoroutineDispatcher,
+	): CollectionTriggerComponent {
 		val selectedKey = getSelectedKey(context)
-		return get(selectedKey)
+		return get(selectedKey, dispatcher)
 	}
 
-	internal fun get(key: String): CollectionTriggerComponent {
-		val timer = availableTimers.find { getKey(it) == key }
-		return if (timer == null) {
+	internal fun get(
+		key: String,
+		dispatcher: CoroutineDispatcher,
+	): CollectionTriggerComponent {
+		val definition = timerDefinitions.find { it.key == key }
+		return if (definition == null) {
 			Reporter.report("Timer with key $key was not found.")
-			default
+			defaultDefinition.factory(dispatcher)
 		} else {
-			timer
+			definition.factory(dispatcher)
 		}
 	}
 
@@ -62,8 +87,8 @@ object TrackerTimerManager {
 	 * If key is not valid, behaviour is undefined.
 	 */
 	fun timerWithKeyRequiredLocation(key: String): Boolean {
-		val timer = get(key)
-		return timer.requiredPermissions.contains {
+		val definition = timerDefinitions.find { it.key == key } ?: defaultDefinition
+		return definition.requiredPermissions.contains {
 			it == Manifest.permission.ACCESS_FINE_LOCATION ||
 					it == Manifest.permission.ACCESS_COARSE_LOCATION
 		}
@@ -78,7 +103,7 @@ object TrackerTimerManager {
 	suspend fun getSelectedKey(context: Context): String {
 		return Preferences(context)
 			.fetchString(PreferenceKeys.TRACKER_TIMER)
-			?: getKey(default)
+			?: defaultDefinition.key
 	}
 
 	/**
@@ -91,7 +116,7 @@ object TrackerTimerManager {
 		context: Context,
 		callback: PermissionResultCallback
 	) {
-		val selected = getSelected(context)
+		val selected = timerDefinitions.find { it.key == getSelectedKey(context) } ?: defaultDefinition
 		val requiredPermissions = selected.requiredPermissions.map {
 			PermissionData(
 				it

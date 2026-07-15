@@ -18,10 +18,11 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
 import java.io.InputStream
@@ -58,6 +59,7 @@ class OsmImportWorker @AssistedInject constructor(
 	@Assisted appContext: Context,
 	@Assisted params: WorkerParameters,
 	private val appDatabase: AppDatabase,
+	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : CoroutineWorker(appContext, params) {
 
 	private val emitBuffer = ArrayList<ParsedOsmWay>(DB_BATCH_SIZE)
@@ -79,7 +81,7 @@ class OsmImportWorker @AssistedInject constructor(
 		setForeground(buildForegroundInfo(displayName, 0L))
 
 		// Insert the header row up front so child ways can FK to it.
-		currentImportId = withContext(Dispatchers.IO) {
+		currentImportId = withContext(ioDispatcher) {
 			appDatabase.osmImportDao().insert(
 				OsmImportEntity(
 					displayName = displayName,
@@ -109,7 +111,7 @@ class OsmImportWorker @AssistedInject constructor(
 				onWayBatch = { batch -> persistBatch(batch) },
 			)
 			flushBuffer()
-			withContext(Dispatchers.IO) {
+			withContext(ioDispatcher) {
 				appDatabase.osmImportDao().updateCounts(
 					importId = currentImportId,
 					wayCount = stats.wayCount,
@@ -167,7 +169,7 @@ class OsmImportWorker @AssistedInject constructor(
 		val snapshot = emitBuffer.toList()
 		emitBuffer.clear()
 		val importId = currentImportId
-		withContext(Dispatchers.IO) {
+		withContext(ioDispatcher) {
 			val wayEntities = ArrayList<OsmWayEntity>(snapshot.size)
 			val cellEntities = ArrayList<OsmWayCellEntity>(snapshot.size * AVG_CELLS_PER_WAY)
 			for (way in snapshot) {
@@ -202,7 +204,7 @@ class OsmImportWorker @AssistedInject constructor(
 		val id = currentImportId
 		if (id <= 0L) return
 		try {
-			withContext(Dispatchers.IO) {
+			withContext(ioDispatcher) {
 				appDatabase.osmImportDao().delete(id)
 			}
 		} catch (cleanup: Throwable) {
