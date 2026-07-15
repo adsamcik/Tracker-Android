@@ -23,6 +23,8 @@ jobs:
           distribution: 'temurin'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 14742923
       - name: Install Android SDK components
         shell: bash
         run: |
@@ -70,6 +72,8 @@ jobs:
           distribution: 'temurin'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 14742923
       - name: Install Android SDK components
         shell: bash
         run: |
