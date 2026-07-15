@@ -21,6 +21,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          sdkmanager --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0-rc2" \
+            "platform-tools"
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -56,6 +65,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          sdkmanager --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0-rc2" \
+            "platform-tools"
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

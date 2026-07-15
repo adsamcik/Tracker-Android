@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
@@ -191,6 +193,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
+				logPreviousExitReason()
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}
@@ -203,6 +206,53 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
+
+	/**
+	 * Records the previous process exit reason on Android 11+ as diagnostic context for
+	 * tracking recovery. Android owns force-stop behavior; this signal must not be used as
+	 * an app-level restart decision because user-requested reasons include multiple actions.
+	 */
+	@WorkerThread
+	private fun logPreviousExitReason() {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+
+		try {
+			val activityManager = getSystemService(ActivityManager::class.java) ?: return
+			val exitInfo = activityManager
+				.getHistoricalProcessExitReasons(packageName, 0, 1)
+				.firstOrNull() ?: return
+
+			val reasonLabel = when (exitInfo.reason) {
+				ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
+				ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+				ApplicationExitInfo.REASON_CRASH -> "CRASH"
+				ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+				ApplicationExitInfo.REASON_ANR -> "ANR"
+				ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+				ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+				ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INITIALIZATION_FAILURE"
+				ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+				ApplicationExitInfo.REASON_OTHER -> "OTHER"
+				else -> "reason=${exitInfo.reason}"
+			}
+
+			val isAbnormal = when (exitInfo.reason) {
+				ApplicationExitInfo.REASON_LOW_MEMORY,
+				ApplicationExitInfo.REASON_SIGNALED,
+				ApplicationExitInfo.REASON_CRASH,
+				ApplicationExitInfo.REASON_CRASH_NATIVE,
+				ApplicationExitInfo.REASON_ANR,
+				ApplicationExitInfo.REASON_INITIALIZATION_FAILURE,
+				ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> true
+				else -> false
+			}
+
+			val message = "Previous process exit: $reasonLabel (status=${exitInfo.status})"
+			if (isAbnormal) Reporter.w("App", message) else Reporter.log(message)
+		} catch (e: RuntimeException) {
+			Reporter.report(e)
+		}
+	}
 
 	fun startDeferredStartupIfNeeded() {
 		if (!deferredStartupStarted.compareAndSet(false, true)) return

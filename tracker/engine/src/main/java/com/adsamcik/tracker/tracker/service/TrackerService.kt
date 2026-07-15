@@ -328,9 +328,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}
 
-		// User-initiated sessions should restart after process death to preserve tracking.
-		// Auto-tracking sessions can be re-triggered by ActivityWatcherService.
-		return if (isUserInitiated) START_STICKY else START_NOT_STICKY
+		// Preserve the original user-session flags after an involuntary process death instead
+		// of relying on process-local state during a null-intent sticky restart. Android still
+		// suppresses service redelivery after an explicit package force-stop.
+		return if (isUserInitiated) START_REDELIVER_INTENT else START_NOT_STICKY
 	}
 
 	/**
