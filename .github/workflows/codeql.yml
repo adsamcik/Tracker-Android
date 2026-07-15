@@ -51,15 +51,14 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 14742923
+          packages: ''
 
       - name: Install Android SDK components
         if: matrix.language == 'java-kotlin'
         shell: bash
         run: |
-          set +o pipefail
-          yes | sdkmanager --licenses --channel=3 > /dev/null
-          set -o pipefail
-          sdkmanager --channel=3 --install \
+          sdkmanager_path="$ANDROID_SDK_ROOT/cmdline-tools/14742923/bin/sdkmanager"
+          "$sdkmanager_path" --channel=3 --install \
             "platforms;android-37" \
             "build-tools;37.0.0-rc2" \
             "platform-tools"
