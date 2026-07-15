@@ -53,16 +53,6 @@ jobs:
           cmdline-tools-version: 14742923
           packages: ''
 
-      - name: Install Android SDK components
-        if: matrix.language == 'java-kotlin'
-        shell: bash
-        run: |
-          sdkmanager_path="$ANDROID_SDK_ROOT/cmdline-tools/14742923/bin/sdkmanager"
-          "$sdkmanager_path" --channel=3 --install \
-            "platforms;android-37" \
-            "build-tools;37.0.0-rc2" \
-            "platform-tools"
-
       # Project-specific files required for successful configuration/build
       - name: Prepare project files
         if: matrix.language == 'java-kotlin'
