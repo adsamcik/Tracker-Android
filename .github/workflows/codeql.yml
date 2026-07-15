@@ -54,11 +54,13 @@ jobs:
         if: matrix.language == 'java-kotlin'
         shell: bash
         run: |
-          sdkmanager --install \
+          set +o pipefail
+          yes | sdkmanager --licenses --channel=3 > /dev/null
+          set -o pipefail
+          sdkmanager --channel=3 --install \
             "platforms;android-37" \
             "build-tools;37.0.0-rc2" \
             "platform-tools"
-          yes | sdkmanager --licenses
 
       # Project-specific files required for successful configuration/build
       - name: Prepare project files

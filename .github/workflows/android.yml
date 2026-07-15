@@ -26,7 +26,10 @@ jobs:
       - name: Install Android SDK components
         shell: bash
         run: |
-          sdkmanager --install \
+          set +o pipefail
+          yes | sdkmanager --licenses --channel=3 > /dev/null
+          set -o pipefail
+          sdkmanager --channel=3 --install \
             "platforms;android-37" \
             "build-tools;37.0.0-rc2" \
             "platform-tools"
@@ -70,7 +73,10 @@ jobs:
       - name: Install Android SDK components
         shell: bash
         run: |
-          sdkmanager --install \
+          set +o pipefail
+          yes | sdkmanager --licenses --channel=3 > /dev/null
+          set -o pipefail
+          sdkmanager --channel=3 --install \
             "platforms;android-37" \
             "build-tools;37.0.0-rc2" \
             "platform-tools"
