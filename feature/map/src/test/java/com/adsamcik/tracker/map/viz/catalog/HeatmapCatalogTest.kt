@@ -3,6 +3,8 @@ package com.adsamcik.tracker.map.viz.catalog
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.data.CellRadioGeoFeature
+import com.adsamcik.tracker.map.data.WifiRadioGeoFeature
 import com.adsamcik.tracker.map.viz.SpatialData
 import com.adsamcik.tracker.map.viz.VizRequest
 import io.kotest.matchers.collections.shouldHaveSize
@@ -148,33 +150,71 @@ class HeatmapCatalogTest {
 			// Strong (1.0) -> 0.0, absent (0.0) -> 1.0.
 			cellSignalSource(repo, invert = true).load(allTime).map { it.weight } shouldBe listOf(0.0, 1.0)
 		}
-	}
-
-	@Nested
-	@DisplayName("wifi sources")
-	inner class Wifi {
 
 		@Test
-		fun `wifi signal source normalises dBm to 0_1`() = runTest {
-			every { repo.queryWeighted(any(), eq("level")) } returns flowOf(
-				listOf(
-					WeightedGeoFeature(50.0, 14.0, 0L, -100.0), // -> 0.0
-					WeightedGeoFeature(51.0, 15.0, 0L, -65.0),  // -> 0.5
-					WeightedGeoFeature(52.0, 16.0, 0L, -30.0),  // -> 1.0
-				),
+		fun `wcdma signal source uses the full ASU domain`() = runTest {
+			every { repo.queryCellSignals(any()) } returns flowOf(
+				listOf(cell(asu = 48.0, networkType = 3), cell(asu = 96.0, networkType = 3)),
 			)
-			wifiSignalSource(repo).load(allTime).map { it.weight } shouldBe listOf(0.0, 0.5, 1.0)
+
+			cellSignalSource(repo).load(allTime).map { it.weight } shouldBe listOf(0.5, 1.0)
 		}
 
 		@Test
-		fun `wifi count source weights every observation as one`() = runTest {
-			every { repo.query(any()) } returns flowOf(
+		fun `unavailable ASU is excluded instead of becoming a false dead zone`() = runTest {
+			every { repo.queryCellSignals(any()) } returns flowOf(
 				listOf(
-					com.adsamcik.tracker.map.data.BasicGeoFeature(50.0, 14.0, 0L),
-					com.adsamcik.tracker.map.data.BasicGeoFeature(51.0, 15.0, 0L),
+					cell(asu = 99.0, networkType = 4),
+					cell(asu = 97.0, networkType = 3),
 				),
 			)
-			wifiCountSource(repo).load(allTime).map { it.weight } shouldBe listOf(1.0, 1.0)
+
+			cellSignalSource(repo, invert = true).load(allTime) shouldHaveSize 0
+		}
+
+		@Test
+		fun `unsupported radio type is excluded instead of becoming a false dead zone`() = runTest {
+			every { repo.queryCellSignals(any()) } returns flowOf(
+				listOf(cell(asu = 0.0, networkType = 0)),
+			)
+
+			cellSignalSource(repo, invert = true).load(allTime) shouldHaveSize 0
+		}
+	}
+
+	@Nested
+	@DisplayName("radio sources")
+	inner class Radio {
+
+		@Test
+		fun `wifi radio source preserves identity fields`() = runTest {
+			val expected = WifiRadioGeoFeature(50.0, 14.0, 0L, "00:11:22:33:44:55", -55, 5180)
+			every { repo.queryWifiRadios(any()) } returns flowOf(listOf(expected))
+
+			wifiRadioSource(repo).load(allTime) shouldBe listOf(expected)
+		}
+
+		@Test
+		fun `radio sources pad viewport bounds for stable estimates`() = runTest {
+			val wifiQuery = slot<GeoQuery>()
+			val cellQuery = slot<GeoQuery>()
+			every { repo.queryWifiRadios(capture(wifiQuery)) } returns flowOf(emptyList())
+			every { repo.queryCellRadios(capture(cellQuery)) } returns flowOf(emptyList())
+			val bounds = com.adsamcik.tracker.map.data.Bounds(51.0, 15.0, 50.0, 14.0)
+
+			wifiRadioSource(repo).load(VizRequest(0L..Long.MAX_VALUE, bounds))
+			cellRadioSource(repo).load(VizRequest(0L..Long.MAX_VALUE, bounds))
+
+			wifiQuery.captured.bounds shouldBe com.adsamcik.tracker.map.data.Bounds(52.0, 16.0, 49.0, 13.0)
+			cellQuery.captured.bounds shouldBe wifiQuery.captured.bounds
+		}
+
+		@Test
+		fun `cell radio source preserves stable key fields`() = runTest {
+			val expected = CellRadioGeoFeature(50.0, 14.0, 0L, 123L, 42, 230, 1, 4, 55)
+			every { repo.queryCellRadios(any()) } returns flowOf(listOf(expected))
+
+			cellRadioSource(repo).load(allTime) shouldBe listOf(expected)
 		}
 	}
 

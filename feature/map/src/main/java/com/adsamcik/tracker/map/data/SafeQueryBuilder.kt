@@ -32,6 +32,7 @@ class SafeQueryBuilder private constructor(
     private var sampleLimit: Int? = null
     private var newestLimit: Int? = null
     private var weightColumn: String? = null
+    private var validCellSignalOnly = false
 
     /**
      * Limit result rows (defensive cap for heavy queries)
@@ -90,6 +91,11 @@ class SafeQueryBuilder private constructor(
         weightColumn = column
     }
 
+    fun validCellSignal(): SafeQueryBuilder = apply {
+        require(table == Table.CELL) { "valid cell signal filtering requires the cell table" }
+        validCellSignalOnly = true
+    }
+
     /**
      * Set inclusive time range (epoch milliseconds).
      */
@@ -100,11 +106,10 @@ class SafeQueryBuilder private constructor(
     }
 
     /**
-     * Spatial bounding box (lat/lon degrees). Order: north >= south, east >= west.
+     * Spatial bounding box (lat/lon degrees). `east < west` represents an antimeridian crossing.
      */
     fun bounds(north: Double, east: Double, south: Double, west: Double): SafeQueryBuilder = apply {
         require(north >= south) { "north must be >= south" }
-        require(east >= west) { "east must be >= west" }
         this.north = north
         this.east = east
         this.south = south
@@ -146,13 +151,17 @@ class SafeQueryBuilder private constructor(
             appendClause(selection, "lat_e7 >= ?")
             args += degreesToE7(south!!)
         }
-        if (east != null) {
-            appendClause(selection, "lon_e7 <= ?")
-            args += degreesToE7(east!!)
-        }
-        if (west != null) {
-            appendClause(selection, "lon_e7 >= ?")
-            args += degreesToE7(west!!)
+        if (east != null && west != null) {
+            if (east!! >= west!!) {
+                appendClause(selection, "lon_e7 <= ?")
+                args += degreesToE7(east!!)
+                appendClause(selection, "lon_e7 >= ?")
+                args += degreesToE7(west!!)
+            } else {
+                appendClause(selection, "(lon_e7 >= ? OR lon_e7 <= ?)")
+                args += degreesToE7(west!!)
+                args += degreesToE7(east!!)
+            }
         }
 
         // Speed is the one weight column noisy enough to need its own trustworthiness gate: a
@@ -167,6 +176,19 @@ class SafeQueryBuilder private constructor(
         }
         if (table == Table.LOCATION && weightColumn == "alt") {
             appendClause(selection, "alt_m IS NOT NULL")
+        }
+        if (validCellSignalOnly) {
+            appendClause(
+                selection,
+                """
+                    (
+                        (network_type = 1 AND signal_strength BETWEEN 0 AND 31) OR
+                        (network_type = 2 AND signal_strength BETWEEN 0 AND 16) OR
+                        (network_type = 3 AND signal_strength BETWEEN 0 AND 96) OR
+                        (network_type IN (4, 5) AND signal_strength BETWEEN 0 AND 97)
+                    )
+                """.trimIndent(),
+            )
         }
 
         val projectionNames = buildList {
@@ -249,13 +271,13 @@ class SafeQueryBuilder private constructor(
         ),
         WIFI(
             "wifi_observation",
-            setOf("level", "frequency"),
+            setOf("bssid", "level", "frequency"),
             setOf("level", "frequency"),
             emptyMap(),
         ),
         CELL(
             "cell_sample",
-            setOf("mcc", "mnc", "cell_id", "network_type", "asu"),
+            setOf("mcc", "mnc", "cell_id", "lac", "network_type", "asu"),
             setOf("asu", "network_type"),
             mapOf(
                 "asu" to "signal_strength",

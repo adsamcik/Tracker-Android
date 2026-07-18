@@ -20,7 +20,6 @@ class HeatmapColorRampsTest {
     private val densityRamps = mapOf(
         "LocationDensity" to HeatmapColorRamps.LocationDensity,
         "Speed" to HeatmapColorRamps.Speed,
-        "CellSignal" to HeatmapColorRamps.CellSignal,
     )
 
     @Test

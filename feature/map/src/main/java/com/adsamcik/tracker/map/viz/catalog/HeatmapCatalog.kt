@@ -1,20 +1,26 @@
 package com.adsamcik.tracker.map.viz.catalog
 
+import com.adsamcik.tracker.map.data.CellRadioGeoFeature
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.data.WifiRadioGeoFeature
 import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
+import com.adsamcik.tracker.map.viz.CellRadioAggregator
 import com.adsamcik.tracker.map.viz.CellWeighting
 import com.adsamcik.tracker.map.viz.GridHeatmapAggregator
 import com.adsamcik.tracker.map.viz.LegacyTileAggregatorStage
+import com.adsamcik.tracker.map.viz.RadioFieldEncoder
 import com.adsamcik.tracker.map.viz.SpatialData
 import com.adsamcik.tracker.map.viz.TemporalHeatMetric
 import com.adsamcik.tracker.map.viz.TemporalHeatmapAggregator
 import com.adsamcik.tracker.map.viz.VizPipeline
-import com.adsamcik.tracker.map.viz.WifiCellAggregator
+import com.adsamcik.tracker.map.viz.WifiOverlapAggregator
+import com.adsamcik.tracker.map.viz.WifiRadioAggregator
 import com.adsamcik.tracker.map.viz.extrude
 import com.adsamcik.tracker.map.viz.fill
 import com.adsamcik.tracker.map.viz.heatmap
 import com.adsamcik.tracker.map.viz.mapViz
+import com.adsamcik.tracker.map.viz.radioField
 import com.adsamcik.tracker.map.viz.temporalHeatmap
 
 /**
@@ -47,12 +53,12 @@ fun speedHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialDa
 			baseRadiusPx = 18f,
 		)
 
-/** Cell-signal heatmap: colour = mean technology-normalised signal strength in a cell. */
-fun cellSignalHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
+/** RAT-aware cellular coverage with uncertainty-first serving-site estimates. */
+fun cellSignalHeatmap(repo: GeoRepository): VizPipeline<CellRadioGeoFeature, SpatialData.RadioField> =
 	mapViz("cell_heatmap")
-		.source(cellSignalSource(repo))
-		.aggregate(GridHeatmapAggregator(CellWeighting.Average))
-		.heatmap(colorStops = HeatmapColorRamps.CellSignal, baseRadiusPx = 25f)
+		.source(cellRadioSource(repo))
+		.aggregate(CellRadioAggregator())
+		.radioField(RadioFieldEncoder.cell())
 
 /** Signal dead-zone heatmap: cell-signal with inverted weight, so weak/absent coverage reads hot. */
 fun signalCoverageHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
@@ -61,27 +67,19 @@ fun signalCoverageHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, 
 		.aggregate(GridHeatmapAggregator(CellWeighting.Average))
 		.heatmap(colorStops = HeatmapColorRamps.SignalDeadZone, baseRadiusPx = 25f)
 
-/** Wi-Fi signal heatmap: colour = mean Wi-Fi signal quality, on the Wi-Fi cell grid. */
-fun wifiSignalHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
+/** Band-aware Wi-Fi coverage with uncertainty-first AP position estimates. */
+fun wifiSignalHeatmap(repo: GeoRepository): VizPipeline<WifiRadioGeoFeature, SpatialData.RadioField> =
 	mapViz("wifi_heatmap")
-		.source(wifiSignalSource(repo))
-		.aggregate(WifiCellAggregator(baseCellPerQuality = 0.00045, normalizeByMax = false))
-		.heatmap(colorStops = WIFI_SIGNAL_RAMP, baseRadiusPx = 18f)
+		.source(wifiRadioSource(repo))
+		.aggregate(WifiRadioAggregator())
+		.radioField(RadioFieldEncoder.wifi())
 
-/** Wi-Fi access-point count heatmap (viewport-relative normalisation, preserved from the old layer). */
-fun wifiCountHeatmap(repo: GeoRepository): VizPipeline<WeightedGeoFeature, SpatialData.WeightedCells> =
+/** Distinct-BSSID overlap heatmap; repeated scans of one AP never inflate the result. */
+fun wifiCountHeatmap(repo: GeoRepository): VizPipeline<WifiRadioGeoFeature, SpatialData.WeightedCells> =
 	mapViz("wifi_count_heatmap")
-		.source(wifiCountSource(repo))
-		.aggregate(WifiCellAggregator(baseCellPerQuality = 0.0006, normalizeByMax = true))
+		.source(wifiRadioSource(repo))
+		.aggregate(WifiOverlapAggregator())
 		.heatmap(colorStops = WIFI_COUNT_RAMP, baseRadiusPx = 18f)
-
-private val WIFI_SIGNAL_RAMP: List<Pair<Float, Int>> = listOf(
-	0.0f to 0x00FF9800,
-	0.18f to 0x66FFB74D,
-	0.45f to 0xFFFF9800.toInt(),
-	0.72f to 0xFFFF7043.toInt(),
-	1.0f to 0xFFD50000.toInt(),
-)
 
 private val WIFI_COUNT_RAMP: List<Pair<Float, Int>> = listOf(
 	0.0f to 0x001FC8FF,

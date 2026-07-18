@@ -95,7 +95,14 @@ object TileMath {
         val (minX, minY) = latLonToTile(bounds.north, bounds.west, zoom)
         val (maxX, maxY) = latLonToTile(bounds.south, bounds.east, zoom)
         val tiles = mutableListOf<Triple<Int, Int, Int>>()
-        for (x in minX..maxX) {
+        val xCoordinates = linkedSetOf<Int>()
+        if (bounds.crossesAntimeridian) {
+            xCoordinates.addAll(minX until (1 shl zoom))
+            xCoordinates.addAll(0..maxX)
+        } else {
+            xCoordinates.addAll(minX..maxX)
+        }
+        for (x in xCoordinates) {
             for (y in minY..maxY) {
                 tiles.add(Triple(zoom, x, y))
             }

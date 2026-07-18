@@ -873,7 +873,7 @@ class MapStore @Inject constructor(
     private fun viewportBucket(bounds: Bounds?, zoom: Float): ViewportBucket? {
         if (bounds == null) return null
         val latBucket = ((bounds.north - bounds.south) * BUCKET_FRACTION).coerceAtLeast(MIN_BUCKET_DEGREES)
-        val lonBucket = ((bounds.east - bounds.west) * BUCKET_FRACTION).coerceAtLeast(MIN_BUCKET_DEGREES)
+        val lonBucket = (bounds.longitudeSpan * BUCKET_FRACTION).coerceAtLeast(MIN_BUCKET_DEGREES)
         return ViewportBucket(
             north = floor(bounds.north / latBucket).toLong(),
             east = floor(bounds.east / lonBucket).toLong(),

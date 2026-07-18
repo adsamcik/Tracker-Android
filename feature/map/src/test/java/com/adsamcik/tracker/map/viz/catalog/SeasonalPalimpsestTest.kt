@@ -95,6 +95,26 @@ class SeasonalPalimpsestTest {
 			features.single().lon shouldBe (14.4213 plusOrMinus 1e-6)
 			features.single().seasonBitmask shouldBe 0b0010
 		}
+
+		@Test
+		fun `uses one globally limited query for wrapped viewport bounds`() = runTest {
+			val west = slot<Int>()
+			val east = slot<Int>()
+			coEvery {
+				dao.getCellsInWrappedBounds(eq(14), any(), any(), capture(west), capture(east), eq(MAX_EXPLORATION_CELLS))
+			} returns listOf(cell(latE7 = 0, lonE7 = 1_750_000_000, season = 1))
+
+			val features = explorationCellSource(dao).load(
+				com.adsamcik.tracker.map.viz.VizRequest(
+					0L..Long.MAX_VALUE,
+					com.adsamcik.tracker.map.data.Bounds(10.0, -170.0, -10.0, 170.0),
+				),
+			)
+
+			west.captured shouldBe 1_700_000_000
+			east.captured shouldBe -1_700_000_000
+			features shouldHaveSize 1
+		}
 	}
 
 	@Nested

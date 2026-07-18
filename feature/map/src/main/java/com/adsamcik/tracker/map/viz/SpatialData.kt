@@ -22,6 +22,15 @@ sealed interface SpatialData {
 	data class WeightedCells(val cells: List<WeightedGeoFeature>) : SpatialData
 
 	/**
+	 * Radio coverage split into physically meaningful bands/technologies, plus location estimates
+	 * that always carry a confidence and uncertainty radius.
+	 */
+	data class RadioField(
+		val coverage: List<RadioCoverage>,
+		val estimates: List<RadioEstimate>,
+	) : SpatialData
+
+	/**
 	 * A spatiotemporal heat field. [isolatedCells] contains stale or stationary observations rendered
 	 * as direct-colour glow/core circles. [paths] contains temporally continuous movement rendered as
 	 * equivalently sized weighted lines. The shapes are exclusive and every feature weight is the

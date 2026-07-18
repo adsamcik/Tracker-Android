@@ -70,9 +70,7 @@ private fun String.toArcCategory(): String {
 
 private fun Bounds.intersects(envelope: ArcEnvelope): Boolean {
 	if (envelope.maxLat < south || envelope.minLat > north) return false
-	return listOf(-360.0, 0.0, 360.0).any { shift ->
-		envelope.maxLon + shift >= west && envelope.minLon + shift <= east
-	}
+	return intersectsLongitudeRange(envelope.minLon, envelope.maxLon)
 }
 
 fun tripConstellations(
