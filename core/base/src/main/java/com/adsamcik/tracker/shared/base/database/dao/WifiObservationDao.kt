@@ -20,6 +20,27 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	@Query("SELECT * FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<WifiObservation>>
 
+	@Query(
+		"""
+		SELECT * FROM wifi_observation
+		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+			AND (
+				:afterTimeMs IS NULL
+				OR time_ms > :afterTimeMs
+				OR (time_ms = :afterTimeMs AND id > COALESCE(:afterId, 0))
+			)
+		ORDER BY time_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getChunkBetweenOrdered(
+		fromMs: Long,
+		toMs: Long,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		limit: Int,
+	): List<WifiObservation>
+
 	/**
 	 * Get observations without coordinates (for enrichment).
 	 */
