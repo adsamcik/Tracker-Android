@@ -202,4 +202,22 @@ class ExplorationCellDaoTest {
 
 		assertEquals(3, result.size)
 	}
+
+	@Test
+	fun getCellsInWrappedBoundsReturnsBothAntimeridianSidesWithOneLimit() = runBlocking {
+		dao.insert(createCell(cellToken = "east", centerLatE7 = 0, centerLonE7 = 1_750_000_000))
+		dao.insert(createCell(cellToken = "west", centerLatE7 = 0, centerLonE7 = -1_750_000_000))
+		dao.insert(createCell(cellToken = "middle", centerLatE7 = 0, centerLonE7 = 0))
+
+		val result = dao.getCellsInWrappedBounds(
+			level = 14,
+			minLatE7 = -100_000_000,
+			maxLatE7 = 100_000_000,
+			westLonE7 = 1_700_000_000,
+			eastLonE7 = -1_700_000_000,
+			limit = 2,
+		)
+
+		assertEquals(listOf("east", "west"), result.map { it.cellToken })
+	}
 }

@@ -218,17 +218,21 @@ class DefaultLayerRegistryTest {
         }
 
         @Test
-        fun `cell heatmap legend describes technology-normalized signal strength bands`() {
+        fun `cell heatmap legend identifies radio technologies`() {
             val entry = registry.findById("cell_heatmap")!!.recipe.factory.create() as LayerEntry
 
-            entry.legend.colorList shouldBe HeatmapColorRamps.CellSignal.map { it.second }
+            entry.legend.colorList shouldBe listOf(
+                com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS.getValue(com.adsamcik.tracker.map.viz.RadioVisualGroup.CELL_GSM),
+                com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS.getValue(com.adsamcik.tracker.map.viz.RadioVisualGroup.CELL_WCDMA),
+                com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS.getValue(com.adsamcik.tracker.map.viz.RadioVisualGroup.CELL_LTE),
+                com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS.getValue(com.adsamcik.tracker.map.viz.RadioVisualGroup.CELL_NR),
+            )
             entry.legend.legend.description shouldBe R.string.map_layer_cell_heatmap_description
             entry.legend.legend.valueList.map { it.nameRes } shouldBe listOf(
-                R.string.map_layer_cell_signal_weak,
-                R.string.map_layer_cell_signal_fair,
-                R.string.map_layer_cell_signal_good,
-                R.string.map_layer_cell_signal_strong,
-                R.string.map_layer_cell_signal_excellent,
+                R.string.map_layer_cell_radio_gsm,
+                R.string.map_layer_cell_radio_wcdma,
+                R.string.map_layer_cell_radio_lte,
+                R.string.map_layer_cell_radio_nr,
             )
         }
     }

@@ -60,6 +60,23 @@ class TileGeoJsonGeneratorTest {
             val result = TileGeoJsonGenerator.generatePointTile(listOf(bufferPoint), tileBounds)
             result shouldContain "48.871"
         }
+
+        @Test
+        fun `includes points on both sides of a wrapped tile`() {
+            val wrappedBounds = Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0)
+            val result = TileGeoJsonGenerator.generatePointTile(
+                listOf(
+                    WeightedGeoFeature(0.0, 175.0, 1000L, 0.5),
+                    WeightedGeoFeature(0.0, -175.0, 2000L, 0.5),
+                    WeightedGeoFeature(0.0, 0.0, 3000L, 0.5),
+                ),
+                wrappedBounds,
+            )
+
+            result shouldContain "175.0"
+            result shouldContain "-175.0"
+            result shouldNotContain "[0.0,0.0]"
+        }
     }
 
     @Nested
@@ -91,6 +108,17 @@ class TileGeoJsonGeneratorTest {
                 tileBounds,
             )
             result shouldNotContain "LineString"
+        }
+
+        @Test
+        fun `buffers antimeridian edge tiles without invalid bounds`() {
+            val edgeBounds = Bounds(north = 10.0, east = 180.0, south = -10.0, west = 170.0)
+            val result = TileGeoJsonGenerator.generateLineTile(
+                listOf(LatLngModel(0.0, 175.0), LatLngModel(1.0, 179.0)),
+                edgeBounds,
+            )
+
+            result shouldContain "LineString"
         }
     }
 

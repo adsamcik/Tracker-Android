@@ -4,9 +4,12 @@ import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.data.CellRadioGeoFeature
+import com.adsamcik.tracker.map.data.WifiRadioGeoFeature
+import com.adsamcik.tracker.map.data.paddedBounds
+import com.adsamcik.tracker.map.viz.normalizedCellSignalWeight
 import com.adsamcik.tracker.map.viz.VizRequest
 import com.adsamcik.tracker.map.viz.VizSource
-import com.adsamcik.tracker.shared.base.data.CellType
 import kotlinx.coroutines.flow.first
 
 /**
@@ -100,8 +103,8 @@ fun activitySource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSour
  */
 fun cellSignalSource(repo: GeoRepository, invert: Boolean = false): VizSource<WeightedGeoFeature> =
 	VizSource { request ->
-		repo.queryCellSignals(request.toQuery(GeoSource.CELL, "asu")).first().map { feature ->
-			val strength = feature.asu.toCellSignalWeight(feature.networkType)
+		repo.queryCellSignals(request.toQuery(GeoSource.CELL, "asu")).first().mapNotNull { feature ->
+			val strength = normalizedCellSignalWeight(feature.asu, feature.networkType) ?: return@mapNotNull null
 			WeightedGeoFeature(
 				lat = feature.lat,
 				lon = feature.lon,
@@ -112,18 +115,19 @@ fun cellSignalSource(repo: GeoRepository, invert: Boolean = false): VizSource<We
 	}
 
 /**
- * Wi-Fi fixes weighted by signal quality: levels are stored as negative dBm and normalised into
- * `[0, 1]` (−100 dBm -> 0, −30 dBm -> 1) before the heatmap weight expression.
+ * Identity-bearing Wi-Fi observations for band-aware coverage, overlap, and conservative AP
+ * estimation. The padded query avoids making an inferred AP jump as soon as one contributing
+ * observation crosses the visible viewport edge.
  */
-fun wifiSignalSource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSource { request ->
-	repo.queryWeighted(request.toQuery(GeoSource.WIFI, "level"), "level").first()
-		.map { it.copy(weight = it.weight.toWifiSignalWeight()) }
+fun wifiRadioSource(repo: GeoRepository): VizSource<WifiRadioGeoFeature> = VizSource { request ->
+	val query = request.toQuery(GeoSource.WIFI).copy(bounds = request.radioBounds())
+	repo.queryWifiRadios(query).first()
 }
 
-/** Wi-Fi observations as unit-weighted points; density comes from the [WifiCellAggregator]. */
-fun wifiCountSource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizSource { request ->
-	repo.query(request.toQuery(GeoSource.WIFI)).first()
-		.map { WeightedGeoFeature(it.lat, it.lon, it.time, weight = 1.0) }
+/** Identity-bearing serving-cell observations for RAT coverage and conservative site estimation. */
+fun cellRadioSource(repo: GeoRepository): VizSource<CellRadioGeoFeature> = VizSource { request ->
+	val query = request.toQuery(GeoSource.CELL).copy(bounds = request.radioBounds())
+	repo.queryCellRadios(query).first()
 }
 
 /**
@@ -136,30 +140,8 @@ fun rawLocationSource(repo: GeoRepository): VizSource<WeightedGeoFeature> = VizS
 
 // ── Signal-strength normalisation helpers (moved verbatim from the old layer classes) ──────────
 
-private const val GSM_MAX_ASU = 31.0
-private const val CDMA_MAX_ASU = 16.0
-private const val WCDMA_MAX_ASU = 31.0
-private const val LTE_NR_MAX_ASU = 97.0
-
-/** Normalise a raw ASU reading to `[0, 1]` by the max ASU of its radio technology. */
-private fun Double.toCellSignalWeight(networkType: Int): Double {
-	if (this <= 0.0) return 0.0
-	val maxAsu = when (CellType.values().getOrNull(networkType)) {
-		CellType.GSM -> GSM_MAX_ASU
-		CellType.CDMA -> CDMA_MAX_ASU
-		CellType.WCDMA -> WCDMA_MAX_ASU
-		CellType.LTE,
-		CellType.NR -> LTE_NR_MAX_ASU
-		CellType.Unknown,
-		CellType.None,
-		null -> LTE_NR_MAX_ASU
-	}
-	return (this / maxAsu).coerceIn(0.0, 1.0)
+private fun VizRequest.radioBounds() = bounds?.let {
+	paddedBounds(it.north, it.east, it.south, it.west, RADIO_QUERY_PADDING) ?: it
 }
 
-/** Normalise a Wi-Fi level in dBm to `[0, 1]` (−100 dBm -> 0, −30 dBm -> 1). */
-private fun Double.toWifiSignalWeight(): Double {
-	if (!isFinite()) return 0.0
-	val clampedDbm = coerceIn(-100.0, -30.0)
-	return ((clampedDbm + 100.0) / 70.0).coerceIn(0.0, 1.0)
-}
+private const val RADIO_QUERY_PADDING = 1.0

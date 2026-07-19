@@ -41,6 +41,9 @@ import com.adsamcik.tracker.map.viz.catalog.SPEED_RIBBON_RAMP
 import com.adsamcik.tracker.map.viz.catalog.TERRAIN_RAMP
 import com.adsamcik.tracker.map.viz.catalog.wifiCountHeatmap
 import com.adsamcik.tracker.map.viz.catalog.wifiSignalHeatmap
+import com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS
+import com.adsamcik.tracker.map.viz.RadioVisualGroup
+import com.adsamcik.tracker.map.viz.WIFI_RADIO_COLORS
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -100,14 +103,20 @@ class DefaultLayerRegistry(
         )
     }
 
-    private fun cellSignalLegendValues(): List<MapLegendValue> {
-        val colors = HeatmapColorRamps.CellSignal.map { it.second }
+    private fun cellRadioLegendValues(): List<MapLegendValue> {
         return listOf(
-            MapLegendValue(R.string.map_layer_cell_signal_weak, colors[0]),
-            MapLegendValue(R.string.map_layer_cell_signal_fair, colors[1]),
-            MapLegendValue(R.string.map_layer_cell_signal_good, colors[2]),
-            MapLegendValue(R.string.map_layer_cell_signal_strong, colors[3]),
-            MapLegendValue(R.string.map_layer_cell_signal_excellent, colors[4]),
+            MapLegendValue(R.string.map_layer_cell_radio_gsm, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_GSM)),
+            MapLegendValue(R.string.map_layer_cell_radio_wcdma, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_WCDMA)),
+            MapLegendValue(R.string.map_layer_cell_radio_lte, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_LTE)),
+            MapLegendValue(R.string.map_layer_cell_radio_nr, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_NR)),
+        )
+    }
+
+    private fun wifiRadioLegendValues(): List<MapLegendValue> {
+        return listOf(
+            MapLegendValue(R.string.map_layer_wifi_radio_24, WIFI_RADIO_COLORS.getValue(RadioVisualGroup.WIFI_24)),
+            MapLegendValue(R.string.map_layer_wifi_radio_5, WIFI_RADIO_COLORS.getValue(RadioVisualGroup.WIFI_5)),
+            MapLegendValue(R.string.map_layer_wifi_radio_6, WIFI_RADIO_COLORS.getValue(RadioVisualGroup.WIFI_6)),
         )
     }
 
@@ -188,10 +197,10 @@ class DefaultLayerRegistry(
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
-                            colorList = HeatmapColorRamps.CellSignal.map { it.second },
+                            colorList = cellRadioLegendValues().map { it.color },
                             legend = MapLegend(
                                 description = R.string.map_layer_cell_heatmap_description,
-                                valueList = cellSignalLegendValues()
+                                valueList = cellRadioLegendValues()
                             )
                         )
                     )
@@ -273,19 +282,10 @@ class DefaultLayerRegistry(
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
-                            colorList = listOf(
-                                Color.rgb(255, 183, 77),
-                                Color.rgb(255, 152, 0),
-                                Color.rgb(255, 112, 67),
-                                Color.rgb(213, 0, 0)
-                            ),
+                            colorList = wifiRadioLegendValues().map { it.color },
                             legend = MapLegend(
                                 description = R.string.map_layer_wifi_heatmap_description,
-                                valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_low, Color.rgb(255, 183, 77)),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_medium, Color.rgb(255, 152, 0)),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_high, Color.rgb(213, 0, 0))
-                                )
+                                valueList = wifiRadioLegendValues()
                             )
                         )
                     )

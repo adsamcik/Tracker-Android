@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.map.tiles
 
+import com.adsamcik.tracker.map.data.Bounds
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeGreaterThan as intShouldBeGreaterThan
@@ -23,6 +25,30 @@ class TileMathTest {
             bounds.east shouldBe 180.0
             bounds.north shouldBeGreaterThan 85.0
             bounds.south shouldBeLessThan -85.0
+        }
+
+        @Test
+        fun `tiles for wrapped bounds include both antimeridian edges`() {
+            TileMath.tilesForBounds(
+                Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0),
+                zoom = 2,
+            ).map { it.second }.distinct() shouldContainExactlyInAnyOrder listOf(0, 3)
+        }
+
+        @Test
+        fun `wrapped bounds at world zoom do not duplicate the only tile`() {
+            TileMath.tilesForBounds(
+                Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0),
+                zoom = 0,
+            ).size shouldBe 1
+        }
+
+        @Test
+        fun `near global wrapped bounds include every covered tile column`() {
+            TileMath.tilesForBounds(
+                Bounds(north = 10.0, east = 160.0, south = -10.0, west = 170.0),
+                zoom = 2,
+            ).map { it.second }.distinct() shouldContainExactlyInAnyOrder listOf(0, 1, 2, 3)
         }
 
         @Test

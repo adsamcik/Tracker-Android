@@ -9,7 +9,9 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.entity.GeoCellSignalFeatureEntity
+import com.adsamcik.tracker.shared.base.database.entity.GeoCellRadioFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
+import com.adsamcik.tracker.shared.base.database.entity.GeoWifiRadioFeatureEntity
 
 /**
  * Raw query based unified geo DAO returning generic GeoFeatureEntity objects.
@@ -44,4 +46,10 @@ interface UnifiedGeoDao {
 
     @RawQuery(observedEntities = [CellSample::class])
     fun queryCellSignals(query: SupportSQLiteQuery): Flow<List<GeoCellSignalFeatureEntity>>
+
+    @RawQuery(observedEntities = [WifiObservation::class])
+    fun queryWifiRadios(query: SupportSQLiteQuery): Flow<List<GeoWifiRadioFeatureEntity>>
+
+    @RawQuery(observedEntities = [CellSample::class])
+    fun queryCellRadios(query: SupportSQLiteQuery): Flow<List<GeoCellRadioFeatureEntity>>
 }

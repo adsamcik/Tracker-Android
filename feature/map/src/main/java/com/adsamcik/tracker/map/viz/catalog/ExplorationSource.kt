@@ -53,7 +53,14 @@ fun explorationCellSource(
 	val maxLatE7 = ((bounds?.north ?: 90.0) * E7).toInt()
 	val minLonE7 = ((bounds?.west ?: -180.0) * E7).toInt()
 	val maxLonE7 = ((bounds?.east ?: 180.0) * E7).toInt()
-	dao.getCellsInBounds(level, minLatE7, maxLatE7, minLonE7, maxLonE7, MAX_EXPLORATION_CELLS)
+	val cells = if (bounds?.crossesAntimeridian == true) {
+		dao.getCellsInWrappedBounds(
+			level, minLatE7, maxLatE7, minLonE7, maxLonE7, MAX_EXPLORATION_CELLS,
+		)
+	} else {
+		dao.getCellsInBounds(level, minLatE7, maxLatE7, minLonE7, maxLonE7, MAX_EXPLORATION_CELLS)
+	}
+	cells
 		.map { cell ->
 			ExplorationCellFeature(
 				lat = cell.centerLatE7 / E7,

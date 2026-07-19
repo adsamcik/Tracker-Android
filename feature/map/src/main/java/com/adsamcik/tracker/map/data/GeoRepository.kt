@@ -8,6 +8,8 @@ interface GeoRepository {
     fun query(query: GeoQuery): Flow<List<GeoFeature>>
     fun queryWeighted(query: GeoQuery, weightColumn: String): Flow<List<WeightedGeoFeature>>
     fun queryCellSignals(query: GeoQuery): Flow<List<CellSignalGeoFeature>>
+    fun queryWifiRadios(query: GeoQuery): Flow<List<WifiRadioGeoFeature>>
+    fun queryCellRadios(query: GeoQuery): Flow<List<CellRadioGeoFeature>>
     fun queryWeightedAggregated(
         query: GeoQuery,
         weightColumn: String,
@@ -84,9 +86,20 @@ class GeoRepositoryImpl(
         query.newestLimit?.let { builder.newest(it) }
         builder.columns("network_type")
         builder.weight("asu")
+        builder.validCellSignal()
         val sql = builder.build()
 
         return dao.queryCellSignals(sql).map { list -> list.map { it.toDomain() } }
+    }
+
+    override fun queryWifiRadios(query: GeoQuery): Flow<List<WifiRadioGeoFeature>> {
+        require(query.source == GeoSource.WIFI) { "Wi-Fi radio queries require WIFI source" }
+        return dao.queryWifiRadios(RadioQueryBuilder.wifi(query)).map { list -> list.map { it.toDomain() } }
+    }
+
+    override fun queryCellRadios(query: GeoQuery): Flow<List<CellRadioGeoFeature>> {
+        require(query.source == GeoSource.CELL) { "Cell radio queries require CELL source" }
+        return dao.queryCellRadios(RadioQueryBuilder.cell(query)).map { list -> list.map { it.toDomain() } }
     }
 
     override fun queryWeightedAggregated(

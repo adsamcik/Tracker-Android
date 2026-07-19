@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.tiles
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.data.paddedBounds
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 
 /**
@@ -28,18 +29,19 @@ object TileGeoJsonGenerator {
         points: List<WeightedGeoFeature>,
         tileBounds: Bounds,
     ): String {
-        val latBuffer = (tileBounds.north - tileBounds.south) * 0.1
-        val lonBuffer = (tileBounds.east - tileBounds.west) * 0.1
-        val buffered = Bounds(
-            north = (tileBounds.north + latBuffer).coerceAtMost(90.0),
-            south = (tileBounds.south - latBuffer).coerceAtLeast(-90.0),
-            east = tileBounds.east + lonBuffer,
-            west = tileBounds.west - lonBuffer,
+        val buffered = requireNotNull(
+            paddedBounds(
+                tileBounds.north,
+                tileBounds.east,
+                tileBounds.south,
+                tileBounds.west,
+                paddingFraction = 0.1,
+            ),
         )
 
         val tilePoints = points.filter {
             it.lat in buffered.south..buffered.north &&
-                it.lon in buffered.west..buffered.east
+                buffered.containsLongitude(it.lon)
         }
 
         return if (tilePoints.isEmpty()) {
@@ -65,12 +67,14 @@ object TileGeoJsonGenerator {
     ): String {
         if (points.size < 2) return EMPTY_FEATURE_COLLECTION
 
-        val buffer = (tileBounds.north - tileBounds.south) * 0.1
-        val buffered = Bounds(
-            north = (tileBounds.north + buffer).coerceAtMost(90.0),
-            south = (tileBounds.south - buffer).coerceAtLeast(-90.0),
-            east = tileBounds.east + buffer,
-            west = tileBounds.west - buffer,
+        val buffered = requireNotNull(
+            paddedBounds(
+                tileBounds.north,
+                tileBounds.east,
+                tileBounds.south,
+                tileBounds.west,
+                paddingFraction = 0.1,
+            ),
         )
 
         val segments = clipLineToTileSegments(points, buffered)
@@ -99,7 +103,7 @@ object TileGeoJsonGenerator {
         for (i in points.indices) {
             val p = points[i]
             val inside = p.lat in bounds.south..bounds.north &&
-                p.lng in bounds.west..bounds.east
+                bounds.containsLongitude(p.lng)
 
             if (inside) {
                 // Entering the tile — include the outside predecessor for continuity

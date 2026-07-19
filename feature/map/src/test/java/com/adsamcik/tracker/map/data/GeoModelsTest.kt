@@ -64,10 +64,9 @@ class GeoModelsTest {
 		}
 
 		@Test
-		fun `throws when east is less than west`() {
-			assertThrows<IllegalArgumentException> {
-				Bounds(north = 50.0, east = 14.0, south = 49.0, west = 15.0)
-			}
+		fun `east less than west represents an antimeridian crossing`() {
+			val bounds = Bounds(north = 50.0, east = -170.0, south = 49.0, west = 170.0)
+			bounds.crossesAntimeridian shouldBe true
 		}
 
 		@Test
@@ -135,15 +134,48 @@ class GeoModelsTest {
 		}
 
 		@Test
-		fun `clamps to max longitude`() {
+		fun `wraps across positive antimeridian`() {
 			val bounds = cameraToBounds(lat = 0.0, lng = 170.0, zoom = 3.0)!!
-			bounds.east shouldBe 180.0
+			bounds.crossesAntimeridian shouldBe true
+			bounds.east shouldBe -156.25
+			bounds.west shouldBe 136.25
 		}
 
 		@Test
-		fun `clamps to min longitude`() {
+		fun `wraps across negative antimeridian`() {
 			val bounds = cameraToBounds(lat = 0.0, lng = -170.0, zoom = 3.0)!!
-			bounds.west shouldBe -180.0
+			bounds.crossesAntimeridian shouldBe true
+			bounds.east shouldBe -136.25
+			bounds.west shouldBe 156.25
+		}
+	}
+
+	@Nested
+	@DisplayName("antimeridian bounds")
+	inner class AntimeridianBoundsTests {
+
+		@Test
+		fun `reports wrapped longitude span`() {
+			Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0)
+				.longitudeSpan shouldBe 20.0
+		}
+
+		@Test
+		fun `contains longitudes on both sides of antimeridian`() {
+			val bounds = Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0)
+
+			bounds.containsLongitude(175.0) shouldBe true
+			bounds.containsLongitude(-175.0) shouldBe true
+			bounds.containsLongitude(0.0) shouldBe false
+		}
+
+		@Test
+		fun `intersects wrapped and unwrapped longitude ranges`() {
+			val bounds = Bounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0)
+
+			bounds.intersectsLongitudeRange(175.0, 181.0) shouldBe true
+			bounds.intersectsLongitudeRange(-179.0, -175.0) shouldBe true
+			bounds.intersectsLongitudeRange(-10.0, 10.0) shouldBe false
 		}
 	}
 
@@ -192,9 +224,15 @@ class GeoModelsTest {
 		}
 
 		@Test
-		fun `returns null for antimeridian-crossing box`() {
-			// east < west indicates the box wraps the antimeridian; not representable as Bounds.
-			paddedBounds(north = 10.0, east = -170.0, south = -10.0, west = 170.0).shouldBeNull()
+		fun `pads an antimeridian-crossing box`() {
+			val bounds = paddedBounds(
+				north = 10.0,
+				east = -170.0,
+				south = -10.0,
+				west = 170.0,
+				paddingFraction = 0.5,
+			)!!
+			bounds shouldBe Bounds(north = 20.0, east = -160.0, south = -20.0, west = 160.0)
 		}
 	}
 

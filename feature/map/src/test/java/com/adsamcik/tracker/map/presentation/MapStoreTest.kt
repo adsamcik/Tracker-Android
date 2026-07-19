@@ -302,8 +302,8 @@ class MapStoreTest {
             colorList = emptyList(),
             legend = MapLegend(
                 valueList = listOf(
-                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_signal_weak, 0xFF440154.toInt()),
-                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_signal_excellent, 0xFFFDE725.toInt()),
+                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_radio_gsm, 0xFFFFA726.toInt()),
+                    MapLegendValue(com.adsamcik.tracker.map.R.string.map_layer_cell_radio_nr, 0xFFD81B60.toInt()),
                 )
             )
         )
@@ -313,8 +313,8 @@ class MapStoreTest {
 
         val legend = mapStore.state.first().legend
         legend shouldHaveSize 2
-        legend[0].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_signal_weak
-        legend[1].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_signal_excellent
+        legend[0].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_radio_gsm
+        legend[1].labelRes shouldBe com.adsamcik.tracker.map.R.string.map_layer_cell_radio_nr
     }
 
     @Test

@@ -282,7 +282,7 @@ class LayerController {
 
     private fun Bounds.toBucketedBounds(): BucketedBounds {
         val latBucket = ((north - south) * 0.1).coerceAtLeast(MIN_BUCKET_DEGREES)
-        val lonBucket = ((east - west) * 0.1).coerceAtLeast(MIN_BUCKET_DEGREES)
+        val lonBucket = (longitudeSpan * 0.1).coerceAtLeast(MIN_BUCKET_DEGREES)
         return BucketedBounds(
             north = bucket(north, latBucket),
             east = bucket(east, lonBucket),

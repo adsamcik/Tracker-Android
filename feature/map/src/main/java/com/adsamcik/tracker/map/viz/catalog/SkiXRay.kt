@@ -127,7 +127,7 @@ private fun SkiRunSegment.toSymbol(lat: Double, lon: Double): SymbolFeature = Sy
 )
 
 private fun Bounds.contains(lat: Double, lon: Double): Boolean =
-	lat in south..north && lon in west..east
+	lat in south..north && containsLongitude(lon)
 
 private val SKI_SYMBOL_STYLES = mapOf(
 	SKI_ICON_DOWNHILL to SymbolStyle(

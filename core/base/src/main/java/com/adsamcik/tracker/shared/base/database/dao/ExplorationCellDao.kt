@@ -71,6 +71,25 @@ interface ExplorationCellDao {
 		limit: Int,
 	): List<ExplorationCellEntity>
 
+	@Query(
+		"""
+		SELECT * FROM exploration_cell
+		WHERE level = :level
+			AND center_lat_e7 BETWEEN :minLatE7 AND :maxLatE7
+			AND (center_lon_e7 >= :westLonE7 OR center_lon_e7 <= :eastLonE7)
+		ORDER BY cell_token
+		LIMIT :limit
+		"""
+	)
+	suspend fun getCellsInWrappedBounds(
+		level: Int,
+		minLatE7: Int,
+		maxLatE7: Int,
+		westLonE7: Int,
+		eastLonE7: Int,
+		limit: Int,
+	): List<ExplorationCellEntity>
+
 	/**
 	 * Returns all distinct season_bitmask values across cells at the given level.
 	 * Caller should bitwise-OR these together to determine which seasons have been explored
