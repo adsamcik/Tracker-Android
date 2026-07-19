@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.location.Location
+import com.adsamcik.tracker.testing.fake.FakeUiLocationProvider
 // Removed ApplicationProvider to avoid Robolectric manifest parsing
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -35,7 +36,7 @@ class LocationAndSensorsManagerTest {
     @BeforeEach
     fun setup() {
         context = mockk(relaxed = true)
-        manager = LocationAndSensorsManager(context)
+        manager = LocationAndSensorsManager(context, FakeUiLocationProvider())
     }
 
     @Test
@@ -52,7 +53,7 @@ class LocationAndSensorsManagerTest {
 
         // Stub getSystemService to return our mocked SensorManager
         every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
-        val managerWithoutSensor = LocationAndSensorsManager(context)
+        val managerWithoutSensor = LocationAndSensorsManager(context, FakeUiLocationProvider())
         
         // Should emit a default bearing and complete
         val result = withTimeoutOrNull(1000) {

@@ -27,6 +27,7 @@ dependencies {
     // Project dependencies for domain models
     implementation(project(":core:base"))
     implementation(project(":core:model"))
+    implementation(project(":core:common"))
     implementation(project(":data:preferences"))
     implementation(project(":tracker:api"))
     implementation(project(":sensor:activity-api"))
