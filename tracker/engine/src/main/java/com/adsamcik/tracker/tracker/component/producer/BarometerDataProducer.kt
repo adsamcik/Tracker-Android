@@ -30,6 +30,7 @@ internal class BarometerDataProducer(
 	private val lockObject = Object()
 	private var pressureSum = 0.0
 	private var sampleCount = 0
+	private var sensorManager: SensorManager? = null
 
 	override val preferenceKey: String
 		get() = PreferenceKeys.BAROMETER_ENABLED
@@ -49,25 +50,33 @@ internal class BarometerDataProducer(
 	}
 
 	override suspend fun onDisable(context: Context) {
-		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
-		sensorManager.unregisterListener(this)
-		synchronized(lockObject) {
-			pressureSum = 0.0
-			sampleCount = 0
+		try {
+			sensorManager?.unregisterListener(this)
+			sensorManager = null
+		} finally {
+			synchronized(lockObject) {
+				pressureSum = 0.0
+				sampleCount = 0
+			}
 		}
 		super.onDisable(context)
 	}
 
 	override suspend fun onEnable(context: Context) {
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
-		val pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
-		if (pressureSensor != null) {
+		val pressureSensor = checkNotNull(sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)) {
+			"Pressure sensor is unavailable"
+		}
+		check(
 			sensorManager.registerListener(
 				this,
 				pressureSensor,
 				SensorManager.SENSOR_DELAY_NORMAL,
-			)
+			),
+		) {
+			"Unable to register the pressure sensor listener"
 		}
+		this.sensorManager = sensorManager
 		super.onEnable(context)
 	}
 

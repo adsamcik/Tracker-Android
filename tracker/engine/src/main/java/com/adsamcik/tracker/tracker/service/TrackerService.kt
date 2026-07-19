@@ -13,7 +13,11 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -350,6 +354,21 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
 					// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
 					val trackingParams = trackingParamsRepository.data.first()
+					if (!trackingParams.hasAnyCaptureSource(
+						locationAvailable = hasLocationPermission,
+						activityAvailable = hasActivityPermission,
+						stepsAvailable = hasActivityPermission && hasStepCounterSensor,
+						wifiAvailable = hasWifiScanPermission,
+						cellAvailable = hasCellScanPermission,
+						barometerAvailable = hasPressureSensor,
+					)) {
+						Reporter.w(
+							"TrackerService",
+							"Stopping start request because no configured capture source is available",
+						)
+						requestGracefulStop(startId)
+						return@runAfter
+					}
 					val locationEnabled = trackingParams.locationEnabled
 					val requestedInitialTier = resolveInitialPolicyTier(
 						isUserInitiated = isUserInitiated,

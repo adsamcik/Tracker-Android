@@ -82,10 +82,24 @@ class SetupUiStateTest {
         }
 
         @Test
-        fun `activity permission not needed when both disabled`() {
-            val state = SetupUiState(autoTrackingMode = AUTO_TRACKING_MODE_DISABLED, activityEnabled = false)
-            assertFalse(state.needsActivityPermission)
-        }
+		fun `activity permission not needed when both disabled`() {
+			val state = SetupUiState(
+				autoTrackingMode = AUTO_TRACKING_MODE_DISABLED,
+				activityEnabled = false,
+				stepsEnabled = false,
+			)
+			assertFalse(state.needsActivityPermission)
+		}
+
+		@Test
+		fun `activity permission needed when step tracking enabled`() {
+			val state = SetupUiState(
+				autoTrackingMode = AUTO_TRACKING_MODE_DISABLED,
+				activityEnabled = false,
+				stepsEnabled = true,
+			)
+			assertTrue(state.needsActivityPermission)
+		}
 
         @Test
         fun `background location needed when in-motion auto-tracking enabled and location on`() {

@@ -239,7 +239,7 @@ fun WhatToCollectStep(
             testTag = "setup_perm_activity_denied",
         )
 
-        Reveal(visible = state.activityEnabled && state.needsActivityPermission) {
+        Reveal(visible = state.needsActivityPermission) {
             Column(modifier = Modifier.padding(top = RidgelineSpacing.Sm)) {
                 if (!state.activityPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     PermissionExplanation(
@@ -267,9 +267,16 @@ fun WhatToCollectStep(
         DataSourceCard(
             icon = Icons.AutoMirrored.Filled.DirectionsWalk,
             title = stringResource(R.string.setup_source_steps),
-            description = stringResource(R.string.setup_source_steps_desc),
+            description = stringResource(
+                if (state.stepCounterAvailable) {
+                    R.string.setup_source_steps_desc
+                } else {
+                    R.string.settings_steps_unavailable
+                },
+            ),
             enabled = state.stepsEnabled,
             onToggle = onStepsEnabledChange,
+            available = state.stepCounterAvailable,
         )
 
         Spacer(modifier = Modifier.height(RidgelineSpacing.Md))
@@ -513,6 +520,7 @@ private fun DataSourceCard(
     description: String,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
+    available: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = LocalReducedMotion.current
@@ -548,6 +556,7 @@ private fun DataSourceCard(
             .clip(MaterialTheme.shapes.large)
             .toggleable(
                 value = enabled,
+                enabled = available,
                 role = androidx.compose.ui.semantics.Role.Switch,
                 onValueChange = onToggle,
             )
@@ -589,6 +598,7 @@ private fun DataSourceCard(
             Switch(
                 checked = enabled,
                 onCheckedChange = null,
+                enabled = available,
                 thumbContent = if (enabled) {
                     {
                         Icon(

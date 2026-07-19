@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.tracker.component.producer
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorManager
-import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -61,6 +61,34 @@ class StepDataProducerTest {
 
 	private fun createBuilder(): TrackingCycleBuilder {
 		return TrackingCycleBuilder(System.currentTimeMillis(), System.nanoTime())
+	}
+
+	private fun createStepSensorContext(
+		hasFeature: Boolean = true,
+		sensor: Sensor? = mockk(relaxed = true),
+		registrationSucceeds: Boolean = true,
+	): Context {
+		val context = mockk<Context>()
+		val packageManager = mockk<PackageManager>()
+		val sensorManager = mockk<SensorManager>(relaxed = true)
+		every { context.packageManager } returns packageManager
+		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
+		every {
+			packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+		} returns hasFeature
+		every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
+		if (sensor != null) {
+			every { sensor.fifoMaxEventCount } returns 0
+			every {
+				sensorManager.registerListener(
+					producer,
+					sensor,
+					SensorManager.SENSOR_DELAY_NORMAL,
+					0,
+				)
+			} returns registrationSucceeds
+		}
+		return context
 	}
 
 	private fun getLastStepCount(): Int {
@@ -201,7 +229,7 @@ class StepDataProducerTest {
 
 	@Test
 	fun `disable and re-enable drops steps from the disabled interval`() = runTest {
-		val context = ApplicationProvider.getApplicationContext<Context>()
+		val context = createStepSensorContext()
 		producer.canBeEnabled = true
 		producer.onEnable(context)
 		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 100f))
@@ -222,6 +250,28 @@ class StepDataProducerTest {
 		enabledIntervalBuilder.stepDelta shouldBe 5
 		enabledIntervalBuilder.stepSensorValueStart shouldBe 120
 		enabledIntervalBuilder.stepSensorValueEnd shouldBe 125
+	}
+
+	@Test
+	fun `enable fails when the step counter is unavailable`() = runTest {
+		producer.canBeEnabled = true
+
+		shouldThrow<IllegalStateException> {
+			producer.onEnable(createStepSensorContext(sensor = null))
+		}
+
+		producer.isEnabled shouldBe false
+	}
+
+	@Test
+	fun `enable fails when the listener cannot be registered`() = runTest {
+		producer.canBeEnabled = true
+
+		shouldThrow<IllegalStateException> {
+			producer.onEnable(createStepSensorContext(registrationSucceeds = false))
+		}
+
+		producer.isEnabled shouldBe false
 	}
 
 	@Test

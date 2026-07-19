@@ -7,6 +7,7 @@ import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -65,6 +66,7 @@ class SetupViewModelCompletionRobolectricTest {
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
 		every { appContext.hasSelfPermission(any()) } returns true
 		every { appContext.hasPressureSensor } returns true
+		every { appContext.hasStepCounterSensor } returns true
 		every { trackingParamsRepository.data } returns paramsFlow
 		coEvery { trackingParamsRepository.update(any()) } answers {
 			@Suppress("UNCHECKED_CAST")

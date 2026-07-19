@@ -19,6 +19,7 @@ data class SetupUiState(
     val locationPrecision: LocationPrecisionMode = LocationPrecisionMode.PRECISE,
     val activityEnabled: Boolean = true,
     val stepsEnabled: Boolean = true,
+    val stepCounterAvailable: Boolean = true,
     val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
 
@@ -47,7 +48,7 @@ data class SetupUiState(
 
     /** True when auto-tracking requires activity recognition permission. */
     val needsActivityPermission: Boolean
-        get() = autoTrackingMode > 0 || activityEnabled
+        get() = autoTrackingMode > 0 || activityEnabled || stepsEnabled
 
     /** True when location tracking is enabled and needs foreground permission. */
     val needsLocationPermission: Boolean

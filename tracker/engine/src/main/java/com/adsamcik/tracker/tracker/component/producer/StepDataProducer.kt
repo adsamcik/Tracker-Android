@@ -63,39 +63,45 @@ internal class StepDataProducer(
 	}
 
 	override suspend fun onDisable(context: Context) {
-		sensorManager?.unregisterListener(this)
-		sensorManager = null
-		batchingEnabled = false
-		synchronized(lockObject) {
-			flushCompletion?.cancel()
-			flushCompletion = null
-			lastStepCount = -1
-			stepCountSinceLastCollection = 0
-			stepValueAtCollectionStart = -1
-			sensorResetDetected = false
+		try {
+			sensorManager?.unregisterListener(this)
+			sensorManager = null
+		} finally {
+			batchingEnabled = false
+			synchronized(lockObject) {
+				flushCompletion?.cancel()
+				flushCompletion = null
+				lastStepCount = -1
+				stepCountSinceLastCollection = 0
+				stepValueAtCollectionStart = -1
+				sensorResetDetected = false
+			}
 		}
 		super.onDisable(context)
 	}
 
 	override suspend fun onEnable(context: Context) {
 		val packageManager = context.packageManager
-		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
-			val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
-			val stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-			if (stepCounter != null) {
-				val maxReportLatencyUs = SensorBatching.stepCounterMaxReportLatencyUs(stepCounter)
-				val registered = sensorManager.registerListener(
-					this,
-					stepCounter,
-					SensorManager.SENSOR_DELAY_NORMAL,
-					maxReportLatencyUs,
-				)
-				if (registered) {
-					this.sensorManager = sensorManager
-					batchingEnabled = maxReportLatencyUs > 0
-				}
-			}
+		check(packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
+			"Step counter sensor is unavailable"
 		}
+		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
+		val stepCounter = checkNotNull(sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)) {
+			"Step counter sensor is unavailable"
+		}
+		val maxReportLatencyUs = SensorBatching.stepCounterMaxReportLatencyUs(stepCounter)
+		check(
+			sensorManager.registerListener(
+				this,
+				stepCounter,
+				SensorManager.SENSOR_DELAY_NORMAL,
+				maxReportLatencyUs,
+			),
+		) {
+			"Unable to register the step counter listener"
+		}
+		this.sensorManager = sensorManager
+		batchingEnabled = maxReportLatencyUs > 0
 		super.onEnable(context)
 	}
 

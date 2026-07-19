@@ -1,13 +1,17 @@
 package com.adsamcik.tracker.tracker.component.producer
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.floats.shouldBeNaN
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -112,8 +116,8 @@ class BarometerDataProducerTest {
 
 	@Test
 	fun `disable and re-enable drops pressure from the disabled interval`() = runTest {
-		val context = ApplicationProvider.getApplicationContext<Context>()
 		val producer = createProducer()
+		val context = createPressureSensorContext(producer)
 		producer.canBeEnabled = true
 		producer.onEnable(context)
 		producer.recordPressure(1013.25f)
@@ -132,8 +136,55 @@ class BarometerDataProducerTest {
 		enabledIntervalBuilder.pressure.shouldNotBeNull().pressureHpa shouldBe 898.7646f
 	}
 
+	@Test
+	fun `enable fails when the pressure sensor is unavailable`() = runTest {
+		val producer = createProducer()
+		producer.canBeEnabled = true
+
+		shouldThrow<IllegalStateException> {
+			producer.onEnable(createPressureSensorContext(producer, sensor = null))
+		}
+
+		producer.isEnabled shouldBe false
+	}
+
+	@Test
+	fun `enable fails when the pressure listener cannot be registered`() = runTest {
+		val producer = createProducer()
+		producer.canBeEnabled = true
+
+		shouldThrow<IllegalStateException> {
+			producer.onEnable(
+				createPressureSensorContext(producer, registrationSucceeds = false),
+			)
+		}
+
+		producer.isEnabled shouldBe false
+	}
+
 	private fun createProducer(): BarometerDataProducer =
 		BarometerDataProducer(mockk<TrackerDataProducerObserver>(relaxed = true))
+
+	private fun createPressureSensorContext(
+		producer: BarometerDataProducer,
+		sensor: Sensor? = mockk(relaxed = true),
+		registrationSucceeds: Boolean = true,
+	): Context {
+		val context = mockk<Context>()
+		val sensorManager = mockk<SensorManager>(relaxed = true)
+		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
+		every { sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) } returns sensor
+		if (sensor != null) {
+			every {
+				sensorManager.registerListener(
+					producer,
+					sensor,
+					SensorManager.SENSOR_DELAY_NORMAL,
+				)
+			} returns registrationSucceeds
+		}
+		return context
+	}
 
 	private fun createBuilder(): TrackingCycleBuilder =
 		TrackingCycleBuilder(System.currentTimeMillis(), System.nanoTime())

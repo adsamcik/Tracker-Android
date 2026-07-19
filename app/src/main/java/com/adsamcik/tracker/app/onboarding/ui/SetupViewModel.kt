@@ -10,8 +10,10 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
@@ -49,7 +51,11 @@ class SetupViewModel @Inject constructor(
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SetupUiState())
+    private val _state = MutableStateFlow(
+        SetupUiState(
+            stepCounterAvailable = appContext.hasStepCounterSensor,
+        ),
+    )
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
 
     // region Step navigation
@@ -99,7 +105,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun setStepsEnabled(enabled: Boolean) {
-        _state.update { it.copy(stepsEnabled = enabled) }
+        _state.update { it.copy(stepsEnabled = enabled && it.stepCounterAvailable) }
     }
 
     fun setWifiEnabled(enabled: Boolean) {
@@ -143,6 +149,7 @@ class SetupViewModel @Inject constructor(
                 it.copy(
                     activityPermissionGranted = false,
                     activityEnabled = false,
+                    stepsEnabled = false,
                     activityPermissionDenied = true,
                 )
             }
@@ -221,7 +228,8 @@ class SetupViewModel @Inject constructor(
         val preset = s.trackingPreset.settings
         val wifiAllowed = s.wifiEnabled && appContext.hasWifiScanPermission
         val cellAllowed = s.cellEnabled && appContext.hasCellScanPermission
-        val effectiveMode = if (s.activityPermissionGranted) s.autoTrackingMode else 0
+        val activityAllowed = s.activityPermissionGranted || appContext.hasActivityPermission
+        val effectiveMode = if (activityAllowed) s.autoTrackingMode else 0
 
         preferences.edit {
             // Location precision
@@ -240,8 +248,9 @@ class SetupViewModel @Inject constructor(
         trackingParamsRepository.update {
             copy(
                 locationEnabled = s.locationEnabled,
-                activityEnabled = s.activityEnabled,
-                stepsEnabled = s.stepsEnabled,
+                activityEnabled = s.activityEnabled && activityAllowed,
+                stepsEnabled = s.stepsEnabled &&
+                    s.stepCounterAvailable && activityAllowed,
                 wifiEnabled = wifiAllowed,
                 cellEnabled = cellAllowed,
                 barometerEnabled = preset.barometerEnabled && appContext.hasPressureSensor,

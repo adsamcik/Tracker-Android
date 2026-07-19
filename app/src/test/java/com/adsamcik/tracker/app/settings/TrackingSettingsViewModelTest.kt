@@ -4,6 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -45,6 +46,7 @@ class TrackingSettingsViewModelTest {
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
         every { context.hasSelfPermission(any()) } returns true
         every { context.hasPressureSensor } returns true
+        every { context.hasStepCounterSensor } returns true
 
         every { trackingParamsRepository.data } returns paramsFlow
 
@@ -71,6 +73,12 @@ class TrackingSettingsViewModelTest {
         }
         coEvery { trackingParamsRepository.setBarometerEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(barometerEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setSkiDetectionEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(skiDetectionEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setPlaneDetectionEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(planeDetectionEnabled = firstArg())
         }
         coEvery { trackingParamsRepository.setTransitionDetectionEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(transitionDetectionEnabled = firstArg())
