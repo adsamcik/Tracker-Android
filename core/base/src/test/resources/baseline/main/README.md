@@ -1,7 +1,8 @@
 # Main-branch baseline databases
 
 This folder ships **immutable binary fixtures** representing each Room database
-in the state it was released on the `main` branch. They are consumed by
+in the state it was released on the `main` branch. The module names in the table
+are historical provenance from that branch; the fixtures are consumed by
 [`MainBaselineMigrationTest`](../../../java/com/adsamcik/tracker/shared/base/database/MainBaselineMigrationTest.kt)
 to prove that the migrations on `dev/v10` correctly carry production data
 forward.
@@ -30,7 +31,7 @@ git worktree add .worktrees/main-baseline main
 cd .worktrees/main-baseline/baseline-export
 python build_baselines.py
 # baselines are written next to the script
-cp *.db <repo>/sbase/src/test/resources/baseline/main/
+cp *.db <repo>/core/base/src/test/resources/baseline/main/
 ```
 
 The seeder lives at `.worktrees/main-baseline/baseline-export/build_baselines.py`

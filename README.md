@@ -6,7 +6,7 @@
 
 # Tracker Android (Advention)
 
-Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
+Tracker is a free, open-source, offline location and activity tracker. All tracked data stays on the device; there is no cloud sync or telemetry.
 
 ## Features
 
@@ -18,12 +18,12 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 - Fully customizable color of the interface with options for static color, day night switching or smooth morning-day-evening-night transition. Colors for all are fully customizable.
 - Add your own custom activities for sessions or edit detected activities for a given session
 - Games: Challenges (currently there are only 3 challenges available but more are planned)
-- Dynamic modules: Statistics, Game, Map
+- Features are split into modular Statistics, Game, Map, Dashboard, Activity, and Import/Export components
 - Export data to GPX, KML, JSON and Sqlite
 - Import data from GPX and batch import from zip
 - Supported languages: English, Czech
 - Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
-- Does not upload your tracked data anywhere (well except for automatic Android backup which sometimes works)
+- Does not upload your tracked data anywhere. Android system backup is controlled by the operating system and can be disabled separately.
 
 ## Development
 
@@ -31,7 +31,7 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 
 - Android Studio (latest stable)
 - JDK 17
-- Android SDK 36
+- Android SDK 37 (compile and target)
 
 ### Build & Test
 
@@ -43,8 +43,8 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 ./gradlew.bat testDebugUnitTest
 
 # Run specific module tests
-./gradlew.bat :tracker:testDebugUnitTest
-./gradlew.bat :map:testDebugUnitTest
+./gradlew.bat :tracker:engine:testDebugUnitTest
+./gradlew.bat :feature:map:testDebugUnitTest
 
 # Run connected tests (requires device/emulator)
 ./gradlew.bat :app:connectedDebugAndroidTest
@@ -52,12 +52,12 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 
 ### Tech Stack
 
-- Kotlin 2.2.x with Coroutines & Flow
+- Kotlin 2.4.0 with Coroutines & Flow
 - Jetpack Compose (Material 3)
 - Room database
-- Hilt + AppGraph for DI
+- Hilt + KSP and AppGraph for DI
 
-For AI assistants, see [CLAUDE.md](CLAUDE.md). For architecture details, see [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md).
+For architecture details, see [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md). The module migration record is in [docs/MODULE_REARCHITECTURE_STATUS.md](docs/MODULE_REARCHITECTURE_STATUS.md).
 
 ## Contributions
 
