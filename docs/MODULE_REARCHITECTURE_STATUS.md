@@ -1,14 +1,13 @@
 # Module Rearchitecture — Status & Roadmap
 
-> Branch: `feature/module-rearchitecture-v10`
-> Last updated: 2026-06-11
+> Branch: `dev/v10`
+> Last updated: 2026-07-19
 
-This document records the module rearchitecture delivered on `feature/module-rearchitecture-v10`.
-All seven planned phases are implemented and verified green (`:app:assembleDebug` + the
-`:core:common` fitness test). Only an optional DX follow-up (`build-logic` convention plugins)
-remains.
+This document records the module rearchitecture currently present on `dev/v10`.
+The Gradle project contains 31 application modules (including API contract modules); the
+`build-logic` included build is separate from that count.
 
-## Module layout (final — 28 modules)
+## Module layout
 
 ```
 :app                         root NavHost, AppGraph DI, settings, onboarding
@@ -16,14 +15,14 @@ remains.
 :core:model                  pure Room-free domain models (Location, Trip, LocationSample, SkiRunSegment, …)
 :core:common                 foundation leaf: concurrency, time, constant, exception, di, graph, io, logging, notification, service
 :core:ui                     shared Compose UI + AppTheme (was sutils)
-:core:logging /:core:logging-api  logging impl / contracts (were logger / logging-api)
+:core:logging / :core:logging-api  logging impl / contracts (were logger / logging-api)
 :core:network                network helpers (was network)
 :core:testing                test fakes + utilities (was testing-common)
 :data:preferences            preferences / settings / retention (was spreferences)
 :stats:api                   stats contracts — depends on :core:model, NOT the DB (was stats-api)
 :stats:engine /:stats:data   algorithms / data layer (were stats-engine / stats-data)
 :domain:points /:domain:osm  points calc / OSM lookup (were points / osm)
-:tracker:api                 tracking contracts (TrackerServiceController, LockManager, BackgroundTrackingApi, …)
+:tracker:api                 tracking contracts (TrackerServiceController, LockManager, BackgroundTrackingApi, …; directory `tracker/api-module`)
 :tracker:engine              tracking impl (service, pipeline, producers/consumers — no UI)
 :feature:tracker             tracking Compose UI (TrackerRoute)
 :sensor:activity-api         activity-recognition contracts (ActivityRequestManager interface, request/transition types)
@@ -34,11 +33,13 @@ remains.
 :feature:dashboard (+ :api)  dashboard / live stats / widgets + route contracts (was dashboard)
 :feature:game (+ :api)       challenges / goals / gamification + route contracts (was game)
 :feature:import-export       GPX/KML/JSON/SQLite import-export (was impexp)
+:domain:geocoder             offline place/geocoder support
 ```
 
-## Phases — all delivered & verified green
+## Delivered migration phases
 
-Each phase was verified with a full `:app:assembleDebug` and committed only when green.
+The phases below describe the completed structural migration. Current build and test commands
+are maintained in the root `README.md` and `.github/context/DEVELOPMENT.md`.
 
 - **Phase 0 — cleanup.** Deleted the orphan `:smap` placeholder module.
 - **Phase 3 — regroup & rename.** Renamed all unclear/flat modules into clear layer-grouped Gradle
@@ -79,8 +80,6 @@ public contract or Room construction, out of scope for a behind-the-mappers pass
 - `DefaultTrackerServiceController` still exposes `base.data.Location` because `:tracker:api` owns that
   public signature (migrating it changes the api surface).
 - `SegmentSource` at `SessionSegment` Room-construction boundaries.
-
-## Guardrails
 
 ## Guardrails
 - `CoreCommonBoundaryTest` (`:core:common`) fails if `:core:common` imports Room, the database

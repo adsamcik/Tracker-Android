@@ -14,13 +14,13 @@ Reference for building, testing, and debugging Tracker Android.
 |-------------|---------|-------|
 | Android Studio | Latest stable | Ladybug or newer |
 | JDK | 17 | Toolchain auto-provisioned via Foojay (`jvmToolchain(17)`) |
-| Kotlin | 2.2.20 | Via version catalog (K2 compiler) |
-| KSP | 2.2.20-2.0.2 | No KAPT for new code |
-| AGP | 9.1.0 | Android Gradle Plugin |
-| Compile SDK | 36 (API 36) | Target SDK also 36 |
+| Kotlin | 2.4.0 | Via version catalog (K2 compiler) |
+| KSP | 2.3.8 | No KAPT for new code |
+| AGP | 9.3.0-rc02 | Android Gradle Plugin |
+| Compile SDK | 37 (API 37) | Target SDK also 37 |
 | Min SDK | 26 | Android 8.0 Oreo |
 | Build Tools | 36.0.0 | Via version catalog |
-| Gradle | 9.3.1 | Wrapper included |
+| Gradle | 9.5.1 | Wrapper included |
 
 ## Setup
 
@@ -55,7 +55,7 @@ device and release builds so they keep the default (hardware) Vulkan renderer.
 | Task | Command |
 |------|---------|
 | All unit tests | `./gradlew.bat testDebugUnitTest` |
-| Module tests | `./gradlew.bat :tracker:testDebugUnitTest` |
+| Module tests | `./gradlew.bat :tracker:engine:testDebugUnitTest` |
 | Connected tests | `./gradlew.bat :app:connectedDebugAndroidTest` |
 | With output capture | `./gradlew.bat :module:testDebugUnitTest --no-daemon --console=plain 2>&1 \| Tee-Object -FilePath test-output.log` |
 
@@ -106,23 +106,24 @@ boundaries.
 ```
 Tracker-Android/
   app/              Main application module
-  tracker/          Core tracking engine
-  map/              Map visualization (MapLibre)
-  statistics/       Session analytics
-  dashboard/        Tracker dashboard, live stats, widgets
-  game/             Gamification (challenges, goals)
-  activity/         Activity recognition
-  impexp/           Import/export
-  sbase/            Shared database & entities
-  sutils/           Shared utilities & AppTheme
-  spreferences/     Typed preferences
-  logger/           Logging implementation
-  logging-api/      Logger-facing contracts (ReporterFacade, ErrorReporter)
-  points/           Points system
-  stats-api/        Stats API contracts
-  stats-engine/     Stats processing algorithms
-  stats-data/       Stats data layer
-  testing-common/   Test utilities & fakes
+  tracker/api-module/  Tracking API contracts
+  tracker/engine/      Core tracking engine
+  feature/map/         Map visualization (MapLibre)
+  feature/statistics/  Session analytics
+  feature/dashboard/   Tracker dashboard, live stats, widgets
+  feature/game/        Gamification (challenges, goals)
+  feature/activity/    Activity-type management
+  feature/import-export/ Import/export
+  core/base/           Shared database & entities
+  core/ui/             Shared utilities & AppTheme
+  data/preferences/    Typed preferences
+  core/logging/        Logging implementation
+  core/logging-api/    Logger-facing contracts
+  domain/points/       Points system
+  stats/api/            Stats API contracts
+  stats/engine/        Stats processing algorithms
+  stats/data/           Stats data layer
+  core/testing/        Test utilities & fakes
   gradle/libs.versions.toml  Version catalog
   detekt.yml        Code quality config
 ```
@@ -142,7 +143,7 @@ Tracker-Android/
 | Compose UI Test | Semantic UI testing | `libs.compose.ui.test.junit4` |
 | coroutines-test | `runTest`, dispatchers | `libs.kotlinx.coroutines.test` |
 
-**Fakes in `testing-common`:** FakeTrackerSettingsRepository, FakeLocationSource, FakeFileResolver
+**Fakes in `core/testing`:** FakeTrackerSettingsRepository, FakeLocationSource, FakeFileResolver
 
 ## Troubleshooting
 

@@ -129,8 +129,8 @@ object FormatRegistry {
 			descriptor = FormatDescriptor(
 				id = "db",
 				displayNameRes = R.string.format_database,
-				mimeType = "application/vnd.sqlite3",
-				extensions = setOf("db"),
+				mimeType = "application/zip",
+				extensions = setOf("zip", "db"),
 				supportsExport = true,
 				supportsImport = true,
 				supportsDateRange = false,

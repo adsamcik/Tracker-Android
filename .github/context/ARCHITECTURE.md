@@ -16,22 +16,22 @@ APPLICATION LAYER: app
   AppGraph.kt | MainActivityCompose | MainRoot | Routes.kt
 
 FEATURE MODULES:
-  tracker       - TrackerService, Components, Producers, PolicyManager
-  map           - MapLibre Compose, Heatmap Layers, UDF MapStore
-  statistics    - Sessions/Trips, Summary/Detail, ViewModels
-  dashboard     - Tracker dashboard, live stats, milestones, widgets
-  activity      - Recognition, Receivers (OnFoot/Vehicle)
-  game          - Challenges, Goals (Steps), ChallengeDB
-  impexp        - GPX/KML/JSON/SQLite, Streaming Exporter interface
+  feature/tracker       - Tracking Compose UI
+  feature/map           - MapLibre Compose, heatmap layers
+  feature/statistics    - Sessions/Trips, summary/detail, ViewModels
+  feature/dashboard     - Tracker dashboard, live stats, milestones, widgets
+  feature/activity      - Activity-type management UI
+  feature/game          - Challenges, goals, and gamification
+  feature/import-export - GPX/KML/JSON/SQLite import/export
 
 SHARED LIBRARIES:
-  sbase (Room DB v26) | sutils (AppTheme) | spreferences
+  core/base (Room DB v34) | core/ui (AppTheme) | data/preferences
 
 DOMAIN/ANALYTICS:
-  stats-api (contracts) | stats-engine (algorithms) | stats-data
+  stats/api (contracts) | stats/engine (algorithms) | stats/data
 
 SUPPORTING:
-  logger | logging-api | points | testing-common
+  core/logging | core/logging-api | domain/points | core/testing
 ```
 
 ## Module Details
@@ -101,22 +101,22 @@ TrackerService (Foreground Service + WakeLock)
 | Time Lock | AlarmManager auto-unlock | User-set duration |
 | Charge Lock | WorkManager `DisableTillRechargeWorker` | User action |
 
-### Map Module (MapLibre)
+### Map Feature Module (MapLibre)
 
 <!-- context-init:managed -->
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| MapStore | `map/.../presentation/MapStore.kt` | ViewModel, UDF state management |
-| MapLibreLayerEngine | `map/.../presentation/bridge/MapLibreLayerEngine.kt` | Rendering bridge |
-| LocationHeatmapLayer | `map/.../layers/impl/` | Location heatmap |
-| WifiHeatmapLayer | `map/.../layers/impl/` | WiFi density heatmap |
-| CellHeatmapLayer | `map/.../layers/impl/` | Cell tower heatmap |
-| SpeedHeatmapLayer | `map/.../layers/impl/` | Speed heatmap |
-| LocationPathLayer | `map/.../layers/impl/` | Route path rendering |
-| LayerRegistry | `map/.../layers/registry/` | Layer management |
+| MapStore | `feature/map/.../presentation/MapStore.kt` | ViewModel, UDF state management |
+| MapLibreLayerEngine | `feature/map/.../presentation/bridge/MapLibreLayerEngine.kt` | Rendering bridge |
+| LocationHeatmapLayer | `feature/map/.../layers/impl/` | Location heatmap |
+| WifiHeatmapLayer | `feature/map/.../layers/impl/` | WiFi density heatmap |
+| CellHeatmapLayer | `feature/map/.../layers/impl/` | Cell tower heatmap |
+| SpeedHeatmapLayer | `feature/map/.../layers/impl/` | Speed heatmap |
+| LocationPathLayer | `feature/map/.../layers/impl/` | Route path rendering |
+| LayerRegistry | `feature/map/.../layers/registry/` | Layer management |
 
-### Database (sbase)
+### Database (core/base)
 
 <!-- context-init:managed -->
 

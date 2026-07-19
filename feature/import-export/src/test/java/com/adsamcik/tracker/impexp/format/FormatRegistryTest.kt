@@ -131,6 +131,13 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `db descriptor exports a ZIP backup`() {
+			val db = FormatRegistry.allEntries().first { it.descriptor.id == "db" }
+			db.descriptor.mimeType shouldBe "application/zip"
+			db.descriptor.extensions shouldContainAll setOf("zip", "db")
+		}
+
+		@Test
 		fun `gpx descriptor supports date range`() {
 			val gpx = FormatRegistry.allEntries().first { it.descriptor.id == "gpx" }
 			gpx.descriptor.supportsDateRange shouldBe true
