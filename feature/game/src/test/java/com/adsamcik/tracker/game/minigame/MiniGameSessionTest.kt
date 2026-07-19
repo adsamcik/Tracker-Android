@@ -32,9 +32,9 @@ class MiniGameSessionTest {
 	}
 
 	@Test
-	fun `outrun xp is at least base`() {
+	fun `outrun awards no points before the race starts`() {
 		val session = OutrunSession()
-		assertTrue(session.calculatePoints() >= 30)
+		assertEquals(0, session.calculatePoints())
 	}
 
 	// --- Territory ---
@@ -68,9 +68,10 @@ class MiniGameSessionTest {
 	}
 
 	@Test
-	fun `territory xp is at least base`() {
+	fun `territory awards no points without meaningful exploration`() {
 		val session = TerritorySession()
-		assertTrue(session.calculatePoints() >= 20)
+		session.onLocationUpdate(51.0, 14.0, 1.5f, 10f, 1000L)
+		assertEquals(0, session.calculatePoints())
 	}
 
 	// --- Zen Walk ---
@@ -93,8 +94,8 @@ class MiniGameSessionTest {
 	}
 
 	@Test
-	fun `zen walk xp is at least base`() {
+	fun `zen walk awards no points without time in zone`() {
 		val session = ZenWalkSession()
-		assertTrue(session.calculatePoints() >= 15)
+		assertEquals(0, session.calculatePoints())
 	}
 }

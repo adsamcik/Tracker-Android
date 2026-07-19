@@ -25,13 +25,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -47,6 +48,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
+import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardCard
+import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardErrorCard
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
@@ -63,20 +67,47 @@ internal data class StepsSummaryUi(
 	val goalWeek: Int,
 )
 
+/**
+ * Ordered hub sections. Play always comes first; the rest form a
+ * progress report below it. See [gameHubSectionOrder].
+ */
+internal enum class GameHubSection {
+	ACTIVE_SESSION,
+	PLAY,
+	LEADERBOARD,
+	GOALS,
+	PROGRESS,
+	HISTORY,
+}
+
+/**
+ * Canonical hub ordering: play first, local "This Week" leaderboard second,
+ * compact goals third, progress (points/exploration/achievements) after, and
+ * the personal-best / history link last. An active session, when present,
+ * takes the very top slot.
+ */
+internal fun gameHubSectionOrder(hasActiveSession: Boolean): List<GameHubSection> = buildList {
+	if (hasActiveSession) add(GameHubSection.ACTIVE_SESSION)
+	add(GameHubSection.PLAY)
+	add(GameHubSection.LEADERBOARD)
+	add(GameHubSection.GOALS)
+	add(GameHubSection.PROGRESS)
+	add(GameHubSection.HISTORY)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun GameScreen(
-	pointsToday: Int? = null,
-	steps: StepsSummaryUi? = null,
-	miniGameEntries: List<MiniGameEntry>? = null,
+	hub: GameHubState?,
 	explorationState: ExplorationState? = null,
 	achievementState: AchievementSummaryState? = null,
 	modifier: Modifier = Modifier,
 	onViewAllAchievements: () -> Unit = {},
 	onOpenSettings: () -> Unit = {},
-	@Suppress("UNUSED_PARAMETER") onNavigateToTracker: () -> Unit = {},
 	onPlayMiniGame: (gameId: String) -> Unit = {},
 	onViewMiniGameScores: () -> Unit = {},
+	onSelectLeaderboardMetric: (LeaderboardMetric) -> Unit = {},
+	onRetryLeaderboard: () -> Unit = {},
 ) {
 	val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
 	val layoutDirection = LocalLayoutDirection.current
@@ -99,42 +130,131 @@ internal fun GameScreen(
 			modifier = Modifier
 				.fillMaxSize()
 				// Apply only top + horizontal slices of Scaffold's innerPadding. The
-				// bottom inset is already covered by MainRoot's NavHost-level reservation
-				// for BottomBar mode, and we add a SideRail-aware bottom contentPadding
-				// below — applying innerPadding.bottom here would double-count system inset.
+				// bottom inset is covered by MainRoot's NavHost-level reservation and
+				// the SideRail-aware bottom contentPadding below.
 				.padding(top = innerPadding.calculateTopPadding())
 				.padding(start = horizontalInsetStart, end = horizontalInsetEnd),
 			contentPadding = PaddingValues(top = RidgelineSpacing.Lg, bottom = bottomClearance),
 			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 		) {
-			item { if (pointsToday == null) LoadingGameCard() else PointsCard(pointsToday) }
-			item {
-				val context = LocalContext.current
-				val stepCounterSupported = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) }
-				if (steps == null) LoadingGameCard() else StepsCard(steps, stepCounterSupported)
+			if (hub == null) {
+				item { LoadingGameCard() }
+				return@LazyColumn
 			}
-			item { if (explorationState == null) LoadingGameCard() else ExplorationCard(state = explorationState) }
-			item { RidgelineSectionHeader(title = stringResource(R.string.game_achievement_progress_title)) }
-			item { if (achievementState == null) LoadingGameCard() else AchievementCard(state = achievementState, onViewAll = onViewAllAchievements) }
-			item { RidgelineSectionHeader(title = stringResource(R.string.minigame_section_title)) }
-			item {
-				if (miniGameEntries == null) {
-					LoadingGameCard()
-				} else {
-					MiniGamesGrid(
-						games = miniGameEntries.map { entry ->
-							MiniGameUi(entry.id, stringResource(entry.nameRes), stringResource(entry.descriptionRes), entry.unlockLevel, entry.isUnlocked, entry.isAvailable)
-						},
-						onPlayClick = onPlayMiniGame,
-					)
+			gameHubSectionOrder(hub.activeSession != null).forEach { section ->
+				when (section) {
+					GameHubSection.ACTIVE_SESSION -> hub.activeSession?.let { active ->
+						item(key = "active-session") { ActiveSessionCard(active) }
+					}
+					GameHubSection.PLAY -> {
+						item(key = "play-header") {
+							RidgelineSectionHeader(title = stringResource(R.string.game_play_section_title))
+						}
+						item(key = "play-section") {
+							MiniGamePlaySection(
+								games = hub.games,
+								onPlay = onPlayMiniGame,
+								modifier = Modifier.testTag("game_play_section"),
+							)
+						}
+					}
+					GameHubSection.LEADERBOARD -> {
+						item(key = "leaderboard-header") {
+							RidgelineSectionHeader(title = stringResource(R.string.leaderboard_current_week))
+						}
+						item(key = "leaderboard-card") {
+							LeaderboardSection(
+								state = hub.leaderboard,
+								onMetricSelected = onSelectLeaderboardMetric,
+								onRetry = onRetryLeaderboard,
+							)
+						}
+					}
+					GameHubSection.GOALS -> {
+						item(key = "goals-header") {
+							RidgelineSectionHeader(title = stringResource(R.string.game_steps_goals_title))
+						}
+						item(key = "goals-card") {
+							val context = LocalContext.current
+							val stepCounterSupported = remember {
+								context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+							}
+							if (hub.steps == null) {
+								LoadingGameCard()
+							} else {
+								StepsCard(hub.steps, stepCounterSupported)
+							}
+						}
+					}
+					GameHubSection.PROGRESS -> {
+						item(key = "progress-header") {
+							RidgelineSectionHeader(title = stringResource(R.string.game_progress_section_title))
+						}
+						item(key = "progress-points") { PointsCard(hub.pointsToday) }
+						item(key = "progress-exploration") {
+							if (explorationState == null) LoadingGameCard() else ExplorationCard(state = explorationState)
+						}
+						item(key = "progress-achievements") {
+							if (achievementState == null) {
+								LoadingGameCard()
+							} else {
+								AchievementCard(state = achievementState, onViewAll = onViewAllAchievements)
+							}
+						}
+					}
+					GameHubSection.HISTORY -> item(key = "history-link") {
+						MiniGameScoresLink(
+							onClick = onViewMiniGameScores,
+							modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth(),
+						)
+					}
 				}
 			}
-			item {
-				MiniGameScoresLink(
-					onClick = onViewMiniGameScores,
-					modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
-				)
-			}
+		}
+	}
+}
+
+@Composable
+private fun LeaderboardSection(
+	state: LeaderboardUiState,
+	onMetricSelected: (LeaderboardMetric) -> Unit,
+	onRetry: () -> Unit,
+) {
+	when (state) {
+		LeaderboardUiState.Loading -> LoadingGameCard()
+		is LeaderboardUiState.Ready -> WeeklyLeaderboardCard(
+			state = state.state,
+			onMetricSelected = onMetricSelected,
+			modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg),
+		)
+		LeaderboardUiState.Error -> WeeklyLeaderboardErrorCard(
+			onRetry = onRetry,
+			modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg),
+		)
+	}
+}
+
+@Composable
+private fun ActiveSessionCard(active: ActiveGameSessionUi) {
+	GlassCard(modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth()) {
+		Column {
+			Text(
+				text = stringResource(active.gameNameRes),
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.Bold,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(
+					if (active.isPaused) {
+						R.string.minigame_active_session_paused
+					} else {
+						R.string.minigame_active_session_running
+					},
+				),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
 		}
 	}
 }
@@ -144,17 +264,14 @@ private fun MiniGameScoresLink(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	androidx.compose.material3.TextButton(
-		onClick = onClick,
-		modifier = modifier,
-	) {
+	TextButton(onClick = onClick, modifier = modifier) {
 		Text(stringResource(R.string.minigame_view_past_scores))
 	}
 }
 
 @Composable
 private fun PointsCard(points: Int) {
-	GlassCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+	GlassCard(modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth()) {
 		Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 			Box(modifier = Modifier.size(56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
 				Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
@@ -169,7 +286,7 @@ private fun PointsCard(points: Int) {
 
 @Composable
 private fun StepsCard(steps: StepsSummaryUi, stepCounterSupported: Boolean) {
-	GlassCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+	GlassCard(modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth()) {
 		Column {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Icon(Icons.AutoMirrored.Outlined.DirectionsWalk, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
@@ -190,10 +307,10 @@ private fun StepsCard(steps: StepsSummaryUi, stepCounterSupported: Boolean) {
 
 @Composable
 private fun LoadingGameCard() {
-	GlassCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+	GlassCard(modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth()) {
 		Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
 			Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-				CircularProgressIndicator(modifier = Modifier.size(32.dp), color = MaterialTheme.colorScheme.primary)
+				androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(32.dp), color = MaterialTheme.colorScheme.primary)
 				Text(stringResource(R.string.game_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 			}
 		}

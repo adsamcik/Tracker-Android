@@ -2,7 +2,15 @@ package com.adsamcik.tracker.game.minigame.zenwalk
 
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.minigame.MiniGame
+import com.adsamcik.tracker.game.minigame.MiniGameAccentRole
+import com.adsamcik.tracker.game.minigame.MiniGameConfiguration
+import com.adsamcik.tracker.game.minigame.MiniGameConfigurations
+import com.adsamcik.tracker.game.minigame.MiniGameIcon
+import com.adsamcik.tracker.game.minigame.MiniGamePresentation
+import com.adsamcik.tracker.game.minigame.MiniGameScoreUnit
 import com.adsamcik.tracker.game.minigame.MiniGameSession
+import com.adsamcik.tracker.game.minigame.MiniGameShapeRole
+import com.adsamcik.tracker.game.minigame.ZenWalkConfiguration
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
 import javax.inject.Inject
@@ -19,8 +27,23 @@ internal class ZenWalkGame @Inject constructor() : MiniGame {
 	override val nameRes: Int = R.string.minigame_zenwalk_name
 	override val descriptionRes: Int = R.string.minigame_zenwalk_description
 	override val unlockLevel: Int = 9
+	override val defaultConfiguration: ZenWalkConfiguration = MiniGameConfigurations.DEFAULT_ZEN_WALK
+	override val supportedConfigurations: List<ZenWalkConfiguration> = MiniGameConfigurations.ZEN_WALK
+	override val scoreUnit: MiniGameScoreUnit = MiniGameScoreUnit.DURATION_SECONDS
+	override val presentation: MiniGamePresentation = MiniGamePresentation(
+		icon = MiniGameIcon.PACE,
+		accentRole = MiniGameAccentRole.SECONDARY,
+		shapeRole = MiniGameShapeRole.WAYPOINT,
+	)
 
-	override fun createSession(): MiniGameSession = ZenWalkSession()
+	override fun createSession(): MiniGameSession = ZenWalkSession(defaultConfiguration)
+
+	override fun createSession(configuration: MiniGameConfiguration): MiniGameSession {
+		require(configuration is ZenWalkConfiguration && configuration in supportedConfigurations) {
+			"Unsupported configuration for mini-game '$id'"
+		}
+		return ZenWalkSession(configuration)
+	}
 
 	override fun desiredLocationRequest(): LocationRequest =
 		LocationRequest.Builder(INTERVAL_MS)

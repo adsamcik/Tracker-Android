@@ -4,10 +4,13 @@ import android.content.Context
 import androidx.annotation.AnyThread
 import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.goals.data.GoalListenable
-import com.adsamcik.tracker.game.goals.data.PreferencesGoalPersistence
+import com.adsamcik.tracker.game.goals.data.GoalsSettingsGoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
 import com.adsamcik.tracker.game.goals.data.implementation.DailyStepGoal
 import com.adsamcik.tracker.game.goals.data.implementation.WeeklyStepGoal
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsDefaults
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
@@ -17,49 +20,42 @@ import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.time.temporal.ChronoField
-import java.time.temporal.WeekFields
-import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
-
-/**
- * Tracks goals and exposes reactive Flow-based state.
- */
 internal object GoalTracker : CoroutineScope {
 	private val dispatchers = DefaultDispatchersProvider
-	// Reactive step and goal state (daily and weekly)
-	val stepsDay: StateFlow<Int> get() = goalList[0].value
-	val goalDay: StateFlow<Int> get() = goalList[0].target
-	val stepsWeek: StateFlow<Int> get() = goalList[1].value
-	val goalWeek: StateFlow<Int> get() = goalList[1].target
-
 	private val goalList: MutableList<GoalListenable> = mutableListOf()
 
+	val stepsDay: StateFlow<Int> get() = goalList[DAILY_INDEX].value
+	val goalDay: StateFlow<Int> get() = goalList[DAILY_INDEX].target
+	val stepsWeek: StateFlow<Int> get() = goalList[WEEKLY_INDEX].value
+	val goalWeek: StateFlow<Int> get() = goalList[WEEKLY_INDEX].target
+
 	private var mAppContext: Context? = null
-	@Volatile
-	private var initialized = false
+	private val initialized = AtomicBoolean(false)
 	private var progressionRepository: PlayerProgressionRepository? = null
 	private var achievementScheduler: AchievementEvaluationScheduler? = null
+	private var latestSettings: GoalsSettingsState? = null
+	@Volatile
+	private var notificationsEnabled = GoalsSettingsDefaults.NOTIFICATIONS_ENABLED
 
 	private var mLastSessionId: Long = -1
-
 	private val job = SupervisorJob()
 	private val mutex = Mutex()
 
@@ -69,8 +65,8 @@ internal object GoalTracker : CoroutineScope {
 	private fun requireContext() = requireNotNull(mAppContext)
 
 	/**
-	 * Initializes goal tracker.
-	 * @param sessionChannel shared channel for per-cycle session updates (replaces broadcast registration)
+	 * Integration entry point for callers that already own the repository instance.
+	 * The first successful initializer owns the process-wide collectors.
 	 */
 	@AnyThread
 	fun initialize(
@@ -78,146 +74,167 @@ internal object GoalTracker : CoroutineScope {
 		sessionChannel: TrackerSessionChannel,
 		progressionRepository: PlayerProgressionRepository,
 		achievementScheduler: AchievementEvaluationScheduler,
+		settingsRepository: GoalsSettingsRepository,
 	) {
-		if (initialized) return
-		var startObserver = false
+		if (!initialized.compareAndSet(false, true)) return
 
 		synchronized(this) {
-			if (initialized) return@synchronized
-
 			mAppContext = context.applicationContext
 			this.progressionRepository = progressionRepository
 			this.achievementScheduler = achievementScheduler
-
-			val persistence = PreferencesGoalPersistence(context)
-			listOf(
-					DailyStepGoal(persistence),
-					WeeklyStepGoal(persistence)
+			val persistence = GoalsSettingsGoalPersistence(settingsRepository)
+			goalList += GoalListenable(
+				DailyStepGoal(
+					persistence = persistence,
+					initialTarget = GoalsSettingsDefaults.DAILY_STEP_GOAL,
+				),
 			)
-					.map { GoalListenable(it) }
-					.forEach {
-						goalList.add(it)
-					}
-			initialized = true
-			startObserver = true
+			goalList += GoalListenable(
+				WeeklyStepGoal(
+					persistence = persistence,
+					initialTarget = GoalsSettingsDefaults.WEEKLY_STEP_GOAL,
+					initialDailyLimit = GoalsSettingsDefaults.WEEKLY_DAILY_LIMIT,
+				),
+			)
 		}
-		if (!startObserver) return
 
-		launch(dispatchers.default) {
-			goalList.forEach {
-				it.onEnable(context)
-			}
+		launch {
+			goalList.forEach { it.onEnable(requireContext()) }
+			applySettings(settingsRepository.data.first())
 
-			// Observe per-cycle session updates via shared channel
+			settingsRepository.data
+				.distinctUntilChanged()
+				.onEach { settings ->
+					if (settings != latestSettings) applySettings(settings)
+				}
+				.launchIn(this)
+
 			sessionChannel.sessions
-				.onEach { session -> update(session) }
+				.onEach(::update)
 				.launchIn(this)
 
 			Logger.log(
 				LogData(
-					message = "Goal session listener registered via TrackerSessionChannel",
+					message = "Goal settings and session listeners registered",
 					source = GOALS_LOG_SOURCE,
 				),
 			)
 		}
 	}
 
-	private suspend fun onGoalReached(goal: Goal) {
-		Logger.log(
-				LogData(
-						message = "Reached goal of $goal steps at ${Time.now}",
-						source = GOALS_LOG_SOURCE
+	private suspend fun applySettings(settings: GoalsSettingsState) {
+		notificationsEnabled = settings.notificationsEnabled
+		val previousSettings = latestSettings
+		mutex.withLock {
+			val dailyGoal = goalList[DAILY_INDEX].goal as DailyStepGoal
+			val weeklyGoal = goalList[WEEKLY_INDEX].goal as WeeklyStepGoal
+
+			if (previousSettings == null) {
+				dailyGoal.replaceTarget(settings.dailyStepGoal)
+			} else if (
+				previousSettings.dailyStepGoal != settings.dailyStepGoal &&
+				goalList[DAILY_INDEX].onTargetUpdated(settings.dailyStepGoal)
+			) {
+				onGoalReached(dailyGoal)
+			}
+
+			val weeklyConfigurationChanged = previousSettings == null ||
+				previousSettings.weeklyStepGoal != settings.weeklyStepGoal ||
+				previousSettings.weeklyProgressDailyLimit != settings.weeklyProgressDailyLimit
+			if (weeklyConfigurationChanged) {
+				val weeklyReached = weeklyGoal.updateConfiguration(
+					target = settings.weeklyStepGoal,
+					dailyLimit = settings.weeklyProgressDailyLimit,
+					evaluateCompletion = previousSettings != null,
 				)
-		)
-		showNotification(goal)
-		awardGoalPoints(goal)
-		if (goal is DailyStepGoal) {
-			// GOAL-source XP doubles as the "daily goal met today" record consumed
-			// by Perfect Week and Point Portfolio achievements (idempotent per day).
-			progressionRepository?.awardGoalXp(Time.nowMillis)
-			achievementScheduler?.scheduleEvaluation()
+				if (previousSettings != null && weeklyReached) onGoalReached(weeklyGoal)
+			}
+			latestSettings = settings
 		}
 	}
 
+	private suspend fun onGoalReached(goal: Goal) {
+		Logger.log(
+			LogData(
+				message = "Reached goal of ${goal.target} steps at ${Time.now}",
+				source = GOALS_LOG_SOURCE,
+			),
+		)
+		dispatchGoalCompletion(
+			notificationsEnabled = notificationsEnabled,
+			notify = { showNotification(goal) },
+			awardPoints = { awardGoalPoints(goal) },
+			awardProgression = {
+				if (goal is DailyStepGoal) {
+					progressionRepository?.awardGoalXp(Time.nowMillis)
+					achievementScheduler?.scheduleEvaluation()
+				}
+			},
+		)
+	}
+
 	private suspend fun awardGoalPoints(goal: Goal) {
-		val pointsDao = PointsDatabase.database(requireContext()).pointsAwardedDao()
-		pointsDao.insert(
-				PointsAwarded(
-						Time.nowMillis,
-						Points(goal.pointMultiplier * goal.target),
-						AwardSource.GOAL
-				)
+		PointsDatabase.database(requireContext()).pointsAwardedDao().insert(
+			PointsAwarded(
+				Time.nowMillis,
+				Points(goal.pointMultiplier * goal.target),
+				AwardSource.GOAL,
+			),
 		)
 	}
 
 	private fun showNotification(goal: Goal) {
 		val context = requireContext()
 		context.notificationManager.notify(
-				Notifications.uniqueNotificationId(),
-				goal.buildNotification(context)
+			Notifications.uniqueNotificationId(),
+			goal.buildNotification(context),
 		)
 	}
 
-
 	internal suspend fun onNewDay() {
 		val context = requireContext()
-		val time = Time.now
 		mutex.withLock {
 			mLastSessionId = -1
-			goalList.forEach { it.onNewDay(context, time) }
+			goalList.forEach { it.onNewDay(context, Time.now) }
 		}
 		Logger.log(LogData(message = "New day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 
-	/**
-	 * Called when new session data is available.
-	 */
 	internal suspend fun update(session: TrackerSession) {
 		mutex.withLock {
 			val isNewSession = mLastSessionId != session.id
 			mLastSessionId = session.id
-
 			goalList.forEach {
-				if (it.onSessionUpdated(session, isNewSession)) {
-					onGoalReached(it.goal)
-				}
+				if (it.onSessionUpdated(session, isNewSession)) onGoalReached(it.goal)
 			}
 		}
 	}
 
 	internal suspend fun updateCumulativeSteps(totalSteps: Int) {
-		if (mAppContext == null || goalList.size < 2) return
-		val context = requireContext()
+		if (mAppContext == null || goalList.size < GOAL_COUNT) return
 		val dailyTotal = totalSteps.coerceAtLeast(0)
-		val weeklyTotal = withContext(dispatchers.io) {
-			loadCurrentWeekStepsWithTodayOverride(context, dailyTotal)
-		}
 		mutex.withLock {
-			mLastSessionId = -1L
-
-			if (goalList[0].onCumulativeStepsUpdated(dailyTotal)) {
-				onGoalReached(goalList[0].goal)
+			if (goalList[DAILY_INDEX].onCumulativeStepsUpdated(dailyTotal)) {
+				onGoalReached(goalList[DAILY_INDEX].goal)
 			}
-			if (goalList[1].onCumulativeStepsUpdated(weeklyTotal)) {
-				onGoalReached(goalList[1].goal)
+			if (goalList[WEEKLY_INDEX].onCumulativeStepsUpdated(dailyTotal)) {
+				onGoalReached(goalList[WEEKLY_INDEX].goal)
 			}
 		}
 	}
 
-	private suspend fun loadCurrentWeekStepsWithTodayOverride(context: Context, todayTotal: Int): Int {
-		val tripDao = AppDatabase.database(context).tripDao()
-		val todayFromDb = tripDao
-			.getBetween(Time.today.toEpochMillis(), Time.tomorrow.toEpochMillis())
-			.sumOf { it.steps ?: 0 }
-		val now = Time.now
-		val weekStart = now
-			.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
-			.with(ChronoField.NANO_OF_DAY, 0L)
-		val weekEnd = weekStart.plusWeeks(1L)
-		val weekTotal = tripDao
-			.getBetween(weekStart.toEpochMillis(), weekEnd.toEpochMillis())
-			.sumOf { it.steps ?: 0 }
+	private const val DAILY_INDEX = 0
+	private const val WEEKLY_INDEX = 1
+	private const val GOAL_COUNT = 2
+}
 
-		return (weekTotal - todayFromDb + todayTotal).coerceAtLeast(0)
-	}
+internal suspend fun dispatchGoalCompletion(
+	notificationsEnabled: Boolean,
+	notify: () -> Unit,
+	awardPoints: suspend () -> Unit,
+	awardProgression: suspend () -> Unit,
+) {
+	awardPoints()
+	awardProgression()
+	if (notificationsEnabled) notify()
 }

@@ -16,10 +16,12 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
 
@@ -38,14 +40,11 @@ class GoalNotificationWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val goalProgressProvider: GoalProgressProvider,
     private val preferences: Preferences,
+    private val goalsSettingsRepository: GoalsSettingsRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        val enabled = preferences.fetchBoolean(
-            appContext.getString(R.string.settings_smart_goal_notifications_key),
-            true,
-        )
-        if (!enabled) return Result.success()
+        if (!goalsSettingsRepository.data.first().notificationsEnabled) return Result.success()
 
         val progress = goalProgressProvider.goalProgressFlow.value
         if (!progress.gamificationEnabled || progress.goalSteps <= 0) {
@@ -58,19 +57,14 @@ class GoalNotificationWorker @AssistedInject constructor(
         val lastNotifiedDay = preferences.fetchLong(KEY_LAST_NOTIFIED_DAY, -1L)
         val lastNotifiedThreshold = preferences.fetchInt(KEY_LAST_NOTIFIED_THRESHOLD, 0)
 
-        val threshold = when {
-            ratio >= 1.0f -> THRESHOLD_COMPLETE
-            ratio >= 0.90f -> THRESHOLD_90
-            ratio >= 0.75f -> THRESHOLD_75
-            else -> return Result.success()
-        }
+        val threshold = progressNotificationThreshold(ratio) ?: return Result.success()
 
         // Already notified for this threshold (or higher) today
         if (lastNotifiedDay == todayEpochDay && lastNotifiedThreshold >= threshold) {
             return Result.success()
         }
 
-        sendNotification(threshold, remaining, progress.goalSteps)
+        sendNotification(threshold, remaining)
 
         preferences.editSuspend {
             setLong(KEY_LAST_NOTIFIED_DAY, todayEpochDay)
@@ -83,7 +77,6 @@ class GoalNotificationWorker @AssistedInject constructor(
     private fun sendNotification(
         threshold: Int,
         remaining: Int,
-        goalSteps: Int,
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val perm = ContextCompat.checkSelfPermission(
@@ -96,12 +89,10 @@ class GoalNotificationWorker @AssistedInject constructor(
         val channelId = appContext.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id)
 
         val title = when (threshold) {
-            THRESHOLD_COMPLETE -> appContext.getString(R.string.goal_notification_title_complete)
             THRESHOLD_90 -> appContext.getString(R.string.goal_notification_title_almost)
             else -> appContext.getString(R.string.goal_notification_title_progress)
         }
         val body = when (threshold) {
-            THRESHOLD_COMPLETE -> appContext.getString(R.string.goal_notification_body_complete, goalSteps)
             THRESHOLD_90 -> appContext.getString(R.string.goal_notification_body_90, remaining)
             else -> appContext.getString(R.string.goal_notification_body_75, remaining)
         }
@@ -136,7 +127,6 @@ class GoalNotificationWorker @AssistedInject constructor(
         private const val NOTIFICATION_ID = 9001
         internal const val THRESHOLD_75 = 75
         internal const val THRESHOLD_90 = 90
-        internal const val THRESHOLD_COMPLETE = 100
         internal const val KEY_LAST_NOTIFIED_DAY = "last_goal_notification_day"
         internal const val KEY_LAST_NOTIFIED_THRESHOLD = "last_goal_notification_threshold"
 
@@ -155,6 +145,13 @@ class GoalNotificationWorker @AssistedInject constructor(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request,
             )
+        }
+
+        internal fun progressNotificationThreshold(progress: Float): Int? = when {
+            progress >= 1f -> null
+            progress >= 0.90f -> THRESHOLD_90
+            progress >= 0.75f -> THRESHOLD_75
+            else -> null
         }
     }
 }

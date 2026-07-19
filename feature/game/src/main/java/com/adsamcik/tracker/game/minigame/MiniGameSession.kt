@@ -26,15 +26,89 @@ package com.adsamcik.tracker.game.minigame
  * No raw GPS samples are persisted by this class. Only the final score row
  * and points credit reach the database.
  */
-internal abstract class MiniGameSession {
+internal abstract class MiniGameSession(
+	private val configuration: MiniGameConfiguration? = null,
+	private val personalBestBeforeRun: Double? = null,
+) {
+	private var activeElapsedTimeMs: Long = 0L
+	private var nextFeedbackEventId: Long = 1L
+	private var latestFeedback: MiniGameFeedback? = null
+
 	/** Current game state. */
 	abstract val state: MiniGameState
 
 	/** Current score value. */
 	abstract val score: Double
 
+	/**
+	 * Privacy-safe state consumed by the service/controller/UI pipeline.
+	 *
+	 * Existing engines receive a common-only compatibility snapshot until they
+	 * override this property with their game-specific visual payload.
+	 */
+	open val snapshot: MiniGameSnapshot
+		get() = buildSnapshot(
+			phase = state.toSnapshotPhase(),
+			signal = MiniGameSignal.UNKNOWN,
+			currentScore = score,
+			visualPayload = MiniGameVisualPayload.Pending,
+		)
+
 	/** Human-readable status for floating UI chip. */
 	abstract val statusText: String
+
+	/**
+	 * Supplies service-owned active time. Values are monotonic and exclude
+	 * explicit pauses; accepting them does not alter legacy score calculation.
+	 */
+	open fun onActiveElapsedTimeChanged(elapsedActiveTimeMs: Long) {
+		require(elapsedActiveTimeMs >= this.activeElapsedTimeMs) {
+			"Active elapsed time cannot move backwards"
+		}
+		this.activeElapsedTimeMs = elapsedActiveTimeMs
+	}
+
+	/**
+	 * Publish a one-shot cue with a session-local, strictly increasing id.
+	 */
+	protected fun emitFeedback(cue: MiniGameFeedbackCue) {
+		check(nextFeedbackEventId < Long.MAX_VALUE) { "Feedback event id exhausted" }
+		latestFeedback = MiniGameFeedback(
+			eventId = MiniGameFeedbackEventId(nextFeedbackEventId++),
+			cue = cue,
+		)
+	}
+
+	/**
+	 * Builds the common portion of a typed snapshot for engine overrides.
+	 */
+	protected fun buildSnapshot(
+		phase: MiniGamePhase,
+		signal: MiniGameSignal,
+		currentScore: Double,
+		visualPayload: MiniGameVisualPayload,
+	): MiniGameSnapshot {
+		require(currentScore.isFinite() && currentScore >= 0.0) {
+			"Snapshot score must be finite and non-negative"
+		}
+		return MiniGameSnapshot(
+			phase = phase,
+			signal = signal,
+			elapsedActiveTimeMs = activeElapsedTimeMs,
+			goalProgress = configuration?.let {
+				MiniGameGoalProgress.Tracked(
+					current = currentScore,
+					target = it.goal.scoreTarget,
+				)
+			} ?: MiniGameGoalProgress.NotConfigured,
+			personalBest = MiniGamePersonalBest.compare(
+				currentScore = currentScore,
+				scoreBeforeRun = personalBestBeforeRun,
+			),
+			latestFeedback = latestFeedback,
+			visualPayload = visualPayload,
+		)
+	}
 
 	/**
 	 * Invoked for every GPS sample observed between Start and Stop.
@@ -79,4 +153,11 @@ internal enum class MiniGameState {
 	RUNNING,
 	WARNING,
 	FINISHED,
+}
+
+private fun MiniGameState.toSnapshotPhase(): MiniGamePhase = when (this) {
+	MiniGameState.IDLE -> MiniGamePhase.WAITING_TO_START
+	MiniGameState.RUNNING -> MiniGamePhase.ACTIVE
+	MiniGameState.WARNING -> MiniGamePhase.WARNING
+	MiniGameState.FINISHED -> MiniGamePhase.COMPLETED
 }

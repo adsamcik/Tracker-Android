@@ -87,6 +87,8 @@ data class GoalListenable(val goal: Goal) {
 		}
 	}
 
+	fun onTargetUpdated(target: Int): Boolean = goal.onTargetUpdated(target)
+
 	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */

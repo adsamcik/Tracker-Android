@@ -1,16 +1,14 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,74 +17,61 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.game.minigame.MiniGameState
+import com.adsamcik.tracker.game.minigame.MiniGameConfiguration
+import com.adsamcik.tracker.game.minigame.MiniGameGoalProgress
+import com.adsamcik.tracker.game.minigame.MiniGameSnapshot
+import com.adsamcik.tracker.game.session.GameSessionFailureReason
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
-import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import com.adsamcik.tracker.shared.utils.style.compose.RidgelineDurations
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineMotion
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import java.text.NumberFormat
-import kotlin.math.roundToInt
 
 /**
  * Full-screen Compose entry point for a mini-game session.
  *
- * Navigation:
- *  - Reached from the Game screen when the user taps an unlocked mini-game card.
- *  - The bottom navigation bar should be hidden while this route is on top.
- *  - Pressing the close button returns to the previous destination.
- *
- * Lifecycle wiring:
- *  - A [LifecycleEventObserver] forwards `ON_STOP` to [MiniGameSessionViewModel.pause]
- *    so the GPS subscription is released as soon as the screen leaves the
- *    foreground (battery + radio cost). `ON_START` calls
- *    [MiniGameSessionViewModel.resume], which either re-subscribes or auto-ends
- *    the session if the player was away longer than
- *    [MiniGameSessionViewModel.AUTO_END_AFTER_PAUSE_MS].
- *  - [DisposableEffect] guarantees the session stops (and persists score + XP)
- *    when the user navigates away even without tapping the Stop button.
+ * The session's lifetime belongs to the foreground game service, NOT this
+ * screen. There is deliberately no `LifecycleEventObserver` and no `onDispose`
+ * stop: navigating away (including the back button) leaves the run untouched so
+ * it keeps recording in the background. Re-opening the game re-attaches to the
+ * live [GameSessionController] state and offers Continue.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,30 +79,15 @@ fun MiniGameSessionRoute(
 	onClose: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val vm: MiniGameSessionViewModel = hiltViewModel()
-	val uiState by vm.uiState.collectAsStateWithLifecycle()
-	val lifecycleOwner = LocalLifecycleOwner.current
-
-	DisposableEffect(lifecycleOwner, vm) {
-		val observer = LifecycleEventObserver { _, event ->
-			when (event) {
-				Lifecycle.Event.ON_STOP -> vm.pause()
-				Lifecycle.Event.ON_START -> vm.resume()
-				else -> Unit
-			}
-		}
-		lifecycleOwner.lifecycle.addObserver(observer)
-		onDispose {
-			lifecycleOwner.lifecycle.removeObserver(observer)
-			vm.stop()
-		}
-	}
+	val viewModel: MiniGameSessionViewModel = hiltViewModel()
+	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+	val reducedMotion = LocalReducedMotion.current
 
 	Scaffold(
 		modifier = modifier.fillMaxSize(),
 		topBar = {
 			TopAppBar(
-				title = { Text(stringResource(vm.game.nameRes)) },
+				title = { Text(stringResource(viewModel.game.nameRes)) },
 				navigationIcon = {
 					IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
 						Icon(
@@ -137,35 +107,88 @@ fun MiniGameSessionRoute(
 				.fillMaxSize()
 				.padding(innerPadding)
 				.padding(horizontal = RidgelineSpacing.Lg),
-			contentAlignment = Alignment.Center,
 		) {
 			AnimatedContent(
 				targetState = uiState,
+				contentKey = MiniGameSessionUiState::animationKey,
 				transitionSpec = {
-					(fadeIn(animationSpec = tween(RidgelineDurations.STANDARD_MS, easing = FastOutSlowInEasing))
-						togetherWith fadeOut(animationSpec = tween(RidgelineDurations.STANDARD_MS, easing = FastOutSlowInEasing)))
+					if (reducedMotion) {
+						EnterTransition.None togetherWith ExitTransition.None
+					} else {
+						fadeIn(animationSpec = RidgelineMotion.Settle) togetherWith
+							fadeOut(animationSpec = RidgelineMotion.Settle)
+					}
 				},
 				label = "minigame-session-state",
 			) { state ->
 				when (state) {
-					is MiniGameUiState.Idle -> IdlePanel(
-						descriptionRes = vm.game.descriptionRes,
-						onStart = vm::start,
-					)
-					is MiniGameUiState.PermissionNeeded -> PermissionPanel(
-						onResult = vm::onPermissionResult,
-					)
-					is MiniGameUiState.Active -> ActivePanel(
+					is MiniGameSessionUiState.Setup -> MiniGameSetupPanel(
 						state = state,
-						onStop = vm::stop,
+						descriptionRes = viewModel.game.descriptionRes,
+						onSelectGoal = viewModel::selectGoal,
+						onSelectDifficulty = viewModel::selectDifficulty,
+						onSetRemember = viewModel::setRememberSetup,
+						onStart = viewModel::start,
 					)
-					is MiniGameUiState.Finished -> FinishedPanel(
-						state = state,
-						onPlayAgain = {
-							vm.reset()
-							vm.start()
-						},
-						onClose = onClose,
+
+					is MiniGameSessionUiState.LocationPermission -> LocationPermissionPanel(
+						denied = state.denied,
+						onResult = viewModel::onLocationPermissionResult,
+						onRetry = viewModel::retryLocationPermission,
+						onCancel = viewModel::cancelLocationPermission,
+					)
+
+					is MiniGameSessionUiState.NotificationPermission -> NotificationPermissionGate(
+						onResult = viewModel::onNotificationPermissionResult,
+					)
+
+					is MiniGameSessionUiState.Starting -> LoadingPanel(
+						message = stringResource(R.string.minigame_session_starting),
+					)
+
+					is MiniGameSessionUiState.Acquiring -> ActiveSessionPanel(
+						configuration = state.configuration,
+						snapshot = state.snapshot,
+						paused = false,
+						onPause = viewModel::pause,
+						onResume = viewModel::resume,
+						onFinish = viewModel::finish,
+					)
+
+					is MiniGameSessionUiState.Active -> ActiveSessionPanel(
+						configuration = state.configuration,
+						snapshot = state.snapshot,
+						paused = false,
+						onPause = viewModel::pause,
+						onResume = viewModel::resume,
+						onFinish = viewModel::finish,
+					)
+
+					is MiniGameSessionUiState.Paused -> ActiveSessionPanel(
+						configuration = state.configuration,
+						snapshot = state.snapshot,
+						paused = true,
+						onPause = viewModel::pause,
+						onResume = viewModel::resume,
+						onFinish = viewModel::finish,
+					)
+
+					is MiniGameSessionUiState.Finishing -> LoadingPanel(
+						message = stringResource(R.string.minigame_session_finishing),
+					)
+
+					is MiniGameSessionUiState.Finished -> MiniGameCompletionPanel(
+						result = state.result,
+						scoreUnit = viewModel.game.scoreUnit,
+						onPlayAgain = viewModel::playAgain,
+						onChangeSetup = viewModel::changeSetup,
+						onDone = onClose,
+					)
+
+					is MiniGameSessionUiState.Failed -> FailurePanel(
+						reason = state.reason,
+						onTryAgain = viewModel::changeSetup,
+						onBack = onClose,
 					)
 				}
 			}
@@ -173,244 +196,339 @@ fun MiniGameSessionRoute(
 	}
 }
 
+private enum class MiniGameSessionAnimationKey {
+	SETUP,
+	PERMISSION,
+	STARTING,
+	PLAYING,
+	PAUSED,
+	FINISHING,
+	FINISHED,
+	FAILED,
+}
+
+private fun MiniGameSessionUiState.animationKey(): MiniGameSessionAnimationKey = when (this) {
+	is MiniGameSessionUiState.Setup -> MiniGameSessionAnimationKey.SETUP
+	is MiniGameSessionUiState.LocationPermission,
+	is MiniGameSessionUiState.NotificationPermission,
+	-> MiniGameSessionAnimationKey.PERMISSION
+	is MiniGameSessionUiState.Starting -> MiniGameSessionAnimationKey.STARTING
+	is MiniGameSessionUiState.Acquiring,
+	is MiniGameSessionUiState.Active,
+	-> MiniGameSessionAnimationKey.PLAYING
+	is MiniGameSessionUiState.Paused -> MiniGameSessionAnimationKey.PAUSED
+	is MiniGameSessionUiState.Finishing -> MiniGameSessionAnimationKey.FINISHING
+	is MiniGameSessionUiState.Finished -> MiniGameSessionAnimationKey.FINISHED
+	is MiniGameSessionUiState.Failed -> MiniGameSessionAnimationKey.FAILED
+}
+
 @Composable
-private fun IdlePanel(
-	descriptionRes: Int,
-	onStart: () -> Unit,
+private fun LocationPermissionPanel(
+	denied: Boolean,
+	onResult: (Boolean) -> Unit,
+	onRetry: () -> Unit,
+	onCancel: () -> Unit,
 ) {
-	GlassCard(modifier = Modifier.fillMaxWidth().testTag("minigame_session_idle")) {
-		Column(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalAlignment = Alignment.CenterHorizontally,
-			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
-		) {
+	Column(
+		modifier = Modifier
+			.fillMaxWidth()
+			.verticalScroll(rememberScrollState())
+			.padding(vertical = RidgelineSpacing.Lg),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
+	) {
+		Text(
+			text = stringResource(R.string.minigame_session_permission_title),
+			style = MaterialTheme.typography.titleLarge,
+			fontWeight = FontWeight.Bold,
+			color = MaterialTheme.colorScheme.onSurface,
+			textAlign = TextAlign.Center,
+		)
+		Text(
+			text = stringResource(R.string.minigame_session_permission_body),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			textAlign = TextAlign.Center,
+		)
+
+		if (denied) {
 			Text(
-				text = stringResource(descriptionRes),
-				style = MaterialTheme.typography.titleMedium,
-				color = MaterialTheme.colorScheme.onSurface,
-				textAlign = TextAlign.Center,
-			)
-			Text(
-				text = stringResource(R.string.minigame_session_idle_hint),
+				text = stringResource(R.string.minigame_failure_permission),
 				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				color = MaterialTheme.colorScheme.tertiary,
 				textAlign = TextAlign.Center,
 			)
 			Button(
-				onClick = onStart,
-				modifier = Modifier.testTag("minigame_session_start"),
+				onClick = onRetry,
+				modifier = Modifier
+					.fillMaxWidth()
+					.heightIn(min = 48.dp),
 			) {
-				Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-				Spacer(Modifier.size(RidgelineSpacing.Sm))
-				Text(stringResource(R.string.minigame_session_start_cta))
+				Text(stringResource(R.string.minigame_session_permission_grant))
 			}
+			OutlinedButton(
+				onClick = onCancel,
+				modifier = Modifier
+					.fillMaxWidth()
+					.heightIn(min = 48.dp),
+			) {
+				Text(stringResource(R.string.minigame_session_close))
+			}
+		} else {
+			ContextualPermissionRequest(
+				permissionType = PermissionType.LOCATION_FOREGROUND,
+				permission = Manifest.permission.ACCESS_FINE_LOCATION,
+				onPermissionResult = onResult,
+				onDismiss = onCancel,
+			)
 		}
 	}
 }
 
 @Composable
-private fun PermissionPanel(
+private fun NotificationPermissionGate(
 	onResult: (Boolean) -> Unit,
 ) {
-	// rememberSaveable not needed — VM owns the truth; if the user dismisses the
-	// rationale we report "denied" and the VM stays in PermissionNeeded so the
-	// user can tap "Grant access" again to re-show the dialog.
-	var showRequest by remember { mutableStateOf(true) }
-
-	GlassCard(modifier = Modifier.fillMaxWidth().testTag("minigame_session_permission")) {
-		Column(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalAlignment = Alignment.CenterHorizontally,
-			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
-		) {
-			Icon(
-				imageVector = Icons.Outlined.LocationOn,
-				contentDescription = null,
-				modifier = Modifier.size(48.dp),
-				tint = MaterialTheme.colorScheme.primary,
-			)
-			Text(
-				text = stringResource(R.string.minigame_session_permission_title),
-				style = MaterialTheme.typography.titleMedium,
-				color = MaterialTheme.colorScheme.onSurface,
-				fontWeight = FontWeight.SemiBold,
-				textAlign = TextAlign.Center,
-			)
-			Text(
-				text = stringResource(R.string.minigame_session_permission_body),
-				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-				textAlign = TextAlign.Center,
-			)
-			FilledTonalButton(onClick = { showRequest = true }) {
-				Text(stringResource(R.string.minigame_session_permission_grant))
-			}
-		}
+	val launcher = rememberLauncherForActivityResult(
+		contract = ActivityResultContracts.RequestPermission(),
+		onResult = onResult,
+	)
+	LaunchedEffect(Unit) {
+		launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
 	}
+	LoadingPanel(message = stringResource(R.string.minigame_session_starting))
+}
 
-	if (showRequest) {
-		ContextualPermissionRequest(
-			permissionType = PermissionType.LOCATION_FOREGROUND,
-			permission = Manifest.permission.ACCESS_FINE_LOCATION,
-			onPermissionResult = { granted ->
-				showRequest = false
-				onResult(granted)
-			},
-			onDismiss = { showRequest = false },
+@Composable
+private fun LoadingPanel(message: String) {
+	Column(
+		modifier = Modifier.fillMaxSize(),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.Center,
+	) {
+		CircularProgressIndicator()
+		Spacer(Modifier.size(RidgelineSpacing.Md))
+		Text(
+			text = message,
+			style = MaterialTheme.typography.titleMedium,
+			color = MaterialTheme.colorScheme.onSurface,
+			textAlign = TextAlign.Center,
 		)
 	}
 }
 
 @Composable
-private fun ActivePanel(
-	state: MiniGameUiState.Active,
-	onStop: () -> Unit,
+internal fun ActiveSessionPanel(
+	configuration: MiniGameConfiguration,
+	snapshot: MiniGameSnapshot,
+	paused: Boolean,
+	onPause: () -> Unit,
+	onResume: () -> Unit,
+	onFinish: () -> Unit,
 ) {
-	val accent = stateColor(state.state)
-	val numberFormat = remember { NumberFormat.getInstance() }
-
-	GlassCard(modifier = Modifier.fillMaxWidth().testTag("minigame_session_active")) {
+	// Pause/Finish are pinned outside the scrollable area so they stay reachable
+	// without scrolling no matter how tall a given game's visualization is.
+	Column(modifier = Modifier.fillMaxSize()) {
 		Column(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalAlignment = Alignment.CenterHorizontally,
+			modifier = Modifier
+				.fillMaxWidth()
+				.weight(1f)
+				.verticalScroll(rememberScrollState())
+				.padding(vertical = RidgelineSpacing.Md),
 			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 		) {
-			Box(
-				modifier = Modifier
-					.size(160.dp)
-					.clip(CircleShape)
-					.background(accent.copy(alpha = 0.18f)),
-				contentAlignment = Alignment.Center,
-			) {
+			if (paused) {
 				Text(
-					text = numberFormat.format(state.score.roundToInt()),
-					style = MaterialTheme.typography.displayLarge,
+					text = stringResource(R.string.minigame_session_paused_title),
+					style = MaterialTheme.typography.titleLarge,
 					fontWeight = FontWeight.Bold,
-					color = accent,
+					color = MaterialTheme.colorScheme.onSurface,
 				)
 			}
-			Text(
-				text = stringResource(R.string.minigame_session_score_label),
-				style = MaterialTheme.typography.labelLarge,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-			)
-			val displayedStatus = state.statusText.ifBlank {
-				stringResource(R.string.minigame_session_waiting_for_fix)
-			}
-			Text(
-				text = displayedStatus,
-				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurface,
-				textAlign = TextAlign.Center,
-			)
+
+			MiniGameVisualization(snapshot = snapshot)
+
+			GoalProgress(snapshot.goalProgress)
+
 			Row(
-				horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.SpaceBetween,
 				verticalAlignment = Alignment.CenterVertically,
 			) {
-				val totalSeconds = (state.elapsedMs / 1000L).coerceAtLeast(0L)
-				val minutes = (totalSeconds / 60L).toInt()
-				val seconds = (totalSeconds % 60L).toInt()
+				Column {
+					Text(
+						text = stringResource(R.string.minigame_session_elapsed_label),
+						style = MaterialTheme.typography.labelSmall,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+					Text(
+						text = formatElapsed(snapshot.elapsedActiveTimeMs),
+						style = MaterialTheme.typography.titleMedium,
+						color = MaterialTheme.colorScheme.onSurface,
+						fontWeight = FontWeight.SemiBold,
+					)
+				}
 				Text(
-					text = stringResource(R.string.minigame_session_elapsed_format, minutes, seconds),
-					style = MaterialTheme.typography.titleSmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					text = signalLabel(snapshot.signal),
+					style = MaterialTheme.typography.labelLarge,
+					color = if (snapshot.signal.isStale) {
+						MaterialTheme.colorScheme.tertiary
+					} else {
+						MaterialTheme.colorScheme.onSurfaceVariant
+					},
 				)
+			}
+
+			Text(
+				text = stringResource(R.string.minigame_session_background_note),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+		}
+
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(top = RidgelineSpacing.Md),
+			horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
+		) {
+			if (paused) {
+				Button(
+					onClick = onResume,
+					modifier = Modifier
+						.weight(1f)
+						.heightIn(min = 48.dp),
+				) {
+					Icon(Icons.Outlined.PlayArrow, contentDescription = null)
+					Spacer(Modifier.size(RidgelineSpacing.Xs))
+					Text(stringResource(R.string.minigame_session_resume_cta))
+				}
+			} else {
+				FilledTonalButton(
+					onClick = onPause,
+					modifier = Modifier
+						.weight(1f)
+						.heightIn(min = 48.dp),
+				) {
+					Icon(Icons.Outlined.Pause, contentDescription = null)
+					Spacer(Modifier.size(RidgelineSpacing.Xs))
+					Text(stringResource(R.string.minigame_session_pause_cta))
+				}
 			}
 			Button(
-				onClick = onStop,
-				modifier = Modifier.testTag("minigame_session_stop"),
+				onClick = onFinish,
+				modifier = Modifier
+					.weight(1f)
+					.heightIn(min = 48.dp),
 			) {
 				Icon(Icons.Outlined.Stop, contentDescription = null)
-				Spacer(Modifier.size(RidgelineSpacing.Sm))
-				Text(stringResource(R.string.minigame_session_stop_cta))
+				Spacer(Modifier.size(RidgelineSpacing.Xs))
+				Text(stringResource(R.string.minigame_session_finish_cta))
 			}
 		}
 	}
+
+	MiniGameFeedbackAnnouncer(feedback = snapshot.latestFeedback)
 }
 
 @Composable
-private fun FinishedPanel(
-	state: MiniGameUiState.Finished,
-	onPlayAgain: () -> Unit,
-	onClose: () -> Unit,
-) {
-	val transition = rememberInfiniteTransition(label = "minigame-finish-pulse")
-	val pulseScale by transition.animateFloat(
-		initialValue = 0.94f,
-		targetValue = 1.06f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(durationMillis = 1200),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "minigame-finish-scale",
-	)
-
-	GlassCard(modifier = Modifier.fillMaxWidth().testTag("minigame_session_finished")) {
-		Column(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalAlignment = Alignment.CenterHorizontally,
-			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
-		) {
-			Box(
+private fun GoalProgress(progress: MiniGameGoalProgress) {
+	when (progress) {
+		MiniGameGoalProgress.NotConfigured -> Unit
+		is MiniGameGoalProgress.Tracked -> {
+			val percent = (progress.fraction * 100.0).toInt()
+			val label = if (progress.isReached) {
+				stringResource(R.string.minigame_session_goal_reached)
+			} else {
+				stringResource(R.string.minigame_session_goal_progress, percent)
+			}
+			Column(
 				modifier = Modifier
-					.size(96.dp)
-					.scale(pulseScale)
-					.clip(CircleShape)
-					.background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)),
-				contentAlignment = Alignment.Center,
+					.fillMaxWidth()
+					.semantics { contentDescription = label },
+				verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Xs),
 			) {
-				Icon(
-					imageVector = Icons.Outlined.EmojiEvents,
-					contentDescription = null,
-					modifier = Modifier.size(56.dp),
-					tint = MaterialTheme.colorScheme.tertiary,
+				Text(
+					text = label,
+					style = MaterialTheme.typography.labelLarge,
+					color = if (progress.isReached) {
+						MaterialTheme.colorScheme.tertiary
+					} else {
+						MaterialTheme.colorScheme.onSurfaceVariant
+					},
+					fontWeight = FontWeight.SemiBold,
+				)
+				LinearProgressIndicator(
+					progress = { progress.fraction.toFloat() },
+					modifier = Modifier
+						.fillMaxWidth()
+						.height(8.dp),
+					color = MaterialTheme.colorScheme.primary,
+					trackColor = MaterialTheme.colorScheme.surfaceVariant,
 				)
 			}
-			Text(
-				text = stringResource(R.string.minigame_session_finished_title),
-				style = MaterialTheme.typography.headlineSmall,
-				fontWeight = FontWeight.Bold,
-				color = MaterialTheme.colorScheme.onSurface,
-			)
-			Text(
-				text = stringResource(
-					R.string.minigame_session_final_score,
-					NumberFormat.getInstance().format(state.finalScore.roundToInt()),
-				),
-				style = MaterialTheme.typography.titleMedium,
-				color = MaterialTheme.colorScheme.onSurface,
-			)
-			Text(
-				text = if (state.pointsEarned > 0) {
-					stringResource(R.string.minigame_session_points_earned, state.pointsEarned)
-				} else {
-					stringResource(R.string.minigame_session_points_zero)
-				},
-				style = MaterialTheme.typography.titleSmall,
-				color = MaterialTheme.colorScheme.primary,
-			)
-			Spacer(Modifier.height(RidgelineSpacing.Sm))
-			Row(
-				horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
-			) {
-				FilledTonalButton(onClick = onClose) {
-					Text(stringResource(R.string.minigame_session_close))
-				}
-				Button(
-					onClick = onPlayAgain,
-					modifier = Modifier.testTag("minigame_session_play_again"),
-				) {
-					Text(stringResource(R.string.minigame_session_play_again))
-				}
-			}
 		}
 	}
 }
 
 @Composable
-private fun stateColor(state: MiniGameState): Color = when (state) {
-	MiniGameState.IDLE -> MaterialTheme.colorScheme.onSurfaceVariant
-	MiniGameState.RUNNING -> MaterialTheme.colorScheme.primary
-	MiniGameState.WARNING -> MaterialTheme.colorScheme.error
-	MiniGameState.FINISHED -> MaterialTheme.colorScheme.tertiary
+internal fun FailurePanel(
+	reason: GameSessionFailureReason,
+	onTryAgain: () -> Unit,
+	onBack: () -> Unit,
+) {
+	Column(
+		modifier = Modifier
+			.fillMaxWidth()
+			.verticalScroll(rememberScrollState())
+			.padding(vertical = RidgelineSpacing.Lg),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
+	) {
+		Text(
+			text = stringResource(R.string.minigame_session_failed_title),
+			style = MaterialTheme.typography.headlineSmall,
+			fontWeight = FontWeight.Bold,
+			color = MaterialTheme.colorScheme.error,
+			textAlign = TextAlign.Center,
+		)
+		Text(
+			text = stringResource(failureMessageRes(reason)),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurface,
+			textAlign = TextAlign.Center,
+		)
+		Button(
+			onClick = onTryAgain,
+			modifier = Modifier
+				.fillMaxWidth()
+				.heightIn(min = 48.dp),
+		) {
+			Text(stringResource(R.string.minigame_session_try_again))
+		}
+		OutlinedButton(
+			onClick = onBack,
+			modifier = Modifier
+				.fillMaxWidth()
+				.heightIn(min = 48.dp),
+		) {
+			Text(stringResource(R.string.minigame_session_close))
+		}
+	}
+}
+
+private fun failureMessageRes(reason: GameSessionFailureReason): Int = when (reason) {
+	GameSessionFailureReason.PERMISSION_REQUIRED -> R.string.minigame_failure_permission
+	GameSessionFailureReason.LOCATION_UNAVAILABLE -> R.string.minigame_failure_location
+	GameSessionFailureReason.PERSISTENCE_FAILED -> R.string.minigame_failure_persistence
+	GameSessionFailureReason.INVALID_COMMAND,
+	GameSessionFailureReason.INTERNAL_ERROR,
+	-> R.string.minigame_failure_generic
+}
+
+private fun formatElapsed(elapsedMs: Long): String {
+	val totalSeconds = (elapsedMs / 1000L).coerceAtLeast(0L)
+	val minutes = totalSeconds / 60L
+	val seconds = totalSeconds % 60L
+	return "%d:%02d".format(minutes, seconds)
 }

@@ -68,6 +68,12 @@ interface Goal {
 	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean = false
 
 	/**
+	 * Replaces the target with a settings-backed value.
+	 * Returns true when the new target newly completes the current period.
+	 */
+	fun onTargetUpdated(target: Int): Boolean = false
+
+	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */
 	suspend fun onNewDay(context: Context, day: ZonedDateTime)

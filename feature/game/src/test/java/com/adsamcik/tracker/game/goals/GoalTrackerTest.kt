@@ -15,6 +15,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mockk.verifyOrder
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -85,6 +86,46 @@ class GoalTrackerTest {
 		goalList.clear()
 		lastSessionIdField.setLong(GoalTracker, -1L)
 		contextField.set(GoalTracker, null)
+	}
+
+	@Nested
+	@DisplayName("Completion side effects")
+	inner class CompletionSideEffects {
+		@Test
+		fun `disabled notifications still award points and progression`() = runTest {
+			val points = CompletableDeferred<Unit>()
+			val progression = CompletableDeferred<Unit>()
+			var notifications = 0
+
+			dispatchGoalCompletion(
+				notificationsEnabled = false,
+				notify = { notifications++ },
+				awardPoints = { points.complete(Unit) },
+				awardProgression = { progression.complete(Unit) },
+			)
+
+			points.isCompleted shouldBe true
+			progression.isCompleted shouldBe true
+			notifications shouldBe 0
+		}
+
+		@Test
+		fun `enabled notifications do not replace points or progression awards`() = runTest {
+			var points = 0
+			var progression = 0
+			var notifications = 0
+
+			dispatchGoalCompletion(
+				notificationsEnabled = true,
+				notify = { notifications++ },
+				awardPoints = { points++ },
+				awardProgression = { progression++ },
+			)
+
+			points shouldBe 1
+			progression shouldBe 1
+			notifications shouldBe 1
+		}
 	}
 
 	@Nested

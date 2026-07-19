@@ -40,14 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSectionHeader
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import java.text.DateFormat
-import java.text.NumberFormat
 import java.util.Date
-import kotlin.math.roundToInt
 
 /**
  * Read-only history of past mini-game runs grouped by game.
@@ -138,8 +135,8 @@ private fun ScoreGroupCard(group: MiniGameScoreGroup) {
 		Column(
 			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
 		) {
-			group.entries.forEachIndexed { index, entry ->
-				ScoreRow(rank = index + 1, entry = entry)
+			group.rows.forEach { row ->
+				ScoreRow(row = row)
 			}
 		}
 	}
@@ -147,10 +144,8 @@ private fun ScoreGroupCard(group: MiniGameScoreGroup) {
 
 @Composable
 private fun ScoreRow(
-	rank: Int,
-	entry: MiniGameScoreEntity,
+	row: MiniGameScoreRow,
 ) {
-	val numberFormat = remember { NumberFormat.getInstance() }
 	val dateFormat = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
 	Row(
 		modifier = Modifier.fillMaxWidth(),
@@ -158,28 +153,33 @@ private fun ScoreRow(
 		horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Md),
 	) {
 		Text(
-			text = stringResource(R.string.minigame_scores_rank_format, rank),
+			text = stringResource(R.string.minigame_scores_rank_format, row.rank),
 			style = MaterialTheme.typography.titleMedium,
 			fontWeight = FontWeight.Bold,
-			color = if (rank == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+			color = if (row.isPersonalBest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
 		)
 		Column(modifier = Modifier.weight(1f)) {
 			Text(
-				text = stringResource(
-					R.string.minigame_scores_score_format,
-					numberFormat.format(entry.score.roundToInt()),
-				),
+				text = miniGameScoreLabel(row.display),
 				style = MaterialTheme.typography.titleSmall,
 				color = MaterialTheme.colorScheme.onSurface,
 			)
+			if (row.isPersonalBest) {
+				Text(
+					text = stringResource(R.string.minigame_scores_personal_best),
+					style = MaterialTheme.typography.labelMedium,
+					fontWeight = FontWeight.Bold,
+					color = MaterialTheme.colorScheme.primary,
+				)
+			}
 			Text(
-				text = dateFormat.format(Date(entry.playedAt)),
+				text = dateFormat.format(Date(row.playedAtMs)),
 				style = MaterialTheme.typography.labelMedium,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 		}
 		Text(
-			text = stringResource(R.string.minigame_scores_points_format, entry.xpAwarded),
+			text = stringResource(R.string.minigame_scores_xp_format, row.xpAwarded),
 			style = MaterialTheme.typography.labelLarge,
 			color = MaterialTheme.colorScheme.primary,
 		)

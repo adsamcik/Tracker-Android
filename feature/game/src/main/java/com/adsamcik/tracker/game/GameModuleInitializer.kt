@@ -4,19 +4,23 @@ import android.content.Context
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
+import com.adsamcik.tracker.game.repository.GameRepository
+import com.adsamcik.tracker.game.session.GameFinalizationReconciler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Game module initializer.
@@ -35,11 +39,20 @@ class GameModuleInitializer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	private val progressionRepository: PlayerProgressionRepository,
 	private val achievementScheduler: AchievementEvaluationScheduler,
+	private val goalsSettingsRepository: GoalsSettingsRepository,
+	private val miniGameScoreDao: MiniGameScoreDao,
+	private val gameRepository: GameRepository,
 ) : ModuleInitializer {
 	override val priority: Int = 30
 
 	override fun initialize() {
 		initializeGoals()
+		appScope.launch(dispatchers.io) {
+			GameFinalizationReconciler(
+				scoreDao = miniGameScoreDao,
+				repository = gameRepository,
+			).reconcile()
+		}
 		appScope.launch(dispatchers.default) {
 			consumer.processUnconsumed()
 			explorationConsumer.processUnconsumed()
@@ -51,6 +64,12 @@ class GameModuleInitializer @Inject constructor(
 	}
 
 	private fun initializeGoals() {
-		GoalTracker.initialize(context, trackerSessionChannel, progressionRepository, achievementScheduler)
+		GoalTracker.initialize(
+			context = context,
+			sessionChannel = trackerSessionChannel,
+			progressionRepository = progressionRepository,
+			achievementScheduler = achievementScheduler,
+			settingsRepository = goalsSettingsRepository,
+		)
 	}
 }

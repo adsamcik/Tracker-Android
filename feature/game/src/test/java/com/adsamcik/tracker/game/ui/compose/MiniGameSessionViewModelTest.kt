@@ -3,47 +3,49 @@ package com.adsamcik.tracker.game.ui.compose
 import android.app.Application
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
-import app.cash.turbine.test
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
+import com.adsamcik.tracker.game.goals.settings.RememberedGameSetup
 import com.adsamcik.tracker.game.minigame.MiniGame
+import com.adsamcik.tracker.game.minigame.MiniGameConfigurations
+import com.adsamcik.tracker.game.minigame.MiniGameDifficulty
+import com.adsamcik.tracker.game.minigame.MiniGameGoalProgress
+import com.adsamcik.tracker.game.minigame.MiniGameGoalUnit
+import com.adsamcik.tracker.game.minigame.MiniGamePersonalBest
+import com.adsamcik.tracker.game.minigame.MiniGamePhase
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.minigame.MiniGameSession
-import com.adsamcik.tracker.game.minigame.MiniGameState
-import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSample
-import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
-import com.adsamcik.tracker.game.repository.GameRepository
-import com.adsamcik.tracker.game.repository.PlayerProfileUi
-import com.adsamcik.tracker.game.repository.StepsSummaryData
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
-import com.adsamcik.tracker.testing.TestDispatchersProvider
-import com.google.android.gms.location.LocationRequest
+import com.adsamcik.tracker.game.minigame.MiniGameSignal
+import com.adsamcik.tracker.game.minigame.MiniGameSnapshot
+import com.adsamcik.tracker.game.minigame.MiniGameVisualPayload
+import com.adsamcik.tracker.game.minigame.OutrunConfiguration
+import com.adsamcik.tracker.game.minigame.OutrunGoal
+import com.adsamcik.tracker.game.session.GameSessionCommand
+import com.adsamcik.tracker.game.session.GameSessionController
+import com.adsamcik.tracker.game.session.GameSessionFailureReason
+import com.adsamcik.tracker.game.session.GameSessionId
+import com.adsamcik.tracker.game.session.GameSessionResult
+import com.adsamcik.tracker.game.session.GameSessionState
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -53,11 +55,13 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * Unit tests for [MiniGameSessionViewModel].
+ * Unit tests for the rewritten [MiniGameSessionViewModel].
  *
- * Uses Robolectric so we can grant ACCESS_FINE_LOCATION via the shadow
- * permission system — the VM gates start() on Context.hasLocationPermission,
- * which cannot be faked without a real Application.
+ * The ViewModel is now a setup/permission/controller-observer only: it owns no
+ * session, GPS collector, timer, persistence, or lifecycle behaviour. These
+ * tests verify setup options, remember-on-start, precise-location gating, the
+ * non-blocking notification prompt, controller command delegation, and the
+ * projection of [GameSessionController] state into [MiniGameSessionUiState].
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -65,484 +69,485 @@ import org.robolectric.annotation.Config
 class MiniGameSessionViewModelTest {
 
 	private lateinit var application: Application
-	private lateinit var locationSource: ControllableLocationSource
-	private lateinit var scoreDao: RecordingScoreDao
-	private lateinit var gameRepository: RecordingGameRepository
 	private lateinit var registry: MiniGameRegistry
+	private lateinit var controller: FakeGameSessionController
+	private lateinit var settings: FakeGoalsSettingsRepository
 	private lateinit var dispatcher: TestDispatcher
-	private lateinit var dispatchers: TestDispatchersProvider
-	private lateinit var appScope: CoroutineScope
 
 	@Before
 	fun setUp() {
 		application = ApplicationProvider.getApplicationContext()
-		shadowOf(application).denyPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION)
-		shadowOf(application).denyPermissions(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-
-		locationSource = ControllableLocationSource()
-		scoreDao = RecordingScoreDao()
-		gameRepository = RecordingGameRepository()
-		registry = MiniGameRegistry(setOf(FakeMiniGame(GAME_ID)))
+		denyLocation()
+		denyNotifications()
+		registry = MiniGameRegistry(setOf(FakeMiniGame(OutrunConfiguration.GAME_ID)))
+		controller = FakeGameSessionController()
+		settings = FakeGoalsSettingsRepository()
 		dispatcher = StandardTestDispatcher()
-		dispatchers = TestDispatchersProvider(dispatcher)
-		appScope = CoroutineScope(dispatcher)
 		Dispatchers.setMain(dispatcher)
 	}
 
 	@After
 	fun tearDown() {
-		appScope.cancel()
 		Dispatchers.resetMain()
 	}
 
 	@Test
-	fun start_withoutPermission_emitsPermissionNeeded() = runTest(dispatcher) {
+	fun initialState_exposesGoalAndDifficultyOptions() = runTest(dispatcher) {
 		val vm = newViewModel()
-
-		vm.start()
-		advanceUntilIdle()
-
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.PermissionNeeded>()
-		locationSource.subscribers shouldBe 0
-	}
-
-	@Test
-	fun start_withPermission_emitsActiveAndForwardsSamples() = runTest(dispatcher) {
-		grantLocationPermission()
-		val vm = newViewModel()
-
-		vm.uiState.test {
-			awaitItem().shouldBeInstanceOf<MiniGameUiState.Idle>()
-			vm.start()
+		collecting(vm) {
 			advanceUntilIdle()
-			awaitItem().shouldBeInstanceOf<MiniGameUiState.Active>()
-
-			locationSource.emit(SAMPLE)
-			advanceUntilIdle()
-			val active = awaitItem().shouldBeInstanceOf<MiniGameUiState.Active>()
-			active.score shouldBe SAMPLE.speedMps.toDouble()
-			active.state shouldBe MiniGameState.RUNNING
+			val setup = vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Setup>()
+			setup.options.goalUnit shouldBe MiniGameGoalUnit.METERS
+			setup.options.goalValues shouldBe listOf(25, 50, 100)
+			setup.options.difficulties shouldBe listOf(
+				MiniGameDifficulty.EASY,
+				MiniGameDifficulty.NORMAL,
+				MiniGameDifficulty.HARD,
+			)
+			setup.selection.goalValue shouldBe 50
+			setup.selection.difficulty shouldBe MiniGameDifficulty.NORMAL
+			setup.rememberSetup shouldBe false
 		}
 	}
 
 	@Test
-	fun stop_persistsScoreAndCreditsXp_thenEmitsFinished() = runTest(dispatcher) {
-		grantLocationPermission()
+	fun selectGoalAndDifficulty_updateSelection() = runTest(dispatcher) {
 		val vm = newViewModel()
-
-		vm.start()
-		advanceUntilIdle()
-		locationSource.emit(SAMPLE)
-		advanceUntilIdle()
-
-		vm.stop()
-		advanceUntilIdle()
-
-		scoreDao.inserted shouldHaveSize 1
-		val row = scoreDao.inserted.single()
-		row.gameId shouldBe GAME_ID
-		row.score shouldBe SAMPLE.speedMps.toDouble()
-		row.xpAwarded shouldBe FakeMiniGame.XP
-
-		gameRepository.creditedXp shouldHaveSize 1
-		val credit = gameRepository.creditedXp.single()
-		credit.first shouldBe GAME_ID
-		credit.second shouldBe FakeMiniGame.XP
-
-		val finished = vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
-		finished.finalScore shouldBe SAMPLE.speedMps.toDouble()
-		finished.pointsEarned shouldBe FakeMiniGame.XP
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.selectGoal(100)
+			vm.selectDifficulty(MiniGameDifficulty.HARD)
+			advanceUntilIdle()
+			val setup = vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Setup>()
+			setup.selection.goalValue shouldBe 100
+			setup.selection.difficulty shouldBe MiniGameDifficulty.HARD
+		}
 	}
 
 	@Test
-	fun stop_calledTwice_persistsOnlyOnce() = runTest(dispatcher) {
-		grantLocationPermission()
+	fun remembersSetup_onStart_whenEnabled() = runTest(dispatcher) {
+		grantLocation()
+		grantNotifications()
 		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.setRememberSetup(true)
+			vm.selectGoal(100)
+			vm.selectDifficulty(MiniGameDifficulty.HARD)
+			advanceUntilIdle()
 
-		vm.start()
-		advanceUntilIdle()
-		locationSource.emit(SAMPLE)
-		advanceUntilIdle()
-
-		vm.stop()
-		vm.stop()
-		vm.stop()
-		advanceUntilIdle()
-
-		scoreDao.inserted shouldHaveSize 1
-		gameRepository.creditedXp shouldHaveSize 1
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
-	}
-
-	@Test
-	fun stop_withoutActiveFrame_returnsToIdleWithoutWriting() = runTest(dispatcher) {
-		grantLocationPermission()
-		val vm = newViewModel()
-
-		vm.stop()
-		advanceUntilIdle()
-
-		scoreDao.inserted.shouldHaveSize(0)
-		gameRepository.creditedXp.shouldHaveSize(0)
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
-	}
-
-	@Test
-	fun stop_afterStartButNoSample_returnsToIdleWithoutWriting() = runTest(dispatcher) {
-		// Regression: backing out of a freshly started session before the first
-		// GPS fix must not record a 0-score run (which previously still credited
-		// the game's base points and left an orphan score row).
-		grantLocationPermission()
-		val vm = newViewModel()
-
-		vm.start()
-		advanceUntilIdle()
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
-
-		// No location sample is ever emitted.
-		vm.stop()
-		advanceUntilIdle()
-
-		scoreDao.inserted.shouldHaveSize(0)
-		gameRepository.creditedXp.shouldHaveSize(0)
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
-	}
-
-	@Test
-	fun reset_returnsToIdleWithFreshSession() = runTest(dispatcher) {
-		grantLocationPermission()
-		val vm = newViewModel()
-		vm.start()
-		advanceUntilIdle()
-		locationSource.emit(SAMPLE)
-		advanceUntilIdle()
-		vm.stop()
-		advanceUntilIdle()
-
-		vm.reset()
-		advanceUntilIdle()
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
-	}
-
-	@Test
-	fun onPermissionResult_granted_autoStartsSession() = runTest(dispatcher) {
-		val vm = newViewModel()
-		vm.start()
-		advanceUntilIdle()
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.PermissionNeeded>()
-
-		grantLocationPermission()
-		vm.onPermissionResult(true)
-		advanceUntilIdle()
-
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
-		locationSource.subscribers shouldBe 1
-	}
-
-	@Test
-	fun onPermissionResult_denied_staysInPermissionNeeded() = runTest(dispatcher) {
-		val vm = newViewModel()
-		vm.onPermissionResult(false)
-		advanceUntilIdle()
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.PermissionNeeded>()
-	}
-
-	@Test
-	fun pause_whileActive_cancelsLocationSubscriptionAndStaysActive() = runTest(dispatcher) {
-		grantLocationPermission()
-		val vm = newViewModel()
-
-		vm.start()
-		advanceUntilIdle()
-		locationSource.emit(SAMPLE)
-		advanceUntilIdle()
-		locationSource.subscribers shouldBe 1
-
-		vm.pause()
-		advanceUntilIdle()
-
-		locationSource.subscribers shouldBe 0
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
-		scoreDao.inserted.shouldHaveSize(0)
-		gameRepository.creditedXp.shouldHaveSize(0)
-	}
-
-	@Test
-	fun resume_withinFiveMinutes_resubscribesAndKeepsSession() = runTest(dispatcher) {
-		grantLocationPermission()
-		mockkObject(Time)
-		try {
-			every { Time.nowMillis } returns 1_000L
-			val vm = newViewModel()
 			vm.start()
 			advanceUntilIdle()
-			locationSource.emit(SAMPLE)
+
+			settings.data.first().rememberedOutrunSetup shouldBe
+				RememberedGameSetup(goalValue = 100, difficulty = "HARD")
+			controller.commands shouldContain GameSessionCommand.Start(
+				OutrunConfiguration(OutrunGoal.METERS_100, MiniGameDifficulty.HARD),
+			)
+		}
+	}
+
+	@Test
+	fun doesNotRememberSetup_whenDisabled() = runTest(dispatcher) {
+		grantLocation()
+		grantNotifications()
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.selectGoal(100)
 			advanceUntilIdle()
 
-			every { Time.nowMillis } returns 10_000L
+			vm.start()
+			advanceUntilIdle()
+
+			settings.data.first().rememberedOutrunSetup.shouldBeNull()
+			controller.commands shouldHaveSize 1
+		}
+	}
+
+	@Test
+	fun seedsSelection_fromRememberedSetup() = runTest(dispatcher) {
+		settings = FakeGoalsSettingsRepository(
+			GoalsSettingsState.defaults().copy(
+				rememberLastSetup = true,
+				rememberedOutrunSetup = RememberedGameSetup(goalValue = 25, difficulty = "EASY"),
+			),
+		)
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			val setup = vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Setup>()
+			setup.selection.goalValue shouldBe 25
+			setup.selection.difficulty shouldBe MiniGameDifficulty.EASY
+			setup.rememberSetup shouldBe true
+		}
+	}
+
+	@Test
+	fun start_withoutLocationPermission_showsLocationPermission() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.start()
+			advanceUntilIdle()
+
+			val state = vm.uiState.value
+				.shouldBeInstanceOf<MiniGameSessionUiState.LocationPermission>()
+			state.denied shouldBe false
+			controller.commands.shouldHaveSize(0)
+		}
+	}
+
+	@Test
+	fun onLocationPermissionResult_denied_marksDenied() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.start()
+			advanceUntilIdle()
+
+			vm.onLocationPermissionResult(false)
+			advanceUntilIdle()
+
+			val state = vm.uiState.value
+				.shouldBeInstanceOf<MiniGameSessionUiState.LocationPermission>()
+			state.denied shouldBe true
+			controller.commands.shouldHaveSize(0)
+		}
+	}
+
+	@Test
+	fun notificationPermission_isRequestedButNeverBlocksTheRun() = runTest(dispatcher) {
+		grantLocation()
+		// Notifications remain denied (default on SDK 34).
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.start()
+			advanceUntilIdle()
+
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.NotificationPermission>()
+			controller.commands.shouldHaveSize(0)
+
+			// Deny notifications: the run must still start.
+			vm.onNotificationPermissionResult(false)
+			advanceUntilIdle()
+
+			controller.commands shouldHaveSize 1
+			controller.commands.first().shouldBeInstanceOf<GameSessionCommand.Start>()
+		}
+	}
+
+	@Test
+	fun start_withAllPermissions_startsControllerImmediately() = runTest(dispatcher) {
+		grantLocation()
+		grantNotifications()
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.start()
+			advanceUntilIdle()
+
+			controller.commands shouldHaveSize 1
+			controller.commands.first().shouldBeInstanceOf<GameSessionCommand.Start>()
+		}
+	}
+
+	@Test
+	fun pauseResumeFinish_delegateToController() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
 			vm.pause()
-			advanceUntilIdle()
-			locationSource.subscribers shouldBe 0
-
-			// Resume 60 seconds later — well within the 5-minute window.
-			every { Time.nowMillis } returns 70_000L
 			vm.resume()
+			vm.finish()
 			advanceUntilIdle()
 
-			locationSource.subscribers shouldBe 1
-			vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
-			scoreDao.inserted.shouldHaveSize(0)
-			gameRepository.creditedXp.shouldHaveSize(0)
-		} finally {
-			unmockkObject(Time)
+			controller.commands shouldBe listOf(
+				GameSessionCommand.Pause,
+				GameSessionCommand.Resume,
+				GameSessionCommand.Finish,
+			)
 		}
 	}
 
 	@Test
-	fun rapidPauseResume_doesNotOverlapLocationSubscriptions() = runTest(dispatcher) {
-		// Regression test for R2 round-6, round-2: pause() calls cancel() on
-		// the collection job, but cancel() is fire-and-forget. Without the
-		// pendingTeardown join, a fast pause→resume would launch a new
-		// subscription before the prior callbackFlow had a chance to run
-		// awaitClose { removeLocationUpdates(...) }, briefly registering two
-		// FusedLocationProviderClient callbacks at once.
-		grantLocationPermission()
-		mockkObject(Time)
-		try {
-			every { Time.nowMillis } returns 1_000L
-			val vm = newViewModel()
-			vm.start()
-			advanceUntilIdle()
-			locationSource.subscribers shouldBe 1
-			locationSource.maxConcurrentSubscribers shouldBe 1
-
-			// Hammer pause/resume without giving the dispatcher a chance to
-			// drain in between. Each resume() must wait on the prior
-			// teardown before opening a new subscription.
-			repeat(5) { iter ->
-				every { Time.nowMillis } returns (10_000L + iter * 200L)
-				vm.pause()
-				every { Time.nowMillis } returns (10_100L + iter * 200L)
-				vm.resume()
-			}
-			advanceUntilIdle()
-
-			locationSource.subscribers shouldBe 1
-			locationSource.maxConcurrentSubscribers shouldBe 1
-			vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
-		} finally {
-			unmockkObject(Time)
-		}
-	}
-
-	@Test
-	fun resume_afterFiveMinutes_autoFinalizesSession() = runTest(dispatcher) {
-		grantLocationPermission()
-		mockkObject(Time)
-		try {
-			every { Time.nowMillis } returns 1_000L
-			val vm = newViewModel()
-			vm.start()
-			advanceUntilIdle()
-			locationSource.emit(SAMPLE)
-			advanceUntilIdle()
-
-			every { Time.nowMillis } returns 10_000L
-			vm.pause()
-			advanceUntilIdle()
-
-			// Resume 6 minutes (360_000 ms) after pause — beyond the 5-min window.
-			every { Time.nowMillis } returns 10_000L + 6L * 60L * 1000L
-			vm.resume()
-			advanceUntilIdle()
-
-			locationSource.subscribers shouldBe 0
-			val finished = vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Finished>()
-			finished.finalScore shouldBe SAMPLE.speedMps.toDouble()
-			scoreDao.inserted shouldHaveSize 1
-			gameRepository.creditedXp shouldHaveSize 1
-		} finally {
-			unmockkObject(Time)
-		}
-	}
-
-	@Test
-	fun pause_withoutActiveSession_isNoop() = runTest(dispatcher) {
+	fun activeSnapshotWhileAcquiring_mapsToAcquiring() = runTest(dispatcher) {
 		val vm = newViewModel()
-
-		vm.pause()
-		advanceUntilIdle()
-
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Idle>()
-		locationSource.subscribers shouldBe 0
+		collecting(vm) {
+			controller.set(
+				GameSessionState.Active(
+					sessionId = SESSION_ID,
+					configuration = CONFIG,
+					snapshot = snapshot(MiniGamePhase.ACQUIRING_SIGNAL),
+				),
+			)
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Acquiring>()
+		}
 	}
 
 	@Test
-	fun resume_withoutPriorPause_isNoop() = runTest(dispatcher) {
-		grantLocationPermission()
+	fun activeSnapshot_mapsToActive() = runTest(dispatcher) {
 		val vm = newViewModel()
-		vm.start()
-		advanceUntilIdle()
-		val priorSubscribers = locationSource.subscribers
-
-		vm.resume()
-		advanceUntilIdle()
-
-		locationSource.subscribers shouldBe priorSubscribers
-		vm.uiState.value.shouldBeInstanceOf<MiniGameUiState.Active>()
+		collecting(vm) {
+			controller.set(
+				GameSessionState.Active(
+					sessionId = SESSION_ID,
+					configuration = CONFIG,
+					snapshot = snapshot(MiniGamePhase.ACTIVE),
+				),
+			)
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Active>()
+		}
 	}
+
+	@Test
+	fun pausedFinishingStates_mapThrough() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			controller.set(
+				GameSessionState.Paused(SESSION_ID, CONFIG, snapshot(MiniGamePhase.PAUSED)),
+			)
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Paused>()
+
+			controller.set(
+				GameSessionState.Finishing(SESSION_ID, CONFIG, snapshot(MiniGamePhase.ACTIVE)),
+			)
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Finishing>()
+		}
+	}
+
+	@Test
+	fun finishedState_mapsToFinished_andChangeSetupReturnsToSetup() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			controller.set(GameSessionState.Finished(RESULT))
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Finished>()
+
+			vm.changeSetup()
+			advanceUntilIdle()
+			vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Setup>()
+		}
+	}
+
+	@Test
+	fun failedState_mapsToFailed_withoutSuccessScore() = runTest(dispatcher) {
+		val vm = newViewModel()
+		collecting(vm) {
+			controller.set(
+				GameSessionState.Failed(CONFIG, GameSessionFailureReason.LOCATION_UNAVAILABLE),
+			)
+			advanceUntilIdle()
+			val failed = vm.uiState.value.shouldBeInstanceOf<MiniGameSessionUiState.Failed>()
+			failed.reason shouldBe GameSessionFailureReason.LOCATION_UNAVAILABLE
+		}
+	}
+
+	@Test
+	fun playAgain_startsControllerWithGivenConfiguration() = runTest(dispatcher) {
+		grantLocation()
+		grantNotifications()
+		val vm = newViewModel()
+		collecting(vm) {
+			advanceUntilIdle()
+			vm.playAgain(CONFIG)
+			advanceUntilIdle()
+
+			controller.commands shouldContain GameSessionCommand.Start(CONFIG)
+		}
+	}
+
+	// --- helpers -------------------------------------------------------------
 
 	private fun newViewModel(): MiniGameSessionViewModel = MiniGameSessionViewModel(
-		savedStateHandle = SavedStateHandle(mapOf(MINIGAME_SESSION_GAME_ID_ARG to GAME_ID)),
+		savedStateHandle = SavedStateHandle(
+			mapOf(MINIGAME_SESSION_GAME_ID_ARG to OutrunConfiguration.GAME_ID),
+		),
 		application = application,
-		miniGameRegistry = registry,
-		scoreDao = scoreDao,
-		gameRepository = gameRepository,
-		locationSource = locationSource,
-		dispatchers = dispatchers,
-		appScope = appScope,
+		registry = registry,
+		controller = controller,
+		settingsRepository = settings,
 	)
 
-	private fun grantLocationPermission() {
+	private fun grantLocation() {
 		shadowOf(application).grantPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION)
 	}
 
+	private fun denyLocation() {
+		shadowOf(application).denyPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION)
+		shadowOf(application).denyPermissions(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+	}
+
+	private fun grantNotifications() {
+		shadowOf(application).grantPermissions(POST_NOTIFICATIONS)
+	}
+
+	private fun denyNotifications() {
+		shadowOf(application).denyPermissions(POST_NOTIFICATIONS)
+	}
+
 	private companion object {
-		private const val GAME_ID = "fake-game"
-		private val SAMPLE = MiniGameLocationSample(
-			latitude = 51.0,
-			longitude = 14.0,
-			speedMps = 7.5f,
-			accuracyM = 5f,
-			timestampMs = 1_000L,
+		private const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
+		private val CONFIG = MiniGameConfigurations.DEFAULT_OUTRUN
+		private val SESSION_ID = GameSessionId("session-1")
+		private val RESULT = GameSessionResult(
+			sessionId = SESSION_ID,
+			configuration = CONFIG,
+			finalScore = 42.0,
+			pointsAwarded = 7,
+			completedAtMs = 1_000L,
+			completionOutcome =
+				com.adsamcik.tracker.game.minigame.MiniGameCompletionOutcome.FirstRun,
+		)
+
+		private fun snapshot(phase: MiniGamePhase): MiniGameSnapshot = MiniGameSnapshot(
+			phase = phase,
+			signal = MiniGameSignal.UNKNOWN,
+			elapsedActiveTimeMs = 0L,
+			goalProgress = MiniGameGoalProgress.NotConfigured,
+			personalBest = MiniGamePersonalBest.compare(0.0, null),
+			latestFeedback = null,
+			visualPayload = MiniGameVisualPayload.Pending,
 		)
 	}
 }
 
 /**
- * Minimal MiniGame whose session reflects the last-seen speed as its score so
- * tests can deterministically assert what made it through the pipeline.
+ * Runs [block] while a background collector keeps the ViewModel's shared
+ * `uiState` active.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
+private suspend fun kotlinx.coroutines.test.TestScope.collecting(
+	vm: MiniGameSessionViewModel,
+	block: suspend () -> Unit,
+) {
+	val job = backgroundScope.launchCollector(vm)
+	block()
+	job.cancel()
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun CoroutineScope.launchCollector(vm: MiniGameSessionViewModel) =
+	launch { vm.uiState.collect { } }
+
+private class FakeGameSessionController : GameSessionController {
+	private val mutableState = MutableStateFlow<GameSessionState>(GameSessionState.Idle)
+	override val state: StateFlow<GameSessionState> = mutableState
+	val commands = mutableListOf<GameSessionCommand>()
+
+	fun set(newState: GameSessionState) {
+		mutableState.value = newState
+	}
+
+	override fun start(configuration: com.adsamcik.tracker.game.minigame.MiniGameConfiguration) {
+		commands += GameSessionCommand.Start(configuration)
+	}
+
+	override fun pause() {
+		commands += GameSessionCommand.Pause
+	}
+
+	override fun resume() {
+		commands += GameSessionCommand.Resume
+	}
+
+	override fun finish() {
+		commands += GameSessionCommand.Finish
+	}
+}
+
+private class FakeGoalsSettingsRepository(
+	initial: GoalsSettingsState = GoalsSettingsState.defaults(),
+) : GoalsSettingsRepository {
+	private val state = MutableStateFlow(initial)
+	override val data: Flow<GoalsSettingsState> = state
+
+	override suspend fun setRememberLastSetup(enabled: Boolean) {
+		state.update {
+			if (enabled) {
+				it.copy(rememberLastSetup = true)
+			} else {
+				it.copy(
+					rememberLastSetup = false,
+					rememberedOutrunSetup = null,
+					rememberedTerritorySetup = null,
+					rememberedZenSetup = null,
+					rememberedFuseRunSetup = null,
+					rememberedSwitchbackSetup = null,
+				)
+			}
+		}
+	}
+
+	override suspend fun setRememberedOutrunSetup(goalMeters: Int, difficulty: String?) {
+		state.update {
+			if (!it.rememberLastSetup) {
+				it.copy(rememberedOutrunSetup = null)
+			} else {
+				it.copy(rememberedOutrunSetup = RememberedGameSetup(goalMeters, difficulty))
+			}
+		}
+	}
+
+	override suspend fun setRememberedTerritorySetup(goalCells: Int, difficulty: String?) {
+		state.update {
+			if (!it.rememberLastSetup) {
+				it.copy(rememberedTerritorySetup = null)
+			} else {
+				it.copy(rememberedTerritorySetup = RememberedGameSetup(goalCells, difficulty))
+			}
+		}
+	}
+
+	override suspend fun setRememberedZenSetup(goalMinutes: Int, difficulty: String?) {
+		state.update {
+			if (!it.rememberLastSetup) {
+				it.copy(rememberedZenSetup = null)
+			} else {
+				it.copy(rememberedZenSetup = RememberedGameSetup(goalMinutes, difficulty))
+			}
+		}
+	}
+
+	override suspend fun setRememberedFuseRunSetup(goalCharges: Int, difficulty: String?) {
+		state.update {
+			if (!it.rememberLastSetup) {
+				it.copy(rememberedFuseRunSetup = null)
+			} else {
+				it.copy(rememberedFuseRunSetup = RememberedGameSetup(goalCharges, difficulty))
+			}
+		}
+	}
+
+	override suspend fun setRememberedSwitchbackSetup(goalTurns: Int, difficulty: String?) {
+		state.update {
+			if (!it.rememberLastSetup) {
+				it.copy(rememberedSwitchbackSetup = null)
+			} else {
+				it.copy(rememberedSwitchbackSetup = RememberedGameSetup(goalTurns, difficulty))
+			}
+		}
+	}
+
+	override suspend fun setNotificationsEnabled(enabled: Boolean) = Unit
+	override suspend fun setDailyStepGoal(steps: Int) = Unit
+	override suspend fun setWeeklyStepGoal(steps: Int) = Unit
+	override suspend fun setWeeklyDailyLimit(fraction: Float) = Unit
+	override suspend fun setGameHapticsEnabled(enabled: Boolean) = Unit
+	override suspend fun setQuietCoachingEnabled(enabled: Boolean) = Unit
+	override suspend fun setDailyGoalReachedPeriod(period: Int?) = Unit
+	override suspend fun setWeeklyGoalReachedPeriod(period: Int?) = Unit
+}
+
 private class FakeMiniGame(override val id: String) : MiniGame {
 	override val nameRes: Int = android.R.string.ok
 	override val descriptionRes: Int = android.R.string.ok
 	override val unlockLevel: Int = 1
-	override fun createSession(): MiniGameSession = FakeSession()
-
-	companion object { const val XP = 42 }
-
-	private class FakeSession : MiniGameSession() {
-		override var state: MiniGameState = MiniGameState.IDLE
-			private set
-		override var score: Double = 0.0
-			private set
-		override var statusText: String = ""
-			private set
-
-		override fun onLocationUpdate(
-			latitude: Double,
-			longitude: Double,
-			speedMps: Float,
-			accuracyM: Float,
-			timestampMs: Long,
-		) {
-			state = MiniGameState.RUNNING
-			score = speedMps.toDouble()
-			statusText = "running"
-		}
-
-		override fun onSessionEnd() { state = MiniGameState.FINISHED }
-		override fun calculatePoints(): Int = XP
-	}
-}
-
-private class ControllableLocationSource : MiniGameLocationSource {
-	private val sharedFlow = MutableSharedFlow<MiniGameLocationSample>(extraBufferCapacity = 16)
-	@Volatile
-	var subscribers: Int = 0
-		private set
-
-	/**
-	 * Peak concurrent subscriber count observed over the lifetime of this
-	 * source. Used by the pause→resume race test to assert the VM never
-	 * holds two GPS subscriptions at once.
-	 */
-	@Volatile
-	var maxConcurrentSubscribers: Int = 0
-		private set
-
-	@Volatile
-	var lastRequest: LocationRequest? = null
-		private set
-
-	override fun samples(request: LocationRequest): Flow<MiniGameLocationSample> = flow {
-		lastRequest = request
-		val now = ++subscribers
-		if (now > maxConcurrentSubscribers) maxConcurrentSubscribers = now
-		try {
-			sharedFlow.collect { emit(it) }
-		} finally {
-			// Model the real callbackFlow's `awaitClose { removeLocationUpdates(...) }`:
-			// cleanup runs in a NonCancellable context and takes at least one
-			// scheduler tick to complete. Without this, the single-threaded test
-			// dispatcher would coincidentally serialize cancel-then-relaunch and
-			// hide the pause→resume overlap bug.
-			withContext(NonCancellable) {
-				yield()
-			}
-			subscribers -= 1
-		}
-	}
-
-	suspend fun emit(sample: MiniGameLocationSample) {
-		sharedFlow.emit(sample)
-	}
-}
-
-private class RecordingScoreDao : MiniGameScoreDao {
-	val inserted = mutableListOf<MiniGameScoreEntity>()
-	private val byGame = mutableMapOf<String, MutableStateFlow<List<MiniGameScoreEntity>>>()
-	private val recent = MutableStateFlow<List<MiniGameScoreEntity>>(emptyList())
-
-	override fun getScoresByGame(gameId: String): Flow<List<MiniGameScoreEntity>> =
-		byGame.getOrPut(gameId) { MutableStateFlow(emptyList()) }.asStateFlow()
-
-	override fun getHighScore(gameId: String): Double? =
-		byGame[gameId]?.value?.maxOfOrNull { it.score }
-
-	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = recent.asStateFlow()
-
-	override suspend fun countTotal(): Long = inserted.size.toLong()
-
-	override fun deleteAll() {
-		inserted.clear()
-		byGame.clear()
-		recent.value = emptyList()
-	}
-
-	override suspend fun insert(obj: MiniGameScoreEntity): Long {
-		inserted += obj
-		val list = byGame.getOrPut(obj.gameId) { MutableStateFlow(emptyList()) }
-		list.value = list.value + obj
-		recent.value = (recent.value + obj).takeLast(200)
-		return inserted.size.toLong()
-	}
-
-	override suspend fun insert(obj: Collection<MiniGameScoreEntity>): List<Long> =
-		obj.map { insert(it) }
-
-	override suspend fun update(obj: MiniGameScoreEntity) = Unit
-	override suspend fun update(obj: Collection<MiniGameScoreEntity>) = Unit
-	override suspend fun delete(obj: MiniGameScoreEntity) = Unit
-	override suspend fun delete(obj: Collection<MiniGameScoreEntity>) = Unit
-}
-
-private class RecordingGameRepository : GameRepository {
-	val creditedXp = mutableListOf<Triple<String, Int, Long>>()
-	override fun getPointsToday(): Flow<Int> = flowOf(0)
-	override fun getStepsSummary(): StateFlow<StepsSummaryData?> = MutableStateFlow(null).asStateFlow()
-	override fun getPlayerProfile(): Flow<PlayerProfileUi?> = flowOf(null)
-	override suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long) {
-		creditedXp += Triple(gameId, xp, earnedAtMs)
-	}
+	override fun createSession(): MiniGameSession =
+		throw UnsupportedOperationException("Session creation is owned by the service")
 }

@@ -35,7 +35,11 @@ class WeeklyStepGoalTest {
 	@BeforeEach
 	fun setUp() {
 		persistence = FakeGoalPersistence()
-		goal = WeeklyStepGoal(persistence)
+		goal = WeeklyStepGoal(
+			persistence = persistence,
+			initialTarget = 70_000,
+			initialDailyLimit = 1f,
+		)
 	}
 
 	private fun createSession(id: Long = 1L, steps: Int = 100) = TrackerSession(
@@ -87,13 +91,41 @@ class WeeklyStepGoalTest {
 		}
 
 		@Test
-		fun `initial target is zero`() {
-			goal.target shouldBe 0
+		fun `initial target is explicitly supplied`() {
+			goal.target shouldBe 70_000
 		}
 
 		@Test
 		fun `is not enabled by default`() {
 			goal.isEnabled shouldBe false
+		}
+	}
+
+	@Nested
+	@DisplayName("Settings-backed cap updates")
+	inner class SettingsBackedCapUpdates {
+		@Test
+		fun `changing cap recomputes live weekly progress immediately`() {
+			goal.updateConfiguration(target = 20_000, dailyLimit = 0.3f)
+			goal.onCumulativeStepsUpdated(9_000)
+			goal.value shouldBe 6_000
+
+			goal.updateConfiguration(target = 20_000, dailyLimit = 0.5f)
+
+			goal.value shouldBe 9_000
+		}
+
+		@Test
+		fun `initial settings synchronization does not consume completion`() {
+			goal.onCumulativeStepsUpdated(30_000)
+
+			goal.updateConfiguration(
+				target = 20_000,
+				dailyLimit = 1f,
+				evaluateCompletion = false,
+			) shouldBe false
+
+			goal.onCumulativeStepsUpdated(30_000) shouldBe true
 		}
 	}
 

@@ -38,8 +38,74 @@ internal interface MiniGame {
 	/** Player level required to unlock this game. */
 	val unlockLevel: Int
 
+	/** Default setup shown when no remembered player selection exists. */
+	val defaultConfiguration: MiniGameConfiguration
+		get() = requireNotNull(MiniGameConfigurations.defaultFor(id)) {
+			"Mini-game '$id' must declare a default configuration"
+		}
+
+	/** Every configuration accepted by [createSession]. */
+	val supportedConfigurations: List<MiniGameConfiguration>
+		get() = MiniGameConfigurations.supportedFor(id)
+
+	/** Unit used to render scores and personal-best history. */
+	val scoreUnit: MiniGameScoreUnit
+		get() = when (id) {
+			OutrunConfiguration.GAME_ID -> MiniGameScoreUnit.DISTANCE_METERS
+			TerritoryConfiguration.GAME_ID -> MiniGameScoreUnit.CELL_COUNT
+			ZenWalkConfiguration.GAME_ID -> MiniGameScoreUnit.DURATION_SECONDS
+			FuseRunConfiguration.GAME_ID -> MiniGameScoreUnit.DEFUSAL_COUNT
+			SwitchbackConfiguration.GAME_ID -> MiniGameScoreUnit.TURN_COUNT
+			else -> error("Mini-game '$id' must declare its score unit")
+		}
+
+	/** Framework-neutral UI identity. Compose maps these tokens to concrete types. */
+	val presentation: MiniGamePresentation
+		get() = when (id) {
+			OutrunConfiguration.GAME_ID -> MiniGamePresentation(
+				icon = MiniGameIcon.GHOST,
+				accentRole = MiniGameAccentRole.TERTIARY,
+				shapeRole = MiniGameShapeRole.MOMENTUM,
+			)
+			TerritoryConfiguration.GAME_ID -> MiniGamePresentation(
+				icon = MiniGameIcon.GRID_FLAG,
+				accentRole = MiniGameAccentRole.PRIMARY,
+				shapeRole = MiniGameShapeRole.TERRAIN,
+			)
+			ZenWalkConfiguration.GAME_ID -> MiniGamePresentation(
+				icon = MiniGameIcon.PACE,
+				accentRole = MiniGameAccentRole.SECONDARY,
+				shapeRole = MiniGameShapeRole.WAYPOINT,
+			)
+			FuseRunConfiguration.GAME_ID -> MiniGamePresentation(
+				icon = MiniGameIcon.FUSE,
+				accentRole = MiniGameAccentRole.TERTIARY,
+				shapeRole = MiniGameShapeRole.MOMENTUM,
+			)
+			SwitchbackConfiguration.GAME_ID -> MiniGamePresentation(
+				icon = MiniGameIcon.SWITCHBACK,
+				accentRole = MiniGameAccentRole.PRIMARY,
+				shapeRole = MiniGameShapeRole.TERRAIN,
+			)
+			else -> error("Mini-game '$id' must declare presentation metadata")
+		}
+
 	/** Create a new game session. Called when the user taps Start. */
 	fun createSession(): MiniGameSession
+
+	/**
+	 * Create a session for a validated setup.
+	 *
+	 * Compatibility bridge: current engines still implement the no-argument
+	 * factory. They keep compiling while engine workstreams migrate each game to
+	 * consume its typed configuration, then override this method.
+	 */
+	fun createSession(configuration: MiniGameConfiguration): MiniGameSession {
+		require(configuration.gameId == id && configuration in supportedConfigurations) {
+			"Unsupported configuration for mini-game '$id'"
+		}
+		return createSession()
+	}
 
 	/**
 	 * GPS update cadence this game wants from the active location source.
@@ -63,4 +129,38 @@ internal interface MiniGame {
 		private const val DEFAULT_INTERVAL_MS = 2_000L
 		private const val DEFAULT_MIN_INTERVAL_MS = 1_000L
 	}
+}
+
+internal enum class MiniGameScoreUnit {
+	DISTANCE_METERS,
+	CELL_COUNT,
+	DURATION_SECONDS,
+	DEFUSAL_COUNT,
+	TURN_COUNT,
+}
+
+internal data class MiniGamePresentation(
+	val icon: MiniGameIcon,
+	val accentRole: MiniGameAccentRole,
+	val shapeRole: MiniGameShapeRole,
+)
+
+internal enum class MiniGameIcon {
+	GHOST,
+	GRID_FLAG,
+	PACE,
+	FUSE,
+	SWITCHBACK,
+}
+
+internal enum class MiniGameAccentRole {
+	PRIMARY,
+	SECONDARY,
+	TERTIARY,
+}
+
+internal enum class MiniGameShapeRole {
+	MOMENTUM,
+	TERRAIN,
+	WAYPOINT,
 }

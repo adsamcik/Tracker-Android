@@ -31,6 +31,16 @@ internal abstract class MiniGameModule {
 	@dagger.multibindings.IntoSet
 	abstract fun bindZenWalk(impl: com.adsamcik.tracker.game.minigame.zenwalk.ZenWalkGame): MiniGame
 
+	@dagger.Binds
+	@dagger.multibindings.IntoSet
+	abstract fun bindFuseRun(impl: com.adsamcik.tracker.game.minigame.fuserun.FuseRunGame): MiniGame
+
+	@dagger.Binds
+	@dagger.multibindings.IntoSet
+	abstract fun bindSwitchback(
+		impl: com.adsamcik.tracker.game.minigame.switchback.SwitchbackGame,
+	): MiniGame
+
 	/**
 	 * Live-location feed for mini-game sessions.
 	 *
@@ -45,5 +55,4 @@ internal abstract class MiniGameModule {
 		impl: LiveOrFusedMiniGameLocationSource,
 	): MiniGameLocationSource
 }
-
 

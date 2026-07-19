@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.game.goals.data.implementation
 
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
+import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.abstraction.BaseGoal
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import io.kotest.matchers.shouldBe
@@ -35,7 +36,7 @@ class DailyStepGoalTest {
 	@BeforeEach
 	fun setUp() {
 		persistence = FakeGoalPersistence()
-		goal = DailyStepGoal(persistence)
+		goal = DailyStepGoal(persistence, initialTarget = 4_000)
 	}
 
 	private fun createSession(id: Long = 1L, steps: Int = 100) = TrackerSession(
@@ -87,13 +88,27 @@ class DailyStepGoalTest {
 		}
 
 		@Test
-		fun `initial target is zero`() {
-			goal.target shouldBe 0
+		fun `initial target is explicitly supplied`() {
+			goal.target shouldBe 4_000
 		}
 
 		@Test
 		fun `is not enabled by default`() {
 			goal.isEnabled shouldBe false
+		}
+	}
+
+	@Nested
+	@DisplayName("DataStore target updates")
+	inner class DataStoreTargetUpdates {
+		@Test
+		fun `explicit target update immediately reaches exposed flow without PreferenceFlows`() {
+			val listenable = GoalListenable(goal)
+
+			listenable.onTargetUpdated(9_000)
+
+			goal.target shouldBe 9_000
+			listenable.target.value shouldBe 9_000
 		}
 	}
 
@@ -213,18 +228,13 @@ class DailyStepGoalTest {
 		}
 
 		@Test
-		fun `with default target zero any positive steps triggers completion`() {
-			// target defaults to 0; value >= 0 is always true after update
-			val result = goal.onSessionUpdated(createSession(steps = 1), isNewSession = true)
+		fun `lowering target reports at most once for the current period`() {
+			goal.onSessionUpdated(createSession(steps = 1_000), isNewSession = true)
 
-			result shouldBe true
-		}
+			val first = goal.onTargetUpdated(500)
+			val second = goal.onTargetUpdated(250)
 
-		@Test
-		fun `with default target zero subsequent updates do not re-report`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 1), isNewSession = true)
-			val second = goal.onSessionUpdated(createSession(id = 2L, steps = 100), isNewSession = true)
-
+			first shouldBe true
 			second shouldBe false
 		}
 	}
@@ -245,18 +255,6 @@ class DailyStepGoalTest {
 			}
 
 			progress shouldBe 0.25
-		}
-
-		@Test
-		fun `progress at zero target is 100 percent by convention`() {
-			// When target is 0, any progress is considered complete
-			val progress = if (goal.target > 0) {
-				goal.value.toDouble() / goal.target
-			} else {
-				1.0
-			}
-
-			progress shouldBe 1.0
 		}
 
 		@Test

@@ -6,7 +6,7 @@ option java_multiple_files = true;
 // Proto for game goals settings. Extend with new optional fields; never reuse field numbers.
 message GoalsSettingsProto {
   // Whether goal notifications are enabled
-  bool notifications_enabled = 1;
+  optional bool notifications_enabled = 1;
   // Daily step goal target
   int32 daily_step_goal = 2;
   // Weekly step goal target
@@ -17,6 +17,25 @@ message GoalsSettingsProto {
   // Reserved so the number/name is never reused and old DataStore files stay readable.
   reserved 5;
   reserved "challenges_enabled";
+  // Game feedback settings use presence so false differs from an older file with no value.
+  optional bool game_haptics_enabled = 6;
+  optional bool quiet_coaching_enabled = 7;
+  optional bool remember_last_setup = 8;
+  // Remembered mini-game setup values. Territory currently has no supported difficulty,
+  // but its field is retained so the persisted shape remains compatible if that changes.
+  optional int32 remembered_outrun_goal = 9;
+  optional string remembered_outrun_difficulty = 10;
+  optional int32 remembered_territory_goal = 11;
+  optional string remembered_territory_difficulty = 12;
+  optional int32 remembered_zen_goal = 13;
+  optional string remembered_zen_difficulty = 14;
+  // Durable reached markers prevent target reductions from awarding repeatedly.
+  optional int32 daily_goal_reached_period = 15;
+  optional int32 weekly_goal_reached_period = 16;
+  optional int32 remembered_fuse_run_goal = 17;
+  optional string remembered_fuse_run_difficulty = 18;
+  optional int32 remembered_switchback_goal = 19;
+  optional string remembered_switchback_difficulty = 20;
   // Internal migration marker so legacy SharedPreferences import runs only once.
   bool legacy_migrated = 1000;
 }

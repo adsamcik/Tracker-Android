@@ -10,28 +10,25 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel
 fun GameRoute(
 	onNavigateToAchievements: () -> Unit = {},
 	onOpenSettings: () -> Unit = {},
-	onNavigateToTracker: () -> Unit = {},
+	@Suppress("UNUSED_PARAMETER") onNavigateToTracker: () -> Unit = {},
 	onPlayMiniGame: (gameId: String) -> Unit = {},
 	onViewMiniGameScores: () -> Unit = {},
 ) {
 	val vm: GameViewModel = hiltViewModel()
 	val explorationVm: ExplorationViewModel = hiltViewModel()
-	val points by vm.pointsToday.collectAsStateWithLifecycle()
-	val steps by vm.stepsSummary.collectAsStateWithLifecycle()
-	val miniGameEntries by vm.miniGameEntries.collectAsStateWithLifecycle()
+	val hub by vm.hubState.collectAsStateWithLifecycle()
 	val exploration by explorationVm.explorationState.collectAsStateWithLifecycle()
 	val achievements by explorationVm.achievementState.collectAsStateWithLifecycle()
 
 	GameScreen(
-		pointsToday = points,
-		steps = steps,
-		miniGameEntries = miniGameEntries,
+		hub = hub,
 		explorationState = exploration,
 		achievementState = achievements,
 		onOpenSettings = onOpenSettings,
-		onNavigateToTracker = onNavigateToTracker,
 		onViewAllAchievements = onNavigateToAchievements,
 		onPlayMiniGame = onPlayMiniGame,
 		onViewMiniGameScores = onViewMiniGameScores,
+		onSelectLeaderboardMetric = vm::selectLeaderboardMetric,
+		onRetryLeaderboard = vm::retryLeaderboard,
 	)
 }
