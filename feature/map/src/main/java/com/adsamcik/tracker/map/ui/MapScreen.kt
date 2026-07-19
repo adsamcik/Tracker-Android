@@ -76,6 +76,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
+import com.adsamcik.tracker.shared.base.location.UiLocationProvider
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
@@ -133,6 +134,10 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -155,6 +160,12 @@ import com.adsamcik.tracker.map.ui.controls.mapChromeGlassBorder
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
 private const val MAP_LOAD_TAG = "MapScreen"
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+private interface MapScreenEntryPoint {
+    fun uiLocationProvider(): UiLocationProvider
+}
 /**
  * Maximum initial zoom for a user with no data on the active layer. Above this,
  * the bundled basemap (z0-z6 PMTiles) has no detail and the user sees only a
@@ -878,7 +889,15 @@ fun MapScreen(
 
     }
 
-    val locationManager = remember(appContext) { LocationAndSensorsManager(appContext) }
+    val uiLocationProvider = remember(appContext) {
+        EntryPointAccessors.fromApplication(
+            appContext,
+            MapScreenEntryPoint::class.java,
+        ).uiLocationProvider()
+    }
+    val locationManager = remember(appContext, uiLocationProvider) {
+        LocationAndSensorsManager(appContext, uiLocationProvider)
+    }
 
     LaunchedEffect(locationManager, hasLocationPermission, overlayMode) {
         if (!hasLocationPermission || overlayMode) return@LaunchedEffect

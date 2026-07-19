@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.di
 
 import android.content.Context
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.network.DefaultNetworkGateway
 import com.adsamcik.tracker.network.NetworkGateway
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
@@ -56,6 +57,9 @@ import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.shared.base.location.DefaultUiLocationProvider
+import com.adsamcik.tracker.shared.base.location.UiLocationProvider
+import com.google.android.gms.location.LocationServices
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -78,6 +82,15 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object InfrastructureModule {
+
+    @Provides
+    @Singleton
+    fun provideUiLocationProvider(
+        @ApplicationContext context: Context,
+    ): UiLocationProvider = DefaultUiLocationProvider(
+        client = LocationServices.getFusedLocationProviderClient(context),
+        processLifecycle = ProcessLifecycleOwner.get().lifecycle,
+    )
 
     /**
      * Provides the coroutine dispatchers abstraction.

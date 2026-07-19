@@ -1,157 +1,111 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 
 class JsonExporterTest {
 
-	private val exporter = JsonExporter()
+    private val exporter = JsonExporter()
 
-	private fun export(
-		locations: Sequence<LocationSample> = emptySequence(),
-		sessions: List<SessionSnapshot> = emptyList(),
-		dateRange: LongRange? = null,
-	): String {
-		val out = ByteArrayOutputStream()
-		val result = exporter.writeJson(out, locations, sessions, dateRange)
-		result shouldBe ExportResult.Success
-		return out.toString(Charsets.UTF_8.name())
-	}
+    @Test
+    fun `exports a valid empty session array`() {
+        val output = export(emptySequence())
 
-	@Test
-	fun `empty export produces valid schema`() {
-		val json = export()
-		json shouldStartWith "{\"schema\":1"
-		json shouldContain "\"locations\":[]"
-		json shouldContain "\"sessions\":[]"
-	}
+        output shouldBe "[]"
+    }
 
-	@Test
-	fun `export with date range includes boundaries`() {
-		val json = export(dateRange = 1000L..2000L)
-		json shouldContain "\"dateRangeStart\":1000"
-		json shouldContain "\"dateRangeEnd\":2000"
-	}
+    @Test
+    fun `groups location wifi and cell observations under their session`() {
+        val output = export(sequenceOf(sessionExport()))
 
-	@Test
-	fun `single location includes all fields`() {
-		val loc = testLocation(time = 100L, lat = 51.5, lon = 7.1, alt = 120.0, speed = 3.5f)
-		val json = export(locations = sequenceOf(loc))
-		json shouldContain "\"time\":100"
-		json shouldContain "\"lat\":51.5"
-		json shouldContain "\"lon\":7.1"
-		json shouldContain "\"alt\":120.0"
-		json shouldContain "\"spd\":3.5"
-	}
+        output shouldContain "\"schemaVersion\":2"
+        output shouldContain "\"session\":{\"id\":42"
+        output shouldContain "\"locations\":[{\"timeMs\":1725000000000,\"latitude\":50.1"
+        output shouldContain "\"wifiObservations\":[{\"timeMs\":1725000010000,\"bssid\":\"00:11:22:33:44:55\""
+        output shouldContain "\"cellSamples\":[{\"timeMs\":1725000020000,\"cellId\":9876543210"
+    }
 
-	@Test
-	fun `location without altitude omits alt field`() {
-		val loc = testLocation(time = 200L, lat = 50.0, lon = 8.0, alt = null)
-		val json = export(locations = sequenceOf(loc))
-		json shouldContain "\"time\":200"
-		json.contains("\"alt\"") shouldBe false
-	}
+    @Test
+    fun `streams a large number of session records`() {
+        val output = export((1..2_000).asSequence().map { sessionExport(id = it.toLong()) })
 
-	@Test
-	fun `multiple locations separated by commas`() {
-		val locs = (1..3).map { testLocation(time = it.toLong(), lat = 50.0 + it, lon = 7.0) }
-		val json = export(locations = locs.asSequence())
-		val count = "\"time\"".toRegex().findAll(json).count()
-		count shouldBe 3
-	}
+        "\"schemaVersion\":2".toRegex().findAll(output).count() shouldBe 2_000
+    }
 
-	@Test
-	fun `session snapshot serialization`() {
-		val session = SessionSnapshot(
-			id = 42,
-			start = 1000L,
-			end = 2000L,
-			collections = 50,
-			distanceInM = 1234.5f,
-			isUserInitiated = true,
-			steps = 500,
-		)
-		val json = export(sessions = listOf(session))
-		json shouldContain "\"id\":42"
-		json shouldContain "\"start\":1000"
-		json shouldContain "\"end\":2000"
-		json shouldContain "\"collections\":50"
-		json shouldContain "\"distanceInM\":1234.5"
-		json shouldContain "\"isUserInitiated\":true"
-		json shouldContain "\"steps\":500"
-	}
+    private fun export(sessions: Sequence<SessionExport>): String {
+        val output = ByteArrayOutputStream()
+        exporter.writeJson(output, sessions) shouldBe ExportResult.Success
+        return output.toString(Charsets.UTF_8.name())
+    }
 
-	@Test
-	fun `activity info is included in location`() {
-		val loc = testLocation(time = 300L, lat = 51.0, lon = 7.0)
-		val json = export(locations = sequenceOf(loc))
-		json shouldContain "\"time\":300"
-		json shouldContain "\"lat\":51.0"
-		json shouldContain "\"lon\":7.0"
-	}
-
-	@Test
-	fun `json escaping works for special characters`() {
-		val escaped = JsonExporter.escapeJson("hello \"world\"\nnew\\line")
-		escaped shouldBe "hello \\\"world\\\"\\nnew\\\\line"
-	}
-
-	@Test
-	fun `large export streams without OOM`() {
-		val locs = (1..10_000).asSequence().map {
-			testLocation(time = it.toLong(), lat = 50.0 + it * 0.0001, lon = 7.0)
-		}
-		val out = ByteArrayOutputStream()
-		val result = exporter.writeJson(out, locs)
-		result shouldBe ExportResult.Success
-		val json = out.toString(Charsets.UTF_8.name())
-		val count = "\"time\"".toRegex().findAll(json).count()
-		count shouldBe 10_000
-	}
-
-	@Test
-	fun `session without steps omits steps field`() {
-		val session = SessionSnapshot(
-			id = 1,
-			start = 1000L,
-			end = 2000L,
-			collections = 10,
-			distanceInM = 100f,
-			isUserInitiated = false,
-			steps = null,
-		)
-		val json = export(sessions = listOf(session))
-		json shouldContain "\"isUserInitiated\":false"
-		json.contains("\"steps\"") shouldBe false
-	}
-
-	private fun testLocation(
-		time: Long,
-		lat: Double,
-		lon: Double,
-		alt: Double? = null,
-		speed: Float? = null,
-	) = LocationSample(
-		timeMs = time,
-		elapsedRealtimeNanos = 0L,
-		latE7 = (lat * 1e7).toInt(),
-		lonE7 = (lon * 1e7).toInt(),
-		altitudeM = alt?.toFloat(),
-		rawGpsAltitudeM = null,
-		hAccM = null,
-		vAccM = null,
-		speedMps = speed,
-		speedAccuracyMps = null,
-		provider = "gps",
-		quality = SampleQuality.HIGH,
-		motionState = null,
-		policy = null,
-		bucketId = null,
-		createdAt = System.currentTimeMillis(),
-	)
+    private fun sessionExport(id: Long = 42) = SessionExport(
+        session = SessionSnapshot(
+            id = id,
+            startTimeMs = 1_725_000_000_000L,
+            endTimeMs = 1_725_000_060_000L,
+            distanceM = 1234.5f,
+            steps = 500,
+            primaryActivity = 7,
+            activityConfidence = 93,
+            sampleCount = 1,
+            source = "USER_CREATED",
+            hasDistanceAnomaly = false,
+        ),
+        locations = listOf(
+            LocationSample(
+                timeMs = 1_725_000_000_000L,
+                elapsedRealtimeNanos = 0L,
+                latE7 = 501_000_000,
+                lonE7 = 144_000_000,
+                altitudeM = 120f,
+                rawGpsAltitudeM = null,
+                hAccM = 5f,
+                vAccM = null,
+                speedMps = 3.5f,
+                speedAccuracyMps = null,
+                provider = "gps",
+                quality = SampleQuality.HIGH,
+                motionState = null,
+                policy = null,
+                bucketId = null,
+                createdAt = 1_725_000_000_000L,
+            ),
+        ),
+        wifiObservations = listOf(
+            WifiObservation(
+                timeMs = 1_725_000_010_000L,
+                bssid = "00:11:22:33:44:55",
+                ssid = "Tracker wifi",
+                capabilities = "[WPA2]",
+                frequency = 5180,
+                level = -50,
+                latE7 = 501_000_000,
+                lonE7 = 144_000_000,
+                provenance = CoordinateProvenance.DIRECT,
+                createdAt = 1_725_000_010_000L,
+            ),
+        ),
+        cellSamples = listOf(
+            CellSample(
+                timeMs = 1_725_000_020_000L,
+                cellId = 9_876_543_210L,
+                lac = 123,
+                mcc = 230,
+                mnc = 1,
+                networkType = 13,
+                signalStrength = 45,
+                latE7 = 501_000_000,
+                lonE7 = 144_000_000,
+                provenance = CoordinateProvenance.DIRECT,
+                createdAt = 1_725_000_020_000L,
+            ),
+        ),
+    )
 }

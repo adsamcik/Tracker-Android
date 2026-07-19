@@ -21,6 +21,27 @@ interface CellSampleDao : BaseDao<CellSample> {
 	@Query("SELECT * FROM cell_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<CellSample>>
 
+	@Query(
+		"""
+		SELECT * FROM cell_sample
+		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+			AND (
+				:afterTimeMs IS NULL
+				OR time_ms > :afterTimeMs
+				OR (time_ms = :afterTimeMs AND id > COALESCE(:afterId, 0))
+			)
+		ORDER BY time_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getChunkBetweenOrdered(
+		fromMs: Long,
+		toMs: Long,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		limit: Int,
+	): List<CellSample>
+
 	/**
 	 * Get samples without coordinates (for enrichment).
 	 */
