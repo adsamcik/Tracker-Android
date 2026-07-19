@@ -89,6 +89,16 @@
     <string name="settings_reset_export_watermarks_title">Force full export</string>
     <string name="settings_reset_export_watermarks_summary">Next automated backup will include all data instead of only changes</string>
     <string name="settings_reset_export_watermarks_done">Export watermarks reset — next backup will be a full export</string>
+    <string name="settings_migration_backup_export_title">Export pre-upgrade safety backup</string>
+    <string name="settings_migration_backup_export_summary">Full database copy from v%1$d, created before migration to v%2$d and kept privately for up to 30 days</string>
+    <string name="settings_migration_backup_warning_title">Export sensitive database backup?</string>
+    <string name="settings_migration_backup_warning_message">This backup may contain precise locations, Wi-Fi and cell observations, activities, and other private data from before the upgrade. Save it only somewhere you trust.</string>
+    <string name="settings_migration_backup_export_action">Export backup</string>
+    <string name="settings_migration_backup_export_success">Pre-upgrade backup exported</string>
+    <string name="settings_migration_backup_export_failure">Could not export the pre-upgrade backup</string>
+    <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
+    <string name="settings_delete_data_success">All collected data was deleted</string>
+    <string name="settings_delete_data_failure">Could not delete all collected data</string>
     <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
     <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
     <string name="settings_map_online_tiles_section_title">Online map tiles</string>

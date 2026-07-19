@@ -39,6 +39,8 @@ import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
 import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
+import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
@@ -75,17 +77,20 @@ import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
+import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHelperFactory
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 34 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 35 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 34,
+		version = 35,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -98,6 +103,8 @@ import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 			WifiObservation::class,
 			TrackerRun::class,
 			SessionSegment::class,
+			LegacyRejectedTrackerSession::class,
+			LegacyLocationWifiCount::class,
 			DailySummaryEntity::class,
 			LiveStatsEntity::class,
 			// Trip inference entities (Phase 3b)
@@ -330,42 +337,55 @@ abstract class AppDatabase : RoomDatabase() {
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
+		internal val migrations = arrayOf(
+			MIGRATION_2_3,
+			MIGRATION_3_4,
+			MIGRATION_4_5,
+			MIGRATION_5_6,
+			MIGRATION_6_7,
+			MIGRATION_7_8,
+			MIGRATION_8_9,
+			MIGRATION_9_10,
+			MIGRATION_10_11,
+			MIGRATION_11_12,
+			MIGRATION_12_13,
+			MIGRATION_13_14,
+			MIGRATION_14_15,
+			MIGRATION_15_16,
+			MIGRATION_16_17,
+			MIGRATION_17_18,
+			MIGRATION_18_19,
+			MIGRATION_19_20,
+			MIGRATION_20_21,
+			MIGRATION_21_22,
+			MIGRATION_22_23,
+			MIGRATION_23_24,
+			MIGRATION_24_25,
+			MIGRATION_25_26,
+			MIGRATION_26_27,
+			MIGRATION_27_28,
+			MIGRATION_28_29,
+			MIGRATION_29_30,
+			MIGRATION_30_31,
+			MIGRATION_31_32,
+			MIGRATION_32_33,
+			MIGRATION_33_34,
+			MIGRATION_34_35,
+		)
+
 		override fun setupDatabase(database: Builder<AppDatabase>) {
-				database.addMigrations(
-						MIGRATION_2_3,
-						MIGRATION_3_4,
-						MIGRATION_4_5,
-						MIGRATION_5_6,
-						MIGRATION_6_7,
-						MIGRATION_7_8,
-						MIGRATION_8_9,
-						MIGRATION_9_10,
-						MIGRATION_10_11,
-						MIGRATION_11_12,
-						MIGRATION_12_13,
-						MIGRATION_13_14,
-						MIGRATION_14_15,
-						MIGRATION_15_16,
-						MIGRATION_16_17,
-				MIGRATION_17_18,
-				MIGRATION_18_19,
-				MIGRATION_19_20,
-				MIGRATION_20_21,
-				MIGRATION_21_22,
-				MIGRATION_22_23,
-				MIGRATION_23_24,
-				MIGRATION_24_25,
-				MIGRATION_25_26,
-				MIGRATION_26_27,
-				MIGRATION_27_28,
-				MIGRATION_28_29,
-				MIGRATION_29_30,
-				MIGRATION_30_31,
-				MIGRATION_31_32,
-				MIGRATION_32_33,
-				MIGRATION_33_34
-				)
+			database.addMigrations(*migrations)
 		}
+
+		override fun openHelperFactory(
+			context: Context,
+			delegate: SupportSQLiteOpenHelper.Factory,
+		): SupportSQLiteOpenHelper.Factory = MigrationBackupOpenHelperFactory(
+			delegate = delegate,
+			backupStore = DatabaseMigrationBackupStore(context),
+			databaseName = databaseName,
+			targetVersion = CURRENT_DATABASE_VERSION,
+		)
 
 		/**
 		 * Deletes all collected data from the database.
@@ -374,7 +394,13 @@ abstract class AppDatabase : RoomDatabase() {
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
 			val database = database(context)
+			val backupStore = DatabaseMigrationBackupStore(context)
+			backupStore.markDeletionPending()
+			deleteAllCollectedData(database)
+			backupStore.deleteAll()
+		}
 
+		internal fun deleteAllCollectedData(database: AppDatabase) {
 			database.runInTransaction {
 				// Sessionless architecture tables
 				database.locationSampleDao().deleteAll()
@@ -402,6 +428,12 @@ abstract class AppDatabase : RoomDatabase() {
 				database.routeCacheDao().deleteAll()
 				database.exportLogDao().deleteAll()
 				database.storageSizeSnapshotDao().deleteAll()
+				database.openHelper.writableDatabase.execSQL(
+					"DELETE FROM domain_event_cursor",
+				)
+				database.openHelper.writableDatabase.execSQL(
+					"DELETE FROM domain_event",
+				)
 
 				// Ski detection tables
 				database.pressureSampleDao().deleteAll()
@@ -413,11 +445,19 @@ abstract class AppDatabase : RoomDatabase() {
 				database.xpLedgerDao().deleteAll()
 				database.playerProfileDao().deleteAll()
 				database.miniGameScoreDao().deleteAll()
+				database.openHelper.writableDatabase.execSQL(
+					"DELETE FROM legacy_rejected_tracker_session",
+				)
+				database.openHelper.writableDatabase.execSQL(
+					"DELETE FROM legacy_location_wifi_count",
+				)
 
 				// OSM road graph (user-imported region; not collected data per-se
 				// but covered by the same "delete everything" semantics).
 				database.osmImportDao().deleteAllTables()
 			}
 		}
+
+		private const val CURRENT_DATABASE_VERSION = 35
 	}
 }

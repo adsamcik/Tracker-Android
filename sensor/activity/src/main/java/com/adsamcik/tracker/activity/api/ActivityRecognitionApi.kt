@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
@@ -35,4 +36,7 @@ object ActivityRecognitionApi {
 
         WorkManager.getInstance(context).enqueue(workRequest)
     }
+
+    fun cancelPendingWork(context: Context): Operation =
+        WorkManager.getInstance(context).cancelAllWorkByTag(ActivityRecognitionWorker.WORK_TAG)
 }

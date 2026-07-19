@@ -60,14 +60,21 @@ class SessionlessEnumsTest {
 	@DisplayName("CoordinateProvenance")
 	inner class CoordinateProvenanceTest {
 		@Test
-		fun `has 5 entries`() {
-			CoordinateProvenance.entries.size shouldBe 5
+		fun `has 6 entries`() {
+			CoordinateProvenance.entries.size shouldBe 6
 		}
 
 		@Test
 		fun `contains expected values`() {
 			CoordinateProvenance.entries.map { it.name } shouldBe
-					listOf("UNKNOWN", "NEAREST_LOCATION", "INTERPOLATED", "DWELL_CENTER", "DIRECT")
+					listOf(
+						"UNKNOWN",
+						"NEAREST_LOCATION",
+						"INTERPOLATED",
+						"DWELL_CENTER",
+						"DIRECT",
+						"LEGACY_MIGRATION",
+					)
 		}
 
 		@Test

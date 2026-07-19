@@ -26,5 +26,6 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 	@Query("SELECT EXISTS(SELECT 1 FROM points_awarded WHERE time = :time AND source = :source LIMIT 1)")
 	fun hasAwardAt(time: Long, source: String): Boolean
 
-
+	@Query("DELETE FROM points_awarded")
+	fun deleteAll()
 }

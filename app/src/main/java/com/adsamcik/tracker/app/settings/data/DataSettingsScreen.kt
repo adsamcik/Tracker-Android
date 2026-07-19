@@ -23,7 +23,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,9 +32,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.app.settings.DataSettingsViewModel
+import com.adsamcik.tracker.app.settings.DataDeletionResult
 import com.adsamcik.tracker.app.settings.DebugSettingsViewModel
+import com.adsamcik.tracker.app.settings.MigrationBackupUiInfo
 import com.adsamcik.tracker.app.settings.components.DialogListPreference
 import com.adsamcik.tracker.app.settings.components.ExportFormat
 import com.adsamcik.tracker.app.settings.components.ExportFormatDialog
@@ -47,9 +47,6 @@ import com.adsamcik.tracker.app.settings.osm.osmImportSection
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
 import java.util.Locale
-import kotlinx.coroutines.launch
-
-private val defaultDispatchers = DefaultDispatchersProvider
 
 @Composable
 fun DataSettingsScreen() {
@@ -60,8 +57,8 @@ fun DataSettingsScreen() {
     val uiState by dataVm.uiState.collectAsStateWithLifecycle()
     val showDeleteDataDialog by debugVm.showDeleteDataDialog.collectAsStateWithLifecycle()
 
-    val coroutineScope = rememberCoroutineScope()
     var showExportFormatDialog by remember { mutableStateOf(false) }
+    var showMigrationBackupWarning by remember { mutableStateOf(false) }
     val dataImport = remember { DataImport() }
     val importMimeTypes = remember { supportedImportMimeTypes(dataImport) }
 
@@ -71,6 +68,23 @@ fun DataSettingsScreen() {
     ) { uri ->
         if (uri != null) {
             com.adsamcik.tracker.impexp.importer.DataImporter.import(context, uri)
+        }
+    }
+    val migrationBackupExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.sqlite3")
+    ) { uri ->
+        if (uri != null) {
+            dataVm.exportMigrationBackup(uri) { result ->
+                val message = when (result) {
+                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.Success ->
+                        R.string.settings_migration_backup_export_success
+                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.Failure ->
+                        R.string.settings_migration_backup_export_failure
+                    com.adsamcik.tracker.app.settings.MigrationBackupExportResult.CleanupRequired ->
+                        R.string.settings_migration_backup_export_cleanup_required
+                }
+                Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -89,6 +103,13 @@ fun DataSettingsScreen() {
                 subtitle = stringResource(R.string.settings_export_data_summary),
                 icon = Icons.Default.FileUpload,
                 onClick = { showExportFormatDialog = true }
+            )
+        }
+
+        item {
+            MigrationBackupExportAvailability(
+                backup = uiState.migrationBackup,
+                onClick = { showMigrationBackupWarning = true },
             )
         }
 
@@ -206,29 +227,29 @@ fun DataSettingsScreen() {
 
     // Delete data confirmation dialog
     if (showDeleteDataDialog) {
-        AlertDialog(
-            onDismissRequest = { debugVm.hideDeleteDataDialog() },
-            title = { Text(stringResource(R.string.settings_remove_all_collected_data_title)) },
-            text = { Text(stringResource(com.adsamcik.tracker.shared.base.R.string.alert_confirm, stringResource(R.string.settings_remove_all_collected_data_title).replaceFirstChar { it.lowercase() })) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        debugVm.hideDeleteDataDialog()
-                        coroutineScope.launch(defaultDispatchers.io) {
-                            com.adsamcik.tracker.shared.base.database.AppDatabase.deleteAllCollectedData(context)
-                        }
-                        dataVm.resetExportWatermarks()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_delete))
+        CollectedDataDeletionDialog(
+            onDismiss = { debugVm.hideDeleteDataDialog() },
+            onConfirm = {
+                debugVm.hideDeleteDataDialog()
+                dataVm.deleteAllCollectedData { result ->
+                    val message = when (result) {
+                        DataDeletionResult.Success -> R.string.settings_delete_data_success
+                        DataDeletionResult.Failure -> R.string.settings_delete_data_failure
+                    }
+                    Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { debugVm.hideDeleteDataDialog() }) {
-                    Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel))
-                }
-            }
+        )
+    }
+
+    if (showMigrationBackupWarning) {
+        MigrationBackupWarningDialog(
+            backup = checkNotNull(uiState.migrationBackup),
+            onDismiss = { showMigrationBackupWarning = false },
+            onExport = { fileName ->
+                showMigrationBackupWarning = false
+                migrationBackupExportLauncher.launch(fileName)
+            },
         )
     }
 
@@ -241,6 +262,92 @@ fun DataSettingsScreen() {
             }
         )
     }
+}
+
+@Composable
+internal fun CollectedDataDeletionDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val title = stringResource(R.string.settings_remove_all_collected_data_title)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Text(
+                stringResource(
+                    com.adsamcik.tracker.shared.base.R.string.alert_confirm,
+                    title.replaceFirstChar { it.lowercase() },
+                ),
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+internal fun MigrationBackupExportAvailability(
+    backup: MigrationBackupUiInfo?,
+    onClick: () -> Unit,
+) {
+    if (backup != null) {
+        MigrationBackupExportSetting(
+            backup = backup,
+            onClick = onClick,
+        )
+    }
+}
+
+@Composable
+internal fun MigrationBackupExportSetting(
+    backup: MigrationBackupUiInfo,
+    onClick: () -> Unit,
+) {
+    SettingsItem(
+        title = stringResource(R.string.settings_migration_backup_export_title),
+        subtitle = stringResource(
+            R.string.settings_migration_backup_export_summary,
+            backup.sourceVersion,
+            backup.targetVersion,
+        ),
+        icon = Icons.Default.FileUpload,
+        onClick = onClick,
+    )
+}
+
+@Composable
+internal fun MigrationBackupWarningDialog(
+    backup: MigrationBackupUiInfo,
+    onDismiss: () -> Unit,
+    onExport: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_migration_backup_warning_title)) },
+        text = { Text(stringResource(R.string.settings_migration_backup_warning_message)) },
+        confirmButton = {
+            Button(onClick = { onExport(backup.fileName) }) {
+                Text(stringResource(R.string.settings_migration_backup_export_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+            }
+        },
+    )
 }
 
 @Composable

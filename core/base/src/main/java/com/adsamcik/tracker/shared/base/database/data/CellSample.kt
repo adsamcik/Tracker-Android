@@ -81,7 +81,33 @@ data class CellSample(
 	 * Row creation timestamp (for auditing/debugging).
 	 */
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/**
+	 * Altitude retained from the 2024.1 cell observation.
+	 */
+	@ColumnInfo(name = "legacy_alt_m")
+	val legacyAltM: Double? = null,
+
+	/** Original text MCC retained before conversion to the modern numeric field. */
+	@ColumnInfo(name = "legacy_mcc")
+	val legacyMcc: String? = null,
+
+	/** Original text MNC retained before conversion to the modern numeric field. */
+	@ColumnInfo(name = "legacy_mnc")
+	val legacyMnc: String? = null,
+
+	/** Original primary key from cell_location. */
+	@ColumnInfo(name = "legacy_source_id")
+	val legacySourceId: Long? = null,
+
+	/** Exact latitude retained before E7 conversion. */
+	@ColumnInfo(name = "legacy_lat")
+	val legacyLat: Double? = null,
+
+	/** Exact longitude retained before E7 conversion. */
+	@ColumnInfo(name = "legacy_lon")
+	val legacyLon: Double? = null
 )
 
 /**
@@ -97,5 +123,7 @@ enum class CoordinateProvenance {
 	/** Derived from dwell cluster centroid */
 	DWELL_CENTER,
 	/** Captured with synchronized GPS */
-	DIRECT
+	DIRECT,
+	/** Migrated from the 2024.1 aggregate Wi-Fi or cell tables. */
+	LEGACY_MIGRATION
 }

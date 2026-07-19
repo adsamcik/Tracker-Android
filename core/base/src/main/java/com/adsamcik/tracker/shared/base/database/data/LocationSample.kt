@@ -120,7 +120,19 @@ data class LocationSample(
 	 * Row creation timestamp (for auditing/debugging).
 	 */
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/** Exact latitude retained from the pre-E7 2024.1 schema. */
+	@ColumnInfo(name = "legacy_lat")
+	val legacyLat: Double? = null,
+
+	/** Exact longitude retained from the pre-E7 2024.1 schema. */
+	@ColumnInfo(name = "legacy_lon")
+	val legacyLon: Double? = null,
+
+	/** Exact altitude retained from the 2024.1 schema. */
+	@ColumnInfo(name = "legacy_alt_m")
+	val legacyAltM: Double? = null
 )
 
 /**

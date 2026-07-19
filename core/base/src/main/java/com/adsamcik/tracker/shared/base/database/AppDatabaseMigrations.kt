@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 35         │ 400         │ 🚧 UNRELEASED - Preserve every 2024.1   │
+ * │            │             │    legacy field during v10 migration.    │
  * │ 34         │ 400         │ 🚧 UNRELEASED - Global WAL recovery     │
  * │            │             │    ordering index on pending_signal.     │
  * │ 33         │ 400         │ 🚧 UNRELEASED - Add cell_index_built    │
@@ -229,47 +231,9 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
 
 val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 	override fun migrate(db: SupportSQLiteDatabase) {
-		with(db) {
-			// Migration from old detailed activity system to new simplified activity system
-			// Map old activity IDs to new simplified categories
-			
-			// Walking activities: WALK(-2) -> WALKING(-2) (already matches)
-			// Running activities: RUN(-3) -> RUNNING(-3) (already matches)
-			// Cycling activities: BICYCLE(-4) -> BICYCLE(-4) (already matches)
-			// Vehicle activities: VEHICLE(-5) -> VEHICLE(-5) (already matches)
-			
-			// Map slope sports activities to SLOPE_SPORTS(-22)
-			// SKI(-23), SNOWBOARD(-24), SKATE(-22) -> SLOPE_SPORTS(-22)
-			execSQL("UPDATE tracker_session SET session_activity_id = -22 WHERE session_activity_id IN (-23, -24)")
-			
-			// Map land vehicle activities to LAND_VEHICLE(-34)  
-			// TRAIN(-34), RACE(-21) -> LAND_VEHICLE(-34)
-			execSQL("UPDATE tracker_session SET session_activity_id = -34 WHERE session_activity_id = -21")
-			
-			// Map water vehicle activities to WATER_VEHICLE(-26)
-			// SAILING(-26), CANOE(-27), KAYAK(-28), ROWING(-29), FERRY(-32) -> WATER_VEHICLE(-26)
-			execSQL("UPDATE tracker_session SET session_activity_id = -26 WHERE session_activity_id IN (-27, -28, -29, -32)")
-			
-			// Map air vehicle activities to AIR_VEHICLE(-31)
-			// AIRPLANE(-31), AIRBALLOON(-33) -> AIR_VEHICLE(-31)
-			execSQL("UPDATE tracker_session SET session_activity_id = -31 WHERE session_activity_id = -33")
-			
-			// Map sports that don't fit well into the new categories to generic activities
-			// This includes: SWIM(-6), TENIS(-7), VOLLEYBALL(-8), FOOTBALL(-9), RUGBY(-10), 
-			// MARTIAL_ARTS(-11), HOCKEY(-12), HANDBALL(-13), GOLF(-14), BASKETBALL(-15), 
-			// BASEBALL(-16), SOFTBALL(-17), BADMINTON(-18), HIKING(-19), CRICKET(-20), 
-			// HORSERIDE(-25), DIVE(-30)
-			execSQL("""
-				UPDATE tracker_session 
-				SET session_activity_id = CASE 
-					WHEN session_activity_id = -19 THEN -2  -- HIKING -> WALKING
-					WHEN session_activity_id = -25 THEN -5  -- HORSERIDE -> VEHICLE
-					WHEN session_activity_id IN (-6, -30) THEN -26  -- SWIM, DIVE -> WATER_VEHICLE
-					ELSE -5  -- All other sports -> VEHICLE (generic activity)
-				END 
-				WHERE session_activity_id IN (-6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18, -19, -20, -25, -30)
-			""".trimIndent())
-		}
+		// Keep the detailed 2024.1 activity id intact. MIGRATION_12_13 stores it in
+		// session_segment.legacy_activity_id before the legacy table is removed.
+		android.util.Log.i("AppDatabase", "Migration 10->11: Preserved legacy activity ids")
 	}
 }
 
@@ -297,6 +261,12 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
 val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 	with(db) {
+		addColumnIfMissing(this, "tracker_session", "migration_original_activity_id", "INTEGER")
+		execSQL(
+			"UPDATE tracker_session SET migration_original_activity_id = session_activity_id " +
+				"WHERE migration_original_activity_id IS NULL"
+		)
+
 		// 1. Create location_sample table
 		execSQL("""
 			CREATE TABLE IF NOT EXISTS location_sample (
@@ -315,7 +285,10 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 				motion_state TEXT,
 				policy TEXT,
 				bucket_id INTEGER,
-				created_at INTEGER NOT NULL
+				created_at INTEGER NOT NULL,
+				legacy_lat REAL,
+				legacy_lon REAL,
+				legacy_alt_m REAL
 			)
 		""".trimIndent())
 		execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_time ON location_sample(time_ms)")
@@ -362,7 +335,13 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 			lat_e7 INTEGER,
 			lon_e7 INTEGER,
 			provenance TEXT NOT NULL,
-			created_at INTEGER NOT NULL
+			created_at INTEGER NOT NULL,
+			legacy_alt_m REAL,
+			legacy_mcc TEXT,
+			legacy_mnc TEXT,
+			legacy_source_id INTEGER,
+			legacy_lat REAL,
+			legacy_lon REAL
 		)
 	""".trimIndent())
 	execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_time ON cell_sample(time_ms)")
@@ -382,7 +361,11 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 			lat_e7 INTEGER,
 			lon_e7 INTEGER,
 			provenance TEXT NOT NULL,
-			created_at INTEGER NOT NULL
+			created_at INTEGER NOT NULL,
+			legacy_first_seen_ms INTEGER,
+			legacy_alt_m REAL,
+			legacy_lat REAL,
+			legacy_lon REAL
 		)
 	""".trimIndent())
 	execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time ON wifi_observation(time_ms)")
@@ -416,7 +399,11 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 			sample_count INTEGER NOT NULL,
 			source TEXT NOT NULL,
 			inference_version TEXT,
-			created_at INTEGER NOT NULL
+			created_at INTEGER NOT NULL,
+			legacy_user_initiated INTEGER,
+			legacy_distance_on_foot_m REAL,
+			legacy_distance_in_vehicle_m REAL,
+			legacy_activity_id INTEGER
 		)
 	""".trimIndent())
 	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_time_range ON session_segment(start_time_ms, end_time_ms)")
@@ -425,12 +412,49 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 	// migrated schema matches the entity-generated schema.
 	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
 
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
+			id INTEGER NOT NULL,
+			start INTEGER NOT NULL,
+			`end` INTEGER NOT NULL,
+			user_initiated INTEGER NOT NULL,
+			collections INTEGER NOT NULL,
+			distance REAL NOT NULL,
+			distance_on_foot REAL NOT NULL,
+			distance_in_vehicle REAL NOT NULL,
+			steps INTEGER NOT NULL,
+			session_activity_id INTEGER,
+			PRIMARY KEY(id)
+		)
+	""".trimIndent())
+
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS legacy_location_wifi_count (
+			id INTEGER NOT NULL,
+			time INTEGER NOT NULL,
+			count INTEGER NOT NULL,
+			lat REAL NOT NULL,
+			lon REAL NOT NULL,
+			alt REAL,
+			PRIMARY KEY(id)
+		)
+	""".trimIndent())
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time " +
+			"ON legacy_location_wifi_count(time)"
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords " +
+			"ON legacy_location_wifi_count(lat, lon)"
+	)
+
 	// 8. Migrate data from location_data to location_sample
 	// Convert lat/lon from Double to E7 integers (degrees * 1e7)
 	// Classify quality based on horizontal accuracy
 	val currentTimeMs = System.currentTimeMillis()
 	execSQL("""
 		INSERT INTO location_sample (
+			id,
 			time_ms,
 			elapsed_realtime_nanos,
 			lat_e7,
@@ -445,13 +469,17 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 			motion_state,
 			policy,
 			bucket_id,
-			created_at
+			created_at,
+			legacy_lat,
+			legacy_lon,
+			legacy_alt_m
 		)
 		SELECT
+			id,
 			time,
 			0,
-			CAST(lat * 10000000 AS INTEGER),
-			CAST(lon * 10000000 AS INTEGER),
+			CAST(ROUND(lat * 10000000) AS INTEGER),
+			CAST(ROUND(lon * 10000000) AS INTEGER),
 			alt,
 			hor_acc,
 			ver_acc,
@@ -465,19 +493,23 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 				ELSE 'LOW'
 			END,
 			CASE
-				WHEN activity IN (0, 3) THEN 'STILL'
-				WHEN activity IN (2, 7, 8) THEN 'MOVING'
+				WHEN activity = 3 THEN 'STILL'
+				WHEN activity IN (0, 1, 2, 7, 8) THEN 'MOVING'
 				ELSE 'UNKNOWN'
 			END,
 			NULL,
 			NULL,
-			$currentTimeMs
+			$currentTimeMs,
+			lat,
+			lon,
+			alt
 		FROM location_data
 		ORDER BY time
 	""".trimIndent())			// 9. Migrate tracker_session to session_segment
 			// Mark all legacy sessions with LEGACY_MIGRATION source
 			execSQL("""
 				INSERT INTO session_segment (
+					id,
 					start_time_ms,
 					end_time_ms,
 					distance_m,
@@ -487,9 +519,14 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 					sample_count,
 					source,
 					inference_version,
-					created_at
+					created_at,
+					legacy_user_initiated,
+					legacy_distance_on_foot_m,
+					legacy_distance_in_vehicle_m,
+					legacy_activity_id
 				)
 				SELECT
+					id,
 					start,
 					end,
 					distance,
@@ -499,23 +536,50 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 					collections,
 					'LEGACY_MIGRATION',
 					'v12_migration',
-					$currentTimeMs
+					$currentTimeMs,
+					user_initiated,
+					distance_on_foot,
+					distance_in_vehicle,
+					migration_original_activity_id
 				FROM tracker_session
 				WHERE start < end AND collections > 1
 				ORDER BY start
+			""".trimIndent())
+
+			execSQL("""
+				INSERT INTO legacy_rejected_tracker_session (
+					id, start, `end`, user_initiated, collections, distance,
+					distance_on_foot, distance_in_vehicle, steps, session_activity_id
+				)
+				SELECT
+					id, start, `end`, user_initiated, collections, distance,
+					distance_on_foot, distance_in_vehicle, steps,
+					migration_original_activity_id
+				FROM tracker_session
+				WHERE start >= `end` OR collections <= 1
+				ORDER BY id
+			""".trimIndent())
+
+			execSQL("""
+				INSERT INTO legacy_location_wifi_count(id, time, count, lat, lon, alt)
+				SELECT id, time, count, lat, lon, alt
+				FROM location_wifi_count
+				ORDER BY id
 			""".trimIndent())
 
 			// 10. Migrate activity data from location_data to activity_snapshot
 			// Extract unique activity changes (transitions)
 			execSQL("""
 				INSERT INTO activity_snapshot (
+					id,
 					time_ms,
 					activity_type,
 					confidence,
 					is_transition,
 					created_at
 				)
-				SELECT DISTINCT
+				SELECT
+					id,
 					time,
 					activity,
 					confidence,
@@ -539,6 +603,24 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 				throw IllegalStateException(
 					"Migration validation failed: location_data count ($locationCount) != " +
 					"location_sample count ($sampleCount)"
+				)
+			}
+
+			val trackerSessionCount = query("SELECT COUNT(*) FROM tracker_session").use { cursor ->
+				if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+			}
+			val migratedSessionCount = query("SELECT COUNT(*) FROM session_segment").use { cursor ->
+				if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+			}
+			val rejectedSessionCount =
+				query("SELECT COUNT(*) FROM legacy_rejected_tracker_session").use { cursor ->
+					if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+				}
+			if (trackerSessionCount != migratedSessionCount + rejectedSessionCount) {
+				throw IllegalStateException(
+					"Migration validation failed: tracker_session count ($trackerSessionCount) != " +
+						"session_segment ($migratedSessionCount) + rejected " +
+						"($rejectedSessionCount)"
 				)
 			}
 
@@ -730,6 +812,41 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 val MIGRATION_16_17: Migration = object : Migration(16, 17) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
+			if (columnExists(this, "step_interval", "createdAt")) {
+				execSQL(
+					"""
+					CREATE TABLE step_interval_v17 (
+						id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+						start_time_ms INTEGER NOT NULL,
+						end_time_ms INTEGER NOT NULL,
+						step_count INTEGER NOT NULL,
+						sensor_value_start INTEGER NOT NULL,
+						sensor_value_end INTEGER NOT NULL,
+						sensor_reset INTEGER NOT NULL,
+						created_at INTEGER NOT NULL
+					)
+					""".trimIndent()
+				)
+				execSQL(
+					"""
+					INSERT INTO step_interval_v17(
+						id, start_time_ms, end_time_ms, step_count,
+						sensor_value_start, sensor_value_end, sensor_reset, created_at
+					)
+					SELECT
+						id, start_time_ms, end_time_ms, step_count,
+						sensor_value_start, sensor_value_end, sensor_reset, createdAt
+					FROM step_interval
+					""".trimIndent()
+				)
+				execSQL("DROP TABLE step_interval")
+				execSQL("ALTER TABLE step_interval_v17 RENAME TO step_interval")
+				execSQL(
+					"CREATE INDEX idx_step_interval_time_range " +
+						"ON step_interval(start_time_ms, end_time_ms)"
+				)
+			}
+
 			// 1. Create route_cache table
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS route_cache (
@@ -861,6 +978,13 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		addColumnIfMissing(db, "location_sample", "raw_gps_alt_m", "REAL")
 		addColumnIfMissing(db, "ski_run_segment", "lift_type", "TEXT")
+		db.execSQL(
+			"""
+			UPDATE location_sample
+			SET raw_gps_alt_m = alt_m
+			WHERE provider = 'legacy' AND raw_gps_alt_m IS NULL
+			""".trimIndent()
+		)
 		android.util.Log.i(
 			"AppDatabase",
 			"Migration 18->19: Added raw_gps_alt_m to location_sample and lift_type to ski_run_segment"
@@ -878,7 +1002,17 @@ private fun addColumnIfMissing(
 	column: String,
 	type: String,
 ) {
-	val exists = db.query("PRAGMA table_info($table)").use { cursor ->
+	if (!columnExists(db, table, column)) {
+		db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
+	}
+}
+
+private fun columnExists(
+	db: SupportSQLiteDatabase,
+	table: String,
+	column: String,
+): Boolean =
+	db.query("PRAGMA table_info($table)").use { cursor ->
 		val nameIndex = cursor.getColumnIndex("name").takeIf { it >= 0 } ?: return@use false
 		var found = false
 		while (cursor.moveToNext()) {
@@ -889,10 +1023,6 @@ private fun addColumnIfMissing(
 		}
 		found
 	}
-	if (!exists) {
-		db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
-	}
-}
 
 /**
  * Migration 19 → 20: Add has_distance_anomaly flag to session_segment.
@@ -923,12 +1053,153 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		val currentTimeMs = System.currentTimeMillis()
 
-		// Backfill cell_sample from legacy cell_location (if not already migrated).
+		addColumnIfMissing(db, "location_sample", "legacy_lat", "REAL")
+		addColumnIfMissing(db, "location_sample", "legacy_lon", "REAL")
+		addColumnIfMissing(db, "location_sample", "legacy_alt_m", "REAL")
+		addColumnIfMissing(db, "session_segment", "legacy_user_initiated", "INTEGER")
+		addColumnIfMissing(db, "session_segment", "legacy_distance_on_foot_m", "REAL")
+		addColumnIfMissing(db, "session_segment", "legacy_distance_in_vehicle_m", "REAL")
+		addColumnIfMissing(db, "session_segment", "legacy_activity_id", "INTEGER")
+		addColumnIfMissing(db, "cell_sample", "legacy_alt_m", "REAL")
+		addColumnIfMissing(db, "cell_sample", "legacy_mcc", "TEXT")
+		addColumnIfMissing(db, "cell_sample", "legacy_mnc", "TEXT")
+		addColumnIfMissing(db, "cell_sample", "legacy_source_id", "INTEGER")
+		addColumnIfMissing(db, "cell_sample", "legacy_lat", "REAL")
+		addColumnIfMissing(db, "cell_sample", "legacy_lon", "REAL")
+		addColumnIfMissing(db, "wifi_observation", "legacy_first_seen_ms", "INTEGER")
+		addColumnIfMissing(db, "wifi_observation", "legacy_alt_m", "REAL")
+		addColumnIfMissing(db, "wifi_observation", "legacy_lat", "REAL")
+		addColumnIfMissing(db, "wifi_observation", "legacy_lon", "REAL")
+		addColumnIfMissing(db, "tracker_session", "migration_original_activity_id", "INTEGER")
+		db.execSQL(
+			"UPDATE tracker_session SET migration_original_activity_id = session_activity_id " +
+				"WHERE migration_original_activity_id IS NULL"
+		)
+
+		db.execSQL("""
+			CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
+				id INTEGER NOT NULL,
+				start INTEGER NOT NULL,
+				`end` INTEGER NOT NULL,
+				user_initiated INTEGER NOT NULL,
+				collections INTEGER NOT NULL,
+				distance REAL NOT NULL,
+				distance_on_foot REAL NOT NULL,
+				distance_in_vehicle REAL NOT NULL,
+				steps INTEGER NOT NULL,
+				session_activity_id INTEGER,
+				PRIMARY KEY(id)
+			)
+		""".trimIndent())
+		db.execSQL("""
+			CREATE TABLE IF NOT EXISTS legacy_location_wifi_count (
+				id INTEGER NOT NULL,
+				time INTEGER NOT NULL,
+				count INTEGER NOT NULL,
+				lat REAL NOT NULL,
+				lon REAL NOT NULL,
+				alt REAL,
+				PRIMARY KEY(id)
+			)
+		""".trimIndent())
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time " +
+				"ON legacy_location_wifi_count(time)"
+		)
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords " +
+				"ON legacy_location_wifi_count(lat, lon)"
+		)
+
+		db.execSQL("""
+			UPDATE location_sample
+			SET legacy_lat = (
+					SELECT ld.lat FROM location_data ld
+					WHERE ld.id = location_sample.id
+				),
+				legacy_lon = (
+					SELECT ld.lon FROM location_data ld
+					WHERE ld.id = location_sample.id
+				),
+				legacy_alt_m = (
+					SELECT ld.alt FROM location_data ld
+					WHERE ld.id = location_sample.id
+				),
+				raw_gps_alt_m = COALESCE(
+					raw_gps_alt_m,
+					(
+						SELECT ld.alt FROM location_data ld
+						WHERE ld.id = location_sample.id
+					)
+				)
+			WHERE provider = 'legacy'
+				AND legacy_lat IS NULL
+				AND EXISTS (
+					SELECT 1 FROM location_data ld WHERE ld.id = location_sample.id
+				)
+		""".trimIndent())
+		db.execSQL("""
+			UPDATE session_segment
+			SET legacy_user_initiated = (
+					SELECT ts.user_initiated FROM tracker_session ts
+					WHERE ts.id = session_segment.id
+				),
+				legacy_distance_on_foot_m = (
+					SELECT ts.distance_on_foot FROM tracker_session ts
+					WHERE ts.id = session_segment.id
+				),
+				legacy_distance_in_vehicle_m = (
+					SELECT ts.distance_in_vehicle FROM tracker_session ts
+					WHERE ts.id = session_segment.id
+				),
+				legacy_activity_id = (
+					SELECT COALESCE(ts.migration_original_activity_id, ts.session_activity_id)
+					FROM tracker_session ts
+					WHERE ts.id = session_segment.id
+				)
+			WHERE source = 'LEGACY_MIGRATION'
+				AND legacy_user_initiated IS NULL
+				AND EXISTS (
+					SELECT 1 FROM tracker_session ts WHERE ts.id = session_segment.id
+				)
+		""".trimIndent())
+		db.execSQL("""
+			INSERT OR IGNORE INTO legacy_rejected_tracker_session (
+				id, start, `end`, user_initiated, collections, distance,
+				distance_on_foot, distance_in_vehicle, steps, session_activity_id
+			)
+			SELECT
+				id, start, `end`, user_initiated, collections, distance,
+				distance_on_foot, distance_in_vehicle, steps,
+				COALESCE(migration_original_activity_id, session_activity_id)
+			FROM tracker_session
+			WHERE start >= `end` OR collections <= 1
+		""".trimIndent())
+		db.execSQL("""
+			INSERT OR IGNORE INTO legacy_location_wifi_count(id, time, count, lat, lon, alt)
+			SELECT id, time, count, lat, lon, alt FROM location_wifi_count
+		""".trimIndent())
+
+		val existingCellCount = db.query("SELECT COUNT(*) FROM cell_sample").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+		val legacyCellCount = db.query("SELECT COUNT(*) FROM cell_location").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+		val existingWifiCount = db.query("SELECT COUNT(*) FROM wifi_observation").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+		val legacyWifiCount = db.query("SELECT COUNT(*) FROM wifi_data").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+
+		// Backfill cell_sample from legacy cell_location.
 		// cell_location schema: id, time, mcc TEXT, mnc TEXT, cell_id, type, asu, lat, lon, alt
 		db.execSQL("""
-			INSERT OR IGNORE INTO cell_sample (
+			INSERT INTO cell_sample (
 				time_ms, cell_id, lac, mcc, mnc, network_type,
-				signal_strength, lat_e7, lon_e7, provenance, created_at
+				signal_strength, lat_e7, lon_e7, provenance, created_at, legacy_alt_m,
+				legacy_mcc, legacy_mnc, legacy_source_id, legacy_lat, legacy_lon
 			)
 			SELECT
 				cl.time,
@@ -938,23 +1209,26 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 				CAST(cl.mnc AS INTEGER),
 				cl.type,
 				cl.asu,
-				CASE WHEN cl.lat IS NOT NULL THEN CAST(cl.lat * 10000000 AS INTEGER) ELSE NULL END,
-				CASE WHEN cl.lon IS NOT NULL THEN CAST(cl.lon * 10000000 AS INTEGER) ELSE NULL END,
+				CASE WHEN cl.lat IS NOT NULL THEN CAST(ROUND(cl.lat * 10000000) AS INTEGER) ELSE NULL END,
+				CASE WHEN cl.lon IS NOT NULL THEN CAST(ROUND(cl.lon * 10000000) AS INTEGER) ELSE NULL END,
 				'LEGACY_MIGRATION',
-				$currentTimeMs
+				$currentTimeMs,
+				cl.alt,
+				cl.mcc,
+				cl.mnc,
+				cl.id,
+				cl.lat,
+				cl.lon
 			FROM cell_location cl
-			WHERE NOT EXISTS (
-				SELECT 1 FROM cell_sample cs
-				WHERE cs.time_ms = cl.time AND cs.cell_id = cl.cell_id
-			)
 		""".trimIndent())
 
 		// Backfill wifi_observation from legacy wifi_data (one observation per AP).
 		// wifi_data schema: bssid PK, longitude, latitude, altitude, first_seen, last_seen, ssid, capabilities, frequency, level
 		db.execSQL("""
-			INSERT OR IGNORE INTO wifi_observation (
+			INSERT INTO wifi_observation (
 				time_ms, bssid, ssid, capabilities, frequency, level,
-				lat_e7, lon_e7, provenance, created_at
+				lat_e7, lon_e7, provenance, created_at, legacy_first_seen_ms, legacy_alt_m,
+				legacy_lat, legacy_lon
 			)
 			SELECT
 				wd.last_seen,
@@ -963,16 +1237,38 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 				wd.capabilities,
 				wd.frequency,
 				wd.level,
-				CASE WHEN wd.latitude IS NOT NULL THEN CAST(wd.latitude * 10000000 AS INTEGER) ELSE NULL END,
-				CASE WHEN wd.longitude IS NOT NULL THEN CAST(wd.longitude * 10000000 AS INTEGER) ELSE NULL END,
+				CASE WHEN wd.latitude IS NOT NULL THEN CAST(ROUND(wd.latitude * 10000000) AS INTEGER) ELSE NULL END,
+				CASE WHEN wd.longitude IS NOT NULL THEN CAST(ROUND(wd.longitude * 10000000) AS INTEGER) ELSE NULL END,
 				'LEGACY_MIGRATION',
-				$currentTimeMs
+				$currentTimeMs,
+				wd.first_seen,
+				wd.altitude,
+				wd.latitude,
+				wd.longitude
 			FROM wifi_data wd
-			WHERE NOT EXISTS (
-				SELECT 1 FROM wifi_observation wo
-				WHERE wo.bssid = wd.bssid AND wo.time_ms = wd.last_seen
-			)
 		""".trimIndent())
+
+		val migratedCellCount = db.query("SELECT COUNT(*) FROM cell_sample").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+		val expectedCellCount = existingCellCount + legacyCellCount
+		if (expectedCellCount != migratedCellCount) {
+			throw IllegalStateException(
+				"Migration validation failed: expected $expectedCellCount cell_sample rows " +
+					"($existingCellCount existing + $legacyCellCount legacy), found $migratedCellCount"
+			)
+		}
+
+		val migratedWifiCount = db.query("SELECT COUNT(*) FROM wifi_observation").use { cursor ->
+			if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+		}
+		val expectedWifiCount = existingWifiCount + legacyWifiCount
+		if (expectedWifiCount != migratedWifiCount) {
+			throw IllegalStateException(
+				"Migration validation failed: expected $expectedWifiCount wifi_observation rows " +
+					"($existingWifiCount existing + $legacyWifiCount legacy), found $migratedWifiCount"
+			)
+		}
 
 		db.execSQL("DROP TABLE IF EXISTS tracker_session")
 		db.execSQL("DROP TABLE IF EXISTS location_data")
@@ -1447,5 +1743,67 @@ val MIGRATION_33_34: Migration = object : Migration(33, 34) {
 			ON pending_signal(created_at, id)
 			""".trimIndent(),
 		)
+	}
+}
+
+/**
+ * Preserves every 2024.1 field that had no representation in the sessionless schema.
+ */
+val MIGRATION_34_35: Migration = object : Migration(34, 35) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			addColumnIfMissing(this, "session_segment", "legacy_user_initiated", "INTEGER")
+			addColumnIfMissing(this, "session_segment", "legacy_distance_on_foot_m", "REAL")
+			addColumnIfMissing(this, "session_segment", "legacy_distance_in_vehicle_m", "REAL")
+			addColumnIfMissing(this, "session_segment", "legacy_activity_id", "INTEGER")
+			addColumnIfMissing(this, "wifi_observation", "legacy_first_seen_ms", "INTEGER")
+			addColumnIfMissing(this, "wifi_observation", "legacy_alt_m", "REAL")
+			addColumnIfMissing(this, "cell_sample", "legacy_alt_m", "REAL")
+			addColumnIfMissing(this, "cell_sample", "legacy_mcc", "TEXT")
+			addColumnIfMissing(this, "cell_sample", "legacy_mnc", "TEXT")
+			addColumnIfMissing(this, "cell_sample", "legacy_source_id", "INTEGER")
+			addColumnIfMissing(this, "cell_sample", "legacy_lat", "REAL")
+			addColumnIfMissing(this, "cell_sample", "legacy_lon", "REAL")
+			addColumnIfMissing(this, "location_sample", "legacy_lat", "REAL")
+			addColumnIfMissing(this, "location_sample", "legacy_lon", "REAL")
+			addColumnIfMissing(this, "location_sample", "legacy_alt_m", "REAL")
+			addColumnIfMissing(this, "wifi_observation", "legacy_lat", "REAL")
+			addColumnIfMissing(this, "wifi_observation", "legacy_lon", "REAL")
+
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
+					id INTEGER NOT NULL,
+					start INTEGER NOT NULL,
+					`end` INTEGER NOT NULL,
+					user_initiated INTEGER NOT NULL,
+					collections INTEGER NOT NULL,
+					distance REAL NOT NULL,
+					distance_on_foot REAL NOT NULL,
+					distance_in_vehicle REAL NOT NULL,
+					steps INTEGER NOT NULL,
+					session_activity_id INTEGER,
+					PRIMARY KEY(id)
+				)
+			""".trimIndent())
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS legacy_location_wifi_count (
+					id INTEGER NOT NULL,
+					time INTEGER NOT NULL,
+					count INTEGER NOT NULL,
+					lat REAL NOT NULL,
+					lon REAL NOT NULL,
+					alt REAL,
+					PRIMARY KEY(id)
+				)
+			""".trimIndent())
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time " +
+					"ON legacy_location_wifi_count(time)"
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords " +
+					"ON legacy_location_wifi_count(lat, lon)"
+			)
+		}
 	}
 }

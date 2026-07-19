@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
+    <string name="settings_migration_backup_export_title">Exportovat bezpečnostní zálohu před aktualizací</string>
+    <string name="settings_migration_backup_export_summary">Úplná kopie databáze v%1$d vytvořená před migrací na v%2$d a soukromě uchovaná až 30 dní</string>
+    <string name="settings_migration_backup_warning_title">Exportovat citlivou zálohu databáze?</string>
+    <string name="settings_migration_backup_warning_message">Tato záloha může obsahovat přesnou polohu, pozorování Wi-Fi a mobilních sítí, aktivity a další soukromá data z doby před aktualizací. Uložte ji pouze na důvěryhodné místo.</string>
+    <string name="settings_migration_backup_export_action">Exportovat zálohu</string>
+    <string name="settings_migration_backup_export_success">Záloha před aktualizací byla exportována</string>
+    <string name="settings_migration_backup_export_failure">Zálohu před aktualizací se nepodařilo exportovat</string>
+    <string name="settings_migration_backup_export_cleanup_required">Export se nezdařil. Odstraňte částečně exportovanou zálohu z vybraného umístění.</string>
+    <string name="settings_delete_data_success">Všechna shromážděná data byla odstraněna</string>
+    <string name="settings_delete_data_failure">Všechna shromážděná data se nepodařilo odstranit</string>
     <string name="dev_notification_dummy">Ahoj světe!</string>
     <string name="did_you_know">Věděli jste, že</string>
     <string name="error_failed_to_open_license">Nelze otevřít licenci.</string>

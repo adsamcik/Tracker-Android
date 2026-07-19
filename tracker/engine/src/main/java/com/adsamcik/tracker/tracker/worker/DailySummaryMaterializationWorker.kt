@@ -60,7 +60,7 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 		// DailySummaryAggregator also serializes per-day in-process for defense in
 		// depth, but the work-name unification stops two RUNNERS from starting in
 		// the first place when the system is under load.
-		private const val UNIQUE_WORK_ID = "APP.DAILY_SUMMARY_MATERIALIZATION"
+		const val UNIQUE_WORK_ID = "APP.DAILY_SUMMARY_MATERIALIZATION"
 
 		/**
 		 * Schedule the periodic 24-hour materialization worker.

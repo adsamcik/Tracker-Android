@@ -60,4 +60,19 @@ class PointsAwardedDaoTest {
         val updated = flow.first()
         updated shouldBe 42.0
     }
+
+    @Test
+    fun deleteAllRemovesAwardHistory(): Unit = runBlocking {
+        dao.insert(
+            PointsAwarded(
+                time = 1_000L,
+                value = Points(42.0),
+                source = AwardSource.GOAL,
+            ),
+        )
+
+        dao.deleteAll()
+
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 0.0
+    }
 }

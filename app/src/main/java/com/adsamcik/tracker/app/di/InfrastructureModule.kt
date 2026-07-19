@@ -3,9 +3,18 @@ package com.adsamcik.tracker.app.di
 import android.content.Context
 import com.adsamcik.tracker.network.DefaultNetworkGateway
 import com.adsamcik.tracker.network.NetworkGateway
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
+import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
+import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
+import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -45,6 +54,8 @@ import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.SystemClock
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -125,6 +136,40 @@ object InfrastructureModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         AppDatabase.database(context)
+
+    @Provides
+    @Singleton
+    fun provideDatabaseMigrationBackupRepository(
+        @ApplicationContext context: Context,
+    ): DatabaseMigrationBackupRepository = DatabaseMigrationBackupStore(context)
+
+    @Provides
+    @Singleton
+    fun provideCollectedDataWriterQuiescer(
+        @ApplicationContext context: Context,
+        trackerStateReader: TrackerStateReader,
+        activityWatcherController: ActivityWatcherController,
+        exportAutomationController: ExportAutomationController,
+    ): CollectedDataWriterQuiescer = DefaultCollectedDataWriterQuiescer(
+        context = context,
+        trackerStateReader = trackerStateReader,
+        activityWatcherController = activityWatcherController,
+        exportAutomationController = exportAutomationController,
+    )
+
+    @Provides
+    @Singleton
+    fun provideCollectedDataDeletionService(
+        @ApplicationContext context: Context,
+        pointsDatabase: PointsDatabase,
+        exportPlanStore: ExportPlanStore,
+        writerQuiescer: CollectedDataWriterQuiescer,
+    ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
+        context = context,
+        pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
+        exportPlanStore = exportPlanStore,
+        writerQuiescer = writerQuiescer,
+    )
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.
     // DAOs are lightweight proxies to the singleton database and do not need @Singleton scoping.

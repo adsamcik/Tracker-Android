@@ -1,15 +1,31 @@
 package com.adsamcik.tracker.app.settings
 
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import com.adsamcik.tracker.R
 import app.cash.turbine.test
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackup
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.Runs
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.mockk.coVerify
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,16 +48,27 @@ class DataSettingsViewModelTest {
     private val retentionConfigStore: RetentionConfigStore = mockk()
     private val exportPlanStore: com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore = mockk()
     private val appContext: Context = mockk()
+    private val contentResolver: ContentResolver = mockk()
+    private val backupRepository: DatabaseMigrationBackupRepository = mockk()
+    private val deletionService: CollectedDataDeletionService = mockk()
+    private val backupFlow = MutableStateFlow<DatabaseMigrationBackup?>(null)
     private val preferences: Preferences = mockk()
     private val smartGoalNotificationsFlow = MutableStateFlow(true)
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
         configFlow.value = RetentionConfigState()
+        backupFlow.value = null
 
         every { retentionConfigStore.config } returns configFlow
         every { exportPlanStore.plans } returns MutableStateFlow(emptyList())
+        every { appContext.contentResolver } returns contentResolver
+        every { backupRepository.backups } returns backupFlow
+        every { backupRepository.latestBackup() } returns null
+        coEvery { deletionService.deleteAll() } just Runs
         every { appContext.getString(R.string.settings_smart_goal_notifications_key) } returns "smartGoalNotifications"
         every { preferences.observeBoolean("smartGoalNotifications", true) } returns smartGoalNotificationsFlow
         every { preferences.edit(any()) } answers {
@@ -57,6 +84,7 @@ class DataSettingsViewModelTest {
 
     @AfterEach
     fun tearDown() {
+        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
@@ -65,6 +93,9 @@ class DataSettingsViewModelTest {
         retentionConfigStore = retentionConfigStore,
         exportPlanStore = exportPlanStore,
         preferences = preferences,
+        backupRepository = backupRepository,
+        dispatchers = TestDispatchersProvider(testDispatcher),
+        deletionService = deletionService,
     )
 
     // =========================================================================
@@ -88,6 +119,32 @@ class DataSettingsViewModelTest {
             val vm = createViewModel()
             vm.uiState.test {
                 awaitItem().dataRetentionYears shouldBe 1
+            }
+        }
+
+        @Test
+        fun `validated migration backup is exposed to settings`() = runTest(testDispatcher) {
+            backupFlow.value = migrationBackup()
+
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                var state = awaitItem()
+                if (state.migrationBackup == null) state = awaitItem()
+                state.migrationBackup?.sourceVersion shouldBe 10
+                state.migrationBackup?.targetVersion shouldBe 35
+            }
+        }
+
+        @Test
+        fun `backup state updates after creation and deletion`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            vm.uiState.test {
+                awaitItem().migrationBackup shouldBe null
+                backupFlow.value = migrationBackup()
+                awaitItem().migrationBackup?.sourceVersion shouldBe 10
+                backupFlow.value = null
+                awaitItem().migrationBackup shouldBe null
             }
         }
     }
@@ -210,4 +267,157 @@ class DataSettingsViewModelTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("Migration backup export")
+    inner class MigrationBackupExport {
+
+        @Test
+        fun `exports validated backup to selected document`() = runTest(testDispatcher) {
+            val backup = migrationBackup()
+            val uri: Uri = mockk()
+            val output = ByteArrayOutputStream()
+            backupFlow.value = backup
+            every { contentResolver.openOutputStream(uri, "rwt") } returns output
+            every { backupRepository.exportLatest(output) } answers {
+                output.write(byteArrayOf(1, 2, 3))
+                backup
+            }
+
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.Success
+            output.toByteArray().toList() shouldBe listOf<Byte>(1, 2, 3)
+        }
+
+        @Test
+        fun `reports failure when selected document cannot be opened`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            backupFlow.value = migrationBackup()
+            every { contentResolver.openOutputStream(uri, "rwt") } returns null
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.Failure
+            verify(exactly = 0) { contentResolver.delete(uri, null, null) }
+        }
+
+        @Test
+        fun `removes partially written document when export fails`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            val output = ByteArrayOutputStream()
+            every { contentResolver.openOutputStream(uri, "rwt") } returns output
+            every { contentResolver.delete(uri, null, null) } returns 1
+            every { backupRepository.exportLatest(output) } answers {
+                output.write(byteArrayOf(1, 2, 3))
+                throw IOException("write failed")
+            }
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.Failure
+            verify(exactly = 1) { contentResolver.delete(uri, null, null) }
+        }
+
+        @Test
+        fun `reports failure when destination access is denied`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            every { contentResolver.openOutputStream(uri, "rwt") } throws SecurityException("denied")
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.Failure
+            verify(exactly = 0) { contentResolver.delete(uri, null, null) }
+        }
+
+        @Test
+        fun `truncates partial document when provider cannot delete`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            val output = ByteArrayOutputStream()
+            var openCount = 0
+            every { contentResolver.openOutputStream(uri, "rwt") } answers {
+                if (openCount++ == 0) {
+                    output
+                } else {
+                    output.reset()
+                    ByteArrayOutputStream()
+                }
+            }
+            every { contentResolver.delete(uri, null, null) } returns 0
+            every { backupRepository.exportLatest(output) } answers {
+                output.write(byteArrayOf(1, 2, 3))
+                throw IOException("write failed")
+            }
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.Failure
+            output.size() shouldBe 0
+            verify(exactly = 2) { contentResolver.openOutputStream(uri, "rwt") }
+        }
+
+        @Test
+        fun `requires manual cleanup when partial document cannot be removed`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            val output = ByteArrayOutputStream()
+            every { contentResolver.openOutputStream(uri, "rwt") } returnsMany listOf(output, null)
+            every { contentResolver.delete(uri, null, null) } returns 0
+            every { backupRepository.exportLatest(output) } answers {
+                output.write(byteArrayOf(1, 2, 3))
+                throw IOException("write failed")
+            }
+            var result: MigrationBackupExportResult? = null
+            val vm = createViewModel()
+
+            vm.exportMigrationBackup(uri) { result = it }
+
+            result shouldBe MigrationBackupExportResult.CleanupRequired
+        }
+    }
+
+    @Nested
+    @DisplayName("Collected data deletion")
+    inner class CollectedDataDeletion {
+
+        @Test
+        fun `deletes all stores and resets export watermarks`() = runTest(testDispatcher) {
+            var result: DataDeletionResult? = null
+            val vm = createViewModel()
+
+            vm.deleteAllCollectedData { result = it }
+
+            result shouldBe DataDeletionResult.Success
+            coVerify(exactly = 1) { deletionService.deleteAll() }
+        }
+
+        @Test
+        fun `reports failure when migration backup deletion fails`() = runTest(testDispatcher) {
+            coEvery { deletionService.deleteAll() } throws DatabaseMigrationBackupException("failed")
+            var result: DataDeletionResult? = null
+            val vm = createViewModel()
+
+            vm.deleteAllCollectedData { result = it }
+
+            result shouldBe DataDeletionResult.Failure
+            coVerify(exactly = 1) { deletionService.deleteAll() }
+        }
+    }
+
+    private fun migrationBackup() = DatabaseMigrationBackup(
+        file = File("main_database-v10-pre-v35.db"),
+        sourceVersion = 10,
+        targetVersion = 35,
+        createdAtMs = 1_700_000_000_000L,
+    )
 }

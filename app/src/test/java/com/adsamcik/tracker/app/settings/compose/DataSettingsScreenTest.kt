@@ -8,12 +8,6 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +26,11 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
+import com.adsamcik.tracker.app.settings.MigrationBackupUiInfo
+import com.adsamcik.tracker.app.settings.data.CollectedDataDeletionDialog
+import com.adsamcik.tracker.app.settings.data.MigrationBackupExportAvailability
+import com.adsamcik.tracker.app.settings.data.MigrationBackupExportSetting
+import com.adsamcik.tracker.app.settings.data.MigrationBackupWarningDialog
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -141,29 +140,17 @@ class DataSettingsScreenTest {
                     icon = Icons.Default.DeleteForever,
                     onClick = {
                         showDeleteDialog = true
-                        onDeleteAllClick()
                     },
                 )
             }
         }
 
         if (showDeleteDialog) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete all collected data") },
-                text = { Text("Are you sure you want to delete all collected data?") },
-                confirmButton = {
-                    Button(
-                        onClick = { showDeleteDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancel")
-                    }
+            CollectedDataDeletionDialog(
+                onDismiss = { showDeleteDialog = false },
+                onConfirm = {
+                    showDeleteDialog = false
+                    onDeleteAllClick()
                 },
             )
         }
@@ -240,6 +227,67 @@ class DataSettingsScreenTest {
     }
 
     @Test
+    fun migrationBackupExportAppearsOnlyWhenAvailable() {
+        composeTestRule.setContent {
+            AppTheme {
+                MigrationBackupExportAvailability(
+                    backup = migrationBackup(),
+                    onClick = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Export pre-upgrade safety backup").assertIsDisplayed()
+    }
+
+    @Test
+    fun migrationBackupExportIsAbsentWhenUnavailable() {
+        composeTestRule.setContent {
+            AppTheme {
+                MigrationBackupExportAvailability(
+                    backup = null,
+                    onClick = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Export pre-upgrade safety backup").assertDoesNotExist()
+    }
+
+    @Test
+    fun migrationBackupExportCallsCallback() {
+        var clicked = false
+        composeTestRule.setContent {
+            AppTheme {
+                MigrationBackupExportSetting(
+                    backup = migrationBackup(),
+                    onClick = { clicked = true },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Export pre-upgrade safety backup").performClick()
+        clicked shouldBe true
+    }
+
+    @Test
+    fun migrationBackupWarningExportsExpectedFile() {
+        var exportedFile: String? = null
+        composeTestRule.setContent {
+            AppTheme {
+                MigrationBackupWarningDialog(
+                    backup = migrationBackup(),
+                    onDismiss = {},
+                    onExport = { exportedFile = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Export backup").performClick()
+        exportedFile shouldBe "main_database-v10-pre-v35.db"
+    }
+
+    @Test
     fun importClickCallsCallback() {
         var clicked = false
         composeTestRule.setContent {
@@ -304,14 +352,32 @@ class DataSettingsScreenTest {
 
     @Test
     fun deleteDialogDismissesOnCancel() {
+        var deleted = false
         composeTestRule.setContent {
-            AppTheme { DataSettingsTestLayout() }
+            AppTheme { DataSettingsTestLayout(onDeleteAllClick = { deleted = true }) }
         }
         composeTestRule.onNodeWithTag("dataSettingsList")
             .performScrollToNode(hasText("Delete all collected data"))
         composeTestRule.onNodeWithText("Delete all collected data").performClick()
         composeTestRule.onNodeWithText("Cancel").performClick()
         composeTestRule.onNodeWithText("Are you sure", substring = true).assertDoesNotExist()
+        deleted shouldBe false
+    }
+
+    @Test
+    fun deleteRunsOnlyAfterConfirmation() {
+        var deleted = false
+        composeTestRule.setContent {
+            AppTheme { DataSettingsTestLayout(onDeleteAllClick = { deleted = true }) }
+        }
+        composeTestRule.onNodeWithTag("dataSettingsList")
+            .performScrollToNode(hasText("Delete all collected data"))
+
+        composeTestRule.onNodeWithText("Delete all collected data").performClick()
+        deleted shouldBe false
+        composeTestRule.onNodeWithText("Delete").performClick()
+
+        deleted shouldBe true
     }
 
     @Test
@@ -325,4 +391,11 @@ class DataSettingsScreenTest {
         composeTestRule.onNodeWithText("Reset export watermarks").performClick()
         clicked shouldBe true
     }
+
+    private fun migrationBackup() = MigrationBackupUiInfo(
+        fileName = "main_database-v10-pre-v35.db",
+        sourceVersion = 10,
+        targetVersion = 35,
+        createdAtMs = 1_700_000_000_000L,
+    )
 }

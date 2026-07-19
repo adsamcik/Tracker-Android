@@ -47,6 +47,9 @@ class ActivityWatcherServiceController @Inject constructor(
 	@Volatile
 	internal var serviceInstance: ActivityWatcherService? = null
 
+	@Volatile
+	private var dataDeletionPaused = false
+
 	/** Called by [ActivityWatcherService.onCreate]. */
 	fun attachService(service: ActivityWatcherService) {
 		serviceInstance = service
@@ -63,6 +66,10 @@ class ActivityWatcherServiceController @Inject constructor(
 	 * so callers only need to override the value they are reacting to.
 	 */
 	override fun poke() {
+		if (dataDeletionPaused) {
+			serviceInstance?.stopSelf()
+			return
+		}
 		poke(
 			watcherPreference = BackgroundTrackingApi.activityWatcherEnabled,
 			updateInterval = BackgroundTrackingApi.activityFreqSeconds,
@@ -70,6 +77,16 @@ class ActivityWatcherServiceController @Inject constructor(
 			trackerLocked = currentTrackerLocked(),
 			trackerRunning = trackerStateReader.isServiceRunning,
 		)
+	}
+
+	override fun pauseForDataDeletion() {
+		dataDeletionPaused = true
+		serviceInstance?.stopSelf()
+	}
+
+	override fun resumeAfterDataDeletion() {
+		dataDeletionPaused = false
+		poke()
 	}
 
 	@Synchronized
@@ -80,6 +97,10 @@ class ActivityWatcherServiceController @Inject constructor(
 		trackerLocked: Boolean = currentTrackerLocked(),
 		trackerRunning: Boolean = trackerStateReader.isServiceRunning,
 	) {
+		if (dataDeletionPaused) {
+			serviceInstance?.stopSelf()
+			return
+		}
 		if (updateInterval > 0 && autoTracking > 0) {
 			if (watcherPreference && !trackerLocked && !trackerRunning) {
 				if (serviceInstance == null) {

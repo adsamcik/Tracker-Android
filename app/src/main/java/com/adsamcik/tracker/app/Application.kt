@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app
 import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.os.Build
+import android.database.sqlite.SQLiteException
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.hilt.work.HiltWorkerFactory
@@ -12,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
@@ -32,6 +34,7 @@ import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -76,6 +79,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var moduleInitializerCoordinator: ModuleInitializerCoordinator
+
+	@Inject
+	lateinit var collectedDataDeletionService: CollectedDataDeletionService
 
 	@Inject
 	lateinit var networkGateway: NetworkGateway
@@ -189,6 +195,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
+			try {
+				collectedDataDeletionService.reconcilePendingDeletion()
+			} catch (error: DatabaseMigrationBackupException) {
+				Log.e("App", "Could not resume pending collected-data deletion", error)
+			} catch (error: SQLiteException) {
+				Log.e("App", "Could not resume pending database deletion", error)
+			}
 			try {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)

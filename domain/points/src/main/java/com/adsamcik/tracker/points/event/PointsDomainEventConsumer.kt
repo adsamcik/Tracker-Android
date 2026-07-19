@@ -96,7 +96,7 @@ class PointsDomainEventConsumer @Inject constructor(
 	companion object {
 		const val CONSUMER_ID = "points-module"
 		private const val ARG_SESSION_ID = "id"
-		private const val POINTS_WORK_TAG = "SessionPoints"
+		const val POINTS_WORK_TAG = "SessionPoints"
 
 		private fun uniqueWorkName(sessionId: Long): String = "$POINTS_WORK_TAG-$sessionId"
 	}

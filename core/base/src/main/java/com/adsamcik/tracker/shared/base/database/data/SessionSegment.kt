@@ -90,7 +90,31 @@ data class SessionSegment(
 	 * Evaluated at persistence time via [com.adsamcik.tracker.stats.api.TripPlausibility].
 	 */
 	@ColumnInfo(name = "has_distance_anomaly", defaultValue = "0")
-	val hasDistanceAnomaly: Boolean = false
+	val hasDistanceAnomaly: Boolean = false,
+
+	/**
+	 * Original user-initiated flag for sessions migrated from the 2024.1 schema.
+	 */
+	@ColumnInfo(name = "legacy_user_initiated")
+	val legacyUserInitiated: Boolean? = null,
+
+	/**
+	 * Original on-foot distance for sessions migrated from the 2024.1 schema.
+	 */
+	@ColumnInfo(name = "legacy_distance_on_foot_m")
+	val legacyDistanceOnFootM: Double? = null,
+
+	/**
+	 * Original in-vehicle distance for sessions migrated from the 2024.1 schema.
+	 */
+	@ColumnInfo(name = "legacy_distance_in_vehicle_m")
+	val legacyDistanceInVehicleM: Double? = null,
+
+	/**
+	 * Original NativeSessionActivity or custom activity id from the legacy session.
+	 */
+	@ColumnInfo(name = "legacy_activity_id")
+	val legacyActivityId: Long? = null
 )
 
 /**

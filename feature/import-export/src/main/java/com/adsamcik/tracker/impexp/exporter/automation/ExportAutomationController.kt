@@ -38,6 +38,7 @@ class ExportAutomationController(
         .setRequiresBatteryNotLow(true)
         .build()
 
+    @Volatile
     private var latestPlans: List<ExportBackupPlan> = emptyList()
 
     init {
@@ -106,6 +107,14 @@ class ExportAutomationController(
             plans.filter { it.enabled && it.cadence is ExportCadence.AfterSession }
                 .forEach { plan -> enqueueOneTime(plan, TriggerReason.AFTER_SESSION, trigger.tag()) }
         }
+    }
+
+    suspend fun pauseForDataDeletion(): Unit = withContext(dispatchers.io) {
+        workManager.cancelAllWorkByTag(WORK_TAG_PLAN).result.get()
+    }
+
+    fun resumeAfterDataDeletion() {
+        synchronizeIntervalPlans(latestPlans)
     }
 
     private fun enqueueOneTime(
