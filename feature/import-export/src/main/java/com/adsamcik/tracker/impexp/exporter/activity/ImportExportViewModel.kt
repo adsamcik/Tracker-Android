@@ -30,11 +30,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+internal enum class ExportCompletionState {
+    Idle,
+    Exporting,
+    Succeeded,
+    Failed,
+}
+
 internal data class ImportExportUiState(
     val showNoDataDialog: Boolean = false,
+    val exportCompletionState: ExportCompletionState = ExportCompletionState.Idle,
 )
 
 internal sealed interface ExportDocumentResult {
@@ -73,32 +82,63 @@ class ImportExportViewModel @Inject constructor(
         range: ClosedRange<ZonedDateTime>?,
         onResult: (ExportDocumentResult) -> Unit,
     ) {
+        beginExport()
         viewModelScope.launch {
-            val result = withContext(dispatchers.io) {
-                val actualFileName = getExportFileName(fileName, exporter, range, appContext)
-                val finalFileName = if (forceOverride) {
-                    actualFileName
-                } else {
-                    findAvailableFileName(directory, actualFileName, exporter.extension)
-                }
-                val fileNameWithExtension = "${finalFileName}.${exporter.extension}"
-                val trimmedName = preventDoubleExtension(fileNameWithExtension, exporter)
-                val createdFile = directory.createFile(exporter.mimeType, trimmedName)
-                    ?: return@withContext ExportDocumentResult.Failure(
-                        ExportResult.Error(
-                            LocalizedString(R.string.export_error_stream_failed, fileNameWithExtension)
+            var createdFile: DocumentFile? = null
+            val result = try {
+                withContext(dispatchers.io) {
+                    val actualFileName = getExportFileName(fileName, exporter, range, appContext)
+                    val finalFileName = if (forceOverride) {
+                        actualFileName
+                    } else {
+                        findAvailableFileName(directory, actualFileName, exporter.extension)
+                    }
+                    val fileNameWithExtension = "${finalFileName}.${exporter.extension}"
+                    val trimmedName = preventDoubleExtension(fileNameWithExtension, exporter)
+                    val destinationFile = directory.createFile(exporter.mimeType, trimmedName)
+                        ?: return@withContext ExportDocumentResult.Failure(
+                            ExportResult.Error(
+                                LocalizedString(R.string.export_error_stream_failed, fileNameWithExtension)
+                            )
                         )
-                    )
+                    createdFile = destinationFile
 
-                when (val exportResult = exportToFile(createdFile, exporter, range)) {
-                    is ExportResult.Success -> ExportDocumentResult.Success(
-                        fileNameWithExtension = fileNameWithExtension,
-                        baseFileName = finalFileName,
-                    )
-                    is ExportResult.Error -> ExportDocumentResult.Failure(exportResult)
+                    when (val exportResult = exportToFile(destinationFile, exporter, range)) {
+                        is ExportResult.Success -> ExportDocumentResult.Success(
+                            fileNameWithExtension = fileNameWithExtension,
+                            baseFileName = finalFileName,
+                        )
+                        is ExportResult.Error -> {
+                            destinationFile.delete()
+                            ExportDocumentResult.Failure(exportResult)
+                        }
+                    }
                 }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
+                withContext(dispatchers.io) {
+                    createdFile?.delete()
+                }
+                ExportDocumentResult.Failure(ExportResult.Error())
             }
+            completeExport(result)
             onResult(result)
+        }
+    }
+
+    internal fun beginExport() {
+        _uiState.update { it.copy(exportCompletionState = ExportCompletionState.Exporting) }
+    }
+
+    internal fun completeExport(result: ExportDocumentResult) {
+        _uiState.update {
+            it.copy(
+                exportCompletionState = when (result) {
+                    is ExportDocumentResult.Success -> ExportCompletionState.Succeeded
+                    is ExportDocumentResult.Failure -> ExportCompletionState.Failed
+                }
+            )
         }
     }
 

@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -141,6 +143,9 @@ fun ExportScreen(
     val showFromDatePicker = rememberSaveable { mutableStateOf(false) }
     val showToDatePicker = rememberSaveable { mutableStateOf(false) }
     val pendingSensitiveAction = remember { mutableStateOf<ExportSensitiveAction?>(null) }
+    val isExporting = uiState.exportCompletionState == ExportCompletionState.Exporting
+
+    BackHandler(enabled = isExporting) {}
 
     if (uiState.showNoDataDialog) {
         AlertDialog(
@@ -286,6 +291,18 @@ fun ExportScreen(
             }
 
             // Buttons
+            if (isExporting) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = stringResource(R.string.export_in_progress),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (uiState.exportCompletionState == ExportCompletionState.Succeeded) {
+                Text(
+                    text = stringResource(R.string.export_completed),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -374,8 +391,15 @@ fun ExportScreen(
                                         shareIntent,
                                         activity.getString(R.string.export_share_button)
                                     )
-                                    activity.startActivity(chooser)
-                                    activity.finish()
+                                    try {
+                                        activity.startActivity(chooser)
+                                    } catch (_: Exception) {
+                                        scope.launch {
+                                            snackBarHostState.showSnackbar(
+                                                activity.getString(R.string.export_error_unknown)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             is ExportDocumentResult.Failure -> {
@@ -422,7 +446,7 @@ fun ExportScreen(
                         pendingSensitiveAction.value = ExportSensitiveAction.Export
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = fileNameErrorState.value == null,
+                    enabled = fileNameErrorState.value == null && !isExporting,
                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
@@ -436,7 +460,7 @@ fun ExportScreen(
                         pendingSensitiveAction.value = ExportSensitiveAction.Share
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = fileNameErrorState.value == null,
+                    enabled = fileNameErrorState.value == null && !isExporting,
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
