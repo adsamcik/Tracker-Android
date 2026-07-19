@@ -106,4 +106,23 @@
     <string name="setup_online_tiles_on_desc">Stahovat detailnější vektorové dlaždice z OpenFreeMap (výchozí). Poskytovatele lze později změnit v Nastavení → Mapa.</string>
     <string name="setup_online_tiles_privacy">Když je tato volba zapnutá, poskytovatel vidí vaši IP adresu a stahované dlaždice — tedy zhruba kterou část mapy si prohlížíte. Tracker neposílá žádný účet, identifikátor ani historii vašich poloh.</string>
     <string name="setup_online_tiles_change_later">Nastavení lze kdykoli změnit v Nastavení → Mapa → Online dlaždice mapy.</string>
+    <string name="settings_game_goals_title">Cíle</string>
+    <string name="settings_game_daily_target_title">Denní cíl kroků</string>
+    <string name="settings_game_weekly_target_title">Týdenní cíl kroků</string>
+    <string name="settings_game_daily_contribution_title">Maximální denní příspěvek</string>
+    <string name="settings_game_steps_unit">kroků</string>
+    <string name="settings_game_notifications_title">Oznámení</string>
+    <string name="settings_game_goal_notifications_title">Oznámení o postupu cíle</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Místní připomenutí při 75 % a 90 % denního cíle.</string>
+    <string name="settings_game_during_games_title">Během her</string>
+    <string name="settings_game_haptics_title">Haptika her</string>
+    <string name="settings_game_haptics_summary">Použít jemné vibrace pro zpětnou vazbu hry.</string>
+    <string name="settings_game_quiet_coaching_title">Tiché pokyny</string>
+    <string name="settings_game_quiet_coaching_summary">Používat při hře méně časté pokyny.</string>
+    <string name="settings_game_remember_setup_title">Pamatovat poslední nastavení hry</string>
+    <string name="settings_game_remember_setup_summary">Příště znovu použít poslední cíl a obtížnost.</string>
+    <string name="settings_game_privacy_battery_title">Soukromí a baterie</string>
+    <string name="settings_game_privacy_battery_disclosure">Hry používají živou polohu jen při aktivitě a pokud je dostupná, využijí polohu Trackeru. Pozastavení uvolní používání polohy hrou. V tomto zařízení se ukládá jen skóre a body/XP; nezpracované herní polohy se neukládají.</string>
+    <string name="settings_game_loading">Načítání nastavení her…</string>
+    <string name="settings_game_load_error">Nastavení her se nepodařilo načíst. Zkuste to prosím znovu.</string>
 </resources>

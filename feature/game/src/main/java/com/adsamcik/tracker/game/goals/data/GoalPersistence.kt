@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.game.goals.data
 
-import android.content.Context
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
+import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
+import kotlinx.coroutines.flow.first
 
 /**
  * Takes care of persisting goal state.
@@ -18,19 +19,26 @@ interface GoalPersistence {
 	suspend fun load(key: String): Int?
 }
 
-class PreferencesGoalPersistence(context: Context) : GoalPersistence {
-	private val preferences: Preferences = Preferences(context)
-
+class GoalsSettingsGoalPersistence(
+	private val repository: GoalsSettingsRepository,
+) : GoalPersistence {
 	override suspend fun persist(key: String, value: Int) {
 		require(value >= 0)
-		preferences.editSuspend {
-			setInt(key, value)
+		when (key) {
+			GamePreferenceKeys.GOALS_DAY_REACHED ->
+				repository.setDailyGoalReachedPeriod(value)
+			GamePreferenceKeys.GOALS_WEEK_REACHED ->
+				repository.setWeeklyGoalReachedPeriod(value)
+			else -> error("Unsupported goal persistence key: $key")
 		}
 	}
 
 	override suspend fun load(key: String): Int? {
-		val persistedValue = preferences.fetchInt(key, -1)
-		return if (persistedValue >= 0) persistedValue else null
+		val settings = repository.data.first()
+		return when (key) {
+			GamePreferenceKeys.GOALS_DAY_REACHED -> settings.dailyGoalReachedPeriod
+			GamePreferenceKeys.GOALS_WEEK_REACHED -> settings.weeklyGoalReachedPeriod
+			else -> error("Unsupported goal persistence key: $key")
+		}
 	}
-
 }

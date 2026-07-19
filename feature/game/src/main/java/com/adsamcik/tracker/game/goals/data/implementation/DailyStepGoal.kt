@@ -12,17 +12,15 @@ import java.time.ZonedDateTime
 /**
  * Daily step goal
  */
-class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
+class DailyStepGoal(
+	persistence: GoalPersistence,
+	initialTarget: Int,
+) : StepGoal(persistence, initialTarget) {
 	override val goalReachedPreferenceKey: String
 		get() = GamePreferenceKeys.GOALS_DAY_REACHED
 
 	override val period: GoalPeriod
 		get() = GoalPeriod.Day
-
-	override val goalPreferenceKey: String
-		get() = GamePreferenceKeys.GOALS_DAY_STEPS
-	override val goalPreferenceDefault: Int
-		get() = GamePreferenceKeys.GOALS_DAY_STEPS_DEFAULT
 
 	override suspend fun updateFromDatabase(context: Context) {
 		val today = Time.today

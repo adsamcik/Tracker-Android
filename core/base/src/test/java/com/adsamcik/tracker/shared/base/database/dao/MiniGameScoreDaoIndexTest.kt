@@ -12,12 +12,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.test.assertEquals
 
 /**
  * Regression guard for the `idx_minigame_score_played_at` index added in
  * AppDatabase v31. The dashboard "recent runs" panel reads
  * `MiniGameScoreDao.getRecent(limit)` which executes
- * `SELECT * FROM minigame_score ORDER BY played_at DESC LIMIT ?`.
+ * `SELECT * FROM minigame_score ORDER BY played_at DESC LIMIT MIN(MAX(?, 0), 500)`.
  *
  * Without the index SQLite must SCAN the entire `minigame_score` table and
  * then sort with a temporary B-tree on every recomposition. With the index
@@ -62,9 +63,30 @@ class MiniGameScoreDaoIndexTest {
 			)
 		}
 
+		@Test
+		fun `personal best and reconciliation reads are suspend bounded queries`() = runTest {
+			repeat(8) { index ->
+				dao.insert(
+					MiniGameScoreEntity(
+						gameId = if (index == 7) "territory" else "outrun",
+						score = index.toDouble(),
+						xpAwarded = index,
+						playedAt = index * 1_000L,
+					),
+				)
+			}
+
+			assertEquals(6.0, dao.getPersonalBest("outrun"))
+			val reconciliationRows = dao.getRecentForReconciliation(limit = 3)
+			assertEquals(3, reconciliationRows.size)
+			assertEquals(listOf(7_000L, 6_000L, 5_000L), reconciliationRows.map { it.playedAt })
+		}
+
 		val explainSql = """
 			EXPLAIN QUERY PLAN
-			SELECT * FROM minigame_score ORDER BY played_at DESC LIMIT ?
+			SELECT * FROM minigame_score
+			ORDER BY played_at DESC
+			LIMIT MIN(MAX(?, 0), 500)
 		""".trimIndent()
 
 		val raw = database.openHelper.readableDatabase

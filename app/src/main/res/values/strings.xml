@@ -99,7 +99,25 @@
     <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
     <string name="settings_delete_data_success">All collected data was deleted</string>
     <string name="settings_delete_data_failure">Could not delete all collected data</string>
-    <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
+    <string name="settings_game_goals_title">Goals</string>
+    <string name="settings_game_daily_target_title">Daily step target</string>
+    <string name="settings_game_weekly_target_title">Weekly step target</string>
+    <string name="settings_game_daily_contribution_title">Maximum daily contribution</string>
+    <string name="settings_game_steps_unit">steps</string>
+    <string name="settings_game_notifications_title">Notifications</string>
+    <string name="settings_game_goal_notifications_title">Goal progress notifications</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Get a local reminder at 75% and 90% of your daily target.</string>
+    <string name="settings_game_during_games_title">During games</string>
+    <string name="settings_game_haptics_title">Game haptics</string>
+    <string name="settings_game_haptics_summary">Use subtle vibration for game feedback.</string>
+    <string name="settings_game_quiet_coaching_title">Quiet coaching cues</string>
+    <string name="settings_game_quiet_coaching_summary">Use less frequent guidance while you play.</string>
+    <string name="settings_game_remember_setup_title">Remember last game setup</string>
+    <string name="settings_game_remember_setup_summary">Reuse your last goal and difficulty next time.</string>
+    <string name="settings_game_privacy_battery_title">Privacy &amp; battery</string>
+    <string name="settings_game_privacy_battery_disclosure">Games use live location only while active and reuse Tracker’s location when it is available. Pausing releases the game’s location use. Only your score and points/XP are saved on this device; raw game locations are not persisted.</string>
+    <string name="settings_game_loading">Loading game settings…</string>
+    <string name="settings_game_load_error">Game settings could not be loaded. Please try again.</string>
     <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
     <string name="settings_map_online_tiles_section_title">Online map tiles</string>
     <string name="settings_map_online_tiles_enable_title">Use online map tiles</string>

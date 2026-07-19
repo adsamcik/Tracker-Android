@@ -27,9 +27,6 @@ abstract class BaseGoal(
 	override val coroutineContext: CoroutineContext
 		get() = dispatchers.main + job
 
-	abstract val goalPreferenceKey: String
-	abstract val goalPreferenceDefault: Int
-
 	abstract val goalReachedPreferenceKey: String
 	private lateinit var persistedGoalReachedKey: String
 
