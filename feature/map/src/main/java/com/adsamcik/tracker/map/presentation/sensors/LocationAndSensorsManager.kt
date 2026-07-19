@@ -6,82 +6,49 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
-import androidx.annotation.RequiresPermission
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.sensorManager
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
+import com.adsamcik.tracker.shared.base.location.UiLocationProvider
+import com.adsamcik.tracker.shared.base.location.UiLocationRequest
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.mapNotNull
 
 /**
  * Phase 4: Cold Flow-based manager exposing location and bearing updates with no UI references.
  * Supports both precise and coarse location permissions with adaptive priority.
  */
-class LocationAndSensorsManager(private val context: Context) {
+class LocationAndSensorsManager(
+    private val context: Context,
+    private val uiLocationProvider: UiLocationProvider,
+) {
 
     /** 
      * Emits triples of (lat, lng, accuracyMeters). Completes when flow is closed.
      * Adapts priority based on granted permissions: high accuracy for precise, balanced for coarse.
      */
-    fun locationUpdates(highAccuracy: Boolean = true): Flow<Triple<Double, Double, Double>> = callbackFlow {
-        if (!context.hasLocationPermission) {
-            // Don't crash the flow, just complete it gracefully
-            close()
-            return@callbackFlow
-        }
+    fun locationUpdates(highAccuracy: Boolean = true): Flow<Triple<Double, Double, Double>> {
+        if (!context.hasLocationPermission) return emptyFlow()
 
-        val client = LocationServices.getFusedLocationProviderClient(context)
-        
-        // Adapt priority: if only coarse permission granted, use balanced power accuracy
-        val adaptivePriority = if (highAccuracy && context.hasPreciseLocationPermission) {
-            Priority.PRIORITY_HIGH_ACCURACY
-        } else {
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        }
-        
-        val req = LocationRequest.Builder(LOCATION_UPDATE_INTERVAL_MS)
-            .setPriority(adaptivePriority)
-            .setMinUpdateIntervalMillis(LOCATION_UPDATE_INTERVAL_MS / 2) // Allow faster updates
-            .build()
-
-        val callback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                val loc: Location = locationResult.lastLocation ?: return
-                // Validate location data
-                if (loc.latitude != 0.0 || loc.longitude != 0.0) {
-                    val accuracy = if (loc.hasAccuracy()) loc.accuracy.toDouble() else 0.0
-                    trySend(Triple(loc.latitude, loc.longitude, accuracy))
-                }
-            }
-        }
-
-        try {
-            Assist.ensureLooper()
-            @Suppress("MissingPermission")
-            client.requestLocationUpdates(req, callback, requireNotNull(android.os.Looper.myLooper()))
-        } catch (e: SecurityException) {
-            // Permission was revoked while flow was running
-            close(e)
-            return@callbackFlow
-        } catch (e: Exception) {
-            // Other errors like no location provider
-            close(e)
-            return@callbackFlow
-        }
-
-        awaitClose {
-            try {
-                client.removeLocationUpdates(callback)
-            } catch (e: Exception) {
-                Reporter.report(e)
+        return uiLocationProvider.locationUpdates(
+            UiLocationRequest(
+                tag = "map-location-indicator",
+                intervalMillis = LOCATION_UPDATE_INTERVAL_MS,
+                highAccuracy = highAccuracy && context.hasPreciseLocationPermission,
+            ),
+        ).mapNotNull { location ->
+            if (location.latitude != 0.0 || location.longitude != 0.0) {
+                Triple(
+                    location.latitude,
+                    location.longitude,
+                    if (location.hasAccuracy()) location.accuracy.toDouble() else 0.0,
+                )
+            } else {
+                null
             }
         }
     }
