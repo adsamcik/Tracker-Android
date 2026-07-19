@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
@@ -19,7 +20,11 @@ object DataImporter {
 		val workRequest = OneTimeWorkRequestBuilder<ImportWorker>()
 			.setInputData(workDataOf(ImportWorker.ARG_FILE_URI to fileUri.toString()))
 			.build()
-		WorkManager.getInstance(context).enqueue(workRequest)
+		WorkManager.getInstance(context).enqueueUniqueWork(
+			UNIQUE_IMPORT_WORK,
+			ExistingWorkPolicy.APPEND_OR_REPLACE,
+			workRequest,
+		)
 	}
 
 	internal fun persistReadPermission(context: Context, fileUri: Uri): Boolean {
@@ -38,4 +43,5 @@ object DataImporter {
 	}
 
 	private const val IMPORT_LOG_SOURCE = "import"
+	private const val UNIQUE_IMPORT_WORK = "data-import"
 }

@@ -3,55 +3,42 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
-import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteStatement
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.exception.NotFoundException
-import com.adsamcik.tracker.shared.base.extension.sortByVertexes
-import com.adsamcik.tracker.shared.base.graph.Edge
-import com.adsamcik.tracker.shared.base.graph.Graph
-import com.adsamcik.tracker.shared.base.graph.Vertex
-import com.adsamcik.tracker.shared.base.graph.topSort
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
 /**
  * Merges compatible rows from a database file into the current database.
- * 
- * Known limitations:
- * - UNIQUE constraint violations may fail import; autoincrement usage could break foreign keys
- * - Direct SQL copy approach; consider Room-based migration for schema version mismatches
- * 
- * This is not a full-device restore: existing rows are preserved, and incoming rows are inserted
- * table-by-table when the source schema is structurally compatible.
+ *
+ * The source stream is copied to a private working file. Auto-generated integer primary keys are
+ * shifted above the current target range and every referencing foreign key is shifted by the same
+ * amount before rows are copied. The target merge is one transaction, so an unsupported constraint
+ * or broken foreign key rolls back the complete database-file import.
  */
 internal class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
+	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
 
 	override suspend fun import(
-			context: Context,
-			database: AppDatabase,
-			stream: FileImportStream
+		context: Context,
+		database: AppDatabase,
+		stream: FileImportStream,
 	): ImportResult {
 		val databaseTmpFile = createImportTempFile(context)
 		var fromDatabase: SQLiteDatabase? = null
-		try {
-			databaseTmpFile.outputStream().use {
-				stream.copyTo(it)
-			}
+		return try {
+			databaseTmpFile.outputStream().use(stream::copyTo)
 			fromDatabase = SQLiteDatabase.openDatabase(
-					databaseTmpFile.path,
-					null,
-					SQLiteDatabase.OPEN_READONLY
+				databaseTmpFile.path,
+				null,
+				SQLiteDatabase.OPEN_READWRITE,
 			)
-			var result = ImportResult.EMPTY
-			database.runInTransaction {
-				result = importDatabase(fromDatabase, database.openHelper.writableDatabase)
-			}
-			return result
+			importCopiedDatabase(fromDatabase, database)
 		} finally {
 			fromDatabase?.close()
 			databaseTmpFile.delete()
@@ -63,280 +50,535 @@ internal class DatabaseImport : FileImport {
 		return File.createTempFile("db-import-", ".db", importCacheDir)
 	}
 
-	private fun addColumn(columnDefinition: String, requiredColumns: MutableList<ImportColumn>) {
-		val isNotNull = columnDefinition.contains("NOT NULL")
-		val columnName = columnDefinition.substringAfter('`').substringBefore('`')
-		val isUnique = columnDefinition.contains("PRIMARY KEY") ||
-				columnDefinition.contains("UNIQUE")
-		val column = ImportColumn(columnName, isNotNull, isUnique, null)
-		requiredColumns.add(column)
-	}
-
-	private fun addForeignKey(
-			columnDefinition: String,
-			requiredColumns: MutableList<ImportColumn>
-	) {
-		val thisTableColumn = columnDefinition
-				.substringAfter("FOREIGN KEY(`")
-				.substringBefore("`")
-
-		val targetTableName = columnDefinition
-				.substringAfter("REFERENCES `")
-				.substringBefore("`")
-
-		val column = requiredColumns.find { it.columnName == thisTableColumn }
-				?: throw NotFoundException(
-						"Expected column with name $thisTableColumn but had only ${
-							requiredColumns.joinToString(
-									transform = { it.columnName })
-						}"
-				)
-
-		column.foreignKeyTable = ImportTable(
-				targetTableName,
-				isImported = false,
-				columns = emptyList()
-		)
-	}
-
-	private fun addIfColumnIsRequired(sql: String, requiredColumns: MutableList<ImportColumn>) {
-		sql.substringAfter('(').split(',').forEach { split ->
-			val columnDefinition = split.trim()
-			if (columnDefinition.startsWith('`')) {
-				addColumn(columnDefinition, requiredColumns)
-			} else if (columnDefinition.startsWith("FOREIGN KEY")) {
-				addForeignKey(columnDefinition, requiredColumns)
+	internal fun importCopiedDatabase(
+		from: SupportSQLiteDatabase,
+		database: AppDatabase,
+	): ImportResult {
+		var result: DatabaseImportResult? = null
+		return try {
+			database.runInTransaction {
+				val currentResult = importDatabase(from, database.openHelper.writableDatabase)
+				if (currentResult is DatabaseImportResult.Failure) {
+					throw DatabaseImportRollback(currentResult)
+				}
+				result = currentResult
 			}
+			(result as DatabaseImportResult.Success).result
+		} catch (rollback: DatabaseImportRollback) {
+			rollback.failure.toImportResult()
 		}
 	}
 
-	private fun SupportSQLiteDatabase.getColumns(tableName: String): List<ImportColumn> {
-		query(
-				"SELECT name, sql FROM sqlite_master WHERE type='table' and name == ? ORDER BY name",
-				arrayOf(tableName)
-		).use {
-			return if (it.moveToNext()) {
-				val requiredColumns = mutableListOf<ImportColumn>()
-				val sql = it.getString(1)
+	internal fun importDatabase(
+		from: SupportSQLiteDatabase,
+		to: SupportSQLiteDatabase,
+	): DatabaseImportResult {
+		return try {
+			val allSourceTables = from.getAllTables()
+				.filterNot(::isSystemTable)
+				.map { from.getTable(it) }
+			val sourceTablesByName = allSourceTables.associateBy { it.tableName }
+			val matchingTables = getMatchingTables(from, to)
+				.map { tableName -> sourceTablesByName.getValue(tableName) to to.getTable(tableName) }
+			val matchingTableNames = matchingTables.map { it.first.tableName }.toSet()
+			val importableTables = matchingTables
+				.filter { (source, target) -> target.canImport(source) }
+				.toMutableList()
+			do {
+				val importableNames = importableTables.map { it.first.tableName }.toSet()
+				val removed = importableTables.removeAll { (source, _) ->
+					source.foreignKeys.any {
+						it.parentTable in matchingTableNames && it.parentTable !in importableNames
+					}
+				}
+			} while (removed)
+			val tables = importableTables
+				.sortedByTopology()
 
-				addIfColumnIsRequired(sql, requiredColumns)
+			from.beginTransaction()
+			try {
+				from.execSQL("PRAGMA defer_foreign_keys = ON")
+				remapAutoGeneratedIds(from, to, tables, allSourceTables)
+				findForeignKeyViolation(from)?.let {
+					throw DatabaseImportPlanningException(
+						DatabaseImportFailure.ForeignKeyViolation(it),
+					)
+				}
+				from.setTransactionSuccessful()
+			} finally {
+				from.endTransaction()
+			}
 
-				requiredColumns
-			} else {
-				throw NotFoundException("Could not find table with name $tableName")
+			var result = ImportResult.EMPTY
+			for ((sourceTable, _) in tables) {
+				when (val tableResult = importTable(from, to, sourceTable)) {
+					is DatabaseImportResult.Success -> result += tableResult.result
+					is DatabaseImportResult.Failure -> return tableResult
+				}
+			}
+
+			findForeignKeyViolation(to)?.let {
+				return DatabaseImportResult.Failure(
+					DatabaseImportFailure.ForeignKeyViolation(it),
+				)
+			}
+			DatabaseImportResult.Success(result)
+		} catch (planning: DatabaseImportPlanningException) {
+			DatabaseImportResult.Failure(planning.failure)
+		} catch (constraint: SQLiteConstraintException) {
+			Reporter.report(Exception("Constraint issue while importing database", constraint))
+			DatabaseImportResult.Failure(
+				DatabaseImportFailure.ConstraintViolation("database import"),
+			)
+		} catch (exception: Exception) {
+			Reporter.report(Exception("Database import failed", exception))
+			DatabaseImportResult.Failure(
+				DatabaseImportFailure.Unexpected(exception.javaClass.simpleName),
+			)
+		}
+	}
+
+	private fun SupportSQLiteDatabase.getTable(tableName: String): ImportTable {
+		val columns = query("PRAGMA table_info(${tableName.quoted()})").use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					val primaryKeyPosition = cursor.getInt(cursor.getColumnIndexOrThrow("pk"))
+					add(
+						ImportColumn(
+							columnName = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+							isNotNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) != 0 ||
+								primaryKeyPosition > 0,
+							isUnique = false,
+							type = cursor.getString(cursor.getColumnIndexOrThrow("type")).orEmpty(),
+							defaultValue = cursor.getStringOrNull("dflt_value"),
+							primaryKeyPosition = primaryKeyPosition,
+						),
+					)
+				}
+			}
+		}
+		val uniqueConstraints = getUniqueConstraints(tableName, columns)
+		val foreignKeys = query("PRAGMA foreign_key_list(${tableName.quoted()})").use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					add(
+						ImportForeignKey(
+							childColumn = cursor.getString(cursor.getColumnIndexOrThrow("from")),
+							parentTable = cursor.getString(cursor.getColumnIndexOrThrow("table")),
+							parentColumn = cursor.getString(cursor.getColumnIndexOrThrow("to")),
+						),
+					)
+				}
+			}
+		}
+		val createSql = query(
+			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+			arrayOf(tableName),
+		).use { cursor ->
+			if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+		}
+		return ImportTable(
+			tableName = tableName,
+			columns = columns.map { column ->
+				column.copy(
+					isUnique = uniqueConstraints.any {
+						it.size == 1 && it.single() == column.columnName
+					},
+				)
+			},
+			foreignKeys = foreignKeys,
+			uniqueConstraints = uniqueConstraints,
+			isAutoIncrement = createSql.contains("AUTOINCREMENT", ignoreCase = true),
+		)
+	}
+
+	private fun SupportSQLiteDatabase.getUniqueConstraints(
+		tableName: String,
+		columns: List<ImportColumn>,
+	): List<List<String>> {
+		val primaryKey = columns
+			.filter { it.primaryKeyPosition > 0 }
+			.sortedBy { it.primaryKeyPosition }
+			.map { it.columnName }
+		val uniqueIndexNames = query("PRAGMA index_list(${tableName.quoted()})").use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) {
+					if (cursor.getInt(cursor.getColumnIndexOrThrow("unique")) != 0) {
+						add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+					}
+				}
+			}
+		}
+		return buildList {
+			if (primaryKey.isNotEmpty()) add(primaryKey)
+			uniqueIndexNames.forEach { indexName ->
+				val indexColumns = query("PRAGMA index_info(${indexName.quoted()})").use { cursor ->
+					buildList {
+						while (cursor.moveToNext()) {
+							add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+						}
+					}
+				}
+				if (indexColumns.isNotEmpty() && indexColumns !in this) add(indexColumns)
 			}
 		}
 	}
 
 	private fun SupportSQLiteDatabase.getAllTables(): List<String> {
-		query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use {
-			val list = mutableListOf<String>()
-			while (it.moveToNext()) {
-				list.add(it.getString(0))
+		return query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").use {
+			buildList {
+				while (it.moveToNext()) add(it.getString(0))
 			}
-
-			return list
 		}
-	}
-
-	private fun getMatchingColumns(
-			fromDatabase: SupportSQLiteDatabase,
-			toDatabase: SupportSQLiteDatabase,
-			table: String
-	): List<ImportColumn> {
-		val fromColumns = fromDatabase.getColumns(table)
-		val toColumns = toDatabase.getColumns(table)
-		return fromColumns.toList().filter { toColumns.contains(it) }
-	}
-
-	private val systemTables = arrayOf("sqlite_sequence", "room_master_table", "android_metadata")
-
-	private fun isSystemTable(tableName: String): Boolean {
-		return systemTables.contains(tableName)
 	}
 
 	private fun getMatchingTables(
-			fromDatabase: SupportSQLiteDatabase,
-			toDatabase: SupportSQLiteDatabase
+		fromDatabase: SupportSQLiteDatabase,
+		toDatabase: SupportSQLiteDatabase,
 	): List<String> {
-		val fromTables = fromDatabase.getAllTables()
-		val toTables = toDatabase.getAllTables()
-		return fromTables.toList().filter { !isSystemTable(it) && toTables.contains(it) }
+		val targetTables = toDatabase.getAllTables().toSet()
+		return fromDatabase.getAllTables().filter {
+			!isSystemTable(it) && it in targetTables
+		}
 	}
 
-	private enum class RowImportStatus { SUCCESS, SKIPPED, FAILED }
+	private fun isSystemTable(tableName: String): Boolean {
+		return tableName.startsWith("sqlite_") || tableName in SYSTEM_TABLES
+	}
 
-	private fun importRow(
-			to: SupportSQLiteDatabase,
-			row: Cursor,
-			columnsJoined: String,
-			tableName: String
-	): RowImportStatus {
-		val values = mutableListOf<String?>()
+	private fun List<Pair<ImportTable, ImportTable>>.sortedByTopology():
+			List<Pair<ImportTable, ImportTable>> {
+		val byName = associateBy { it.first.tableName }
+		val remaining = associate { pair ->
+			pair.first.tableName to pair.first.foreignKeys
+				.map { it.parentTable }
+				.filter { it != pair.first.tableName && it in byName }
+				.toMutableSet()
+		}.toMutableMap()
+		val sorted = mutableListOf<Pair<ImportTable, ImportTable>>()
 
-		for (i in 0 until row.columnCount) {
-			values.add(row.getStringOrNull(i))
+		while (remaining.isNotEmpty()) {
+			val ready = remaining
+				.filterValues { it.isEmpty() }
+				.keys
+				.sorted()
+			if (ready.isEmpty()) {
+				throw DatabaseImportPlanningException(DatabaseImportFailure.CyclicForeignKeys)
+			}
+			ready.forEach { tableName ->
+				sorted += byName.getValue(tableName)
+				remaining.remove(tableName)
+				remaining.values.forEach { it.remove(tableName) }
+			}
+		}
+		return sorted
+	}
+
+	private fun remapAutoGeneratedIds(
+		from: SupportSQLiteDatabase,
+		to: SupportSQLiteDatabase,
+		tables: List<Pair<ImportTable, ImportTable>>,
+		allSourceTables: List<ImportTable>,
+	) {
+		val shiftedKeys = mutableMapOf<Pair<String, String>, Long>()
+		tables.forEach { (source, target) ->
+			val primaryKey = source.primaryKey
+			if (!source.isAutoIncrement || primaryKey.size != 1) return@forEach
+			val sourceColumn = source.column(primaryKey.single()) ?: return@forEach
+			val targetColumn = target.column(primaryKey.single()) ?: return@forEach
+			if (!sourceColumn.isInteger || !targetColumn.isInteger) return@forEach
+
+			val sourceRange = from.readRange(source.tableName, sourceColumn.columnName)
+				?: return@forEach
+			val targetMaximum = to.readMaximum(target.tableName, targetColumn.columnName)
+				?: return@forEach
+			if (sourceRange.first > targetMaximum) return@forEach
+
+			val offset = try {
+				Math.addExact(Math.subtractExact(targetMaximum, sourceRange.first), 1L)
+			} catch (_: ArithmeticException) {
+				throw DatabaseImportPlanningException(
+					DatabaseImportFailure.IdRangeOverflow(source.tableName),
+				)
+			}
+			try {
+				Math.addExact(sourceRange.last, offset)
+			} catch (_: ArithmeticException) {
+				throw DatabaseImportPlanningException(
+					DatabaseImportFailure.IdRangeOverflow(source.tableName),
+				)
+			}
+			shiftedKeys[source.tableName to sourceColumn.columnName] = offset
 		}
 
-		val valuesString = values.joinToString(separator = ", ", transform = { "?" })
-		return try {
-			to.execSQL(
-					"INSERT INTO $tableName ($columnsJoined) VALUES ($valuesString)",
-					values.toTypedArray()
-			)
-			RowImportStatus.SUCCESS
-		} catch (e: SQLiteConstraintException) {
-			if (tableName == "activity") {
-				RowImportStatus.SKIPPED
-			} else {
-				Reporter.report(
-						Exception(
-								"Constraint issue while importing table $tableName",
-								e
-						)
+		val columnShifts = mutableMapOf<String, MutableMap<String, Long>>()
+		fun addShift(table: String, column: String, offset: Long) {
+			val shifts = columnShifts.getOrPut(table) { mutableMapOf() }
+			val existing = shifts[column]
+			if (existing != null && existing != offset) {
+				throw DatabaseImportPlanningException(
+					DatabaseImportFailure.ConflictingForeignKeyRemap(table, column),
 				)
-				RowImportStatus.FAILED
 			}
+			shifts[column] = offset
+		}
+
+		shiftedKeys.forEach { (key, offset) -> addShift(key.first, key.second, offset) }
+		allSourceTables.forEach { source ->
+			source.foreignKeys.forEach { foreignKey ->
+				shiftedKeys[foreignKey.parentTable to foreignKey.parentColumn]?.let { offset ->
+					addShift(source.tableName, foreignKey.childColumn, offset)
+				}
+			}
+		}
+
+		val sourceTables = allSourceTables.associateBy { it.tableName }
+		columnShifts.forEach { (tableName, shifts) ->
+			val table = sourceTables.getValue(tableName)
+			shifts.forEach { (columnName, offset) ->
+				if (table.uniqueConstraints.any { columnName in it }) {
+					from.shiftUniqueColumn(tableName, columnName, offset)
+				} else {
+					from.execSQL(
+						"UPDATE ${tableName.quoted()} " +
+							"SET ${columnName.quoted()} = ${columnName.quoted()} + ? " +
+							"WHERE ${columnName.quoted()} IS NOT NULL",
+						arrayOf(offset),
+					)
+				}
+			}
+		}
+	}
+
+	private fun SupportSQLiteDatabase.shiftUniqueColumn(
+		tableName: String,
+		columnName: String,
+		offset: Long,
+	) {
+		val originalValues = query(
+			"SELECT DISTINCT ${columnName.quoted()} FROM ${tableName.quoted()} " +
+				"WHERE ${columnName.quoted()} IS NOT NULL ORDER BY ${columnName.quoted()} DESC",
+		).use { cursor ->
+			buildList {
+				while (cursor.moveToNext()) add(cursor.getLong(0))
+			}
+		}
+		val statement = compileStatement(
+			"UPDATE ${tableName.quoted()} " +
+				"SET ${columnName.quoted()} = ${columnName.quoted()} + ? " +
+				"WHERE ${columnName.quoted()} = ?",
+		)
+		try {
+			originalValues.forEach { original ->
+				statement.clearBindings()
+				statement.bindLong(1, offset)
+				statement.bindLong(2, original)
+				statement.executeUpdateDelete()
+			}
+		} finally {
+			statement.close()
+		}
+	}
+
+	private fun SupportSQLiteDatabase.readRange(
+		tableName: String,
+		columnName: String,
+	): LongRange? {
+		return query(
+			"SELECT MIN(${columnName.quoted()}), MAX(${columnName.quoted()}) " +
+				"FROM ${tableName.quoted()}",
+		).use { cursor ->
+			if (!cursor.moveToFirst() || cursor.isNull(0)) null
+			else cursor.getLong(0)..cursor.getLong(1)
+		}
+	}
+
+	private fun SupportSQLiteDatabase.readMaximum(
+		tableName: String,
+		columnName: String,
+	): Long? {
+		return query(
+			"SELECT MAX(${columnName.quoted()}) FROM ${tableName.quoted()}",
+		).use { cursor ->
+			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getLong(0)
 		}
 	}
 
 	private fun importTable(
-			from: SupportSQLiteDatabase,
-			to: SupportSQLiteDatabase,
-			tableName: String
-	): ImportResult {
-		val matchingColumns = getMatchingColumns(from, to, tableName)
+		from: SupportSQLiteDatabase,
+		to: SupportSQLiteDatabase,
+		table: ImportTable,
+	): DatabaseImportResult {
+		val targetColumns = to.getTable(table.tableName).columns.map { it.columnName }.toSet()
+		val matchingColumns = table.columns.filter { it.columnName in targetColumns }
+		if (matchingColumns.isEmpty()) return DatabaseImportResult.Success(ImportResult.EMPTY)
+
+		val columnsSql = matchingColumns.joinToString { it.columnName.quoted() }
+		val placeholders = List(matchingColumns.size) { "?" }.joinToString()
+		val statement = to.compileStatement(
+			"INSERT OR IGNORE INTO ${table.tableName.quoted()} ($columnsSql) VALUES ($placeholders)",
+		)
 		var success = 0
 		var skipped = 0
-		var failed = 0
-		val errors = mutableListOf<String>()
 
-		from.query(
-				"SELECT ${
-					matchingColumns.joinToString(separator = ",",
-					                             transform = { it.columnName })
-				} FROM $tableName"
-		).use {
-			val columnsJoined = it.columnNames.joinToString(separator = ",")
-			while (it.moveToNext()) {
-				when (importRow(to, it, columnsJoined, tableName)) {
-					RowImportStatus.SUCCESS -> success++
-					RowImportStatus.SKIPPED -> skipped++
-					RowImportStatus.FAILED -> {
-						failed++
-						errors.add("Constraint violation in table $tableName")
-					}
+		return try {
+			from.query(
+				"SELECT $columnsSql FROM ${table.tableName.quoted()}",
+			).use { cursor ->
+				while (cursor.moveToNext()) {
+					statement.clearBindings()
+					cursor.bindRow(statement)
+					if (statement.executeInsert() == -1L) skipped++ else success++
 				}
 			}
+			DatabaseImportResult.Success(
+				ImportResult(successCount = success, skippedCount = skipped),
+			)
+		} catch (constraint: SQLiteConstraintException) {
+			Reporter.report(
+				Exception("Constraint issue while importing table ${table.tableName}", constraint),
+			)
+			DatabaseImportResult.Failure(
+				DatabaseImportFailure.ConstraintViolation(table.tableName),
+			)
+		} finally {
+			statement.close()
 		}
-
-		return ImportResult(
-				successCount = success,
-				skippedCount = skipped,
-				failedCount = failed,
-				errors = errors
-		)
 	}
 
-	private fun List<Pair<ImportTable, ImportTable>>.sortByTopology(): List<Pair<ImportTable, ImportTable>> {
-		val vertexList = MutableList(size) { Vertex(it) }
-		val edgeList = map { pair ->
-			pair.first.columns
-					//get foreign keys and ignore nulls
-					.mapNotNull { column -> column.foreignKeyTable }
-					//find index of the table in our array
-					.map { table -> indexOfFirst { it.first == table } }
-		}
-				//get indexes
-				.withIndex()
-				//map dependencies to edges
-				.flatMap { indexedList ->
-					//If A depends on B the edge leads from B to A, because B needs to come before A
-					indexedList.value.map { Edge(Vertex(it), Vertex(indexedList.index)) }
-				}
-
-		val topSorted = Graph(vertexList, edgeList).topSort()
-
-		return sortByVertexes(topSorted)
-	}
-
-	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase): ImportResult {
-		val sortedTables = getMatchingTables(from, to)
-				.map { tableName ->
-					val fromColumns = from.getColumns(tableName)
-					val toColumns = to.getColumns(tableName)
-
-					ImportTable(tableName, false, fromColumns) to ImportTable(
-							tableName,
-							false,
-							toColumns
-					)
-				}
-				.sortByTopology()
-
-		var result = ImportResult.EMPTY
-		sortedTables.forEach { pair ->
-			val hasRequiredColumns =
-					pair.first.columns.all {
-						if (it.isNotNull) {
-							pair.second.columns.contains(it)
-						} else {
-							true
-						}
-					}
-
-			if (hasRequiredColumns) {
-				result += importTable(from, to, pair.first.tableName)
+	private fun Cursor.bindRow(statement: SupportSQLiteStatement) {
+		for (index in 0 until columnCount) {
+			val bindIndex = index + 1
+			when (getType(index)) {
+				Cursor.FIELD_TYPE_NULL -> statement.bindNull(bindIndex)
+				Cursor.FIELD_TYPE_INTEGER -> statement.bindLong(bindIndex, getLong(index))
+				Cursor.FIELD_TYPE_FLOAT -> statement.bindDouble(bindIndex, getDouble(index))
+				Cursor.FIELD_TYPE_STRING -> statement.bindString(bindIndex, getString(index))
+				Cursor.FIELD_TYPE_BLOB -> statement.bindBlob(bindIndex, getBlob(index))
 			}
 		}
-		return result
 	}
+
+	private fun findForeignKeyViolation(database: SupportSQLiteDatabase): String? {
+		database.query("PRAGMA foreign_key_check").use { cursor ->
+			if (cursor.moveToFirst()) return cursor.getString(0)
+		}
+		return null
+	}
+
+	private fun Cursor.getStringOrNull(columnName: String): String? {
+		val index = getColumnIndexOrThrow(columnName)
+		return if (isNull(index)) null else getString(index)
+	}
+
+	private fun String.quoted(): String = "`${replace("`", "``")}`"
 
 	internal companion object {
-		const val IMPORT_MODE = "MERGE_COMPATIBLE_ROWS"
+		const val IMPORT_MODE = "COPY_LOCK_REMAP_TRANSACTION"
 		private const val IMPORT_CACHE_DIR = "database-import"
+		private val SYSTEM_TABLES = setOf("room_master_table", "android_metadata")
 	}
 }
 
-internal data class ImportTable(
+internal sealed interface DatabaseImportResult {
+	data class Success(val result: ImportResult) : DatabaseImportResult
+	data class Failure(val reason: DatabaseImportFailure) : DatabaseImportResult {
+		fun toImportResult(): ImportResult = ImportResult(
+			failedCount = 1,
+			errors = listOf(reason.message),
+		)
+	}
+}
+
+internal sealed interface DatabaseImportFailure {
+	val message: String
+
+	data class ConstraintViolation(val tableName: String) : DatabaseImportFailure {
+		override val message: String = "Constraint violation in table $tableName"
+	}
+
+	data class ForeignKeyViolation(val tableName: String) : DatabaseImportFailure {
+		override val message: String = "Foreign key violation in table $tableName"
+	}
+
+	data class IdRangeOverflow(val tableName: String) : DatabaseImportFailure {
+		override val message: String = "Cannot safely remap IDs in table $tableName"
+	}
+
+	data class ConflictingForeignKeyRemap(
 		val tableName: String,
-		var isImported: Boolean,
-		val columns: List<ImportColumn>
+		val columnName: String,
+	) : DatabaseImportFailure {
+		override val message: String =
+			"Cannot consistently remap $tableName.$columnName"
+	}
+
+	data object CyclicForeignKeys : DatabaseImportFailure {
+		override val message: String = "Database contains cyclic foreign-key dependencies"
+	}
+
+	data class Unexpected(val causeType: String) : DatabaseImportFailure {
+		override val message: String = "Unexpected database import failure ($causeType)"
+	}
+}
+
+private class DatabaseImportRollback(
+	val failure: DatabaseImportResult.Failure,
+) : RuntimeException()
+
+private class DatabaseImportPlanningException(
+	val failure: DatabaseImportFailure,
+) : RuntimeException()
+
+internal data class ImportTable(
+	val tableName: String,
+	val columns: List<ImportColumn>,
+	val foreignKeys: List<ImportForeignKey> = emptyList(),
+	val uniqueConstraints: List<List<String>> = emptyList(),
+	val isAutoIncrement: Boolean = false,
 ) {
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (javaClass != other?.javaClass) return false
+	val primaryKey: List<String>
+		get() = columns
+			.filter { it.primaryKeyPosition > 0 }
+			.sortedBy { it.primaryKeyPosition }
+			.map { it.columnName }
 
-		other as ImportTable
+	fun column(name: String): ImportColumn? = columns.find { it.columnName == name }
 
-		if (tableName != other.tableName) return false
-
-		return true
+	fun canImport(source: ImportTable): Boolean {
+		val sourceColumns = source.columns.map { it.columnName }.toSet()
+		return columns.none { targetColumn ->
+			targetColumn.isNotNull &&
+				targetColumn.defaultValue == null &&
+				targetColumn.columnName !in sourceColumns &&
+				!(isAutoIncrement && targetColumn.columnName in primaryKey)
+		}
 	}
 
-	override fun hashCode(): Int {
-		return tableName.hashCode()
-	}
+	override fun equals(other: Any?): Boolean =
+		this === other || other is ImportTable && tableName == other.tableName
+
+	override fun hashCode(): Int = tableName.hashCode()
 }
 
 internal data class ImportColumn(
-		val columnName: String,
-		val isNotNull: Boolean,
-		val isUnique: Boolean,
-		var foreignKeyTable: ImportTable? = null
+	val columnName: String,
+	val isNotNull: Boolean,
+	val isUnique: Boolean,
+	val type: String = "",
+	val defaultValue: String? = null,
+	val primaryKeyPosition: Int = 0,
 ) {
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (javaClass != other?.javaClass) return false
+	val isInteger: Boolean get() = type.contains("INT", ignoreCase = true)
 
-		other as ImportColumn
+	override fun equals(other: Any?): Boolean =
+		this === other || other is ImportColumn && columnName == other.columnName
 
-		if (columnName != other.columnName) return false
-
-		return true
-	}
-
-	override fun hashCode(): Int {
-		return columnName.hashCode()
-	}
+	override fun hashCode(): Int = columnName.hashCode()
 }
+
+internal data class ImportForeignKey(
+	val childColumn: String,
+	val parentTable: String,
+	val parentColumn: String,
+)

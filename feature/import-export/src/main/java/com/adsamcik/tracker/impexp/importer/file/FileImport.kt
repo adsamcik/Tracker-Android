@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
  */
 interface FileImport {
 	val supportedExtensions: Collection<String>
+	val transactionMode: ImportTransactionMode
+		get() = ImportTransactionMode.WORKER_MANAGED
 
 	/**
 	 * Imports given file into the database
@@ -23,4 +25,9 @@ interface FileImport {
 			database: AppDatabase,
 			stream: FileImportStream
 	): ImportResult
+}
+
+enum class ImportTransactionMode {
+	WORKER_MANAGED,
+	IMPORTER_MANAGED,
 }
