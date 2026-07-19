@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -252,6 +253,68 @@ class SessionTrackerComponentTest {
 
 		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 		coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun preservesActivityOnlySessionWithoutLocationOrSteps() = runTest {
+		val component = createComponent()
+		setSession(component, emptySession())
+		setIsNewSession(component, true)
+
+		component.onDataUpdated(
+			cycle = TrackingCycle(
+				timestampMs = 1_000L,
+				elapsedRealtimeNanos = 1_000L,
+				activity = ActivityInfo(DetectedActivity.STILL, confidence = 88),
+				activityFresh = true,
+			),
+			collectionData = MutableCollectionData(1_000L),
+		)
+		component.onDisable(context)
+
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 2) { mockSegmentDao.update(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun preservesPressureOnlySessionWithoutLocationActivityOrSteps() = runTest {
+		val component = createComponent()
+		setSession(component, emptySession())
+		setIsNewSession(component, true)
+
+		component.onDataUpdated(
+			cycle = TrackingCycle(
+				timestampMs = 1_000L,
+				elapsedRealtimeNanos = 1_000L,
+				pressure = PressureReading(pressureHpa = 1_000f, altitudeM = 110f),
+			),
+			collectionData = MutableCollectionData(1_000L),
+		)
+		component.onDisable(context)
+
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 2) { mockSegmentDao.update(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun rejectedLocationDoesNotRetainOtherwiseEmptySession() = runTest {
+		val component = createComponent()
+		setSession(component, emptySession())
+		setIsNewSession(component, true)
+
+		component.onDataUpdated(
+			cycle = cycleWithDistance(
+				lat = 50.08,
+				lon = 14.42,
+				prevLat = 0.0,
+				prevLon = 0.0,
+			),
+			// LocationTrackerComponent rejected the raw fix, so it never reached persistence.
+			collectionData = MutableCollectionData(1_000L),
+		)
+		component.onDisable(context)
+
+		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
 	}
 
 	@Test

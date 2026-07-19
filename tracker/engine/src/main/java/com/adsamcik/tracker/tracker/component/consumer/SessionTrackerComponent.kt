@@ -66,6 +66,8 @@ internal class SessionTrackerComponent(
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
 	private var collectedLocationCount = 0
+	private var collectedActivityCount = 0
+	private var collectedPressureCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
 	private val activityEvidence = mutableMapOf<Int, ActivityEvidence>()
 	private data class ActivityEvidence(var confidenceScore: Long = 0L, var confidenceTotal: Long = 0L, var observations: Int = 0)
@@ -77,11 +79,16 @@ internal class SessionTrackerComponent(
 		sessionMutex.withLock {
 			mutableSession.run {
 				if (cycle.activityFresh) {
-					cycle.activity?.let(::recordActivityEvidence)
+					cycle.activity?.let { activity ->
+						collectedActivityCount++
+						recordActivityEvidence(activity)
+					}
 				}
-				val locationData = cycle.location
-				if (locationData != null) {
+				if (collectionData.location != null) {
 					collectedLocationCount++
+				}
+				if (cycle.pressure != null) {
+					collectedPressureCount++
 				}
 				// Accumulate the bridged distance produced by LocationTrackerComponent
 				// (collectionData.distanceFromPreviousM), which is measured from the last
@@ -148,12 +155,18 @@ internal class SessionTrackerComponent(
 			}
 
 			withContext(coroutineContext) {
-				if (isNewSession && collectedLocationCount == 0 && mutableSession.steps == 0) {
+				if (isNewSession &&
+					collectedLocationCount == 0 &&
+					collectedActivityCount == 0 &&
+					collectedPressureCount == 0 &&
+					mutableSession.steps == 0
+				) {
 					// Remove the pre-inserted row only when the session produced no persistable
-					// data of its own — no location fixes AND no steps. This still cleans up rapid
-					// start/stop (and location sessions that never got a fix) while preserving
-					// intentional non-location sessions (e.g. a steps-only configuration). Wi-Fi and
-					// cell observations are persisted in their own tables regardless.
+					// data of its own — no accepted location fixes, fresh activity snapshots,
+					// pressure readings, or steps. This still cleans up rapid start/stop (and
+					// location sessions that never got a usable fix) while preserving intentional
+					// activity-only, pressure-only, and steps-only sessions. Wi-Fi and cell
+					// observations are persisted in their own tables.
 					if (mutableSession.id > 0L) {
 						sessionSegmentDao.deleteById(mutableSession.id)
 					}

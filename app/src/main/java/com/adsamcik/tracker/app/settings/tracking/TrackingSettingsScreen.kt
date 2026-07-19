@@ -56,6 +56,14 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         val phoneStateGranted = results[Manifest.permission.READ_PHONE_STATE] == true
         trackingVm.onCellPermissionResult(fineLocationGranted && phoneStateGranted)
     }
+    val activityPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+        trackingVm::onActivityPermissionResult,
+    )
+    val stepsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+        trackingVm::onStepsPermissionResult,
+    )
 
     TrackingSettingsContent(
         uiState = uiState,
@@ -69,8 +77,25 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onMinTimeChanged = { trackingVm.setMinTime(it) },
         onRequiredAccuracyChanged = { trackingVm.setRequiredAccuracy(it) },
         onLocationEnabledChanged = { trackingVm.setLocationEnabled(it) },
-        onActivityEnabledChanged = { trackingVm.setActivityEnabled(it) },
-        onStepsEnabledChanged = { trackingVm.setStepsEnabled(it) },
+        onActivityEnabledChanged = { enabled ->
+            if (enabled && !uiState.activityPermissionGranted &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            ) {
+                activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            } else {
+                trackingVm.setActivityEnabled(enabled)
+            }
+        },
+        onStepsEnabledChanged = { enabled ->
+            if (enabled && !uiState.activityPermissionGranted &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            ) {
+                stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            } else {
+                trackingVm.setStepsEnabled(enabled)
+            }
+        },
+        onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
         onWifiEnabledChanged = { enabled ->
             if (enabled && !uiState.wifiPermissionGranted) {
                 val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -86,8 +111,6 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
                 trackingVm.setWifiEnabled(enabled)
             }
         },
-        onWifiNetworkEnabledChanged = { trackingVm.setWifiNetworkEnabled(it) },
-        onWifiLocationCountEnabledChanged = { trackingVm.setWifiLocationCountEnabled(it) },
         onCellEnabledChanged = { enabled ->
             if (enabled && !uiState.cellPermissionGranted) {
                 cellPermissionLauncher.launch(
@@ -120,9 +143,8 @@ internal fun TrackingSettingsContent(
     onLocationEnabledChanged: (Boolean) -> Unit = {},
     onActivityEnabledChanged: (Boolean) -> Unit = {},
     onStepsEnabledChanged: (Boolean) -> Unit = {},
+    onBarometerEnabledChanged: (Boolean) -> Unit = {},
     onWifiEnabledChanged: (Boolean) -> Unit = {},
-    onWifiNetworkEnabledChanged: (Boolean) -> Unit = {},
-    onWifiLocationCountEnabledChanged: (Boolean) -> Unit = {},
     onCellEnabledChanged: (Boolean) -> Unit = {},
     onVehicleSpeedLimitKmhChanged: (Int) -> Unit = {},
     onNotificationCustomize: () -> Unit = {},
@@ -250,6 +272,7 @@ internal fun TrackingSettingsContent(
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_summary),
                 checked = uiState.skiDetectionEnabled,
                 onCheckedChange = onSkiDetectionChanged,
+                enabled = uiState.barometerAvailable && uiState.barometerEnabled,
             )
         }
         item {
@@ -266,6 +289,7 @@ internal fun TrackingSettingsContent(
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_plane_detection_summary),
                 checked = uiState.planeDetectionEnabled,
                 onCheckedChange = onPlaneDetectionChanged,
+                enabled = uiState.barometerAvailable && uiState.barometerEnabled,
             )
         }
 
@@ -285,6 +309,11 @@ internal fun TrackingSettingsContent(
         item {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
+                subtitle = if (uiState.activityPermissionGranted) {
+                    null
+                } else {
+                    stringResource(com.adsamcik.tracker.R.string.settings_activity_permission_required)
+                },
                 checked = uiState.activityEnabled,
                 onCheckedChange = onActivityEnabledChanged,
             )
@@ -292,8 +321,31 @@ internal fun TrackingSettingsContent(
         item {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
+                subtitle = when {
+                    !uiState.stepCounterAvailable -> stringResource(
+                        com.adsamcik.tracker.R.string.settings_steps_unavailable,
+                    )
+                    !uiState.activityPermissionGranted -> stringResource(
+                        com.adsamcik.tracker.R.string.settings_activity_permission_required,
+                    )
+                    else -> null
+                },
                 checked = uiState.stepsEnabled,
                 onCheckedChange = onStepsEnabledChanged,
+                enabled = uiState.stepCounterAvailable,
+            )
+        }
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
+                subtitle = if (uiState.barometerAvailable) {
+                    null
+                } else {
+                    stringResource(com.adsamcik.tracker.R.string.settings_barometer_unavailable)
+                },
+                checked = uiState.barometerEnabled,
+                onCheckedChange = onBarometerEnabledChanged,
+                enabled = uiState.barometerAvailable,
             )
         }
         item {
@@ -308,23 +360,6 @@ internal fun TrackingSettingsContent(
                 onCheckedChange = onWifiEnabledChanged,
             )
         }
-        if (uiState.wifiEnabled) {
-            item {
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
-                    checked = uiState.wifiNetworkEnabled,
-                    onCheckedChange = onWifiNetworkEnabledChanged,
-                )
-            }
-            item {
-                SwitchSettingsItemWithHelp(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
-                    checked = uiState.wifiLocationCountEnabled,
-                    onCheckedChange = onWifiLocationCountEnabledChanged,
-                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count,
-                )
-            }
-        }
         item {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
@@ -338,44 +373,46 @@ internal fun TrackingSettingsContent(
             )
         }
 
-        // --- Tracking detail (fine-tuning) ---
-        item {
-            SectionHeader(
-                stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detail),
-            )
-        }
-        item {
-            SliderSettingsItemWithHelp(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
-                value = uiState.minDistance.toFloat(),
-                valueRange = 0f..200f,
-                steps = 19,
-                valueLabel = { "${it.toInt()} m" },
-                onValueChange = { onMinDistanceChanged(it.toInt()) },
-                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
-            )
-        }
-        item {
-            SliderSettingsItemWithHelp(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
-                value = uiState.minTime.toFloat(),
-                valueRange = 0f..60f,
-                steps = 11,
-                valueLabel = { "${it.toInt()} s" },
-                onValueChange = { onMinTimeChanged(it.toInt()) },
-                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
-            )
-        }
-        item {
-            SliderSettingsItemWithHelp(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
-                value = uiState.requiredAccuracy.toFloat(),
-                valueRange = 10f..200f,
-                steps = 18,
-                valueLabel = { "${it.toInt()} m" },
-                onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
-                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
-            )
+        // These parameters only control location requests/filtering, not other source cadences.
+        if (uiState.locationEnabled) {
+            item {
+                SectionHeader(
+                    stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_detail),
+                )
+            }
+            item {
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
+                    value = uiState.minDistance.toFloat(),
+                    valueRange = 0f..200f,
+                    steps = 19,
+                    valueLabel = { "${it.toInt()} m" },
+                    onValueChange = { onMinDistanceChanged(it.toInt()) },
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance,
+                )
+            }
+            item {
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
+                    value = uiState.minTime.toFloat(),
+                    valueRange = 0f..60f,
+                    steps = 11,
+                    valueLabel = { "${it.toInt()} s" },
+                    onValueChange = { onMinTimeChanged(it.toInt()) },
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time,
+                )
+            }
+            item {
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
+                    value = uiState.requiredAccuracy.toFloat(),
+                    valueRange = 10f..200f,
+                    steps = 18,
+                    valueLabel = { "${it.toInt()} m" },
+                    onValueChange = { onRequiredAccuracyChanged(it.toInt()) },
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy,
+                )
+            }
         }
         item {
             SliderSettingsItemWithHelp(

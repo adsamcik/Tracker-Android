@@ -27,6 +27,11 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
@@ -93,6 +98,7 @@ fun DashboardRoute(
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val trackingParams by viewModel.trackingParams.collectAsState()
+	val locationPermissionSatisfied = !trackingParams.locationEnabled || hasLocationPermission
 
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
@@ -209,7 +215,7 @@ fun DashboardRoute(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
 		isLocked = isLocked,
-		hasLocationPermission = hasLocationPermission,
+		hasLocationPermission = locationPermissionSatisfied,
 		policyTier = policyTier,
 		sessionData = displaySession,
 		collectionData = collectionData,
@@ -277,7 +283,13 @@ fun DashboardRoute(
 		onToggleTracking = { shouldStart ->
 			if (shouldStart) {
 				userRequestedStop = false
-				if (!trackingParams.hasAnyTrackingOptionEnabled()) {
+				if (!trackingParams.hasAnyCaptureSource(
+					activityAvailable = context.hasActivityPermission,
+					stepsAvailable = context.hasActivityPermission && context.hasStepCounterSensor,
+					wifiAvailable = context.hasWifiScanPermission,
+					cellAvailable = context.hasCellScanPermission,
+					barometerAvailable = context.hasPressureSensor,
+				)) {
 					coroutineScope.launch {
 						val result = snackbarHostState.showSnackbar(
 							message = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track),
@@ -289,7 +301,7 @@ fun DashboardRoute(
 					}
 					return@DashboardScreen
 				}
-				if (hasLocationPermission) {
+				if (locationPermissionSatisfied) {
 					TrackerServiceApi.startService(context, isUserInitiated = true)
 				} else {
 					viewModel.requestPermission()
@@ -371,12 +383,3 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 		else -> copy(totalSteps = goalStepsToday)
 	}
 }
-
-private fun TrackingParamsState.hasAnyTrackingOptionEnabled(): Boolean =
-	locationEnabled ||
-		stepsEnabled ||
-		activityEnabled ||
-		cellEnabled ||
-		wifiEnabled ||
-		wifiLocationCountEnabled ||
-		wifiNetworkEnabled

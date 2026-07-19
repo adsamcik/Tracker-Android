@@ -38,8 +38,8 @@ enum class TrackingPolicyPreset(
             activityEnabled = true,
             stepsEnabled = false,
             wifiEnabled = false,
-            wifiLocationCountEnabled = false,
             cellEnabled = false,
+            barometerEnabled = false,
             useTransitionDetection = true
         )
     ),
@@ -64,8 +64,8 @@ enum class TrackingPolicyPreset(
             activityEnabled = true,
             stepsEnabled = true,
             wifiEnabled = true,
-            wifiLocationCountEnabled = false,
             cellEnabled = false,
+            barometerEnabled = true,
             useTransitionDetection = true
         )
     ),
@@ -90,8 +90,8 @@ enum class TrackingPolicyPreset(
             activityEnabled = true,
             stepsEnabled = true,
             wifiEnabled = true,
-            wifiLocationCountEnabled = true,
             cellEnabled = true,
+            barometerEnabled = true,
             useTransitionDetection = false // Continuous tracking for max detail
         )
     );
@@ -127,8 +127,8 @@ data class TrackingPresetSettings(
     val activityEnabled: Boolean,
     val stepsEnabled: Boolean,
     val wifiEnabled: Boolean,
-    val wifiLocationCountEnabled: Boolean,
     val cellEnabled: Boolean,
+    val barometerEnabled: Boolean,
 
     // Advanced options
     val useTransitionDetection: Boolean
@@ -151,8 +151,8 @@ data class TrackingPresetSettings(
         if (activityEnabled) score += 1
         if (stepsEnabled) score += 1
         if (wifiEnabled) score += 1
-        if (wifiLocationCountEnabled) score += 1
         if (cellEnabled) score += 1
+        if (barometerEnabled) score += 1
 
         // Transition detection reduces battery
         if (!useTransitionDetection && locationEnabled) score += 1

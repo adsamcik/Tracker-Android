@@ -35,13 +35,8 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
-		fun `default state has wifi network disabled`() {
-			TrackingParamsState().wifiNetworkEnabled shouldBe false
-		}
-
-		@Test
-		fun `default state has wifi location count disabled`() {
-			TrackingParamsState().wifiLocationCountEnabled shouldBe false
+		fun `default state has barometer enabled`() {
+			TrackingParamsState().barometerEnabled shouldBe true
 		}
 
 		@Test
@@ -175,8 +170,7 @@ class TrackingParamsStateTest {
 				stepsEnabled = false,
 				wifiEnabled = true,
 				cellEnabled = true,
-				wifiNetworkEnabled = true,
-				wifiLocationCountEnabled = true,
+				barometerEnabled = false,
 				autoTrackingMode = 3,
 				transitionDetectionEnabled = false,
 				notificationStyled = false,
@@ -189,11 +183,48 @@ class TrackingParamsStateTest {
 			state.locationEnabled shouldBe false
 			state.wifiEnabled shouldBe true
 			state.cellEnabled shouldBe true
+			state.barometerEnabled shouldBe false
 			state.autoTrackingMode shouldBe 3
 			state.minDistanceMeters shouldBe 99
 			state.minTimeSeconds shouldBe 55
 			state.requiredAccuracyMeters shouldBe 200
 			state.skiDetectionEnabled shouldBe true
+		}
+
+		@Test
+		fun `barometer availability participates in source viability`() {
+			val state = TrackingParamsState(
+				locationEnabled = false,
+				activityEnabled = false,
+				stepsEnabled = false,
+				wifiEnabled = false,
+				cellEnabled = false,
+				barometerEnabled = true,
+			)
+
+			state.hasAnyCaptureSource(barometerAvailable = true) shouldBe true
+			state.hasAnyCaptureSource(barometerAvailable = false) shouldBe false
+		}
+
+		@Test
+		fun `permission and hardware dependent sources only count when available`() {
+			val unavailableSources = TrackingParamsState(
+				locationEnabled = true,
+				activityEnabled = true,
+				stepsEnabled = true,
+				wifiEnabled = true,
+				cellEnabled = true,
+				barometerEnabled = true,
+			)
+
+			unavailableSources.hasAnyCaptureSource(
+				locationAvailable = false,
+				activityAvailable = false,
+				stepsAvailable = false,
+				wifiAvailable = false,
+				cellAvailable = false,
+				barometerAvailable = false,
+			) shouldBe false
 		}
 	}
 }

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ShortcutManager
+import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -310,6 +311,15 @@ inline val Context.shortcutManager: ShortcutManager
  */
 inline val Context.sensorManager: SensorManager get() = getSystemServiceTyped(Context.SENSOR_SERVICE)
 
+/** Whether this device exposes a pressure sensor suitable for barometric capture. */
+val Context.hasPressureSensor: Boolean
+	get() = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null
+
+/** Whether this device exposes the cumulative step counter used by step capture. */
+val Context.hasStepCounterSensor: Boolean
+	get() = packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) &&
+			sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
+
 /**
  * Shortcut to get [NotificationManager]. This property does not cache the service.
  */
@@ -333,5 +343,3 @@ val Context.applicationName: String
 			getString(stringId)
 		}
 	}
-
-

@@ -55,12 +55,13 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
     @Test
-    fun `migration imports tracking knobs used by onboarding settings and runtime`() = runTest {
-        PreferenceManager.getDefaultSharedPreferences(context).edit()
-            .putBoolean(PreferenceKeys.WIFI_ENABLED, true)
-            .putBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, true)
-            .putBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, true)
-            .putBoolean(PreferenceKeys.CELL_ENABLED, true)
+	fun `migration folds legacy wifi outputs and imports barometer setting`() = runTest {
+		PreferenceManager.getDefaultSharedPreferences(context).edit()
+			.putBoolean(PreferenceKeys.WIFI_ENABLED, false)
+			.putBoolean(PreferenceKeys.WIFI_NETWORK_ENABLED, true)
+			.putBoolean(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED, true)
+			.putBoolean(PreferenceKeys.CELL_ENABLED, true)
+			.putBoolean(PreferenceKeys.BAROMETER_ENABLED, false)
             .putInt(PreferenceKeys.TRACKING_MIN_DISTANCE, 42)
             .putInt(PreferenceKeys.TRACKING_MIN_TIME, 9)
             .putInt(PreferenceKeys.TRACKING_REQUIRED_ACCURACY, 25)
@@ -71,16 +72,41 @@ class DefaultTrackingParamsRepositoryTest {
         val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
         val state = repo.data.first()
 
-        assertTrue(state.wifiEnabled)
-        assertTrue(state.wifiNetworkEnabled)
-        assertTrue(state.wifiLocationCountEnabled)
-        assertTrue(state.cellEnabled)
+		assertTrue(state.wifiEnabled)
+		assertTrue(state.cellEnabled)
+		assertFalse(state.barometerEnabled)
         assertEquals(42, state.minDistanceMeters)
         assertEquals(9, state.minTimeSeconds)
         assertEquals(25, state.requiredAccuracyMeters)
         assertFalse(state.transitionDetectionEnabled)
-        assertEquals(TrackingPreset.HIGH_ACCURACY, state.preset)
-    }
+		assertEquals(TrackingPreset.HIGH_ACCURACY, state.preset)
+	}
+
+	@Test
+	@Suppress("DEPRECATION")
+	fun `legacy wifi output is normalized on write and can be disabled`() = runTest {
+		val dataStoreFile = context.filesDir.resolve("datastore/tracking_params.pb")
+		dataStoreFile.parentFile?.mkdirs()
+		val proto = TrackingParamsProto.newBuilder()
+			.setLegacyMigrated(true)
+			.setWifiEnabled(false)
+			.setWifiNetworkEnabled(true)
+			.build()
+		dataStoreFile.outputStream().use(proto::writeTo)
+
+		val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+		val state = repo.data.first()
+
+		assertTrue(state.wifiEnabled)
+		// Files created before the optional field retain the historical enabled default.
+		assertTrue(state.barometerEnabled)
+
+		repo.setBarometerEnabled(false)
+		assertTrue(repo.data.first().wifiEnabled)
+
+		repo.setWifiEnabled(false)
+		assertFalse(repo.data.first().wifiEnabled)
+	}
 
     @Test
     fun `active write performs legacy migration before updating repository`() = runTest {

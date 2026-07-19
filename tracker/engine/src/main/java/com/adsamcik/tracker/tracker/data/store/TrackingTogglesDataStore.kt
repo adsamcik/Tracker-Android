@@ -105,12 +105,16 @@ private class TrackingParamsToTogglesMigration(
     }
 }
 
+@Suppress("DEPRECATION")
 private fun TrackingParamsProto.toSourceToggleMap(): Map<String, Boolean> = mapOf(
     PreferenceKeys.LOCATION_ENABLED to locationEnabled,
     PreferenceKeys.ACTIVITY_ENABLED to activityEnabled,
     PreferenceKeys.STEPS_ENABLED to stepsEnabled,
-    PreferenceKeys.WIFI_ENABLED to wifiEnabled,
+    PreferenceKeys.WIFI_ENABLED to (wifiEnabled || wifiNetworkEnabled || wifiLocationCountEnabled),
     PreferenceKeys.CELL_ENABLED to cellEnabled,
-    PreferenceKeys.WIFI_NETWORK_ENABLED to wifiNetworkEnabled,
-    PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED to wifiLocationCountEnabled,
+    PreferenceKeys.BAROMETER_ENABLED to if (hasBarometerEnabled()) {
+        barometerEnabled
+    } else {
+        PreferenceKeys.BAROMETER_ENABLED_DEFAULT
+    },
 )

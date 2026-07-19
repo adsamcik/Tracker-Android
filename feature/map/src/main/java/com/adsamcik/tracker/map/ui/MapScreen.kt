@@ -479,7 +479,9 @@ fun MapScreen(
     }
 
     val emptyStateSubtitle = when (activeLayerId) {
-        "cell_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_cell)
+        "cell_heatmap",
+        "signal_coverage",
+        "signal_aurora" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_cell)
         "wifi_heatmap",
         "wifi_count_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_wifi)
         "speed_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_speed)

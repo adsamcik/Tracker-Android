@@ -410,9 +410,7 @@ private fun TrackingContent(
     val context = LocalContext.current
     val locationEnabled = trackingParams.locationEnabled
     val cellEnabled = trackingParams.cellEnabled
-    val wifiEnabled = trackingParams.wifiEnabled ||
-        trackingParams.wifiLocationCountEnabled ||
-        trackingParams.wifiNetworkEnabled
+    val wifiEnabled = trackingParams.wifiEnabled
     val activityEnabled = trackingParams.activityEnabled
     val trackerSettings = TrackerSettingsQuick.snapshot(context)
 

@@ -237,12 +237,12 @@
     <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
     <string name="map_layers_title">Map Layers</string>
     <string name="map_layer_load_error">Couldn\'t load this layer. Try selecting a different one.</string>
-    <string name="map_empty_title">No data yet</string>
-    <string name="map_empty_subtitle">Start tracking to see your location history on this map.</string>
-    <string name="map_empty_subtitle_location">No location data yet. Start tracking to see your location history on this map.</string>
-    <string name="map_empty_subtitle_cell">No cell data yet. Start tracking to see cell coverage on this map.</string>
-    <string name="map_empty_subtitle_wifi">No Wi-Fi data yet. Start tracking to see Wi-Fi heatmaps on this map.</string>
-    <string name="map_empty_subtitle_speed">No speed data yet. Start tracking to see speed heatmaps on this map.</string>
+    <string name="map_empty_title">No mappable data</string>
+    <string name="map_empty_subtitle">No mappable data in this view or date range. Map features require location collected while tracking.</string>
+    <string name="map_empty_subtitle_location">No location data in this view or date range. Route and map features require location collected while tracking.</string>
+    <string name="map_empty_subtitle_cell">No located cell data in this view or date range. Cell samples recorded without location are still saved, but cannot appear on the map.</string>
+    <string name="map_empty_subtitle_wifi">No located Wi-Fi data in this view or date range. Wi-Fi observations recorded without location are still saved, but cannot appear on the map.</string>
+    <string name="map_empty_subtitle_speed">No speed data in this view or date range. Speed maps require usable location samples collected while tracking.</string>
     <string name="map_empty_subtitle_vehicle_compliance">No road-matched drives to show. Import an OpenStreetMap region (Settings) and record some driving so we can match your route to real roads.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Dismiss no-data message</string>
     <string name="map_speed_probe_title">Speed here</string>
@@ -264,7 +264,7 @@
     <string name="map_a11y_centered_on_location">Map centered on your location</string>
     <string name="map_a11y_showing_location">Map showing your location</string>
     <string name="map_a11y_loading_data">Loading recorded map data</string>
-    <string name="map_a11y_no_recorded_data">Selected layer has no recorded data yet</string>
+    <string name="map_a11y_no_recorded_data">Selected layer has no mappable data in this view or date range</string>
     <string name="map_a11y_no_layer_selected">No map layer selected</string>
     <string name="map_a11y_search_result_visible">Search result marker visible</string>
     <string name="map_a11y_active_recording_visible">Active recording path visible</string>

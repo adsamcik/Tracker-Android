@@ -69,6 +69,10 @@ internal class StepDataProducer(
 		synchronized(lockObject) {
 			flushCompletion?.cancel()
 			flushCompletion = null
+			lastStepCount = -1
+			stepCountSinceLastCollection = 0
+			stepValueAtCollectionStart = -1
+			sensorResetDetected = false
 		}
 		super.onDisable(context)
 	}

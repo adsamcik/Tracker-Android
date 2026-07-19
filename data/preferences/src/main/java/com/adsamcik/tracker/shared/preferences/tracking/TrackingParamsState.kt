@@ -7,8 +7,7 @@ data class TrackingParamsState(
     val stepsEnabled: Boolean = true,
     val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
-    val wifiNetworkEnabled: Boolean = false,
-    val wifiLocationCountEnabled: Boolean = false,
+    val barometerEnabled: Boolean = true,
     val autoTrackingMode: Int = 1,
     val transitionDetectionEnabled: Boolean = true,
     val notificationStyled: Boolean = true,
@@ -40,4 +39,24 @@ data class TrackingParamsState(
 
     val preset: TrackingPreset
         get() = TrackingPreset.fromName(presetName)
+
+    /**
+     * Returns whether at least one configured source can capture in the caller's environment.
+     *
+     * Permission- and hardware-dependent callers should pass actual availability. Defaults retain
+     * the configuration-only semantics used by storage helpers and non-Android tests.
+     */
+    fun hasAnyCaptureSource(
+        locationAvailable: Boolean = true,
+        activityAvailable: Boolean = true,
+        stepsAvailable: Boolean = true,
+        wifiAvailable: Boolean = true,
+        cellAvailable: Boolean = true,
+        barometerAvailable: Boolean = true,
+    ): Boolean = (locationEnabled && locationAvailable) ||
+        (activityEnabled && activityAvailable) ||
+        (stepsEnabled && stepsAvailable) ||
+        (wifiEnabled && wifiAvailable) ||
+        (cellEnabled && cellAvailable) ||
+        (barometerEnabled && barometerAvailable)
 }

@@ -9,6 +9,8 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -99,6 +101,41 @@ class DataProducerManagerFailureIsolationTest {
 	}
 
 	@Test
+	fun `source toggle changes active collection without restarting the manager`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val dispatchers = testDispatchers(testDispatcher)
+		val enabled = MutableStateFlow(false)
+		val manager = DataProducerManager(context, dispatchers)
+		val producer = FlowBackedRecordingProducer(manager, dispatchers, enabled)
+
+		producer.onAttach(context)
+		advanceUntilIdle()
+		manager.getData(cycle())
+		producer.dataRequests shouldBe 0
+
+		enabled.value = true
+		advanceUntilIdle()
+		manager.getData(cycle())
+		producer.isEnabled shouldBe true
+		producer.dataRequests shouldBe 1
+
+		enabled.value = false
+		advanceUntilIdle()
+		manager.getData(cycle())
+		producer.isEnabled shouldBe false
+		producer.dataRequests shouldBe 1
+
+		enabled.value = true
+		advanceUntilIdle()
+		manager.getData(cycle())
+		producer.isEnabled shouldBe true
+		producer.dataRequests shouldBe 2
+
+		producer.onDetach(context)
+		manager.onStateChange(shouldBeEnabled = false, component = producer)
+	}
+
+	@Test
 	fun `failed preference disable is retried until the producer is stopped`() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		val manager = DataProducerManager(context, testDispatchers(testDispatcher))
@@ -183,6 +220,11 @@ class DataProducerManagerFailureIsolationTest {
 		list.add(component)
 	}
 
+	private fun cycle() = TrackingCycle(
+		timestampMs = 1_000L,
+		elapsedRealtimeNanos = 1_000L,
+	)
+
 	private fun testDispatchers(dispatcher: CoroutineDispatcher) = object : DispatchersProvider {
 		override val main: CoroutineDispatcher = dispatcher
 		override val default: CoroutineDispatcher = dispatcher
@@ -220,6 +262,22 @@ class DataProducerManagerFailureIsolationTest {
 		override val preferenceDefault: Boolean = false
 		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			wasInvoked = true
+		}
+	}
+
+	private class FlowBackedRecordingProducer(
+		changeReceiver: TrackerDataProducerObserver,
+		dispatchers: DispatchersProvider,
+		enabledFlow: Flow<Boolean>,
+	) : TrackerDataProducerComponent(changeReceiver, dispatchers, enabledFlow) {
+		var dataRequests: Int = 0
+			private set
+
+		override val preferenceKey: String = "flow-backed-recording-producer"
+		override val preferenceDefault: Boolean = false
+
+		override fun onDataRequest(builder: TrackingCycleBuilder) {
+			dataRequests++
 		}
 	}
 

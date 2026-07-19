@@ -15,8 +15,10 @@ message TrackingParamsProto {
   bool steps_enabled = 3;
   bool wifi_enabled = 4;
   bool cell_enabled = 5;
-  bool wifi_network_enabled = 6;
-  bool wifi_location_count_enabled = 7;
+  // Legacy Wi-Fi output toggles retained only so existing files can be folded into wifi_enabled.
+  // New code must not write these fields.
+  bool wifi_network_enabled = 6 [deprecated = true];
+  bool wifi_location_count_enabled = 7 [deprecated = true];
 
   // Auto-tracking
   int32 auto_tracking_mode = 8;  // 0 = off, 1+ = enabled modes
@@ -46,6 +48,10 @@ message TrackingParamsProto {
 
   // Plane/flight detection (barometric altitude + step rate based; see PlaneDetectionConfig).
   bool plane_detection_enabled = 18;
+
+  // Raw pressure capture. Optional preserves the historical default (enabled) for files written
+  // before this field existed while still allowing users to explicitly disable it.
+  optional bool barometer_enabled = 19;
 
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;

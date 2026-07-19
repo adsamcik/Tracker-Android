@@ -21,113 +21,70 @@ class BackgroundTrackingApiLogicTest {
 	@Nested
 	@DisplayName("hasAnythingToTrack")
 	inner class HasAnythingToTrack {
+		private fun noSources() = TrackingParamsState(
+			locationEnabled = false,
+			cellEnabled = false,
+			wifiEnabled = false,
+			activityEnabled = false,
+			stepsEnabled = false,
+			barometerEnabled = false,
+		)
+
 		@Test
 		fun `returns true when location is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = true,
-				cellEnabled = false,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-			)
+			val params = noSources().copy(locationEnabled = true)
 			hasAnythingToTrack(params) shouldBe true
 		}
 
 		@Test
 		fun `returns true when cell is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = true,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-			)
-			hasAnythingToTrack(params) shouldBe true
-		}
-
-		@Test
-		fun `returns true when wifi location count is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiLocationCountEnabled = true,
-				wifiNetworkEnabled = false,
-			)
-			hasAnythingToTrack(params) shouldBe true
-		}
-
-		@Test
-		fun `returns true when wifi network is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = true,
-			)
+			val params = noSources().copy(cellEnabled = true)
 			hasAnythingToTrack(params) shouldBe true
 		}
 
 		@Test
 		fun `returns true when wifi scanning is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiEnabled = true,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-			)
+			val params = noSources().copy(wifiEnabled = true)
 			hasAnythingToTrack(params) shouldBe true
 		}
 
 		@Test
 		fun `returns false when nothing is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiEnabled = false,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-				activityEnabled = false,
-				stepsEnabled = false,
-			)
-			hasAnythingToTrack(params) shouldBe false
+			hasAnythingToTrack(noSources()) shouldBe false
 		}
 
 		@Test
-		fun `returns true when all are enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = true,
-				cellEnabled = true,
-				wifiLocationCountEnabled = true,
-				wifiNetworkEnabled = true,
-			)
-			hasAnythingToTrack(params) shouldBe true
+		fun `barometer requires hardware availability`() {
+			val params = noSources().copy(barometerEnabled = true)
+			hasAnythingToTrack(params, barometerAvailable = true) shouldBe true
+			hasAnythingToTrack(params, barometerAvailable = false) shouldBe false
 		}
 
 		@Test
 		fun `returns true when only activity is enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiEnabled = false,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-				activityEnabled = true,
-				stepsEnabled = false,
-			)
+			val params = noSources().copy(activityEnabled = true)
 			hasAnythingToTrack(params) shouldBe true
 		}
 
 		@Test
 		fun `returns true when only steps are enabled`() {
-			val params = TrackingParamsState(
-				locationEnabled = false,
-				cellEnabled = false,
-				wifiEnabled = false,
-				wifiLocationCountEnabled = false,
-				wifiNetworkEnabled = false,
-				activityEnabled = false,
-				stepsEnabled = true,
-			)
+			val params = noSources().copy(stepsEnabled = true)
 			hasAnythingToTrack(params) shouldBe true
+		}
+
+		@Test
+		fun `permission and hardware dependent sources require availability`() {
+			val params = TrackingParamsState()
+
+			hasAnythingToTrack(
+				params = params,
+				locationAvailable = false,
+				activityAvailable = false,
+				stepsAvailable = false,
+				wifiAvailable = false,
+				cellAvailable = false,
+				barometerAvailable = false,
+			) shouldBe false
 		}
 	}
 

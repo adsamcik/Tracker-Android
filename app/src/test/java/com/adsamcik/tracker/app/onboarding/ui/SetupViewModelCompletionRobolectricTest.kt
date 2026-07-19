@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
@@ -63,6 +64,7 @@ class SetupViewModelCompletionRobolectricTest {
 		paramsFlow.value = TrackingParamsState()
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
 		every { appContext.hasSelfPermission(any()) } returns true
+		every { appContext.hasPressureSensor } returns true
 		every { trackingParamsRepository.data } returns paramsFlow
 		coEvery { trackingParamsRepository.update(any()) } answers {
 			@Suppress("UNCHECKED_CAST")
@@ -109,9 +111,8 @@ class SetupViewModelCompletionRobolectricTest {
 		state.activityEnabled shouldBe true
 		state.stepsEnabled shouldBe true
 		state.wifiEnabled shouldBe true
-		state.wifiNetworkEnabled shouldBe true
-		state.wifiLocationCountEnabled shouldBe true
 		state.cellEnabled shouldBe true
+		state.barometerEnabled shouldBe true
 		state.autoTrackingMode shouldBe 2
 		state.transitionDetectionEnabled shouldBe false
 		state.minDistanceMeters shouldBe 5

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.settings
 
 import android.content.Context
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -43,6 +44,7 @@ class TrackingSettingsViewModelTest {
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
         every { context.hasSelfPermission(any()) } returns true
+        every { context.hasPressureSensor } returns true
 
         every { trackingParamsRepository.data } returns paramsFlow
 
@@ -67,11 +69,8 @@ class TrackingSettingsViewModelTest {
         coEvery { trackingParamsRepository.setCellEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(cellEnabled = firstArg())
         }
-        coEvery { trackingParamsRepository.setWifiNetworkEnabled(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(wifiNetworkEnabled = firstArg())
-        }
-        coEvery { trackingParamsRepository.setWifiLocationCountEnabled(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(wifiLocationCountEnabled = firstArg())
+        coEvery { trackingParamsRepository.setBarometerEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(barometerEnabled = firstArg())
         }
         coEvery { trackingParamsRepository.setTransitionDetectionEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(transitionDetectionEnabled = firstArg())
@@ -212,34 +211,25 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
             vm.uiState.value.cellEnabled shouldBe false
         }
-    }
-
-    // =========================================================================
-    // WiFi sub-options
-    // =========================================================================
-
-    @Nested
-    @DisplayName("WiFi sub-options")
-    inner class WifiSubOptions {
 
         @Test
-        fun `setWifiNetworkEnabled updates state`() = runTest(testDispatcher) {
+        fun `setBarometerEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.setWifiNetworkEnabled(false)
+            vm.setBarometerEnabled(false)
             advanceUntilIdle()
-            vm.uiState.value.wifiNetworkEnabled shouldBe false
+            vm.uiState.value.barometerEnabled shouldBe false
         }
 
         @Test
-        fun `setWifiLocationCountEnabled updates state`() = runTest(testDispatcher) {
+        fun `barometer is disabled when the device has no pressure sensor`() = runTest(testDispatcher) {
+            every { context.hasPressureSensor } returns false
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.setWifiLocationCountEnabled(false)
-            advanceUntilIdle()
-            vm.uiState.value.wifiLocationCountEnabled shouldBe false
+            vm.uiState.value.barometerAvailable shouldBe false
+            vm.uiState.value.barometerEnabled shouldBe false
         }
     }
 
@@ -341,6 +331,7 @@ class TrackingSettingsViewModelTest {
             vm.setStepsEnabled(false)
             vm.setWifiEnabled(false)
             vm.setCellEnabled(false)
+            vm.setBarometerEnabled(false)
             advanceUntilIdle()
 
             vm.uiState.value.hasValidSources shouldBe false
@@ -356,6 +347,7 @@ class TrackingSettingsViewModelTest {
             vm.setStepsEnabled(false)
             vm.setWifiEnabled(false)
             vm.setCellEnabled(false)
+            vm.setBarometerEnabled(false)
             advanceUntilIdle()
             vm.uiState.value.hasValidSources shouldBe false
 
@@ -375,6 +367,7 @@ class TrackingSettingsViewModelTest {
             vm.setActivityEnabled(false)
             vm.setStepsEnabled(false)
             vm.setWifiEnabled(false)
+            vm.setBarometerEnabled(false)
             advanceUntilIdle()
 
             vm.uiState.value.hasValidSources shouldBe true
@@ -403,6 +396,7 @@ class TrackingSettingsViewModelTest {
             vm.uiState.value.stepsEnabled shouldBe config.stepsEnabled
             vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
             vm.uiState.value.cellEnabled shouldBe config.cellEnabled
+            vm.uiState.value.barometerEnabled shouldBe config.barometerEnabled
             vm.uiState.value.minDistance shouldBe config.minDistanceMeters
             vm.uiState.value.minTime shouldBe config.minTimeSeconds
             vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
@@ -421,8 +415,8 @@ class TrackingSettingsViewModelTest {
             val config = TrackingPreset.HIGH_ACCURACY
             vm.uiState.value.locationEnabled shouldBe config.locationEnabled
             vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.value.wifiLocationCountEnabled shouldBe config.wifiEnabled
             vm.uiState.value.cellEnabled shouldBe config.cellEnabled
+            vm.uiState.value.barometerEnabled shouldBe config.barometerEnabled
             vm.uiState.value.minDistance shouldBe config.minDistanceMeters
             vm.uiState.value.minTime shouldBe config.minTimeSeconds
             vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters

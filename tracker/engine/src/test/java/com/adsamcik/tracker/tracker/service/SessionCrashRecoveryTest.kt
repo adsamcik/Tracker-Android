@@ -362,11 +362,8 @@ class SessionCrashRecoveryTest {
 		override suspend fun setCellEnabled(enabled: Boolean) {
 			state.update { it.copy(cellEnabled = enabled) }
 		}
-		override suspend fun setWifiNetworkEnabled(enabled: Boolean) {
-			state.update { it.copy(wifiNetworkEnabled = enabled) }
-		}
-		override suspend fun setWifiLocationCountEnabled(enabled: Boolean) {
-			state.update { it.copy(wifiLocationCountEnabled = enabled) }
+		override suspend fun setBarometerEnabled(enabled: Boolean) {
+			state.update { it.copy(barometerEnabled = enabled) }
 		}
 		override suspend fun setTransitionDetectionEnabled(enabled: Boolean) {
 			state.update { it.copy(transitionDetectionEnabled = enabled) }

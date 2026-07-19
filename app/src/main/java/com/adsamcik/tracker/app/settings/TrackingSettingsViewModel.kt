@@ -5,8 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -29,8 +32,10 @@ data class TrackingSettingsUiState(
     val stepsEnabled: Boolean = true,
     val wifiEnabled: Boolean = true,
     val cellEnabled: Boolean = false,
-    val wifiNetworkEnabled: Boolean = false,
-    val wifiLocationCountEnabled: Boolean = false,
+    val barometerEnabled: Boolean = true,
+    val barometerAvailable: Boolean = true,
+    val activityPermissionGranted: Boolean = false,
+    val stepCounterAvailable: Boolean = true,
     val wifiPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
     val autoTrackingEnabled: Boolean = false,
@@ -61,20 +66,29 @@ class TrackingSettingsViewModel @Inject constructor(
                 val preset = params.preset
                 val wifiPermissionGranted = context.hasWifiScanPermission
                 val cellPermissionGranted = context.hasCellScanPermission
+                val barometerAvailable = context.hasPressureSensor
+                val activityPermissionGranted = context.hasActivityPermission
+                val stepCounterAvailable = context.hasStepCounterSensor
+                val effectiveActivityEnabled = params.activityEnabled && activityPermissionGranted
+                val effectiveStepsEnabled = params.stepsEnabled &&
+                    activityPermissionGranted && stepCounterAvailable
                 val effectiveWifiEnabled = params.wifiEnabled && wifiPermissionGranted
                 val effectiveCellEnabled = params.cellEnabled && cellPermissionGranted
+                val effectiveBarometerEnabled = params.barometerEnabled && barometerAvailable
 
                 _uiState.update {
                     it.copy(
                         isLoaded = true,
                         currentPreset = preset,
                         locationEnabled = params.locationEnabled,
-                        activityEnabled = params.activityEnabled,
-                        stepsEnabled = params.stepsEnabled,
+                        activityEnabled = effectiveActivityEnabled,
+                        stepsEnabled = effectiveStepsEnabled,
                         wifiEnabled = effectiveWifiEnabled,
                         cellEnabled = effectiveCellEnabled,
-                        wifiNetworkEnabled = params.wifiNetworkEnabled && wifiPermissionGranted,
-                        wifiLocationCountEnabled = params.wifiLocationCountEnabled && wifiPermissionGranted,
+                        barometerEnabled = effectiveBarometerEnabled,
+                        barometerAvailable = barometerAvailable,
+                        activityPermissionGranted = activityPermissionGranted,
+                        stepCounterAvailable = stepCounterAvailable,
                         wifiPermissionGranted = wifiPermissionGranted,
                         cellPermissionGranted = cellPermissionGranted,
                         autoTrackingEnabled = params.autoTrackingMode > 0,
@@ -83,12 +97,17 @@ class TrackingSettingsViewModel @Inject constructor(
                         minDistance = params.minDistanceMeters,
                         minTime = params.minTimeSeconds,
                         requiredAccuracy = params.requiredAccuracyMeters,
-                        hasValidSources = params.locationEnabled || params.activityEnabled ||
-                                params.stepsEnabled || effectiveWifiEnabled || effectiveCellEnabled,
-                        skiDetectionEnabled = params.skiDetectionEnabled,
+                        hasValidSources = params.hasAnyCaptureSource(
+                            activityAvailable = activityPermissionGranted,
+                            stepsAvailable = activityPermissionGranted && stepCounterAvailable,
+                            wifiAvailable = wifiPermissionGranted,
+                            cellAvailable = cellPermissionGranted,
+                            barometerAvailable = barometerAvailable,
+                        ),
+                        skiDetectionEnabled = params.skiDetectionEnabled && effectiveBarometerEnabled,
                         vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
                         sailingDetectionEnabled = params.sailingDetectionEnabled,
-                        planeDetectionEnabled = params.planeDetectionEnabled,
+                        planeDetectionEnabled = params.planeDetectionEnabled && effectiveBarometerEnabled,
                     )
                 }
                 recalculateBatteryImpact()
@@ -105,14 +124,16 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setActivityEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setActivityEnabled(enabled)
+            trackingParamsRepository.setActivityEnabled(enabled && context.hasActivityPermission)
             markCustomPreset()
         }
     }
 
     fun setStepsEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setStepsEnabled(enabled)
+            trackingParamsRepository.setStepsEnabled(
+                enabled && context.hasActivityPermission && context.hasStepCounterSensor,
+            )
             markCustomPreset()
         }
     }
@@ -136,18 +157,26 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
-    fun setWifiNetworkEnabled(enabled: Boolean) {
+    fun setBarometerEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setWifiNetworkEnabled(enabled)
+            val effectiveEnabled = enabled && context.hasPressureSensor
+            trackingParamsRepository.setBarometerEnabled(effectiveEnabled)
+            if (!effectiveEnabled) {
+                trackingParamsRepository.setSkiDetectionEnabled(false)
+                trackingParamsRepository.setPlaneDetectionEnabled(false)
+            }
             markCustomPreset()
         }
     }
 
-    fun setWifiLocationCountEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setWifiLocationCountEnabled(enabled)
-            markCustomPreset()
-        }
+    fun onActivityPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(activityPermissionGranted = granted) }
+        if (granted) setActivityEnabled(true)
+    }
+
+    fun onStepsPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(activityPermissionGranted = granted) }
+        if (granted) setStepsEnabled(true)
     }
 
     fun onWifiPermissionResult(granted: Boolean) {
@@ -178,7 +207,9 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setSkiDetectionEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setSkiDetectionEnabled(enabled)
+            trackingParamsRepository.setSkiDetectionEnabled(
+                enabled && _uiState.value.barometerEnabled,
+            )
         }
     }
 
@@ -190,7 +221,9 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setPlaneDetectionEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setPlaneDetectionEnabled(enabled)
+            trackingParamsRepository.setPlaneDetectionEnabled(
+                enabled && _uiState.value.barometerEnabled,
+            )
         }
     }
 
@@ -227,15 +260,19 @@ class TrackingSettingsViewModel @Inject constructor(
             val config = preset
             val wifiAllowed = context.hasWifiScanPermission
             val cellAllowed = context.hasCellScanPermission
+            val activityAllowed = context.hasActivityPermission
+            val stepCounterAllowed = activityAllowed && context.hasStepCounterSensor
+            val barometerAllowed = config.barometerEnabled && context.hasPressureSensor
             trackingParamsRepository.update {
                 copy(
                     locationEnabled = config.locationEnabled,
-                    activityEnabled = config.activityEnabled,
-                    stepsEnabled = config.stepsEnabled,
+                    activityEnabled = config.activityEnabled && activityAllowed,
+                    stepsEnabled = config.stepsEnabled && stepCounterAllowed,
                     wifiEnabled = config.wifiEnabled && wifiAllowed,
-                    wifiNetworkEnabled = config.wifiEnabled && wifiAllowed,
-                    wifiLocationCountEnabled = preset == TrackingPreset.HIGH_ACCURACY && wifiAllowed,
                     cellEnabled = config.cellEnabled && cellAllowed,
+                    barometerEnabled = barometerAllowed,
+                    skiDetectionEnabled = skiDetectionEnabled && barometerAllowed,
+                    planeDetectionEnabled = planeDetectionEnabled && barometerAllowed,
                     transitionDetectionEnabled = transitionDetectionEnabled,
                     minDistanceMeters = config.minDistanceMeters,
                     minTimeSeconds = config.minTimeSeconds,
@@ -263,8 +300,8 @@ class TrackingSettingsViewModel @Inject constructor(
                 activityEnabled = state.activityEnabled,
                 stepsEnabled = state.stepsEnabled,
                 wifiEnabled = state.wifiEnabled,
-                wifiLocationCountEnabled = state.wifiLocationCountEnabled,
                 cellEnabled = state.cellEnabled,
+                barometerEnabled = state.barometerEnabled,
                 useTransitionDetection = state.transitionDetectionEnabled
             )
             state.copy(currentBatteryImpact = currentSettings.calculateBatteryImpact())

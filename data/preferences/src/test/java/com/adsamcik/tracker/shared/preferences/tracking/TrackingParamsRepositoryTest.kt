@@ -43,17 +43,13 @@ class TrackingParamsRepositoryTest {
 			_data.value = _data.value.copy(wifiEnabled = enabled)
 		}
 
-		override suspend fun setCellEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(cellEnabled = enabled)
-		}
+			override suspend fun setCellEnabled(enabled: Boolean) {
+				_data.value = _data.value.copy(cellEnabled = enabled)
+			}
 
-		override suspend fun setWifiNetworkEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(wifiNetworkEnabled = enabled)
-		}
-
-		override suspend fun setWifiLocationCountEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(wifiLocationCountEnabled = enabled)
-		}
+			override suspend fun setBarometerEnabled(enabled: Boolean) {
+				_data.value = _data.value.copy(barometerEnabled = enabled)
+			}
 
 		override suspend fun setTransitionDetectionEnabled(enabled: Boolean) {
 			_data.value = _data.value.copy(transitionDetectionEnabled = enabled)
@@ -138,15 +134,9 @@ class TrackingParamsRepositoryTest {
 		}
 
 		@Test
-		fun `setWifiNetworkEnabled updates state`() = runTest {
-			repository.setWifiNetworkEnabled(true)
-			repository.data.first().wifiNetworkEnabled shouldBe true
-		}
-
-		@Test
-		fun `setWifiLocationCountEnabled updates state`() = runTest {
-			repository.setWifiLocationCountEnabled(true)
-			repository.data.first().wifiLocationCountEnabled shouldBe true
+		fun `setBarometerEnabled updates state`() = runTest {
+			repository.setBarometerEnabled(false)
+			repository.data.first().barometerEnabled shouldBe false
 		}
 
 		@Test

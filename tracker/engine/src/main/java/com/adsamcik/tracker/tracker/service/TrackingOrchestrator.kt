@@ -33,6 +33,7 @@ import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.hasPersistableProducerPayload
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
@@ -502,7 +503,7 @@ internal class TrackingOrchestrator(
 							elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
 						),
 					)
-					if (finalCycle.stepDelta != null) {
+					if (finalCycle.hasPersistableProducerPayload()) {
 						pendingFinalCycle = finalCycle
 						executeCycle(context, requireNotNull(pendingFinalCycle))
 						pendingFinalCycle = null

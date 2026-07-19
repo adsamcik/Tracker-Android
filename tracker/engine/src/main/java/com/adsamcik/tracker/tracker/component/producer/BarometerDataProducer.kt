@@ -7,17 +7,25 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.flow.map
 
 /**
  * Produces barometric pressure data from the device pressure sensor.
  * Accumulates and averages pressure readings between collection cycles.
  */
-internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver) :
-		TrackerDataProducerComponent(changeReceiver),
+internal class BarometerDataProducer(
+	changeReceiver: TrackerDataProducerObserver,
+	trackingParamsRepository: TrackingParamsRepository? = null,
+) :
+		TrackerDataProducerComponent(
+			changeReceiver,
+			enabledFlow = trackingParamsRepository?.data?.map { it.barometerEnabled },
+		),
 		SensorEventListener {
 	private val lockObject = Object()
 	private var pressureSum = 0.0
@@ -43,6 +51,10 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 	override suspend fun onDisable(context: Context) {
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
+		synchronized(lockObject) {
+			pressureSum = 0.0
+			sampleCount = 0
+		}
 		super.onDisable(context)
 	}
 

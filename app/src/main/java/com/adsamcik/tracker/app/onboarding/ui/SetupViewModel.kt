@@ -11,6 +11,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
@@ -242,9 +243,8 @@ class SetupViewModel @Inject constructor(
                 activityEnabled = s.activityEnabled,
                 stepsEnabled = s.stepsEnabled,
                 wifiEnabled = wifiAllowed,
-                wifiNetworkEnabled = preset.wifiEnabled && wifiAllowed,
-                wifiLocationCountEnabled = preset.wifiLocationCountEnabled && wifiAllowed,
                 cellEnabled = cellAllowed,
+                barometerEnabled = preset.barometerEnabled && appContext.hasPressureSensor,
                 autoTrackingMode = effectiveMode,
                 transitionDetectionEnabled = preset.useTransitionDetection,
                 notificationStyled = true,

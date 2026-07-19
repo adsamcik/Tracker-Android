@@ -23,8 +23,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setStepsEnabled(PreferenceKeys.STEPS_ENABLED_DEFAULT)
         .setWifiEnabled(PreferenceKeys.WIFI_ENABLED_DEFAULT)
         .setCellEnabled(PreferenceKeys.CELL_ENABLED_DEFAULT)
-        .setWifiNetworkEnabled(PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
-        .setWifiLocationCountEnabled(PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT)
+        .setBarometerEnabled(PreferenceKeys.BAROMETER_ENABLED_DEFAULT)
         .setAutoTrackingMode(PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT)
         .setTransitionDetectionEnabled(PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED_DEFAULT)
         .setNotificationStyled(PreferenceKeys.NOTIFICATION_STYLED_DEFAULT)
@@ -89,8 +88,7 @@ class DefaultTrackingParamsRepository(
     override suspend fun setStepsEnabled(enabled: Boolean) = updateField { setStepsEnabled(enabled) }
     override suspend fun setWifiEnabled(enabled: Boolean) = updateField { setWifiEnabled(enabled) }
     override suspend fun setCellEnabled(enabled: Boolean) = updateField { setCellEnabled(enabled) }
-    override suspend fun setWifiNetworkEnabled(enabled: Boolean) = updateField { setWifiNetworkEnabled(enabled) }
-    override suspend fun setWifiLocationCountEnabled(enabled: Boolean) = updateField { setWifiLocationCountEnabled(enabled) }
+    override suspend fun setBarometerEnabled(enabled: Boolean) = updateField { setBarometerEnabled(enabled) }
     override suspend fun setTransitionDetectionEnabled(enabled: Boolean) = updateField { setTransitionDetectionEnabled(enabled) }
     override suspend fun setNotificationStyled(enabled: Boolean) = updateField { setNotificationStyled(enabled) }
     override suspend fun setMinDistanceMeters(meters: Int) = updateField { setMinDistanceMeters(meters.coerceAtLeast(1)) }
@@ -104,11 +102,18 @@ class DefaultTrackingParamsRepository(
         setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
     }
 
+    @Suppress("DEPRECATION")
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
         withContext(io) {
             ensureMigrated()
             context.trackingParamsDataStore.updateData { current ->
+                val wifiEnabled = current.wifiEnabled ||
+                    current.wifiNetworkEnabled ||
+                    current.wifiLocationCountEnabled
                 current.toBuilder()
+                    .setWifiEnabled(wifiEnabled)
+                    .clearWifiNetworkEnabled()
+                    .clearWifiLocationCountEnabled()
                     .block()
                     .setLegacyMigrated(true)
                     .build()
@@ -133,12 +138,16 @@ class DefaultTrackingParamsRepository(
             val locationEnabled = spBool(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
             val activityEnabled = spBool(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
             val stepsEnabled = spBool(PreferenceKeys.STEPS_ENABLED, PreferenceKeys.STEPS_ENABLED_DEFAULT)
-            val wifiEnabled = spBool(PreferenceKeys.WIFI_ENABLED, PreferenceKeys.WIFI_ENABLED_DEFAULT)
+            val wifiEnabled = spBool(PreferenceKeys.WIFI_ENABLED, PreferenceKeys.WIFI_ENABLED_DEFAULT) ||
+                spBool(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT) ||
+                spBool(
+                    PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
+                    PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT,
+                )
             val cellEnabled = spBool(PreferenceKeys.CELL_ENABLED, PreferenceKeys.CELL_ENABLED_DEFAULT)
-            val wifiNetworkEnabled = spBool(PreferenceKeys.WIFI_NETWORK_ENABLED, PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT)
-            val wifiLocationCountEnabled = spBool(
-                PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
-                PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
+            val barometerEnabled = spBool(
+                PreferenceKeys.BAROMETER_ENABLED,
+                PreferenceKeys.BAROMETER_ENABLED_DEFAULT,
             )
             val autoTrackingMode = spIntFromString(
                 PreferenceKeys.TRACKING_ACTIVITY_MODE,
@@ -172,8 +181,7 @@ class DefaultTrackingParamsRepository(
                     .setStepsEnabled(stepsEnabled)
                     .setWifiEnabled(wifiEnabled)
                     .setCellEnabled(cellEnabled)
-                    .setWifiNetworkEnabled(wifiNetworkEnabled)
-                    .setWifiLocationCountEnabled(wifiLocationCountEnabled)
+                    .setBarometerEnabled(barometerEnabled)
                     .setAutoTrackingMode(autoTrackingMode)
                     .setTransitionDetectionEnabled(transitionEnabled)
                     .setNotificationStyled(notificationStyled)
@@ -201,6 +209,7 @@ class DefaultTrackingParamsRepository(
     }
 }
 
+@Suppress("DEPRECATION")
 private fun TrackingParamsProto.toDomain(): TrackingParamsState {
     if (!legacyMigrated) return TrackingParamsState()
     val preset = TrackingPreset.fromName(presetName)
@@ -212,10 +221,15 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         locationEnabled = locationEnabled,
         activityEnabled = activityEnabled,
         stepsEnabled = stepsEnabled,
-        wifiEnabled = wifiEnabled,
+        // Versions before the unified Wi-Fi source toggle stored output choices separately.
+        // Folding them here also repairs already-migrated DataStore files without another marker.
+        wifiEnabled = wifiEnabled || wifiNetworkEnabled || wifiLocationCountEnabled,
         cellEnabled = cellEnabled,
-        wifiNetworkEnabled = wifiNetworkEnabled,
-        wifiLocationCountEnabled = wifiLocationCountEnabled,
+        barometerEnabled = if (hasBarometerEnabled()) {
+            barometerEnabled
+        } else {
+            PreferenceKeys.BAROMETER_ENABLED_DEFAULT
+        },
         autoTrackingMode = autoTrackingMode,
         transitionDetectionEnabled = transitionDetectionEnabled,
         notificationStyled = notificationStyled,
@@ -243,8 +257,7 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setStepsEnabled(stepsEnabled)
         .setWifiEnabled(wifiEnabled)
         .setCellEnabled(cellEnabled)
-        .setWifiNetworkEnabled(wifiNetworkEnabled)
-        .setWifiLocationCountEnabled(wifiLocationCountEnabled)
+        .setBarometerEnabled(barometerEnabled)
         .setAutoTrackingMode(autoTrackingMode)
         .setTransitionDetectionEnabled(transitionDetectionEnabled)
         .setNotificationStyled(notificationStyled)

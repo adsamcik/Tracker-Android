@@ -167,8 +167,8 @@ class TrackingSettingsScreenTest {
         // group has a visible header and its controls are reachable by scrolling.
         scrollTo("Data sources")
         composeTestRule.onNodeWithText("Data sources", substring = true).assertIsDisplayed()
-        scrollTo("Tracking detail")
-        composeTestRule.onNodeWithText("Tracking detail", substring = true).assertIsDisplayed()
+        scrollTo("Location collection")
+        composeTestRule.onNodeWithText("Location collection", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -180,6 +180,19 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithText("Location").assertIsDisplayed()
         scrollTo("Activity")
         composeTestRule.onNodeWithText("Activity").assertIsDisplayed()
+        scrollTo("Barometer")
+        composeTestRule.onNodeWithText("Barometer").assertIsDisplayed()
+    }
+
+    @Test
+    fun locationControlsHiddenWhenLocationSourceIsDisabled() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(uiState = defaultUiState.copy(locationEnabled = false))
+            }
+        }
+
+        composeTestRule.onNodeWithText("Location collection", substring = true).assertDoesNotExist()
     }
 
     @Test

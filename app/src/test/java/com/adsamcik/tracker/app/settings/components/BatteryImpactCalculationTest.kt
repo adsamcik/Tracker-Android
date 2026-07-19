@@ -10,7 +10,7 @@ import org.junit.Test
  * Unit tests for BatteryImpact calculation logic in [TrackingPresetSettings].
  *
  * Tests verify correct impact classification (LOW/MODERATE/HIGH) based on:
- * - Sensor enablement (location, activity, steps, WiFi, cell)
+ * - Sensor enablement (location, activity, steps, WiFi, cell, barometer)
  * - GPS parameters (minTime, minDistance, requiredAccuracy)
  * - Preset configurations
  */
@@ -49,8 +49,8 @@ class BatteryImpactCalculationTest {
             activityEnabled = false,
             stepsEnabled = false,
             wifiEnabled = false,
-            wifiLocationCountEnabled = false,
             cellEnabled = false,
+            barometerEnabled = false,
             useTransitionDetection = true
         )
         assertEquals(BatteryImpact.LOW, settings.calculateBatteryImpact())
@@ -67,8 +67,8 @@ class BatteryImpactCalculationTest {
             activityEnabled = true,
             stepsEnabled = true,
             wifiEnabled = true,
-            wifiLocationCountEnabled = true,
             cellEnabled = true,
+            barometerEnabled = true,
             useTransitionDetection = false
         )
         assertEquals(BatteryImpact.HIGH, settings.calculateBatteryImpact())
@@ -85,8 +85,8 @@ class BatteryImpactCalculationTest {
             activityEnabled = false,
             stepsEnabled = false,
             wifiEnabled = false,
-            wifiLocationCountEnabled = false,
             cellEnabled = false,
+            barometerEnabled = false,
             useTransitionDetection = true
         )
         assertEquals(BatteryImpact.LOW, settings.calculateBatteryImpact())

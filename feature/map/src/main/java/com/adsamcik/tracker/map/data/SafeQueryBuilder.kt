@@ -139,6 +139,14 @@ class SafeQueryBuilder private constructor(
         val selection = StringBuilder()
         val args = mutableListOf<Any>()
 
+        // Coordinates are nullable in all geo tables. This builder feeds spatial map models whose
+        // coordinates are non-null, so incomplete rows must stay out of every query shape
+        // (including unbounded, newest, and sampled queries) instead of being decoded as a phantom
+        // point or failing the mapping. Unlocated radio observations remain available to non-map
+        // features through their typed DAOs.
+        appendClause(selection, "lat_e7 IS NOT NULL")
+        appendClause(selection, "lon_e7 IS NOT NULL")
+
         timeFrom?.let { appendClause(selection, "time_ms >= ?").also { _ -> args += it } }
         timeTo?.let { appendClause(selection, "time_ms <= ?").also { _ -> args += it } }
 

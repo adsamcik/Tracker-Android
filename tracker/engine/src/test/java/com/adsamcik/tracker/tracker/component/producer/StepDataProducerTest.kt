@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.tracker.component.producer
 
+import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorManager
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
@@ -195,6 +197,31 @@ class StepDataProducerTest {
 		val builder2 = createBuilder()
 		producer.onDataRequest(builder2)
 		builder2.stepDelta shouldBe 8
+	}
+
+	@Test
+	fun `disable and re-enable drops steps from the disabled interval`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 100f))
+		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 110f))
+
+		producer.onDisable(context)
+		producer.onEnable(context)
+		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 120f))
+
+		val baselineBuilder = createBuilder()
+		producer.onDataRequest(baselineBuilder)
+		baselineBuilder.stepDelta.shouldBeNull()
+
+		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 125f))
+		val enabledIntervalBuilder = createBuilder()
+		producer.onDataRequest(enabledIntervalBuilder)
+
+		enabledIntervalBuilder.stepDelta shouldBe 5
+		enabledIntervalBuilder.stepSensorValueStart shouldBe 120
+		enabledIntervalBuilder.stepSensorValueEnd shouldBe 125
 	}
 
 	@Test

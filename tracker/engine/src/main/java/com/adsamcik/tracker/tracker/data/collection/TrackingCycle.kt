@@ -25,3 +25,17 @@ internal data class TrackingCycle(
 	val pressure: PressureReading? = null,
 	val rawGpsAltitude: Double? = null,
 )
+
+/**
+ * Whether a producer supplied new data that still needs to pass through the tracking pipeline.
+ *
+ * This is intentionally stricter than checking whether a cached snapshot is present. Cell and
+ * activity producers keep their latest value in the cycle for context, but only fresh snapshots
+ * are persisted. Wi-Fi producers already de-duplicate cached scans before attaching them.
+ */
+internal fun TrackingCycle.hasPersistableProducerPayload(): Boolean =
+	(activityFresh && activity != null) ||
+		(cellScanFresh && cellScan != null) ||
+		wifiScan != null ||
+		(stepDelta != null && stepDelta > 0) ||
+		pressure != null

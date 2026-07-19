@@ -20,6 +20,8 @@ class SafeQueryBuilderTest {
             .build()
     val sql = (q as SimpleSQLiteQuery).sql
         sql shouldContain "FROM location_sample"
+        sql shouldContain "lat_e7 IS NOT NULL"
+        sql shouldContain "lon_e7 IS NOT NULL"
         sql shouldContain "time_ms >= ?"
         sql shouldContain "time_ms <= ?"
         sql shouldContain "lat_e7 <= ?"
@@ -87,6 +89,8 @@ class SafeQueryBuilderTest {
         sql shouldContain "CAST(lat_e7 AS REAL)"
         sql shouldContain "AS lat"
         sql shouldContain "FROM wifi_observation"
+        sql shouldContain "lat_e7 IS NOT NULL"
+        sql shouldContain "lon_e7 IS NOT NULL"
         sql shouldContain "time_ms >= ?"
     }
 
@@ -98,7 +102,25 @@ class SafeQueryBuilderTest {
         sql shouldContain "AS lon"
         sql shouldContain "AS time"
         sql shouldContain "FROM cell_sample"
+        sql shouldContain "lat_e7 IS NOT NULL"
+        sql shouldContain "lon_e7 IS NOT NULL"
         sql shouldEndWith "LIMIT 50"
+    }
+
+    @Test
+    fun `sampled radio queries exclude unlocated rows from bounds and results`() {
+        val sql = (SafeQueryBuilder.wifi().sample(50).build() as SimpleSQLiteQuery).sql
+
+        sql.split("lat_e7 IS NOT NULL").size shouldBe 3
+        sql.split("lon_e7 IS NOT NULL").size shouldBe 3
+    }
+
+    @Test
+    fun `sampled location queries exclude incomplete rows from bounds and results`() {
+        val sql = (SafeQueryBuilder.location().sample(50).build() as SimpleSQLiteQuery).sql
+
+        sql.split("lat_e7 IS NOT NULL").size shouldBe 3
+        sql.split("lon_e7 IS NOT NULL").size shouldBe 3
     }
 
     @Test
@@ -120,6 +142,8 @@ class SafeQueryBuilderTest {
         val q = SafeQueryBuilder.location().newest(80).build() as SimpleSQLiteQuery
 
         q.sql shouldStartWith "SELECT lat, lon, time FROM (SELECT"
+        q.sql shouldContain "lat_e7 IS NOT NULL"
+        q.sql shouldContain "lon_e7 IS NOT NULL"
         q.sql shouldContain "ORDER BY time_ms DESC LIMIT 80"
         q.sql shouldEndWith ") ORDER BY time ASC"
     }

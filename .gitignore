@@ -148,6 +148,7 @@ __pycache__/
 .agent/
 .claude/
 .copilot_crops/
+.playwright-mcp/
 *.ps1
 run_test.bat
 /.worktrees

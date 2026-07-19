@@ -26,6 +26,11 @@ import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -197,7 +202,15 @@ object BackgroundTrackingApi {
 		val entryPoint = getEntryPoint(context)
 		return !entryPoint.lockManager().isLocked &&
 			!context.powerManager.isPowerSaveMode &&
-			hasAnythingToTrack(cachedParamsSnapshot())
+			hasAnythingToTrack(
+				params = cachedParamsSnapshot(),
+				locationAvailable = context.hasLocationPermission,
+				activityAvailable = context.hasActivityPermission,
+				stepsAvailable = context.hasActivityPermission && context.hasStepCounterSensor,
+				wifiAvailable = context.hasWifiScanPermission,
+				cellAvailable = context.hasCellScanPermission,
+				barometerAvailable = context.hasPressureSensor,
+			)
 	}
 
 	/**
@@ -635,11 +648,23 @@ internal fun selectNewestConfiguredTransition(
 internal fun isChangeDetectionUpdate(update: ActivityUpdate): Boolean =
 	update.source == ActivityUpdateSource.RECOGNITION
 
-/** Pure logic: checks if at least one trackable data source is enabled. */
-internal fun hasAnythingToTrack(params: TrackingParamsState): Boolean =
-	params.locationEnabled || params.cellEnabled ||
-		params.wifiEnabled || params.wifiLocationCountEnabled || params.wifiNetworkEnabled ||
-		params.activityEnabled || params.stepsEnabled
+/** Pure logic: checks if at least one available capture source is enabled. */
+internal fun hasAnythingToTrack(
+	params: TrackingParamsState,
+	locationAvailable: Boolean = true,
+	activityAvailable: Boolean = true,
+	stepsAvailable: Boolean = true,
+	wifiAvailable: Boolean = true,
+	cellAvailable: Boolean = true,
+	barometerAvailable: Boolean = true,
+): Boolean = params.hasAnyCaptureSource(
+	locationAvailable = locationAvailable,
+	activityAvailable = activityAvailable,
+	stepsAvailable = stepsAvailable,
+	wifiAvailable = wifiAvailable,
+	cellAvailable = cellAvailable,
+	barometerAvailable = barometerAvailable,
+)
 
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }

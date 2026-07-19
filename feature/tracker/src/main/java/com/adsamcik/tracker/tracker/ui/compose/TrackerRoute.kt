@@ -109,6 +109,7 @@ fun TrackerRoute(
     val collectionData by controller.collectionDataFlow.collectAsStateWithLifecycle()
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
+    val locationPermissionSatisfied = !trackingParams.locationEnabled || hasLocationPermission
     
     val lastSessionData by controller.lastSessionFlow.collectAsStateWithLifecycle()
     val lastPathPoints by controller.lastPathPointsFlow.collectAsStateWithLifecycle()
@@ -168,7 +169,7 @@ fun TrackerRoute(
             isLocked = isLocked,
             sessionData = displaySession,
             collectionData = collectionData,
-            hasLocationPermission = hasLocationPermission,
+            hasLocationPermission = locationPermissionSatisfied,
             pathPoints = relevantPathPoints,
             policyTier = policyTier,
             precisionModePreset = precisionModePreset,
@@ -182,7 +183,7 @@ fun TrackerRoute(
         onRequestPermission = { showLocationPermissionRequest = true },
         onToggleTracking = { shouldStart ->
             if (shouldStart) {
-                if (hasLocationPermission) {
+                if (locationPermissionSatisfied) {
                     TrackerServiceApi.startService(context, isUserInitiated = true)
                 } else {
                     // Request permission contextually
@@ -281,9 +282,8 @@ private suspend fun TrackingParamsRepository.applyDashboardPreset(preset: Tracki
             activityEnabled = preset.activityEnabled,
             stepsEnabled = preset.stepsEnabled,
             wifiEnabled = preset.wifiEnabled,
-            wifiNetworkEnabled = preset.wifiEnabled,
-            wifiLocationCountEnabled = preset == TrackingPreset.HIGH_ACCURACY,
             cellEnabled = preset.cellEnabled,
+            barometerEnabled = preset.barometerEnabled,
             minDistanceMeters = preset.minDistanceMeters,
             minTimeSeconds = preset.minTimeSeconds,
             requiredAccuracyMeters = preset.requiredAccuracyMeters,

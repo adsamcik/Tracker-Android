@@ -66,7 +66,7 @@ internal class DataProducerManager(
 		CellDataProducer(this@DataProducerManager, trackingParamsRepository),
 		ActivityDataProducer(this@DataProducerManager, trackingParamsRepository),
 		stepProducer,
-		BarometerDataProducer(this@DataProducerManager),
+		BarometerDataProducer(this@DataProducerManager, trackingParamsRepository),
 	)
 
 	private val activeProducerList = CopyOnWriteArrayList<TrackerDataProducerComponent>()
@@ -246,7 +246,7 @@ internal class DataProducerManager(
 	 * [incomingCycle] (which may already carry location data from a GPS trigger),
 	 * and returns an enriched [TrackingCycle].
 	 */
-	suspend fun getData(incomingCycle: TrackingCycle): TrackingCycle {
+	suspend fun getData(incomingCycle: TrackingCycle): TrackingCycle = lifecycleMutex.withLock {
 		val builder = TrackingCycleBuilder(incomingCycle.timestampMs, incomingCycle.elapsedRealtimeNanos)
 		// Carry over location from the trigger (if present)
 		builder.location = incomingCycle.location
@@ -264,7 +264,7 @@ internal class DataProducerManager(
 				}
 			}.awaitAll()
 		}
-		return builder.build()
+		builder.build()
 	}
 
 	companion object {

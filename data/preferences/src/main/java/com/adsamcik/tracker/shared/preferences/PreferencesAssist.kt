@@ -15,12 +15,6 @@ object PreferencesAssist {
 	 */
 	suspend fun hasAnythingToTrack(trackingParamsRepository: TrackingParamsRepository): Boolean {
 		val params = trackingParamsRepository.data.first()
-		return params.locationEnabled ||
-				params.cellEnabled ||
-				params.wifiEnabled ||
-				params.wifiLocationCountEnabled ||
-				params.wifiNetworkEnabled ||
-				params.activityEnabled ||
-				params.stepsEnabled
+		return params.hasAnyCaptureSource()
 	}
 }

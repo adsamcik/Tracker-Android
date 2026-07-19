@@ -146,4 +146,36 @@ class TrackingCycleTest {
 			copied shouldBe original
 		}
 	}
+
+	@Nested
+	inner class `persistable producer payload` {
+
+		@Test
+		fun `freshness gates cached activity and cell snapshots`() {
+			val base = TrackingCycle(timestampMs = TIME_MS, elapsedRealtimeNanos = ELAPSED_NANOS)
+			val activity = ActivityInfo.UNKNOWN
+			val cell = mockk<CellScanData>(relaxed = true)
+
+			base.copy(activity = activity).hasPersistableProducerPayload() shouldBe false
+			base.copy(activity = activity, activityFresh = true)
+				.hasPersistableProducerPayload() shouldBe true
+			base.copy(cellScan = cell).hasPersistableProducerPayload() shouldBe false
+			base.copy(cellScan = cell, cellScanFresh = true)
+				.hasPersistableProducerPayload() shouldBe true
+			base.copy(cellScanFresh = true).hasPersistableProducerPayload() shouldBe false
+		}
+
+		@Test
+		fun `wifi steps and pressure require an emitted payload`() {
+			val base = TrackingCycle(timestampMs = TIME_MS, elapsedRealtimeNanos = ELAPSED_NANOS)
+
+			base.hasPersistableProducerPayload() shouldBe false
+			base.copy(wifiScan = mockk(relaxed = true))
+				.hasPersistableProducerPayload() shouldBe true
+			base.copy(stepDelta = 0).hasPersistableProducerPayload() shouldBe false
+			base.copy(stepDelta = 1).hasPersistableProducerPayload() shouldBe true
+			base.copy(pressure = PressureReading(1_013.25f, 0f))
+				.hasPersistableProducerPayload() shouldBe true
+		}
+	}
 }

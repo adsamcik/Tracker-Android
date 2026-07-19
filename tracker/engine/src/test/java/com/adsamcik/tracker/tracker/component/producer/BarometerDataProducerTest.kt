@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.component.producer
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -11,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
@@ -105,6 +108,28 @@ class BarometerDataProducerTest {
 
 		firstBuilder.pressure.shouldNotBeNull()
 		secondBuilder.pressure.shouldBeNull()
+	}
+
+	@Test
+	fun `disable and re-enable drops pressure from the disabled interval`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val producer = createProducer()
+		producer.canBeEnabled = true
+		producer.onEnable(context)
+		producer.recordPressure(1013.25f)
+
+		producer.onDisable(context)
+		producer.onEnable(context)
+
+		val emptyBuilder = createBuilder()
+		producer.onDataRequest(emptyBuilder)
+		emptyBuilder.pressure.shouldBeNull()
+
+		producer.recordPressure(898.7646f)
+		val enabledIntervalBuilder = createBuilder()
+		producer.onDataRequest(enabledIntervalBuilder)
+
+		enabledIntervalBuilder.pressure.shouldNotBeNull().pressureHpa shouldBe 898.7646f
 	}
 
 	private fun createProducer(): BarometerDataProducer =

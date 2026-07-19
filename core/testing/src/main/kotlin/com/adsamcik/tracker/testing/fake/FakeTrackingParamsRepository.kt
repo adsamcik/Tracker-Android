@@ -59,12 +59,8 @@ class FakeTrackingParamsRepository(
 		_state.update { it.copy(cellEnabled = enabled) }
 	}
 
-	override suspend fun setWifiNetworkEnabled(enabled: Boolean) {
-		_state.update { it.copy(wifiNetworkEnabled = enabled) }
-	}
-
-	override suspend fun setWifiLocationCountEnabled(enabled: Boolean) {
-		_state.update { it.copy(wifiLocationCountEnabled = enabled) }
+	override suspend fun setBarometerEnabled(enabled: Boolean) {
+		_state.update { it.copy(barometerEnabled = enabled) }
 	}
 
 	override suspend fun setTransitionDetectionEnabled(enabled: Boolean) {

@@ -43,6 +43,12 @@ internal class ActivityDataProducer(
 	changeReceiver: TrackerDataProducerObserver,
 	trackingParamsRepository: TrackingParamsRepository? = null,
 	dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val activityRequestManagerProvider: (Context) -> ActivityRequestManager = { context ->
+		EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			ActivityDataProducerEntryPoint::class.java,
+		).activityRequestManager()
+	},
 ) : TrackerDataProducerComponent(
 	changeReceiver,
 	dispatchers = dispatchers,
@@ -74,10 +80,7 @@ internal class ActivityDataProducer(
 	)
 
 	private fun activityRequestManager(context: Context): ActivityRequestManager =
-		EntryPointAccessors.fromApplication(
-			context.applicationContext,
-			ActivityDataProducerEntryPoint::class.java,
-		).activityRequestManager()
+		activityRequestManagerProvider(context)
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val snapshot = lastSnapshot
@@ -138,10 +141,22 @@ internal class ActivityDataProducer(
 	}
 
 	override suspend fun onDisable(context: Context) {
-		activityUpdatesJob?.cancel()
+		val updatesJob = activityUpdatesJob
 		activityUpdatesJob = null
+		updatesJob?.cancelAndJoin()
+		clearSnapshot()
 		activityRequestManager(context).removeActivityRequest(context, this::class)
 		super.onDisable(context)
+	}
+
+	private fun clearSnapshot() {
+		val currentGeneration = generation.get()
+		lastSnapshot = ActivitySnapshot(
+			activity = ActivityInfo.UNKNOWN,
+			elapsedTimeMillis = -1L,
+			generation = currentGeneration,
+		)
+		lastEmittedGeneration = currentGeneration
 	}
 
 	internal fun recordActivity(update: ActivityUpdate) {
