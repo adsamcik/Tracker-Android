@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -53,6 +54,7 @@ class BootReceiverTest {
 	inner class BootCompleted {
 
 		private val lockManager = mockk<LockManager>(relaxed = true)
+		private val startupGuard = mockk<TrackingStartupGuard>()
 		private val testScope = CoroutineScope(
 			UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, _ -> }
 		)
@@ -65,6 +67,8 @@ class BootReceiverTest {
 		fun setUp() {
 			coEvery { lockManager.initializeFromPersistence(any()) } just Runs
 			every { entryPoint.lockManager() } returns lockManager
+			every { entryPoint.trackingStartupGuard() } returns startupGuard
+			every { startupGuard.isAutoRecoverySuppressed(any()) } returns false
 			every { entryPoint.appScope() } returns testScope
 			every { context.applicationContext } returns context
 			mockkStatic(EntryPointAccessors::class)
@@ -86,6 +90,16 @@ class BootReceiverTest {
 			receiver.onReceive(context, bootIntent())
 
 			coVerify { lockManager.initializeFromPersistence(context) }
+		}
+
+		@Test
+		fun `force stopped startup does not rearm locks or background tracking`() {
+			every { startupGuard.isAutoRecoverySuppressed(any()) } returns true
+
+			receiver.onReceive(context, bootIntent())
+
+			coVerify(exactly = 0) { lockManager.initializeFromPersistence(any()) }
+			verify(exactly = 0) { receiver.goAsync() }
 		}
 
 		@Test

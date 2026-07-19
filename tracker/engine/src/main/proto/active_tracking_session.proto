@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.tracker.resilience;
+
+option java_package = "com.adsamcik.tracker.tracker.resilience";
+option java_multiple_files = true;
+
+message ActiveTrackingSessionProto {
+  bool active = 1;
+  bool user_initiated = 2;
+  bool ambient = 3;
+  string policy_tier = 4;
+}
+

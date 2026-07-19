@@ -19,6 +19,16 @@ import org.junit.jupiter.api.Test
  * tracking tiers and that the resolver maps [ComponentSet]s faithfully.
  */
 class TierConfigurationTest {
+	@Test
+	fun `durable recovered tier wins over default session classification`() {
+		resolveInitialPolicyTier(
+			isUserInitiated = true,
+			isAmbient = false,
+			locationEnabled = true,
+			recoveredTier = PolicyTier.ACTIVE,
+		) shouldBe PolicyTier.ACTIVE
+	}
+
 
 	// ---- helpers ----
 

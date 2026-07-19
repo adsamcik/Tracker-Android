@@ -39,6 +39,9 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryAction
+import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
+import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -107,6 +110,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Inject
 	lateinit var precisionUpgradeConsumerProvider: Provider<PrecisionUpgradeDomainEventConsumer>
 
+	@Inject
+	lateinit var previousExitRecoveryCoordinator: PreviousExitRecoveryCoordinator
+
+	@Inject
+	lateinit var trackingStartupGuard: TrackingStartupGuard
+
 	@Volatile
 	var isStartupReady: Boolean = false
 	private set
@@ -139,6 +148,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeImportantSingletons() {
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
+				if (trackingStartupGuard.isAutoRecoverySuppressed(this@Application)) return
 				activityWatcherController.poke()
 				// Reconcile automatic detection with the current ACTIVITY_RECOGNITION permission:
 				// disables detection if the permission was revoked while backgrounded, and re-arms it
@@ -206,6 +216,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Reporter.initialize(this@Application)
 				Logger.initialize(this@Application)
 				CrashHandler(this@Application).initialize()
+				if (trackingStartupGuard.wasForceStopped(this@Application)) {
+					trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
+					previousExitRecoveryCoordinator.suppressAfterForceStop()
+				}
 				logPreviousExitReason()
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
@@ -222,18 +236,21 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	/**
 	 * Records the previous process exit reason on Android 11+ as diagnostic context for
-	 * tracking recovery. Android owns force-stop behavior; this signal must not be used as
-	 * an app-level restart decision because user-requested reasons include multiple actions.
+	 * tracking recovery. Abnormal exits enqueue an expedited WAL drain; a user-requested
+	 * termination suppresses tracking recovery for this process.
 	 */
 	@WorkerThread
-	private fun logPreviousExitReason() {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+	private suspend fun logPreviousExitReason(): PreviousExitRecoveryAction {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+			return PreviousExitRecoveryAction.NONE
+		}
 
-		try {
-			val activityManager = getSystemService(ActivityManager::class.java) ?: return
+		return try {
+			val activityManager = getSystemService(ActivityManager::class.java)
+				?: return PreviousExitRecoveryAction.NONE
 			val exitInfo = activityManager
 				.getHistoricalProcessExitReasons(packageName, 0, 1)
-				.firstOrNull() ?: return
+				.firstOrNull() ?: return PreviousExitRecoveryAction.NONE
 
 			val reasonLabel = when (exitInfo.reason) {
 				ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
@@ -262,8 +279,14 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 			val message = "Previous process exit: $reasonLabel (status=${exitInfo.status})"
 			if (isAbnormal) Reporter.w("App", message) else Reporter.log(message)
+			val action = previousExitRecoveryCoordinator.handle(exitInfo.reason)
+			if (action == PreviousExitRecoveryAction.SUPPRESS_RESTART) {
+				trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
+			}
+			action
 		} catch (e: RuntimeException) {
 			Reporter.report(e)
+			PreviousExitRecoveryAction.NONE
 		}
 	}
 
@@ -298,7 +321,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@WorkerThread
 	private suspend fun initializeFeatures() {
 		// Activities
-		activityWatcherController.poke()
+		if (!trackingStartupGuard.isAutoRecoverySuppressed(this)) {
+			activityWatcherController.poke()
+		}
 		
 		// Precision upgrade — consume domain events for upgrade prompt logic
 		initializePrecisionUpgradeConsumer()

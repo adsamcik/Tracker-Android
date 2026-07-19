@@ -10,13 +10,12 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.alarmManager
-import com.adsamcik.tracker.shared.base.extension.stopService
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.locker.DisableTillRechargeWorker
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
-import com.adsamcik.tracker.tracker.service.TrackerService
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -196,7 +195,7 @@ class DefaultLockManager(
         // Stop non-user-initiated tracking sessions when locked
         val sessionInfo = trackerStateReader.sessionInfoFlow.value
         if (isLockedRightNow && sessionInfo?.isInitiatedByUser == false) {
-            context.stopService<TrackerService>()
+            TrackerServiceApi.stopService(context)
         }
     }
     

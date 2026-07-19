@@ -6,6 +6,7 @@ import android.content.Intent
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -19,6 +20,7 @@ class BootReceiver : BroadcastReceiver() {
 	@InstallIn(SingletonComponent::class)
 	interface BootReceiverEntryPoint {
 		fun lockManager(): LockManager
+		fun trackingStartupGuard(): TrackingStartupGuard
 		@ApplicationScope fun appScope(): CoroutineScope
 	}
 
@@ -28,6 +30,7 @@ class BootReceiver : BroadcastReceiver() {
 				context.applicationContext,
 				BootReceiverEntryPoint::class.java
 			)
+			if (entryPoint.trackingStartupGuard().isAutoRecoverySuppressed(context)) return
 			val pendingResult = goAsync()
 			entryPoint.appScope().launch {
 				try {
@@ -46,4 +49,3 @@ class BootReceiver : BroadcastReceiver() {
 		}
 	}
 }
-

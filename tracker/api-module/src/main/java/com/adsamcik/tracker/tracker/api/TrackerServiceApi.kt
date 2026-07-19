@@ -6,16 +6,21 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
+import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Hilt EntryPoint for accessing read-only tracker state from static context
@@ -26,12 +31,16 @@ internal interface TrackerServiceApiEntryPoint {
 	fun trackerStateReader(): TrackerStateReader
 	fun trackerServiceController(): TrackerServiceController
 	fun activityWatcherController(): ActivityWatcherController
+	fun activeTrackingSessionStore(): ActiveTrackingSessionStore
+	@ApplicationScope fun applicationScope(): CoroutineScope
 }
 
 object TrackerServiceContract {
 	const val SERVICE_CLASS_NAME = "com.adsamcik.tracker.tracker.service.TrackerService"
+	const val ACTION_GRACEFUL_STOP = "com.adsamcik.tracker.tracker.action.GRACEFUL_STOP"
 	const val ARG_IS_USER_INITIATED = "userInitiated"
 	const val ARG_IS_AMBIENT = "isAmbient"
+	const val ARG_POLICY_TIER = "policyTier"
 }
 
 /**
@@ -68,6 +77,13 @@ object TrackerServiceApi {
 			}
 		}
 		startForegroundServiceSafely(context, intent)
+	}
+
+	fun restartService(
+		context: Context,
+		descriptor: ActiveTrackingSessionDescriptor,
+	): Boolean {
+		return startForegroundServiceSafely(context, createRestartIntent(context, descriptor))
 	}
 
 	private fun startForegroundServiceSafely(context: Context, intent: Intent): Boolean {
@@ -123,6 +139,15 @@ object TrackerServiceApi {
 		}
 	}
 
+	internal fun createRestartIntent(
+		context: Context,
+		descriptor: ActiveTrackingSessionDescriptor,
+	): Intent = Intent().setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME).apply {
+		putExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, descriptor.isUserInitiated)
+		putExtra(TrackerServiceContract.ARG_IS_AMBIENT, descriptor.isAmbient)
+		putExtra(TrackerServiceContract.ARG_POLICY_TIER, descriptor.policyTier.name)
+	}
+
 	/**
 	 * Clears application-scoped tracker state after Android reports that the service process is gone.
 	 */
@@ -170,6 +195,18 @@ object TrackerServiceApi {
 	 * Stops tracker service.
 	 */
 	fun stopService(context: Context) {
-		context.stopService(Intent().setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME))
+		val stopIntent = Intent()
+			.setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME)
+			.setAction(TrackerServiceContract.ACTION_GRACEFUL_STOP)
+		if (isRunningInSystem(context) && startForegroundServiceSafely(context, stopIntent)) return
+
+		val appContext = context.applicationContext
+		val entryPoint = getEntryPoint(appContext)
+		entryPoint.applicationScope().launch {
+			entryPoint.activeTrackingSessionStore().clear()
+			appContext.stopService(
+				Intent().setClassName(appContext, TrackerServiceContract.SERVICE_CLASS_NAME),
+			)
+		}
 	}
 }
