@@ -77,9 +77,15 @@ class MiniGameScoresViewModelTest {
 			val groups = awaitNonNull(this)
 			groups shouldHaveSize 2
 			val outrun = groups.first { it.gameId == "outrun" }
-			outrun.entries.map { it.score } shouldBe listOf(120.0, 80.0, 50.0)
+			outrun.rows.map { it.display } shouldBe listOf(
+				MiniGameScoreDisplay.Meters(120),
+				MiniGameScoreDisplay.Meters(80),
+				MiniGameScoreDisplay.Meters(50),
+			)
+			outrun.rows.map { it.isPersonalBest } shouldBe listOf(true, false, false)
 			val territory = groups.first { it.gameId == "territory" }
-			territory.entries shouldHaveSize 1
+			territory.rows shouldHaveSize 1
+			territory.rows.single().display shouldBe MiniGameScoreDisplay.Cells(30)
 		}
 	}
 
@@ -93,6 +99,8 @@ class MiniGameScoresViewModelTest {
 			groups shouldHaveSize 1
 			groups.single().nameRes shouldBe null
 			groups.single().gameId shouldBe "ghost-game"
+			groups.single().scoreUnit shouldBe null
+			groups.single().rows.single().display shouldBe MiniGameScoreDisplay.Raw(10L)
 		}
 	}
 
@@ -153,7 +161,12 @@ private class ScriptedScoreDao : MiniGameScoreDao {
 	override fun getHighScore(gameId: String): Double? =
 		recent.value.filter { it.gameId == gameId }.maxOfOrNull { it.score }
 
+	override suspend fun getPersonalBest(gameId: String): Double? = getHighScore(gameId)
+
 	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = recent.asStateFlow()
+
+	override suspend fun getRecentForReconciliation(limit: Int): List<MiniGameScoreEntity> =
+		recent.value.sortedByDescending { it.playedAt }.take(limit)
 
 	override suspend fun countTotal(): Long = recent.value.size.toLong()
 

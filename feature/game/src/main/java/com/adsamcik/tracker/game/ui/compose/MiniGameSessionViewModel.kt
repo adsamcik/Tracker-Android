@@ -1,35 +1,44 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import android.app.Application
+import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsDefaults
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
+import com.adsamcik.tracker.game.goals.settings.RememberedGameSetup
 import com.adsamcik.tracker.game.minigame.MiniGame
+import com.adsamcik.tracker.game.minigame.MiniGameConfiguration
+import com.adsamcik.tracker.game.minigame.MiniGameConfigurations
+import com.adsamcik.tracker.game.minigame.MiniGameDifficulty
+import com.adsamcik.tracker.game.minigame.MiniGameGoalUnit
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
-import com.adsamcik.tracker.game.minigame.MiniGameSession
-import com.adsamcik.tracker.game.minigame.MiniGameState
-import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
-import com.adsamcik.tracker.game.repository.GameRepository
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.game.minigame.MiniGameSnapshot
+import com.adsamcik.tracker.game.minigame.FuseRunConfiguration
+import com.adsamcik.tracker.game.minigame.OutrunConfiguration
+import com.adsamcik.tracker.game.minigame.SwitchbackConfiguration
+import com.adsamcik.tracker.game.minigame.TerritoryConfiguration
+import com.adsamcik.tracker.game.minigame.ZenWalkConfiguration
+import com.adsamcik.tracker.game.session.GameSessionController
+import com.adsamcik.tracker.game.session.GameSessionFailureReason
+import com.adsamcik.tracker.game.session.GameSessionResult
+import com.adsamcik.tracker.game.session.GameSessionState
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 /**
  * Argument key used by Compose Navigation to populate the saved-state handle.
@@ -37,56 +46,120 @@ import kotlinx.coroutines.withContext
 internal const val MINIGAME_SESSION_GAME_ID_ARG: String = "gameId"
 
 /**
- * UI state for the mini-game session screen.
+ * Immutable set of setup choices a player can pick before starting a run.
  *
- *  - [Idle]:             ready to start, waiting for user CTA
- *  - [PermissionNeeded]: location permission missing — UI must request it
- *  - [Active]:           a session is running; receiving location samples
- *  - [Finished]:         user stopped (or session ended); score + points persisted
+ * @param goalUnit the unit the goal is expressed in (meters, cells, minutes).
+ * @param goalValues the selectable goal targets in display units.
+ * @param difficulties the selectable difficulties; empty when the game has no
+ *   meaningful difficulty (Territory).
  */
-internal sealed interface MiniGameUiState {
-	data object Idle : MiniGameUiState
-	data object PermissionNeeded : MiniGameUiState
+internal data class MiniGameSetupOptions(
+	val gameId: String,
+	val goalUnit: MiniGameGoalUnit,
+	val goalValues: List<Int>,
+	val difficulties: List<MiniGameDifficulty>,
+) {
+	val hasDifficulty: Boolean get() = difficulties.isNotEmpty()
+}
+
+/** The player's current, not-yet-started setup choice. */
+internal data class MiniGameSetupSelection(
+	val goalValue: Int,
+	val difficulty: MiniGameDifficulty?,
+)
+
+/**
+ * Screen state for the mini-game session. The ViewModel owns only the pre-start
+ * setup and permission flow; every state from [GameSessionState.Starting]
+ * onwards is a projection of the service-owned [GameSessionController] and is
+ * never synthesized locally.
+ */
+internal sealed interface MiniGameSessionUiState {
+	/** Player is choosing goal/difficulty before starting. */
+	data class Setup(
+		val options: MiniGameSetupOptions,
+		val selection: MiniGameSetupSelection,
+		val rememberSetup: Boolean,
+	) : MiniGameSessionUiState
+
+	/** Precise foreground location is required before the run can begin. */
+	data class LocationPermission(
+		val configuration: MiniGameConfiguration,
+		val denied: Boolean,
+	) : MiniGameSessionUiState
+
+	/**
+	 * Notification permission is being requested contextually (API 33+). The run
+	 * starts regardless of the result, so this is a brief transient state.
+	 */
+	data class NotificationPermission(
+		val configuration: MiniGameConfiguration,
+	) : MiniGameSessionUiState
+
+	/** Service is spinning up; no snapshot yet. */
+	data class Starting(
+		val configuration: MiniGameConfiguration,
+	) : MiniGameSessionUiState
+
+	/** Session started but still acquiring the first usable GPS fix. */
+	data class Acquiring(
+		val configuration: MiniGameConfiguration,
+		val snapshot: MiniGameSnapshot,
+	) : MiniGameSessionUiState
+
+	/** Session is live and receiving samples. */
 	data class Active(
-		val score: Double,
-		val state: MiniGameState,
-		val statusText: String,
-		val elapsedMs: Long,
-	) : MiniGameUiState
+		val configuration: MiniGameConfiguration,
+		val snapshot: MiniGameSnapshot,
+	) : MiniGameSessionUiState
+
+	/** Session is explicitly paused; location released. */
+	data class Paused(
+		val configuration: MiniGameConfiguration,
+		val snapshot: MiniGameSnapshot,
+	) : MiniGameSessionUiState
+
+	/** Finalizing and persisting the run. */
+	data class Finishing(
+		val configuration: MiniGameConfiguration,
+		val snapshot: MiniGameSnapshot,
+	) : MiniGameSessionUiState
+
+	/** Run finished and score/points persisted. */
 	data class Finished(
-		val finalScore: Double,
-		val pointsEarned: Int,
-	) : MiniGameUiState
+		val result: GameSessionResult,
+	) : MiniGameSessionUiState
+
+	/** Run failed without a recorded score. */
+	data class Failed(
+		val configuration: MiniGameConfiguration?,
+		val reason: GameSessionFailureReason,
+	) : MiniGameSessionUiState
 }
 
 /**
- * Drives a single mini-game session.
+ * Drives the mini-game session screen.
  *
- * Lifecycle:
- *  1. UI calls [start] when the user taps the start CTA.
- *  2. VM checks location permission; emits [MiniGameUiState.PermissionNeeded] if missing.
- *  3. VM subscribes to [MiniGameLocationSource], forwards samples to the session,
- *     and emits [MiniGameUiState.Active] on every fix.
- *  4. UI calls [stop] (or [onCleared] cleans up) which:
- *     - cancels the location subscription
- *     - calls [MiniGameSession.onSessionEnd]
- *     - persists score + points to [MiniGameScoreDao]
- *     - credits points via [GameRepository.creditMiniGameXp]
- *     - emits [MiniGameUiState.Finished]
- *  5. UI may call [reset] to play again (creates a fresh [MiniGameSession]).
+ * Responsibilities (deliberately narrow):
+ *  - resolve the game from its nav id and expose its identity/units;
+ *  - own the pre-start setup selection and remember-on-start behaviour;
+ *  - gate the run behind precise foreground location and a contextual, never
+ *    blocking notification-permission request on API 33+;
+ *  - forward Start/Pause/Resume/Finish to the singleton [GameSessionController];
+ *  - project [GameSessionController.state] into [MiniGameSessionUiState].
  *
- * Raw location samples are never persisted: only the final score row goes to disk.
+ * It explicitly does NOT own a [com.adsamcik.tracker.game.minigame.MiniGameSession],
+ * a GPS collector, an elapsed timer, persistence, pause-on-lifecycle behaviour,
+ * or finalize logic — all of that lives in the foreground service and its
+ * runtime. Navigating away leaves the service (and the run) untouched.
  */
 @HiltViewModel
 internal class MiniGameSessionViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
 	application: Application,
-	private val miniGameRegistry: MiniGameRegistry,
-	private val scoreDao: MiniGameScoreDao,
-	private val gameRepository: GameRepository,
-	private val locationSource: MiniGameLocationSource,
-	private val dispatchers: DispatchersProvider,
-	@ApplicationScope private val appScope: CoroutineScope,
+	registry: MiniGameRegistry,
+	private val controller: GameSessionController,
+	private val settingsRepository: GoalsSettingsRepository,
 ) : ViewModel() {
 
 	private val app: Application = application
@@ -97,357 +170,333 @@ internal class MiniGameSessionViewModel @Inject constructor(
 	}
 
 	/** Resolved [MiniGame]; resolved eagerly so a bad id surfaces immediately. */
-	val game: MiniGame = checkNotNull(miniGameRegistry.findById(gameId)) {
+	val game: MiniGame = checkNotNull(registry.findById(gameId)) {
 		"Unknown mini-game id: $gameId"
 	}
 
-	@Volatile
-	private var session: MiniGameSession = game.createSession()
+	private val supportedConfigurations: List<MiniGameConfiguration> =
+		MiniGameConfigurations.supportedFor(gameId)
 
-	@Volatile
-	private var sessionStartedAtMs: Long = 0L
-	private var collectionJob: Job? = null
-
-	/**
-	 * `true` once at least one GPS sample has been forwarded to the active
-	 * session. A run that never received a fix (e.g. the user tapped Start then
-	 * immediately backed out before the first fix) must NOT be recorded — it
-	 * would otherwise persist a 0-score row and credit the game's base points
-	 * for no actual play. Reset on every [start]/[reset].
-	 */
-	@Volatile
-	private var hasReceivedSample: Boolean = false
-
-	/**
-	 * Serializes the actual GPS subscription window.
-	 *
-	 * **Why this exists (R2 round-6, round-2):** [pause] and [stop] call
-	 * `cancel()` which is fire-and-forget — the [FusedMiniGameLocationSource]'s
-	 * `callbackFlow` runs its `awaitClose { removeLocationUpdates(...) }`
-	 * teardown *some time after* the cancel signal lands. If a fast
-	 * pause→resume cycle (or several of them) fires before that teardown
-	 * completes, the new subscription would register a fresh
-	 * `FusedLocationProviderClient` callback while the old one is still
-	 * registered, transiently doubling the GPS callback load.
-	 *
-	 * The mutex is held for the entire duration of the inner `collect { ... }`
-	 * call, so a new collection job always waits for the prior job's flow
-	 * `finally` (i.e. `awaitClose`) to fully run before re-subscribing.
-	 * Cancelled-before-started jobs simply never acquire the lock, so the
-	 * chain stays correct no matter how many rapid pause/resume cycles fire.
-	 */
-	private val subscriptionLock = Mutex()
-
-	/**
-	 * `0L` while the session is actively running; otherwise the timestamp at
-	 * which the host activity stopped being visible. Used by [resume] to decide
-	 * between re-subscribing to location updates and auto-finalising the session
-	 * after [AUTO_END_AFTER_PAUSE_MS] of inactivity.
-	 */
-	@Volatile
-	private var pausedAtMs: Long = 0L
-
-	/**
-	 * Accumulated milliseconds spent paused across the lifetime of the current
-	 * session. Subtracted from wall-clock elapsed so the on-screen timer reflects
-	 * actual play time, not real time.
-	 */
-	@Volatile
-	private var totalPausedMs: Long = 0L
-
-	/**
-	 * Guards [stop]'s finalize path so concurrent callers (Stop button + lifecycle
-	 * teardown + auto-end) cannot each persist their own score row. Cleared by
-	 * [reset] so the next session can finalize once.
-	 */
-	private val hasFinalized = AtomicBoolean(false)
-
-	/**
-	 * Serialises the finalize body so the [hasFinalized] CAS and the DB write
-	 * cannot interleave with [reset] flipping `session` underneath us.
-	 */
-	private val finalizeMutex = Mutex()
-
-	private val _uiState = MutableStateFlow<MiniGameUiState>(MiniGameUiState.Idle)
-	val uiState: StateFlow<MiniGameUiState> = _uiState.asStateFlow()
-
-	/**
-	 * Begin streaming location to the active session.
-	 * Idempotent: calling while already running is a no-op.
-	 */
-	fun start() {
-		if (collectionJob?.isActive == true) return
-		if (_uiState.value is MiniGameUiState.Active) return
-
-		if (!app.hasLocationPermission) {
-			_uiState.value = MiniGameUiState.PermissionNeeded
-			return
+	private val defaultConfiguration: MiniGameConfiguration =
+		checkNotNull(MiniGameConfigurations.defaultFor(gameId)) {
+			"Mini-game '$gameId' must declare a default configuration"
 		}
 
-		// Reset the one-shot finalize latch so this fresh session can persist
-		// exactly once when the player taps Stop (or auto-ends).
-		hasFinalized.set(false)
-		// Fresh session: no samples seen yet, so a Stop before the first fix
-		// is treated as "nothing to record".
-		hasReceivedSample = false
-		// Reset pause bookkeeping for the fresh session so the elapsed clock
-		// starts at zero and any stale paused-at timestamp is discarded.
-		pausedAtMs = 0L
-		totalPausedMs = 0L
+	private val setupOptions: MiniGameSetupOptions = MiniGameSetupOptions(
+		gameId = gameId,
+		goalUnit = defaultConfiguration.goal.unit,
+		goalValues = supportedConfigurations.map { it.goal.displayValue }.distinct(),
+		difficulties = supportedConfigurations.mapNotNull { it.difficulty }.distinct(),
+	)
 
-		// Begin fresh elapsed clock.
-		sessionStartedAtMs = Time.nowMillis
-		// Emit an initial Active frame so the UI can render "00:00" while the
-		// first fix is pending — otherwise the screen would look frozen on Idle.
-		_uiState.value = MiniGameUiState.Active(
-			score = session.score,
-			state = session.state,
-			statusText = session.statusText,
-			elapsedMs = 0L,
+	private val defaultSelection = MiniGameSetupSelection(
+		goalValue = defaultConfiguration.goal.displayValue,
+		difficulty = defaultConfiguration.difficulty,
+	)
+
+	/** `null` until seeded from settings; resolved through [defaultSelection]. */
+	private val selection = MutableStateFlow<MiniGameSetupSelection?>(null)
+
+	/** Pre-start permission gate; never enters after the service takes over. */
+	private val launchGate = MutableStateFlow<LaunchGate>(LaunchGate.None)
+
+	/** Forces the setup screen after a terminal state (Change setup). */
+	private val forceSetup = MutableStateFlow(false)
+
+	val uiState: StateFlow<MiniGameSessionUiState> = combine(
+		controller.state,
+		selection,
+		settingsRepository.data,
+		launchGate,
+		forceSetup,
+	) { controllerState, currentSelection, settings, gate, force ->
+		buildUiState(controllerState, currentSelection, settings, gate, force)
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+		initialValue = MiniGameSessionUiState.Setup(
+			options = setupOptions,
+			selection = defaultSelection,
+			rememberSetup = GoalsSettingsDefaults.REMEMBER_LAST_SETUP,
+		),
+	)
+
+	init {
+		// Seed the setup selection from remembered/default the first time settings
+		// resolve, and keep the pre-start gate honest whenever the service takes
+		// control of the session.
+		settingsRepository.data
+			.onEach { settings ->
+				if (selection.value == null) {
+					selection.value = initialSelection(settings)
+				}
+			}
+			.launchIn(viewModelScope)
+
+		controller.state
+			.onEach { state ->
+				if (state.isServiceOwned()) {
+					forceSetup.value = false
+					launchGate.value = LaunchGate.None
+				}
+			}
+			.launchIn(viewModelScope)
+	}
+
+	private fun buildUiState(
+		controllerState: GameSessionState,
+		currentSelection: MiniGameSetupSelection?,
+		settings: GoalsSettingsState,
+		gate: LaunchGate,
+		force: Boolean,
+	): MiniGameSessionUiState {
+		val resolvedSelection = currentSelection ?: initialSelection(settings)
+		val setup = MiniGameSessionUiState.Setup(
+			options = setupOptions,
+			selection = resolvedSelection,
+			rememberSetup = settings.rememberLastSetup,
 		)
 
-		startCollection()
-	}
+		when (gate) {
+			is LaunchGate.LocationPermission ->
+				return MiniGameSessionUiState.LocationPermission(gate.configuration, gate.denied)
+			is LaunchGate.NotificationPermission ->
+				return MiniGameSessionUiState.NotificationPermission(gate.configuration)
+			LaunchGate.None -> Unit
+		}
 
-	/**
-	 * Subscribe to the location source and forward each sample into the active
-	 * session, emitting an updated [MiniGameUiState.Active] frame on every fix.
-	 *
-	 * Extracted so [start] and [resume] can share identical collection logic
-	 * without re-emitting the initial Active frame from [start] (which would
-	 * spuriously reset the on-screen score the moment the user backgrounds and
-	 * returns to the app).
-	 *
-	 * The inner `collect { ... }` runs inside [subscriptionLock] so any prior
-	 * subscription's flow `finally` block (i.e. `awaitClose { remove... }`)
-	 * fully runs before the new subscription registers its callback. This is
-	 * what prevents the brief two-callback overlap during a fast pause→resume
-	 * cycle. Cancelled-before-started jobs are queued on the mutex too, so the
-	 * ordering is correct even across many rapid cycles.
-	 */
-	private fun startCollection() {
-		collectionJob = viewModelScope.launch {
-			subscriptionLock.withLock {
-				try {
-					locationSource.samples(game.desiredLocationRequest()).collect { sample ->
-						hasReceivedSample = true
-						session.onLocationUpdate(
-							latitude = sample.latitude,
-							longitude = sample.longitude,
-							speedMps = sample.speedMps,
-							accuracyM = sample.accuracyM,
-							timestampMs = sample.timestampMs,
-						)
-						_uiState.value = MiniGameUiState.Active(
-							score = session.score,
-							state = session.state,
-							statusText = session.statusText,
-							elapsedMs = currentElapsedMs(),
-						)
-					}
-				} catch (cancellation: CancellationException) {
-					throw cancellation
-				} catch (security: SecurityException) {
-					_uiState.value = MiniGameUiState.PermissionNeeded
-				} catch (error: Throwable) {
-					// Stay defensive — never let a downstream failure throw across module
-					// boundaries; fall back to a clean Finished state with zero points.
-					_uiState.value = MiniGameUiState.Finished(
-						finalScore = session.score,
-						pointsEarned = 0,
-					)
-					if (error !is RuntimeException && error !is IllegalStateException) {
-						throw error
-					}
+		return when (controllerState) {
+			GameSessionState.Idle -> setup
+			is GameSessionState.Starting ->
+				MiniGameSessionUiState.Starting(controllerState.configuration)
+			is GameSessionState.Active -> {
+				val snapshot = controllerState.snapshot
+				if (snapshot.phase.isAcquiring()) {
+					MiniGameSessionUiState.Acquiring(controllerState.configuration, snapshot)
+				} else {
+					MiniGameSessionUiState.Active(controllerState.configuration, snapshot)
 				}
 			}
+			is GameSessionState.Paused ->
+				MiniGameSessionUiState.Paused(controllerState.configuration, controllerState.snapshot)
+			is GameSessionState.Finishing ->
+				MiniGameSessionUiState.Finishing(controllerState.configuration, controllerState.snapshot)
+			is GameSessionState.Finished ->
+				if (force) setup else MiniGameSessionUiState.Finished(controllerState.result)
+			is GameSessionState.Failed ->
+				if (force) setup else MiniGameSessionUiState.Failed(controllerState.configuration, controllerState.reason)
 		}
 	}
 
-	/**
-	 * Compute the player-facing elapsed time, subtracting any pause intervals
-	 * (both already-accumulated and a currently in-flight pause) so the clock
-	 * reflects actual play time rather than wall-clock time.
-	 */
-	private fun currentElapsedMs(): Long {
-		val pausedAt = pausedAtMs
-		val inFlightPauseMs = if (pausedAt > 0L) Time.nowMillis - pausedAt else 0L
-		return (Time.nowMillis - sessionStartedAtMs - totalPausedMs - inFlightPauseMs)
-			.coerceAtLeast(0L)
+	// --- Setup mutations -----------------------------------------------------
+
+	fun selectGoal(goalValue: Int) {
+		val coerced = if (goalValue in setupOptions.goalValues) goalValue else defaultSelection.goalValue
+		selection.update { (it ?: defaultSelection).copy(goalValue = coerced) }
 	}
 
-	/**
-	 * Suspend the active session: cancel the location subscription to release
-	 * the FusedLocationProviderClient (and the radio) while the screen is not
-	 * visible, and record the pause start so [resume] can either keep playing
-	 * or auto-finalise after [AUTO_END_AFTER_PAUSE_MS]. The UI state stays
-	 * [MiniGameUiState.Active] — the user has not stopped, just stepped away —
-	 * so when they come back within the window they pick up where they left off.
-	 *
-	 * Safe to call from any UI lifecycle event; a no-op when the session is not
-	 * currently running.
-	 */
-	fun pause() {
-		if (_uiState.value !is MiniGameUiState.Active) return
-		if (pausedAtMs > 0L) return
-		pausedAtMs = Time.nowMillis
-		collectionJob?.cancel()
-		collectionJob = null
+	fun selectDifficulty(difficulty: MiniGameDifficulty) {
+		if (!setupOptions.hasDifficulty) return
+		if (difficulty !in setupOptions.difficulties) return
+		selection.update { (it ?: defaultSelection).copy(difficulty = difficulty) }
 	}
 
-	/**
-	 * Reverse of [pause]. Two outcomes depending on how long the screen was
-	 * hidden:
-	 *  - within [AUTO_END_AFTER_PAUSE_MS]: re-subscribe to location updates and
-	 *    add the pause interval to [totalPausedMs] so the elapsed timer is not
-	 *    inflated.
-	 *  - beyond that window: call [stop] to finalise the session automatically
-	 *    so we do not silently bill the player for a five-hour idle session.
-	 *
-	 * A no-op when the session was not paused.
-	 */
-	fun resume() {
-		val pausedAt = pausedAtMs
-		if (pausedAt <= 0L) return
-		val pauseDurationMs = Time.nowMillis - pausedAt
-		pausedAtMs = 0L
-		if (pauseDurationMs > AUTO_END_AFTER_PAUSE_MS) {
-			stop()
+	fun setRememberSetup(enabled: Boolean) {
+		viewModelScope.launch { settingsRepository.setRememberLastSetup(enabled) }
+	}
+
+	/** Show the setup screen again after a terminal state. */
+	fun changeSetup() {
+		forceSetup.value = true
+	}
+
+	// --- Launch flow ---------------------------------------------------------
+
+	/** Start with the current setup selection. */
+	fun start() {
+		beginLaunch(buildConfiguration(selection.value ?: defaultSelection))
+	}
+
+	/** Restart with the exact configuration that was just played. */
+	fun playAgain(configuration: MiniGameConfiguration) {
+		selection.value = MiniGameSetupSelection(
+			goalValue = configuration.goal.displayValue,
+			difficulty = configuration.difficulty,
+		)
+		beginLaunch(configuration)
+	}
+
+	private fun beginLaunch(configuration: MiniGameConfiguration) {
+		forceSetup.value = false
+		rememberSetup(configuration)
+		if (!app.hasPreciseLocationPermission) {
+			launchGate.value = LaunchGate.LocationPermission(configuration, denied = false)
 			return
 		}
-		totalPausedMs += pauseDurationMs.coerceAtLeast(0L)
-		if (_uiState.value is MiniGameUiState.Active && collectionJob?.isActive != true) {
-			startCollection()
-		}
+		requestNotificationThenStart(configuration)
 	}
 
-	/**
-	 * Stop the session, persist score + points, and transition to [MiniGameUiState.Finished].
-	 *
-	 * Idempotent and thread-safe: a single-flight [AtomicBoolean] latch combined
-	 * with [finalizeMutex] guarantees that even if the Stop button, lifecycle
-	 * teardown, and the auto-end timer all fire within microseconds, exactly one
-	 * `scoreDao.insert` + `creditMiniGameXp` pair is issued. Subsequent calls are
-	 * silent no-ops. The location subscription is cancelled before any I/O so
-	 * the screen stops updating immediately.
-	 */
-	fun stop() {
-		if (_uiState.value is MiniGameUiState.Finished) return
-
-		// Single-flight latch: only the FIRST stop() proceeds to persist.
-		if (!hasFinalized.compareAndSet(false, true)) return
-
-		// Snapshot the running session so we can cancel + persist atomically.
-		val activeSession = session
-		val startedAt = sessionStartedAtMs
-		val wasActive = collectionJob?.isActive == true || _uiState.value is MiniGameUiState.Active
-
-		cancelCollectionForStop()
-		// Drop any in-flight pause bookkeeping so a follow-up resume() cannot
-		// accidentally re-subscribe to the location source on a finished session.
-		pausedAtMs = 0L
-
-		if (!wasActive || !hasReceivedSample) {
-			// Either the user stopped before any Active frame, or no GPS fix ever
-			// arrived. Go back to Idle rather than recording a 0/0 row that would
-			// still credit base points for a run that never produced data. Release
-			// the latch so the next start() can finalize normally.
-			hasFinalized.set(false)
-			_uiState.value = MiniGameUiState.Idle
-			return
-		}
-
-		// Persist on the application scope, NOT viewModelScope: navigating away
-		// (e.g. system Back) disposes the route and clears this ViewModel, which
-		// would cancel viewModelScope mid-finalize and could split the score row
-		// (main DB) from the points/XP credit (points + ledger DBs). The app
-		// scope outlives the ViewModel so the finalize sequence always completes.
-		appScope.launch {
-			finalizeMutex.withLock {
-				activeSession.onSessionEnd()
-				val finalScore = activeSession.score
-				val points = activeSession.calculatePoints().coerceAtLeast(0)
-				val finishedAt = Time.nowMillis.coerceAtLeast(startedAt)
-
-				withContext(dispatchers.io) {
-					scoreDao.insert(
-						MiniGameScoreEntity(
-							gameId = gameId,
-							score = finalScore,
-							xpAwarded = points,
-							playedAt = finishedAt,
-						),
-					)
-				}
-				gameRepository.creditMiniGameXp(
-					gameId = gameId,
-					xp = points,
-					earnedAtMs = finishedAt,
-				)
-
-				_uiState.value = MiniGameUiState.Finished(
-					finalScore = finalScore,
-					pointsEarned = points,
-				)
-			}
-		}
-	}
-
-	/**
-	 * Discard the finished session and return to Idle with a fresh session
-	 * ready to start. Use this for the "Play again" button.
-	 */
-	fun reset() {
-		cancelCollectionForStop()
-		session = game.createSession()
-		sessionStartedAtMs = 0L
-		pausedAtMs = 0L
-		totalPausedMs = 0L
-		hasReceivedSample = false
-		hasFinalized.set(false)
-		_uiState.value = MiniGameUiState.Idle
-	}
-
-	/**
-	 * Called by the UI after the system permission prompt resolves so the VM
-	 * can re-evaluate state and auto-start when the user granted access.
-	 */
-	fun onPermissionResult(granted: Boolean) {
-		if (granted) {
-			_uiState.value = MiniGameUiState.Idle
-			start()
+	private fun requestNotificationThenStart(configuration: MiniGameConfiguration) {
+		if (needsNotificationPermission()) {
+			launchGate.value = LaunchGate.NotificationPermission(configuration)
 		} else {
-			_uiState.value = MiniGameUiState.PermissionNeeded
+			startNow(configuration)
 		}
 	}
 
-	override fun onCleared() {
-		// Guarantee no rogue location subscription survives the VM. If the user
-		// already pressed Stop, this is a no-op; otherwise we still cancel —
-		// but we do NOT silently write a partial score row, since the user did
-		// not explicitly end the session.
-		cancelCollectionForStop()
-		super.onCleared()
+	private fun startNow(configuration: MiniGameConfiguration) {
+		launchGate.value = LaunchGate.None
+		controller.start(configuration)
 	}
 
 	/**
-	 * Cancel the in-flight [collectionJob]. The [subscriptionLock] inside
-	 * [startCollection] guarantees the prior subscription's flow `finally`
-	 * (i.e. fused-client `removeLocationUpdates`) fully runs before the next
-	 * subscription registers, so no separate teardown tracking is needed here.
+	 * Called by the UI after the location permission prompt resolves. Only a
+	 * precise (fine) grant unblocks the run; a coarse-only grant or denial keeps
+	 * the player on the permission screen with a retry affordance.
 	 */
-	private fun cancelCollectionForStop() {
-		collectionJob?.cancel()
-		collectionJob = null
+	fun onLocationPermissionResult(granted: Boolean) {
+		val gate = launchGate.value as? LaunchGate.LocationPermission ?: return
+		if (granted && app.hasPreciseLocationPermission) {
+			requestNotificationThenStart(gate.configuration)
+		} else {
+			launchGate.value = gate.copy(denied = true)
+		}
 	}
 
-	companion object {
-		/**
-		 * If a session is paused longer than this window, [resume] will auto-end
-		 * the session instead of resuming. Prevents silent multi-hour idle
-		 * sessions from being credited as a single long run when the user simply
-		 * forgot the screen was open.
-		 */
-		const val AUTO_END_AFTER_PAUSE_MS: Long = 5L * 60L * 1000L
+	/** Re-arm the location rationale after a denial so the player can retry. */
+	fun retryLocationPermission() {
+		val gate = launchGate.value as? LaunchGate.LocationPermission ?: return
+		launchGate.value = gate.copy(denied = false)
+	}
+
+	/** Player dismissed the location rationale without granting; go back to setup. */
+	fun cancelLocationPermission() {
+		if (launchGate.value is LaunchGate.LocationPermission) {
+			launchGate.value = LaunchGate.None
+		}
+	}
+
+	/**
+	 * Called after the notification permission prompt resolves. The run starts
+	 * regardless of the outcome — a denied notification never fails the run.
+	 */
+	fun onNotificationPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) {
+		val gate = launchGate.value as? LaunchGate.NotificationPermission ?: return
+		startNow(gate.configuration)
+	}
+
+	// --- Controller commands -------------------------------------------------
+
+	fun pause() = controller.pause()
+
+	fun resume() = controller.resume()
+
+	fun finish() = controller.finish()
+
+	// --- Helpers -------------------------------------------------------------
+
+	private fun rememberSetup(configuration: MiniGameConfiguration) {
+		// The repository itself no-ops (and clears) when remember-last-setup is
+		// disabled, so we can call unconditionally without reading settings first.
+		viewModelScope.launch {
+			when (configuration) {
+				is OutrunConfiguration -> settingsRepository.setRememberedOutrunSetup(
+					goalMeters = configuration.goal.meters,
+					difficulty = configuration.difficulty.name,
+				)
+				is TerritoryConfiguration -> settingsRepository.setRememberedTerritorySetup(
+					goalCells = configuration.goal.cells,
+					difficulty = null,
+				)
+				is ZenWalkConfiguration -> settingsRepository.setRememberedZenSetup(
+					goalMinutes = configuration.goal.minutes,
+					difficulty = configuration.difficulty.name,
+				)
+				is FuseRunConfiguration -> settingsRepository.setRememberedFuseRunSetup(
+					goalCharges = configuration.goal.charges,
+					difficulty = configuration.difficulty.name,
+				)
+				is SwitchbackConfiguration -> settingsRepository.setRememberedSwitchbackSetup(
+					goalTurns = configuration.goal.turns,
+					difficulty = configuration.difficulty.name,
+				)
+			}
+		}
+	}
+
+	private fun initialSelection(settings: GoalsSettingsState): MiniGameSetupSelection {
+		val remembered = settings.rememberedSetupFor(gameId)
+		if (settings.rememberLastSetup && remembered != null) {
+			return coerceSelection(
+				goalValue = remembered.goalValue,
+				difficultyName = remembered.difficulty,
+			)
+		}
+		return defaultSelection
+	}
+
+	private fun coerceSelection(goalValue: Int, difficultyName: String?): MiniGameSetupSelection {
+		val goal = if (goalValue in setupOptions.goalValues) goalValue else defaultSelection.goalValue
+		val difficulty = if (!setupOptions.hasDifficulty) {
+			null
+		} else {
+			setupOptions.difficulties.firstOrNull { it.name == difficultyName }
+				?: defaultSelection.difficulty
+		}
+		return MiniGameSetupSelection(goal, difficulty)
+	}
+
+	private fun buildConfiguration(selection: MiniGameSetupSelection): MiniGameConfiguration =
+		supportedConfigurations.firstOrNull {
+			it.goal.displayValue == selection.goalValue && it.difficulty == selection.difficulty
+		}
+			?: supportedConfigurations.firstOrNull { it.goal.displayValue == selection.goalValue }
+			?: defaultConfiguration
+
+	private fun needsNotificationPermission(): Boolean =
+		Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+			!app.hasSelfPermission(POST_NOTIFICATIONS_PERMISSION)
+
+	private fun GoalsSettingsState.rememberedSetupFor(gameId: String): RememberedGameSetup? =
+		when (gameId) {
+			OutrunConfiguration.GAME_ID -> rememberedOutrunSetup
+			TerritoryConfiguration.GAME_ID -> rememberedTerritorySetup
+			ZenWalkConfiguration.GAME_ID -> rememberedZenSetup
+			FuseRunConfiguration.GAME_ID -> rememberedFuseRunSetup
+			SwitchbackConfiguration.GAME_ID -> rememberedSwitchbackSetup
+			else -> null
+		}
+
+	private fun GameSessionState.isServiceOwned(): Boolean = when (this) {
+		is GameSessionState.Starting,
+		is GameSessionState.Active,
+		is GameSessionState.Paused,
+		is GameSessionState.Finishing,
+		-> true
+		GameSessionState.Idle,
+		is GameSessionState.Finished,
+		is GameSessionState.Failed,
+		-> false
+	}
+
+	private sealed interface LaunchGate {
+		data object None : LaunchGate
+		data class LocationPermission(
+			val configuration: MiniGameConfiguration,
+			val denied: Boolean,
+		) : LaunchGate
+		data class NotificationPermission(
+			val configuration: MiniGameConfiguration,
+		) : LaunchGate
+	}
+
+	private companion object {
+		private const val STOP_TIMEOUT_MS: Long = 5_000L
+		private const val POST_NOTIFICATIONS_PERMISSION: String =
+			"android.permission.POST_NOTIFICATIONS"
 	}
 }
+
+private fun com.adsamcik.tracker.game.minigame.MiniGamePhase.isAcquiring(): Boolean =
+	this == com.adsamcik.tracker.game.minigame.MiniGamePhase.ACQUIRING_SIGNAL ||
+		this == com.adsamcik.tracker.game.minigame.MiniGamePhase.WAITING_TO_START
