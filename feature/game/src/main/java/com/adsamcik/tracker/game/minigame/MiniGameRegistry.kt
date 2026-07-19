@@ -13,7 +13,8 @@ internal class MiniGameRegistry @Inject constructor(
 	/** Get game by ID, or null if not found. */
 	fun findById(id: String): MiniGame? = games.find { it.id == id }
 
-	/** Get all games sorted by unlock level. */
-	fun allSorted(): List<MiniGame> = games.sortedBy { it.unlockLevel }
+	/** Get all games in deterministic unlock order. */
+	fun allSorted(): List<MiniGame> = games.sortedWith(
+		compareBy<MiniGame> { it.unlockLevel }.thenBy { it.id },
+	)
 }
-

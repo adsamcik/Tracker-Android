@@ -37,7 +37,7 @@ class GhostLeaderboardProvider @Inject constructor(
 		metric: LeaderboardMetric,
 		now: Instant = Instant.now(),
 		zone: ZoneId = ZoneId.systemDefault(),
-	): LeaderboardState = withContext(dispatchers.default) {
+	): LeaderboardState = withContext(dispatchers.io) {
 		val zonedNow = now.atZone(zone)
 		val today = zonedNow.toLocalDate()
 		val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))

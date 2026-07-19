@@ -11,9 +11,44 @@
     <string name="minigame_territory_description">Claim new grid cells as you walk</string>
     <string name="minigame_zenwalk_name">Zen Walk</string>
     <string name="minigame_zenwalk_description">Keep your pace steady in the zone</string>
+    <string name="minigame_fuserun_name">Fuse Run</string>
+    <string name="minigame_fuserun_description">Escape each virtual blast radius before its fuse expires</string>
+    <string name="minigame_switchback_name">Switchback</string>
+    <string name="minigame_switchback_description">Carve sharp alternating turns to build a flow combo</string>
     <string name="minigame_section_title">Mini-Games</string>
     <string name="minigame_locked">Unlocks at Level %1$d</string>
     <string name="minigame_coming_soon">Coming soon</string>
+
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Play</string>
+    <string name="game_progress_section_title">Progress</string>
+    <string name="minigame_outrun_goal_line">Keep a 25–100 m lead on the ghost</string>
+    <string name="minigame_territory_goal_line">Claim 5–20 unique cells on foot</string>
+    <string name="minigame_zenwalk_goal_line">Hold your pace for 5–20 minutes</string>
+    <string name="minigame_fuserun_goal_line">Defuse 3–8 charges before their fuses expire</string>
+    <string name="minigame_switchback_goal_line">Carve 4–10 sharp turns on foot</string>
+    <string name="minigame_play_action_play">Play</string>
+    <string name="minigame_play_personal_best">PB %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Personal best %1$s</string>
+    <string name="minigame_play_locked_summary">Reach Level %1$d to unlock</string>
+    <string name="minigame_play_locked_detail">Earn XP by playing unlocked games and tracking your activity to level up.</string>
+    <string name="minigame_play_locked_expand_cta">Double tap to see how to unlock</string>
+    <string name="minigame_active_session_running">In progress — tap Play to return</string>
+    <string name="minigame_active_session_paused">Paused — tap Play to resume</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d cell</item>
+        <item quantity="other">%1$d cells</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d charge</item>
+        <item quantity="other">%1$d charges</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d turn</item>
+        <item quantity="other">%1$d turns</item>
+    </plurals>
 
     <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">View past scores</string>
@@ -33,14 +68,186 @@
     <string name="minigame_session_idle_hint">Tap Start, then keep walking — we\'ll do the rest.</string>
     <string name="minigame_session_waiting_for_fix">Waiting for first GPS fix…</string>
 
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Set up your run</string>
+    <string name="minigame_setup_goal_title">Goal</string>
+    <string name="minigame_setup_difficulty_title">Difficulty</string>
+    <string name="minigame_setup_start_cta">Start run</string>
+    <string name="minigame_setup_remember">Remember this setup</string>
+    <string name="minigame_setup_remember_description">Reopen this game with the same goal and difficulty.</string>
+    <string name="minigame_setup_goal_meters">%1$d m lead</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d cell</item>
+        <item quantity="other">%1$d cells</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min in zone</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d charge</item>
+        <item quantity="other">%1$d charges</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d turn</item>
+        <item quantity="other">%1$d turns</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Easy</string>
+    <string name="minigame_difficulty_normal">Normal</string>
+    <string name="minigame_difficulty_hard">Hard</string>
+    <string name="minigame_setup_goal_selected">%1$s, selected</string>
+    <string name="minigame_setup_difficulty_selected">%1$s, selected</string>
+
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Getting ready…</string>
+    <string name="minigame_session_acquiring">Finding your location…</string>
+    <string name="minigame_session_finishing">Saving your run…</string>
+    <string name="minigame_session_paused_title">Paused</string>
+    <string name="minigame_session_pause_cta">Pause</string>
+    <string name="minigame_session_resume_cta">Resume</string>
+    <string name="minigame_session_finish_cta">Finish</string>
+    <string name="minigame_session_background_note">Your run keeps going if you leave this screen. Reopen from Games to continue.</string>
+    <string name="minigame_session_elapsed_label">Active time</string>
+    <string name="minigame_session_goal_label">Goal</string>
+    <string name="minigame_session_goal_progress">%1$d%% of goal</string>
+    <string name="minigame_session_goal_reached">Goal reached</string>
+
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Strong GPS</string>
+    <string name="minigame_signal_fair">Fair GPS</string>
+    <string name="minigame_signal_poor">Weak GPS</string>
+    <string name="minigame_signal_unavailable">No GPS signal</string>
+    <string name="minigame_signal_unknown">Locating…</string>
+    <string name="minigame_signal_stale">GPS delayed</string>
+
+    <!-- Notification permission (contextual, optional) -->
+    <string name="minigame_notification_permission_title">Enable notifications?</string>
+    <string name="minigame_notification_permission_body">Allow notifications to pause or finish your run from the notification shade. Your run starts either way.</string>
+
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_gap_label">Lead</string>
+    <string name="minigame_outrun_best_run">Best this run</string>
+    <string name="minigame_outrun_personal_best">Personal best</string>
+    <string name="minigame_outrun_warning">Ghost closing in</string>
+    <string name="minigame_outrun_move_to_start">Move to start the race</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">You are %1$d metres ahead of the ghost. Best this run %2$d metres.</string>
+    <string name="minigame_outrun_you">You</string>
+    <string name="minigame_outrun_ghost">Ghost</string>
+    <string name="minigame_outrun_lead_value">%1$d m lead</string>
+    <string name="minigame_outrun_ghost_lead_value">Ghost leads by %1$d m</string>
+    <string name="minigame_outrun_first_run">First run</string>
+    <string name="minigame_outrun_keep_moving">Build your lead</string>
+    <string name="minigame_outrun_caught">Caught by the ghost</string>
+    <string name="minigame_outrun_escaped">You escaped!</string>
+    <string name="minigame_outrun_escape_goal">Escape goal</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Escape goal is %1$d percent complete.</string>
+    <string name="minigame_outrun_description_waiting">Outrun is ready. Move more than two metres to start the chase.</string>
+    <string name="minigame_outrun_description_warning">Danger. The ghost is only %1$d metres behind you. Best this run %2$d metres.</string>
+    <string name="minigame_outrun_description_caught">Caught. The ghost passed you by %1$d metres. Best this run %2$d metres.</string>
+    <string name="minigame_outrun_description_escaped">Goal reached. You escaped with a %1$d metre lead. Best this run %2$d metres.</string>
+    <string name="minigame_outrun_description_finished">Run complete. Your final gap was %1$d metres and your best lead was %2$d metres.</string>
+    <string name="minigame_outrun_ahead_of_best">Ahead of your personal best</string>
+
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_title">Nearby areas</string>
+    <string name="minigame_territory_grid_description">Grid of areas around where you started. %1$d nearby cells claimed.</string>
+    <string name="minigame_territory_current_label">Current area</string>
+    <plurals name="minigame_territory_claimed">
+        <item quantity="one">%1$d cell claimed</item>
+        <item quantity="other">%1$d cells claimed</item>
+    </plurals>
+    <string name="minigame_territory_grid_description_detailed">Territory map. %1$d nearby areas claimed; %2$d frontier areas highlighted. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Current area highlighted</string>
+    <string name="minigame_territory_current_waiting">Waiting for a current area</string>
+    <string name="minigame_territory_goal_complete">Goal complete</string>
+    <string name="minigame_territory_goal_in_progress">Goal in progress</string>
+    <string name="minigame_territory_legend">Glow marks your current area • Frontier hints: %1$d</string>
+
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_calibrating">Calibrating your pace…</string>
+    <string name="minigame_zen_calibration_progress">Calibration %1$d%%</string>
+    <string name="minigame_zen_pace_label">Pace</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Target %1$s–%2$s km/h</string>
+    <string name="minigame_zen_in_zone">In the zone</string>
+    <string name="minigame_zen_below_zone">Pick up the pace</string>
+    <string name="minigame_zen_above_zone">Ease off a little</string>
+    <string name="minigame_zen_time_in_zone">Time in zone</string>
+    <string name="minigame_zen_gauge_description">Pace gauge. %1$s. %2$s.</string>
+    <string name="minigame_zen_calibration_title">Find your natural rhythm</string>
+    <string name="minigame_zen_calibration_hint">Walk naturally while your pace gently settles</string>
+    <string name="minigame_zen_calibration_settled">%1$d%% settled</string>
+    <string name="minigame_zen_calibration_description">Pace calibration. %1$d percent settled. Keep walking naturally.</string>
+    <string name="minigame_zen_flow_waiting">Finding your rhythm</string>
+    <string name="minigame_zen_flow_settled">Settled in your rhythm</string>
+    <string name="minigame_zen_flow_slower">Drifting gently slower</string>
+    <string name="minigame_zen_flow_faster">Drifting gently faster</string>
+    <string name="minigame_zen_flow_time">Flow %1$s</string>
+    <string name="minigame_zen_flow_description">Zen pace flow. %1$s. %2$s. %3$s. %4$s.</string>
+
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">The ghost is closing in</string>
+    <string name="minigame_feedback_pb_crossed">New personal best</string>
+    <string name="minigame_feedback_territory_claimed">New area claimed</string>
+    <string name="minigame_feedback_fuse_critical">Fuse critical, move now</string>
+    <string name="minigame_feedback_fuse_defused">Charge defused</string>
+    <string name="minigame_feedback_turn_carved">Turn carved</string>
+    <string name="minigame_feedback_goal_reached">Goal reached</string>
+    <string name="minigame_feedback_zen_entered">You are in the pace zone</string>
+    <string name="minigame_feedback_zen_exited">You left the pace zone</string>
+    <string name="minigame_feedback_completed">Run complete</string>
+
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">First run logged!</string>
+    <string name="minigame_completion_new_best_title">New personal best!</string>
+    <string name="minigame_completion_tied_title">Matched your best</string>
+    <string name="minigame_completion_behind_title">Good run</string>
+    <string name="minigame_completion_no_participation_title">Session ended</string>
+    <string name="minigame_completion_result">Result: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s ahead of your previous best</string>
+    <string name="minigame_completion_deficit">%1$s short of your best</string>
+    <string name="minigame_completion_goal_reached">Goal reached: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Goal not reached: %1$s</string>
+    <string name="minigame_completion_points">+%1$d points</string>
+    <string name="minigame_completion_points_zero">No points this run</string>
+    <string name="minigame_completion_change_setup">Change setup</string>
+    <string name="minigame_completion_done">Done</string>
+
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Run didn\'t finish</string>
+    <string name="minigame_failure_permission">Precise location is required to play. Grant it and try again.</string>
+    <string name="minigame_failure_location">We couldn\'t get a reliable location fix. Head somewhere with clearer sky and try again.</string>
+    <string name="minigame_failure_persistence">We couldn\'t save this run. Please try again.</string>
+    <string name="minigame_failure_generic">Something went wrong and the run stopped.</string>
+    <string name="minigame_session_try_again">Try again</string>
+
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Active game</string>
+    <string name="game_session_channel_description">Keeps an active mini-game running when the screen is off</string>
+    <string name="game_session_notification_title">Tracker game</string>
+    <string name="game_session_notification_public">Game in progress</string>
+    <string name="game_session_notification_starting">Starting game…</string>
+    <string name="game_session_notification_preparing">Preparing %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s paused</string>
+    <string name="game_session_notification_finishing">Saving your result…</string>
+    <string name="game_session_notification_finished">Game complete</string>
+    <string name="game_session_notification_failed">Game stopped</string>
+    <string name="game_session_action_pause">Pause</string>
+    <string name="game_session_action_resume">Resume</string>
+    <string name="game_session_action_finish">Finish</string>
+
     <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Past mini-game runs</string>
     <string name="minigame_scores_back">Back</string>
-    <string name="minigame_scores_empty_title">No runs yet</string>
-    <string name="minigame_scores_empty_body">Finish a mini-game session to see it appear here.</string>
+    <string name="minigame_scores_empty_title">Your first run is waiting</string>
+    <string name="minigame_scores_empty_body">Finish a mini-game to set a personal best — every run you beat shows up here.</string>
     <string name="minigame_scores_rank_format">#%1$d</string>
     <string name="minigame_scores_score_format">%1$s pts</string>
     <string name="minigame_scores_points_format">+%1$d pts</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Personal best</string>
     <string name="minigame_scores_unknown_game">Mini-game</string>
 
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>

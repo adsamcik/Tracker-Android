@@ -44,14 +44,18 @@ object HapticFeedback {
 	}
 
 	private fun vibrate(context: Context, pattern: LongArray) {
-		val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-			context.getSystemService<VibratorManager>()?.defaultVibrator
-		} else {
-			@Suppress("DEPRECATION")
-			context.getSystemService<Vibrator>()
-		} ?: return
+		runCatching {
+			val appContext = context.applicationContext
+			val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+				appContext.getSystemService<VibratorManager>()?.defaultVibrator
+			} else {
+				@Suppress("DEPRECATION")
+				appContext.getSystemService<Vibrator>()
+			} ?: return
+			if (!vibrator.hasVibrator()) return
 
-		// minSdk 26 (O) guarantees VibrationEffect is always available
-		vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+			// Uses the application service, so cues remain safe when no screen is attached.
+			vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+		}
 	}
 }

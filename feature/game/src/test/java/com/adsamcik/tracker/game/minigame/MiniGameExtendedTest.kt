@@ -1,7 +1,11 @@
 package com.adsamcik.tracker.game.minigame
 
+import com.adsamcik.tracker.game.minigame.fuserun.FuseRunGame
+import com.adsamcik.tracker.game.minigame.fuserun.FuseRunSession
 import com.adsamcik.tracker.game.minigame.outrun.OutrunGame
 import com.adsamcik.tracker.game.minigame.outrun.OutrunSession
+import com.adsamcik.tracker.game.minigame.switchback.SwitchbackGame
+import com.adsamcik.tracker.game.minigame.switchback.SwitchbackSession
 import com.adsamcik.tracker.game.minigame.territory.TerritoryGame
 import com.adsamcik.tracker.game.minigame.territory.TerritorySession
 import com.adsamcik.tracker.game.minigame.zenwalk.ZenWalkGame
@@ -14,6 +18,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -40,12 +45,13 @@ class MiniGameRegistryTest {
 		val outrun = OutrunGame() // level 3
 		val territory = TerritoryGame() // level 6
 		val zenwalk = ZenWalkGame() // level 9
-		val registry = MiniGameRegistry(setOf(zenwalk, outrun, territory))
+		val fuseRun = FuseRunGame() // level 9
+		val switchback = SwitchbackGame() // level 12
+		val registry = MiniGameRegistry(setOf(zenwalk, switchback, outrun, fuseRun, territory))
 		val sorted = registry.allSorted()
-		sorted shouldHaveSize 3
-		sorted[0].unlockLevel shouldBe 3
-		sorted[1].unlockLevel shouldBe 6
-		sorted[2].unlockLevel shouldBe 9
+		sorted shouldHaveSize 5
+		sorted.map { it.id } shouldBe
+			listOf("outrun", "territory", "fuserun", "zenwalk", "switchback")
 	}
 
 	@Test
@@ -119,6 +125,40 @@ class MiniGameImplementationsTest {
 			session.state shouldBe MiniGameState.IDLE
 		}
 	}
+
+	@Nested
+	@DisplayName("FuseRunGame")
+	inner class FuseRunGameTest {
+		@Test
+		fun `has correct id and unlock level`() {
+			FuseRunGame().let {
+				it.id shouldBe "fuserun"
+				it.unlockLevel shouldBe 9
+			}
+		}
+
+		@Test
+		fun `createSession returns FuseRunSession`() {
+			FuseRunGame().createSession().shouldBeInstanceOf<FuseRunSession>()
+		}
+	}
+
+	@Nested
+	@DisplayName("SwitchbackGame")
+	inner class SwitchbackGameTest {
+		@Test
+		fun `has correct id and unlock level`() {
+			SwitchbackGame().let {
+				it.id shouldBe "switchback"
+				it.unlockLevel shouldBe 12
+			}
+		}
+
+		@Test
+		fun `createSession returns SwitchbackSession`() {
+			SwitchbackGame().createSession().shouldBeInstanceOf<SwitchbackSession>()
+		}
+	}
 }
 
 @DisplayName("OutrunSession advanced")
@@ -176,11 +216,15 @@ class OutrunSessionAdvancedTest {
 		fun `ghost pauses at vehicle speeds`() {
 			val session = OutrunSession(ghostPaceMps = 1.0)
 			session.onLocationUpdate(51.0, 14.0, 1.0f, 10f, 0L)
+			session.onLocationUpdate(51.0001, 14.0, 1.0f, 10f, 1_000L)
+			val gapBeforeVehicleSample =
+				(session.snapshot.visualPayload as MiniGameVisualPayload.Outrun).currentGapMeters
 			// Vehicle speed (>8 m/s)
-			session.onLocationUpdate(51.0001, 14.0, 20.0f, 10f, 10000L)
+			session.onLocationUpdate(51.0002, 14.0, 20.0f, 10f, 10_000L)
 			// Ghost should NOT have advanced at vehicle speed
-			// Player moved ~11m which is < WARNING_THRESHOLD_M (20m), so state is WARNING
-			session.state shouldBe MiniGameState.WARNING
+			(session.snapshot.visualPayload as MiniGameVisualPayload.Outrun).currentGapMeters shouldBe
+				gapBeforeVehicleSample
+			session.state shouldBe MiniGameState.RUNNING
 		}
 	}
 }
@@ -221,7 +265,7 @@ class TerritorySessionAdvancedTest {
 	inner class XpCalculation {
 		@Test
 		fun `base xp with no cells`() {
-			TerritorySession().calculatePoints() shouldBe 20
+			TerritorySession().calculatePoints() shouldBe 0
 		}
 
 		@Test
@@ -303,8 +347,8 @@ class ZenWalkSessionAdvancedTest {
 	@DisplayName("XP calculation")
 	inner class XpCalc {
 		@Test
-		fun `base xp is 15`() {
-			ZenWalkSession().calculatePoints() shouldBe 15
+		fun `no participation awards no xp`() {
+			ZenWalkSession().calculatePoints() shouldBe 0
 		}
 
 		@Test
