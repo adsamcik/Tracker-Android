@@ -123,6 +123,7 @@ fun DataSettingsScreen() {
         }
 
         item {
+            val resetWatermarksDoneMessage = stringResource(R.string.settings_reset_export_watermarks_done)
             SettingsItem(
                 title = stringResource(R.string.settings_reset_export_watermarks_title),
                 subtitle = stringResource(R.string.settings_reset_export_watermarks_summary),
@@ -131,7 +132,7 @@ fun DataSettingsScreen() {
                     dataVm.resetExportWatermarks()
                     Toast.makeText(
                         context,
-                        context.getString(R.string.settings_reset_export_watermarks_done),
+                        resetWatermarksDoneMessage,
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -227,16 +228,18 @@ fun DataSettingsScreen() {
 
     // Delete data confirmation dialog
     if (showDeleteDataDialog) {
+        val deleteDataSuccessMessage = stringResource(R.string.settings_delete_data_success)
+        val deleteDataFailureMessage = stringResource(R.string.settings_delete_data_failure)
         CollectedDataDeletionDialog(
             onDismiss = { debugVm.hideDeleteDataDialog() },
             onConfirm = {
                 debugVm.hideDeleteDataDialog()
                 dataVm.deleteAllCollectedData { result ->
                     val message = when (result) {
-                        DataDeletionResult.Success -> R.string.settings_delete_data_success
-                        DataDeletionResult.Failure -> R.string.settings_delete_data_failure
+                        DataDeletionResult.Success -> deleteDataSuccessMessage
+                        DataDeletionResult.Failure -> deleteDataFailureMessage
                     }
-                    Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             },
         )
