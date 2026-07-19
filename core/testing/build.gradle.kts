@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":tracker:api"))
     implementation(project(":sensor:activity-api"))
     implementation(project(":stats:api"))
+    implementation(project(":feature:game:api"))
 
     // Kotlin & Coroutines
     implementation(libs.kotlin.stdlib.jdk8)

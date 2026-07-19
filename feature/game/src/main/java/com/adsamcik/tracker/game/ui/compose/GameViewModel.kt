@@ -2,6 +2,8 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.feature.game.api.ranking.WeeklyRankingResult
+import com.adsamcik.tracker.feature.game.api.ranking.WeeklyRankingService
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +26,7 @@ internal data class MiniGameEntry(
 internal class GameViewModel @Inject constructor(
 	private val gameRepository: GameRepository,
 	private val miniGameRegistry: MiniGameRegistry,
+	weeklyRankingService: WeeklyRankingService,
 ) : ViewModel() {
 	val pointsToday: StateFlow<Int?> = gameRepository.getPointsToday()
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
@@ -49,6 +52,9 @@ internal class GameViewModel @Inject constructor(
 				)
 			}
 		}
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
+
+	val weeklyRanking: StateFlow<WeeklyRankingResult?> = weeklyRankingService.observeCurrentWeek()
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
 	private companion object { const val STATE_STOP_TIMEOUT_MS = 5_000L }
