@@ -9,7 +9,7 @@
 
 **New to this project?** Start here:
 
-1. 📜 **[COMPOSE_MIGRATION_CERTIFICATE.txt](COMPOSE_MIGRATION_CERTIFICATE.txt)** - One-page overview
+1. 📜 **[COMPOSE_MIGRATION_COMPLETION_CERTIFICATE.md](COMPOSE_MIGRATION_COMPLETION_CERTIFICATE.md)** - One-page overview
 2. 📝 **[COMPOSE_MIGRATION_WORK_SUMMARY.md](COMPOSE_MIGRATION_WORK_SUMMARY.md)** - High-level summary
 3. 📊 **[COMPOSE_MIGRATION_FINAL_STATUS_2025-10-08.md](COMPOSE_MIGRATION_FINAL_STATUS_2025-10-08.md)** - Detailed status
 
@@ -33,7 +33,7 @@
   - Metrics and statistics
   - Lessons learned
 
-- **[COMPOSE_MIGRATION_CERTIFICATE.txt](COMPOSE_MIGRATION_CERTIFICATE.txt)**
+- **[COMPOSE_MIGRATION_COMPLETION_CERTIFICATE.md](COMPOSE_MIGRATION_COMPLETION_CERTIFICATE.md)**
   - One-page completion certificate
   - Achievement summary
   - Quality gates status
@@ -55,23 +55,9 @@
   - Component inventory
   - Phase-by-phase progress
 
-- **[DEBUG_ACTIVITIES_MIGRATION_COMPLETE.md](DEBUG_ACTIVITIES_MIGRATION_COMPLETE.md)**
-  - StatusActivity & LogViewerActivity removal
-  - DebugRoute enhancements
-  - 191 lines legacy code eliminated
-
-- **[EXPORT_ACTIVITY_DECOMMISSION_COMPLETE.md](EXPORT_ACTIVITY_DECOMMISSION_COMPLETE.md)**
-  - ExportActivity removal (456 lines)
-  - ImportExportComposeActivity consolidation
-
-- **[TRACKER_SERVICE_FLOW_MIGRATION_COMPLETE.md](TRACKER_SERVICE_FLOW_MIGRATION_COMPLETE.md)**
-  - LiveData → Flow migration
-  - TrackerRoute state integration
-  - 100% live state (zero stubs)
-
-- **[SESSION_SUMMARY_2025-10-06.md](SESSION_SUMMARY_2025-10-06.md)**
-  - October 6 work session summary
-  - TrackerService Flow refactoring details
+The detailed debug, export, and TrackerService notes referenced by older revisions of
+this index are no longer present in the archive. Use the completion report and final
+status documents above for the retained record.
 
 ---
 
@@ -113,10 +99,7 @@
 | Deep-dive on status | [FINAL_STATUS.md](COMPOSE_MIGRATION_FINAL_STATUS_2025-10-08.md) |
 | See what's left to do | [POLISH_ITEMS.md](COMPOSE_MIGRATION_POLISH_ITEMS.md) |
 | Settings migration details | [SETTINGS_COMPLETE.md](SETTINGS_COMPOSE_MIGRATION_COMPLETE_SUMMARY.md) |
-| Debug activities details | [DEBUG_COMPLETE.md](DEBUG_ACTIVITIES_MIGRATION_COMPLETE.md) |
-| Export migration details | [EXPORT_COMPLETE.md](EXPORT_ACTIVITY_DECOMMISSION_COMPLETE.md) |
-| TrackerService Flow details | [TRACKER_FLOW.md](TRACKER_SERVICE_FLOW_MIGRATION_COMPLETE.md) |
-| Quick status check | [CERTIFICATE.txt](COMPOSE_MIGRATION_CERTIFICATE.txt) |
+| Quick status check | [CERTIFICATE.md](COMPOSE_MIGRATION_COMPLETION_CERTIFICATE.md) |
 
 ---
 
@@ -201,4 +184,3 @@
 - Archive historical docs to prevent confusion
 
 **Last Review:** October 8, 2025
-
