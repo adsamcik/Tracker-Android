@@ -78,6 +78,8 @@ internal class TrackingOrchestrator(
 	trackerSettingsRepository: TrackerSettingsRepository,
 	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
 	private val enableNotifications: Boolean = true,
+	private val foregroundServiceTypeUpdater: (Boolean, Boolean, Boolean) -> Boolean =
+		{ _, _, _ -> true },
 	private val runtimeTierAdjuster: (PolicyTier) -> PolicyTier = { it },
 	/**
 	 * Optional callback invoked AFTER the in-orchestrator `DailySummaryAggregator` writes a row.
@@ -205,6 +207,7 @@ internal class TrackingOrchestrator(
 			tierAdjuster = runtimeTierAdjuster,
 			gpsTriggerFactory = { TrackerTimerManager.getSelected(it, dispatchers.main) },
 			ambientTriggerFactory = { AmbientCollectionTrigger(dispatchers.main) },
+			foregroundServiceTypeUpdater = foregroundServiceTypeUpdater,
 			onEffectiveTierChanged = { currentTier = it },
 		).apply {
 			this.currentTier = initialTier

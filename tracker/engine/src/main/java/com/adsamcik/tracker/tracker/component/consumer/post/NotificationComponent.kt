@@ -48,6 +48,7 @@ internal class NotificationComponent :
 	private val contentComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
 	private val updateGate = NotificationUpdateGate(MAX_REFRESH_INTERVAL_NANOS)
 	private val notificationLock = Any()
+	private var lastPayload: NotificationPayload? = null
 
 	// Separator for notification text components
 	// Uses comma-space which is appropriate for most locales
@@ -57,7 +58,10 @@ internal class NotificationComponent :
 		trackerNotificationManager = null
 		contentComponentList.clear()
 		titleComponentList.clear()
-		synchronized(notificationLock) { updateGate.reset() }
+		synchronized(notificationLock) {
+			lastPayload = null
+			updateGate.reset()
+		}
 	}
 
 	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
@@ -101,9 +105,18 @@ internal class NotificationComponent :
 			text = buildNotificationText(context, session, collectionData),
 		)
 		synchronized(notificationLock) {
+			lastPayload = payload
 			if (updateGate.shouldUpdate(payload, cycle.elapsedRealtimeNanos)) {
 				notify(generateNotification(payload))
 			}
+		}
+	}
+
+	fun onForegroundServiceTypeChanged() {
+		if (trackerNotificationManager == null) return
+		synchronized(notificationLock) {
+			updateGate.reset()
+			lastPayload?.let { notify(generateNotification(it)) }
 		}
 	}
 

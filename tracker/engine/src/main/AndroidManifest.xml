@@ -20,16 +20,13 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!--
-        HEALTH foreground-service type backs AMBIENT (steps + activity recognition, no GPS)
-        sessions; SPECIAL_USE is the terminal fallback for sessions that hold neither location
-        nor activity permission (e.g. a user-started Wi-Fi/cell-only session) so they can still
-        run a foreground service instead of crashing or stopping. Declaring the location type for
-        a non-GPS session crashes on Android 14+ when location permission is absent and is a Play
-        background-location policy mismatch, so the service downgrades the type to match the
-        permissions actually held.
+        Runtime types follow active sources: LOCATION only while GPS collection is active,
+        HEALTH while activity/step collection is active, and SPECIAL_USE for signal-only startup
+        or fallback. Permission possession alone never causes the service to declare a type.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

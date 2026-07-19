@@ -22,23 +22,36 @@ class ForegroundServiceTypeCandidatesTest {
 	@DisplayName("before Android 14")
 	inner class BeforeAndroid14 {
 		@Test
-		fun `always offers only the location type regardless of permissions`() {
+		fun `location session uses location type when permission is held`() {
 			candidates(
 				sdkInt = android13,
-				preferLocationType = false,
-				hasLocationPermission = false,
+				requiresLocation = true,
+				requiresHealth = false,
+				hasLocationPermission = true,
 				hasActivityPermission = false,
 			) shouldBe listOf(location)
 		}
 
 		@Test
-		fun `offers only the location type even for an ambient session`() {
+		fun `non-location session starts without a typed foreground service`() {
 			candidates(
 				sdkInt = android13,
-				preferLocationType = false,
+				requiresLocation = false,
+				requiresHealth = true,
 				hasLocationPermission = true,
 				hasActivityPermission = true,
-			) shouldBe listOf(location)
+			) shouldBe listOf(null)
+		}
+
+		@Test
+		fun `location session has no fallback when permission is missing`() {
+			candidates(
+				sdkInt = android13,
+				requiresLocation = true,
+				requiresHealth = false,
+				hasLocationPermission = false,
+				hasActivityPermission = true,
+			) shouldBe emptyList()
 		}
 	}
 
@@ -46,80 +59,83 @@ class ForegroundServiceTypeCandidatesTest {
 	@DisplayName("Android 14+ GPS session")
 	inner class GpsSession {
 		@Test
-		fun `prefers location then falls back to health when both permissions are held`() {
+		fun `declares location and health when both sources are active`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = true,
+				requiresLocation = true,
+				requiresHealth = true,
 				hasLocationPermission = true,
 				hasActivityPermission = true,
-			) shouldBe listOf(location, health, specialUse)
+			) shouldBe listOf(location or health)
 		}
 
 		@Test
-		fun `offers location then special-use fallback when activity permission is missing`() {
+		fun `declares only location when health access is unavailable`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = true,
+				requiresLocation = true,
+				requiresHealth = true,
 				hasLocationPermission = true,
 				hasActivityPermission = false,
-			) shouldBe listOf(location, specialUse)
+			) shouldBe listOf(location)
 		}
 
 		@Test
-		fun `falls back to health when location permission is missing`() {
+		fun `has no non-location fallback when location is required`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = true,
+				requiresLocation = true,
+				requiresHealth = true,
 				hasLocationPermission = false,
 				hasActivityPermission = true,
-			) shouldBe listOf(health, specialUse)
+			) shouldBe emptyList()
 		}
 	}
 
 	@Nested
-	@DisplayName("Android 14+ ambient session")
-	inner class AmbientSession {
+	@DisplayName("Android 14+ non-location session")
+	inner class NonLocationSession {
 		@Test
-		fun `prefers health and never crashes when location permission is absent`() {
+		fun `uses health when activity or step collection is active`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = false,
-				hasLocationPermission = false,
-				hasActivityPermission = true,
-			) shouldBe listOf(health, specialUse)
-		}
-
-		@Test
-		fun `prefers health then offers location as fallback when both permissions are held`() {
-			candidates(
-				sdkInt = android14,
-				preferLocationType = false,
+				requiresLocation = false,
+				requiresHealth = true,
 				hasLocationPermission = true,
 				hasActivityPermission = true,
-			) shouldBe listOf(health, location, specialUse)
+			) shouldBe listOf(health)
 		}
 
 		@Test
-		fun `offers location then special-use fallback when activity permission is missing`() {
+		fun `never offers location merely because location permission is held`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = false,
+				requiresLocation = false,
+				requiresHealth = true,
+				hasLocationPermission = true,
+				hasActivityPermission = true,
+			) shouldBe listOf(health)
+		}
+
+		@Test
+		fun `uses special-use when health access is unavailable`() {
+			candidates(
+				sdkInt = android14,
+				requiresLocation = false,
+				requiresHealth = true,
 				hasLocationPermission = true,
 				hasActivityPermission = false,
-			) shouldBe listOf(location, specialUse)
+			) shouldBe listOf(specialUse)
 		}
-	}
 
-	@Nested
-	@DisplayName("Android 14+ with no usable permissions")
-	inner class NoPermissions {
 		@Test
-		fun `falls back to special-use so a permissionless session still runs`() {
+		fun `signal-only session uses special-use even when other permissions are held`() {
 			candidates(
 				sdkInt = android14,
-				preferLocationType = true,
-				hasLocationPermission = false,
-				hasActivityPermission = false,
+				requiresLocation = false,
+				requiresHealth = false,
+				hasLocationPermission = true,
+				hasActivityPermission = true,
 			) shouldBe listOf(specialUse)
 		}
 	}
@@ -166,12 +182,14 @@ class ForegroundServiceTypeCandidatesTest {
 
 	private fun candidates(
 		sdkInt: Int,
-		preferLocationType: Boolean,
+		requiresLocation: Boolean,
+		requiresHealth: Boolean,
 		hasLocationPermission: Boolean,
 		hasActivityPermission: Boolean,
-	): List<Int> = foregroundServiceTypeCandidates(
+	): List<Int?> = foregroundServiceTypeCandidates(
 		sdkInt = sdkInt,
-		preferLocationType = preferLocationType,
+		requiresLocation = requiresLocation,
+		requiresHealth = requiresHealth,
 		hasLocationPermission = hasLocationPermission,
 		hasActivityPermission = hasActivityPermission,
 	)

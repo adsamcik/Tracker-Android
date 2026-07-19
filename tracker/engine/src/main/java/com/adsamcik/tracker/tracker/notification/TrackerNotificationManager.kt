@@ -96,18 +96,76 @@ class TrackerNotificationManager(
 
 	companion object {
 		const val NOTIFICATION_ID: Int = -7643
+		private const val START_FAILED_NOTIFICATION_ID: Int = -7644
 
 		fun getForegroundNotification(
 			context: Context,
+			usesLocation: Boolean,
+			isUserInitiatedSession: Boolean? = null,
 			notificationStyled: Boolean = true,
 		): Notification {
-			return createBuilder(
-				context,
-				notificationStyled
-			)
-				.setContentTitle(context.getString(R.string.notification_starting))
-				.setContentText(context.getString(R.string.notification_tracker_active_ticker))
+			val builder = if (isUserInitiatedSession == null) {
+				createBuilder(context, notificationStyled)
+			} else {
+				TrackerNotificationManager(
+					context = context,
+					isUserInitiatedSession = isUserInitiatedSession,
+					notificationStyled = notificationStyled,
+				).createBuilder()
+			}
+			return builder
+				.setContentTitle(
+					context.getString(
+						if (usesLocation) {
+							R.string.notification_starting
+						} else {
+							R.string.notification_starting_without_location
+						}
+					)
+				)
+				.setContentText(
+					context.getString(
+						if (usesLocation) {
+							R.string.notification_tracker_active_ticker
+						} else {
+							R.string.notification_tracker_active_without_location
+						}
+					)
+				)
 				.build()
+		}
+
+		fun postStartFailedNotification(context: Context) {
+			TrackerNotificationChannels.ensureTrackingChannel(context)
+			val resources = context.resources
+			val builder = NotificationCompat.Builder(
+				context,
+				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
+			)
+				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
+				.setCategory(NotificationCompat.CATEGORY_ERROR)
+				.setPriority(NotificationCompat.PRIORITY_DEFAULT)
+				.setContentTitle(
+					resources.getString(R.string.notification_tracking_start_failed_title)
+				)
+				.setContentText(
+					resources.getString(R.string.notification_tracking_start_failed_text)
+				)
+				.setAutoCancel(true)
+
+			context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
+				builder.setContentIntent(
+					TaskStackBuilder.create(context).run {
+						addNextIntentWithParentStack(launch)
+						getPendingIntent(
+							0,
+							PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
+						)
+					}
+				)
+			}
+
+			context.notificationManager.notify(START_FAILED_NOTIFICATION_ID, builder.build())
 		}
 
 		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {

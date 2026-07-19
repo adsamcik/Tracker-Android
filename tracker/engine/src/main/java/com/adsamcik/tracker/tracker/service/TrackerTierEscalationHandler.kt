@@ -39,6 +39,8 @@ internal class TrackerTierEscalationHandler(
 	private val tierAdjuster: (PolicyTier) -> PolicyTier = { it },
 	private val gpsTriggerFactory: suspend (Context) -> CollectionTriggerComponent,
 	private val ambientTriggerFactory: () -> CollectionTriggerComponent,
+	private val foregroundServiceTypeUpdater: (Boolean, Boolean, Boolean) -> Boolean =
+		{ _, _, _ -> true },
 	private val onEffectiveTierChanged: (PolicyTier) -> Unit = {},
 ) {
 
@@ -77,12 +79,27 @@ internal class TrackerTierEscalationHandler(
 		scope.launch {
 			componentMutex.withLock {
 				val oldTier = currentTier
+				val params = trackingParamsRepository.data.first()
+				val shouldUseGps = newTier.isGpsEnabled && params.locationEnabled
+				val requiresHealth = params.activityEnabled || params.stepsEnabled
+				val currentlyUsesGps = timerAccessor.get().isLocationTrigger
 				val triggerTransition = prepareTriggerTransition(
-					newTier = newTier,
+					shouldUseGps = shouldUseGps,
+					requiresHealth = requiresHealth,
 					context = context,
 					timerReceiver = timerReceiver,
 				)
 				if (triggerTransition == TriggerTransition.Failed) {
+					return@withLock
+				}
+				if (
+					triggerTransition == TriggerTransition.NotNeeded &&
+					!foregroundServiceTypeUpdater(
+						shouldUseGps,
+						requiresHealth,
+						true,
+					)
+				) {
 					return@withLock
 				}
 
@@ -91,6 +108,13 @@ internal class TrackerTierEscalationHandler(
 						processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
 					}
 					triggerTransition.commit(context, timerAccessor)
+					if (
+						!shouldUseGps &&
+						currentlyUsesGps &&
+						!foregroundServiceTypeUpdater(false, requiresHealth, true)
+					) {
+						return@withLock
+					}
 				} catch (e: CancellationException) {
 					triggerTransition.rollback(context)
 					throw e
@@ -111,16 +135,16 @@ internal class TrackerTierEscalationHandler(
 	}
 
 	private suspend fun prepareTriggerTransition(
-		newTier: PolicyTier,
+		shouldUseGps: Boolean,
+		requiresHealth: Boolean,
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
 	): TriggerTransition {
-		val locationEnabled = trackingParamsRepository.data.first().locationEnabled
-		val shouldUseGps = newTier.isGpsEnabled && locationEnabled
 		val currentlyUsesGps = timerAccessor.get().isLocationTrigger
 
 		return when {
-			shouldUseGps && !currentlyUsesGps -> prepareGpsTrigger(context, timerReceiver)
+			shouldUseGps && !currentlyUsesGps ->
+				prepareGpsTrigger(context, timerReceiver, requiresHealth)
 			!shouldUseGps && currentlyUsesGps -> prepareAmbientTrigger(context, timerReceiver)
 			else -> TriggerTransition.NotNeeded
 		}
@@ -129,15 +153,33 @@ internal class TrackerTierEscalationHandler(
 	private suspend fun prepareGpsTrigger(
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
+		requiresHealth: Boolean,
 	): TriggerTransition {
+		if (!foregroundServiceTypeUpdater(true, requiresHealth, false)) {
+			return TriggerTransition.Failed
+		}
 		val oldTimer = timerAccessor.get()
-		val gpsTimer = gpsTriggerFactory(context)
-		return if (gpsTimer.hasRequiredPermissions(context)) {
-			gpsTimer.onEnable(context, timerReceiver)
-			TriggerTransition.Ready(oldTimer, gpsTimer)
-		} else {
-			Reporter.report("Missing permissions for GPS timer during escalation")
-			TriggerTransition.Failed
+		var prepared = false
+		return try {
+			val gpsTimer = gpsTriggerFactory(context)
+			if (gpsTimer.hasRequiredPermissions(context)) {
+				gpsTimer.onEnable(context, timerReceiver)
+				prepared = true
+				TriggerTransition.Ready(
+					oldTimer = oldTimer,
+					newTimer = gpsTimer,
+					onRollback = {
+						foregroundServiceTypeUpdater(false, requiresHealth, true)
+					},
+				)
+			} else {
+				Reporter.report("Missing permissions for GPS timer during escalation")
+				TriggerTransition.Failed
+			}
+		} finally {
+			if (!prepared) {
+				foregroundServiceTypeUpdater(false, requiresHealth, true)
+			}
 		}
 	}
 
@@ -184,6 +226,7 @@ internal class TrackerTierEscalationHandler(
 		data class Ready(
 			private val oldTimer: CollectionTriggerComponent,
 			private val newTimer: CollectionTriggerComponent,
+			private val onRollback: () -> Unit = {},
 		) : TriggerTransition {
 			override fun commit(context: Context, timerAccessor: TimerAccessor) {
 				oldTimer.onDisable(context)
@@ -192,6 +235,7 @@ internal class TrackerTierEscalationHandler(
 
 			override fun rollback(context: Context) {
 				newTimer.onDisable(context)
+				onRollback()
 			}
 		}
 	}

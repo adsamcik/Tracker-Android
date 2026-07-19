@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
@@ -137,6 +138,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private var activeSessionDescriptor: ActiveTrackingSessionDescriptor? = null
 	private var gracefulStopRequested = false
 	private val restartScheduled = AtomicBoolean(false)
+	private var foregroundStarted = false
+	private var activeForegroundServiceType: Int? = null
+	private var activeForegroundRequirements: ForegroundServiceRequirements? = null
 
 	override fun onCreate() {
 		super.onCreate()
@@ -145,11 +149,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			activeServiceGeneration = serviceGeneration
 		}
 
-		// At onCreate the start intent is not yet available, so prefer the location type only
-		// when location permission is held (covers GPS sessions); otherwise start as a health
-		// (activity-recognition) service. onStartCommand refines the type once the session mode
-		// is known.
-		ensureForegroundStarted(preferLocationType = hasLocationPermission)
+		// Promote immediately with a neutral type. The session configuration is loaded in
+		// onStartCommand, then startForeground is called again with the exact active source types
+		// before any GPS or health collection is enabled.
+		ensureForegroundStarted(requiresLocation = false, requiresHealth = false)
 
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
@@ -166,6 +169,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackerSettingsRepository = trackerSettingsRepository,
+			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
+				ensureForegroundStarted(
+					requiresLocation = requiresLocation,
+					requiresHealth = requiresHealth,
+					stopServiceOnFailure = stopServiceOnFailure,
+				)
+			},
 			runtimeTierAdjuster = { requestedTier ->
 				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
 					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
@@ -283,14 +293,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 		activeSessionDescriptor = provisionalDescriptor
 
-		// Re-assert the foreground service now the start command is being processed. Auto-started
-		// sessions can request GPS immediately when location tracking is enabled, and the FGS type is
-		// fixed at start (it is never re-declared on tier escalation), so a session that may record a
-		// route must advertise the location type up front or Android blocks its background location
-		// access. Only when location permission is absent (activity/steps-only tracking) do we fall
-		// back to the health type, which also prevents the Android 14+ startForeground crash.
-		ensureForegroundStarted(preferLocationType = hasLocationPermission)
-
 		controller.updateServiceRunning(true)
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
@@ -361,6 +363,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						requestedInitialTier
 					} else {
 						batteryAwarePolicy.adjustForBattery(requestedInitialTier)
+					}
+					val requiresLocation = locationEnabled && initialTier.isGpsEnabled
+					val requiresHealth = trackingParams.activityEnabled || trackingParams.stepsEnabled
+					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
+						return@runAfter
 					}
 					val descriptor = ActiveTrackingSessionDescriptor(
 						isUserInitiated = isUserInitiated,
@@ -452,45 +459,96 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	/**
-	 * Starts the service in the foreground with the most appropriate foreground-service type.
+	 * Starts or updates the service with foreground-service types matching active data access.
 	 *
-	 * On Android 14+ the platform rejects [ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION] unless
-	 * location permission is held, and the FGS type is fixed at start (it is not re-declared on tier
-	 * escalation). Auto-started sessions can be GPS-capable immediately once activity recognition
-	 * has confirmed movement, so whenever location permission is held we advertise the location type
-	 * up front to keep background location access working. Only when location permission is absent —
-	 * activity/steps-only tracking that can never use GPS — do we fall back to the health type
-	 * (backed by ACTIVITY_RECOGNITION); this also avoids the startForeground crash that
-	 * unconditionally declaring the location type caused for those sessions. If no declared type can
-	 * be started the service stops instead of crashing.
+	 * Android supports calling `startForeground` again when the service starts using different
+	 * source types. This lets non-GPS sessions stay on health/special-use and promotes to location
+	 * before a GPS trigger is enabled. A location-required session never falls back to a non-location
+	 * type; doing so would leave GPS collection running without the required foreground declaration.
 	 *
-	 * @param preferLocationType whether the location type should be preferred (location permission
-	 * is held, so the session may use or escalate to GPS).
+	 * @return true when the required foreground declaration is active.
 	 */
-	private fun ensureForegroundStarted(preferLocationType: Boolean) {
-		TrackerNotificationChannels.ensureTrackingChannel(this)
-		val notification = TrackerNotificationManager.getForegroundNotification(this)
+	@Synchronized
+	private fun ensureForegroundStarted(
+		requiresLocation: Boolean,
+		requiresHealth: Boolean,
+		stopServiceOnFailure: Boolean = true,
+	): Boolean {
+		val requirements = ForegroundServiceRequirements(requiresLocation, requiresHealth)
+
+		if (requiresLocation && !hasLocationPermission) {
+			onForegroundStartFailed(stopServiceOnFailure)
+			return false
+		}
 
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-			if (!tryStartForeground(notification, type = null)) onForegroundStartFailed()
-			return
+			if (foregroundStarted && activeForegroundRequirements == requirements) return true
+			val notification = TrackerNotificationManager.getForegroundNotification(
+				context = this,
+				usesLocation = requiresLocation,
+				isUserInitiatedSession = sessionInfo?.isInitiatedByUser,
+			)
+			return if (tryStartForeground(notification, type = null)) {
+				foregroundStarted = true
+				activeForegroundServiceType = null
+				activeForegroundRequirements = requirements
+				onForegroundServiceTypeChanged()
+				true
+			} else {
+				onForegroundStartFailed(stopServiceOnFailure)
+				false
+			}
 		}
 
 		val candidates = foregroundServiceTypeCandidates(
 			sdkInt = Build.VERSION.SDK_INT,
-			preferLocationType = preferLocationType,
+			requiresLocation = requiresLocation,
+			requiresHealth = requiresHealth,
 			hasLocationPermission = hasLocationPermission,
 			hasActivityPermission = hasActivityPermission,
 		)
-		val started = candidates.any { type -> tryStartForeground(notification, type) }
-		if (!started) onForegroundStartFailed()
+		val preferredType = candidates.firstOrNull()
+		if (preferredType == null && candidates.isEmpty()) {
+			onForegroundStartFailed(stopServiceOnFailure)
+			return false
+		}
+		if (
+			foregroundStarted &&
+			activeForegroundServiceType == preferredType &&
+			activeForegroundRequirements == requirements
+		) {
+			return true
+		}
+
+		val notification = TrackerNotificationManager.getForegroundNotification(
+			context = this,
+			usesLocation = requiresLocation,
+			isUserInitiatedSession = sessionInfo?.isInitiatedByUser,
+		)
+		for (type in candidates) {
+			if (tryStartForeground(notification, type)) {
+				foregroundStarted = true
+				activeForegroundServiceType = type
+				activeForegroundRequirements = requirements
+				onForegroundServiceTypeChanged()
+				return true
+			}
+		}
+		onForegroundStartFailed(stopServiceOnFailure)
+		return false
+	}
+
+	private fun onForegroundServiceTypeChanged() {
+		if (::orchestrator.isInitialized) {
+			orchestrator.notificationComponent.onForegroundServiceTypeChanged()
+		}
 	}
 
 	private fun tryStartForeground(notification: Notification, type: Int?): Boolean = try {
-		if (type == null) {
-			startForeground(TrackerNotificationManager.NOTIFICATION_ID, notification)
-		} else {
+		if (type != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			startForeground(TrackerNotificationManager.NOTIFICATION_ID, notification, type)
+		} else {
+			startForeground(TrackerNotificationManager.NOTIFICATION_ID, notification)
 		}
 		true
 	} catch (exception: SecurityException) {
@@ -510,9 +568,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	private fun onForegroundStartFailed() {
-		Reporter.w("TrackerService", "No permitted foreground-service type available; stopping service")
-		requestGracefulStop()
+	private fun onForegroundStartFailed(stopService: Boolean) {
+		if (stopService) {
+			Reporter.w("TrackerService", "No permitted foreground-service type available; stopping service")
+			TrackerNotificationManager.postStartFailedNotification(this)
+			requestGracefulStop()
+		} else {
+			Reporter.w(
+				"TrackerService",
+				"Location foreground declaration unavailable; keeping the current non-GPS session",
+			)
+		}
 	}
 
 	override fun onUpdate(cycle: TrackingCycle): Job = cycleDispatcher.enqueue(cycle)
@@ -946,45 +1012,57 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 }
 
 /**
- * Pure logic: ordered foreground-service types to attempt for a tracker session, most preferred
- * first.
+ * Pure logic: the exact foreground-service declaration required by active tracking sources.
  *
  * The runtime permission prerequisites differ per type — [ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION]
  * needs ACCESS_FINE/COARSE_LOCATION and [ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH] needs
- * ACTIVITY_RECOGNITION — so only types whose prerequisites are met are offered, and the caller tries
- * them in order until one is accepted by `startForeground`. When [preferLocationType] is set (the
- * caller holds location permission and the session may use or escalate to GPS) the location type is
- * advertised first; otherwise the health type is preferred so an activity/steps-only session with no
- * location permission cannot crash `startForeground` on Android 14+.
+ * ACTIVITY_RECOGNITION. Permission possession alone never adds a type: location is declared only
+ * while a GPS trigger is active, and health only while activity or step collection is configured.
  *
- * [ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE] is appended as a terminal fallback (it has no
- * runtime-permission gate) so a session that holds neither location nor activity permission — for
- * example a user-started Wi-Fi/cell-only session — can still run a foreground service rather than
- * being stopped. It is unlike `dataSync`, which the platform time-caps and would prematurely kill a
- * long tracking session.
+ * [ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE] covers neutral startup and signal-only sessions.
+ * A location-required session has no non-location fallback because it must not access GPS under an
+ * inaccurate foreground declaration.
  *
- * Before Android 14 the location type is not permission-gated at `startForeground` time (matching
- * historical behaviour) and the health/special-use types do not exist, so only the location type is
- * returned.
+ * Before Android 14 health/special-use types do not exist, so non-location sessions use the untyped
+ * `startForeground` overload.
  */
+@SuppressLint("InlinedApi")
 internal fun foregroundServiceTypeCandidates(
 	sdkInt: Int,
-	preferLocationType: Boolean,
+	requiresLocation: Boolean,
+	requiresHealth: Boolean,
 	hasLocationPermission: Boolean,
 	hasActivityPermission: Boolean,
-): List<Int> {
+): List<Int?> {
 	if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-		return listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-	}
-	return buildList {
-		if (preferLocationType && hasLocationPermission) {
-			add(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+		return when {
+			requiresLocation && hasLocationPermission ->
+				listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+			requiresLocation -> emptyList()
+			else -> listOf(null)
 		}
-		if (hasActivityPermission) add(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
-		if (hasLocationPermission) add(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-		add(ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-	}.distinct()
+	}
+	if (requiresLocation) {
+		if (!hasLocationPermission) return emptyList()
+		val healthType = if (requiresHealth && hasActivityPermission) {
+			ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+		} else {
+			ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
+		}
+		val combinedType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or healthType
+		return listOf(combinedType)
+	}
+	return if (requiresHealth && hasActivityPermission) {
+		listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+	} else {
+		listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+	}
 }
+
+private data class ForegroundServiceRequirements(
+	val requiresLocation: Boolean,
+	val requiresHealth: Boolean,
+)
 
 /**
  * Resolves the startup policy tier before battery capping is applied.

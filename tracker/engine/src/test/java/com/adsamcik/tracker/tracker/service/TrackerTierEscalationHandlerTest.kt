@@ -23,13 +23,22 @@ class TrackerTierEscalationHandlerTest {
 
 	@Test
 	fun `GPS to ambient transition disables GPS trigger and enables ambient trigger`() = runTest {
-		val gpsTrigger = RecordingTrigger(isLocationTrigger = true)
-		val ambientTrigger = RecordingTrigger()
+		val events = mutableListOf<String>()
+		val gpsTrigger = RecordingTrigger(
+			isLocationTrigger = true,
+			onDisable = { events += "gps-disabled" },
+		)
+		val ambientTrigger = RecordingTrigger(onEnable = { events += "ambient-enabled" })
 		val accessor = RecordingTimerAccessor(gpsTrigger)
 		val controller = mockk<TrackerServiceController>(relaxed = true)
 		val handler = newHandler(
 			controller = controller,
+			params = trackingParams(locationEnabled = true, activityEnabled = true),
 			ambientTriggerFactory = { ambientTrigger },
+			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
+				events += "fgs:$requiresLocation:$requiresHealth:$stopServiceOnFailure"
+				true
+			},
 		).apply {
 			currentTier = PolicyTier.ACTIVE
 			timerAccessor = accessor
@@ -46,7 +55,70 @@ class TrackerTierEscalationHandlerTest {
 		gpsTrigger.disableCount shouldBe 1
 		ambientTrigger.enableCount shouldBe 1
 		accessor.timer shouldBe ambientTrigger
+		events shouldBe listOf("ambient-enabled", "gps-disabled", "fgs:false:true:true")
 		verify(exactly = 1) { controller.updatePolicyTier(PolicyTier.AMBIENT) }
+	}
+
+	@Test
+	fun `ambient to GPS transition declares location before enabling GPS trigger`() = runTest {
+		val events = mutableListOf<String>()
+		val gpsTrigger = RecordingTrigger(
+			isLocationTrigger = true,
+			onEnable = { events += "gps-enabled" },
+		)
+		val handler = newHandler(
+			controller = mockk(relaxed = true),
+			params = trackingParams(locationEnabled = true, activityEnabled = true),
+			gpsTriggerFactory = { gpsTrigger },
+			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
+				events += "fgs:$requiresLocation:$requiresHealth:$stopServiceOnFailure"
+				true
+			},
+		).apply {
+			currentTier = PolicyTier.AMBIENT
+			timerAccessor = RecordingTimerAccessor(RecordingTrigger())
+		}
+
+		handler.onPolicyChanged(
+			policy = TrackingPolicy.ACTIVE_ELEVATED,
+			context = mockk(relaxed = true),
+			timerReceiver = mockk(relaxed = true),
+			scope = this,
+		)
+		advanceUntilIdle()
+
+		events shouldBe listOf("fgs:true:true:false", "gps-enabled")
+		handler.currentTier shouldBe PolicyTier.PRECISION
+	}
+
+	@Test
+	fun `failed location declaration prevents GPS transition`() = runTest {
+		var gpsFactoryCalls = 0
+		val controller = mockk<TrackerServiceController>(relaxed = true)
+		val handler = newHandler(
+			controller = controller,
+			params = trackingParams(locationEnabled = true),
+			gpsTriggerFactory = {
+				gpsFactoryCalls++
+				RecordingTrigger(isLocationTrigger = true)
+			},
+			foregroundServiceTypeUpdater = { _, _, _ -> false },
+		).apply {
+			currentTier = PolicyTier.AMBIENT
+			timerAccessor = RecordingTimerAccessor(RecordingTrigger())
+		}
+
+		handler.onPolicyChanged(
+			policy = TrackingPolicy.ACTIVE_ELEVATED,
+			context = mockk(relaxed = true),
+			timerReceiver = mockk(relaxed = true),
+			scope = this,
+		)
+		advanceUntilIdle()
+
+		gpsFactoryCalls shouldBe 0
+		handler.currentTier shouldBe PolicyTier.AMBIENT
+		verify(exactly = 0) { controller.updatePolicyTier(any()) }
 	}
 
 	@Test
@@ -85,10 +157,19 @@ class TrackerTierEscalationHandlerTest {
 	@Test
 	fun `failed GPS transition does not publish an unapplied tier`() = runTest {
 		val ambientTrigger = RecordingTrigger()
+		val foregroundUpdates = mutableListOf<Triple<Boolean, Boolean, Boolean>>()
 		val controller = mockk<TrackerServiceController>(relaxed = true)
 		val handler = newHandler(
 			controller = controller,
 			gpsTriggerFactory = { RecordingTrigger(hasPermissions = false) },
+			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
+				foregroundUpdates += Triple(
+					requiresLocation,
+					requiresHealth,
+					stopServiceOnFailure,
+				)
+				true
+			},
 		).apply {
 			currentTier = PolicyTier.AMBIENT
 			timerAccessor = RecordingTimerAccessor(ambientTrigger)
@@ -103,26 +184,25 @@ class TrackerTierEscalationHandlerTest {
 		advanceUntilIdle()
 
 		handler.currentTier shouldBe PolicyTier.AMBIENT
+		foregroundUpdates shouldBe listOf(
+			Triple(true, false, false),
+			Triple(false, false, true),
+		)
 		verify(exactly = 0) { controller.updatePolicyTier(PolicyTier.PRECISION) }
 	}
 
 	private fun newHandler(
 		controller: TrackerServiceController,
+		params: com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState =
+			trackingParams(locationEnabled = true),
 		tierAdjuster: (PolicyTier) -> PolicyTier = { it },
 		gpsTriggerFactory: suspend (Context) -> CollectionTriggerComponent = { RecordingTrigger() },
 		ambientTriggerFactory: () -> CollectionTriggerComponent = { RecordingTrigger() },
+		foregroundServiceTypeUpdater: (Boolean, Boolean, Boolean) -> Boolean =
+			{ _, _, _ -> true },
 	): TrackerTierEscalationHandler {
 		val trackingParams = mockk<com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository>(relaxed = true) {
-			every { data } returns MutableStateFlow(
-				com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState(
-					locationEnabled = true,
-					activityEnabled = false,
-					stepsEnabled = false,
-					wifiEnabled = false,
-					cellEnabled = false,
-					skiDetectionEnabled = false,
-				),
-			)
+			every { data } returns MutableStateFlow(params)
 		}
 		return TrackerTierEscalationHandler(
 			componentMutex = Mutex(),
@@ -131,6 +211,22 @@ class TrackerTierEscalationHandlerTest {
 			tierAdjuster = tierAdjuster,
 			gpsTriggerFactory = gpsTriggerFactory,
 			ambientTriggerFactory = ambientTriggerFactory,
+			foregroundServiceTypeUpdater = foregroundServiceTypeUpdater,
+		)
+	}
+
+	private companion object {
+		fun trackingParams(
+			locationEnabled: Boolean,
+			activityEnabled: Boolean = false,
+			stepsEnabled: Boolean = false,
+		) = com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState(
+			locationEnabled = locationEnabled,
+			activityEnabled = activityEnabled,
+			stepsEnabled = stepsEnabled,
+			wifiEnabled = false,
+			cellEnabled = false,
+			skiDetectionEnabled = false,
 		)
 	}
 
@@ -150,6 +246,8 @@ class TrackerTierEscalationHandlerTest {
 	private class RecordingTrigger(
 		private val hasPermissions: Boolean = true,
 		override val isLocationTrigger: Boolean = false,
+		private val onEnable: () -> Unit = {},
+		private val onDisable: () -> Unit = {},
 	) : DynamicIntervalCollectionTrigger {
 		override val titleRes: Int = 0
 		override val requiredPermissions: Collection<String> = emptyList()
@@ -164,10 +262,12 @@ class TrackerTierEscalationHandlerTest {
 
 		override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 			enableCount++
+			onEnable()
 		}
 
 		override fun onDisable(context: Context) {
 			disableCount++
+			onDisable()
 		}
 
 		override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
