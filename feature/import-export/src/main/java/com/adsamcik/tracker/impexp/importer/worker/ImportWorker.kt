@@ -12,6 +12,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.room.withTransaction
+import androidx.hilt.work.HiltWorker
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
@@ -19,7 +20,9 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -27,20 +30,29 @@ import com.adsamcik.tracker.shared.utils.extension.runWithReport
 import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
 import java.io.IOException
 import java.util.Locale
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 
-class ImportWorker(
-    private val context: Context,
-    workerParams: WorkerParameters
+@HiltWorker
+class ImportWorker @AssistedInject constructor(
+    @Assisted private val context: Context,
+    @Assisted workerParams: WorkerParameters,
+    private val database: AppDatabase,
+    private val dispatchers: DispatchersProvider,
 ) : CoroutineWorker(context, workerParams) {
 
     private val import = DataImport()
-    private lateinit var database: AppDatabase
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private var errorCount: Int = 0
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = withContext(dispatchers.io) {
+        doWorkOnIo()
+    }
+
+    private suspend fun doWorkOnIo(): Result {
         val uriString = inputData.getString(ARG_FILE_URI) ?: return Result.failure()
         val uri = Uri.parse(uriString)
         val file = DocumentFile.fromSingleUri(context, uri) ?: return Result.failure()
@@ -50,11 +62,8 @@ class ImportWorker(
             true
         )
 
-        database = AppDatabase.database(context)
         return try {
-            val importResult = database.withTransaction {
-                handleFile(file)
-            }
+            val importResult = handleFile(file)
 
             val notificationText = buildNotificationText(importResult)
             showNotification(notificationText, false)
@@ -190,7 +199,18 @@ class ImportWorker(
 
         return runWithResultAndReport {
             try {
-                import.import(context, database, stream)
+                when (import.transactionMode) {
+                    ImportTransactionMode.IMPORTER_MANAGED ->
+                        import.import(context, database, stream)
+                    ImportTransactionMode.WORKER_MANAGED ->
+                        database.withTransaction {
+                            import.import(context, database, stream).also { result ->
+                                if (result.failedCount > 0) {
+                                    throw ImportTransactionRollback(result)
+                                }
+                            }
+                        }
+                }
             } catch (e: SQLiteCantOpenDatabaseException) {
                 showErrorNotification(
                     context.getString(
@@ -199,6 +219,8 @@ class ImportWorker(
                     )
                 )
                 throw e
+            } catch (rollback: ImportTransactionRollback) {
+                rollback.result
             }
         }.getOrThrow()
     }
@@ -217,6 +239,11 @@ class ImportWorker(
             } ?: throw IOException("Failed to open ${fileName}")
         }
     }
+
+    private class ImportTransactionRollback(
+        val result: ImportResult,
+    ) : RuntimeException()
+
     companion object {
         const val NOTIFICATION_ID: Int = 98784
         const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
