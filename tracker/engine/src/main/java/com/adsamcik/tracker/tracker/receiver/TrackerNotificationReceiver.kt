@@ -6,9 +6,8 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.stopService
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.service.TrackerService
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -24,7 +23,7 @@ internal class TrackerNotificationReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		when (val value = intent.getIntExtra(ACTION_STRING, -1)) {
 			STOP_TRACKING_ACTION -> {
-				context.stopService<TrackerService>()
+				TrackerServiceApi.stopService(context)
 			}
 			LOCK_RECHARGE_ACTION -> {
 				lockManager.lockUntilRecharge(context)
@@ -48,4 +47,3 @@ internal class TrackerNotificationReceiver : BroadcastReceiver() {
 		internal const val LOCK_TIME_ACTION: Int = 3
 	}
 }
-

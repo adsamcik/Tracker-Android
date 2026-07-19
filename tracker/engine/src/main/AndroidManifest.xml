@@ -72,6 +72,10 @@
             android:exported="false"/>
 
         <receiver
+            android:name="com.adsamcik.tracker.tracker.receiver.TrackerRestartReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerListenerRegistrationReceiver"
             android:exported="false"
             android:permission="${applicationId}.permission.TRACKER">

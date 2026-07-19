@@ -43,6 +43,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
@@ -124,6 +126,8 @@ class PersistenceProcessor @Inject constructor(
 	private val pendingIds = mutableListOf<Long>()
 	private var recoveryIncomplete = false
 	private var commitStatusUnknown = false
+	private val recoveryMutex = Mutex()
+	private var pipelineActive = false
 
 	private enum class CommitResolution {
 		COMMITTED,
@@ -131,14 +135,16 @@ class PersistenceProcessor @Inject constructor(
 		UNKNOWN,
 	}
 
-	override suspend fun onStart(context: ProcessorContext) {
+	override suspend fun onStart(context: ProcessorContext) = recoveryMutex.withLock {
 		durableBuffer.setSessionId(context.sessionId)
 		if (hasRetainedInMemoryState() && !flushAll()) {
-			return
+			pipelineActive = true
+			return@withLock
 		}
 		clearBuffers()
 		pendingIds.clear()
 		recoverPendingSignals()
+		pipelineActive = true
 	}
 
 	/**
@@ -166,11 +172,23 @@ class PersistenceProcessor @Inject constructor(
 		return emptyList()
 	}
 
-	override suspend fun onStop(): List<DomainEvent> {
-		check(flushAll()) {
-			"Final persistence flush failed; retaining buffered signals for retry"
+	override suspend fun onStop(): List<DomainEvent> = recoveryMutex.withLock {
+		try {
+			check(flushAll()) {
+				"Final persistence flush failed; retaining buffered signals for retry"
+			}
+			emptyList()
+		} finally {
+			pipelineActive = false
 		}
-		return emptyList()
+	}
+
+	internal suspend fun drainOrphanedSignals(): Boolean = recoveryMutex.withLock {
+		if (pipelineActive) return@withLock true
+		clearBuffers()
+		pendingIds.clear()
+		recoverPendingSignals()
+		!recoveryIncomplete && !durableBuffer.hasPendingEntries()
 	}
 
 	override suspend fun checkpointStagedSignals(): Boolean {
