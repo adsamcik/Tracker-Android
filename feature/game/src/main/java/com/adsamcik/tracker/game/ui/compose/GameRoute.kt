@@ -17,6 +17,7 @@ fun GameRoute(
 	val vm: GameViewModel = hiltViewModel()
 	val explorationVm: ExplorationViewModel = hiltViewModel()
 	val points by vm.pointsToday.collectAsStateWithLifecycle()
+	val weeklyRanking by vm.weeklyRanking.collectAsStateWithLifecycle()
 	val steps by vm.stepsSummary.collectAsStateWithLifecycle()
 	val miniGameEntries by vm.miniGameEntries.collectAsStateWithLifecycle()
 	val exploration by explorationVm.explorationState.collectAsStateWithLifecycle()
@@ -24,6 +25,7 @@ fun GameRoute(
 
 	GameScreen(
 		pointsToday = points,
+		weeklyRanking = weeklyRanking,
 		steps = steps,
 		miniGameEntries = miniGameEntries,
 		explorationState = exploration,

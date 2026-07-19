@@ -5,6 +5,8 @@ import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.goals.settings.DefaultGoalsSettingsRepository
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
+import com.adsamcik.tracker.game.ranking.DefaultWeeklyRankingService
+import com.adsamcik.tracker.feature.game.api.ranking.WeeklyRankingService
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.DefaultOnlineMapTilesRepository
@@ -46,6 +48,12 @@ abstract class RepositoryModule {
 	abstract fun bindGameRepository(
 		impl: DefaultGameRepository,
 	): GameRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindWeeklyRankingService(
+		impl: DefaultWeeklyRankingService,
+	): WeeklyRankingService
 
 	companion object {
 		/**

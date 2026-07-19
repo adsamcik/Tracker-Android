@@ -46,7 +46,10 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.feature.game.api.ranking.WeeklyRankingResult
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.ranking.WeeklyRankingCard
+import com.adsamcik.tracker.game.ranking.WeeklyRankingErrorCard
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
@@ -67,6 +70,7 @@ internal data class StepsSummaryUi(
 @Composable
 internal fun GameScreen(
 	pointsToday: Int? = null,
+	weeklyRanking: WeeklyRankingResult? = null,
 	steps: StepsSummaryUi? = null,
 	miniGameEntries: List<MiniGameEntry>? = null,
 	explorationState: ExplorationState? = null,
@@ -108,6 +112,18 @@ internal fun GameScreen(
 			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg),
 		) {
 			item { if (pointsToday == null) LoadingGameCard() else PointsCard(pointsToday) }
+			item {
+				when (weeklyRanking) {
+					null -> LoadingGameCard()
+					is WeeklyRankingResult.Success -> WeeklyRankingCard(
+						ranking = weeklyRanking.ranking,
+						modifier = Modifier.padding(horizontal = 16.dp),
+					)
+					WeeklyRankingResult.DataUnavailable -> WeeklyRankingErrorCard(
+						modifier = Modifier.padding(horizontal = 16.dp),
+					)
+				}
+			}
 			item {
 				val context = LocalContext.current
 				val stepCounterSupported = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) }
