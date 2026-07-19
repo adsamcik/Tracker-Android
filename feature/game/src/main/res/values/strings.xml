@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <!-- Module title for distribution manifest -->
     <string name="module_game_title">Game</string>
 
@@ -153,23 +153,6 @@
 
 
     <string name="points_earned_today">points earned today</string>
-
-    <!-- Weekly ranking -->
-    <string name="weekly_rank_title" tools:ignore="MissingTranslation">Weekly rank</string>
-    <string name="weekly_rank_refresh_hint" tools:ignore="MissingTranslation">A new local ladder starts every Monday</string>
-    <string name="weekly_rank_points_this_week" tools:ignore="MissingTranslation">%1$s points this week</string>
-    <string name="weekly_rank_points_to_next" tools:ignore="MissingTranslation">%1$s points to %2$s</string>
-    <string name="weekly_rank_progress_description" tools:ignore="MissingTranslation">%1$s rank, %3$s points remaining to %2$s</string>
-    <string name="weekly_rank_highest_reached" tools:ignore="MissingTranslation">Highest rank reached for this week</string>
-    <string name="weekly_rank_ladder_title" tools:ignore="MissingTranslation">This week’s ladder</string>
-    <string name="weekly_rank_tier_points" tools:ignore="MissingTranslation">%1$s pts</string>
-    <string name="weekly_rank_bronze" tools:ignore="MissingTranslation">Bronze</string>
-    <string name="weekly_rank_silver" tools:ignore="MissingTranslation">Silver</string>
-    <string name="weekly_rank_gold" tools:ignore="MissingTranslation">Gold</string>
-    <string name="weekly_rank_platinum" tools:ignore="MissingTranslation">Platinum</string>
-    <string name="weekly_rank_diamond" tools:ignore="MissingTranslation">Diamond</string>
-    <string name="weekly_rank_error_title" tools:ignore="MissingTranslation">Weekly rank unavailable</string>
-    <string name="weekly_rank_error_body" tools:ignore="MissingTranslation">Your points remain safely on this device. Reopen the game screen to try again.</string>
 
     <string name="settings_game_goals_category_title">Goals</string>
     <string name="settings_game_goals_day_steps_title">Daily step goal</string>

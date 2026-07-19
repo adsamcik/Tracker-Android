@@ -16,6 +16,5 @@ android {
 
 dependencies {
     implementation(libs.kotlin.stdlib.jdk8)
-    api(libs.kotlinx.coroutines.core)
     implementation(libs.navigation.compose)
 }
