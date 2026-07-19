@@ -1,42 +1,63 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
-import androidx.documentfile.provider.DocumentFile
-import androidx.sqlite.db.SimpleSQLiteQuery
+import android.database.sqlite.SQLiteDatabase
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.openInputStream
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
+import java.io.File
 import java.io.OutputStream
 
 /**
- * Exports raw database to a desired location.
+ * Exports every database owned by the application as a ZIP backup.
+ *
+ * Database discovery is deliberately based on [Context.databaseList] instead of a list of
+ * module-specific database implementations. This includes independent feature databases without
+ * making this module depend on their implementations, and automatically includes future ones.
  */
 class DatabaseExporter : Exporter {
 	override val canSelectDateRange: Boolean = false
-	override val mimeType: String = "application/vnd.sqlite3"
-	override val extension: String = "db"
+	override val mimeType: String = "application/zip"
+	override val extension: String = "zip"
 
 	override suspend fun export(
-			context: Context,
-			locationData: Sequence<LocationSample>,
-			outputStream: OutputStream,
-			dateRange: LongRange?
+		context: Context,
+		locationData: Sequence<LocationSample>,
+		outputStream: OutputStream,
+		dateRange: LongRange?
 	): ExportResult {
-		val db = AppDatabase.database(context)
-		val dbFile = DocumentFile.fromFile(context.getDatabasePath(db.openHelper.databaseName))
+		val databaseFiles = context.databaseList()
+			.map(context::getDatabasePath)
+			.filter { it.isFile && isDatabaseFileName(it.name) }
 
-		db.generalDao().checkpoint(SimpleSQLiteQuery("pragma wal_checkpoint(full)"))
-		val input = dbFile.uri.openInputStream(context)
-			?: return ExportResult.Error(
-				LocalizedString(R.string.export_error_source_database_unavailable)
-			)
-		db.runInTransaction {
-			input.use {
-				input.copyTo(outputStream)
+		if (databaseFiles.isEmpty()) {
+			return ExportResult.Error(LocalizedString(R.string.export_error_no_databases))
+		}
+
+		return try {
+			databaseFiles.forEach(::checkpoint)
+			DatabaseBackupArchive.write(databaseFiles, outputStream)
+			ExportResult.Success
+		} catch (_: Exception) {
+			ExportResult.Error(LocalizedString(R.string.export_error_unknown))
+		}
+	}
+
+	private fun checkpoint(databaseFile: File) {
+		SQLiteDatabase.openDatabase(
+			databaseFile.path,
+			null,
+			SQLiteDatabase.OPEN_READWRITE,
+		).use { database ->
+			database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use {
+				while (it.moveToNext()) {}
 			}
 		}
-		return ExportResult.Success
 	}
+
+	private fun isDatabaseFileName(name: String): Boolean =
+		name == File(name).name &&
+			!name.endsWith("-wal") &&
+			!name.endsWith("-shm") &&
+			!name.endsWith("-journal")
 }
