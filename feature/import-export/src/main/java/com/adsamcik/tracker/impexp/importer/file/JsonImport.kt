@@ -8,7 +8,10 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -39,28 +42,169 @@ internal class JsonImport(
 		JsonReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
 			reader.isLenient = true
 
+			if (reader.peek() == JsonToken.BEGIN_ARRAY) {
+				successCount += importSessionRecords(reader, database)
+			} else {
+				reader.beginObject()
+				while (reader.hasNext()) {
+					when (reader.nextName()) {
+						"schema" -> {
+							val version = reader.nextInt()
+							require(version in 1..CURRENT_SCHEMA_VERSION) {
+								"Unsupported JSON schema version: $version"
+							}
+						}
+						"exportedAt" -> reader.nextLong()
+						"dateRangeStart" -> reader.nextLong()
+						"dateRangeEnd" -> reader.nextLong()
+						"locations" -> successCount += importLocations(reader, database)
+						"sessions" -> successCount += importSessions(reader, database)
+						"segments" -> skipArray(reader) // segments can be regenerated
+						else -> reader.skipValue()
+					}
+				}
+				reader.endObject()
+			}
+		}
+		ImportResult(successCount = successCount)
+	}
+
+	private suspend fun importSessionRecords(reader: JsonReader, database: AppDatabase): Int {
+		var count = 0
+		reader.beginArray()
+		while (reader.hasNext()) {
 			reader.beginObject()
 			while (reader.hasNext()) {
 				when (reader.nextName()) {
-					"schema" -> {
-						val version = reader.nextInt()
-						require(version in 1..CURRENT_SCHEMA_VERSION) {
-							"Unsupported JSON schema version: $version"
-						}
+					"schemaVersion" -> {
+						require(reader.nextInt() == 2) { "Unsupported JSON session schema" }
 					}
-					"exportedAt" -> reader.nextLong()
-					"dateRangeStart" -> reader.nextLong()
-					"dateRangeEnd" -> reader.nextLong()
-					"locations" -> successCount += importLocations(reader, database)
-					"sessions" -> successCount += importSessions(reader, database)
-					"segments" -> skipArray(reader) // segments can be regenerated
+					"session" -> readSessionAsSegment(reader)?.let {
+						database.sessionSegmentDao().insert(it)
+						count++
+					}
+					"locations" -> count += importLocations(reader, database)
+					"wifiObservations" -> count += importWifiObservations(reader, database)
+					"cellSamples" -> count += importCellSamples(reader, database)
 					else -> reader.skipValue()
 				}
 			}
 			reader.endObject()
 		}
-		ImportResult(successCount = successCount)
+		reader.endArray()
+		return count
 	}
+
+	private suspend fun importWifiObservations(reader: JsonReader, database: AppDatabase): Int {
+		val observations = mutableListOf<WifiObservation>()
+		reader.beginArray()
+		while (reader.hasNext()) {
+			readWifiObservation(reader)?.let(observations::add)
+		}
+		reader.endArray()
+		if (observations.isNotEmpty()) database.wifiObservationDao().insert(observations)
+		return observations.size
+	}
+
+	private fun readWifiObservation(reader: JsonReader): WifiObservation? {
+		var timeMs = 0L
+		var bssid = ""
+		var ssid = ""
+		var capabilities = ""
+		var frequencyMhz = 0
+		var levelDbm = 0
+		var latitude: Double? = null
+		var longitude: Double? = null
+		var provenance = CoordinateProvenance.UNKNOWN
+		reader.beginObject()
+		while (reader.hasNext()) {
+			when (reader.nextName()) {
+				"timeMs" -> timeMs = reader.nextLong()
+				"bssid" -> bssid = reader.nextString()
+				"ssid" -> ssid = reader.nextString()
+				"capabilities" -> capabilities = reader.nextString()
+				"frequencyMhz" -> frequencyMhz = reader.nextInt()
+				"levelDbm" -> levelDbm = reader.nextInt()
+				"latitude" -> latitude = readNullableDouble(reader)
+				"longitude" -> longitude = readNullableDouble(reader)
+				"coordinateProvenance" -> provenance = readCoordinateProvenance(reader)
+				else -> reader.skipValue()
+			}
+		}
+		reader.endObject()
+		if (timeMs !in MIN_VALID_TIMESTAMP..MAX_VALID_TIMESTAMP || bssid.isBlank()) return null
+		return WifiObservation(
+			timeMs = timeMs,
+			bssid = bssid,
+			ssid = ssid,
+			capabilities = capabilities,
+			frequency = frequencyMhz,
+			level = levelDbm,
+			latE7 = latitude?.times(1e7)?.toInt(),
+			lonE7 = longitude?.times(1e7)?.toInt(),
+			provenance = provenance,
+			createdAt = System.currentTimeMillis(),
+		)
+	}
+
+	private suspend fun importCellSamples(reader: JsonReader, database: AppDatabase): Int {
+		val samples = mutableListOf<CellSample>()
+		reader.beginArray()
+		while (reader.hasNext()) {
+			readCellSample(reader)?.let(samples::add)
+		}
+		reader.endArray()
+		if (samples.isNotEmpty()) database.cellSampleDao().insert(samples)
+		return samples.size
+	}
+
+	private fun readCellSample(reader: JsonReader): CellSample? {
+		var timeMs = 0L
+		var cellId = 0L
+		var lac = 0
+		var mcc = 0
+		var mnc = 0
+		var networkType = 0
+		var signalStrength = 0
+		var latitude: Double? = null
+		var longitude: Double? = null
+		var provenance = CoordinateProvenance.UNKNOWN
+		reader.beginObject()
+		while (reader.hasNext()) {
+			when (reader.nextName()) {
+				"timeMs" -> timeMs = reader.nextLong()
+				"cellId" -> cellId = reader.nextLong()
+				"lac" -> lac = reader.nextInt()
+				"mcc" -> mcc = reader.nextInt()
+				"mnc" -> mnc = reader.nextInt()
+				"networkType" -> networkType = reader.nextInt()
+				"signalStrength" -> signalStrength = reader.nextInt()
+				"latitude" -> latitude = readNullableDouble(reader)
+				"longitude" -> longitude = readNullableDouble(reader)
+				"coordinateProvenance" -> provenance = readCoordinateProvenance(reader)
+				else -> reader.skipValue()
+			}
+		}
+		reader.endObject()
+		if (timeMs !in MIN_VALID_TIMESTAMP..MAX_VALID_TIMESTAMP) return null
+		return CellSample(
+			timeMs = timeMs,
+			cellId = cellId,
+			lac = lac,
+			mcc = mcc,
+			mnc = mnc,
+			networkType = networkType,
+			signalStrength = signalStrength,
+			latE7 = latitude?.times(1e7)?.toInt(),
+			lonE7 = longitude?.times(1e7)?.toInt(),
+			provenance = provenance,
+			createdAt = System.currentTimeMillis(),
+		)
+	}
+
+	private fun readCoordinateProvenance(reader: JsonReader): CoordinateProvenance =
+		runCatching { CoordinateProvenance.valueOf(reader.nextString()) }
+			.getOrDefault(CoordinateProvenance.UNKNOWN)
 
 	private suspend fun importLocations(reader: JsonReader, database: AppDatabase): Int {
 		val sampleDao = database.locationSampleDao()
@@ -98,12 +242,12 @@ internal class JsonImport(
 		reader.beginObject()
 		while (reader.hasNext()) {
 			when (reader.nextName()) {
-				"time" -> time = reader.nextLong()
-				"lat" -> lat = reader.nextDouble()
-				"lon" -> lon = reader.nextDouble()
-				"alt" -> alt = readNullableDouble(reader)
-				"spd" -> speed = readNullableDouble(reader)?.toFloat()
-				"acc" -> accuracy = readNullableDouble(reader)?.toFloat()
+				"time", "timeMs" -> time = reader.nextLong()
+				"lat", "latitude" -> lat = reader.nextDouble()
+				"lon", "longitude" -> lon = reader.nextDouble()
+				"alt", "altitudeM" -> alt = readNullableDouble(reader)
+				"spd", "speedMps" -> speed = readNullableDouble(reader)?.toFloat()
+				"acc", "horizontalAccuracyM" -> accuracy = readNullableDouble(reader)?.toFloat()
 				"act" -> reader.nextInt()
 				"actConf" -> reader.nextInt()
 				else -> reader.skipValue()
@@ -172,10 +316,10 @@ internal class JsonImport(
 		while (reader.hasNext()) {
 			when (reader.nextName()) {
 				"id" -> reader.nextLong()
-				"start" -> start = reader.nextLong()
-				"end" -> end = reader.nextLong()
-				"collections" -> collections = reader.nextInt()
-				"distanceInM" -> distanceInM = reader.nextDouble().toFloat()
+				"start", "startTimeMs" -> start = reader.nextLong()
+				"end", "endTimeMs" -> end = reader.nextLong()
+				"collections", "sampleCount" -> collections = reader.nextInt()
+				"distanceInM", "distanceM" -> distanceInM = reader.nextDouble().toFloat()
 				"isUserInitiated" -> reader.nextBoolean()
 				"steps" -> steps = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextInt()
 				else -> reader.skipValue()

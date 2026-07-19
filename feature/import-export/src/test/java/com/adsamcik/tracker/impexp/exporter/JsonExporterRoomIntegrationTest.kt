@@ -6,9 +6,12 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.LocationSample
@@ -22,7 +25,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.json.JSONObject
+import org.json.JSONArray
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -115,6 +118,35 @@ class JsonExporterRoomIntegrationTest {
 				steps = 248,
 			),
 		)
+		database.wifiObservationDao().insert(
+			WifiObservation(
+				timeMs = baseTimeMs + 15_000L,
+				bssid = "00:11:22:33:44:55",
+				ssid = "Tracker",
+				capabilities = "[WPA2]",
+				frequency = 5180,
+				level = -45,
+				latE7 = inRangeSamples.first().latE7,
+				lonE7 = inRangeSamples.first().lonE7,
+				provenance = CoordinateProvenance.DIRECT,
+				createdAt = baseTimeMs + 15_000L,
+			),
+		)
+		database.cellSampleDao().insert(
+			CellSample(
+				timeMs = baseTimeMs + 45_000L,
+				cellId = 1234L,
+				lac = 5,
+				mcc = 230,
+				mnc = 1,
+				networkType = 13,
+				signalStrength = 40,
+				latE7 = inRangeSamples.last().latE7,
+				lonE7 = inRangeSamples.last().lonE7,
+				provenance = CoordinateProvenance.DIRECT,
+				createdAt = baseTimeMs + 45_000L,
+			),
+		)
 
 		locationSampleDao.countBetween(dateRange.first, dateRange.last) shouldBe inRangeSamples.size
 
@@ -132,36 +164,32 @@ class JsonExporterRoomIntegrationTest {
 		outputFile.length() shouldBeGreaterThan 0L
 
 		val payload = outputFile.readText(Charsets.UTF_8)
-		payload shouldContain "\"time\":${inRangeSamples.first().timeMs}"
-		payload shouldContain "\"time\":${inRangeSamples.last().timeMs}"
-		payload.contains("\"time\":${outOfRangeSample.timeMs}") shouldBe false
+		payload shouldContain "\"timeMs\":${inRangeSamples.first().timeMs}"
+		payload shouldContain "\"timeMs\":${inRangeSamples.last().timeMs}"
+		payload.contains("\"timeMs\":${outOfRangeSample.timeMs}") shouldBe false
 
-		val document = JSONObject(payload)
-		document.getInt("schema") shouldBe 1
-		document.getLong("dateRangeStart") shouldBe dateRange.first
-		document.getLong("dateRangeEnd") shouldBe dateRange.last
-
-		val exportedLocations = document.getJSONArray("locations")
+		val record = JSONArray(payload).getJSONObject(0)
+		record.getInt("schemaVersion") shouldBe 2
+		val exportedLocations = record.getJSONArray("locations")
 		exportedLocations.length() shouldBe inRangeSamples.size
 		inRangeSamples.forEachIndexed { index, expected ->
 			val exported = exportedLocations.getJSONObject(index)
-			exported.getLong("time") shouldBe expected.timeMs
-			(abs(exported.getDouble("lat") - expected.latitude()) < 0.0000001) shouldBe true
-			(abs(exported.getDouble("lon") - expected.longitude()) < 0.0000001) shouldBe true
-			exported.getDouble("alt").toFloat() shouldBe expected.altitudeM
-			exported.getDouble("spd").toFloat() shouldBe expected.speedMps
-			exported.getDouble("acc").toFloat() shouldBe expected.hAccM
+			exported.getLong("timeMs") shouldBe expected.timeMs
+			(abs(exported.getDouble("latitude") - expected.latitude()) < 0.0000001) shouldBe true
+			(abs(exported.getDouble("longitude") - expected.longitude()) < 0.0000001) shouldBe true
+			exported.getDouble("altitudeM").toFloat() shouldBe expected.altitudeM
+			exported.getDouble("speedMps").toFloat() shouldBe expected.speedMps
+			exported.getDouble("horizontalAccuracyM").toFloat() shouldBe expected.hAccM
 		}
 
-		val exportedSessions = document.getJSONArray("sessions")
-		exportedSessions.length() shouldBe 1
-		val session = exportedSessions.getJSONObject(0)
-		session.getLong("start") shouldBe dateRange.first
-		session.getLong("end") shouldBe dateRange.last
-		session.getInt("collections") shouldBe inRangeSamples.size
-		session.getDouble("distanceInM").toFloat() shouldBe 185.4f
-		session.getBoolean("isUserInitiated") shouldBe true
+		val session = record.getJSONObject("session")
+		session.getLong("startTimeMs") shouldBe dateRange.first
+		session.getLong("endTimeMs") shouldBe dateRange.last
+		session.getInt("sampleCount") shouldBe inRangeSamples.size
+		session.getDouble("distanceM").toFloat() shouldBe 185.4f
 		session.getInt("steps") shouldBe 248
+		record.getJSONArray("wifiObservations").getJSONObject(0).getString("bssid") shouldBe "00:11:22:33:44:55"
+		record.getJSONArray("cellSamples").getJSONObject(0).getLong("cellId") shouldBe 1234L
 	}
 
 	@Test
@@ -193,8 +221,7 @@ class JsonExporterRoomIntegrationTest {
 			) shouldBe ExportResult.Success
 		}
 
-		val document = JSONObject(outputFile.readText(Charsets.UTF_8))
-		document.getJSONArray("sessions").length() shouldBe sessionCount
+		JSONArray(outputFile.readText(Charsets.UTF_8)).length() shouldBe sessionCount
 	}
 
 	private suspend fun loadPersistedLocations(dateRange: LongRange): Sequence<LocationSample> {
