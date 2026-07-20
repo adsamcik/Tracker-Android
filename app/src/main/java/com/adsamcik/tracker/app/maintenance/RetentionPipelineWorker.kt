@@ -7,8 +7,11 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.analysis.PresenceCompactor
+import com.adsamcik.tracker.shared.base.database.analysis.LegacyPresencePersistence
 import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -57,19 +60,42 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
     private suspend fun purgeRawData(db: AppDatabase, config: RetentionConfigState, now: Long) {
         if (config.rawDataRetentionDays == 0) return
+        if (db.pendingSignalDao().hasAny()) return
         val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        db.locationSampleDao().deleteOlderThan(cutoff)
-        db.stepIntervalDao().deleteOlderThan(cutoff)
-        db.activitySnapshotDao().deleteOlderThan(cutoff)
-        db.trackerRunDao().deleteOlderThan(cutoff)
-        db.pressureSampleDao().deleteOlderThan(cutoff)
+        val progress = if (LegacyPresencePersistence.PROACTIVE_COMPACTION_ENABLED) {
+            PresenceCompactor(db).compactThroughExclusive(cutoff)
+        } else {
+            null
+        }
+        val safeCutoff = progress?.let { minOf(cutoff, it.safeThroughMs) } ?: cutoff
+        db.withTransaction {
+            if (db.pendingSignalDao().hasAny()) return@withTransaction
+            val observationDao = db.locationObservationDao()
+            // A source committed after compaction can carry an old provider fix time. Keep the
+            // whole raw evidence set until that id has been reconciled into the checkpoint.
+            if (progress != null && observationDao.maxId() > progress.safeObservationId) return@withTransaction
+            if (progress == null) {
+                observationDao.deleteOlderThan(safeCutoff)
+            } else {
+                observationDao.deleteOlderThanThroughId(safeCutoff, progress.safeObservationId)
+            }
+            db.locationSampleDao().deleteOlderThan(safeCutoff)
+            db.stepIntervalDao().deleteOlderThan(safeCutoff)
+            db.activitySnapshotDao().deleteOlderThan(safeCutoff)
+            db.trackerRunDao().deleteOlderThan(safeCutoff)
+            db.pressureSampleDao().deleteOlderThan(safeCutoff)
+        }
     }
 
     private suspend fun purgeWifiCellData(db: AppDatabase, config: RetentionConfigState, now: Long) {
         if (config.wifiCellRetentionDays == 0) return
+        if (db.pendingSignalDao().hasAny()) return
         val cutoff = now - config.wifiCellRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        db.cellSampleDao().deleteOlderThan(cutoff)
-        db.wifiObservationDao().deleteOlderThan(cutoff)
+        db.withTransaction {
+            if (db.pendingSignalDao().hasAny()) return@withTransaction
+            db.cellSampleDao().deleteOlderThan(cutoff)
+            db.wifiObservationDao().deleteOlderThan(cutoff)
+        }
     }
 
     private suspend fun purgeTripData(db: AppDatabase, config: RetentionConfigState, now: Long) {

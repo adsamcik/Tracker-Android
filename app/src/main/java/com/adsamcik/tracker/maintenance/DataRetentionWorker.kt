@@ -14,6 +14,8 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.analysis.PresenceCompactor
+import com.adsamcik.tracker.shared.base.database.analysis.LegacyPresencePersistence
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
@@ -129,12 +131,30 @@ class DataRetentionWorker @AssistedInject constructor(
 
     @WorkerThread
     private suspend fun pruneOlderThan(cutoffMillis: Long) {
-        appDatabase.withTransaction {
-            locationSampleDao.deleteOlderThan(cutoffMillis)
-            wifiObservationDao.deleteOlderThan(cutoffMillis)
-            cellSampleDao.deleteOlderThan(cutoffMillis)
-            sessionSegmentDao.deleteOlderThan(cutoffMillis)
+        if (appDatabase.pendingSignalDao().hasAny()) return
+        val progress = if (LegacyPresencePersistence.PROACTIVE_COMPACTION_ENABLED) {
+            PresenceCompactor(appDatabase).compactThroughExclusive(cutoffMillis)
+        } else {
+            null
         }
-        exportPlanStore.resetAllWatermarks()
+        val safeCutoff = progress?.let { minOf(cutoffMillis, it.safeThroughMs) } ?: cutoffMillis
+        val pruned = appDatabase.withTransaction {
+            if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+            val observationDao = appDatabase.locationObservationDao()
+            if (progress != null && observationDao.maxId() > progress.safeObservationId) {
+                return@withTransaction false
+            }
+            if (progress == null) {
+                observationDao.deleteOlderThan(safeCutoff)
+            } else {
+                observationDao.deleteOlderThanThroughId(safeCutoff, progress.safeObservationId)
+            }
+            locationSampleDao.deleteOlderThan(safeCutoff)
+            wifiObservationDao.deleteOlderThan(safeCutoff)
+            cellSampleDao.deleteOlderThan(safeCutoff)
+            sessionSegmentDao.deleteOlderThan(safeCutoff)
+            true
+        }
+        if (pruned) exportPlanStore.resetAllWatermarks()
     }
 }

@@ -264,6 +264,38 @@ class ProcessorPipeline(
 	}
 
 	/**
+	 * Sends provider evidence only to the durability processor and checkpoints it immediately.
+	 *
+	 * Raw provider deliveries are captured before the curated pipeline and therefore must not fan
+	 * out to analytical processors. They still need the same serialization as normal persistence:
+	 * the slow-path lock excludes flush/stop while [mutex] excludes concurrent signal buffering.
+	 */
+	suspend fun checkpointDurableSignals(signals: List<TrackingSignal>): Boolean {
+		if (signals.isEmpty()) return true
+		return slowPathSerializer.withLock {
+			mutex.withLock {
+				if (!isRunning) return@withLock false
+				val processor = cachedActiveProcessors
+					.filterIsInstance<DurableSignalProcessor>()
+					.firstOrNull()
+					?: return@withLock false
+				val id = processor.descriptor.id
+				try {
+					signals.forEach(processor::onSignal)
+					val checkpointed = processor.checkpointStagedSignals()
+					if (checkpointed) resetFailureCount(id)
+					checkpointed
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					recordFailure(id, "raw-signal checkpoint", e)
+					false
+				}
+			}
+		}
+	}
+
+	/**
 	 * Escalate or de-escalate the pipeline to a new tier.
 	 * Starts processors that were inactive, stops those no longer needed.
 	 */

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
@@ -39,6 +40,59 @@ internal object SignalSerializer {
 		append(",\"ern\":")
 		append(signal.elapsedRealtimeNanos)
 
+		signal.locationObservation?.let { observation ->
+			append(",\"obs\":{\"disp\":\"")
+			appendJsonEscaped(observation.ingressDisposition)
+			append('"')
+			observation.coordinate?.let { coordinate ->
+				append(",\"lat\":")
+				append(coordinate.lat.raw)
+				append(",\"lon\":")
+				append(coordinate.lon.raw)
+			}
+			observation.horizontalAccuracyM?.let { append(",\"hAcc\":"); append(it) }
+			observation.altitudeM?.let { append(",\"alt\":"); append(it) }
+			observation.verticalAccuracyM?.let { append(",\"vAcc\":"); append(it) }
+			observation.speedMps?.let { append(",\"spd\":"); append(it) }
+			observation.speedAccuracyMps?.let { append(",\"sAcc\":"); append(it) }
+			append(",\"prov\":\"")
+			appendJsonEscaped(observation.provider)
+			append('"')
+			if (observation.receivedAtMs > 0L) {
+				append(",\"recvAt\":")
+				append(observation.receivedAtMs)
+			}
+			if (observation.receivedElapsedRealtimeNanos > 0L) {
+				append(",\"recv\":")
+				append(observation.receivedElapsedRealtimeNanos)
+			}
+			if (observation.acquisitionMode != "UNKNOWN") {
+				append(",\"acq\":\"")
+				appendJsonEscaped(observation.acquisitionMode)
+				append('"')
+			}
+			if (observation.requestPriority != "UNKNOWN") {
+				append(",\"pri\":\"")
+				appendJsonEscaped(observation.requestPriority)
+				append('"')
+			}
+			if (observation.permissionPrecision != "UNKNOWN") {
+				append(",\"perm\":\"")
+				appendJsonEscaped(observation.permissionPrecision)
+				append('"')
+			}
+			if (observation.batchIndex != 0) {
+				append(",\"bi\":")
+				append(observation.batchIndex)
+			}
+			if (observation.batchSize != 1) {
+				append(",\"bs\":")
+				append(observation.batchSize)
+			}
+			if (observation.isMock) append(",\"mock\":true")
+			append('}')
+		}
+
 		signal.location?.let { loc ->
 			append(",\"loc\":{\"lat\":")
 			append(loc.coordinate.lat.raw)
@@ -51,6 +105,34 @@ internal object SignalSerializer {
 			loc.rawGpsAltitudeM?.let { append(",\"rAlt\":"); append(it) }
 			loc.verticalAccuracyM?.let { append(",\"vAcc\":"); append(it) }
 			loc.speedAccuracyMps?.let { append(",\"sAcc\":"); append(it) }
+			if (loc.receivedElapsedRealtimeNanos > 0L) {
+				append(",\"recv\":")
+				append(loc.receivedElapsedRealtimeNanos)
+			}
+			if (loc.acquisitionMode != "UNKNOWN") {
+				append(",\"acq\":\"")
+				appendJsonEscaped(loc.acquisitionMode)
+				append('"')
+			}
+			if (loc.requestPriority != "UNKNOWN") {
+				append(",\"pri\":\"")
+				appendJsonEscaped(loc.requestPriority)
+				append('"')
+			}
+			if (loc.permissionPrecision != "UNKNOWN") {
+				append(",\"perm\":\"")
+				appendJsonEscaped(loc.permissionPrecision)
+				append('"')
+			}
+			if (loc.batchIndex != 0) {
+				append(",\"bi\":")
+				append(loc.batchIndex)
+			}
+			if (loc.batchSize != 1) {
+				append(",\"bs\":")
+				append(loc.batchSize)
+			}
+			if (loc.isMock) append(",\"mock\":true")
 			append(",\"prov\":\"")
 			appendJsonEscaped(loc.provider)
 			append("\"}")
@@ -164,6 +246,7 @@ internal object SignalSerializer {
 		TrackingSignal(
 			timestampMs = EpochMs(obj.getLong("ts")),
 			elapsedRealtimeNanos = obj.optLong("ern", 0L),
+			locationObservation = obj.optJSONObject("obs")?.toLocationObservationSignal(),
 			location = obj.optJSONObject("loc")?.toLocationSignal(),
 			activity = obj.optJSONObject("act")?.toActivitySignal(),
 			activityFresh = obj.optBoolean("af", obj.has("act")),
@@ -192,6 +275,39 @@ internal object SignalSerializer {
 		verticalAccuracyM = if (has("vAcc")) getDouble("vAcc").toFloat() else null,
 		speedAccuracyMps = if (has("sAcc")) getDouble("sAcc").toFloat() else null,
 		provider = optString("prov", "fused"),
+		receivedElapsedRealtimeNanos = optLong("recv", 0L),
+		acquisitionMode = optString("acq", "UNKNOWN"),
+		requestPriority = optString("pri", "UNKNOWN"),
+		permissionPrecision = optString("perm", "UNKNOWN"),
+		batchIndex = optInt("bi", 0),
+		batchSize = optInt("bs", 1).coerceAtLeast(1),
+		isMock = optBoolean("mock", false),
+	)
+
+	private fun JSONObject.toLocationObservationSignal() = LocationObservationSignal(
+		coordinate = if (has("lat") && has("lon")) {
+			CoordinateE7(
+				lat = LatE7(getInt("lat")),
+				lon = LonE7(getInt("lon")),
+			)
+		} else {
+			null
+		},
+		horizontalAccuracyM = if (has("hAcc")) getDouble("hAcc").toFloat() else null,
+		altitudeM = if (has("alt")) getDouble("alt").toFloat() else null,
+		verticalAccuracyM = if (has("vAcc")) getDouble("vAcc").toFloat() else null,
+		speedMps = if (has("spd")) getDouble("spd").toFloat() else null,
+		speedAccuracyMps = if (has("sAcc")) getDouble("sAcc").toFloat() else null,
+		provider = optString("prov", "unknown"),
+		receivedAtMs = optLong("recvAt", 0L),
+		receivedElapsedRealtimeNanos = optLong("recv", 0L),
+		acquisitionMode = optString("acq", "UNKNOWN"),
+		requestPriority = optString("pri", "UNKNOWN"),
+		permissionPrecision = optString("perm", "UNKNOWN"),
+		batchIndex = optInt("bi", 0),
+		batchSize = optInt("bs", 1).coerceAtLeast(1),
+		isMock = optBoolean("mock", false),
+		ingressDisposition = optString("disp", "DELIVERED_VALID"),
 	)
 
 	private fun JSONObject.toActivitySignal(): ActivitySignal {

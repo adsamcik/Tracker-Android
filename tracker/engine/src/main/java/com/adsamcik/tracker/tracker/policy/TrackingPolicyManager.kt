@@ -92,12 +92,15 @@ class TrackingPolicyManager(
 			startTimeMs = now,
 			endTimeMs = null,
 			policy = policy.name,
-			policyParams = buildPolicyParams(),
+			policyParams = buildPolicyParams(policy = policy),
 			userInitiated = isUserInitiated,
 			createdAt = now,
 		)
 
 		currentRunId = withContext(dispatchers.io) {
+			// A process can die before stop() closes its run. Reconcile every orphan first so an
+			// open-ended historical run cannot be interpreted as continuous presence up to now.
+			trackerRunDao.closeOpenRuns(now)
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = now
@@ -282,7 +285,7 @@ class TrackingPolicyManager(
 			startTimeMs = timeMs,
 			endTimeMs = null,
 			policy = newPolicy.name,
-			policyParams = buildEngineParams(reasonName),
+			policyParams = buildEngineParams(policy = newPolicy, reasonName = reasonName),
 			userInitiated = isUserInitiated,
 			createdAt = timeMs,
 		)
@@ -311,7 +314,7 @@ class TrackingPolicyManager(
 			startTimeMs = timeMs,
 			endTimeMs = null,
 			policy = newPolicy.name,
-			policyParams = buildPolicyParams(reason),
+			policyParams = buildPolicyParams(policy = newPolicy, reason = reason),
 			userInitiated = isUserInitiated,
 			createdAt = timeMs,
 		)
@@ -346,7 +349,10 @@ class TrackingPolicyManager(
 		}
 	}
 
-	private fun buildPolicyParams(reason: PolicyTransitionReason? = null): String {
+	private fun buildPolicyParams(
+		policy: TrackingPolicy,
+		reason: PolicyTransitionReason? = null,
+	): String {
 		return buildString {
 			append("{")
 			append("\"stepRateThresholds\":{")
@@ -359,11 +365,12 @@ class TrackingPolicyManager(
 			if (reason != null) {
 				append(",\"transitionReason\":\"${reason.name}\"")
 			}
+			appendControlledExplorationDecision(policy)
 			append("}")
 		}
 	}
 
-	private fun buildEngineParams(reasonName: String): String {
+	private fun buildEngineParams(policy: TrackingPolicy, reasonName: String): String {
 		val accValue = escalationEngine?.policyState?.value?.accumulatorValue ?: 0.0
 		val tier = escalationEngine?.policyState?.value?.tier?.name ?: "UNKNOWN"
 		return buildString {
@@ -372,8 +379,24 @@ class TrackingPolicyManager(
 			append("\"tier\":\"$tier\",")
 			append("\"accumulatorValue\":$accValue,")
 			append("\"transitionReason\":\"$reasonName\"")
+			appendControlledExplorationDecision(policy)
 			append("}")
 		}
+	}
+
+	private fun StringBuilder.appendControlledExplorationDecision(policy: TrackingPolicy) {
+		val decision = ProductionControlledExplorationPolicy.decide(
+			ControlledExplorationContext(
+				policy = policy,
+				isUserInitiated = isUserInitiated,
+			)
+		)
+		append(",\"controlledExploration\":{")
+		append("\"eligible\":${decision.eligible},")
+		append("\"propensity\":${decision.propensity},")
+		append("\"selected\":${decision.selected},")
+		append("\"reason\":\"${decision.reason.name}\"")
+		append("}")
 	}
 
 	companion object {

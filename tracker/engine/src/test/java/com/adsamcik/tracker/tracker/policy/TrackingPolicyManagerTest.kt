@@ -9,15 +9,18 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
+import io.mockk.slot
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
@@ -611,6 +614,105 @@ class TrackingPolicyManagerTest {
 	}
 
 	@Test
+	fun `start closes orphaned runs at replacement start before inserting new run`() = runTest {
+		val closeTime = slot<Long>()
+		val insertedRun = slot<TrackerRun>()
+		val manager = TrackingPolicyManager(
+			context = context,
+			isUserInitiated = false,
+			scope = backgroundScope,
+			database = database,
+		)
+
+		startAndAwait(manager)
+
+		coVerifyOrder {
+			trackerRunDao.closeOpenRuns(capture(closeTime))
+			trackerRunDao.insert(capture(insertedRun))
+		}
+		assertEquals(insertedRun.captured.startTimeMs, closeTime.captured)
+	}
+
+	@Test
+	fun `start run records disabled controlled-exploration propensity`() = runTest {
+		val insertedRun = slot<TrackerRun>()
+		val manager = TrackingPolicyManager(
+			context = context,
+			isUserInitiated = false,
+			scope = backgroundScope,
+			database = database,
+		)
+
+		startAndAwait(manager)
+
+		coVerify(exactly = 1) { trackerRunDao.insert(capture(insertedRun)) }
+		assertControlledExplorationDecision(
+			run = insertedRun.captured,
+			expectedEligible = true,
+			expectedReason = ControlledExplorationReason.PRODUCTION_DISABLED,
+		)
+	}
+
+	@Test
+	fun `legacy transition run records disabled controlled-exploration propensity`() = runTest {
+		val insertedRuns = mutableListOf<TrackerRun>()
+		val manager = TrackingPolicyManager(
+			context = context,
+			isUserInitiated = false,
+			scope = backgroundScope,
+			database = database,
+		)
+
+		startAndAwait(manager)
+		onLocationChangeAndAwait(
+			manager = manager,
+			displacementMeters = 100f,
+			timeMs = System.currentTimeMillis() + 1_000L,
+		)
+
+		coVerify(exactly = 2) { trackerRunDao.insert(capture(insertedRuns)) }
+		val transitionRun = insertedRuns.last()
+		assertTrue(
+			checkNotNull(transitionRun.policyParams)
+				.contains("\"transitionReason\":\"LOCATION_CHANGE\"")
+		)
+		assertControlledExplorationDecision(
+			run = transitionRun,
+			expectedEligible = false,
+			expectedReason = ControlledExplorationReason.NOT_ELIGIBLE,
+		)
+	}
+
+	@Test
+	fun `engine transition run records disabled controlled-exploration propensity`() = runTest {
+		val insertedRuns = mutableListOf<TrackerRun>()
+		val engine = DefaultPolicyEscalationEngine()
+		val manager = TrackingPolicyManager(
+			context = context,
+			isUserInitiated = false,
+			escalationEngine = engine,
+			scope = backgroundScope,
+			database = database,
+		)
+
+		startAndAwait(manager)
+		engine.overrideTier(PolicyTier.ACTIVE, "controlled-exploration serialization test")
+		advanceUntilIdle()
+
+		coVerify(exactly = 2) { trackerRunDao.insert(capture(insertedRuns)) }
+		val transitionRun = insertedRuns.last()
+		assertEquals(
+			"PolicyEscalationEngine",
+			JSONObject(checkNotNull(transitionRun.policyParams)).getString("engine"),
+		)
+		assertControlledExplorationDecision(
+			run = transitionRun,
+			expectedEligible = false,
+			expectedReason = ControlledExplorationReason.NOT_ELIGIBLE,
+		)
+	}
+
+	@Test
 	fun `stop ends current TrackerRun in database`() = runTest {
 		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
@@ -747,6 +849,21 @@ class TrackingPolicyManagerTest {
 	private suspend fun kotlinx.coroutines.test.TestScope.onLocationChangeAndAwait(manager: TrackingPolicyManager, displacementMeters: Float, timeMs: Long) {
 		manager.onLocationChange(displacementMeters = displacementMeters, timeMs = timeMs)
 		advanceUntilIdle()
+	}
+
+	private fun assertControlledExplorationDecision(
+		run: TrackerRun,
+		expectedEligible: Boolean,
+		expectedReason: ControlledExplorationReason,
+	) {
+		val params = checkNotNull(run.policyParams)
+		assertTrue(params.contains("\"propensity\":0.0"))
+
+		val decision = JSONObject(params).getJSONObject("controlledExploration")
+		assertEquals(expectedEligible, decision.getBoolean("eligible"))
+		assertEquals(0L, decision.getDouble("propensity").toRawBits())
+		assertFalse(decision.getBoolean("selected"))
+		assertEquals(expectedReason.name, decision.getString("reason"))
 	}
 
 }

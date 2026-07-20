@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -126,6 +127,7 @@ class PersistenceRecoveryCrossSessionTest {
 			fakeDao.store.all { it.sessionId == sessionA }
 
 			val locationDao = mockk<LocationSampleDao>(relaxed = true)
+			val locationObservationDao = mockk<LocationObservationDao>(relaxed = true)
 			val cellDao = mockk<CellSampleDao>(relaxed = true)
 			val wifiDao = mockk<WifiObservationDao>(relaxed = true)
 			val pressureDao = mockk<PressureSampleDao>(relaxed = true)
@@ -135,6 +137,7 @@ class PersistenceRecoveryCrossSessionTest {
 
 			val processor = PersistenceProcessor(
 				locationSampleDao = locationDao,
+				locationObservationDao = locationObservationDao,
 				cellSampleDao = cellDao,
 				wifiObservationDao = wifiDao,
 				pressureSampleDao = pressureDao,

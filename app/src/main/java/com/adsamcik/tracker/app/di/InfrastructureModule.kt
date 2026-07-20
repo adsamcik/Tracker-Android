@@ -31,6 +31,9 @@ import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.PresenceIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.PresenceAnalysisDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
@@ -201,6 +204,17 @@ object InfrastructureModule {
 
     @Provides
     fun provideLocationSampleDao(database: AppDatabase): LocationSampleDao = database.locationSampleDao()
+
+    @Provides
+    fun provideLocationObservationDao(database: AppDatabase): LocationObservationDao =
+        database.locationObservationDao()
+
+    @Provides
+    fun providePresenceIntervalDao(database: AppDatabase): PresenceIntervalDao =
+        database.presenceIntervalDao()
+
+    @Provides
+    fun providePresenceAnalysisDao(database: AppDatabase): PresenceAnalysisDao = database.presenceAnalysisDao()
 
     @Provides
     fun provideStepIntervalDao(database: AppDatabase): StepIntervalDao = database.stepIntervalDao()

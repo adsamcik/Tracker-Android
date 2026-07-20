@@ -5,7 +5,14 @@ import android.location.Location
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationData
+import com.adsamcik.tracker.shared.base.data.LocationFixMetadata
+import com.adsamcik.tracker.shared.base.data.LocationIngressDisposition
+import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
+import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -19,6 +26,9 @@ import kotlin.concurrent.withLock
 internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	override val isLocationTrigger: Boolean get() = true
 
+	protected abstract val acquisitionMode: LocationAcquisitionMode
+	protected abstract val requestPriority: LocationRequestPriority
+
 	@Volatile
 	protected var receiver: TrackerTimerReceiver? = null
 		private set
@@ -27,6 +37,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		private set
 
 	private var startedAtElapsedRealtimeNanos: Long = Long.MIN_VALUE
+	private var permissionPrecision: LocationPermissionPrecision = LocationPermissionPrecision.UNKNOWN
 
 	protected val newDataLock = ReentrantLock()
 
@@ -53,27 +64,72 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		require(locations.isNotEmpty())
 		newDataLock.withLock {
 			val receiver = receiver ?: return
+			val receivedAtMs = Time.nowMillis
+			val receivedElapsedRealtimeNanos = Time.elapsedRealtimeNanos
+			val batchSize = locations.size
+			val metadata = locations.indices.map { index ->
+				LocationFixMetadata(
+					receivedAtMs = receivedAtMs,
+					receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+					acquisitionMode = acquisitionMode,
+					requestPriority = requestPriority,
+					permissionPrecision = permissionPrecision,
+					batchIndex = index,
+					batchSize = batchSize,
+				)
+			}
+			val observations = locations.mapIndexed { index, location ->
+				val disposition = when {
+					!isLocationValid(location) -> LocationIngressDisposition.REJECTED_INVALID_COORDINATE
+					!isLocationFreshEnough(location) -> LocationIngressDisposition.REJECTED_STALE
+					else -> LocationIngressDisposition.DELIVERED_VALID
+				}
+				LocationProviderObservation(
+					location = Location(location),
+					metadata = metadata[index],
+					ingressDisposition = disposition,
+				)
+			}
 
 			// Filter every location, not just the last. A batched delivery whose final
 			// fix is valid but containing earlier NaN/cold-start samples would otherwise
 			// poison persistence with garbage coordinates.
-			val filtered = locations.filter { isLocationFreshEnough(it) && isLocationValid(it) }
-			if (filtered.isEmpty()) return
-
-			val cycle = createTrackingCycle(filtered)
+			val filtered = observations.mapIndexedNotNull { index, observation ->
+				locations[index].takeIf {
+					observation.ingressDisposition == LocationIngressDisposition.DELIVERED_VALID
+				}?.let { it to observation.metadata }
+			}
+			val cycle = if (filtered.isEmpty()) {
+				TrackingCycle(
+					timestampMs = receivedAtMs,
+					elapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+					locationObservations = observations,
+				)
+			} else {
+				createTrackingCycle(
+					locations = filtered.map { it.first },
+					metadata = filtered.map { it.second },
+					observations = observations,
+				)
+			}
 			receiver.onUpdate(cycle)
 
-			previousLocation = filtered.last()
+			if (filtered.isNotEmpty()) previousLocation = filtered.last().first
 		}
 	}
 
-	private fun createTrackingCycle(locations: List<Location>): TrackingCycle {
+	private fun createTrackingCycle(
+		locations: List<Location>,
+		metadata: List<LocationFixMetadata>,
+		observations: List<LocationProviderObservation>,
+	): TrackingCycle {
 		require(locations.isNotEmpty())
+		require(metadata.size == locations.size)
 		val location = locations.last()
 		val builder = TrackingCycleBuilder(location.time, location.elapsedRealtimeNanos)
 
 		val locationBuilder = LocationData.Builder()
-		locationBuilder.setLocations(locations)
+		locationBuilder.setLocations(locations, metadata)
 
 		val previousLocation = previousLocation
 		if (previousLocation != null) {
@@ -82,6 +138,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		}
 
 		builder.location = locationBuilder.build()
+		builder.locationObservations = observations
 		return builder.build()
 	}
 
@@ -91,6 +148,11 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 			this.receiver = receiver
 			previousLocation = null
 			startedAtElapsedRealtimeNanos = Time.elapsedRealtimeNanos
+			permissionPrecision = if (context.hasPreciseLocationPermission) {
+				LocationPermissionPrecision.PRECISE
+			} else {
+				LocationPermissionPrecision.APPROXIMATE
+			}
 		}
 	}
 
@@ -99,6 +161,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		newDataLock.withLock {
 			this.receiver = null
 			previousLocation = null
+			permissionPrecision = LocationPermissionPrecision.UNKNOWN
 		}
 	}
 

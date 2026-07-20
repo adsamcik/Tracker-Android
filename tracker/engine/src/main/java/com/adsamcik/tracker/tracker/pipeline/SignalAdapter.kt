@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -60,6 +61,7 @@ object SignalAdapter {
 	fun buildSignal(
 		timestampMs: Long,
 		elapsedRealtimeNanos: Long = 0L,
+		locationObservation: LocationObservationSignal? = null,
 		latitude: Double? = null,
 		longitude: Double? = null,
 		accuracy: Float? = null,
@@ -70,6 +72,13 @@ object SignalAdapter {
 		speedAccuracy: Float? = null,
 		distanceDelta: Float? = null,
 		provider: String = "fused",
+		receivedElapsedRealtimeNanos: Long = 0L,
+		acquisitionMode: String = "UNKNOWN",
+		requestPriority: String = "UNKNOWN",
+		permissionPrecision: String = "UNKNOWN",
+		batchIndex: Int = 0,
+		batchSize: Int = 1,
+		isMock: Boolean = false,
 		activityTypeCode: Int? = null,
 		activityConfidence: Int? = null,
 		activityFresh: Boolean = true,
@@ -103,6 +112,13 @@ object SignalAdapter {
 				speedAccuracyMps = speedAccuracy,
 				distanceDelta = distanceDelta?.let { DistanceM.coerced(it) },
 				provider = provider,
+				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+				acquisitionMode = acquisitionMode,
+				requestPriority = requestPriority,
+				permissionPrecision = permissionPrecision,
+				batchIndex = batchIndex,
+				batchSize = batchSize,
+				isMock = isMock,
 			)
 		} else {
 			null
@@ -169,6 +185,7 @@ object SignalAdapter {
 		return TrackingSignal(
 			timestampMs = EpochMs(timestampMs),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			locationObservation = locationObservation,
 			location = locationSignal,
 			activity = activitySignal,
 			activityFresh = activityFresh,

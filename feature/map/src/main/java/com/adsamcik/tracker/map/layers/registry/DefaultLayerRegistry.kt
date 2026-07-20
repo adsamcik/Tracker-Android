@@ -5,6 +5,7 @@ import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
+import com.adsamcik.tracker.map.layers.impl.ObservedPresenceLayer
 import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
 import com.adsamcik.tracker.map.layers.impl.VehicleComplianceLayer
@@ -103,6 +104,14 @@ class DefaultLayerRegistry(
         )
     }
 
+	private fun observedPresenceLegendValues(): List<MapLegendValue> = listOf(
+		MapLegendValue(R.string.map_layer_observed_presence_seconds, HeatmapColorRamps.ObservedPresenceTime[0].second),
+		MapLegendValue(R.string.map_layer_observed_presence_one_minute, HeatmapColorRamps.ObservedPresenceTime[1].second),
+		MapLegendValue(R.string.map_layer_observed_presence_eight_minutes, HeatmapColorRamps.ObservedPresenceTime[2].second),
+		MapLegendValue(R.string.map_layer_observed_presence_one_hour, HeatmapColorRamps.ObservedPresenceTime[3].second),
+		MapLegendValue(R.string.map_layer_observed_presence_eight_hours, HeatmapColorRamps.ObservedPresenceTime[4].second),
+	)
+
     private fun cellRadioLegendValues(): List<MapLegendValue> {
         return listOf(
             MapLegendValue(R.string.map_layer_cell_radio_gsm, CELL_RADIO_COLORS.getValue(RadioVisualGroup.CELL_GSM)),
@@ -153,12 +162,39 @@ class DefaultLayerRegistry(
             )
         )
 
-        // Location Heatmap
+		// Observation-supported presence. It does not claim the user was stationary; the legacy
+		// location heatmap below remains accepted-fix density.
+		add(
+			LayerDescriptor(
+				id = "observed_presence",
+				titleRes = R.string.map_layer_observed_presence_title,
+				chipLabelRes = R.string.map_layer_observed_presence_chip,
+				iconRes = null,
+				capabilities = LayerCapabilities(isHeatmap = true),
+				recipe = LayerRecipe(factory = LayerFactory {
+					LayerEntry(
+						build = { ctx ->
+							ObservedPresenceLayer(ctx.mapLayerEntryPoint().observedPresenceRepository())
+						},
+						legend = MapLayerData(
+							info = MapLayerInfo("ObservedPresenceLayer", R.string.map_layer_observed_presence_title),
+							colorList = HeatmapColorRamps.ObservedPresenceTime.map { it.second },
+							legend = MapLegend(
+								description = R.string.map_layer_observed_presence_description,
+								valueList = observedPresenceLegendValues(),
+							),
+						),
+					)
+				}),
+			),
+		)
+
+		// Distinct accepted-fix density (keeps the historical location_heatmap ID).
         add(
             LayerDescriptor(
                 id = "location_heatmap",
-                titleRes = R.string.map_layer_location_heatmap_title,
-                chipLabelRes = R.string.map_layer_location_heatmap_chip,
+				titleRes = R.string.map_layer_distinct_visits_title,
+				chipLabelRes = R.string.map_layer_distinct_visits_chip,
                 iconRes = null,
                 capabilities = LayerCapabilities(isHeatmap = true),
                 recipe = LayerRecipe(factory = LayerFactory {
@@ -169,10 +205,10 @@ class DefaultLayerRegistry(
                             locationDensityHeatmap(repo).toLayer()
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_location_heatmap_title),
+							info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_distinct_visits_title),
                             colorList = HeatmapColorRamps.LocationDensity.drop(1).map { it.second },
                             legend = MapLegend(
-                                description = R.string.map_layer_location_heatmap_description,
+								description = R.string.map_layer_distinct_visits_description,
                                 valueList = locationDensityLegendValues()
                             )
                         )

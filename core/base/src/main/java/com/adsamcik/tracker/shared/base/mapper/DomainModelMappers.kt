@@ -101,6 +101,16 @@ motionState = motionState?.toModel(),
 policy = policy,
 bucketId = bucketId,
 createdAt = createdAt,
+receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+deliveryAgeMs = deliveryAgeMs,
+acquisitionMode = acquisitionMode,
+requestPriority = requestPriority,
+permissionPrecision = permissionPrecision,
+batchIndex = batchIndex,
+batchSize = batchSize,
+isMock = isMock,
+estimatorVersion = estimatorVersion,
+calibrationVersion = calibrationVersion,
 )
 
 fun ModelLocationSample.toEntity(): EntityLocationSample = EntityLocationSample(
@@ -121,6 +131,16 @@ motionState = motionState?.toEntity(),
 policy = policy,
 bucketId = bucketId,
 createdAt = createdAt,
+receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+deliveryAgeMs = deliveryAgeMs,
+acquisitionMode = acquisitionMode,
+requestPriority = requestPriority,
+permissionPrecision = permissionPrecision,
+batchIndex = batchIndex,
+batchSize = batchSize,
+isMock = isMock,
+estimatorVersion = estimatorVersion,
+calibrationVersion = calibrationVersion,
 )
 
 fun EntitySkiRunSegment.toModel(): ModelSkiRunSegment = ModelSkiRunSegment(

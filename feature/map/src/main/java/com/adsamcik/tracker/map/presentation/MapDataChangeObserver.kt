@@ -40,14 +40,25 @@ class MapDataChangeObserver @Inject constructor(
     internal fun changes(): Flow<MapDataChange> = flow {
         var isInitialEmission = true
         database.invalidationTracker
-            .createFlow(LOCATION_TABLE, CELL_TABLE, WIFI_TABLE, emitInitialState = true)
+			.createFlow(
+				LOCATION_TABLE,
+				LOCATION_OBSERVATION_TABLE,
+				CELL_TABLE,
+				WIFI_TABLE,
+				emitInitialState = true,
+			)
             .collect { invalidatedTables ->
                 if (isInitialEmission) {
                     isInitialEmission = false
                     emit(MapDataChange.Ready)
                 } else {
                     val sources = buildSet {
-                        if (LOCATION_TABLE in invalidatedTables) add(MapDataSource.Location)
+						if (
+							LOCATION_TABLE in invalidatedTables ||
+							LOCATION_OBSERVATION_TABLE in invalidatedTables
+						) {
+							add(MapDataSource.Location)
+						}
                         if (CELL_TABLE in invalidatedTables) add(MapDataSource.Cell)
                         if (WIFI_TABLE in invalidatedTables) add(MapDataSource.Wifi)
                     }
@@ -60,6 +71,7 @@ class MapDataChangeObserver @Inject constructor(
 
     private companion object {
         const val LOCATION_TABLE = "location_sample"
+		const val LOCATION_OBSERVATION_TABLE = "location_observation"
         const val CELL_TABLE = "cell_sample"
         const val WIFI_TABLE = "wifi_observation"
     }

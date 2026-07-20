@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -10,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
+import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
@@ -22,6 +24,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
@@ -59,6 +62,7 @@ import org.junit.jupiter.api.Test
 class PersistenceProcessorTest {
 
 	private lateinit var locationDao: LocationSampleDao
+	private lateinit var locationObservationDao: LocationObservationDao
 	private lateinit var cellDao: CellSampleDao
 	private lateinit var wifiDao: WifiObservationDao
 	private lateinit var pressureDao: PressureSampleDao
@@ -83,6 +87,7 @@ class PersistenceProcessorTest {
 	@BeforeEach
 	fun setup() {
 		locationDao = mockk(relaxed = true)
+		locationObservationDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
 		wifiDao = mockk(relaxed = true)
 		pressureDao = mockk(relaxed = true)
@@ -93,6 +98,9 @@ class PersistenceProcessorTest {
 		errorCollector = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
+		coEvery {
+			locationObservationDao.insert(any<Collection<LocationObservation>>())
+		} returns emptyList()
 		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
 		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
@@ -106,6 +114,7 @@ class PersistenceProcessorTest {
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
+			locationObservationDao = locationObservationDao,
 			cellSampleDao = cellDao,
 			wifiObservationDao = wifiDao,
 			pressureSampleDao = pressureDao,
@@ -137,6 +146,24 @@ class PersistenceProcessorTest {
 			verticalAccuracyM = 3f,
 			speedAccuracyMps = 0.5f,
 			provider = "fused",
+		),
+	)
+
+	private fun rejectedRawObservation(): TrackingSignal = TrackingSignal(
+		timestampMs = EpochMs(1_000_123L),
+		elapsedRealtimeNanos = 2_000_000_000L,
+		locationObservation = LocationObservationSignal(
+			coordinate = null,
+			horizontalAccuracyM = 25f,
+			provider = "fused",
+			receivedAtMs = 1_000_456L,
+			receivedElapsedRealtimeNanos = 2_250_000_000L,
+			acquisitionMode = "FUSED",
+			requestPriority = "BALANCED",
+			permissionPrecision = "APPROXIMATE",
+			batchIndex = 1,
+			batchSize = 3,
+			ingressDisposition = "REJECTED_INVALID_COORDINATE",
 		),
 	)
 
@@ -190,6 +217,27 @@ class PersistenceProcessorTest {
 	@Nested
 	@DisplayName("durable staging")
 	inner class DurableStaging {
+
+		@Test
+		fun `rejected raw provider evidence persists without invented coordinates`() = runTest {
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(rejectedRawObservation())
+
+			processor.onFlush()
+
+			val captured = slot<Collection<LocationObservation>>()
+			coVerify(exactly = 1) { locationObservationDao.insert(capture(captured)) }
+			val row = captured.captured.single()
+			row.latE7 shouldBe null
+			row.lonE7 shouldBe null
+			row.receivedAtMs shouldBe 1_000_456L
+			row.deliveryAgeMs shouldBe 250L
+			row.requestPriority shouldBe "BALANCED"
+			row.permissionPrecision shouldBe "APPROXIMATE"
+			row.batchIndex shouldBe 1
+			row.batchSize shouldBe 3
+			row.ingressDisposition shouldBe "REJECTED_INVALID_COORDINATE"
+		}
 
 		@Test
 		fun `every handled signal is staged for durable checkpointing`() = runTest {
@@ -258,6 +306,7 @@ class PersistenceProcessorTest {
 			}
 			val cancelSafeProcessor = PersistenceProcessor(
 				locationSampleDao = locationDao,
+				locationObservationDao = locationObservationDao,
 				cellSampleDao = cellDao,
 				wifiObservationDao = wifiDao,
 				pressureSampleDao = pressureDao,
@@ -298,6 +347,7 @@ class PersistenceProcessorTest {
 			}
 			val timeoutSafeProcessor = PersistenceProcessor(
 				locationSampleDao = locationDao,
+				locationObservationDao = locationObservationDao,
 				cellSampleDao = cellDao,
 				wifiObservationDao = wifiDao,
 				pressureSampleDao = pressureDao,

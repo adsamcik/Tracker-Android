@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 36         │ 400         │ 🚧 UNRELEASED - Raw location evidence,  │
+ * │            │             │    canonical observed-presence pyramid.  │
  * │ 35         │ 400         │ 🚧 UNRELEASED - Preserve every 2024.1   │
  * │            │             │    legacy field during v10 migration.    │
  * │ 34         │ 400         │ 🚧 UNRELEASED - Global WAL recovery     │
@@ -1390,8 +1392,8 @@ val MIGRATION_24_25: Migration = object : Migration(24, 25) {
 					signal_json TEXT NOT NULL,
 					created_at INTEGER NOT NULL
 				)
-				""".trimIndent(),
-			)
+					""".trimIndent(),
+				)
 			execSQL(
 				"""
 				CREATE INDEX IF NOT EXISTS idx_pending_signal_session_time
@@ -1803,6 +1805,226 @@ val MIGRATION_34_35: Migration = object : Migration(34, 35) {
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords " +
 					"ON legacy_location_wifi_count(lat, lon)"
+			)
+		}
+	}
+}
+
+/**
+ * v35 -> v36: lossless location observations plus versioned observed-presence analytics.
+ *
+ * Existing `location_sample` semantics remain curated/accepted. New acquisition columns make those
+ * accepted rows auditable, while `location_observation` stores pre-processing provider evidence.
+ */
+val MIGRATION_35_36: Migration = object : Migration(35, 36) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("ALTER TABLE location_sample ADD COLUMN received_elapsed_realtime_nanos INTEGER NOT NULL DEFAULT 0")
+			execSQL("ALTER TABLE location_sample ADD COLUMN delivery_age_ms INTEGER")
+			execSQL("ALTER TABLE location_sample ADD COLUMN acquisition_mode TEXT NOT NULL DEFAULT 'UNKNOWN'")
+			execSQL("ALTER TABLE location_sample ADD COLUMN request_priority TEXT NOT NULL DEFAULT 'UNKNOWN'")
+			execSQL("ALTER TABLE location_sample ADD COLUMN permission_precision TEXT NOT NULL DEFAULT 'UNKNOWN'")
+			execSQL("ALTER TABLE location_sample ADD COLUMN batch_index INTEGER NOT NULL DEFAULT 0")
+			execSQL("ALTER TABLE location_sample ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1")
+			execSQL("ALTER TABLE location_sample ADD COLUMN is_mock INTEGER NOT NULL DEFAULT 0")
+			execSQL("ALTER TABLE location_sample ADD COLUMN estimator_version INTEGER NOT NULL DEFAULT 1")
+			execSQL("ALTER TABLE location_sample ADD COLUMN calibration_version INTEGER NOT NULL DEFAULT 0")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS location_observation (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					fix_time_ms INTEGER NOT NULL,
+					fix_elapsed_realtime_nanos INTEGER NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					received_elapsed_realtime_nanos INTEGER NOT NULL,
+					delivery_age_ms INTEGER,
+					lat_e7 INTEGER,
+					lon_e7 INTEGER,
+					raw_alt_m REAL,
+					h_acc_m REAL,
+					v_acc_m REAL,
+					speed_mps REAL,
+					speed_accuracy_mps REAL,
+					provider TEXT NOT NULL,
+					acquisition_mode TEXT NOT NULL,
+					request_priority TEXT NOT NULL,
+					permission_precision TEXT NOT NULL,
+					batch_index INTEGER NOT NULL,
+					batch_size INTEGER NOT NULL,
+					is_mock INTEGER NOT NULL,
+					ingress_disposition TEXT NOT NULL,
+					estimator_version INTEGER NOT NULL,
+					calibration_version INTEGER NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			// Preserve the accepted historical stream as replayable evidence. These rows did not pass
+			// through the provider-observation path, so their disposition remains explicitly migrated.
+			execSQL(
+				"""
+				INSERT INTO location_observation (
+					fix_time_ms,
+					fix_elapsed_realtime_nanos,
+					received_at_ms,
+					received_elapsed_realtime_nanos,
+					delivery_age_ms,
+					lat_e7,
+					lon_e7,
+					raw_alt_m,
+					h_acc_m,
+					v_acc_m,
+					speed_mps,
+					speed_accuracy_mps,
+					provider,
+					acquisition_mode,
+					request_priority,
+					permission_precision,
+					batch_index,
+					batch_size,
+					is_mock,
+					ingress_disposition,
+					estimator_version,
+					calibration_version,
+					created_at
+				)
+				SELECT
+					time_ms,
+					elapsed_realtime_nanos,
+					created_at,
+					received_elapsed_realtime_nanos,
+					delivery_age_ms,
+					lat_e7,
+					lon_e7,
+					raw_gps_alt_m,
+					h_acc_m,
+					v_acc_m,
+					speed_mps,
+					speed_accuracy_mps,
+					provider,
+					acquisition_mode,
+					request_priority,
+					permission_precision,
+					batch_index,
+					batch_size,
+					is_mock,
+					'MIGRATED_ACCEPTED',
+					estimator_version,
+					calibration_version,
+					created_at
+				FROM location_sample
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_observation_fix_time ON location_observation(fix_time_ms, id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_observation_delivery ON location_observation(received_elapsed_realtime_nanos, batch_index)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS presence_interval (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					session_id INTEGER NOT NULL,
+					model_key TEXT NOT NULL,
+					estimator_version INTEGER NOT NULL,
+					calibration_version INTEGER NOT NULL,
+					config_hash TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					start_elapsed_realtime_nanos INTEGER,
+					end_elapsed_realtime_nanos INTEGER,
+					resolution_state TEXT NOT NULL,
+					motion_state TEXT,
+					provenance TEXT NOT NULL,
+					unresolved_reason TEXT,
+					center_lat_e7 INTEGER,
+					center_lon_e7 INTEGER,
+					cov_xx_m2 REAL,
+					cov_xy_m2 REAL,
+					cov_yy_m2 REAL,
+					effective_r90_m REAL,
+					posterior_format TEXT,
+					posterior_payload BLOB,
+					source_first_observation_id INTEGER,
+					source_last_observation_id INTEGER,
+					created_at INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_presence_interval_identity ON presence_interval(model_key, session_id, start_time_ms, end_time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_interval_overlap ON presence_interval(model_key, end_time_ms, start_time_ms)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS analysis_cell (
+					cell_id TEXT NOT NULL,
+					grid_version INTEGER NOT NULL,
+					resolution_m INTEGER NOT NULL,
+					x_index INTEGER NOT NULL,
+					y_index INTEGER NOT NULL,
+					min_lat_e7 INTEGER NOT NULL,
+					min_lon_e7 INTEGER NOT NULL,
+					max_lat_e7 INTEGER NOT NULL,
+					max_lon_e7 INTEGER NOT NULL,
+					PRIMARY KEY(cell_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_cell_grid_key ON analysis_cell(grid_version, resolution_m, x_index, y_index)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_analysis_cell_lat_bounds ON analysis_cell(grid_version, resolution_m, min_lat_e7, max_lat_e7)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS presence_compaction_block (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					metric_kind TEXT NOT NULL,
+					partition_start_ms INTEGER NOT NULL,
+					partition_end_ms INTEGER NOT NULL,
+					model_key TEXT NOT NULL,
+					grid_version INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					source_max_presence_id INTEGER NOT NULL,
+					tracked_ms INTEGER NOT NULL,
+					spatially_observed_ms INTEGER NOT NULL,
+					spatially_inferred_ms INTEGER NOT NULL,
+					spatially_unresolved_ms INTEGER NOT NULL,
+					created_at INTEGER NOT NULL,
+					committed_at INTEGER
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_presence_block_generation ON presence_compaction_block(metric_kind, model_key, grid_version, partition_start_ms, generation)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_block_query ON presence_compaction_block(metric_kind, model_key, grid_version, status, partition_start_ms, partition_end_ms)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS presence_cell_contribution (
+					block_id INTEGER NOT NULL,
+					cell_id TEXT NOT NULL,
+					expected_ms INTEGER NOT NULL,
+					observed_ms INTEGER NOT NULL,
+					inferred_ms INTEGER NOT NULL,
+					PRIMARY KEY(block_id, cell_id),
+					FOREIGN KEY(block_id) REFERENCES presence_compaction_block(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+					FOREIGN KEY(cell_id) REFERENCES analysis_cell(cell_id) ON UPDATE NO ACTION ON DELETE RESTRICT
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_contribution_cell ON presence_cell_contribution(cell_id)")
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS presence_compaction_checkpoint (
+					pipeline_key TEXT NOT NULL,
+					model_key TEXT NOT NULL,
+					grid_version INTEGER NOT NULL,
+					contiguous_compacted_through_ms INTEGER NOT NULL,
+					source_max_observation_id INTEGER NOT NULL,
+					source_max_presence_id INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL,
+					PRIMARY KEY(pipeline_key)
+				)
+				""".trimIndent(),
 			)
 		}
 	}

@@ -16,9 +16,9 @@ import kotlinx.collections.immutable.toPersistentList
 /**
  * Bounded, serialized dispatcher for timer callbacks.
  *
- * Raw GPS fixes are never dropped. When the queue is full, the newest cycle is merged into the
- * queued tail so all location fixes remain ordered while the number of pending processing turns is
- * bounded.
+ * Provider observations and accepted GPS fixes are never dropped. When the queue is full, the
+ * newest cycle is merged into the queued tail so all deliveries remain ordered while the number of
+ * pending processing turns is bounded.
  */
 internal class TrackingCycleDispatcher(
 	scope: CoroutineScope,
@@ -141,10 +141,12 @@ internal class TrackingCycleDispatcher(
 		var previousLocation = locationData.previousLocation
 		return locationData.locations.mapIndexed { index, location ->
 			val isLast = index == locationData.locations.lastIndex
+			val isFirst = index == 0
 			val singleLocation = LocationData(
 				locations = listOf(location),
 				previousLocation = previousLocation,
 				distance = previousLocation?.distanceTo(location),
+				fixMetadata = listOf(locationData.fixMetadata[index]),
 			)
 			previousLocation = location
 
@@ -155,6 +157,7 @@ internal class TrackingCycleDispatcher(
 					?: cycle.elapsedRealtimeNanos,
 				activityFresh = isLast && cycle.activityFresh,
 				location = singleLocation,
+				locationObservations = cycle.locationObservations.takeIf { isFirst }.orEmpty(),
 				cellScan = cycle.cellScan.takeIf { isLast },
 				cellScanFresh = isLast && cycle.cellScanFresh,
 				wifiScan = cycle.wifiScan.takeIf { isLast },
@@ -176,6 +179,7 @@ internal class TrackingCycleDispatcher(
 			activity = second.activity ?: first.activity,
 			activityFresh = first.activityFresh || second.activityFresh,
 			location = mergeLocation(first.location, second.location),
+			locationObservations = first.locationObservations + second.locationObservations,
 			cellScan = second.cellScan ?: first.cellScan,
 			cellScanFresh = first.cellScanFresh || second.cellScanFresh,
 			wifiScan = second.wifiScan ?: first.wifiScan,
@@ -202,6 +206,7 @@ internal class TrackingCycleDispatcher(
 			locations = first.locations.toPersistentList().addingAll(second.locations),
 			previousLocation = first.previousLocation ?: second.previousLocation,
 			distance = mergeDistances(first.distance, second.distance),
+			fixMetadata = first.fixMetadata.toPersistentList().addingAll(second.fixMetadata),
 		)
 	}
 

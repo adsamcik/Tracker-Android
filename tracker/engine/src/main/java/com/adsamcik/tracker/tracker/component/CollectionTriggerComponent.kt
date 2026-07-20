@@ -83,6 +83,26 @@ internal interface DynamicIntervalCollectionTrigger : CollectionTriggerComponent
 }
 
 /**
+ * Location triggers whose power/accuracy trade-off can be changed without replacing the trigger.
+ *
+ * This is deliberately separate from [DynamicIntervalCollectionTrigger]: cadence and request
+ * fidelity are independent policy decisions. Implementations apply the new fidelity to their next
+ * request (normally the interval update issued in the same policy transaction).
+ */
+internal interface AdaptiveLocationCollectionTrigger : CollectionTriggerComponent {
+	fun updateRequestFidelity(fidelity: LocationRequestFidelity)
+}
+
+/** Power/accuracy profiles used by adaptive location collection. */
+internal enum class LocationRequestFidelity {
+	/** Network/Wi-Fi assisted fixes; does not deliberately activate precise GNSS. */
+	BALANCED,
+
+	/** Precise GNSS when fine-location permission is available. */
+	HIGH_ACCURACY,
+}
+
+/**
  *
  */
 internal class NoTimer : CollectionTriggerComponent {

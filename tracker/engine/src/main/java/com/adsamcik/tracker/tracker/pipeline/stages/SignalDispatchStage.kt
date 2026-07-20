@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
 import android.util.Log
+import androidx.core.location.LocationCompat
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -37,6 +38,7 @@ internal class SignalDispatchStage(
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
 			val rawLocation = cycle.location?.lastLocation
+			val locationMetadata = cycle.location?.lastFixMetadata
 
 			val cellTowers = cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }
@@ -75,6 +77,13 @@ internal class SignalDispatchStage(
 				speedAccuracy = collectionData.location?.speedAccuracy,
 				distanceDelta = collectionData.distanceFromPreviousM,
 				provider = rawLocation?.provider ?: "unknown",
+				receivedElapsedRealtimeNanos = locationMetadata?.receivedElapsedRealtimeNanos ?: 0L,
+				acquisitionMode = locationMetadata?.acquisitionMode?.name ?: "UNKNOWN",
+				requestPriority = locationMetadata?.requestPriority?.name ?: "UNKNOWN",
+				permissionPrecision = locationMetadata?.permissionPrecision?.name ?: "UNKNOWN",
+				batchIndex = locationMetadata?.batchIndex ?: 0,
+				batchSize = locationMetadata?.batchSize ?: 1,
+				isMock = rawLocation?.let(LocationCompat::isMock) ?: false,
 				activityTypeCode = effectiveActivity?.activityType,
 				activityConfidence = effectiveActivity?.confidence,
 				activityFresh = cycle.activityFresh ||

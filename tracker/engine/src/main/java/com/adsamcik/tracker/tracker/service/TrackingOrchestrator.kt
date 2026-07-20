@@ -33,11 +33,13 @@ import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
 import com.adsamcik.tracker.tracker.data.collection.hasPersistableProducerPayload
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
+import com.adsamcik.tracker.tracker.pipeline.toLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
@@ -215,6 +217,9 @@ internal class TrackingOrchestrator(
 			this.processorPipeline = null // set below after pipeline creation
 			this.timerAccessor = timerAccessor
 		}
+		tierEscalationHandler.configureCurrentLocationRequest(
+			requireNotNull(trackingPolicyManager).currentPolicy.value,
+		)
 
 		// Observe policy changes and delegate tier/interval updates
 		trackingPolicyManager?.let { policyManager ->
@@ -400,6 +405,23 @@ internal class TrackingOrchestrator(
 		context: Context,
 		triggerCycle: TrackingCycle,
 	) {
+		// Capture the immutable provider observation before pre-validation or data components can
+		// reject or correct the location used by the curated tracking stream.
+		if (triggerCycle.locationObservations.isNotEmpty()) {
+			val observationSignals = triggerCycle.locationObservations.map { observation ->
+				observation.toLocationObservationSignal(
+					policyTier = currentTier,
+					policyName = trackingPolicyManager?.currentPolicy?.value?.name,
+				)
+			}
+			// Rejected-only callbacks never enter ProcessorPipeline, so they would otherwise remain
+			// only in volatile staging. Checkpoint every provider delivery before any rejection path.
+			if (processorPipeline?.checkpointDurableSignals(observationSignals) != true) {
+				Reporter.report("Unable to durably checkpoint raw location observations")
+			}
+		}
+		if (triggerCycle.isLocationObservationOnly()) return
+
 		for (component in preComponentList) {
 			if (!component.requirementsMet(triggerCycle)) continue
 			val accepted = tryWithResultAndReport({ true }) {

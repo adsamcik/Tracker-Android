@@ -30,6 +30,17 @@
     <string name="map_layer_location_heatmap_medium">Medium density</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
     <string name="map_layer_location_heatmap_title">Location heatmap</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Distinct visits</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visits</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relative density of accepted location fixes. This shows distinct observations, not time spent.</string>
+    <string name="map_layer_observed_presence_title" tools:ignore="MissingTranslation">Location history heatmap</string>
+    <string name="map_layer_observed_presence_chip" tools:ignore="MissingTranslation">History heatmap</string>
+    <string name="map_layer_observed_presence_description" tools:ignore="MissingTranslation">Warmer areas indicate more time supported near that area. Broader areas mean the recorded location was less precise. Unmapped time is not shown.</string>
+    <string name="map_layer_observed_presence_seconds" tools:ignore="MissingTranslation">Seconds</string>
+    <string name="map_layer_observed_presence_one_minute" tools:ignore="MissingTranslation">About 1 minute</string>
+    <string name="map_layer_observed_presence_eight_minutes" tools:ignore="MissingTranslation">About 8 minutes</string>
+    <string name="map_layer_observed_presence_one_hour" tools:ignore="MissingTranslation">About 1 hour</string>
+    <string name="map_layer_observed_presence_eight_hours" tools:ignore="MissingTranslation">8 hours or more</string>
     <string name="map_layer_cell_radio_gsm">GSM coverage</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -269,7 +280,9 @@
     <string name="map_a11y_search_result_visible">Search result marker visible</string>
     <string name="map_a11y_active_recording_visible">Active recording path visible</string>
     <string name="map_a11y_recorded_route_history">Showing recorded route history</string>
-    <string name="map_a11y_location_heatmap">Showing a location heatmap</string>
+	<string name="map_a11y_observed_presence" tools:ignore="MissingTranslation">Location history heatmap. Warmer areas indicate more time supported by recorded locations. Broader areas are less precise. Unmapped time is not shown.</string>
+	<string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Showing distinct accepted location observations</string>
+	<string name="map_a11y_location_heatmap">Showing a location heatmap</string>
     <string name="map_a11y_cell_heatmap">Showing cellular coverage fields and approximate serving-site centers</string>
     <string name="map_a11y_wifi_heatmap">Showing Wi-Fi bands, coverage fields, and approximate access-point centers</string>
     <string name="map_a11y_wifi_count_heatmap">Showing distinct Wi-Fi access-point overlap</string>

@@ -16,7 +16,7 @@ internal object TrackerAndroidConfig {
     const val COMPILE_SDK = 37
     const val TARGET_SDK = 37
     const val MIN_SDK = 26
-    const val BUILD_TOOLS = "37.0.0-rc2"
+    const val BUILD_TOOLS = "37.0.0"
     const val JAVA_VERSION = 17
 }
 

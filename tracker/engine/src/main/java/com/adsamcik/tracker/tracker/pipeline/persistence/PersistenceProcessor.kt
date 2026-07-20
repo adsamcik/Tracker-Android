@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -13,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toEntity
@@ -91,6 +93,7 @@ import javax.inject.Inject
 @Singleton
 class PersistenceProcessor @Inject constructor(
 	private val locationSampleDao: LocationSampleDao,
+	private val locationObservationDao: LocationObservationDao,
 	private val cellSampleDao: CellSampleDao,
 	private val wifiObservationDao: WifiObservationDao,
 	private val pressureSampleDao: PressureSampleDao,
@@ -111,6 +114,7 @@ class PersistenceProcessor @Inject constructor(
 
 	// --- Buffers (accessed only from onSignal which is single-threaded) ---
 	private val locationBuffer = mutableListOf<LocationSample>()
+	private val locationObservationBuffer = mutableListOf<LocationObservation>()
 	private val cellBuffer = mutableListOf<CellSample>()
 	private val wifiBuffer = mutableListOf<WifiObservation>()
 	private val pressureBuffer = mutableListOf<PressureSample>()
@@ -158,7 +162,8 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	private fun TrackingSignal.hasPersistablePayload(): Boolean =
-		location != null ||
+		locationObservation != null ||
+			location != null ||
 			(activityFresh && activity != null) ||
 			steps != null ||
 			cells != null ||
@@ -224,6 +229,7 @@ class PersistenceProcessor @Inject constructor(
 		val location = signal.location
 		val policyName = signal.policy?.policyName
 
+		bufferLocationObservation(signal)
 		bufferLocation(signal, location, policyName)
 		bufferCells(signal, location)
 		bufferWifi(signal, location)
@@ -235,6 +241,40 @@ class PersistenceProcessor @Inject constructor(
 	// -----------------------------------------------------------------------
 	// Buffering (no I/O)
 	// -----------------------------------------------------------------------
+
+	private fun bufferLocationObservation(signal: TrackingSignal) {
+		val observation = signal.locationObservation ?: return
+		locationObservationBuffer.add(
+			LocationObservation(
+				fixTimeMs = signal.timestampMs.raw,
+				fixElapsedRealtimeNanos = signal.elapsedRealtimeNanos,
+				receivedAtMs = observation.receivedAtMs,
+				receivedElapsedRealtimeNanos = observation.receivedElapsedRealtimeNanos,
+				deliveryAgeMs = deliveryAgeMs(
+					fixElapsedRealtimeNanos = signal.elapsedRealtimeNanos,
+					receivedElapsedRealtimeNanos = observation.receivedElapsedRealtimeNanos,
+				),
+				latE7 = observation.coordinate?.lat?.raw,
+				lonE7 = observation.coordinate?.lon?.raw,
+				rawAltitudeM = observation.altitudeM,
+				hAccM = observation.horizontalAccuracyM,
+				vAccM = observation.verticalAccuracyM,
+				speedMps = observation.speedMps,
+				speedAccuracyMps = observation.speedAccuracyMps,
+				provider = observation.provider,
+				acquisitionMode = observation.acquisitionMode,
+				requestPriority = observation.requestPriority,
+				permissionPrecision = observation.permissionPrecision,
+				batchIndex = observation.batchIndex,
+				batchSize = observation.batchSize,
+				isMock = observation.isMock,
+				ingressDisposition = observation.ingressDisposition,
+				estimatorVersion = CURRENT_ESTIMATOR_VERSION,
+				calibrationVersion = CURRENT_CALIBRATION_VERSION,
+				createdAt = Time.nowMillis,
+			),
+		)
+	}
 
 	private fun bufferLocation(
 		signal: TrackingSignal,
@@ -264,8 +304,30 @@ class PersistenceProcessor @Inject constructor(
 				policy = policyName,
 				bucketId = null,
 				createdAt = Time.nowMillis,
+				receivedElapsedRealtimeNanos = location.receivedElapsedRealtimeNanos,
+				deliveryAgeMs = deliveryAgeMs(
+					fixElapsedRealtimeNanos = signal.elapsedRealtimeNanos,
+					receivedElapsedRealtimeNanos = location.receivedElapsedRealtimeNanos,
+				),
+				acquisitionMode = location.acquisitionMode,
+				requestPriority = location.requestPriority,
+				permissionPrecision = location.permissionPrecision,
+				batchIndex = location.batchIndex,
+				batchSize = location.batchSize,
+				isMock = location.isMock,
+				estimatorVersion = CURRENT_ESTIMATOR_VERSION,
+				calibrationVersion = CURRENT_CALIBRATION_VERSION,
 			),
 		)
+	}
+
+	private fun deliveryAgeMs(
+		fixElapsedRealtimeNanos: Long,
+		receivedElapsedRealtimeNanos: Long,
+	): Long? {
+		if (fixElapsedRealtimeNanos <= 0L || receivedElapsedRealtimeNanos <= 0L) return null
+		return ((receivedElapsedRealtimeNanos - fixElapsedRealtimeNanos).coerceAtLeast(0L) /
+			Time.MILLISECONDS_IN_NANOSECONDS)
 	}
 
 	private fun bufferCells(signal: TrackingSignal, location: LocationSignal?) {
@@ -509,6 +571,9 @@ class PersistenceProcessor @Inject constructor(
 		locationBuffer.chunked(LOCATION_BATCH_SIZE).forEach { chunk ->
 			locationSampleDao.insert(chunk.map { it.toEntity() })
 		}
+		locationObservationBuffer.chunked(LOCATION_OBSERVATION_BATCH_SIZE).forEach { chunk ->
+			locationObservationDao.insert(chunk)
+		}
 		cellBuffer.chunked(CELL_BATCH_SIZE).forEach { chunk ->
 			cellSampleDao.insert(chunk)
 		}
@@ -573,6 +638,7 @@ class PersistenceProcessor @Inject constructor(
 
 	private fun isAllBuffersEmpty(): Boolean =
 		locationBuffer.isEmpty() &&
+			locationObservationBuffer.isEmpty() &&
 			cellBuffer.isEmpty() &&
 			wifiBuffer.isEmpty() &&
 			pressureBuffer.isEmpty() &&
@@ -581,6 +647,7 @@ class PersistenceProcessor @Inject constructor(
 
 	private fun totalBufferedCount(): Int =
 		locationBuffer.size +
+			locationObservationBuffer.size +
 			cellBuffer.size +
 			wifiBuffer.size +
 			pressureBuffer.size +
@@ -589,6 +656,7 @@ class PersistenceProcessor @Inject constructor(
 
 	private fun clearBuffers() {
 		locationBuffer.clear()
+		locationObservationBuffer.clear()
 		cellBuffer.clear()
 		wifiBuffer.clear()
 		pressureBuffer.clear()
@@ -605,6 +673,7 @@ class PersistenceProcessor @Inject constructor(
 		private const val PERSISTENCE_RECONCILIATION_TIMEOUT_MILLIS = 2_000L
 
 		internal const val LOCATION_BATCH_SIZE = 10
+		internal const val LOCATION_OBSERVATION_BATCH_SIZE = 25
 		internal const val PRESSURE_BATCH_SIZE = 5
 		internal const val CELL_BATCH_SIZE = 50
 		internal const val WIFI_BATCH_SIZE = 50
@@ -614,6 +683,8 @@ class PersistenceProcessor @Inject constructor(
 
 		private const val HIGH_ACCURACY_THRESHOLD = 10f
 		private const val MEDIUM_ACCURACY_THRESHOLD = 50f
+		internal const val CURRENT_ESTIMATOR_VERSION = 1
+		internal const val CURRENT_CALIBRATION_VERSION = 0
 
 		/**
 		 * Classify location quality from horizontal accuracy.

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.data.collection
 
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
+import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
 
 /**
@@ -14,6 +15,8 @@ internal data class TrackingCycle(
 	val activity: ActivityInfo? = null,
 	val activityFresh: Boolean = false,
 	val location: LocationData? = null,
+	/** Lossless provider deliveries captured before trigger and pipeline rejection. */
+	val locationObservations: List<LocationProviderObservation> = emptyList(),
 	val cellScan: CellScanData? = null,
 	val cellScanFresh: Boolean = false,
 	val wifiScan: WifiScanData? = null,
@@ -39,3 +42,13 @@ internal fun TrackingCycle.hasPersistableProducerPayload(): Boolean =
 		wifiScan != null ||
 		(stepDelta != null && stepDelta > 0) ||
 		pressure != null
+
+/** True for a provider callback containing only rejected raw fixes. */
+internal fun TrackingCycle.isLocationObservationOnly(): Boolean =
+	locationObservations.isNotEmpty() &&
+		location == null &&
+		activity == null &&
+		cellScan == null &&
+		wifiScan == null &&
+		stepDelta == null &&
+		pressure == null

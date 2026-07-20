@@ -2,8 +2,10 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.component.AdaptiveLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
+import com.adsamcik.tracker.tracker.component.LocationRequestFidelity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
@@ -64,6 +66,7 @@ class TrackerTierEscalationHandlerTest {
 		val events = mutableListOf<String>()
 		val gpsTrigger = RecordingTrigger(
 			isLocationTrigger = true,
+			onFidelity = { events += "fidelity:$it" },
 			onEnable = { events += "gps-enabled" },
 		)
 		val handler = newHandler(
@@ -87,8 +90,67 @@ class TrackerTierEscalationHandlerTest {
 		)
 		advanceUntilIdle()
 
-		events shouldBe listOf("fgs:true:true:false", "gps-enabled")
+		events shouldBe listOf(
+			"fgs:true:true:false",
+			"fidelity:HIGH_ACCURACY",
+			"gps-enabled",
+		)
 		handler.currentTier shouldBe PolicyTier.PRECISION
+	}
+
+	@Test
+	fun `moderate policy configures an existing GPS trigger for balanced fidelity`() = runTest {
+		val gpsTrigger = RecordingTrigger(isLocationTrigger = true)
+		val handler = newHandler(
+			controller = mockk(relaxed = true),
+		).apply {
+			currentTier = PolicyTier.ACTIVE
+			timerAccessor = RecordingTimerAccessor(gpsTrigger)
+		}
+
+		handler.onPolicyChanged(
+			policy = TrackingPolicy.ACTIVE_MODERATE,
+			context = mockk(relaxed = true),
+			timerReceiver = mockk(relaxed = true),
+			scope = this,
+		)
+		advanceUntilIdle()
+
+		gpsTrigger.fidelityUpdates shouldBe listOf(LocationRequestFidelity.BALANCED)
+		gpsTrigger.intervalUpdates shouldBe 1
+	}
+
+	@Test
+	fun `initial trigger fidelity is configured before service enable`() {
+		val events = mutableListOf<String>()
+		val gpsTrigger = RecordingTrigger(
+			isLocationTrigger = true,
+			onFidelity = { events += "fidelity:$it" },
+			onEnable = { events += "enabled" },
+		)
+		val handler = newHandler(controller = mockk(relaxed = true)).apply {
+			timerAccessor = RecordingTimerAccessor(gpsTrigger)
+		}
+
+		handler.configureCurrentLocationRequest(TrackingPolicy.USER_INITIATED)
+		gpsTrigger.onEnable(mockk(relaxed = true), mockk(relaxed = true))
+
+		events shouldBe listOf("fidelity:HIGH_ACCURACY", "enabled")
+	}
+
+	@Test
+	fun `runtime tier cap also caps initial request fidelity`() {
+		val gpsTrigger = RecordingTrigger(isLocationTrigger = true)
+		val handler = newHandler(
+			controller = mockk(relaxed = true),
+			tierAdjuster = { PolicyTier.ACTIVE },
+		).apply {
+			timerAccessor = RecordingTimerAccessor(gpsTrigger)
+		}
+
+		handler.configureCurrentLocationRequest(TrackingPolicy.ACTIVE_ELEVATED)
+
+		gpsTrigger.fidelityUpdates shouldBe listOf(LocationRequestFidelity.BALANCED)
 	}
 
 	@Test
@@ -248,7 +310,8 @@ class TrackerTierEscalationHandlerTest {
 		override val isLocationTrigger: Boolean = false,
 		private val onEnable: () -> Unit = {},
 		private val onDisable: () -> Unit = {},
-	) : DynamicIntervalCollectionTrigger {
+		private val onFidelity: (LocationRequestFidelity) -> Unit = {},
+	) : DynamicIntervalCollectionTrigger, AdaptiveLocationCollectionTrigger {
 		override val titleRes: Int = 0
 		override val requiredPermissions: Collection<String> = emptyList()
 		var enableCount = 0
@@ -257,6 +320,7 @@ class TrackerTierEscalationHandlerTest {
 			private set
 		var intervalUpdates = 0
 			private set
+		val fidelityUpdates = mutableListOf<LocationRequestFidelity>()
 
 		override fun hasRequiredPermissions(context: Context): Boolean = hasPermissions
 
@@ -272,6 +336,11 @@ class TrackerTierEscalationHandlerTest {
 
 		override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
 			intervalUpdates++
+		}
+
+		override fun updateRequestFidelity(fidelity: LocationRequestFidelity) {
+			fidelityUpdates += fidelity
+			onFidelity(fidelity)
 		}
 	}
 }

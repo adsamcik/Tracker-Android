@@ -65,6 +65,9 @@ interface PendingSignalDao {
 	@Query("SELECT COUNT(*) FROM pending_signal")
 	suspend fun countAll(): Int
 
+	@Query("SELECT EXISTS(SELECT 1 FROM pending_signal LIMIT 1)")
+	suspend fun hasAny(): Boolean
+
 	@Query("DELETE FROM pending_signal")
 	fun deleteAll()
 }

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -244,6 +245,60 @@ class SignalSerializerTest {
 		restored.wifi.shouldBeNull()
 		restored.pressure.shouldBeNull()
 		restored.policy.shouldBeNull()
+	}
+
+	@Test
+	fun `raw provider observation preserves replay metadata`() {
+		val original = TrackingSignal(
+			timestampMs = EpochMs(1_700_000_000_123L),
+			elapsedRealtimeNanos = 987_654_321L,
+			locationObservation = LocationObservationSignal(
+				coordinate = CoordinateE7(lat = LatE7(500_123_456), lon = LonE7(140_654_321)),
+				horizontalAccuracyM = 17.5f,
+				altitudeM = 312.25f,
+				verticalAccuracyM = 8.0f,
+				speedMps = 2.75f,
+				speedAccuracyMps = 0.8f,
+				provider = "provider\"raw",
+				receivedAtMs = 1_700_000_000_456L,
+				receivedElapsedRealtimeNanos = 1_234_567_890L,
+				acquisitionMode = "FUSED",
+				requestPriority = "BALANCED",
+				permissionPrecision = "PRECISE",
+				batchIndex = 2,
+				batchSize = 4,
+				isMock = true,
+				ingressDisposition = "DELIVERED_VALID",
+			),
+		)
+
+		val restored = SignalSerializer.deserialize(SignalSerializer.serialize(original))
+			.shouldNotBeNull()
+
+		restored.timestampMs shouldBe original.timestampMs
+		restored.elapsedRealtimeNanos shouldBe original.elapsedRealtimeNanos
+		restored.locationObservation shouldBe original.locationObservation
+		restored.location.shouldBeNull()
+	}
+
+	@Test
+	fun `raw invalid-coordinate observation round trips without invented coordinates`() {
+		val original = TrackingSignal(
+			timestampMs = EpochMs(0L),
+			locationObservation = LocationObservationSignal(
+				coordinate = null,
+				provider = "fused",
+				receivedAtMs = 1_700_000_000_000L,
+				ingressDisposition = "REJECTED_INVALID_COORDINATE",
+			),
+		)
+
+		val restored = SignalSerializer.deserialize(SignalSerializer.serialize(original))
+			.shouldNotBeNull()
+		val observation = restored.locationObservation.shouldNotBeNull()
+
+		observation.coordinate.shouldBeNull()
+		observation.ingressDisposition shouldBe "REJECTED_INVALID_COORDINATE"
 	}
 
 	@Test

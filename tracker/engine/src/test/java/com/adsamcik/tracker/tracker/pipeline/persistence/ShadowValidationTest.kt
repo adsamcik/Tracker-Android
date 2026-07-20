@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -68,6 +69,7 @@ import org.junit.jupiter.api.Test
 class ShadowValidationTest {
 
 	private lateinit var locationDao: LocationSampleDao
+	private lateinit var locationObservationDao: LocationObservationDao
 	private lateinit var cellDao: CellSampleDao
 	private lateinit var wifiDao: WifiObservationDao
 	private lateinit var pressureDao: PressureSampleDao
@@ -85,6 +87,7 @@ class ShadowValidationTest {
 	@BeforeEach
 	fun setup() {
 		locationDao = mockk(relaxed = true)
+		locationObservationDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
 		wifiDao = mockk(relaxed = true)
 		pressureDao = mockk(relaxed = true)
@@ -105,6 +108,7 @@ class ShadowValidationTest {
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
+			locationObservationDao = locationObservationDao,
 			cellSampleDao = cellDao,
 			wifiObservationDao = wifiDao,
 			pressureSampleDao = pressureDao,

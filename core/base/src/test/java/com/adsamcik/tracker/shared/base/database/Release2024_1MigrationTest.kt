@@ -67,13 +67,53 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
-	fun `actual v10 binary migrates through Room and validates the complete v35 schema`() {
+	fun `actual v10 binary migrates through Room and validates the complete v36 schema`() {
 		val database = migrateAppDatabase()
 		val raw = database.openHelper.writableDatabase
 
 		raw.version shouldBe CURRENT_APP_DATABASE_VERSION
 		listTables(raw) shouldBe currentAppTables.toSet()
 		listTables(raw).intersect(legacyDroppedTables).isEmpty() shouldBe true
+	}
+
+	@Test
+	fun `accepted location samples are backfilled as migrated observations`() {
+		val raw = migrateAppDatabase().openHelper.writableDatabase
+		val sampleCount = count(raw, "location_sample")
+
+		count(raw, "location_observation") shouldBe sampleCount
+		raw.query(
+			"""
+			SELECT COUNT(*)
+			FROM location_observation observation
+			JOIN location_sample sample
+				ON sample.time_ms = observation.fix_time_ms
+			WHERE observation.fix_elapsed_realtime_nanos = sample.elapsed_realtime_nanos
+				AND observation.received_at_ms = sample.created_at
+				AND observation.received_elapsed_realtime_nanos = sample.received_elapsed_realtime_nanos
+				AND observation.delivery_age_ms IS sample.delivery_age_ms
+				AND observation.lat_e7 IS sample.lat_e7
+				AND observation.lon_e7 IS sample.lon_e7
+				AND observation.raw_alt_m IS sample.raw_gps_alt_m
+				AND observation.h_acc_m IS sample.h_acc_m
+				AND observation.v_acc_m IS sample.v_acc_m
+				AND observation.speed_mps IS sample.speed_mps
+				AND observation.speed_accuracy_mps IS sample.speed_accuracy_mps
+				AND observation.provider = sample.provider
+				AND observation.acquisition_mode = sample.acquisition_mode
+				AND observation.request_priority = sample.request_priority
+				AND observation.permission_precision = sample.permission_precision
+				AND observation.batch_index = sample.batch_index
+				AND observation.batch_size = sample.batch_size
+				AND observation.is_mock = sample.is_mock
+				AND observation.ingress_disposition = 'MIGRATED_ACCEPTED'
+				AND observation.estimator_version = sample.estimator_version
+				AND observation.calibration_version = sample.calibration_version
+			""".trimIndent(),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getInt(0) shouldBe sampleCount
+		}
 	}
 
 	@Test
@@ -513,6 +553,7 @@ class Release2024_1MigrationTest {
 		AppDatabase.deleteAllCollectedData(database)
 
 		count(raw, "location_sample") shouldBe 0
+		count(raw, "location_observation") shouldBe 0
 		count(raw, "session_segment") shouldBe 0
 		count(raw, "legacy_rejected_tracker_session") shouldBe 0
 		count(raw, "legacy_location_wifi_count") shouldBe 0
@@ -671,7 +712,7 @@ class Release2024_1MigrationTest {
 
 	private companion object {
 		const val RELEASE_APP_DATABASE_VERSION = 10
-		const val CURRENT_APP_DATABASE_VERSION = 35
+		const val CURRENT_APP_DATABASE_VERSION = 36
 
 		val rangeOfNativeActivityIds = (-34..-2).toList()
 
@@ -690,6 +731,12 @@ class Release2024_1MigrationTest {
 			"activity",
 			"network_operator",
 			"location_sample",
+			"location_observation",
+			"presence_interval",
+			"analysis_cell",
+			"presence_compaction_block",
+			"presence_cell_contribution",
+			"presence_compaction_checkpoint",
 			"step_interval",
 			"activity_snapshot",
 			"cell_sample",

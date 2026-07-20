@@ -1,16 +1,16 @@
 # Privacy Policy
 
-**Effective date:** April 10, 2026
+**Effective date:** July 19, 2026
 
 Tracker Android is developed by Adsamcik and provided as an open-source, privacy-first app.
 
 ## Overview
 
-Tracker Android works entirely offline. The app does not use a backend, does not sync data to remote servers, and does not use Firebase, analytics services, advertising SDKs, tracking pixels, telemetry, or other third-party services to collect user data.
+Tracker Android is offline-first and can record and analyse tracking data without a network connection. The app does not use a Tracker backend, does not sync tracking data to remote servers, and does not use Firebase, analytics services, advertising SDKs, tracking pixels, telemetry, or remote crash reporting. If you opt in to online map tiles, the app makes the limited network requests described below.
 
 ## Information Collection and Use
 
-Tracker Android does not collect personal information from your device and does not transmit your tracking data anywhere.
+Tracker Android does not send your tracking database, recorded routes, or trip history to the developer or to an analytics service. Optional online map requests can reveal the area of the map you are viewing to the selected tile provider, as described under “Optional Online Map Tiles.”
 
 Data created by the app stays on your device. This can include:
 
@@ -21,7 +21,7 @@ Data created by the app stays on your device. This can include:
 
 ## Network Use
 
-Tracker Android is designed to operate fully offline. The app does not make network calls for tracking, analytics, crash reporting, or remote storage.
+Tracker Android can operate fully offline. The app does not make network calls for tracking, analytics, crash reporting, or remote storage. Network access is disabled for online map tiles by default and is enabled only if you opt in. You can turn online map tiles off at any time to use only the bundled offline basemap.
 
 ## Permissions
 
@@ -47,9 +47,15 @@ Tracker Android can optionally use OpenStreetMap data to provide accurate per-ro
 
 OpenStreetMap data is © OpenStreetMap contributors and licensed under the Open Database License (ODbL) 1.0. See https://www.openstreetmap.org/copyright for details.
 
+## Optional Online Map Tiles
+
+If you enable online map tiles, Tracker requests map styles, tiles, fonts, and related map assets from the provider you select, such as OpenFreeMap or Protomaps, or from a custom provider URL you enter. The provider necessarily receives your IP address and ordinary request metadata such as the request time and user agent. Tile coordinates identify the approximate map areas being viewed, which may reveal or suggest your location when the map is centred on you or your route.
+
+Tracker does not attach your tracking database, recorded routes, advertising identifiers, an app account, or a Tracker-specific installation identifier to built-in tile requests. A custom provider URL may contain credentials or other parameters that you supply. The selected provider may process or retain requests under its own privacy policy and terms; Tracker does not control that provider.
+
 ## Exports
 
-Exports are created only when you explicitly request them. Tracker Android can export your data in formats such as GPX, KML, and JSON. Exported data goes only to the file location or app you choose.
+Exports are created only when you explicitly request them. Tracker Android can export your data in formats such as GPX, KML, and JSON. Exported data goes only to the file location or app you choose. Standard exports may contain precise location history and are not automatically encrypted by Tracker, so their privacy depends on the destination and how you protect or share the file.
 
 ## No Ads or Tracking
 
@@ -57,7 +63,7 @@ Tracker Android does not show ads and does not include ad networks, tracking pix
 
 ## Data Security
 
-Your tracking data remains on your device unless you decide to export or share it. If you export data, the privacy of the exported copy depends on where you save or send it.
+Your tracking data remains on your device unless you decide to export or share it. Optional online tile requests disclose viewed map areas, but do not upload the underlying tracking database. If you export data, the privacy of the exported copy depends on where you save or send it.
 
 ## Children’s Privacy
 

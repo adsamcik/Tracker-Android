@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.ObservedPresenceRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultObservedPresenceRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultExplorationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultLocationSampleRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
@@ -70,6 +72,12 @@ abstract class StatsDataModule {
 	@Binds
 	@Singleton
 	abstract fun bindExplorationRepository(impl: DefaultExplorationRepository): ExplorationRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindObservedPresenceRepository(
+		impl: DefaultObservedPresenceRepository,
+	): ObservedPresenceRepository
 
 	@Binds
 	@Singleton

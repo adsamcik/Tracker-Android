@@ -1,6 +1,19 @@
 package com.adsamcik.tracker.map.layers.impl
 
 internal object HeatmapColorRamps {
+	/**
+	 * Absolute observation-supported-time scale. Empty cells are not emitted, so the first
+	 * stop remains visible. Unlike viewport-relative density, the same duration keeps the same color
+	 * while panning; [ObservedPresenceLayer] applies a fixed log scale capped at eight hours.
+	 */
+	val ObservedPresenceTime: List<Pair<Float, Int>> = listOf(
+		0.0f to 0xFF283593.toInt(),
+		0.4f to 0xFF1976D2.toInt(),
+		0.6f to 0xFF00A896.toInt(),
+		0.8f to 0xFFFFB300.toInt(),
+		1.0f to 0xFFD84315.toInt(),
+	)
+
     // Density-based heatmap ramps MUST start with a transparent stop at density 0.0. MapLibre's
     // `heatmap-color` is evaluated for every pixel (density is >= 0 everywhere), so an opaque 0.0
     // stop tints the entire map — including locations with no collected data.

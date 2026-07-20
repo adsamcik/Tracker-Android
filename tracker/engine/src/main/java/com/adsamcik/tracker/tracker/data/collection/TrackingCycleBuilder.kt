@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.data.collection
 
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
+import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
 
 /**
@@ -22,6 +23,9 @@ internal class TrackingCycleBuilder(
 
 	@Volatile
 	var location: LocationData? = null
+
+	@Volatile
+	var locationObservations: List<LocationProviderObservation> = emptyList()
 
 	@Volatile
 	var cellScan: CellScanData? = null
@@ -59,6 +63,7 @@ internal class TrackingCycleBuilder(
 		activity = activity,
 		activityFresh = activityFresh,
 		location = location,
+		locationObservations = locationObservations,
 		cellScan = cellScan,
 		cellScanFresh = cellScanFresh,
 		wifiScan = wifiScan,

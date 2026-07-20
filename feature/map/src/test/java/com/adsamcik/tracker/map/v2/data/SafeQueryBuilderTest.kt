@@ -52,6 +52,8 @@ class SafeQueryBuilderTest {
         val q = SafeQueryBuilder.location().weight("hor_acc").build()
         val sql = (q as SimpleSQLiteQuery).sql
         sql shouldContain "h_acc_m AS weight"
+        sql shouldContain "h_acc_m IS NOT NULL"
+        sql shouldContain "h_acc_m > 0"
         (sql.contains("quality NOT IN")) shouldBe false
     }
 

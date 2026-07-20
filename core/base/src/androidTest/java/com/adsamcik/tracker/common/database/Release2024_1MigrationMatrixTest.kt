@@ -195,7 +195,7 @@ class Release2024_1MigrationMatrixTest {
 
 	private companion object {
 		const val RELEASE_DATABASE_VERSION = 10
-		const val CURRENT_DATABASE_VERSION = 35
+		const val CURRENT_DATABASE_VERSION = 36
 
 		val migrations = AppDatabase.migrations.filter { it.startVersion >= RELEASE_DATABASE_VERSION }
 	}

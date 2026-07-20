@@ -122,6 +122,39 @@ data class LocationSample(
 	@ColumnInfo(name = "created_at")
 	val createdAt: Long,
 
+	/** Monotonic time when the provider callback reached the app. */
+	@ColumnInfo(name = "received_elapsed_realtime_nanos", defaultValue = "0")
+	val receivedElapsedRealtimeNanos: Long = 0L,
+
+	/** Callback delivery delay relative to the provider fix time, when both clocks were available. */
+	@ColumnInfo(name = "delivery_age_ms")
+	val deliveryAgeMs: Long? = null,
+
+	@ColumnInfo(name = "acquisition_mode", defaultValue = "'UNKNOWN'")
+	val acquisitionMode: String = "UNKNOWN",
+
+	@ColumnInfo(name = "request_priority", defaultValue = "'UNKNOWN'")
+	val requestPriority: String = "UNKNOWN",
+
+	@ColumnInfo(name = "permission_precision", defaultValue = "'UNKNOWN'")
+	val permissionPrecision: String = "UNKNOWN",
+
+	@ColumnInfo(name = "batch_index", defaultValue = "0")
+	val batchIndex: Int = 0,
+
+	@ColumnInfo(name = "batch_size", defaultValue = "1")
+	val batchSize: Int = 1,
+
+	@ColumnInfo(name = "is_mock", defaultValue = "0")
+	val isMock: Boolean = false,
+
+	/** Versions make raw observations replayable under future estimator/calibration revisions. */
+	@ColumnInfo(name = "estimator_version", defaultValue = "1")
+	val estimatorVersion: Int = 1,
+
+	@ColumnInfo(name = "calibration_version", defaultValue = "0")
+	val calibrationVersion: Int = 0,
+
 	/** Exact latitude retained from the pre-E7 2024.1 schema. */
 	@ColumnInfo(name = "legacy_lat")
 	val legacyLat: Double? = null,

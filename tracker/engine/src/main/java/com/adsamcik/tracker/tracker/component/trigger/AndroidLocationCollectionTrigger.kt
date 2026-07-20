@@ -8,6 +8,8 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.extension.locationManager
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.tracker.R
@@ -23,6 +25,9 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
  * Requires ACCESS_FINE_LOCATION since GPS_PROVIDER needs precise location.
  */
 internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
+	override val acquisitionMode: LocationAcquisitionMode = LocationAcquisitionMode.PLATFORM_GPS
+	override val requestPriority: LocationRequestPriority = LocationRequestPriority.HIGH_ACCURACY
+
 	override val requiredPermissions: Collection<String>
 		get() = REQUIRED_PERMISSIONS
 

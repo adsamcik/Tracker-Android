@@ -21,6 +21,16 @@ val motionState: MotionState?,
 val policy: String?,
 val bucketId: Long?,
 val createdAt: Long,
+val receivedElapsedRealtimeNanos: Long = 0L,
+val deliveryAgeMs: Long? = null,
+val acquisitionMode: String = "UNKNOWN",
+val requestPriority: String = "UNKNOWN",
+val permissionPrecision: String = "UNKNOWN",
+val batchIndex: Int = 0,
+val batchSize: Int = 1,
+val isMock: Boolean = false,
+val estimatorVersion: Int = 1,
+val calibrationVersion: Int = 0,
 )
 
 /**

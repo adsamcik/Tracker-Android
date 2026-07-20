@@ -12,6 +12,8 @@ import com.adsamcik.tracker.stats.api.value.*
 data class TrackingSignal(
 	val timestampMs: EpochMs,
 	val elapsedRealtimeNanos: Long = 0L,
+	/** Provider observation before quality/consumer processing; persisted for replay and calibration. */
+	val locationObservation: LocationObservationSignal? = null,
 	val location: LocationSignal? = null,
 	val activity: ActivitySignal? = null,
 	val activityFresh: Boolean = true,
@@ -33,6 +35,43 @@ data class LocationSignal(
 	val speedAccuracyMps: Float? = null,
 	val distanceDelta: DistanceM? = null,
 	val provider: String = "fused",
+	/** Monotonic callback-receipt time; distinct from the provider fix time on [TrackingSignal]. */
+	val receivedElapsedRealtimeNanos: Long = 0L,
+	/** Stable acquisition backend name. Unknown values remain forward-compatible strings. */
+	val acquisitionMode: String = "UNKNOWN",
+	/** Request priority active for this fix (PASSIVE, BALANCED, HIGH_ACCURACY, ...). */
+	val requestPriority: String = "UNKNOWN",
+	/** Permission precision in effect when delivered (APPROXIMATE or PRECISE). */
+	val permissionPrecision: String = "UNKNOWN",
+	/** Original position and size of a batched provider callback. */
+	val batchIndex: Int = 0,
+	val batchSize: Int = 1,
+	/** Whether Android identified this as a mock/test-provider fix. */
+	val isMock: Boolean = false,
+)
+
+/**
+ * Lossless-enough provider fix used for calibration/replay. Unlike [LocationSignal], accuracy is
+ * nullable and the observation may have been rejected by the accepted-sample pipeline.
+ */
+data class LocationObservationSignal(
+	/** Null when a provider delivered NaN, infinity, or an out-of-range coordinate. */
+	val coordinate: CoordinateE7?,
+	val horizontalAccuracyM: Float? = null,
+	val altitudeM: Float? = null,
+	val verticalAccuracyM: Float? = null,
+	val speedMps: Float? = null,
+	val speedAccuracyMps: Float? = null,
+	val provider: String = "unknown",
+	val receivedAtMs: Long = 0L,
+	val receivedElapsedRealtimeNanos: Long = 0L,
+	val acquisitionMode: String = "UNKNOWN",
+	val requestPriority: String = "UNKNOWN",
+	val permissionPrecision: String = "UNKNOWN",
+	val batchIndex: Int = 0,
+	val batchSize: Int = 1,
+	val isMock: Boolean = false,
+	val ingressDisposition: String = "DELIVERED_VALID",
 )
 
 /** Activity recognition data for a single cycle. */

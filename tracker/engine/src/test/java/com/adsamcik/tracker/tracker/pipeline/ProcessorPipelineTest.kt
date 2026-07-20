@@ -401,6 +401,31 @@ class ProcessorPipelineTest {
 		healthy.signals shouldHaveSize 1
 	}
 
+	@Test
+	fun `raw evidence is checkpointed only by the durability processor`() = runTest {
+		val persistence = DurableRecordingProcessor()
+		val analytics = ambientProcessor(id = "analytics", priority = 10)
+		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		val rawSignals = listOf(testSignal(1_100L), testSignal(1_200L))
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.checkpointDurableSignals(rawSignals) shouldBe true
+
+		persistence.signals shouldContainExactly rawSignals
+		persistence.checkpointCount shouldBe 1
+		analytics.signals shouldHaveSize 0
+	}
+
+	@Test
+	fun `raw evidence checkpoint reports unavailable or unhealthy durability`() = runTest {
+		val persistence = DurableRecordingProcessor().apply { checkpointHealthy = false }
+		val pipeline = createPipeline(setOf(persistence), this)
+
+		pipeline.checkpointDurableSignals(listOf(testSignal())) shouldBe false
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+		pipeline.checkpointDurableSignals(listOf(testSignal())) shouldBe false
+	}
+
 	// endregion
 
 	// region flush

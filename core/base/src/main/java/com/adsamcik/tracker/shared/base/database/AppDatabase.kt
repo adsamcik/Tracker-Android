@@ -21,6 +21,9 @@ import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.PresenceIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.PresenceAnalysisDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
@@ -42,6 +45,12 @@ import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.PresenceInterval
+import com.adsamcik.tracker.shared.base.database.data.AnalysisCell
+import com.adsamcik.tracker.shared.base.database.data.PresenceCompactionBlock
+import com.adsamcik.tracker.shared.base.database.data.PresenceCellContribution
+import com.adsamcik.tracker.shared.base.database.data.PresenceCompactionCheckpoint
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity
@@ -86,17 +95,23 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 35 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 36 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 35,
+		version = 36,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
 			NetworkOperator::class,
 			// Sessionless architecture entities
 			LocationSample::class,
+			LocationObservation::class,
+			PresenceInterval::class,
+			AnalysisCell::class,
+			PresenceCompactionBlock::class,
+			PresenceCellContribution::class,
+			PresenceCompactionCheckpoint::class,
 			StepInterval::class,
 			ActivitySnapshot::class,
 			CellSample::class,
@@ -173,6 +188,12 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to raw location samples (sessionless tracking).
 	 */
 	abstract fun locationSampleDao(): LocationSampleDao
+
+	abstract fun locationObservationDao(): LocationObservationDao
+
+	abstract fun presenceIntervalDao(): PresenceIntervalDao
+
+	abstract fun presenceAnalysisDao(): PresenceAnalysisDao
 
 	/**
 	 * Provides access to step interval data (sessionless tracking).
@@ -371,6 +392,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_32_33,
 			MIGRATION_33_34,
 			MIGRATION_34_35,
+			MIGRATION_35_36,
 		)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -404,6 +426,12 @@ abstract class AppDatabase : RoomDatabase() {
 			database.runInTransaction {
 				// Sessionless architecture tables
 				database.locationSampleDao().deleteAll()
+				database.locationObservationDao().deleteAll()
+				database.presenceAnalysisDao().deleteAllContributions()
+				database.presenceAnalysisDao().deleteAllBlocks()
+				database.presenceAnalysisDao().deleteAllCheckpoints()
+				database.presenceAnalysisDao().deleteAllCells()
+				database.presenceIntervalDao().deleteAll()
 				database.stepIntervalDao().deleteAll()
 				database.activitySnapshotDao().deleteAll()
 				database.cellSampleDao().deleteAll()
@@ -458,6 +486,6 @@ abstract class AppDatabase : RoomDatabase() {
 			}
 		}
 
-		private const val CURRENT_DATABASE_VERSION = 35
+		private const val CURRENT_DATABASE_VERSION = 36
 	}
 }

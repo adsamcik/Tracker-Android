@@ -6,8 +6,10 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.tracker.component.AdaptiveLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
+import com.adsamcik.tracker.tracker.component.LocationRequestFidelity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
@@ -75,6 +77,7 @@ internal class TrackerTierEscalationHandler(
 		} else {
 			policy
 		}
+		val requestFidelity = intervalPolicy.toLocationRequestFidelity()
 
 		scope.launch {
 			componentMutex.withLock {
@@ -88,6 +91,7 @@ internal class TrackerTierEscalationHandler(
 					requiresHealth = requiresHealth,
 					context = context,
 					timerReceiver = timerReceiver,
+					requestFidelity = requestFidelity,
 				)
 				if (triggerTransition == TriggerTransition.Failed) {
 					return@withLock
@@ -106,6 +110,9 @@ internal class TrackerTierEscalationHandler(
 				try {
 					if (newTier != oldTier) {
 						processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
+					}
+					if (triggerTransition == TriggerTransition.NotNeeded) {
+						configureLocationRequestFidelity(timerAccessor.get(), requestFidelity)
 					}
 					triggerTransition.commit(context, timerAccessor)
 					if (
@@ -134,17 +141,38 @@ internal class TrackerTierEscalationHandler(
 		}
 	}
 
+	/**
+	 * Configures a trigger created before the policy observer starts.
+	 *
+	 * The service calls this during initialization, before enabling the trigger, so even the first
+	 * fused request follows the balanced-first policy.
+	 */
+	fun configureCurrentLocationRequest(policy: TrackingPolicy) {
+		val requestedTier = PolicyTierMapper.toTier(policy)
+		val effectiveTier = tierAdjuster(requestedTier)
+		val effectivePolicy = if (effectiveTier < requestedTier) {
+			PolicyTierMapper.toTrackingPolicy(effectiveTier)
+		} else {
+			policy
+		}
+		configureLocationRequestFidelity(
+			timerAccessor.get(),
+			effectivePolicy.toLocationRequestFidelity(),
+		)
+	}
+
 	private suspend fun prepareTriggerTransition(
 		shouldUseGps: Boolean,
 		requiresHealth: Boolean,
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
+		requestFidelity: LocationRequestFidelity,
 	): TriggerTransition {
 		val currentlyUsesGps = timerAccessor.get().isLocationTrigger
 
 		return when {
 			shouldUseGps && !currentlyUsesGps ->
-				prepareGpsTrigger(context, timerReceiver, requiresHealth)
+				prepareGpsTrigger(context, timerReceiver, requiresHealth, requestFidelity)
 			!shouldUseGps && currentlyUsesGps -> prepareAmbientTrigger(context, timerReceiver)
 			else -> TriggerTransition.NotNeeded
 		}
@@ -154,6 +182,7 @@ internal class TrackerTierEscalationHandler(
 		context: Context,
 		timerReceiver: TrackerTimerReceiver,
 		requiresHealth: Boolean,
+		requestFidelity: LocationRequestFidelity,
 	): TriggerTransition {
 		if (!foregroundServiceTypeUpdater(true, requiresHealth, false)) {
 			return TriggerTransition.Failed
@@ -163,6 +192,7 @@ internal class TrackerTierEscalationHandler(
 		return try {
 			val gpsTimer = gpsTriggerFactory(context)
 			if (gpsTimer.hasRequiredPermissions(context)) {
+				configureLocationRequestFidelity(gpsTimer, requestFidelity)
 				gpsTimer.onEnable(context, timerReceiver)
 				prepared = true
 				TriggerTransition.Ready(
@@ -206,6 +236,23 @@ internal class TrackerTierEscalationHandler(
 		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy, params)
 		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy, params)
 		timer.updateInterval(context, intervalSeconds, minDistanceMeters)
+	}
+
+	private fun configureLocationRequestFidelity(
+		trigger: CollectionTriggerComponent,
+		fidelity: LocationRequestFidelity,
+	) {
+		(trigger as? AdaptiveLocationCollectionTrigger)?.updateRequestFidelity(fidelity)
+	}
+
+	private fun TrackingPolicy.toLocationRequestFidelity(): LocationRequestFidelity = when (this) {
+		TrackingPolicy.ACTIVE_ELEVATED,
+		TrackingPolicy.USER_INITIATED,
+		-> LocationRequestFidelity.HIGH_ACCURACY
+		TrackingPolicy.PASSIVE_LOW,
+		TrackingPolicy.MOVEMENT_SUSPECTED,
+		TrackingPolicy.ACTIVE_MODERATE,
+		-> LocationRequestFidelity.BALANCED
 	}
 
 	/**

@@ -61,6 +61,7 @@ class Release2024_1BackupMigrationTest {
 		val target = migrated.openHelper.writableDatabase
 		assertEquals(CURRENT_VERSION, target.version)
 		assertEquals(6, count(target, "location_sample"))
+		assertEquals(6, count(target, "location_observation"))
 		assertEquals(6, count(target, "activity_snapshot"))
 		assertEquals(35, count(target, "session_segment"))
 		assertEquals(2, count(target, "legacy_rejected_tracker_session"))
@@ -174,6 +175,6 @@ class Release2024_1BackupMigrationTest {
 		const val DATABASE_NAME = "release_2024_1_backup.db"
 		const val FIXTURE = "baseline/2024.1/main_database.db"
 		const val RELEASE_VERSION = 10
-		const val CURRENT_VERSION = 35
+		const val CURRENT_VERSION = 36
 	}
 }

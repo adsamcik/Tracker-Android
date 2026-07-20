@@ -182,6 +182,13 @@ class SafeQueryBuilder private constructor(
             appendClause(selection, "quality NOT IN ('LOW', 'COARSE')")
             appendClause(selection, "(speed_accuracy_mps IS NULL OR speed_accuracy_mps <= $MAX_TRUSTED_SPEED_ACCURACY_MPS)")
         }
+        // Cursor.getDouble() decodes SQL NULL as 0.0. For horizontal accuracy that would turn an
+        // unknown radius into a seemingly perfect fix after the confidence inversion, so exclude
+        // missing/non-positive radii at the query boundary instead of over-weighting them.
+        if (table == Table.LOCATION && weightColumn == "hor_acc") {
+            appendClause(selection, "h_acc_m IS NOT NULL")
+            appendClause(selection, "h_acc_m > 0")
+        }
         if (table == Table.LOCATION && weightColumn == "alt") {
             appendClause(selection, "alt_m IS NOT NULL")
         }

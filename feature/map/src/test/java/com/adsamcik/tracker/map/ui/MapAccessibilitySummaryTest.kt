@@ -18,7 +18,8 @@ class MapAccessibilitySummaryTest {
         searchResultVisible = "Search result marker visible",
         activeRecordingVisible = "Active recording path visible",
         recordedRouteHistory = "Showing recorded route history",
-        locationHeatmap = "Showing a location heatmap",
+		observedPresence = "Showing observation-supported presence, including stops and travel",
+		locationHeatmap = "Showing distinct accepted location observations",
         cellHeatmap = "Showing a cell coverage heatmap",
         wifiHeatmap = "Showing a Wi-Fi heatmap",
         wifiCountHeatmap = "Showing a Wi-Fi count heatmap",
@@ -45,8 +46,25 @@ class MapAccessibilitySummaryTest {
             labels = labels,
         )
 
-        summary shouldBe "Map centered on your location. Showing a location heatmap. Neighborhood scale."
+		summary shouldBe "Map centered on your location. Showing distinct accepted location observations. Neighborhood scale."
     }
+
+	@Test
+	fun `distinguishes observed presence from distinct observations`() {
+		val summary = buildMapAccessibilitySummary(
+			isFollowing = false,
+			hasUserLocation = false,
+			hasSearchResult = false,
+			isLoading = false,
+			hasNoData = false,
+			activeLayerIds = setOf("observed_presence"),
+			activeTrackingVisible = false,
+			zoom = 12f,
+			labels = labels,
+		)
+
+		summary shouldBe "Map overview. Showing observation-supported presence, including stops and travel. Neighborhood scale."
+	}
 
     @Test
     fun `prefers loading message while map data is loading`() {

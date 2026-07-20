@@ -79,6 +79,14 @@ class DefaultLayerRegistryTest {
             result.id shouldBe "location_heatmap"
         }
 
+		@Test
+		fun `finds observed_presence layer`() {
+			val result = registry.findById("observed_presence")
+
+			result.shouldNotBeNull()
+			result.id shouldBe "observed_presence"
+		}
+
         @Test
         fun `finds speed_heatmap layer`() {
             val result = registry.findById("speed_heatmap")
@@ -128,6 +136,7 @@ class DefaultLayerRegistryTest {
 
             ids shouldBe listOf(
                 "none",
+				"observed_presence",
                 "location_heatmap",
                 "cell_heatmap",
                 "signal_coverage",
@@ -154,6 +163,7 @@ class DefaultLayerRegistryTest {
         @Test
         fun `heatmap layers have isHeatmap capability`() {
             val heatmapIds = listOf(
+				"observed_presence",
                 "location_heatmap",
                 "cell_heatmap",
                 "signal_coverage",
@@ -208,6 +218,22 @@ class DefaultLayerRegistryTest {
                 R.string.map_layer_location_heatmap_peak,
             )
         }
+
+		@Test
+		fun `observed presence legend uses the absolute time ramp`() {
+			val entry = registry.findById("observed_presence")!!.recipe.factory.create() as LayerEntry
+
+			entry.legend.colorList shouldBe HeatmapColorRamps.ObservedPresenceTime.map { it.second }
+			entry.legend.legend.valueList.map { it.color } shouldBe
+				HeatmapColorRamps.ObservedPresenceTime.map { it.second }
+			entry.legend.legend.valueList.map { it.nameRes } shouldBe listOf(
+				R.string.map_layer_observed_presence_seconds,
+				R.string.map_layer_observed_presence_one_minute,
+				R.string.map_layer_observed_presence_eight_minutes,
+				R.string.map_layer_observed_presence_one_hour,
+				R.string.map_layer_observed_presence_eight_hours,
+			)
+		}
 
         @Test
         fun `speed heatmap legend matches speed color ramp`() {
