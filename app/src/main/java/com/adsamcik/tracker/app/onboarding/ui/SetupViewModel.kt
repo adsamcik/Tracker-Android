@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
@@ -43,6 +44,7 @@ import com.adsamcik.tracker.tracker.R as TrackerR
 @HiltViewModel
 class SetupViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
+    private val savedStateHandle: SavedStateHandle,
     private val dispatchers: DispatchersProvider,
     private val onboardingRepository: OnboardingRepository,
     private val activityWatcherController: ActivityWatcherServiceController,
@@ -52,7 +54,7 @@ class SetupViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
-        SetupUiState(
+        savedStateHandle.restoreDraft(
             stepCounterAvailable = appContext.hasStepCounterSensor,
         ),
     )
@@ -61,17 +63,17 @@ class SetupViewModel @Inject constructor(
     // region Step navigation
 
     fun goToNextStep() {
-        _state.update { current ->
+        updateState { current ->
             val nextIndex = current.currentStep.index + 1
-            val next = SetupStep.fromIndex(nextIndex) ?: return@update current
+            val next = SetupStep.fromIndex(nextIndex) ?: return@updateState current
             current.copy(currentStep = next)
         }
     }
 
     fun goToPreviousStep() {
-        _state.update { current ->
+        updateState { current ->
             val prevIndex = current.currentStep.index - 1
-            val prev = SetupStep.fromIndex(prevIndex) ?: return@update current
+            val prev = SetupStep.fromIndex(prevIndex) ?: return@updateState current
             current.copy(currentStep = prev)
         }
     }
@@ -81,11 +83,11 @@ class SetupViewModel @Inject constructor(
     // region Step 2 – How to Track
 
     fun setAutoTrackingMode(mode: Int) {
-        _state.update { it.copy(autoTrackingMode = mode.coerceIn(0, 2)) }
+        updateState { it.copy(autoTrackingMode = mode.coerceIn(0, 2)) }
     }
 
     fun setTrackingPreset(preset: TrackingPolicyPreset) {
-        _state.update { it.copy(trackingPreset = preset) }
+        updateState { it.copy(trackingPreset = preset) }
     }
 
     // endregion
@@ -93,27 +95,27 @@ class SetupViewModel @Inject constructor(
     // region Step 3 – What to Collect
 
     fun setLocationEnabled(enabled: Boolean) {
-        _state.update { it.copy(locationEnabled = enabled, locationPermissionDenied = false) }
+        updateState { it.copy(locationEnabled = enabled, locationPermissionDenied = false) }
     }
 
     fun setLocationPrecision(mode: LocationPrecisionMode) {
-        _state.update { it.copy(locationPrecision = mode) }
+        updateState { it.copy(locationPrecision = mode) }
     }
 
     fun setActivityEnabled(enabled: Boolean) {
-        _state.update { it.copy(activityEnabled = enabled, activityPermissionDenied = false) }
+        updateState { it.copy(activityEnabled = enabled, activityPermissionDenied = false) }
     }
 
     fun setStepsEnabled(enabled: Boolean) {
-        _state.update { it.copy(stepsEnabled = enabled && it.stepCounterAvailable) }
+        updateState { it.copy(stepsEnabled = enabled && it.stepCounterAvailable) }
     }
 
     fun setWifiEnabled(enabled: Boolean) {
-        _state.update { it.copy(wifiEnabled = enabled, wifiPermissionDenied = false) }
+        updateState { it.copy(wifiEnabled = enabled, wifiPermissionDenied = false) }
     }
 
     fun setCellEnabled(enabled: Boolean) {
-        _state.update { it.copy(cellEnabled = enabled, cellPermissionDenied = false) }
+        updateState { it.copy(cellEnabled = enabled, cellPermissionDenied = false) }
     }
 
     // endregion
@@ -121,7 +123,7 @@ class SetupViewModel @Inject constructor(
     // region Permissions
 
     fun onLocationPermissionResult(granted: Boolean) {
-        _state.update {
+        updateState {
             if (granted) {
                 it.copy(locationPermissionGranted = true, locationPermissionDenied = false)
             } else {
@@ -138,11 +140,11 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onBackgroundLocationResult(granted: Boolean) {
-        _state.update { it.copy(backgroundLocationGranted = granted) }
+        updateState { it.copy(backgroundLocationGranted = granted) }
     }
 
     fun onActivityPermissionResult(granted: Boolean) {
-        _state.update {
+        updateState {
             if (granted) {
                 it.copy(activityPermissionGranted = true, activityPermissionDenied = false)
             } else {
@@ -157,11 +159,11 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onNotificationPermissionResult(granted: Boolean) {
-        _state.update { it.copy(notificationPermissionGranted = granted) }
+        updateState { it.copy(notificationPermissionGranted = granted) }
     }
 
     fun onWifiPermissionResult(granted: Boolean) {
-        _state.update {
+        updateState {
             if (granted) {
                 it.copy(wifiPermissionGranted = true, wifiPermissionDenied = false)
             } else {
@@ -175,7 +177,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onCellPermissionResult(granted: Boolean) {
-        _state.update {
+        updateState {
             if (granted) {
                 it.copy(cellPermissionGranted = true, cellPermissionDenied = false)
             } else {
@@ -193,7 +195,7 @@ class SetupViewModel @Inject constructor(
     // region Step 4 – Online Map Tiles
 
     fun setOnlineMapTilesEnabled(enabled: Boolean) {
-        _state.update { it.copy(onlineMapTilesEnabled = enabled) }
+        updateState { it.copy(onlineMapTilesEnabled = enabled) }
     }
 
     // endregion
@@ -282,5 +284,85 @@ class SetupViewModel @Inject constructor(
         TrackingPolicyPreset.BATTERY_SAVER -> TrackingPreset.POWER_SAVE
         TrackingPolicyPreset.BALANCED -> TrackingPreset.BALANCED
         TrackingPolicyPreset.HIGH_PRECISION -> TrackingPreset.HIGH_ACCURACY
+    }
+
+    private fun updateState(transform: (SetupUiState) -> SetupUiState) {
+        _state.update { current ->
+            transform(current).also(::saveDraft)
+        }
+    }
+
+    private fun saveDraft(state: SetupUiState) {
+        savedStateHandle[KEY_STEP] = state.currentStep.index
+        savedStateHandle[KEY_AUTO_TRACKING_MODE] = state.autoTrackingMode
+        savedStateHandle[KEY_TRACKING_PRESET] = state.trackingPreset.name
+        savedStateHandle[KEY_LOCATION_ENABLED] = state.locationEnabled
+        savedStateHandle[KEY_LOCATION_PRECISION] = state.locationPrecision.name
+        savedStateHandle[KEY_ACTIVITY_ENABLED] = state.activityEnabled
+        savedStateHandle[KEY_STEPS_ENABLED] = state.stepsEnabled
+        savedStateHandle[KEY_WIFI_ENABLED] = state.wifiEnabled
+        savedStateHandle[KEY_CELL_ENABLED] = state.cellEnabled
+        savedStateHandle[KEY_LOCATION_PERMISSION_GRANTED] = state.locationPermissionGranted
+        savedStateHandle[KEY_BACKGROUND_LOCATION_GRANTED] = state.backgroundLocationGranted
+        savedStateHandle[KEY_ACTIVITY_PERMISSION_GRANTED] = state.activityPermissionGranted
+        savedStateHandle[KEY_NOTIFICATION_PERMISSION_GRANTED] = state.notificationPermissionGranted
+        savedStateHandle[KEY_WIFI_PERMISSION_GRANTED] = state.wifiPermissionGranted
+        savedStateHandle[KEY_CELL_PERMISSION_GRANTED] = state.cellPermissionGranted
+        savedStateHandle[KEY_LOCATION_PERMISSION_DENIED] = state.locationPermissionDenied
+        savedStateHandle[KEY_ACTIVITY_PERMISSION_DENIED] = state.activityPermissionDenied
+        savedStateHandle[KEY_WIFI_PERMISSION_DENIED] = state.wifiPermissionDenied
+        savedStateHandle[KEY_CELL_PERMISSION_DENIED] = state.cellPermissionDenied
+        savedStateHandle[KEY_ONLINE_MAP_TILES_ENABLED] = state.onlineMapTilesEnabled
+    }
+
+    private fun SavedStateHandle.restoreDraft(stepCounterAvailable: Boolean): SetupUiState = SetupUiState(
+        currentStep = get<Int>(KEY_STEP)?.let(SetupStep::fromIndex) ?: SetupStep.Welcome,
+        autoTrackingMode = get<Int>(KEY_AUTO_TRACKING_MODE) ?: 1,
+        trackingPreset = get<String>(KEY_TRACKING_PRESET)
+            ?.let { runCatching { TrackingPolicyPreset.valueOf(it) }.getOrNull() }
+            ?: TrackingPolicyPreset.DEFAULT,
+        locationEnabled = get<Boolean>(KEY_LOCATION_ENABLED) ?: true,
+        locationPrecision = get<String>(KEY_LOCATION_PRECISION)
+            ?.let { runCatching { LocationPrecisionMode.valueOf(it) }.getOrNull() }
+            ?: LocationPrecisionMode.PRECISE,
+        activityEnabled = get<Boolean>(KEY_ACTIVITY_ENABLED) ?: true,
+        stepsEnabled = get<Boolean>(KEY_STEPS_ENABLED) ?: true,
+        stepCounterAvailable = stepCounterAvailable,
+        wifiEnabled = get<Boolean>(KEY_WIFI_ENABLED) ?: false,
+        cellEnabled = get<Boolean>(KEY_CELL_ENABLED) ?: false,
+        locationPermissionGranted = get<Boolean>(KEY_LOCATION_PERMISSION_GRANTED) ?: false,
+        backgroundLocationGranted = get<Boolean>(KEY_BACKGROUND_LOCATION_GRANTED) ?: false,
+        activityPermissionGranted = get<Boolean>(KEY_ACTIVITY_PERMISSION_GRANTED) ?: false,
+        notificationPermissionGranted = get<Boolean>(KEY_NOTIFICATION_PERMISSION_GRANTED) ?: false,
+        wifiPermissionGranted = get<Boolean>(KEY_WIFI_PERMISSION_GRANTED) ?: false,
+        cellPermissionGranted = get<Boolean>(KEY_CELL_PERMISSION_GRANTED) ?: false,
+        locationPermissionDenied = get<Boolean>(KEY_LOCATION_PERMISSION_DENIED) ?: false,
+        activityPermissionDenied = get<Boolean>(KEY_ACTIVITY_PERMISSION_DENIED) ?: false,
+        wifiPermissionDenied = get<Boolean>(KEY_WIFI_PERMISSION_DENIED) ?: false,
+        cellPermissionDenied = get<Boolean>(KEY_CELL_PERMISSION_DENIED) ?: false,
+        onlineMapTilesEnabled = get<Boolean>(KEY_ONLINE_MAP_TILES_ENABLED) ?: false,
+    )
+
+    private companion object {
+        const val KEY_STEP = "setup_step"
+        const val KEY_AUTO_TRACKING_MODE = "setup_auto_tracking_mode"
+        const val KEY_TRACKING_PRESET = "setup_tracking_preset"
+        const val KEY_LOCATION_ENABLED = "setup_location_enabled"
+        const val KEY_LOCATION_PRECISION = "setup_location_precision"
+        const val KEY_ACTIVITY_ENABLED = "setup_activity_enabled"
+        const val KEY_STEPS_ENABLED = "setup_steps_enabled"
+        const val KEY_WIFI_ENABLED = "setup_wifi_enabled"
+        const val KEY_CELL_ENABLED = "setup_cell_enabled"
+        const val KEY_LOCATION_PERMISSION_GRANTED = "setup_location_permission_granted"
+        const val KEY_BACKGROUND_LOCATION_GRANTED = "setup_background_location_granted"
+        const val KEY_ACTIVITY_PERMISSION_GRANTED = "setup_activity_permission_granted"
+        const val KEY_NOTIFICATION_PERMISSION_GRANTED = "setup_notification_permission_granted"
+        const val KEY_WIFI_PERMISSION_GRANTED = "setup_wifi_permission_granted"
+        const val KEY_CELL_PERMISSION_GRANTED = "setup_cell_permission_granted"
+        const val KEY_LOCATION_PERMISSION_DENIED = "setup_location_permission_denied"
+        const val KEY_ACTIVITY_PERMISSION_DENIED = "setup_activity_permission_denied"
+        const val KEY_WIFI_PERMISSION_DENIED = "setup_wifi_permission_denied"
+        const val KEY_CELL_PERMISSION_DENIED = "setup_cell_permission_denied"
+        const val KEY_ONLINE_MAP_TILES_ENABLED = "setup_online_map_tiles_enabled"
     }
 }

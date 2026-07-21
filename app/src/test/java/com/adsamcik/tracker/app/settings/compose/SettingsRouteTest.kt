@@ -11,14 +11,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.app.settings.SettingsScreen
+import com.adsamcik.tracker.app.settings.SettingsScreenSaver
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -45,7 +47,10 @@ class SettingsRouteTest {
         initialScreen: SettingsScreen = SettingsScreen.Root,
         onNavigateBack: () -> Unit = {},
     ) {
-        var currentScreen by remember { mutableStateOf(initialScreen) }
+        var currentScreen by rememberSaveable(
+            initialScreen,
+            saver = SettingsScreenSaver,
+        ) { mutableStateOf(initialScreen) }
 
         Scaffold(
             topBar = {
@@ -120,6 +125,21 @@ class SettingsRouteTest {
             AppTheme { SettingsRouteTestLayout() }
         }
         composeTestRule.onNodeWithText("Go to Tracking").performClick()
+        composeTestRule.onNodeWithText("Tracking Settings Content").assertIsDisplayed()
+    }
+
+    @Test
+    fun currentScreen_survivesSavedStateRestoration() {
+        val restorationTester = StateRestorationTester(composeTestRule)
+        restorationTester.setContent {
+            AppTheme { SettingsRouteTestLayout() }
+        }
+
+        composeTestRule.onNodeWithText("Go to Tracking").performClick()
+        composeTestRule.onNodeWithText("Tracking Settings Content").assertIsDisplayed()
+
+        restorationTester.emulateSavedInstanceStateRestore()
+
         composeTestRule.onNodeWithText("Tracking Settings Content").assertIsDisplayed()
     }
 

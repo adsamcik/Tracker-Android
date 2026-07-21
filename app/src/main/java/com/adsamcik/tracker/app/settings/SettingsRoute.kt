@@ -19,9 +19,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,7 +52,10 @@ fun SettingsRoute(
     initialScreen: SettingsScreen = SettingsScreen.Root,
 ) {
     val vm: SettingsViewModel = hiltViewModel()
-    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) }
+    var currentScreen by rememberSaveable(
+        initialScreen,
+        saver = SettingsScreenSaver,
+    ) { mutableStateOf(initialScreen) }
 
     BackHandler(enabled = currentScreen != SettingsScreen.Root) {
         currentScreen = SettingsScreen.Root
@@ -148,4 +153,36 @@ sealed class SettingsScreen {
     data object Debug : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.settings_debug_title)
     }
+
+    internal fun saveKey(): String = when (this) {
+        Root -> "root"
+        Tracking -> "tracking"
+        Data -> "data"
+        Export -> "export"
+        Map -> "map"
+        Game -> "game"
+        Statistics -> "statistics"
+        Debug -> "debug"
+    }
+
+    internal companion object {
+        fun fromSaveKey(key: String): SettingsScreen? = when (key) {
+            "root" -> Root
+            "tracking" -> Tracking
+            "data" -> Data
+            "export" -> Export
+            "map" -> Map
+            "game" -> Game
+            "statistics" -> Statistics
+            "debug" -> Debug
+            else -> null
+        }
+    }
 }
+
+internal val SettingsScreenSaver = Saver<MutableState<SettingsScreen>, String>(
+    save = { it.value.saveKey() },
+    restore = { key ->
+        mutableStateOf(SettingsScreen.fromSaveKey(key) ?: SettingsScreen.Root)
+    },
+)

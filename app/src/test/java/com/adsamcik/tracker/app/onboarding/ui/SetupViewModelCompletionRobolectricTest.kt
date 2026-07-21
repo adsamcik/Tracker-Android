@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
@@ -91,6 +92,7 @@ class SetupViewModelCompletionRobolectricTest {
 	fun `completeSetup writes tracking parameters to repository`() = runTest(testDispatcher) {
 		val vm = SetupViewModel(
 			appContext = appContext,
+			savedStateHandle = SavedStateHandle(),
 			dispatchers = dispatchers,
 			onboardingRepository = onboardingRepository,
 			activityWatcherController = activityWatcherController,

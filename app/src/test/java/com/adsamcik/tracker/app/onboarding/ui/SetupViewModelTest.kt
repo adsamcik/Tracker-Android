@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
@@ -73,8 +74,11 @@ class SetupViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = SetupViewModel(
+    private fun createViewModel(
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    ) = SetupViewModel(
         appContext = appContext,
+        savedStateHandle = savedStateHandle,
         dispatchers = dispatchers,
         onboardingRepository = onboardingRepository,
         activityWatcherController = activityWatcherController,
@@ -122,6 +126,31 @@ class SetupViewModelTest {
             state.wifiPermissionGranted shouldBe false
             state.cellPermissionGranted shouldBe false
         }
+
+        @Test
+        fun `restores partial draft from saved state handle`() {
+            val savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "setup_step" to SetupStep.WhatToCollect.index,
+                    "setup_tracking_preset" to TrackingPolicyPreset.HIGH_PRECISION.name,
+                    "setup_location_enabled" to false,
+                    "setup_location_precision" to LocationPrecisionMode.APPROXIMATE.name,
+                    "setup_wifi_enabled" to true,
+                    "setup_cell_enabled" to true,
+                    "setup_online_map_tiles_enabled" to true,
+                ),
+            )
+
+            val state = createViewModel(savedStateHandle).state.value
+
+            state.currentStep shouldBe SetupStep.WhatToCollect
+            state.trackingPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
+            state.locationEnabled shouldBe false
+            state.locationPrecision shouldBe LocationPrecisionMode.APPROXIMATE
+            state.wifiEnabled shouldBe true
+            state.cellEnabled shouldBe true
+            state.onlineMapTilesEnabled shouldBe true
+        }
     }
 
     @Nested
@@ -133,6 +162,22 @@ class SetupViewModelTest {
             val vm = createViewModel()
             vm.goToNextStep()
             vm.state.value.currentStep shouldBe SetupStep.HowToTrack
+        }
+
+        @Test
+        fun `mutations are saved to and restored from the same saved state handle`() {
+            val savedStateHandle = SavedStateHandle()
+            val original = createViewModel(savedStateHandle)
+
+            original.goToNextStep()
+            original.setWifiEnabled(true)
+
+            savedStateHandle.get<Int>("setup_step") shouldBe SetupStep.HowToTrack.index
+            savedStateHandle.get<Boolean>("setup_wifi_enabled") shouldBe true
+
+            val recreated = createViewModel(savedStateHandle)
+            recreated.state.value.currentStep shouldBe SetupStep.HowToTrack
+            recreated.state.value.wifiEnabled shouldBe true
         }
 
         @Test
