@@ -280,6 +280,7 @@ class DashboardViewModel @Inject constructor(
 		if (!granted) {
 			_permissionDenied.value = true
 		}
+		_showLocationPermissionRequest.value = false
 	}
 
 	fun requestPermission() {

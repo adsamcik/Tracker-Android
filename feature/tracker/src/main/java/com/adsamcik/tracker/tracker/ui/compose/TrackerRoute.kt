@@ -6,18 +6,24 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
@@ -69,6 +75,8 @@ fun TrackerRoute(
     viewModel: TrackerRouteViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentContext by rememberUpdatedState(context)
     val scope = rememberCoroutineScope()
     
     // Access dependencies via Hilt ViewModel
@@ -82,8 +90,20 @@ fun TrackerRoute(
     }
     
     // Permission state
-    var hasLocationPermission by remember {
+    var hasLocationPermission by rememberSaveable {
         mutableStateOf(checkLocationPermission(context))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasLocationPermission = checkLocationPermission(currentContext)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
     
     // Contextual permission request state
@@ -135,13 +155,13 @@ fun TrackerRoute(
             permissionType = PermissionType.LOCATION_FOREGROUND,
             permission = Manifest.permission.ACCESS_FINE_LOCATION,
             onPermissionResult = { granted ->
-                hasLocationPermission = granted
+                val resultState = resolveTrackerPermissionResult(granted)
+                hasLocationPermission = resultState.hasLocationPermission
+                permissionDenied = resultState.permissionDenied
+                showLocationPermissionRequest = resultState.showLocationPermissionRequest
                 if (granted) {
                     // Permission granted - start tracking
                     TrackerServiceApi.startService(context, isUserInitiated = true)
-                } else {
-                    // Permission denied - show snackbar with settings action
-                    permissionDenied = true
                 }
             },
             onDismiss = { 
@@ -263,6 +283,18 @@ fun TrackerRoute(
         onDismiss = { showStopOptions = false },
     )
 }
+
+internal data class TrackerPermissionResultState(
+    val hasLocationPermission: Boolean,
+    val showLocationPermissionRequest: Boolean,
+    val permissionDenied: Boolean,
+)
+
+internal fun resolveTrackerPermissionResult(granted: Boolean) = TrackerPermissionResultState(
+    hasLocationPermission = granted,
+    showLocationPermissionRequest = false,
+    permissionDenied = !granted,
+)
 
 private fun checkLocationPermission(context: Context): Boolean {
     return ContextCompat.checkSelfPermission(

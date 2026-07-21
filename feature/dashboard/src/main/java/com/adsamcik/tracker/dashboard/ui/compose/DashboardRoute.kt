@@ -6,18 +6,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
@@ -65,6 +71,7 @@ fun DashboardRoute(
 	contentPadding: PaddingValues = PaddingValues(),
 ) {
 	val context = LocalContext.current
+	val lifecycle = LocalLifecycleOwner.current.lifecycle
 	val viewModel: DashboardViewModel = hiltViewModel()
 
 	// Dependencies via ViewModel (Hilt-injected)
@@ -80,6 +87,8 @@ fun DashboardRoute(
 	var userRequestedStop by remember { mutableStateOf(false) }
 	var showStopOptions by remember { mutableStateOf(false) }
 	var deferredDashboardDataEnabled by remember { mutableStateOf(false) }
+
+	DashboardPermissionResumeEffect(viewModel, context)
 
 	LaunchedEffect(Unit) {
 		withFrameNanos { }
@@ -137,34 +146,36 @@ fun DashboardRoute(
 		viewModel.loadHistoricalData(isTracking, lastSessionData)
 	}
 
-	LaunchedEffect(isTracking, sessionInfo) {
+	LaunchedEffect(lifecycle, isTracking, sessionInfo) {
 		if (!isTracking && sessionInfo == null) {
 			userRequestedStop = false
 			return@LaunchedEffect
 		}
 
-		while (isTracking || sessionInfo != null) {
-			delay(5_000)
+		runDashboardConsistencyChecksWhenResumed(
+			lifecycle = lifecycle,
+			shouldContinue = { isTracking || sessionInfo != null },
+		) {
 			if (TrackerServiceApi.isRunningInSystem(context)) {
-				continue
-			}
-
-			if (trackerState.isServiceRunning) {
-				TrackerServiceApi.repairStoppedServiceState(context)
-			}
-
-			if (!userRequestedStop) {
-				val result = snackbarHostState.showSnackbar(
-					message = context.getString(R.string.dashboard_tracking_stopped_unexpectedly),
-					actionLabel = context.getString(R.string.dashboard_action_restart_tracking),
-				)
-				if (result == SnackbarResult.ActionPerformed) {
-					TrackerServiceApi.startService(context, isUserInitiated = true)
+				false
+			} else {
+				if (trackerState.isServiceRunning) {
+					TrackerServiceApi.repairStoppedServiceState(context)
 				}
-			}
 
-			userRequestedStop = false
-			break
+				if (!userRequestedStop) {
+					val result = snackbarHostState.showSnackbar(
+						message = context.getString(R.string.dashboard_tracking_stopped_unexpectedly),
+						actionLabel = context.getString(R.string.dashboard_action_restart_tracking),
+					)
+					if (result == SnackbarResult.ActionPerformed) {
+						TrackerServiceApi.startService(context, isUserInitiated = true)
+					}
+				}
+
+				userRequestedStop = false
+				true
+			}
 		}
 	}
 
@@ -262,6 +273,7 @@ fun DashboardRoute(
 			message = message,
 		)
 		LaunchedEffect(Unit) {
+			delay(5_000)
 			viewModel.clearPermissionDenied()
 		}
 	}
@@ -373,6 +385,44 @@ fun DashboardRoute(
 		},
 		onDismiss = { showStopOptions = false },
 	)
+}
+
+@Composable
+internal fun DashboardPermissionResumeEffect(
+	viewModel: DashboardViewModel,
+	context: android.content.Context,
+) {
+	val lifecycleOwner = LocalLifecycleOwner.current
+	val currentViewModel by rememberUpdatedState(viewModel)
+	val currentContext by rememberUpdatedState(context)
+
+	DisposableEffect(lifecycleOwner) {
+		val observer = LifecycleEventObserver { _, event ->
+			if (event == Lifecycle.Event.ON_RESUME) {
+				currentViewModel.checkPermission(currentContext)
+			}
+		}
+		lifecycleOwner.lifecycle.addObserver(observer)
+		onDispose {
+			lifecycleOwner.lifecycle.removeObserver(observer)
+		}
+	}
+}
+
+internal suspend fun runDashboardConsistencyChecksWhenResumed(
+	lifecycle: Lifecycle,
+	shouldContinue: () -> Boolean,
+	intervalMillis: Long = 5_000,
+	checkConsistency: suspend () -> Boolean,
+) {
+	lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+		while (shouldContinue()) {
+			delay(intervalMillis)
+			if (checkConsistency()) {
+				break
+			}
+		}
+	}
 }
 
 private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
