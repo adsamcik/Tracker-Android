@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
+import kotlin.math.roundToInt
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -103,11 +104,11 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			capturedSamples shouldHaveSize 2
-			capturedSamples[0].latE7 shouldBe (50.0 * 1e7).toInt()
-			capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).toInt()
+			capturedSamples[0].latE7 shouldBe (50.0 * 1e7).roundToInt()
+			capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).roundToInt()
 			capturedSamples[0].altitudeM shouldBe 200.0f
-			capturedSamples[1].latE7 shouldBe (50.1 * 1e7).toInt()
-			capturedSamples[1].lonE7 shouldBe (14.1 * 1e7).toInt()
+			capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
+			capturedSamples[1].lonE7 shouldBe (14.1 * 1e7).roundToInt()
 		}
 
 		@Test
@@ -157,8 +158,8 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			capturedSamples shouldHaveSize 1
-			capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).toInt()
-			capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).toInt()
+			capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).roundToInt()
+			capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).roundToInt()
 		}
 
 		@Test
@@ -421,6 +422,15 @@ class GpxImportTest {
 		}
 
 		@Test
+		fun `skips out-of-range coordinates`() = runTest {
+			val gpx = """<gpx><trk><trkseg>
+				<trkpt lat="91.0" lon="14.0"><time>2023-11-14T10:00:00Z</time></trkpt>
+			</trkseg></trk></gpx>"""
+			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
+			capturedSamples shouldHaveSize 0
+		}
+
+		@Test
 		fun `handles extreme coordinate values`() = runTest {
 			val gpx = """
 				<?xml version="1.0" encoding="UTF-8"?>
@@ -442,10 +452,10 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			capturedSamples shouldHaveSize 2
-			capturedSamples[0].latE7 shouldBe (89.999 * 1e7).toInt()
-			capturedSamples[0].lonE7 shouldBe (-179.999 * 1e7).toInt()
-			capturedSamples[1].latE7 shouldBe (-89.999 * 1e7).toInt()
-			capturedSamples[1].lonE7 shouldBe (179.999 * 1e7).toInt()
+			capturedSamples[0].latE7 shouldBe (89.999 * 1e7).roundToInt()
+			capturedSamples[0].lonE7 shouldBe (-179.999 * 1e7).roundToInt()
+			capturedSamples[1].latE7 shouldBe (-89.999 * 1e7).roundToInt()
+			capturedSamples[1].lonE7 shouldBe (179.999 * 1e7).roundToInt()
 		}
 
 		@Test

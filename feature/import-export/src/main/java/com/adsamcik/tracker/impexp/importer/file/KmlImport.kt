@@ -23,6 +23,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 
 /**
  * Imports KML files with [Placemark] [LineString] tracks.
@@ -63,74 +64,59 @@ internal class KmlImport(
 		syntheticTimeCursor: Long
 	): PlacemarkImportResult {
 		val placemarkDepth = parser.depth
-		var placemarkName: String? = null
+		var activity: SessionActivity? = null
 		var placemarkTimestamp: Long? = null
-		val coordinateSequences = mutableListOf<List<KmlPoint>>()
+		var importedLocations = 0
+		var nextCursor = syntheticTimeCursor
 
 		var event = parser.next()
 		while (!(event == XmlPullParser.END_TAG && parser.depth == placemarkDepth && parser.name == "Placemark")) {
 			if (event == XmlPullParser.START_TAG) {
 				when (parser.name) {
-					"name" -> placemarkName = parser.readTextOrNull()
-					"LineString" -> coordinateSequences.addAll(parseLineString(parser))
-					"Point" -> parsePoint(parser)?.let(coordinateSequences::add)
+					"name" -> parser.readTextOrNull()
+						?.let { it.trim().takeIf(String::isNotEmpty) }
+						?.let { activity = prepareActivity(database, it) }
 					"TimeStamp" -> placemarkTimestamp = parseTimeStamp(parser)
-					else -> Unit
+					"LineString", "Point" -> {
+						val result = importGeometry(
+							parser = parser,
+							database = database,
+							activity = activity,
+							startTime = placemarkTimestamp ?: nextCursor,
+						)
+						importedLocations += result.importedLocations
+						nextCursor = result.nextTimeCursor
+					}
 				}
 			}
 			event = parser.next()
-		}
-
-		if (coordinateSequences.isEmpty()) {
-			return PlacemarkImportResult(0, syntheticTimeCursor)
-		}
-
-		val activity = placemarkName
-			?.trim()
-			?.takeIf { it.isNotEmpty() }
-			?.let { prepareActivity(database, it) }
-		var importedLocations = 0
-		var nextCursor = placemarkTimestamp ?: syntheticTimeCursor
-
-		for (sequence in coordinateSequences) {
-			val importResult = importCoordinateSequence(database, sequence, activity, nextCursor)
-			importedLocations += importResult.importedLocations
-			nextCursor = importResult.nextTimeCursor
 		}
 
 		return PlacemarkImportResult(importedLocations, nextCursor)
 	}
 
-	private fun parseLineString(parser: XmlPullParser): List<List<KmlPoint>> {
-		val lineStringDepth = parser.depth
-		val sequences = mutableListOf<List<KmlPoint>>()
+	private suspend fun importGeometry(
+		parser: XmlPullParser,
+		database: AppDatabase,
+		activity: SessionActivity?,
+		startTime: Long,
+	): PlacemarkImportResult {
+		val geometryName = parser.name
+		val geometryDepth = parser.depth
+		var importedLocations = 0
+		var nextCursor = startTime
 
 		var event = parser.next()
-		while (!(event == XmlPullParser.END_TAG && parser.depth == lineStringDepth && parser.name == "LineString")) {
+		while (!(event == XmlPullParser.END_TAG && parser.depth == geometryDepth && parser.name == geometryName)) {
 			if (event == XmlPullParser.START_TAG && parser.name == "coordinates") {
-				parseCoordinates(parser.readTextOrNull()).takeIf { it.isNotEmpty() }?.let {
-					sequences.add(it)
-				}
+				val result = importCoordinates(parser, database, activity, nextCursor)
+				importedLocations += result.importedLocations
+				nextCursor = result.nextTimeCursor
 			}
 			event = parser.next()
 		}
 
-		return sequences
-	}
-
-	private fun parsePoint(parser: XmlPullParser): List<KmlPoint>? {
-		val pointDepth = parser.depth
-		var pointCoordinates: List<KmlPoint>? = null
-
-		var event = parser.next()
-		while (!(event == XmlPullParser.END_TAG && parser.depth == pointDepth && parser.name == "Point")) {
-			if (event == XmlPullParser.START_TAG && parser.name == "coordinates") {
-				pointCoordinates = parseCoordinates(parser.readTextOrNull()).takeIf { it.isNotEmpty() }
-			}
-			event = parser.next()
-		}
-
-		return pointCoordinates
+		return PlacemarkImportResult(importedLocations, nextCursor)
 	}
 
 	private fun parseTimeStamp(parser: XmlPullParser): Long? {
@@ -140,8 +126,7 @@ internal class KmlImport(
 		var event = parser.next()
 		while (!(event == XmlPullParser.END_TAG && parser.depth == timestampDepth && parser.name == "TimeStamp")) {
 			if (event == XmlPullParser.START_TAG && parser.name == "when") {
-				timestamp = parser.readTextOrNull()
-					?.let(::parseWhenTimestamp)
+				timestamp = parser.readTextOrNull()?.let(::parseWhenTimestamp)
 			}
 			event = parser.next()
 		}
@@ -149,49 +134,23 @@ internal class KmlImport(
 		return timestamp
 	}
 
-	private fun parseCoordinates(rawCoordinates: String?): List<KmlPoint> {
-		if (rawCoordinates.isNullOrBlank()) return emptyList()
-
-		return rawCoordinates
-			.trim()
-			.split(Regex("\\s+"))
-			.mapNotNull { point ->
-				val parts = point.split(',')
-				if (parts.size < 2) return@mapNotNull null
-
-				val longitude = parts[0].toDoubleOrNull() ?: return@mapNotNull null
-				val latitude = parts[1].toDoubleOrNull() ?: return@mapNotNull null
-				val altitude = parts.getOrNull(2)?.toDoubleOrNull()
-
-				if (!latitude.isFinite() || !longitude.isFinite()) return@mapNotNull null
-				if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return@mapNotNull null
-
-				KmlPoint(
-					latitude = latitude,
-					longitude = longitude,
-					altitude = altitude?.takeIf { it.isFinite() }
-				)
-			}
-	}
-
-	private suspend fun importCoordinateSequence(
+	private suspend fun importCoordinates(
+		parser: XmlPullParser,
 		database: AppDatabase,
-		coordinates: List<KmlPoint>,
 		activity: SessionActivity?,
-		startTime: Long
+		startTime: Long,
 	): PlacemarkImportResult {
-		if (coordinates.isEmpty()) return PlacemarkImportResult(0, startTime)
-
-		val session = MutableTrackerSession(start = startTime, isUserInitiated = true)
-		if (activity != null) {
-			session.sessionActivityId = activity.id
+		val coordinatesDepth = parser.depth
+		val session = MutableTrackerSession(start = startTime, isUserInitiated = true).apply {
+			activity?.let { sessionActivityId = it.id }
 		}
-
+		val batch = ArrayList<LocationSample>(BATCH_SIZE)
 		var timestamp = startTime
 		var lastLocation: Location? = null
-		val sampleList = ArrayList<LocationSample>(coordinates.size)
+		var importedLocations = 0
+		val pendingCoordinate = StringBuilder()
 
-		coordinates.forEach { point ->
+		fun importPoint(point: KmlPoint) {
 			val location = Location(
 				time = timestamp,
 				latitude = point.latitude,
@@ -200,32 +159,64 @@ internal class KmlImport(
 				horizontalAccuracy = null,
 				verticalAccuracy = null,
 				speed = null,
-				speedAccuracy = null
+				speedAccuracy = null,
 			)
-			sampleList.add(location.toLocationSample())
-
-			lastLocation?.let {
-				session.distanceInM += distanceMeters(location, it).toFloat()
-			}
-
+			batch.add(location.toLocationSample())
+			lastLocation?.let { session.distanceInM += distanceMeters(location, it).toFloat() }
 			lastLocation = location
+			importedLocations++
 			timestamp += POINT_TIME_DELTA_MS
 		}
 
-		session.collections = sampleList.size
-		session.end = timestamp - POINT_TIME_DELTA_MS
-
-		database.locationSampleDao().let { dao ->
-			for (chunk in sampleList.chunked(BATCH_SIZE)) {
-				dao.insert(chunk.map { it.toEntity() })
+		suspend fun flushBatch() {
+			if (batch.isNotEmpty()) {
+				database.locationSampleDao().insert(batch.map { it.toEntity() })
+				batch.clear()
 			}
 		}
-		saveSession(database, session)
 
-		return PlacemarkImportResult(
-			importedLocations = sampleList.size,
-			nextTimeCursor = session.end + POINT_TIME_DELTA_MS
-		)
+		suspend fun consumeText(text: String) {
+			var tokenStart = 0
+			for (index in text.indices) {
+				if (text[index].isWhitespace()) {
+					if (tokenStart < index) {
+						pendingCoordinate.append(text, tokenStart, index)
+						parseCoordinate(pendingCoordinate.toString())?.let(::importPoint)
+						pendingCoordinate.clear()
+						if (batch.size >= BATCH_SIZE) flushBatch()
+					}
+					tokenStart = index + 1
+				}
+			}
+			if (tokenStart < text.length) pendingCoordinate.append(text, tokenStart, text.length)
+		}
+
+		var event = parser.next()
+		while (!(event == XmlPullParser.END_TAG && parser.depth == coordinatesDepth && parser.name == "coordinates")) {
+			if (event == XmlPullParser.TEXT) consumeText(parser.text.orEmpty())
+			event = parser.next()
+		}
+		if (pendingCoordinate.isNotEmpty()) {
+			parseCoordinate(pendingCoordinate.toString())?.let(::importPoint)
+		}
+		flushBatch()
+
+		if (importedLocations == 0) return PlacemarkImportResult(0, startTime)
+		session.collections = importedLocations
+		session.end = timestamp - POINT_TIME_DELTA_MS
+		saveSession(database, session)
+		return PlacemarkImportResult(importedLocations, timestamp)
+	}
+
+	private fun parseCoordinate(value: String): KmlPoint? {
+		val parts = value.split(',')
+		if (parts.size < 2) return null
+		val longitude = parts[0].toDoubleOrNull() ?: return null
+		val latitude = parts[1].toDoubleOrNull() ?: return null
+		val altitude = parts.getOrNull(2)?.toDoubleOrNull()
+		if (!latitude.isFinite() || !longitude.isFinite()) return null
+		if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+		return KmlPoint(latitude, longitude, altitude?.takeIf(Double::isFinite))
 	}
 
 	private suspend fun prepareActivity(database: AppDatabase, name: String): SessionActivity {
@@ -259,8 +250,8 @@ internal class KmlImport(
 		return LocationSample(
 			timeMs = time,
 			elapsedRealtimeNanos = 0L,
-			latE7 = (latitude * 1e7).toInt(),
-			lonE7 = (longitude * 1e7).toInt(),
+			latE7 = (latitude * 1e7).roundToInt(),
+			lonE7 = (longitude * 1e7).roundToInt(),
 			altitudeM = altitude?.toFloat(),
 			rawGpsAltitudeM = null,
 			hAccM = horizontalAccuracy,

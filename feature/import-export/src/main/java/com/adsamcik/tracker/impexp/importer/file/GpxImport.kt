@@ -22,6 +22,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 
 /**
  * Imports GPX files using a streaming [XmlPullParser].
@@ -137,6 +138,7 @@ return sampleCount
 private fun parseTrkpt(parser: XmlPullParser): Location? {
 val lat = parser.getAttributeValue(null, "lat")?.toDoubleOrNull() ?: return null
 val lon = parser.getAttributeValue(null, "lon")?.toDoubleOrNull() ?: return null
+if (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0) return null
 
 val trkptDepth = parser.depth
 var elevation: Double? = null
@@ -194,8 +196,8 @@ private fun Location.toLocationSample(): LocationSample {
 return LocationSample(
 timeMs = time,
 elapsedRealtimeNanos = 0L,
-latE7 = (latitude * 1e7).toInt(),
-lonE7 = (longitude * 1e7).toInt(),
+latE7 = (latitude * 1e7).roundToInt(),
+lonE7 = (longitude * 1e7).roundToInt(),
 altitudeM = altitude?.toFloat(),
 rawGpsAltitudeM = null,
 hAccM = horizontalAccuracy,

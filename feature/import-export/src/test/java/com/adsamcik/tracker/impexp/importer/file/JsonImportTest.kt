@@ -3,14 +3,17 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -20,6 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
+import kotlin.math.roundToInt
 
 /**
  * Unit tests for [JsonImport].
@@ -35,6 +39,8 @@ class JsonImportTest {
 	private lateinit var mockDatabase: AppDatabase
 	private lateinit var mockLocationSampleDao: LocationSampleDao
 	private lateinit var mockSegmentDao: SessionSegmentDao
+	private lateinit var mockWifiObservationDao: WifiObservationDao
+	private lateinit var mockCellSampleDao: CellSampleDao
 	private lateinit var mockContext: Context
 
 	private val capturedSamples = mutableListOf<LocationSample>()
@@ -61,9 +67,13 @@ class JsonImportTest {
 				1L
 			}
 		}
+		mockWifiObservationDao = mockk(relaxed = true)
+		mockCellSampleDao = mockk(relaxed = true)
 		mockDatabase = mockk {
 			every { locationSampleDao() } returns mockLocationSampleDao
-			every { sessionSegmentDao() } returns mockSegmentDao
+				every { sessionSegmentDao() } returns mockSegmentDao
+			every { wifiObservationDao() } returns mockWifiObservationDao
+			every { cellSampleDao() } returns mockCellSampleDao
 		}
 		mockContext = mockk(relaxed = true)
 	}
@@ -99,11 +109,11 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedSamples shouldHaveSize 2
-		capturedSamples[0].latE7 shouldBe (50.0 * 1e7).toInt()
-		capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).toInt()
+		capturedSamples[0].latE7 shouldBe (50.0 * 1e7).roundToInt()
+		capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).roundToInt()
 		capturedSamples[0].altitudeM shouldBe 200.0f
 		capturedSamples[0].speedMps shouldBe 3.5f
-		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).toInt()
+		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
 	} }
 
 	@Test
@@ -217,7 +227,25 @@ class JsonImportTest {
 	} }
 
 	@Test
-	fun `location with out-of-range latitude is skipped`()  { runTest {
+	fun `location without coordinates preserves null coordinates`() = runTest {
+		val json = """{"schema": 1, "locations": [{"time": 1700000000000}], "sessions": []}"""
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+		capturedSamples shouldHaveSize 1
+		capturedSamples.single().latE7 shouldBe null
+		capturedSamples.single().lonE7 shouldBe null
+	}
+
+	@Test
+	fun `location with NaN coordinate preserves null coordinates`() = runTest {
+		val json = """{"schema": 1, "locations": [{"time": 1700000000000, "latitude": NaN, "longitude": 14.0}], "sessions": []}"""
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+		capturedSamples shouldHaveSize 1
+		capturedSamples.single().latE7 shouldBe null
+		capturedSamples.single().lonE7 shouldBe null
+	}
+
+	@Test
+	fun `location with out-of-range latitude preserves null coordinates`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -230,11 +258,13 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSamples shouldHaveSize 0
+		capturedSamples shouldHaveSize 1
+		capturedSamples.single().latE7 shouldBe null
+		capturedSamples.single().lonE7 shouldBe null
 	} }
 
 	@Test
-	fun `location with out-of-range longitude is skipped`()  { runTest {
+	fun `location with out-of-range longitude preserves null coordinates`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -247,7 +277,9 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSamples shouldHaveSize 0
+		capturedSamples shouldHaveSize 1
+		capturedSamples.single().latE7 shouldBe null
+		capturedSamples.single().lonE7 shouldBe null
 	} }
 
 	@Test
@@ -285,8 +317,8 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedSamples shouldHaveSize 1
-		capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).toInt()
-		capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).toInt()
+		capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).roundToInt()
+		capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).roundToInt()
 	} }
 
 	// -- Session Validation --
@@ -408,6 +440,26 @@ class JsonImportTest {
 		// 200 + 200 + 50 = 3 batch inserts
 		locationInsertCallCount shouldBe 3
 	} }
+
+	@Test
+	fun `wifi observations are batched by 200`() = runTest {
+		val observations = (0 until 450).joinToString(",") { index ->
+			"""{"timeMs":${1700000000000L + index},"bssid":"00:00:00:00:00:${index % 100}","ssid":"test","capabilities":"","frequencyMhz":2412,"levelDbm":-50}"""
+		}
+		val json = """[{"schemaVersion":2,"wifiObservations":[$observations]}]"""
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+		coVerify(exactly = 3) { mockWifiObservationDao.insert(any<Collection<com.adsamcik.tracker.shared.base.database.data.WifiObservation>>()) }
+	}
+
+	@Test
+	fun `cell samples are batched by 200`() = runTest {
+		val samples = (0 until 450).joinToString(",") { index ->
+			"""{"timeMs":${1700000000000L + index},"cellId":$index,"lac":1,"mcc":1,"mnc":1,"networkType":1,"signalStrength":-90}"""
+		}
+		val json = """[{"schemaVersion":2,"cellSamples":[$samples]}]"""
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+		coVerify(exactly = 3) { mockCellSampleDao.insert(any<Collection<com.adsamcik.tracker.shared.base.database.data.CellSample>>()) }
+	}
 
 	// -- Empty JSON --
 

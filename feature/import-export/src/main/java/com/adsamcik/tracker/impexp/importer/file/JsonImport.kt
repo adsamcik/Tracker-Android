@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
+import kotlin.math.roundToInt
 
 /**
  * Imports JSON files produced by [com.adsamcik.tracker.impexp.exporter.JsonExporter].
@@ -96,14 +97,23 @@ internal class JsonImport(
 	}
 
 	private suspend fun importWifiObservations(reader: JsonReader, database: AppDatabase): Int {
-		val observations = mutableListOf<WifiObservation>()
+		val dao = database.wifiObservationDao()
+		val batch = mutableListOf<WifiObservation>()
+		var count = 0
 		reader.beginArray()
 		while (reader.hasNext()) {
-			readWifiObservation(reader)?.let(observations::add)
+			readWifiObservation(reader)?.let { observation ->
+				batch.add(observation)
+				count++
+				if (batch.size >= BATCH_SIZE) {
+					dao.insert(batch)
+					batch.clear()
+				}
+			}
 		}
 		reader.endArray()
-		if (observations.isNotEmpty()) database.wifiObservationDao().insert(observations)
-		return observations.size
+		if (batch.isNotEmpty()) dao.insert(batch)
+		return count
 	}
 
 	private fun readWifiObservation(reader: JsonReader): WifiObservation? {
@@ -140,22 +150,31 @@ internal class JsonImport(
 			capabilities = capabilities,
 			frequency = frequencyMhz,
 			level = levelDbm,
-			latE7 = latitude?.times(1e7)?.toInt(),
-			lonE7 = longitude?.times(1e7)?.toInt(),
+			latE7 = latitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
+			lonE7 = longitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
 			provenance = provenance,
 			createdAt = System.currentTimeMillis(),
 		)
 	}
 
 	private suspend fun importCellSamples(reader: JsonReader, database: AppDatabase): Int {
-		val samples = mutableListOf<CellSample>()
+		val dao = database.cellSampleDao()
+		val batch = mutableListOf<CellSample>()
+		var count = 0
 		reader.beginArray()
 		while (reader.hasNext()) {
-			readCellSample(reader)?.let(samples::add)
+			readCellSample(reader)?.let { sample ->
+				batch.add(sample)
+				count++
+				if (batch.size >= BATCH_SIZE) {
+					dao.insert(batch)
+					batch.clear()
+				}
+			}
 		}
 		reader.endArray()
-		if (samples.isNotEmpty()) database.cellSampleDao().insert(samples)
-		return samples.size
+		if (batch.isNotEmpty()) dao.insert(batch)
+		return count
 	}
 
 	private fun readCellSample(reader: JsonReader): CellSample? {
@@ -195,8 +214,8 @@ internal class JsonImport(
 			mnc = mnc,
 			networkType = networkType,
 			signalStrength = signalStrength,
-			latE7 = latitude?.times(1e7)?.toInt(),
-			lonE7 = longitude?.times(1e7)?.toInt(),
+			latE7 = latitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
+			lonE7 = longitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
 			provenance = provenance,
 			createdAt = System.currentTimeMillis(),
 		)
@@ -233,8 +252,8 @@ internal class JsonImport(
 
 	private fun readLocationAsSample(reader: JsonReader): LocationSample? {
 		var time = 0L
-		var lat = 0.0
-		var lon = 0.0
+		var lat: Double? = null
+		var lon: Double? = null
 		var alt: Double? = null
 		var speed: Float? = null
 		var accuracy: Float? = null
@@ -257,14 +276,17 @@ internal class JsonImport(
 
 		if (time == 0L) return null
 		if (time < MIN_VALID_TIMESTAMP || time > MAX_VALID_TIMESTAMP) return null
-		if (lat < -90.0 || lat > 90.0) return null
-		if (lon < -180.0 || lon > 180.0) return null
+		val coordinates = lat?.takeIf { it.isFinite() && it in -90.0..90.0 }
+			?.let { validLatitude ->
+				lon?.takeIf { it.isFinite() && it in -180.0..180.0 }
+					?.let { validLongitude -> validLatitude to validLongitude }
+			}
 
 		return LocationSample(
 			timeMs = time,
 			elapsedRealtimeNanos = 0L,
-			latE7 = (lat * 1e7).toInt(),
-			lonE7 = (lon * 1e7).toInt(),
+			latE7 = coordinates?.first?.times(1e7)?.roundToInt(),
+			lonE7 = coordinates?.second?.times(1e7)?.roundToInt(),
 			altitudeM = alt?.toFloat(),
 			rawGpsAltitudeM = null,
 			hAccM = accuracy,
