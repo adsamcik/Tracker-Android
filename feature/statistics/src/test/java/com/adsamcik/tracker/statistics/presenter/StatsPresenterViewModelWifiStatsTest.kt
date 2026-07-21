@@ -2,7 +2,10 @@ package com.adsamcik.tracker.statistics.presenter
 
 import arrow.core.left
 import arrow.core.right
+import androidx.lifecycle.SavedStateHandle
 import androidx.paging.PagingSource
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.DailySummary
@@ -21,8 +24,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
@@ -64,10 +67,10 @@ class StatsPresenterViewModelWifiStatsTest {
 			).right(),
 		)
 		val viewModel = createViewModel(wifiObservationRepository)
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.loadWifiStats()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.wifiStatsState.value shouldBe WifiStatsLoadState.Success(
 			WifiObservationStatsSummary(
@@ -89,10 +92,10 @@ class StatsPresenterViewModelWifiStatsTest {
 			).right(),
 		)
 		val emptyViewModel = createViewModel(emptyRepository)
-		advanceUntilIdle()
+		runCurrent()
 
 		emptyViewModel.loadWifiStats()
-		advanceUntilIdle()
+		runCurrent()
 
 		emptyViewModel.wifiStatsState.value shouldBe WifiStatsLoadState.Empty
 
@@ -101,10 +104,10 @@ class StatsPresenterViewModelWifiStatsTest {
 				statsSummaryResult = StatsError.DatabaseError("wifi failed").left(),
 			),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		errorViewModel.loadWifiStats()
-		advanceUntilIdle()
+		runCurrent()
 
 		errorViewModel.wifiStatsState.value shouldBe WifiStatsLoadState.Error("wifi failed")
 	}
@@ -120,6 +123,9 @@ class StatsPresenterViewModelWifiStatsTest {
 			cellSignalRepository = mockk(relaxed = true),
 			gpxShareHelper = gpxShareHelper,
 			sessionStatsUiFormatter = sessionStatsUiFormatter,
+			savedStateHandle = SavedStateHandle(),
+			clock = FixedClock(System.currentTimeMillis()),
+			dispatchers = DefaultDispatchersProvider,
 		)
 	}
 

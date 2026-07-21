@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.presenter
 
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -10,9 +11,12 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
@@ -74,10 +78,78 @@ class HistoryPresenterDeleteTest {
 		vm.pendingDeletes.value.shouldContainExactly(42L)
 
 		vm.confirmDeleteTrip(42L)
-		vm.pendingDeletes.value.shouldBeEmpty()
-
 		advanceUntilIdle()
+		vm.pendingDeletes.value.shouldBeEmpty()
 		coVerify(exactly = 1) { tripPresentationRepository.deleteTrip(42L) }
+	}
+
+	@Test
+	fun `delete deadline commits trip from viewModelScope`() = runTest {
+		val tripPresentationRepository = createMockTripPresentationRepository()
+		val vm = createViewModel(tripPresentationRepository = tripPresentationRepository)
+
+		vm.requestDeleteTrip(42L)
+		runCurrent()
+		advanceTimeBy(HistoryPresenterViewModel.UNDO_DELETE_TIMEOUT_MS)
+		runCurrent()
+
+		vm.pendingDeletes.value.shouldBeEmpty()
+		coVerify(exactly = 1) { tripPresentationRepository.deleteTrip(42L) }
+	}
+
+	@Test
+	fun `undo before delete deadline prevents repository deletion`() = runTest {
+		val tripPresentationRepository = createMockTripPresentationRepository()
+		val vm = createViewModel(tripPresentationRepository = tripPresentationRepository)
+
+		vm.requestDeleteTrip(42L)
+		runCurrent()
+		advanceTimeBy(HistoryPresenterViewModel.UNDO_DELETE_TIMEOUT_MS - 1)
+		vm.undoDeleteTrip(42L)
+		runCurrent()
+		advanceTimeBy(1)
+		runCurrent()
+
+		vm.pendingDeletes.value.shouldBeEmpty()
+		coVerify(exactly = 0) { tripPresentationRepository.deleteTrip(any()) }
+	}
+
+	@Test
+	fun `cancelling snackbar collector does not cancel ViewModel delete deadline`() = runTest {
+		val tripPresentationRepository = createMockTripPresentationRepository()
+		val vm = createViewModel(tripPresentationRepository = tripPresentationRepository)
+		val snackbarCollector = backgroundScope.launch {
+			vm.pendingDeleteEvents.collect {}
+		}
+		runCurrent()
+
+		vm.requestDeleteTrip(42L)
+		runCurrent()
+		snackbarCollector.cancel()
+		advanceTimeBy(HistoryPresenterViewModel.UNDO_DELETE_TIMEOUT_MS)
+		runCurrent()
+
+		coVerify(exactly = 1) { tripPresentationRepository.deleteTrip(42L) }
+	}
+
+	@Test
+	fun `restored pending delete commits immediately after recreation`() = runTest {
+		val savedStateHandle = SavedStateHandle(
+			mapOf(HistoryPresenterViewModel.KEY_PENDING_DELETE_IDS to longArrayOf(42L)),
+		)
+		val tripPresentationRepository = createMockTripPresentationRepository()
+
+		createViewModel(
+			tripPresentationRepository = tripPresentationRepository,
+			savedStateHandle = savedStateHandle,
+		)
+		runCurrent()
+
+		coVerify(exactly = 1) { tripPresentationRepository.deleteTrip(42L) }
+		savedStateHandle.get<LongArray>(HistoryPresenterViewModel.KEY_PENDING_DELETE_IDS)
+			?.toSet()
+			.orEmpty()
+			.shouldBeEmpty()
 	}
 
 	@Test
@@ -104,6 +176,7 @@ class HistoryPresenterDeleteTest {
 	private fun createViewModel(
 		tripPresentationRepository: com.adsamcik.tracker.stats.api.repository.TripPresentationRepository =
 			createMockTripPresentationRepository(),
+		savedStateHandle: SavedStateHandle = SavedStateHandle(),
 	): HistoryPresenterViewModel {
 		val dailySummaryRepository: com.adsamcik.tracker.stats.api.repository.DailySummaryRepository =
 			mockk(relaxed = true) {
@@ -117,6 +190,7 @@ class HistoryPresenterDeleteTest {
 			tripPresentationRepository = tripPresentationRepository,
 			dailySummaryRepository = dailySummaryRepository,
 			explorationRepository = explorationRepository,
+			savedStateHandle = savedStateHandle,
 		)
 	}
 }

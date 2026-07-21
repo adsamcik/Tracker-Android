@@ -26,10 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,7 +47,6 @@ import com.adsamcik.tracker.statistics.presenter.HistoryPresenterViewModel
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
 import java.time.LocalDate
 import java.time.YearMonth
-import kotlinx.coroutines.launch
 
 /**
  * Entry composable for the History screen. Hosts a segmented button row
@@ -74,9 +73,21 @@ fun HistoryRoute(
 	val tripsItems = viewModel.pagedTrips.collectAsLazyPagingItems()
 	val pendingDeletes by viewModel.pendingDeletes.collectAsState()
 	val snackbarHostState = remember { SnackbarHostState() }
-	val scope = rememberCoroutineScope()
 	val deletedMessage = stringResource(R.string.trip_deleted_snackbar)
 	val undoLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_undo)
+
+	LaunchedEffect(viewModel, snackbarHostState, deletedMessage, undoLabel) {
+		viewModel.pendingDeleteEvents.collect { event ->
+			val result = snackbarHostState.showSnackbar(
+				message = deletedMessage,
+				actionLabel = undoLabel,
+				duration = SnackbarDuration.Long,
+			)
+			if (result == SnackbarResult.ActionPerformed) {
+				viewModel.undoDeleteTrip(event.tripId)
+			}
+		}
+	}
 
 	BackHandler(onBack = onBack)
 
@@ -127,18 +138,6 @@ fun HistoryRoute(
 						},
 						onDeleteTrip = { tripId ->
 							viewModel.requestDeleteTrip(tripId)
-							scope.launch {
-								val result = snackbarHostState.showSnackbar(
-									message = deletedMessage,
-									actionLabel = undoLabel,
-									duration = SnackbarDuration.Long,
-								)
-								if (result == SnackbarResult.ActionPerformed) {
-									viewModel.undoDeleteTrip(tripId)
-								} else {
-									viewModel.confirmDeleteTrip(tripId)
-								}
-							}
 						},
 						pendingDeletes = pendingDeletes,
 					)

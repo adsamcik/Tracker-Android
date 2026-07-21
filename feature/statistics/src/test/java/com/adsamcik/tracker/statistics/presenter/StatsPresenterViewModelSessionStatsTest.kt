@@ -2,7 +2,13 @@ package com.adsamcik.tracker.statistics.presenter
 
 import arrow.core.left
 import arrow.core.right
+import androidx.lifecycle.SavedStateHandle
 import androidx.paging.PagingSource
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.DailySummary
@@ -28,14 +34,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsPresenterViewModelSessionStatsTest {
@@ -88,10 +97,10 @@ class StatsPresenterViewModelSessionStatsTest {
 		every { sessionStatsUiFormatter.formatSummary(snapshot) } returns stats
 
 		val viewModel = createViewModel(sessionStatsRepository = sessionStatsRepository)
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.loadSummaryStats()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.summaryStatsState.value shouldBe StatsLoadState.Success(stats)
 		sessionStatsRepository.allTimeCalls shouldBe 1
@@ -104,19 +113,21 @@ class StatsPresenterViewModelSessionStatsTest {
 			allTimeResult = sampleSnapshot().right(),
 			betweenResult = StatsError.DatabaseError("weekly failure").left(),
 		)
-		val viewModel = createViewModel(sessionStatsRepository = sessionStatsRepository)
-		advanceUntilIdle()
-		val before = System.currentTimeMillis()
+		val now = System.currentTimeMillis()
+		val viewModel = createViewModel(
+			sessionStatsRepository = sessionStatsRepository,
+			clock = FixedClock(now),
+		)
+		runCurrent()
 
 		viewModel.loadWeeklyStats()
-		advanceUntilIdle()
-		val after = System.currentTimeMillis()
+		runCurrent()
 
 		viewModel.weeklyStatsState.value shouldBe StatsLoadState.Error("weekly failure")
 		assertTrue(sessionStatsRepository.capturedFrom != null)
 		assertTrue(sessionStatsRepository.capturedTo != null)
 		assertTrue(sessionStatsRepository.capturedFrom!!.raw < sessionStatsRepository.capturedTo!!.raw)
-		assertTrue(sessionStatsRepository.capturedTo!!.raw in before..after)
+		sessionStatsRepository.capturedTo!!.raw shouldBe now
 		val windowMs = sessionStatsRepository.capturedTo!!.raw - sessionStatsRepository.capturedFrom!!.raw
 		val minimumWeekMs = 6L * 24L * 60L * 60L * 1000L
 		val maximumWeekMs = 8L * 24L * 60L * 60L * 1000L
@@ -128,7 +139,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	fun `weekly bars react when daily summaries arrive after init`() = runTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
-		advanceUntilIdle()
+		runCurrent()
 
 		dailySummariesFlow.value = listOf(
 			DailySummary(
@@ -140,7 +151,7 @@ class StatsPresenterViewModelSessionStatsTest {
 				activeTrackingDuration = DurationMs(0L),
 			),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
 		viewModel.weeklyBars.value.last().steps shouldBe 812
@@ -153,7 +164,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	fun `distance-only today summary still produces visible daily activity state`() = runTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
-		advanceUntilIdle()
+		runCurrent()
 
 		dailySummariesFlow.value = listOf(
 			DailySummary(
@@ -165,7 +176,7 @@ class StatsPresenterViewModelSessionStatsTest {
 				activeTrackingDuration = DurationMs(57_000L),
 			),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		val todayBar = viewModel.weeklyBars.value.last()
 		todayBar.distanceM shouldBe 304.06f
@@ -175,11 +186,55 @@ class StatsPresenterViewModelSessionStatsTest {
 		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
 	}
 
+	@Test
+	fun `date filter survives ViewModel recreation`() = runTest {
+		val savedStateHandle = SavedStateHandle()
+		val firstViewModel = createViewModel(savedStateHandle = savedStateHandle)
+		runCurrent()
+
+		firstViewModel.setDateRange(startMs = 100L, endMs = 200L)
+		val recreatedViewModel = createViewModel(savedStateHandle = savedStateHandle)
+		runCurrent()
+
+		recreatedViewModel.activeDateFilter.value shouldBe StatsPresenterViewModel.DateFilter(
+			startMs = 100L,
+			endMs = 200L,
+		)
+	}
+
+	@Test
+	fun `today window advances across midnight without recreating ViewModel`() = runTest {
+		val initialDate = LocalDate.of(2026, 7, 21)
+		val initialTimeMs = initialDate.atTime(23, 59, 59)
+			.atZone(ZoneId.systemDefault())
+			.toInstant()
+			.toEpochMilli()
+		val clock = FixedClock(initialTimeMs)
+		val viewModel = createViewModel(
+			clock = clock,
+			dispatchers = TestDispatchersProvider(testDispatcher),
+		)
+		runCurrent()
+
+		viewModel.weeklyBars.value.last().epochDay shouldBe initialDate.toEpochDay()
+
+		clock.advance(2_000L)
+		advanceTimeBy(1_000L)
+		runCurrent()
+
+		viewModel.weeklyBars.value.last().epochDay shouldBe initialDate.plusDays(1).toEpochDay()
+		viewModel.cancelDayRolloverObservation()
+		runCurrent()
+	}
+
 	private fun createViewModel(
 		sessionStatsRepository: SessionStatsRepository = FakeSessionStatsRepository(
 			allTimeResult = sampleSnapshot().right(),
 			betweenResult = sampleSnapshot().right(),
 		),
+		savedStateHandle: SavedStateHandle = SavedStateHandle(),
+		clock: Clock = FixedClock(System.currentTimeMillis()),
+		dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 	): StatsPresenterViewModel {
 		return StatsPresenterViewModel(
 			tripPresentationRepository = tripPresentationRepository,
@@ -189,6 +244,9 @@ class StatsPresenterViewModelSessionStatsTest {
 			cellSignalRepository = io.mockk.mockk(relaxed = true),
 			gpxShareHelper = gpxShareHelper,
 			sessionStatsUiFormatter = sessionStatsUiFormatter,
+			savedStateHandle = savedStateHandle,
+			clock = clock,
+			dispatchers = dispatchers,
 		)
 	}
 

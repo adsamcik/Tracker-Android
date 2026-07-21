@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.statistics.presenter
 
+import androidx.lifecycle.SavedStateHandle
+
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
@@ -65,10 +67,13 @@ class HistoryPresenterViewModelTest {
 		Dispatchers.resetMain()
 	}
 
-	private fun createViewModel() = HistoryPresenterViewModel(
+	private fun createViewModel(
+		savedStateHandle: SavedStateHandle = SavedStateHandle(),
+	) = HistoryPresenterViewModel(
 		tripPresentationRepository = tripPresentationRepository,
 		dailySummaryRepository = dailySummaryRepository,
 		explorationRepository = explorationRepository,
+		savedStateHandle = savedStateHandle,
 	)
 
 	@Nested
@@ -91,6 +96,25 @@ class HistoryPresenterViewModelTest {
 
 			vm.selectTab(HistoryTab.TRIPS)
 			vm.selectedTab.value shouldBe HistoryTab.TRIPS
+		}
+
+		@Test
+		fun `selected tab and calendar state survive recreation`() = runTest {
+			val savedStateHandle = SavedStateHandle()
+			val selectedDay = LocalDate.of(2024, 6, 15)
+			val firstViewModel = createViewModel(savedStateHandle)
+			advanceUntilIdle()
+
+			firstViewModel.selectTab(HistoryTab.CALENDAR)
+			firstViewModel.selectDay(selectedDay)
+			advanceUntilIdle()
+
+			val recreatedViewModel = createViewModel(savedStateHandle)
+			advanceUntilIdle()
+
+			recreatedViewModel.selectedTab.value shouldBe HistoryTab.CALENDAR
+			recreatedViewModel.calendarState.value.currentMonth shouldBe YearMonth.of(2024, 6)
+			recreatedViewModel.calendarState.value.selectedDay shouldBe selectedDay
 		}
 	}
 

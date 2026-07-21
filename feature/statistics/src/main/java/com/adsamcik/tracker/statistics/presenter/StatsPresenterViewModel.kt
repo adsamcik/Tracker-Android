@@ -1,11 +1,14 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
@@ -19,15 +22,20 @@ import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.util.Calendar
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
 
@@ -49,6 +57,9 @@ class StatsPresenterViewModel @Inject constructor(
 	private val cellSignalRepository: CellSignalRepository,
 	private val gpxShareHelper: GpxShareHelper,
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter,
+	private val savedStateHandle: SavedStateHandle,
+	private val clock: Clock,
+	private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
 	data class DateFilter(
@@ -57,7 +68,9 @@ class StatsPresenterViewModel @Inject constructor(
 	)
 
 	/** Pager producing trips ordered by start_time_ms DESC. */
-	private val _activeDateFilter = MutableStateFlow<DateFilter?>(null)
+	private val _activeDateFilter = MutableStateFlow(
+		savedStateHandle.toDateFilter(),
+	)
 	val activeDateFilter: StateFlow<DateFilter?> = _activeDateFilter.asStateFlow()
 
 	val tripsFlow = activeDateFilter
@@ -102,23 +115,56 @@ class StatsPresenterViewModel @Inject constructor(
 	private val _heatmapData = MutableStateFlow<Map<LocalDate, Float>>(emptyMap())
 	val heatmapData: StateFlow<Map<LocalDate, Float>> = _heatmapData.asStateFlow()
 
+	private val todayEpochDay = MutableStateFlow(currentLocalDate().toEpochDay())
+	private lateinit var dayRolloverJob: Job
+
 	init {
 		observeSummaryWindow()
+		dayRolloverJob = observeDayRollovers()
 	}
 
 	private fun observeSummaryWindow() {
 		viewModelScope.launch {
-			val todayEpochDay = LocalDate.now().toEpochDay()
-			val fromDay = todayEpochDay - HEATMAP_DAYS + 1
-			dailySummaryRepository.observeBetween(fromDay, todayEpochDay).collect { summaries ->
+			todayEpochDay.flatMapLatest { currentTodayEpochDay ->
+				val fromDay = currentTodayEpochDay - HEATMAP_DAYS + 1
+				dailySummaryRepository.observeBetween(fromDay, currentTodayEpochDay)
+					.map { summaries -> currentTodayEpochDay to summaries }
+			}.collect { (currentTodayEpochDay, summaries) ->
 				_weeklyBars.value = buildWeeklyBars(
 					summaries = summaries,
-					todayEpochDay = todayEpochDay,
+					todayEpochDay = currentTodayEpochDay,
 				)
 				_heatmapData.value = buildHeatmapData(summaries)
 			}
 		}
 	}
+
+	private fun observeDayRollovers() = viewModelScope.launch(dispatchers.default) {
+		while (true) {
+			val nowMs = clock.currentTimeMillis()
+			val currentDate = localDateAt(nowMs)
+			val nextDayStartMs = currentDate.plusDays(1)
+				.atStartOfDay(ZoneId.systemDefault())
+				.toInstant()
+				.toEpochMilli()
+			delay((nextDayStartMs - nowMs).coerceAtLeast(1L))
+			refreshToday()
+		}
+	}
+
+	internal fun refreshToday() {
+		todayEpochDay.value = currentLocalDate().toEpochDay()
+	}
+
+	internal fun cancelDayRolloverObservation() {
+		dayRolloverJob.cancel()
+	}
+
+	private fun currentLocalDate(): LocalDate = localDateAt(clock.currentTimeMillis())
+
+	private fun localDateAt(epochMs: Long): LocalDate = Instant.ofEpochMilli(epochMs)
+		.atZone(ZoneId.systemDefault())
+		.toLocalDate()
 
 	private fun buildWeeklyBars(
 		summaries: List<com.adsamcik.tracker.stats.api.repository.DailySummary>,
@@ -180,7 +226,7 @@ class StatsPresenterViewModel @Inject constructor(
 	fun loadWeeklyStats() {
 		viewModelScope.launch {
 			_weeklyStatsState.value = StatsLoadState.Loading
-			val now = System.currentTimeMillis()
+			val now = clock.currentTimeMillis()
 			val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {
 				timeInMillis = now
 				add(Calendar.WEEK_OF_MONTH, -1)
@@ -254,14 +300,26 @@ class StatsPresenterViewModel @Inject constructor(
 
 	fun setDateRange(startMs: Long, endMs: Long) {
 		_activeDateFilter.value = DateFilter(startMs = startMs, endMs = endMs)
+		savedStateHandle[KEY_DATE_FILTER_START_MS] = startMs
+		savedStateHandle[KEY_DATE_FILTER_END_MS] = endMs
 	}
 
 	fun clearDateRange() {
 		_activeDateFilter.value = null
+		savedStateHandle[KEY_DATE_FILTER_START_MS] = null
+		savedStateHandle[KEY_DATE_FILTER_END_MS] = null
+	}
+
+	private fun SavedStateHandle.toDateFilter(): DateFilter? {
+		val startMs = get<Long>(KEY_DATE_FILTER_START_MS) ?: return null
+		val endMs = get<Long>(KEY_DATE_FILTER_END_MS) ?: return null
+		return DateFilter(startMs = startMs, endMs = endMs)
 	}
 
 	companion object {
 		/** ~26 weeks of heatmap history. */
 		private const val HEATMAP_DAYS = 182L
+		private const val KEY_DATE_FILTER_START_MS = "stats_date_filter_start_ms"
+		private const val KEY_DATE_FILTER_END_MS = "stats_date_filter_end_ms"
 	}
 }

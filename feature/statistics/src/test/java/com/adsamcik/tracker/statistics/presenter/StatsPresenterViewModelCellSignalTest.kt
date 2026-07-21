@@ -1,9 +1,12 @@
 package com.adsamcik.tracker.statistics.presenter
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.paging.PagingSource
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.CellSignalReport
@@ -22,8 +25,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
@@ -65,10 +68,10 @@ class StatsPresenterViewModelCellSignalTest {
 			topTowers = listOf(CellTowerStat(1L, 230, 1, 4, 40L, 50.0)),
 		)
 		val viewModel = createViewModel(FakeCellSignalRepository(report.right()))
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.loadCellSignalReport()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.cellSignalReportState.value shouldBe CellSignalReportLoadState.Success(report)
 	}
@@ -77,10 +80,10 @@ class StatsPresenterViewModelCellSignalTest {
 	fun `loadCellSignalReport maps zero-sample report to empty`() = runTest {
 		val emptyReport = CellSignalReport(0L, 0L, emptyList(), emptyList())
 		val viewModel = createViewModel(FakeCellSignalRepository(emptyReport.right()))
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.loadCellSignalReport()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.cellSignalReportState.value shouldBe CellSignalReportLoadState.Empty
 	}
@@ -90,10 +93,10 @@ class StatsPresenterViewModelCellSignalTest {
 		val viewModel = createViewModel(
 			FakeCellSignalRepository(StatsError.DatabaseError("cell failed").left()),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.loadCellSignalReport()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.cellSignalReportState.value shouldBe CellSignalReportLoadState.Error("cell failed")
 	}
@@ -109,6 +112,9 @@ class StatsPresenterViewModelCellSignalTest {
 			cellSignalRepository = cellSignalRepository,
 			gpxShareHelper = gpxShareHelper,
 			sessionStatsUiFormatter = sessionStatsUiFormatter,
+			savedStateHandle = SavedStateHandle(),
+			clock = FixedClock(System.currentTimeMillis()),
+			dispatchers = DefaultDispatchersProvider,
 		)
 	}
 
