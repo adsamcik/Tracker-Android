@@ -25,8 +25,8 @@ import javax.inject.Singleton
  *
  * Mirrors the snapshot/cold-start pattern of
  * [com.adsamcik.tracker.stats.data.speed.DefaultSpeedLimitSource]: the live OSM
- * import count is cached in a [StateFlow] (no per-call IO), with a single-flight
- * direct `count()` fallback while the flow is still on its sentinel.
+ * READY import count is cached in a [StateFlow] (no per-call IO), with a
+ * single-flight direct fallback while the flow is still on its sentinel.
  *
  * Stays strictly offline — [OsmHmmMapMatcher] reads only local Room data.
  */
@@ -37,7 +37,7 @@ class DefaultRoadMatcher @Inject constructor(
 	@ApplicationScope appScope: CoroutineScope,
 ) : RoadMatcher {
 
-	private val cachedOsmImportCount: StateFlow<Int> = osmImportDao.observeCount()
+	private val cachedOsmImportCount: StateFlow<Int> = osmImportDao.observeReadyCount()
 		.stateIn(appScope, SharingStarted.Eagerly, COUNT_UNINITIALIZED)
 
 	@Volatile
@@ -61,7 +61,7 @@ class DefaultRoadMatcher @Inject constructor(
 			if (liveRecheck != COUNT_UNINITIALIZED) return@withLock liveRecheck
 			val coldRecheck = coldStartCount
 			if (coldRecheck != COUNT_UNINITIALIZED) return@withLock coldRecheck
-			val direct = osmImportDao.count()
+			val direct = osmImportDao.readyCount()
 			coldStartCount = direct
 			direct
 		}

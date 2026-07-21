@@ -12,6 +12,8 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.osm.io.OsmParseException
 import com.adsamcik.tracker.osm.io.OsmParsePhase
+import com.adsamcik.tracker.osm.io.OsmParseProgress
+import com.adsamcik.tracker.osm.io.OsmParseStats
 import com.adsamcik.tracker.osm.io.OsmPbfStreamingParser
 import com.adsamcik.tracker.osm.io.ParsedOsmWay
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -44,10 +46,9 @@ import java.io.InputStream
  *  - Promotes itself to a foreground service via [setForeground] before
  *    reading. Foreground type `dataSync` (declared in osm/AndroidManifest.xml)
  *    is the Android 14+ requirement for "process a user-provided file" tasks.
- *  - Inserts the `osm_import` header row with placeholder counts FIRST so all
- *    [OsmWayEntity] rows can FK to it as they are streamed in. The header row
- *    is then finalized via [com.adsamcik.tracker.shared.base.database.dao.OsmImportDao.updateCounts]
- *    after the parser drains.
+ *  - Inserts the `osm_import` header row as BUILDING so all [OsmWayEntity]
+ *    rows can FK to it as they are streamed in. The final metadata and READY
+ *    publication state are committed together only after the parser drains.
  *  - Wraps DB writes in [DB_BATCH_SIZE] transactions. A larger batch than the
  *    parser's emit size keeps INSERT contention low.
  *  - On WorkManager cancellation the parser polls cooperatively via its
@@ -64,6 +65,17 @@ class OsmImportWorker @AssistedInject constructor(
 
 	private val emitBuffer = ArrayList<ParsedOsmWay>(DB_BATCH_SIZE)
 	private var currentImportId: Long = 0L
+	private var parser: OsmImportParser = StreamingOsmImportParser
+
+	internal constructor(
+		appContext: Context,
+		params: WorkerParameters,
+		appDatabase: AppDatabase,
+		ioDispatcher: CoroutineDispatcher,
+		parser: OsmImportParser,
+	) : this(appContext, params, appDatabase, ioDispatcher) {
+		this.parser = parser
+	}
 
 	override suspend fun getForegroundInfo(): ForegroundInfo {
 		val displayName = inputData.getString(KEY_DISPLAY_NAME) ?: ""
@@ -93,11 +105,11 @@ class OsmImportWorker @AssistedInject constructor(
 					maxLatE7 = 0,
 					minLonE7 = 0,
 					maxLonE7 = 0,
+					status = OsmImportEntity.STATUS_BUILDING,
 				),
 			)
 		}
 
-		val parser = OsmPbfStreamingParser()
 		return try {
 			val stats = parser.parse(
 				fileSizeBytes = fileSize,
@@ -112,7 +124,7 @@ class OsmImportWorker @AssistedInject constructor(
 			)
 			flushBuffer()
 			withContext(ioDispatcher) {
-				appDatabase.osmImportDao().updateCounts(
+				val updated = appDatabase.osmImportDao().markReady(
 					importId = currentImportId,
 					wayCount = stats.wayCount,
 					nodeCount = stats.nodeCount,
@@ -121,7 +133,11 @@ class OsmImportWorker @AssistedInject constructor(
 					minLonE7 = stats.minLonE7,
 					maxLonE7 = stats.maxLonE7,
 				)
+				check(updated == 1) {
+					"OSM import $currentImportId was not in BUILDING state during publication"
+				}
 			}
+
 			NotificationManagerCompat.from(applicationContext).notify(
 				OsmImportNotifications.NOTIFICATION_ID_COMPLETED,
 				OsmImportNotifications.buildCompleted(applicationContext, displayName),
@@ -149,6 +165,32 @@ class OsmImportWorker @AssistedInject constructor(
 			notifyFailure(displayName, t.message ?: t.javaClass.simpleName)
 			Result.failure(failureData(t.message ?: t.javaClass.simpleName))
 		}
+	}
+
+	internal fun interface OsmImportParser {
+		suspend fun parse(
+			fileSizeBytes: Long,
+			openInputStream: () -> InputStream,
+			wayBatchSize: Int,
+			onProgress: (suspend (OsmParseProgress) -> Unit)?,
+			onWayBatch: suspend (List<ParsedOsmWay>) -> Unit,
+		): OsmParseStats
+	}
+
+	private object StreamingOsmImportParser : OsmImportParser {
+		override suspend fun parse(
+			fileSizeBytes: Long,
+			openInputStream: () -> InputStream,
+			wayBatchSize: Int,
+			onProgress: (suspend (OsmParseProgress) -> Unit)?,
+			onWayBatch: suspend (List<ParsedOsmWay>) -> Unit,
+		): OsmParseStats = OsmPbfStreamingParser().parse(
+			fileSizeBytes = fileSizeBytes,
+			openInputStream = openInputStream,
+			wayBatchSize = wayBatchSize,
+			onProgress = onProgress,
+			onWayBatch = onWayBatch,
+		)
 	}
 
 	private fun openInputStreamOrThrow(uri: Uri): InputStream {

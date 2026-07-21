@@ -99,11 +99,11 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 38 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 39 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 38,
+		version = 39,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -410,6 +410,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_35_36,
 			MIGRATION_36_37,
 			MIGRATION_37_38,
+			MIGRATION_38_39,
 		)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -538,6 +539,6 @@ abstract class AppDatabase : RoomDatabase() {
 			database.osmImportDao().deleteAllTables()
 		}
 
-		private const val CURRENT_DATABASE_VERSION = 38
+		private const val CURRENT_DATABASE_VERSION = 39
 	}
 }

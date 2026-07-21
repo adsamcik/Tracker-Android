@@ -21,6 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 39         │ 400         │ 🚧 UNRELEASED - OSM import publication  │
+ * │            │             │    status and crash-orphan recovery.     │
+ * │ 38         │ 400         │ 🚧 UNRELEASED - Reconstructable raw     │
+ * │            │             │    location evidence and source revision.│
  * │ 37         │ 400         │ 🚧 UNRELEASED - Durable signal identity,│
  * │            │             │    replay idempotency, leases, and      │
  * │            │             │    permanent-failure quarantine.        │
@@ -2172,5 +2176,21 @@ val MIGRATION_37_38: Migration = object : Migration(37, 38) {
 					") VALUES (1, 0, 0, NULL, 0)",
 			)
 		}
+
+	}
+}
+
+/**
+ * v38 -> v39: add an explicit OSM import publication state.
+ *
+ * Historical rows default to READY because they were already visible and usable
+ * under the old count-based gate. BUILDING is only assigned by the new worker,
+ * so startup cleanup can safely identify imports abandoned by process death.
+ */
+val MIGRATION_38_39: Migration = object : Migration(38, 39) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL(
+			"ALTER TABLE osm_import ADD COLUMN status TEXT NOT NULL DEFAULT 'READY'",
+		)
 	}
 }

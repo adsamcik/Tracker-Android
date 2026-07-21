@@ -23,6 +23,9 @@ interface OsmImportDao {
 	@Query("SELECT * FROM osm_import ORDER BY imported_at DESC")
 	fun observeAll(): Flow<List<OsmImportEntity>>
 
+	@Query("SELECT * FROM osm_import WHERE status = 'READY' ORDER BY imported_at DESC")
+	fun observeReady(): Flow<List<OsmImportEntity>>
+
 	@Query("SELECT * FROM osm_import ORDER BY imported_at DESC LIMIT 1")
 	fun observeLatest(): Flow<OsmImportEntity?>
 
@@ -31,6 +34,9 @@ interface OsmImportDao {
 
 	@Query("SELECT COUNT(*) FROM osm_import")
 	suspend fun count(): Int
+
+	@Query("SELECT COUNT(*) FROM osm_import WHERE status = 'READY'")
+	suspend fun readyCount(): Int
 
 	/**
 	 * Returns true when at least one import exists whose cell index has not
@@ -51,18 +57,21 @@ interface OsmImportDao {
 	@Query("SELECT COUNT(*) FROM osm_import")
 	fun observeCount(): Flow<Int>
 
+	@Query("SELECT COUNT(*) FROM osm_import WHERE status = 'READY'")
+	fun observeReadyCount(): Flow<Int>
+
 	/**
-	 * Used by the import worker to finalize the header row after a successful
-	 * parse. The header row is inserted with placeholder counts at the start
-	 * of the import (so child [OsmWayEntity] rows can FK to it), then the
-	 * actual counts and bounding box are written here once parsing finishes.
+	 * Atomically publishes a successfully completed import. The header row is
+	 * inserted as BUILDING so child [OsmWayEntity] rows can FK to it; this one
+	 * statement writes the final metadata and changes visibility to READY.
 	 */
 	@Query(
 		"UPDATE osm_import SET way_count = :wayCount, node_count = :nodeCount, " +
 			"min_lat_e7 = :minLatE7, max_lat_e7 = :maxLatE7, " +
-			"min_lon_e7 = :minLonE7, max_lon_e7 = :maxLonE7 WHERE id = :importId",
+			"min_lon_e7 = :minLonE7, max_lon_e7 = :maxLonE7, status = 'READY' " +
+			"WHERE id = :importId AND status = 'BUILDING'",
 	)
-	suspend fun updateCounts(
+	suspend fun markReady(
 		importId: Long,
 		wayCount: Long,
 		nodeCount: Long,
@@ -70,11 +79,15 @@ interface OsmImportDao {
 		maxLatE7: Int,
 		minLonE7: Int,
 		maxLonE7: Int,
-	)
+	): Int
 
 	/** Cascades to osm_way and osm_way_cell via FK. */
 	@Query("DELETE FROM osm_import WHERE id = :importId")
 	suspend fun delete(importId: Long)
+
+	/** Removes imports left unpublished by a prior process death. */
+	@Query("DELETE FROM osm_import WHERE status = 'BUILDING'")
+	suspend fun deleteBuildingImports(): Int
 
 	@Query("DELETE FROM osm_import")
 	fun deleteAll()

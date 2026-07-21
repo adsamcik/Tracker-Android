@@ -71,7 +71,7 @@ class OsmImportController @Inject constructor(
 	}
 
 	/** Cold flow of currently imported regions (one row per `.osm.pbf` file). */
-	fun observeImports() = osmImportDao.observeAll()
+	fun observeImports() = osmImportDao.observeReady()
 
 	private fun mapToState(infos: List<WorkInfo>): OsmImportState {
 		val info = infos.firstOrNull() ?: return OsmImportState.Idle

@@ -23,19 +23,19 @@ import org.junit.jupiter.api.Test
 /**
  * Pure unit tests for [DefaultRoadMatcher]. The OSM-import gate uses the same
  * StateFlow snapshot pattern as `DefaultSpeedLimitSource`, so we drive
- * [OsmImportDao.observeCount] with a [MutableStateFlow] under an
+ * [OsmImportDao.observeReadyCount] with a [MutableStateFlow] under an
  * [UnconfinedTestDispatcher] for a deterministic cached count.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @DisplayName("DefaultRoadMatcher")
 class DefaultRoadMatcherTest {
 
-	private fun newImportDao(count: Int): OsmImportDao {
+	private fun newImportDao(count: Int): Pair<OsmImportDao, MutableStateFlow<Int>> {
 		val dao = mockk<OsmImportDao>()
 		val countFlow = MutableStateFlow(count)
-		every { dao.observeCount() } returns countFlow
-		coEvery { dao.count() } answers { countFlow.value }
-		return dao
+		every { dao.observeReadyCount() } returns countFlow
+		coEvery { dao.readyCount() } answers { countFlow.value }
+		return dao to countFlow
 	}
 
 	private val twoObs = listOf(
@@ -54,7 +54,7 @@ class DefaultRoadMatcherTest {
 	fun `no OSM import returns empty without invoking the matcher`() = runTest {
 		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
 		val hmm = mockk<OsmHmmMapMatcher>()
-		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 0), scope)
+		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 0).first, scope)
 
 		matcher.match(twoObs).shouldBeEmpty()
 
@@ -67,7 +67,7 @@ class DefaultRoadMatcherTest {
 		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
 		val hmm = mockk<OsmHmmMapMatcher>()
 		coEvery { hmm.match(twoObs) } returns listOf(sampleEdge)
-		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 1), scope)
+		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 1).first, scope)
 
 		val edges = matcher.match(twoObs)
 
@@ -80,11 +80,29 @@ class DefaultRoadMatcherTest {
 	fun `fewer than two observations short-circuits to empty`() = runTest {
 		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
 		val hmm = mockk<OsmHmmMapMatcher>()
-		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 1), scope)
+		val matcher = DefaultRoadMatcher(hmm, newImportDao(count = 1).first, scope)
 
 		matcher.match(twoObs.take(1)).shouldBeEmpty()
 
 		coVerify(exactly = 0) { hmm.match(any()) }
+		scope.cancel()
+	}
+
+	@Test
+	fun `BUILDING import stays unusable until it becomes READY`() = runTest {
+		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+		val hmm = mockk<OsmHmmMapMatcher>()
+		coEvery { hmm.match(twoObs) } returns listOf(sampleEdge)
+		val (dao, readyCount) = newImportDao(count = 0)
+		val matcher = DefaultRoadMatcher(hmm, dao, scope)
+
+		matcher.match(twoObs).shouldBeEmpty()
+		coVerify(exactly = 0) { hmm.match(any()) }
+
+		readyCount.value = 1
+
+		matcher.match(twoObs) shouldHaveSize 1
+		coVerify(exactly = 1) { hmm.match(twoObs) }
 		scope.cancel()
 	}
 }

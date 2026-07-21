@@ -46,6 +46,13 @@ data class OsmImportEntity(
 	@ColumnInfo(name = "max_lon_e7") val maxLonE7: Int,
 
 	/**
+	 * Publication state for this import. Only [STATUS_READY] rows may be used
+	 * by road-graph consumers; [STATUS_BUILDING] rows are private staging data.
+	 */
+	@ColumnInfo(name = "status", defaultValue = "'READY'")
+	val status: String = STATUS_READY,
+
+	/**
 	 * Explicit completion marker for the cell-index rebuild. Set to 1 only
 	 * after [OsmWayCellReindexer][com.adsamcik.tracker.osm.reindex.OsmWayCellReindexer]
 	 * successfully finishes rebuilding `osm_way_cell` rows for this import.
@@ -55,4 +62,10 @@ data class OsmImportEntity(
 	 */
 	@ColumnInfo(name = "cell_index_built", defaultValue = "0")
 	val cellIndexBuilt: Int = 0,
-)
+) {
+	companion object {
+		const val STATUS_BUILDING: String = "BUILDING"
+		const val STATUS_READY: String = "READY"
+		const val STATUS_FAILED: String = "FAILED"
+	}
+}

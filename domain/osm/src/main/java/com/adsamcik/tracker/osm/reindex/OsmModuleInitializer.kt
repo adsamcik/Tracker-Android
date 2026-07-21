@@ -2,6 +2,7 @@ package com.adsamcik.tracker.osm.reindex
 
 import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +30,7 @@ import javax.inject.Inject
 class OsmModuleInitializer @Inject constructor(
 	@ApplicationScope private val appScope: CoroutineScope,
 	private val dispatchers: DispatchersProvider,
+	private val osmImportDao: OsmImportDao,
 	private val reindexer: OsmWayCellReindexer,
 ) : ModuleInitializer {
 
@@ -37,6 +39,12 @@ class OsmModuleInitializer @Inject constructor(
 	override fun initialize() {
 		appScope.launch(dispatchers.io) {
 			try {
+				val removedImports = osmImportDao.deleteBuildingImports()
+				if (removedImports > 0) {
+					ReporterFacade.log(
+						"OsmModuleInitializer: removed $removedImports abandoned OSM imports",
+					)
+				}
 				val rowsWritten = reindexer.reindexIfNeeded()
 				if (rowsWritten > 0) {
 					ReporterFacade.log(
@@ -54,4 +62,3 @@ class OsmModuleInitializer @Inject constructor(
 		}
 	}
 }
-
