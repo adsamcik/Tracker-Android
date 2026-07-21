@@ -1,5 +1,12 @@
 package com.adsamcik.tracker.stats.engine.ski
 
+data class FinalizedSkiRun(
+	val startTimeMs: Long,
+	val endTimeMs: Long,
+	val verticalDropM: Float,
+	val maxSpeedMps: Float,
+)
+
 /**
  * Real-time ski state for the current moment.
  */
@@ -15,7 +22,15 @@ data class RealTimeSkiState(
 	val totalRunCount: Int,
 	val isNearResort: Boolean = false,
 	/** OSM lift type during LIFT_UP (e.g. "chairlift", "gondola", "cable_car"), null otherwise. */
-	val currentLiftType: String? = null
+	val currentLiftType: String? = null,
+	val lastCompletedRun: FinalizedSkiRun? = null,
+	val isFinished: Boolean = false,
+)
+
+data class FinalSkiDetectorSnapshot(
+	val state: RealTimeSkiState,
+	val boundaryTimeMs: Long,
+	val finalizedRun: FinalizedSkiRun?,
 )
 
 /**
@@ -34,7 +49,7 @@ fun interface SkiStateListener {
  *
  * Architecture:
  * - [StreamingVerticalRateCalculator] for smoothed vertical rate from barometer
- * - [SkiStateMachine.classifySignal] for per-sample state classification
+ * - [nextSkiCandidate] for shared batch/streaming hysteresis-aware classification
  * - Minimum-duration hysteresis to prevent state flicker
  * - Run counter and per-run metric accumulation
  *
@@ -47,17 +62,17 @@ class RealTimeSkiDetector(
 		medianWindowSize = config.baroMedianWindow,
 		emaAlpha = config.verticalRateEmaAlpha
 	)
-	private val stateMachine = SkiStateMachine(config)
 
 	private val lock = Any()
 
 	// Current confirmed state (after min-duration)
 	private var confirmedState: SkiState = SkiState.IDLE
-	private var confirmedStateEntryMs: Long = 0L
+	private var confirmedStateEntryElapsedMs: Long? = null
+	private var confirmedStateEntryEpochMs: Long = 0L
 
 	// Pending state (before min-duration confirmation)
 	private var pendingState: SkiState = SkiState.IDLE
-	private var pendingStateEntryMs: Long = 0L
+	private var pendingStateEntryElapsedMs: Long = 0L
 
 	// Cycle tracking
 	private var sawLiftInCurrentCycle: Boolean = false
@@ -67,7 +82,8 @@ class RealTimeSkiDetector(
 	private var currentRunStartAltitude: Float? = null
 	private var currentRunMinAltitude: Float = Float.MAX_VALUE
 	private var currentRunMaxSpeed: Float = 0f
-	private var currentRunStartTimeMs: Long = 0L
+	private var currentRunStartEpochMs: Long = 0L
+	private var lastCompletedRun: FinalizedSkiRun? = null
 
 	// Session totals
 	private var totalVerticalDescent: Float = 0f
@@ -76,6 +92,7 @@ class RealTimeSkiDetector(
 	// Latest sensor values
 	private var lastAltitudeM: Float = 0f
 	private var lastSpeedMps: Float = 0f
+	private var lastAcceptedTime: SkiSampleTime? = null
 
 	// Listener
 	private var listener: SkiStateListener? = null
@@ -85,12 +102,15 @@ class RealTimeSkiDetector(
 
 	// Current lift type from OSM matching (set during LIFT_UP)
 	private var currentLiftType: String? = null
+	private var finishedSnapshot: FinalSkiDetectorSnapshot? = null
 
 	/**
 	 * Set a listener for state transitions.
 	 */
 	fun setListener(listener: SkiStateListener?) {
-		this.listener = listener
+		synchronized(lock) {
+			this.listener = listener
+		}
 	}
 
 	/**
@@ -113,16 +133,21 @@ class RealTimeSkiDetector(
 	 * Get the current real-time ski state snapshot.
 	 */
 	fun getCurrentState(): RealTimeSkiState = synchronized(lock) {
-		val now = if (confirmedStateEntryMs > 0L) {
-			System.currentTimeMillis()
-		} else {
-			0L
-		}
+		snapshot()
+	}
+
+	private fun snapshot(isFinished: Boolean = finishedSnapshot != null): RealTimeSkiState {
+		val lastElapsedMs = lastAcceptedTime?.elapsedMs ?: 0L
+		val entryElapsedMs = confirmedStateEntryElapsedMs
 		val effectiveMinCycles = if (nearResort) 1 else config.minCyclesForClassification
-		RealTimeSkiState(
+		return RealTimeSkiState(
 			state = confirmedState,
-			stateEntryTimeMs = confirmedStateEntryMs,
-			stateDurationMs = if (confirmedStateEntryMs > 0L) now - confirmedStateEntryMs else 0L,
+			stateEntryTimeMs = confirmedStateEntryEpochMs,
+			stateDurationMs = if (entryElapsedMs != null) {
+				(lastElapsedMs - entryElapsedMs).coerceAtLeast(0L)
+			} else {
+				0L
+			},
 			completedRunCount = completedCycles,
 			isConfirmedSkiSession = completedCycles >= effectiveMinCycles,
 			currentRunVerticalM = computeCurrentRunVertical(),
@@ -130,7 +155,9 @@ class RealTimeSkiDetector(
 			totalVerticalM = totalVerticalDescent,
 			totalRunCount = totalDownhillRuns,
 			isNearResort = nearResort,
-			currentLiftType = if (confirmedState == SkiState.LIFT_UP) currentLiftType else null
+			currentLiftType = if (confirmedState == SkiState.LIFT_UP) currentLiftType else null,
+			lastCompletedRun = lastCompletedRun,
+			isFinished = isFinished,
 		)
 	}
 
@@ -139,39 +166,112 @@ class RealTimeSkiDetector(
 	 *
 	 * Call this on every collection cycle (~1-60s depending on tier).
 	 *
-	 * @param timeMs sample timestamp (epoch millis)
+	 * Compatibility overload for callers whose event and elapsed clocks share the same timeline.
+	 *
+	 * Production callers should supply separate monotonic and epoch timestamps.
+	 */
+	fun onSample(
+		timeMs: Long,
+		altitudeM: Float,
+		speedMps: Float,
+		stepRatePerMin: Float = 0f,
+	): RealTimeSkiState? = onSample(
+		elapsedTimeMs = timeMs,
+		epochTimeMs = timeMs,
+		altitudeM = altitudeM,
+		speedMps = speedMps,
+		stepRatePerMin = stepRatePerMin,
+	)
+
+	/**
+	 * Process a new sample using monotonic time for all interval arithmetic.
+	 *
+	 * @param elapsedTimeMs monotonic elapsed-realtime timestamp in milliseconds
+	 * @param epochTimeMs event timestamp in epoch milliseconds for persisted/displayed boundaries
 	 * @param altitudeM barometric altitude in meters
 	 * @param speedMps GPS ground speed in m/s (0 if unavailable)
 	 * @param stepRatePerMin current step rate (0 if unavailable)
 	 * @return current [RealTimeSkiState], or null if not enough data yet
 	 */
 	fun onSample(
-		timeMs: Long,
+		elapsedTimeMs: Long,
+		epochTimeMs: Long,
 		altitudeM: Float,
 		speedMps: Float,
-		stepRatePerMin: Float = 0f
-	): RealTimeSkiState? = synchronized(lock) {
-		lastAltitudeM = altitudeM
-		lastSpeedMps = speedMps
+		stepRatePerMin: Float = 0f,
+	): RealTimeSkiState? {
+		val update = synchronized(lock) {
+			finishedSnapshot?.let { return@synchronized DetectorUpdate(it.state, null) }
 
-		// Feed altitude to vertical rate calculator
-		val verticalRate = verticalRateCalc.onNewSample(
-			TimestampedAltitude(timeMs, altitudeM)
-		) ?: return null
+			val rateUpdate = verticalRateCalc.onNewSample(
+				TimestampedAltitude(elapsedTimeMs, altitudeM)
+			)
+			if (!rateUpdate.accepted) {
+				return@synchronized DetectorUpdate(null, null)
+			}
 
-		// Classify the current signal
-		val signal = SkiSignal(
-			timeMs = timeMs,
-			verticalRateMps = verticalRate,
-			speedMps = speedMps,
-			stepRatePerMin = stepRatePerMin
-		)
-		val rawClassification = stateMachine.classifySignal(signal)
+			val sampleTime = SkiSampleTime(elapsedTimeMs, epochTimeMs)
+			lastAcceptedTime = sampleTime
+			lastAltitudeM = altitudeM
+			lastSpeedMps = speedMps
 
-		// Apply minimum-duration hysteresis
-		updateStateWithHysteresis(rawClassification, timeMs)
+			if (confirmedState == SkiState.DOWNHILL_RUN) {
+				currentRunMinAltitude = minOf(currentRunMinAltitude, altitudeM)
+				currentRunMaxSpeed = maxOf(currentRunMaxSpeed, speedMps)
+			}
 
-		getCurrentState()
+			val verticalRate = rateUpdate.verticalRateMps
+				?: return@synchronized DetectorUpdate(null, null)
+			val signal = SkiSignal(
+				timeMs = elapsedTimeMs,
+				verticalRateMps = verticalRate,
+				speedMps = speedMps,
+				stepRatePerMin = stepRatePerMin
+			)
+			val candidate = nextSkiCandidate(signal, confirmedState, config)
+			val notification = updateStateWithHysteresis(candidate, sampleTime)
+
+			DetectorUpdate(snapshot(), notification)
+		}
+
+		update.notification?.notifyListener()
+		return update.state
+	}
+
+	/**
+	 * Finalize the detector at the last accepted event boundary.
+	 *
+	 * Repeated calls return the same immutable result and do not finalize or notify twice.
+	 */
+	fun finish(): FinalSkiDetectorSnapshot {
+		val update = synchronized(lock) {
+			finishedSnapshot?.let { return@synchronized FinishUpdate(it, null) }
+
+			val boundary = lastAcceptedTime
+			if (boundary == null) {
+				val result = FinalSkiDetectorSnapshot(
+					state = snapshot(isFinished = true),
+					boundaryTimeMs = 0L,
+					finalizedRun = null,
+				)
+				finishedSnapshot = result
+				return@synchronized FinishUpdate(result, null)
+			}
+
+			val previousCompletedRun = lastCompletedRun
+			val notification = transitionTo(SkiState.IDLE, boundary, isFinished = true)
+			val finalizedByFinish = lastCompletedRun.takeIf { it !== previousCompletedRun }
+			val result = FinalSkiDetectorSnapshot(
+				state = notification.newState,
+				boundaryTimeMs = boundary.epochMs,
+				finalizedRun = finalizedByFinish,
+			)
+			finishedSnapshot = result
+			FinishUpdate(result, notification)
+		}
+
+		update.notification?.notifyListener()
+		return update.snapshot
 	}
 
 	/**
@@ -180,43 +280,55 @@ class RealTimeSkiDetector(
 	fun reset() = synchronized(lock) {
 		verticalRateCalc.reset()
 		confirmedState = SkiState.IDLE
-		confirmedStateEntryMs = 0L
+		confirmedStateEntryElapsedMs = null
+		confirmedStateEntryEpochMs = 0L
 		pendingState = SkiState.IDLE
-		pendingStateEntryMs = 0L
+		pendingStateEntryElapsedMs = 0L
 		sawLiftInCurrentCycle = false
 		completedCycles = 0
 		currentRunStartAltitude = null
 		currentRunMinAltitude = Float.MAX_VALUE
 		currentRunMaxSpeed = 0f
-		currentRunStartTimeMs = 0L
+		currentRunStartEpochMs = 0L
+		lastCompletedRun = null
 		totalVerticalDescent = 0f
 		totalDownhillRuns = 0
 		lastAltitudeM = 0f
 		lastSpeedMps = 0f
+		lastAcceptedTime = null
 		nearResort = false
 		currentLiftType = null
+		finishedSnapshot = null
 	}
 
-	private fun updateStateWithHysteresis(rawState: SkiState, timeMs: Long) {
-		if (rawState != pendingState) {
+	private fun updateStateWithHysteresis(
+		candidateState: SkiState,
+		time: SkiSampleTime,
+	): TransitionNotification? {
+		if (candidateState != pendingState) {
 			// New candidate state — start the pending timer
-			pendingState = rawState
-			pendingStateEntryMs = timeMs
+			pendingState = candidateState
+			pendingStateEntryElapsedMs = time.elapsedMs
 		}
 
 		// Check if pending state has been held long enough
-		val pendingDurationMs = timeMs - pendingStateEntryMs
+		val pendingDurationMs = time.elapsedMs - pendingStateEntryElapsedMs
 		if (pendingState != confirmedState && pendingDurationMs >= config.minStateDurationMs) {
-			transitionTo(pendingState, timeMs)
+			return transitionTo(pendingState, time)
 		}
+		return null
 	}
 
-	private fun transitionTo(newState: SkiState, timeMs: Long) {
+	private fun transitionTo(
+		newState: SkiState,
+		time: SkiSampleTime,
+		isFinished: Boolean = false,
+	): TransitionNotification {
 		val previousState = confirmedState
 
 		// Finalize metrics for the state we're leaving
 		when (previousState) {
-			SkiState.DOWNHILL_RUN -> finalizeDownhillRun()
+			SkiState.DOWNHILL_RUN -> finalizeDownhillRun(time.epochMs)
 			SkiState.LIFT_UP -> {
 				// Completed a lift ride — mark for cycle counting
 				sawLiftInCurrentCycle = true
@@ -231,7 +343,7 @@ class RealTimeSkiDetector(
 				currentRunStartAltitude = lastAltitudeM
 				currentRunMinAltitude = lastAltitudeM
 				currentRunMaxSpeed = lastSpeedMps
-				currentRunStartTimeMs = timeMs
+				currentRunStartEpochMs = time.epochMs
 
 				// Check for completed cycle
 				if (sawLiftInCurrentCycle) {
@@ -243,15 +355,25 @@ class RealTimeSkiDetector(
 		}
 
 		confirmedState = newState
-		confirmedStateEntryMs = timeMs
+		confirmedStateEntryElapsedMs = time.elapsedMs
+		confirmedStateEntryEpochMs = time.epochMs
 
-		// Notify listener
-		listener?.onStateChanged(previousState, getCurrentState())
+		return TransitionNotification(
+			listener = listener,
+			previousState = previousState,
+			newState = snapshot(isFinished),
+		)
 	}
 
-	private fun finalizeDownhillRun() {
+	private fun finalizeDownhillRun(endTimeMs: Long) {
 		val startAlt = currentRunStartAltitude ?: return
-		val verticalDrop = startAlt - currentRunMinAltitude
+		val verticalDrop = (startAlt - currentRunMinAltitude).coerceAtLeast(0f)
+		lastCompletedRun = FinalizedSkiRun(
+			startTimeMs = currentRunStartEpochMs,
+			endTimeMs = endTimeMs,
+			verticalDropM = verticalDrop,
+			maxSpeedMps = currentRunMaxSpeed,
+		)
 		if (verticalDrop > 0f) {
 			totalVerticalDescent += verticalDrop
 			totalDownhillRuns++
@@ -259,10 +381,36 @@ class RealTimeSkiDetector(
 		currentRunStartAltitude = null
 		currentRunMinAltitude = Float.MAX_VALUE
 		currentRunMaxSpeed = 0f
+		currentRunStartEpochMs = 0L
 	}
 
 	private fun computeCurrentRunVertical(): Float {
 		val startAlt = currentRunStartAltitude ?: return 0f
-		return (startAlt - lastAltitudeM).coerceAtLeast(0f)
+		return (startAlt - currentRunMinAltitude).coerceAtLeast(0f)
 	}
 }
+
+private data class SkiSampleTime(
+	val elapsedMs: Long,
+	val epochMs: Long,
+)
+
+private data class TransitionNotification(
+	val listener: SkiStateListener?,
+	val previousState: SkiState,
+	val newState: RealTimeSkiState,
+) {
+	fun notifyListener() {
+		listener?.onStateChanged(previousState, newState)
+	}
+}
+
+private data class DetectorUpdate(
+	val state: RealTimeSkiState?,
+	val notification: TransitionNotification?,
+)
+
+private data class FinishUpdate(
+	val snapshot: FinalSkiDetectorSnapshot,
+	val notification: TransitionNotification?,
+)

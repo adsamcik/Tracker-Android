@@ -36,6 +36,55 @@ data class SkiStateSegment(
 }
 
 /**
+ * Classify a signal while preserving the relaxed exit thresholds for the confirmed state.
+ *
+ * Both batch and streaming detection use this function so their hysteresis rules cannot drift.
+ */
+internal fun nextSkiCandidate(
+    signal: SkiSignal,
+    confirmedState: SkiState,
+    config: SkiDetectionConfig,
+): SkiState {
+    val shouldStay = when (confirmedState) {
+        SkiState.DOWNHILL_RUN ->
+            signal.verticalRateMps <= config.downhillExitVerticalRate ||
+                    (signal.speedMps >= config.downhillExitSpeed && signal.verticalRateMps <= 0f)
+
+        SkiState.LIFT_UP ->
+            signal.verticalRateMps >= config.liftExitVerticalRate &&
+                    signal.speedMps <= config.liftMaxSpeed
+
+        SkiState.WALK ->
+            signal.stepRatePerMin >= config.walkStepRateThreshold
+
+        SkiState.IDLE -> false
+    }
+    return if (shouldStay) confirmedState else classifySkiSignal(signal, config)
+}
+
+private fun classifySkiSignal(signal: SkiSignal, config: SkiDetectionConfig): SkiState {
+    if (signal.stepRatePerMin >= config.walkStepRateThreshold &&
+        signal.verticalRateMps > config.downhillEnterVerticalRate
+    ) {
+        return SkiState.WALK
+    }
+
+    if (signal.verticalRateMps <= config.downhillEnterVerticalRate &&
+        signal.speedMps >= config.downhillEnterSpeed
+    ) {
+        return SkiState.DOWNHILL_RUN
+    }
+
+    if (signal.verticalRateMps >= config.liftEnterVerticalRate &&
+        signal.speedMps <= config.liftMaxSpeed
+    ) {
+        return SkiState.LIFT_UP
+    }
+
+    return SkiState.IDLE
+}
+
+/**
  * Rule-based state machine for ski session segmentation.
  *
  * Classifies each time window into one of 4 states using vertical rate,
@@ -57,10 +106,10 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
 
         // Phase 1: Classify with hysteresis (sticky states using exit thresholds)
         val rawStates = mutableListOf<Pair<SkiState, Long>>()
-        var currentState = classifySignal(signals[0])
+        var currentState = nextSkiCandidate(signals[0], SkiState.IDLE, config)
         rawStates.add(currentState to signals[0].timeMs)
         for (i in 1 until signals.size) {
-            currentState = classifyWithHysteresis(signals[i], currentState)
+            currentState = nextSkiCandidate(signals[i], currentState, config)
             rawStates.add(currentState to signals[i].timeMs)
         }
 
@@ -79,29 +128,7 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
      * Order of checks matters: more specific states first.
      */
     internal fun classifySignal(signal: SkiSignal): SkiState {
-        // Check WALK first (step rate is a strong indicator)
-        if (signal.stepRatePerMin >= config.walkStepRateThreshold &&
-            signal.verticalRateMps > config.downhillEnterVerticalRate
-        ) {
-            return SkiState.WALK
-        }
-
-        // Check DOWNHILL_RUN: descending fast
-        if (signal.verticalRateMps <= config.downhillEnterVerticalRate &&
-            signal.speedMps >= config.downhillEnterSpeed
-        ) {
-            return SkiState.DOWNHILL_RUN
-        }
-
-        // Check LIFT_UP: ascending with limited speed
-        if (signal.verticalRateMps >= config.liftEnterVerticalRate &&
-            signal.speedMps <= config.liftMaxSpeed
-        ) {
-            return SkiState.LIFT_UP
-        }
-
-        // Default: IDLE
-        return SkiState.IDLE
+        return classifySkiSignal(signal, config)
     }
 
     /**
@@ -112,21 +139,7 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
         signal: SkiSignal,
         currentState: SkiState
     ): SkiState {
-        val shouldStay = when (currentState) {
-            SkiState.DOWNHILL_RUN ->
-                signal.verticalRateMps <= config.downhillExitVerticalRate ||
-                        (signal.speedMps >= config.downhillExitSpeed && signal.verticalRateMps <= 0f)
-
-            SkiState.LIFT_UP ->
-                signal.verticalRateMps >= config.liftExitVerticalRate &&
-                        signal.speedMps <= config.liftMaxSpeed
-
-            SkiState.WALK ->
-                signal.stepRatePerMin >= config.walkStepRateThreshold
-
-            SkiState.IDLE -> false
-        }
-        return if (shouldStay) currentState else classifySignal(signal)
+        return nextSkiCandidate(signal, currentState, config)
     }
 
     internal fun mergeIntoSegments(

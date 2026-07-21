@@ -56,11 +56,11 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 
 	private val _skiState = MutableStateFlow<RealTimeSkiState?>(null)
 
-	/** Previous collection timestamp for step rate calculation. */
-	private var lastCollectionTimeMs: Long = 0L
+	/** Previous monotonic collection timestamp for step rate calculation. */
+	private var lastCollectionElapsedTimeMs: Long? = null
 
-	/** Secondary listener for state transitions (e.g. SkiSegmentWriter). */
-	private var secondaryListener: SkiStateListener? = null
+	private val listenerLock = Any()
+	private var secondaryListeners: List<SkiStateListener> = emptyList()
 
 	/** Infrastructure manager for resort proximity check. */
 	private var infrastructureManager: SkiInfrastructureManager? = null
@@ -91,13 +91,21 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	 * Used to wire [SkiSegmentWriter] for persistence.
 	 */
 	fun setSecondaryListener(listener: SkiStateListener?) {
-		this.secondaryListener = listener
+		synchronized(listenerLock) {
+			secondaryListeners = listOfNotNull(listener)
+		}
+	}
+
+	internal fun setSecondaryListeners(listeners: List<SkiStateListener>) {
+		synchronized(listenerLock) {
+			secondaryListeners = listeners.toList()
+		}
 	}
 
 	override suspend fun onEnable(context: Context) {
 		detector.reset()
 		detector.setListener(this)
-		lastCollectionTimeMs = 0L
+		lastCollectionElapsedTimeMs = null
 		proximityChecked = false
 		infrastructureManager = try {
 			val mgr = EntryPointAccessors.fromApplication(
@@ -111,10 +119,12 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	}
 
 	override suspend fun onDisable(context: Context) {
+		runCatching { detector.finish() }
+			.onFailure(ReporterFacade::report)
 		detector.setListener(null)
 		escalationEngine?.clearMinimumTier()
 		_skiState.value = null
-		lastCollectionTimeMs = 0L
+		lastCollectionElapsedTimeMs = null
 		// M7 fix: close infrastructure manager to release resources
 		try {
 			(infrastructureManager as? java.io.Closeable)?.close()
@@ -135,7 +145,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		val reading = cycle.pressure ?: return
 
 		val speedMps = collectionData.location?.speed ?: 0f
-		val timeMs = cycle.timestampMs
+		val elapsedTimeMs = cycle.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
 
 		// Track last known GPS position for proximity check
 		collectionData.location?.let { loc ->
@@ -145,17 +155,24 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 
 		// Compute step rate from step delta and elapsed time
 		val newSteps = cycle.stepDelta ?: 0
-		val stepRatePerMin = if (lastCollectionTimeMs > 0L && newSteps > 0) {
-			val deltaMs = timeMs - lastCollectionTimeMs
-			if (deltaMs > 0) (newSteps.toFloat() / deltaMs) * 60_000f else 0f
+		val previousElapsedTimeMs = lastCollectionElapsedTimeMs
+		val stepRatePerMin = if (
+			previousElapsedTimeMs != null &&
+			elapsedTimeMs > previousElapsedTimeMs &&
+			newSteps > 0
+		) {
+			(newSteps.toFloat() / (elapsedTimeMs - previousElapsedTimeMs)) * 60_000f
 		} else {
 			0f
 		}
-		lastCollectionTimeMs = timeMs
+		if (previousElapsedTimeMs == null || elapsedTimeMs > previousElapsedTimeMs) {
+			lastCollectionElapsedTimeMs = elapsedTimeMs
+		}
 
 		try {
 			val state = detector.onSample(
-				timeMs = timeMs,
+				elapsedTimeMs = elapsedTimeMs,
+				epochTimeMs = cycle.timestampMs,
 				altitudeM = reading.altitudeM,
 				speedMps = speedMps,
 				stepRatePerMin = stepRatePerMin
@@ -173,8 +190,13 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	 * Manages GPS tier based on the current ski phase.
 	 */
 	override fun onStateChanged(previousState: SkiState, newState: RealTimeSkiState) {
-		// Forward to secondary listener (segment writer)
-		secondaryListener?.onStateChanged(previousState, newState)
+		_skiState.value = newState
+
+		val listeners = synchronized(listenerLock) { secondaryListeners }
+		listeners.forEach { listener ->
+			runCatching { listener.onStateChanged(previousState, newState) }
+				.onFailure(ReporterFacade::report)
+		}
 
 		val engine = escalationEngine ?: return
 
@@ -253,5 +275,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	companion object {
 		private const val PROXIMITY_RADIUS_M = 1000.0
 		private const val METERS_PER_DEGREE = 111_000.0
+		private const val NANOS_PER_MILLISECOND = 1_000_000L
 	}
 }

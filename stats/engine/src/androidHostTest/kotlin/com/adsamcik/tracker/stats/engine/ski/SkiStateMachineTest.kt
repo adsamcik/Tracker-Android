@@ -5,6 +5,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 
 class SkiStateMachineTest {
 
@@ -129,6 +132,20 @@ class SkiStateMachineTest {
 				speedMps = 10f,
 			)
 			machine.classifySignal(signal) shouldBe SkiState.DOWNHILL_RUN
+		}
+
+		@Nested
+		inner class HysteresisBoundaries {
+			@ParameterizedTest
+			@MethodSource("com.adsamcik.tracker.stats.engine.ski.SkiStateMachineTest#hysteresisCases")
+			fun `shared candidate transition honors every exit boundary`(
+				confirmedState: SkiState,
+				signal: SkiSignal,
+				expected: SkiState,
+			) {
+				nextSkiCandidate(signal, confirmedState, SkiDetectionConfig()) shouldBe expected
+				machine.classifyWithHysteresis(signal, confirmedState) shouldBe expected
+			}
 		}
 
 		@Test
@@ -264,5 +281,61 @@ class SkiStateMachineTest {
 			val segments = machine.process(signals)
 			machine.countSkiCycles(segments) shouldBe 0
 		}
+	}
+
+	companion object {
+		@JvmStatic
+		fun hysteresisCases(): List<Arguments> = listOf(
+				Arguments.of(
+					SkiState.DOWNHILL_RUN,
+					SkiSignal(0L, verticalRateMps = -0.5f, speedMps = 0f),
+					SkiState.DOWNHILL_RUN,
+				),
+				Arguments.of(
+					SkiState.DOWNHILL_RUN,
+					SkiSignal(0L, verticalRateMps = 0f, speedMps = 1.5f),
+					SkiState.DOWNHILL_RUN,
+				),
+				Arguments.of(
+					SkiState.DOWNHILL_RUN,
+					SkiSignal(0L, verticalRateMps = 0.01f, speedMps = 1.49f),
+					SkiState.IDLE,
+				),
+				Arguments.of(
+					SkiState.LIFT_UP,
+					SkiSignal(0L, verticalRateMps = 0.3f, speedMps = 8f),
+					SkiState.LIFT_UP,
+				),
+				Arguments.of(
+					SkiState.LIFT_UP,
+					SkiSignal(0L, verticalRateMps = 0.29f, speedMps = 8f),
+					SkiState.IDLE,
+				),
+				Arguments.of(
+					SkiState.LIFT_UP,
+					SkiSignal(0L, verticalRateMps = 0.3f, speedMps = 8.01f),
+					SkiState.IDLE,
+				),
+				Arguments.of(
+					SkiState.WALK,
+					SkiSignal(0L, verticalRateMps = 0f, speedMps = 1f, stepRatePerMin = 60f),
+					SkiState.WALK,
+				),
+				Arguments.of(
+					SkiState.WALK,
+					SkiSignal(0L, verticalRateMps = 0f, speedMps = 0f, stepRatePerMin = 59.99f),
+					SkiState.IDLE,
+				),
+				Arguments.of(
+					SkiState.IDLE,
+					SkiSignal(0L, verticalRateMps = -1f, speedMps = 3f),
+					SkiState.DOWNHILL_RUN,
+				),
+				Arguments.of(
+					SkiState.IDLE,
+					SkiSignal(0L, verticalRateMps = 0.5f, speedMps = 8f),
+					SkiState.LIFT_UP,
+				),
+		)
 	}
 }

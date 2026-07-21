@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType
+import com.adsamcik.tracker.stats.engine.ski.FinalizedSkiRun
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiStateListener
@@ -51,6 +52,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private var lastLongitude: Double = 0.0
 	private var hasLastLocation: Boolean = false
 	private var lastAltitudeM: Float = 0f
+	private var lastEventTimeMs: Long = 0L
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
@@ -59,12 +61,13 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		segmentStartTimeMs = 0L
 		segmentState = SkiState.IDLE
 		hasLastLocation = false
+		lastEventTimeMs = 0L
 	}
 
 	override suspend fun onDisable(context: Context) {
 		// Flush the last in-progress segment synchronously
-		if (segmentStartTimeMs > 0L && sessionId > 0L) {
-			writeSegmentImmediate(Time.nowMillis)
+		if (segmentStartTimeMs > 0L && sessionId > 0L && lastEventTimeMs >= segmentStartTimeMs) {
+			writeSegmentImmediate(lastEventTimeMs)
 		}
 		// Join all in-flight async writes before cancelling
 		scope?.coroutineContext?.get(Job)?.children?.toList()?.forEach { it.join() }
@@ -79,6 +82,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		cycle: TrackingCycle
 	) {
 		sessionId = session.id
+		lastEventTimeMs = cycle.timestampMs
 
 		// Accumulate metrics for the current segment
 		collectionData.location?.let { loc ->
@@ -106,7 +110,15 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 
 		// Write completed segment (the previousState phase just ended)
 		if (segmentStartTimeMs > 0L && sessionId > 0L) {
-			writeSegment(now)
+			val finalizedRun = newState.lastCompletedRun.takeIf {
+				previousState == SkiState.DOWNHILL_RUN && it?.endTimeMs == now
+			}
+			writeSegment(now, finalizedRun)
+		}
+
+		if (newState.isFinished) {
+			segmentStartTimeMs = 0L
+			return
 		}
 
 		// Start tracking the new segment
@@ -120,8 +132,8 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		segmentDistanceM = 0f
 	}
 
-	private fun writeSegment(endTimeMs: Long) {
-		val segment = buildSegment(endTimeMs)
+	private fun writeSegment(endTimeMs: Long, finalizedRun: FinalizedSkiRun? = null) {
+		val segment = buildSegment(endTimeMs, finalizedRun)
 		runIndex++
 		scope?.launch(dispatchers.io) {
 			try {
@@ -144,8 +156,11 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		}
 	}
 
-	private fun buildSegment(endTimeMs: Long): SkiRunSegment {
-		val verticalM = segmentStartAltitudeM - lastAltitudeM
+	private fun buildSegment(
+		endTimeMs: Long,
+		finalizedRun: FinalizedSkiRun? = null,
+	): SkiRunSegment {
+		val verticalM = finalizedRun?.verticalDropM ?: (segmentStartAltitudeM - lastAltitudeM)
 		val avgSpeed = if (segmentSpeedSamples > 0) {
 			segmentSpeedSum / segmentSpeedSamples
 		} else {
@@ -160,7 +175,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 			endTimeMs = endTimeMs,
 			verticalM = verticalM,
 			distanceM = segmentDistanceM,
-			maxSpeedMps = segmentMaxSpeedMps,
+			maxSpeedMps = finalizedRun?.maxSpeedMps ?: segmentMaxSpeedMps,
 			avgSpeedMps = avgSpeed,
 			liftType = if (segmentState == SkiState.LIFT_UP) segmentLiftType else null,
 			createdAt = Time.nowMillis

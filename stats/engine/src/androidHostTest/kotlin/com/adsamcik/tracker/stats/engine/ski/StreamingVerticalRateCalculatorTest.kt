@@ -26,7 +26,8 @@ class StreamingVerticalRateCalculatorTest {
 				val result = calculator.onNewSample(
 					TimestampedAltitude(i * 1000L, 1000f)
 				)
-				result.shouldBeNull()
+				result.accepted shouldBe true
+				result.verticalRateMps.shouldBeNull()
 			}
 			calculator.isWarmedUp shouldBe false
 		}
@@ -58,7 +59,9 @@ class StreamingVerticalRateCalculatorTest {
 			var lastRate: Float? = null
 			for (i in 5 until 15) {
 				val alt = startAlt - (i - 4) * dropPerSecond
-				lastRate = calculator.onNewSample(TimestampedAltitude(i * 1000L, alt))
+				lastRate = calculator.onNewSample(
+					TimestampedAltitude(i * 1000L, alt)
+				).verticalRateMps
 			}
 
 			lastRate.shouldNotBeNull()
@@ -79,7 +82,9 @@ class StreamingVerticalRateCalculatorTest {
 			var lastRate: Float? = null
 			for (i in 5 until 15) {
 				val alt = startAlt + (i - 4) * risePerSecond
-				lastRate = calculator.onNewSample(TimestampedAltitude(i * 1000L, alt))
+				lastRate = calculator.onNewSample(
+					TimestampedAltitude(i * 1000L, alt)
+				).verticalRateMps
 			}
 
 			lastRate.shouldNotBeNull()
@@ -94,6 +99,55 @@ class StreamingVerticalRateCalculatorTest {
 
 			calculator.currentVerticalRate shouldBe 0f
 		}
+	}
+
+	@Nested
+	inner class TimestampValidation {
+		@Test
+		fun `duplicate timestamp is rejected without changing calculator state`() {
+			val control = warmedCalculator()
+			val before = observableState(calculator)
+
+			val rejected = calculator.onNewSample(TimestampedAltitude(4_000L, 500f))
+
+			rejected.accepted shouldBe false
+			rejected.verticalRateMps.shouldBeNull()
+			observableState(calculator) shouldBe before
+			calculator.onNewSample(TimestampedAltitude(5_000L, 1000f)) shouldBe
+					control.onNewSample(TimestampedAltitude(5_000L, 1000f))
+		}
+
+		@Test
+		fun `earlier timestamp is rejected without changing calculator state`() {
+			val control = warmedCalculator()
+			val before = observableState(calculator)
+
+			val rejected = calculator.onNewSample(TimestampedAltitude(3_000L, 500f))
+
+			rejected.accepted shouldBe false
+			rejected.verticalRateMps.shouldBeNull()
+			observableState(calculator) shouldBe before
+			calculator.onNewSample(TimestampedAltitude(5_000L, 1000f)) shouldBe
+					control.onNewSample(TimestampedAltitude(5_000L, 1000f))
+		}
+
+		private fun warmedCalculator(): StreamingVerticalRateCalculator {
+			val control = StreamingVerticalRateCalculator(medianWindowSize = 5, emaAlpha = 0.3f)
+			for (i in 0 until 5) {
+				val sample = TimestampedAltitude(i * 1000L, 1000f)
+				calculator.onNewSample(sample)
+				control.onNewSample(sample)
+			}
+			return control
+		}
+
+		private fun observableState(
+			target: StreamingVerticalRateCalculator,
+		): Triple<Int, Boolean, Float> = Triple(
+			target.processedSamples,
+			target.isWarmedUp,
+			target.currentVerticalRate,
+		)
 	}
 
 	@Nested

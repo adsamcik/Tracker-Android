@@ -55,6 +55,25 @@ class RealTimeSkiDetectorTest {
 		return t
 	}
 
+	private fun fastDetector(): RealTimeSkiDetector = RealTimeSkiDetector(
+		SkiDetectionConfig(
+			minStateDurationMs = 1_000L,
+			baroMedianWindow = 1,
+			verticalRateEmaAlpha = 1f,
+		)
+	)
+
+	private fun enterDownhill(
+		target: RealTimeSkiDetector,
+		epochBaseMs: Long = 100_000L,
+	): RealTimeSkiState {
+		target.onSample(0L, epochBaseMs, 1_000f, 0f)
+		target.onSample(1_000L, epochBaseMs + 1_000L, 990f, 10f)
+		return requireNotNull(
+			target.onSample(2_000L, epochBaseMs + 2_000L, 980f, 10f)
+		)
+	}
+
 	@Nested
 	inner class InitialState {
 		@Test
@@ -231,6 +250,132 @@ class RealTimeSkiDetectorTest {
 			if (state.state == SkiState.DOWNHILL_RUN) {
 				state.currentRunMaxSpeedMps shouldBeGreaterThan 0f
 			}
+		}
+
+		@Test
+		fun `finalized run contains accumulated altitude drop and max speed`() {
+			val target = fastDetector()
+			enterDownhill(target)
+			target.onSample(3_000L, 103_000L, 970f, 12f)
+			target.onSample(4_000L, 104_000L, 950f, 20f)
+
+			target.onSample(5_000L, 105_000L, 950f, 0f)
+			val finalized = requireNotNull(
+				target.onSample(6_000L, 106_000L, 950f, 0f)
+			)
+
+			finalized.state shouldBe SkiState.IDLE
+			finalized.totalVerticalM shouldBe 30f
+			finalized.totalRunCount shouldBe 1
+			finalized.lastCompletedRun shouldBe FinalizedSkiRun(
+				startTimeMs = 102_000L,
+				endTimeMs = 106_000L,
+				verticalDropM = 30f,
+				maxSpeedMps = 20f,
+			)
+		}
+	}
+
+	@Nested
+	inner class StreamingHysteresis {
+		@Test
+		fun `streaming and batch candidates preserve downhill at relaxed exit boundary`() {
+			val target = fastDetector()
+			enterDownhill(target)
+			val signal = SkiSignal(
+				timeMs = 3_000L,
+				verticalRateMps = -0.4f,
+				speedMps = 2f,
+			)
+
+			nextSkiCandidate(
+				signal,
+				SkiState.DOWNHILL_RUN,
+				SkiDetectionConfig(),
+			) shouldBe SkiState.DOWNHILL_RUN
+
+			val streamingState = requireNotNull(
+				target.onSample(3_000L, 103_000L, 979.6f, 2f)
+			)
+			streamingState.state shouldBe SkiState.DOWNHILL_RUN
+		}
+
+		@Test
+		fun `streaming exit still requires full dwell duration`() {
+			val target = fastDetector()
+			enterDownhill(target)
+
+			target.onSample(3_000L, 103_000L, 980.1f, 0f)
+			requireNotNull(
+				target.onSample(3_999L, 103_999L, 980.1999f, 0f)
+			).state shouldBe SkiState.DOWNHILL_RUN
+
+			requireNotNull(
+				target.onSample(4_000L, 104_000L, 980.1999f, 0f)
+			).state shouldBe SkiState.IDLE
+		}
+	}
+
+	@Nested
+	inner class MonotonicTiming {
+		@Test
+		fun `backward wall clock jump does not change dwell or duration`() {
+			val normal = fastDetector()
+			val jumping = fastDetector()
+			val altitudes = listOf(1_000f, 990f, 980f, 970f, 960f)
+			val normalEpoch = listOf(100_000L, 101_000L, 102_000L, 103_000L, 104_000L)
+			val jumpingEpoch = listOf(100_000L, 101_000L, 90_000L, 91_000L, 92_000L)
+
+			altitudes.indices.forEach { index ->
+				val elapsedMs = index * 1_000L
+				normal.onSample(
+					elapsedMs,
+					normalEpoch[index],
+					altitudes[index],
+					if (index == 0) 0f else 10f,
+				)
+				jumping.onSample(
+					elapsedMs,
+					jumpingEpoch[index],
+					altitudes[index],
+					if (index == 0) 0f else 10f,
+				)
+			}
+
+			val normalState = normal.getCurrentState()
+			val jumpingState = jumping.getCurrentState()
+			jumpingState.state shouldBe normalState.state
+			jumpingState.stateDurationMs shouldBe normalState.stateDurationMs
+			jumpingState.stateDurationMs shouldBe 2_000L
+		}
+	}
+
+	@Nested
+	inner class Finish {
+		@Test
+		fun `finish is idempotent and uses last accepted event boundary`() {
+			val target = fastDetector()
+			val transitions = mutableListOf<RealTimeSkiState>()
+			target.setListener(SkiStateListener { _, newState -> transitions += newState })
+			enterDownhill(target)
+			target.onSample(3_000L, 103_000L, 960f, 18f)
+			target.onSample(3_000L, 999_000L, 100f, 100f)
+
+			val first = target.finish()
+			val transitionCount = transitions.size
+			val second = target.finish()
+
+			first shouldBe second
+			first.boundaryTimeMs shouldBe 103_000L
+			first.state.stateEntryTimeMs shouldBe 103_000L
+			first.state.isFinished.shouldBeTrue()
+			first.finalizedRun shouldBe FinalizedSkiRun(
+				startTimeMs = 102_000L,
+				endTimeMs = 103_000L,
+				verticalDropM = 20f,
+				maxSpeedMps = 18f,
+			)
+			transitions.size shouldBe transitionCount
 		}
 	}
 

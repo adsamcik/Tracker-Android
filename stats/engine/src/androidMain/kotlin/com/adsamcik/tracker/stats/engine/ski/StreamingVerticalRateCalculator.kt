@@ -1,5 +1,10 @@
 package com.adsamcik.tracker.stats.engine.ski
 
+data class StreamingVerticalRateUpdate(
+	val accepted: Boolean,
+	val verticalRateMps: Float?,
+)
+
 /**
  * Streaming vertical rate calculator that processes altitude samples one at a time.
  *
@@ -19,6 +24,7 @@ class StreamingVerticalRateCalculator(
 	private var lastFilteredTimeMs: Long? = null
 	private var lastSmoothedRate: Float = 0f
 	private var sampleCount: Int = 0
+	private var lastAcceptedTimeMs: Long? = null
 
 	/**
 	 * Current smoothed vertical rate in m/s.
@@ -44,10 +50,15 @@ class StreamingVerticalRateCalculator(
 	 * Process a new altitude sample and return the updated vertical rate.
 	 *
 	 * @param altitude timestamped altitude reading
-	 * @return smoothed vertical rate in m/s (positive = up, negative = down),
-	 *         or null if not enough samples yet
+	 * @return whether the sample was accepted and the smoothed vertical rate, or null rate while
+	 *         the accepted samples are still warming the median window
 	 */
-	fun onNewSample(altitude: TimestampedAltitude): Float? {
+	fun onNewSample(altitude: TimestampedAltitude): StreamingVerticalRateUpdate {
+		if (!acceptTime(altitude.timeMs)) {
+			return StreamingVerticalRateUpdate(accepted = false, verticalRateMps = null)
+		}
+
+		lastAcceptedTimeMs = altitude.timeMs
 		altitudeWindow.addLast(altitude)
 		if (altitudeWindow.size > medianWindowSize) {
 			altitudeWindow.removeFirst()
@@ -55,7 +66,7 @@ class StreamingVerticalRateCalculator(
 		sampleCount++
 
 		if (altitudeWindow.size < medianWindowSize) {
-			return null
+			return StreamingVerticalRateUpdate(accepted = true, verticalRateMps = null)
 		}
 
 		// Step 1: Median filter — take the median altitude in the current window
@@ -69,18 +80,18 @@ class StreamingVerticalRateCalculator(
 		lastFilteredTimeMs = currentTimeMs
 
 		if (prevAlt == null || prevTime == null) {
-			return 0f
+			return StreamingVerticalRateUpdate(accepted = true, verticalRateMps = 0f)
 		}
 
 		val dtSeconds = (currentTimeMs - prevTime) / 1000f
-		if (dtSeconds <= 0f) return lastSmoothedRate
+		check(dtSeconds > 0f)
 
 		val rawRate = (filteredAltitude - prevAlt) / dtSeconds
 
 		// Step 3: EMA smoothing
 		lastSmoothedRate = emaAlpha * rawRate + (1f - emaAlpha) * lastSmoothedRate
 
-		return lastSmoothedRate
+		return StreamingVerticalRateUpdate(accepted = true, verticalRateMps = lastSmoothedRate)
 	}
 
 	/**
@@ -92,7 +103,11 @@ class StreamingVerticalRateCalculator(
 		lastFilteredTimeMs = null
 		lastSmoothedRate = 0f
 		sampleCount = 0
+		lastAcceptedTimeMs = null
 	}
+
+	private fun acceptTime(timeMs: Long): Boolean =
+		lastAcceptedTimeMs == null || timeMs > requireNotNull(lastAcceptedTimeMs)
 
 	private fun medianOfWindow(): Float {
 		val sorted = altitudeWindow.map { it.altitudeM }.sorted()
