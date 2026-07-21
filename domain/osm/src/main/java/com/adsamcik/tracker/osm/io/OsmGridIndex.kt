@@ -84,5 +84,59 @@ object OsmGridIndex {
 		return out
 	}
 
+	/**
+	 * Returns cells around a point, wrapping longitude neighbours across the
+	 * antimeridian. Unlike [cellAnd8Neighbors], this method supports a wider
+	 * longitude radius for lookups at high latitudes, where a 0.01° cell is
+	 * physically narrower.
+	 */
+	fun cellAndNeighbors(
+		latE7: Int,
+		lonE7: Int,
+		latRadius: Int = 1,
+		lonRadius: Int = 1,
+	): LongArray {
+		require(latRadius >= 0) { "latRadius must be non-negative" }
+		require(lonRadius >= 0) { "lonRadius must be non-negative" }
+
+		val latCell = floorDiv(latE7, CELL_E7)
+		val lonCell = floorDiv(normalizeLongitudeE7(lonE7), CELL_E7)
+		val minLatCell = maxOf(MIN_LAT_CELL, latCell - latRadius)
+		val maxLatCell = minOf(MAX_LAT_CELL, latCell + latRadius)
+		val effectiveLonRadius = minOf(lonRadius, HALF_LON_CELL_COUNT)
+		val lonOffsets = if (effectiveLonRadius == HALF_LON_CELL_COUNT) {
+			-HALF_LON_CELL_COUNT until HALF_LON_CELL_COUNT
+		} else {
+			-effectiveLonRadius..effectiveLonRadius
+		}
+		val rows = maxLatCell - minLatCell + 1
+		val out = LongArray(rows * lonOffsets.count())
+		var idx = 0
+		for (lat in minLatCell..maxLatCell) {
+			for (offset in lonOffsets) {
+				val lon = wrapLongitudeCell(lonCell + offset).toLong()
+				out[idx++] = (lat.toLong() shl 24) or (lon and 0xFFFFFFL)
+			}
+		}
+		return out
+	}
+
+	private fun normalizeLongitudeE7(lonE7: Int): Int =
+		Math.floorMod(lonE7.toLong() + HALF_WORLD_E7, WORLD_E7).minus(HALF_WORLD_E7).toInt()
+
+	private fun wrapLongitudeCell(cell: Int): Int =
+		Math.floorMod(
+			cell.toLong() - MIN_LON_CELL,
+			LON_CELL_COUNT.toLong(),
+		).plus(MIN_LON_CELL).toInt()
+
 	private fun floorDiv(a: Int, b: Int): Int = Math.floorDiv(a, b)
+
+	private const val WORLD_E7 = 3_600_000_000L
+	private const val HALF_WORLD_E7 = WORLD_E7 / 2
+	private const val MIN_LAT_CELL = -9_000
+	private const val MAX_LAT_CELL = 9_000
+	private const val MIN_LON_CELL = -18_000
+	private const val LON_CELL_COUNT = 36_000
+	private const val HALF_LON_CELL_COUNT = LON_CELL_COUNT / 2
 }
