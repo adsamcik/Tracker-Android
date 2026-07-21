@@ -5,10 +5,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
+import com.adsamcik.tracker.map.presentation.bridge.LayerRefreshResult
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.bridge.SpeedSummary
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
+import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.geocoder.GeocodedPlace
@@ -28,13 +32,17 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import app.cash.turbine.test
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
@@ -71,6 +79,9 @@ class MapStoreTest {
         every { mockLayerEngine.activeLegend() } returns null
         every { mockLayerEngine.activeLayerConfig() } returns null
         every { mockLayerEngine.overlays() } returns persistentListOf()
+        coEvery {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
+        } returns LayerRefreshResult.Success
         every { mockTrackerController.isServiceRunningFlow } returns serviceRunningFlow
         every { mockMapDataChangeObserver.changes() } returns flow {
             emit(MapDataChange.Ready)
@@ -548,6 +559,61 @@ class MapStoreTest {
         coVerify(exactly = 0) {
             mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
         }
+    }
+
+    @Test
+    fun `late viewport refresh cannot publish after newer layer selection`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.dispatch(MapEvent.SelectLayer("location_heatmap"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val refreshStarted = CompletableDeferred<Unit>()
+        val releaseRefresh = CompletableDeferred<Unit>()
+        val staleConfig = MapLibreLayerConfig.Line(
+            geoJson = "stale-refresh",
+            colorArgb = 0xFFFF0000.toInt(),
+        )
+        val selectedConfig = MapLibreLayerConfig.Line(
+            geoJson = "selected-layer",
+            colorArgb = 0xFF00FF00.toInt(),
+        )
+        var engineConfig: MapLibreLayerConfig? = null
+        every { mockLayerEngine.activeLayerConfig() } answers { engineConfig }
+        coEvery {
+            mockLayerEngine.refreshLayersInPlace(any(), any(), any(), any())
+        } coAnswers {
+            refreshStarted.complete(Unit)
+            withContext(NonCancellable) {
+                releaseRefresh.await()
+            }
+            engineConfig = staleConfig
+            LayerRefreshResult.Success
+        }
+        coEvery {
+            mockLayerEngine.selectLayers(eq(setOf("cell_heatmap")), any(), any(), any(), any())
+        } answers {
+            engineConfig = selectedConfig
+        }
+
+        mapStore.dispatch(
+            MapEvent.CameraMoved(
+                position = CameraModel(lat = 50.0, lng = 14.0, zoom = 15f, tilt = 0f, bearing = 0f),
+                byGesture = true,
+                visibleBounds = Bounds(north = 51.0, east = 15.0, south = 49.0, west = 13.0),
+            )
+        )
+        testDispatcher.scheduler.advanceTimeBy(500)
+        runCurrent()
+        refreshStarted.await()
+
+        mapStore.dispatch(MapEvent.SelectLayer("cell_heatmap"))
+        runCurrent()
+        mapStore.state.value.layerConfig shouldBe selectedConfig
+
+        releaseRefresh.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.state.value.layerConfig shouldBe selectedConfig
     }
 
     @Test

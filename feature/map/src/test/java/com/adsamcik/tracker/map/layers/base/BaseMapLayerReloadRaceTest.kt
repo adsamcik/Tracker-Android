@@ -126,7 +126,7 @@ class BaseMapLayerReloadRaceTest {
         // Release B FIRST → it is the latest in-flight reload and MUST publish.
         pendingGates[1].complete(Unit)
         advanceUntilIdle()
-        val configB = jobB.await() as MapLibreLayerConfig.Heatmap
+        val configB = (jobB.await() as LayerReloadResult.Success).config as MapLibreLayerConfig.Heatmap
         configB.geoJson shouldBe """{"bounds":"3.0"}"""
         (layer.lastConfig as MapLibreLayerConfig.Heatmap).geoJson shouldBe """{"bounds":"3.0"}"""
 
@@ -135,7 +135,7 @@ class BaseMapLayerReloadRaceTest {
         // reloadGeneration has already advanced past A's captured value.
         pendingGates[0].complete(Unit)
         advanceUntilIdle()
-        val configA = jobA.await() as MapLibreLayerConfig.Heatmap
+        val configA = (jobA.await() as LayerReloadResult.Success).config as MapLibreLayerConfig.Heatmap
         // The returned-from-call value is still A's data (so a caller can populate a
         // per-bounds cache correctly); the layer's published state is the key
         // invariant under test.

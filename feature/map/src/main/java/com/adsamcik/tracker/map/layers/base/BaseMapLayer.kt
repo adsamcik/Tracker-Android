@@ -13,6 +13,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 
+sealed interface LayerReloadResult {
+    data class Success(val config: MapLibreLayerConfig) : LayerReloadResult
+    data object Empty : LayerReloadResult
+    data class Failure(val cause: Throwable) : LayerReloadResult
+}
+
 /**
  * Base template for map layers.
  *
@@ -53,7 +59,8 @@ abstract class BaseMapLayer<I, P>(
      * captures the value returned by [AtomicLong.incrementAndGet]; only the call
      * whose captured generation still matches when its compute finishes is allowed
      * to publish to [lastConfig]. Stale calls still return their (correct-for-their-
-     * bounds) config so callers can populate per-bucket caches without re-encoding.
+     * bounds) result; the controller-level request generation decides whether that
+     * result may be cached or published for the current user intent.
      */
     private val reloadGeneration = AtomicLong(0L)
 
@@ -126,7 +133,11 @@ abstract class BaseMapLayer<I, P>(
      * Refresh data for an already-enabled layer without running enable/disable hooks.
      * Used for viewport-only camera changes where MapLibre sources/layers should stay stable.
      */
-    suspend fun reloadData(context: Context, bounds: Bounds? = null, zoom: Float = this.zoom): MapLibreLayerConfig? =
+    suspend fun reloadData(
+        context: Context,
+        bounds: Bounds? = null,
+        zoom: Float = this.zoom,
+    ): LayerReloadResult =
         withContext(dispatchers.default) {
             val startTime = System.currentTimeMillis()
             // Capture this call's generation BEFORE any work; the latest call wins
@@ -134,7 +145,7 @@ abstract class BaseMapLayer<I, P>(
             // structured cancellation alone is insufficient here.
             val myGeneration = reloadGeneration.incrementAndGet()
             val currentQuality = synchronized(this@BaseMapLayer) {
-                if (!enabled) return@withContext lastConfig
+                if (!enabled) return@withContext LayerReloadResult.Empty
                 // `this` inside withContext is CoroutineScope; use explicit @-qualified
                 // receiver to write the outer class's `zoom` property.
                 this@BaseMapLayer.zoom = zoom
@@ -165,12 +176,12 @@ abstract class BaseMapLayer<I, P>(
                 }
                 val totalDuration = System.currentTimeMillis() - startTime
                 onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
-                config
+                config?.let(LayerReloadResult::Success) ?: LayerReloadResult.Empty
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 onPipelineError(e)
-                lastConfig
+                LayerReloadResult.Failure(e)
             }
         }
 

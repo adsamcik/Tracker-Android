@@ -5,6 +5,7 @@ import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.map.presentation.bridge.LayerRefreshResult
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.map.shared.MapLayerInfo
@@ -19,6 +20,8 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -57,6 +60,33 @@ private class StubDateRangeLayer : BaseMapLayer<Unit, Unit>(PerformanceManager()
     override suspend fun loadData(context: Context, bounds: Bounds?) = Unit
     override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
     override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
+}
+
+private class GatedReloadLayer : BaseMapLayer<String, String>(PerformanceManager()) {
+    val reloadStarted = CompletableDeferred<Unit>()
+    val reloadGate = CompletableDeferred<Unit>()
+
+    @Volatile
+    var gateReload = false
+
+    override suspend fun loadData(context: Context, bounds: Bounds?): String {
+        if (gateReload) {
+            reloadStarted.complete(Unit)
+            reloadGate.await()
+        }
+        return bounds?.north?.toString() ?: "all"
+    }
+
+    override fun processData(
+        input: String,
+        budgets: PerformanceManager.PerformanceBudgets,
+    ): String = input
+
+    override fun produceConfig(processed: String): MapLibreLayerConfig =
+        MapLibreLayerConfig.Line(
+            geoJson = processed,
+            colorArgb = 0xFF0000FF.toInt(),
+        )
 }
 
 private fun stubLegend(name: String = "TestLayer"): MapLayerData = MapLayerData(
@@ -322,6 +352,83 @@ class LayerControllerTest {
             // setLayer=1, first refresh (new zoom key)=2, forced refresh re-queries despite the cache=3.
             layer.loadCount shouldBe 3
             (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-3"
+        }
+
+        @Test
+        fun `failed refresh does not poison cache and successful retry publishes requested config`() = runTest {
+            val failure = IllegalStateException("injected reload failure")
+            val layer = StubMapLayer { loadCount, bounds ->
+                if (loadCount == 2) throw failure
+                MapLibreLayerConfig.Line(
+                    geoJson = "load-$loadCount-${bounds?.north}",
+                    colorArgb = 0xFF0000FF.toInt(),
+                )
+            }
+            val descriptor = stubDescriptor(id = "location_heatmap", layer = layer)
+            val boundsA = Bounds(north = 2.0, east = 2.0, south = 1.0, west = 1.0)
+            val boundsB = Bounds(north = 4.0, east = 4.0, south = 3.0, west = 3.0)
+
+            controller.setLayer(context, descriptor, 1.0f, 0L..Long.MAX_VALUE, boundsA, zoom = 10f)
+            val failedResult = controller.refreshLayersInPlace(
+                context,
+                boundsB,
+                zoom = 11f,
+                dateRange = 0L..Long.MAX_VALUE,
+            )
+
+            (failedResult is LayerRefreshResult.Failure) shouldBe true
+            (failedResult as LayerRefreshResult.Failure).cause shouldBe failure
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-1-2.0"
+
+            controller.refreshLayersInPlace(
+                context,
+                boundsB,
+                zoom = 11f,
+                dateRange = 0L..Long.MAX_VALUE,
+            ) shouldBe LayerRefreshResult.Success
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "load-3-4.0"
+
+            controller.refreshLayersInPlace(
+                context,
+                boundsB,
+                zoom = 11f,
+                dateRange = 0L..Long.MAX_VALUE,
+            ) shouldBe LayerRefreshResult.Success
+            layer.loadCount shouldBe 3
+        }
+
+        @Test
+        fun `late refresh cannot overwrite a newer layer selection`() = runTest {
+            val layerA = GatedReloadLayer()
+            val layerB = StubMapLayer { _, _ ->
+                MapLibreLayerConfig.Line(
+                    geoJson = "layer-b",
+                    colorArgb = 0xFF00FF00.toInt(),
+                )
+            }
+            val descriptorA = stubDescriptor(id = "layer-a", layer = layerA)
+            val descriptorB = stubDescriptor(id = "layer-b", layer = layerB)
+            val initialBounds = Bounds(north = 1.0, east = 1.0, south = 0.0, west = 0.0)
+            val refreshBounds = Bounds(north = 2.0, east = 2.0, south = 1.0, west = 1.0)
+
+            controller.setLayer(context, descriptorA, 1.0f, 0L..Long.MAX_VALUE, initialBounds)
+            layerA.gateReload = true
+            val staleRefresh = async {
+                controller.refreshLayersInPlace(
+                    context,
+                    refreshBounds,
+                    zoom = 11f,
+                    dateRange = 0L..Long.MAX_VALUE,
+                )
+            }
+            layerA.reloadStarted.await()
+
+            controller.setLayer(context, descriptorB, 1.0f, 0L..Long.MAX_VALUE, initialBounds)
+            layerA.reloadGate.complete(Unit)
+
+            staleRefresh.await() shouldBe LayerRefreshResult.Superseded
+            controller.activeLegend() shouldBe stubLegend()
+            (controller.activeLayerConfig() as MapLibreLayerConfig.Line).geoJson shouldBe "layer-b"
         }
     }
 

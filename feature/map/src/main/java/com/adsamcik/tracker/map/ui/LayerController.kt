@@ -5,7 +5,9 @@ import android.util.Log
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
+import com.adsamcik.tracker.map.layers.base.LayerReloadResult
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
+import com.adsamcik.tracker.map.presentation.bridge.LayerRefreshResult
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
@@ -38,16 +40,12 @@ class LayerController {
     private var currentConfig: MapLibreLayerConfig? = null
     private var currentQuality: Float = 1f
     private val layerConfigCache = mutableMapOf<String, ViewportConfigCache>()
+    private val stateLock = Any()
 
     /**
-     * Monotonic generation counter for [refreshLayersInPlace] calls. Mirrors the
-     * guard in [BaseMapLayer.reloadData]: when the user pans/zooms rapidly, two
-     * refresh coroutines can be in flight, and the synchronous
-     * `currentConfig = combinedConfig(configs)` write at the end is not preempted
-     * by cooperative cancellation. Each call captures its generation up front; only
-     * the call whose generation is still latest when finishing publishes its
-     * combined config. Stale refreshes still populate the per-bucket cache (their
-     * data is correct for the bounds key under which they were issued).
+     * Monotonic generation for every controller operation that changes desired layer
+     * state. This invalidates in-flight refreshes not only when a newer refresh starts,
+     * but also when layers are selected, cleared, or destroyed.
      */
     private val refreshGeneration = AtomicLong(0L)
 
@@ -96,19 +94,24 @@ class LayerController {
         bounds: Bounds? = null,
         zoom: Float = 10f,
     ) {
+        val myGeneration = refreshGeneration.incrementAndGet()
         try {
-            if (currentLayers.isNotEmpty()) {
-                Log.d(TAG, "Clearing current layers: ${currentLayerDescriptors.map { it.id }}")
-                clearCurrentLayers()
+            synchronized(stateLock) {
+                if (myGeneration != refreshGeneration.get()) return
+                if (currentLayers.isNotEmpty()) {
+                    Log.d(TAG, "Clearing current layers: ${currentLayerDescriptors.map { it.id }}")
+                    clearCurrentLayers()
+                }
+                clearState()
+                currentQuality = quality
             }
-            clearState()
-            currentQuality = quality
 
             if (descriptors.isNotEmpty()) {
                 val builtDescriptors = mutableListOf<LayerDescriptor>()
                 val builtLayers = mutableListOf<BaseMapLayer<*, *>>()
                 val legends = mutableListOf<MapLayerData>()
                 val configs = mutableListOf<MapLibreLayerConfig>()
+                val cacheableConfigs = mutableListOf<Pair<String, MapLibreLayerConfig>>()
 
                 try {
                     descriptors.forEach { descriptor ->
@@ -131,26 +134,40 @@ class LayerController {
                         val config = builtLayer.lastConfig
                         if (config != null) {
                             configs.add(config)
+                            cacheableConfigs.add(descriptor.id to config)
                         }
-                        putCachedConfig(descriptor.id, cacheKey(bounds, zoom, dateRange, quality), config)
                     }
                 } catch (e: CancellationException) {
                     builtLayers.forEach { it.disable() }
                     throw e
                 }
 
-                currentLayerDescriptors = builtDescriptors
-                currentLayers.clear()
-                currentLayers.addAll(builtLayers)
-                currentLegends = legends
-                currentConfig = combinedConfig(configs)
+                synchronized(stateLock) {
+                    if (myGeneration != refreshGeneration.get()) {
+                        builtLayers.forEach { it.disable() }
+                        return
+                    }
+                    currentLayerDescriptors = builtDescriptors
+                    currentLayers.clear()
+                    currentLayers.addAll(builtLayers)
+                    currentLegends = legends
+                    currentConfig = combinedConfig(configs)
+                    val key = cacheKey(bounds, zoom, dateRange, quality)
+                    cacheableConfigs.forEach { (layerId, config) ->
+                        putCachedConfig(layerId, key, config)
+                    }
+                }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error setting layers: ${descriptors.joinToString { it.id }}", e)
             Reporter.report(e)
-            clearState()
+            synchronized(stateLock) {
+                if (myGeneration == refreshGeneration.get()) {
+                    clearState()
+                }
+            }
         }
     }
 
@@ -163,42 +180,69 @@ class LayerController {
         zoom: Float = 10f,
         dateRange: LongRange,
         forceReload: Boolean = false,
-    ) {
-        if (currentLayers.isEmpty()) return
-        // Capture generation up front; only the latest in-flight refresh will be
-        // allowed to publish its combined config. See [refreshGeneration] for why.
+    ): LayerRefreshResult {
         val myGeneration = refreshGeneration.incrementAndGet()
+        val (descriptors, layers, quality) = synchronized(stateLock) {
+            if (currentLayers.isEmpty()) return LayerRefreshResult.Success
+            Triple(currentLayerDescriptors.toList(), currentLayers.toList(), currentQuality)
+        }
 
         try {
             val configs = mutableListOf<MapLibreLayerConfig>()
-            currentLayerDescriptors.zip(currentLayers).forEach { (descriptor, layer) ->
+            descriptors.zip(layers).forEach { (descriptor, layer) ->
+                if (myGeneration != refreshGeneration.get()) return LayerRefreshResult.Superseded
                 if (layer is SupportsDateRange) {
                     layer.dateRange = dateRange
                 }
 
-                val key = cacheKey(bounds, zoom, dateRange, currentQuality)
-                val cache = layerConfigCache[descriptor.id]
+                val key = cacheKey(bounds, zoom, dateRange, quality)
+                val cachedConfig = synchronized(stateLock) {
+                    layerConfigCache[descriptor.id]?.takeIf { it.containsKey(key) }?.get(key)
+                }
                 // Reactive/live refreshes force a reload: the cache is keyed by viewport (not data
                 // version), so a cache hit here would return stale data even though new fixes arrived.
-                val config = if (!forceReload && cache != null && cache.containsKey(key)) {
-                    cache.get(key)
+                val config = if (!forceReload && cachedConfig != null) {
+                    cachedConfig
                 } else {
-                    layer.reloadData(context, bounds, zoom).also { refreshed ->
-                        putCachedConfig(descriptor.id, key, refreshed)
+                    val result = layer.reloadData(context, bounds, zoom)
+                    if (myGeneration != refreshGeneration.get()) {
+                        return LayerRefreshResult.Superseded
+                    }
+                    when (result) {
+                        is LayerReloadResult.Success -> {
+                            synchronized(stateLock) {
+                                if (myGeneration != refreshGeneration.get()) {
+                                    return LayerRefreshResult.Superseded
+                                }
+                                putCachedConfig(descriptor.id, key, result.config)
+                            }
+                            result.config
+                        }
+                        LayerReloadResult.Empty -> null
+                        is LayerReloadResult.Failure -> {
+                            Log.e(TAG, "Error refreshing layer ${descriptor.id}", result.cause)
+                            Reporter.report(result.cause)
+                            return LayerRefreshResult.Failure(result.cause)
+                        }
                     }
                 }
                 if (config != null) {
                     configs.add(config)
                 }
             }
-            if (myGeneration == refreshGeneration.get()) {
+            synchronized(stateLock) {
+                if (myGeneration != refreshGeneration.get()) {
+                    return LayerRefreshResult.Superseded
+                }
                 currentConfig = combinedConfig(configs)
             }
+            return LayerRefreshResult.Success
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error refreshing layers in place: ${currentLayerDescriptors.joinToString { it.id }}", e)
+            Log.e(TAG, "Error refreshing layers in place: ${descriptors.joinToString { it.id }}", e)
             Reporter.report(e)
+            return LayerRefreshResult.Failure(e)
         }
     }
 
@@ -206,46 +250,58 @@ class LayerController {
      * Clear current layer.
      */
     fun clear() {
+        refreshGeneration.incrementAndGet()
         try {
-            clearCurrentLayers()
-            clearState()
+            synchronized(stateLock) {
+                clearCurrentLayers()
+                clearState()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing layer", e)
             Reporter.report(e)
-            clearState()
+            synchronized(stateLock) {
+                clearState()
+            }
         }
     }
 
     /**
      * Get active legend data.
      */
-    fun activeLegend(): MapLayerData? = currentLegends.firstOrNull()
-    fun activeLegends(): List<MapLayerData> = currentLegends
+    fun activeLegend(): MapLayerData? = synchronized(stateLock) { currentLegends.firstOrNull() }
+    fun activeLegends(): List<MapLayerData> = synchronized(stateLock) { currentLegends.toList() }
 
     /**
      * Get active layer config produced by the current layer.
      */
-    fun activeLayerConfig(): MapLibreLayerConfig? = currentConfig
+    fun activeLayerConfig(): MapLibreLayerConfig? = synchronized(stateLock) { currentConfig }
 
     /**
      * Handle low memory situations by clearing cache.
      */
     fun onLowMemory() {
         Log.d(TAG, "Handling low memory - clearing layer cache")
-        layerConfigCache.clear()
+        synchronized(stateLock) {
+            layerConfigCache.clear()
+        }
     }
 
     /**
      * Clean up resources when controller is no longer needed.
      */
     fun destroy() {
+        refreshGeneration.incrementAndGet()
         Log.d(TAG, "Destroying LayerController")
         try {
-            clearCurrentLayers()
+            synchronized(stateLock) {
+                clearCurrentLayers()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error during cleanup", e)
         } finally {
-            clearState()
+            synchronized(stateLock) {
+                clearState()
+            }
         }
     }
 
@@ -293,7 +349,7 @@ class LayerController {
 
     private fun bucket(value: Double, size: Double): Long = kotlin.math.floor(value / size).toLong()
 
-    private fun putCachedConfig(layerId: String, key: ViewportCacheKey, config: MapLibreLayerConfig?) {
+    private fun putCachedConfig(layerId: String, key: ViewportCacheKey, config: MapLibreLayerConfig) {
         val cache = layerConfigCache.getOrPut(layerId) {
             ViewportConfigCache(MAX_CACHE_BYTES_PER_LAYER)
         }

@@ -43,9 +43,13 @@ class MapLibreLayerEngine(
         controller.setLayers(context, descriptors, quality, dateRange, bounds, zoom)
     }
 
-    override suspend fun refreshLayersInPlace(bounds: Bounds?, zoom: Float, dateRange: LongRange, forceReload: Boolean) {
+    override suspend fun refreshLayersInPlace(
+        bounds: Bounds?,
+        zoom: Float,
+        dateRange: LongRange,
+        forceReload: Boolean,
+    ): LayerRefreshResult =
         controller.refreshLayersInPlace(context, bounds, zoom, dateRange, forceReload)
-    }
 
     override fun clear() {
         controller.clear()

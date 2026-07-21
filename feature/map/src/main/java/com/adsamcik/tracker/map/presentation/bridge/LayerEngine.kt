@@ -17,7 +17,12 @@ interface LayerEngine {
      * the underlying data changed but the viewport did not (the cache is keyed by viewport, not data
      * version, so it would otherwise serve stale data).
      */
-    suspend fun refreshLayersInPlace(bounds: Bounds? = null, zoom: Float = 10f, dateRange: LongRange, forceReload: Boolean = false)
+    suspend fun refreshLayersInPlace(
+        bounds: Bounds? = null,
+        zoom: Float = 10f,
+        dateRange: LongRange,
+        forceReload: Boolean = false,
+    ): LayerRefreshResult
     suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f) {
         selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds, zoom)
     }
@@ -40,6 +45,12 @@ interface LayerEngine {
     ): SpeedSummary? = null
 
     fun destroy() {}
+}
+
+sealed interface LayerRefreshResult {
+    data object Success : LayerRefreshResult
+    data class Failure(val cause: Throwable) : LayerRefreshResult
+    data object Superseded : LayerRefreshResult
 }
 
 /**

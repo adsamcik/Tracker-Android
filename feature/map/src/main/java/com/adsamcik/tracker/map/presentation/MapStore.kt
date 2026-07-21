@@ -10,6 +10,7 @@ import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.map.export.MapImageShareHelper
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
+import com.adsamcik.tracker.map.presentation.bridge.LayerRefreshResult
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
@@ -52,6 +53,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.floor
 
@@ -256,6 +258,7 @@ class MapStore @Inject constructor(
     private var speedProbeJob: Job? = null
     private var placeCalloutJob: Job? = null
     private var searchJob: Job? = null
+    private val layerRequestGeneration = AtomicLong(0L)
     private val mapDataObserverReady = CompletableDeferred<Unit>()
     private val mapDataRevisions = MutableStateFlow(MapDataRevisions())
     /**
@@ -424,10 +427,11 @@ class MapStore @Inject constructor(
                 if (_state.value.activeLayerIds.any(::isBoundsSensitiveLayer)) {
                     val bucket = viewportBucket(lastVisibleBounds, event.position.zoom)
                     if (bucket == null || bucket != lastRenderedViewportBucket) {
+                        val requestId = layerRequestGeneration.incrementAndGet()
                         cameraRefreshJob?.cancel()
                         cameraRefreshJob = viewModelScope.launch {
                             delay(cameraRefreshDebounceMs)
-                            refreshLayerDataInPlace()
+                            refreshLayerDataInPlace(requestId = requestId)
                         }
                     }
                 }
@@ -653,6 +657,7 @@ class MapStore @Inject constructor(
 
     private fun applyLayer() {
         val engine = layerManager ?: return
+        val requestId = layerRequestGeneration.incrementAndGet()
         cameraRefreshJob?.cancel()
         reactiveRefreshJob?.cancel()
         reactiveRefreshJob = null
@@ -672,16 +677,25 @@ class MapStore @Inject constructor(
                 withContext(dispatchers.default) {
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
-                updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = true)
-                restartReactiveObserver(revisionsBeforeQuery)
+                if (requestId != layerRequestGeneration.get()) return@launch
+                updateLayerStateFromEngine(
+                    engine,
+                    clearLayerOnMissingLegend = true,
+                    requestId = requestId,
+                )
+                if (requestId == layerRequestGeneration.get()) {
+                    restartReactiveObserver(revisionsBeforeQuery)
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _state.update {
-                    it.copy(
-                        legend = persistentListOf(),
-                        layerConfig = null,
-                        layerLoadingProgress = 0
-                    )
+                if (requestId == layerRequestGeneration.get()) {
+                    _state.update {
+                        it.copy(
+                            legend = persistentListOf(),
+                            layerConfig = null,
+                            layerLoadingProgress = 0
+                        )
+                    }
                 }
             }
         }
@@ -727,8 +741,13 @@ class MapStore @Inject constructor(
         }
     }
 
-    private fun refreshLayerDataInPlace(forceReload: Boolean = false, showLoading: Boolean = true) {
+    private fun refreshLayerDataInPlace(
+        forceReload: Boolean = false,
+        showLoading: Boolean = true,
+        requestId: Long = layerRequestGeneration.incrementAndGet(),
+    ) {
         val engine = layerManager ?: return
+        if (requestId != layerRequestGeneration.get()) return
         applyLayerJob?.cancel()
         applyLayerJob = viewModelScope.launch {
             if (showLoading) _state.update { it.copy(layerLoadingProgress = 50) }
@@ -736,16 +755,35 @@ class MapStore @Inject constructor(
                 val s = _state.value
                 val bounds = lastVisibleBounds
                     ?: cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
-                withContext(dispatchers.default) {
+                val result = withContext(dispatchers.default) {
                     engine.refreshLayersInPlace(bounds, s.camera.zoom, s.dateRange, forceReload)
                 }
-                updateLayerStateFromEngine(engine, clearLayerOnMissingLegend = false)
-                // Record the viewport bucket now rendered so subsequent micro-pans within it are
-                // skipped (see MapEvent.CameraMoved).
-                lastRenderedViewportBucket = viewportBucket(bounds, s.camera.zoom)
+                if (requestId != layerRequestGeneration.get()) return@launch
+                when (result) {
+                    LayerRefreshResult.Success -> {
+                        updateLayerStateFromEngine(
+                            engine,
+                            clearLayerOnMissingLegend = false,
+                            requestId = requestId,
+                        )
+                        // Record the viewport bucket now rendered so subsequent micro-pans within it are
+                        // skipped (see MapEvent.CameraMoved).
+                        if (requestId == layerRequestGeneration.get()) {
+                            lastRenderedViewportBucket = viewportBucket(bounds, s.camera.zoom)
+                        }
+                    }
+                    is LayerRefreshResult.Failure -> {
+                        if (showLoading) {
+                            _state.update { it.copy(layerLoadingProgress = 0) }
+                        }
+                    }
+                    LayerRefreshResult.Superseded -> Unit
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (showLoading) _state.update { it.copy(layerLoadingProgress = 0) }
+                if (showLoading && requestId == layerRequestGeneration.get()) {
+                    _state.update { it.copy(layerLoadingProgress = 0) }
+                }
             }
         }
     }
@@ -753,7 +791,9 @@ class MapStore @Inject constructor(
     private fun updateLayerStateFromEngine(
         engine: LayerEngine,
         clearLayerOnMissingLegend: Boolean,
+        requestId: Long,
     ) {
+        if (requestId != layerRequestGeneration.get()) return
         val legend = engine.activeLegend()
         val config = engine.activeLayerConfig()
         val overlays = engine.overlays()
@@ -761,6 +801,7 @@ class MapStore @Inject constructor(
 
         if (legend != null) {
             _state.update { state ->
+                if (requestId != layerRequestGeneration.get()) return@update state
                 val mergedOverlays = mergeOverlays(state.overlays, overlays)
                 state.copy(
                     legend = persistentListOf(*legend.legend.valueList.map { v ->
@@ -777,6 +818,7 @@ class MapStore @Inject constructor(
             }
         } else {
             _state.update { state ->
+                if (requestId != layerRequestGeneration.get()) return@update state
                 state.copy(
                     legend = if (clearLayerOnMissingLegend) persistentListOf() else state.legend,
                     layerConfig = if (clearLayerOnMissingLegend) config else config ?: state.layerConfig,
@@ -970,6 +1012,7 @@ class MapStore @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        layerRequestGeneration.incrementAndGet()
         applyLayerJob?.cancel()
         cameraRefreshJob?.cancel()
         reactiveRefreshJob?.cancel()
