@@ -11,8 +11,9 @@ import java.io.IOException
 /**
  * Default file-backed [PersistentDirtyState].
  *
- * Format: a single newline-delimited list of table names in [filesDir]/
- * [FILE_NAME]. Writes are mutex-serialized + atomic (write to a temp file,
+ * Format: newline-delimited `generation<TAB>table` entries in [filesDir]/
+ * [FILE_NAME]. Legacy table-only lines are read as generation zero. Writes are
+ * mutex-serialized + atomic (write to a temp file,
  * then rename) so a crash mid-write can't corrupt the live file.
  *
  * Why a flat file instead of DataStore / Room:
@@ -39,7 +40,7 @@ import java.io.IOException
  * The atomic-rename write protects against corruption from a crash *during* a
  * write. It does NOT provide fsync-level durability — if the OS hard-kills the
  * process between the caller's in-memory state change and the enqueued [add]
- * or [remove] call, that mutation is lost. This is by design; see
+ * or [acknowledge] call, that mutation is lost. This is by design; see
  * [DurableMetricDirtyTracker] class KDoc for the full crash-safety discussion.
  */
 internal class DefaultPersistentDirtyState(
@@ -54,42 +55,46 @@ internal class DefaultPersistentDirtyState(
 	private val tempFile: File = File(filesDir, "$FILE_NAME.tmp")
 	private val mutex = Mutex()
 
-	override suspend fun load(): Set<String> = withContext(ioDispatcher) {
+	override suspend fun load(): Map<String, Long> = withContext(ioDispatcher) {
 		mutex.withLock {
-			if (!file.exists()) return@withLock emptySet()
+			if (!file.exists()) return@withLock emptyMap()
 			try {
 				file.useLines { lines ->
-					lines.map { it.trim() }
-						.filter { it.isNotEmpty() }
-						.toCollection(LinkedHashSet())
+					lines.mapNotNull(::parseLine).toMap()
 				}
 			} catch (e: IOException) {
-				// Corrupt or unreadable — return empty (the source-watermark
-				// fallback in AchievementWorker will catch any missed bits on
-				// the next worker run).
-				emptySet()
+				// Corrupt or unreadable state must never break tracking.
+				emptyMap()
 			}
 		}
 	}
 
-	override suspend fun add(tables: Set<String>) {
-		if (tables.isEmpty()) return
+	override suspend fun add(generations: Map<String, Long>) {
+		if (generations.isEmpty()) return
 		withContext(ioDispatcher) {
 			mutex.withLock {
 				val current = readUnlocked()
-				val merged = current + tables.map { it.trim() }.filter { it.isNotEmpty() }
-				if (merged.size == current.size) return@withLock
+				val merged = current.toMutableMap()
+				for ((rawTable, generation) in generations) {
+					val table = rawTable.trim()
+					if (table.isNotEmpty() && generation > (merged[table] ?: Long.MIN_VALUE)) {
+						merged[table] = generation
+					}
+				}
+				if (merged == current) return@withLock
 				writeAtomicallyUnlocked(merged)
 			}
 		}
 	}
 
-	override suspend fun remove(tables: Set<String>) {
-		if (tables.isEmpty()) return
+	override suspend fun acknowledge(generations: Map<String, Long>) {
+		if (generations.isEmpty()) return
 		withContext(ioDispatcher) {
 			mutex.withLock {
 				val current = readUnlocked()
-				val survivors = current - tables
+				val survivors = current.filter { (table, currentGeneration) ->
+					currentGeneration > (generations[table] ?: Long.MIN_VALUE)
+				}
 				if (survivors.size == current.size) return@withLock
 				if (survivors.isEmpty()) {
 					file.delete()
@@ -100,25 +105,25 @@ internal class DefaultPersistentDirtyState(
 		}
 	}
 
-	private fun readUnlocked(): Set<String> {
-		if (!file.exists()) return emptySet()
+	private fun readUnlocked(): Map<String, Long> {
+		if (!file.exists()) return emptyMap()
 		return try {
 			file.useLines { lines ->
-				lines.map { it.trim() }
-					.filter { it.isNotEmpty() }
-					.toCollection(LinkedHashSet())
+				lines.mapNotNull(::parseLine).toMap()
 			}
 		} catch (e: IOException) {
-			emptySet()
+			emptyMap()
 		}
 	}
 
-	private fun writeAtomicallyUnlocked(tables: Set<String>) {
+	private fun writeAtomicallyUnlocked(generations: Map<String, Long>) {
 		try {
 			filesDir.mkdirs()
 			tempFile.bufferedWriter().use { writer ->
-				for (t in tables) {
-					writer.write(t)
+				for ((table, generation) in generations) {
+					writer.write(generation.toString())
+					writer.write("\t")
+					writer.write(table)
 					writer.write("\n")
 				}
 			}
@@ -128,12 +133,19 @@ internal class DefaultPersistentDirtyState(
 				tempFile.delete()
 			}
 		} catch (e: IOException) {
-			// Best-effort — failure logs only; in-memory state is the source
-			// of truth for the current process, and the source-watermark
-			// fallback in AchievementWorker catches anything lost across
-			// processes. Throwing here would propagate into markDirty hot
-			// paths and break tracking.
+			// Best-effort: in-memory state remains valid for this process. Throwing
+			// here would propagate into markDirty hot paths and break tracking.
 		}
+	}
+
+	private fun parseLine(rawLine: String): Pair<String, Long>? {
+		val line = rawLine.trim()
+		if (line.isEmpty()) return null
+		val separator = line.indexOf('\t')
+		if (separator < 0) return line to 0L
+		val generation = line.substring(0, separator).toLongOrNull() ?: return null
+		val table = line.substring(separator + 1).trim()
+		return table.takeIf { it.isNotEmpty() }?.let { it to generation }
 	}
 
 	companion object {

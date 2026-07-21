@@ -293,9 +293,8 @@ class AchievementEvaluatorContractTest {
 		val processorRegistry: RuleRegistry = registryFactory(processorDao)
 		val processorDirty = DefaultMetricDirtyTracker().apply {
 			markDirty(dirtyTables)
-			// Drain PERSISTENCE so the processor's LIVE consumeDirty receives the bits.
-			consumeDirty(MetricDirtyTracker.Consumer.PERSISTENCE)
 		}
+		processorDirty.acknowledgeConsumer(MetricDirtyTracker.Consumer.PERSISTENCE)
 		val processor = AchievementProcessor(
 			registry = processorRegistry,
 			metricsProvider = { snapshot },
@@ -314,9 +313,8 @@ class AchievementEvaluatorContractTest {
 		val workerRegistry: RuleRegistry = registryFactory(workerDao)
 		val workerDirty = DefaultMetricDirtyTracker().apply {
 			markDirty(dirtyTables)
-			// Drain LIVE so the worker's PERSISTENCE consumeDirty receives the bits.
-			consumeDirty(MetricDirtyTracker.Consumer.LIVE)
 		}
+		workerDirty.acknowledgeConsumer(MetricDirtyTracker.Consumer.LIVE)
 
 		val metricsProvider = mockk<AchievementMetricsProvider>()
 		coEvery { metricsProvider.collect() } returns snapshot
@@ -441,10 +439,18 @@ class AchievementEvaluatorContractTest {
 						metricsProvider,
 						dao,
 						dirtyTracker,
+						object : AchievementEvaluationTransactionRunner {
+							override suspend fun run(block: suspend () -> Unit) = block()
+						},
 					)
 				},
 			)
 			.build()
+	}
+
+	private suspend fun MetricDirtyTracker.acknowledgeConsumer(consumer: MetricDirtyTracker.Consumer) {
+		val snapshot = snapshotDirty(consumer)
+		acknowledgeDirty(consumer, snapshot)
 	}
 
 	private fun stubAchievementProgressDao(

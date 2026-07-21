@@ -73,47 +73,42 @@ class AchievementProcessor(
 	private suspend fun runEvaluation(force: Boolean): List<DomainEvent> {
 		// Battery-critical short-circuit: if no pre-aggregated table has changed since the
 		// previous flush, we KNOW every metric value is stable, so achievements can't have
-		// moved. Skip the full evaluation. consumeDirty(LIVE) is an atomic swap on the
-		// per-consumer state — writes that race this check land in the NEXT LIVE flush
-		// window, never lost. The PERSISTENCE consumer view (used by AchievementWorker)
-		// is NOT affected by this drain, so the in-session live flush can never starve
-		// the background persistence run of its dirty bits (R1+R2 round-6 finding).
+		// moved. Skip the full evaluation. The generation-aware LIVE snapshot remains
+		// pending until evaluation succeeds; writes that race this check receive a newer
+		// generation and survive acknowledgement for the next flush. PERSISTENCE remains
+		// independent, so the live flush cannot starve the background worker.
 		// `force = true` is used by onStop() so the final session evaluation doesn't
 		// short-circuit when a periodic flush just consumed the dirty bit moments earlier.
 		val tracker = dirtyTracker
-		val consumed: Set<String>? = if (tracker != null && !force) {
-			val set = tracker.consumeDirty(MetricDirtyTracker.Consumer.LIVE)
-			if (set.isEmpty()) return emptyList()
-			set
-		} else if (tracker != null && force) {
-			// In force mode we still drain the LIVE consumer's set so the next flush
-			// starts clean for that view, but we do NOT early-return on empty.
-			tracker.consumeDirty(MetricDirtyTracker.Consumer.LIVE)
+		val dirtySnapshot = if (tracker != null) {
+			tracker.snapshotDirty(MetricDirtyTracker.Consumer.LIVE)
 		} else {
 			null
 		}
+		if (!force && dirtySnapshot?.isEmpty == true) return emptyList()
+		val dirtyTables = dirtySnapshot?.tables
 
-		val instances = if (consumed != null && consumed.isNotEmpty() && !force) {
-			registry.instancesAffectedByTables(consumed)
+		val instances = if (!dirtyTables.isNullOrEmpty() && !force) {
+			registry.instancesAffectedByTables(dirtyTables)
 		} else {
 			registry.allInstances()
 		}
-		if (instances.isEmpty()) return emptyList()
+		if (instances.isEmpty()) {
+			if (tracker != null && dirtySnapshot != null) {
+				tracker.acknowledgeDirty(MetricDirtyTracker.Consumer.LIVE, dirtySnapshot)
+			}
+			return emptyList()
+		}
 
-		// Re-mark consumed tables on ANY non-cancellation failure so we don't silently
-		// drop the next update. Without this, an exception in metricsProvider() or
-		// anywhere inside the evaluation loop would leave the dirty set empty and the
-		// next ordinary flush would short-circuit even though the underlying tables had
-		// changed. Cancellation must still propagate (structured concurrency).
 		val events = try {
 			evaluateAllMetrics(instances)
-		} catch (e: kotlinx.coroutines.CancellationException) {
-			throw e
 		} catch (t: Throwable) {
-			if (tracker != null && consumed != null && consumed.isNotEmpty()) {
-				tracker.markDirty(consumed)
-			}
+			// No acknowledgement on failure or cancellation: the snapshot remains
+			// pending for the next flush.
 			throw t
+		}
+		if (tracker != null && dirtySnapshot != null) {
+			tracker.acknowledgeDirty(MetricDirtyTracker.Consumer.LIVE, dirtySnapshot)
 		}
 		return events
 	}

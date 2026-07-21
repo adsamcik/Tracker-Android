@@ -39,6 +39,8 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationReposito
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
+import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
+import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.roadmatch.DefaultRoadMatcher
 import com.adsamcik.tracker.stats.data.speed.DefaultSpeedLimitSource
 import dagger.Binds
@@ -135,6 +137,12 @@ abstract class StatsDataModule {
 	abstract fun bindAchievementEvaluationScheduler(
 		impl: WorkManagerAchievementEvaluationScheduler,
 	): AchievementEvaluationScheduler
+
+	@Binds
+	@Singleton
+	abstract fun bindAchievementEvaluationTransactionRunner(
+		impl: RoomAchievementEvaluationTransactionRunner,
+	): AchievementEvaluationTransactionRunner
 
 	@Binds
 	@Singleton

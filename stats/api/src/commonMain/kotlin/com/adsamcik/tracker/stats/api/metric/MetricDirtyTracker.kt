@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.stats.api.metric
 
 /**
- * Tracks which pre-aggregated tables have been written to since the last consume.
+ * Tracks which pre-aggregated tables have been written to since the last acknowledgement.
  *
  * Battery-critical primitive of the unified rule engine. The achievement signal
- * processor calls [consumeDirty] at the start of every flush; if the result is
+ * processor calls [snapshotDirty] at the start of every flush; if the result is
  * empty, the processor returns immediately without running any aggregate queries
  * — which is the common case on idle/AMBIENT tier. When non-empty, dirty-aware
  * rule registries (see `com.adsamcik.tracker.stats.api.rule.RuleRegistry.instancesAffectedByTables`)
@@ -19,8 +19,8 @@ package com.adsamcik.tracker.stats.api.metric
  * # Multiple consumers — starvation safety
  *
  * The tracker maintains a SEPARATE dirty set per [Consumer]. Writes via [markDirty]
- * fan out to ALL consumers' sets; [consumeDirty] only drains the requested
- * consumer's set. This prevents the round-6 R1+R2 starvation bug where the
+ * fan out to ALL consumers' sets; [acknowledgeDirty] only advances the requested
+ * consumer's state. This prevents the round-6 R1+R2 starvation bug where the
  * in-session `AchievementProcessor.runEvaluation` and the periodic
  * `AchievementWorker.doWork` raced on a single shared set — whoever consumed first
  * silently wiped the other's view, dropping persisted progress on process death.
@@ -30,8 +30,22 @@ package com.adsamcik.tracker.stats.api.metric
  */
 interface MetricDirtyTracker {
 	/**
-	 * Identifies an independent dirty-set consumer. Each consumer's set is drained
-	 * independently by [consumeDirty]; writes are fanned out to all consumers.
+	 * A generation-aware view of dirty tables.
+	 *
+	 * Generations let [acknowledgeDirty] remove only the writes represented by this
+	 * snapshot. If the same table is marked again while evaluation is running, its
+	 * newer generation remains dirty after the older snapshot is acknowledged.
+	 */
+	data class DirtySnapshot(
+		val generations: Map<String, Long>,
+	) {
+		val tables: Set<String> get() = generations.keys
+		val isEmpty: Boolean get() = generations.isEmpty()
+	}
+
+	/**
+	 * Identifies an independent dirty-set consumer. Each consumer acknowledges
+	 * independently; writes are fanned out to all consumers.
 	 *
 	 * - [LIVE]: in-session, foreground, low-latency evaluator (e.g. the 60s
 	 *   `AchievementProcessor.onFlush` from the signal pipeline). Wants to know
@@ -61,19 +75,23 @@ interface MetricDirtyTracker {
 	fun markDirty(tables: Set<String>)
 
 	/**
-	 * Atomically swap [consumer]'s dirty set with an empty one and return what was
-	 * swapped out. Subsequent [markDirty] calls accumulate into the NEW empty set
-	 * for [consumer] (other consumers' sets are not touched), so concurrent writes
-	 * during a flush are NEVER lost — they become part of the next flush window.
+	 * Return a stable generation-aware snapshot without clearing [consumer]'s dirty
+	 * state. Repeated calls return pending work until [acknowledgeDirty] confirms
+	 * successful application.
 	 *
-	 * Returns the empty set if nothing was marked for [consumer] since its last call.
-	 *
-	 * Callers that fail mid-flush after consuming the set should re-mark via
-	 * [markDirty] in their catch block so the next flush still observes the changes.
-	 * (Re-marking with [markDirty] re-fans-out to every consumer; if you only want
-	 * the failed consumer to retry, you accept some redundant work on others —
-	 * usually acceptable, since the other consumer's flush will short-circuit on
-	 * unchanged values anyway.)
+	 * Returns an empty snapshot if nothing is pending for [consumer].
 	 */
-	fun consumeDirty(consumer: Consumer): Set<String>
+	suspend fun snapshotDirty(consumer: Consumer): DirtySnapshot
+
+	/**
+	 * Confirm that [snapshot] was applied successfully for [consumer].
+	 *
+	 * Only generations at or below the acknowledged generation are cleared. A
+	 * concurrent [markDirty] for the same table therefore survives for the next pass.
+	 * Callers MUST NOT acknowledge failed or cancelled work.
+	 *
+	 * Returns `true` when no dirty generation is pending for [consumer] immediately
+	 * after the acknowledgement.
+	 */
+	suspend fun acknowledgeDirty(consumer: Consumer, snapshot: DirtySnapshot): Boolean
 }

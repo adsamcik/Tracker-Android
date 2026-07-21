@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -38,18 +39,17 @@ import dagger.assisted.AssistedInject
  * **Battery-critical short-circuit (R2 round-6 perf review):** the worker mirrors
  * the snapshot pattern from `AchievementProcessor.runEvaluation`:
  *
- *  1. Atomically consume the PERSISTENCE-consumer dirty set at the very top of
- *     `doWork()`. Per-consumer state means the live flush can never drain our bits
- *     and vice versa (R1+R2 round-6 starvation fix).
+ *  1. Snapshot the PERSISTENCE-consumer dirty generations at the top of each pass.
+ *     They remain pending until the transaction commits and the snapshot is
+ *     acknowledged.
  *  2. If the set is empty, return `Result.success()` IMMEDIATELY — no registry
  *     query, no `metricsProvider.collect()`, no DAO read. Idle-flush cost is one
  *     atomic CAS read, period.
  *  3. If the registry maps the dirty tables to NO rule instances, short-circuit
  *     again before paying for [AchievementMetricsProvider.collect].
- *  4. On any non-cancellation throwable AFTER consuming the dirty set, re-mark
- *     the consumed tables so the next worker pass still observes the changes
- *     (mirrors `AchievementProcessor`'s exception path).
- *  5. Cancellation re-throws so structured concurrency is honoured.
+ *  4. Failed, cancelled, or empty-snapshot evaluations are not acknowledged.
+ *  5. Continue taking snapshots until no dirty generation remains, so KEEP-suppressed
+ *     schedule requests that arrive mid-run are still handled.
  */
 @HiltWorker
 class AchievementWorker @AssistedInject constructor(
@@ -59,111 +59,114 @@ class AchievementWorker @AssistedInject constructor(
 	private val metricsProvider: AchievementMetricsProvider,
 	private val achievementDao: AchievementProgressDao,
 	private val dirtyTracker: MetricDirtyTracker,
+	private val transactionRunner: AchievementEvaluationTransactionRunner,
 ) : CoroutineWorker(context, params) {
 
 	override suspend fun doWork(): Result {
-		// Snapshot the dirty set FIRST for the PERSISTENCE consumer view. consumeDirty
-		// is an atomic swap on the per-consumer state — writes that race this check
-		// land in the next scheduled window for PERSISTENCE, never lost. The LIVE
-		// consumer's view (used by the in-session AchievementProcessor) is NOT
-		// affected by this drain, so the periodic worker can never starve the live
-		// flush of its dirty bits (R1+R2 round-6 finding).
-		val consumed = dirtyTracker.consumeDirty(MetricDirtyTracker.Consumer.PERSISTENCE)
-		if (consumed.isEmpty()) return Result.success()
+		while (true) {
+			val snapshot = dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE)
+			if (snapshot.isEmpty) {
+				if (dirtyTracker.acknowledgeDirty(MetricDirtyTracker.Consumer.PERSISTENCE, snapshot)) {
+					return Result.success()
+				}
+				continue
+			}
 
-		return try {
-			evaluate(consumed)
-		} catch (e: kotlinx.coroutines.CancellationException) {
-			throw e
-		} catch (t: Throwable) {
-			// Preserve the dirty bit so the next scheduled run still observes the
-			// underlying changes. Without this, an exception below would silently
-			// drop the next update window. (Re-marking fans out to every consumer
-			// view, including LIVE — that's accepted overhead; LIVE will short-circuit
-			// on unchanged values anyway.)
-			dirtyTracker.markDirty(consumed)
-			throw t
+			if (!evaluate(snapshot.tables)) return Result.retry()
+
+			dirtyTracker.acknowledgeDirty(MetricDirtyTracker.Consumer.PERSISTENCE, snapshot)
 		}
 	}
 
-	private suspend fun evaluate(consumed: Set<String>): Result {
-		val instances = ruleRegistry.instancesAffectedByTables(consumed)
-		if (instances.isEmpty()) return Result.success()
-
-		val snapshot = metricsProvider.collect()
-		if (snapshot.asMap().isEmpty()) return Result.success()
-
-		// Read existing progress so we can seed the per-metric accumulator with the
-		// last persisted lastTierIndex / lastValue. The registry already loaded the
-		// same table to compute previousTier/previousValue on each RuleInstance, but
-		// we keep this read here because the entity carries the FULL precision
-		// `lastValue: Double` we must preserve when only some instances of a metric
-		// change. The extra query is dwarfed by `metricsProvider.collect()` and only
-		// runs on non-idle passes.
-		val rows = achievementDao.getAll()
-		val progressByMetric = rows.mapNotNull { row ->
-			MetricKey.fromStorageKey(row.metricKey)?.let { it to row }
-		}.toMap()
-
-		val accumulators = HashMap<MetricKey, ProgressAccumulator>()
-		for (instance in instances) {
-			val metric = instance.rule.metric
-			val currentValue = snapshot.valueOf(metric)
-			val accum = accumulators.getOrPut(metric) {
-				val existing = progressByMetric[metric]
-				ProgressAccumulator(
-					lastTierIndex = existing?.lastTierIndex ?: -1,
-					lastValue = existing?.lastValue ?: 0.0,
-				)
-			}
-			if (accum.lastValue != currentValue) {
-				accum.lastValue = currentValue
-				accum.changed = true
+	private suspend fun evaluate(dirtyTables: Set<String>): Boolean {
+		var completed = false
+		var wroteUpdates = false
+		transactionRunner.run {
+			val instances = ruleRegistry.instancesAffectedByTables(dirtyTables)
+			if (instances.isEmpty()) {
+				completed = true
+				return@run
 			}
 
-			val definition = instance.attachment as? AchievementDefinition
-			if (definition != null && definition.minimumActiveDays > 1) {
-				val pacingDays = snapshot.valueOf(definition.pacingMetric).toLong()
-				if (!definition.isEligible(pacingDays)) continue
+			val snapshot = metricsProvider.collect()
+			if (snapshot.asMap().isEmpty()) {
+				Log.w(TAG, "Dirty achievement evaluation produced an empty metric snapshot; retrying")
+				return@run
 			}
-			// Eligibility can change while the raw metric is unchanged. Force a
-			// threshold check; previousTier still prevents duplicate unlocks.
-			val effectiveInstance = if ((definition?.minimumActiveDays ?: 1) > 1) instance.copy(previousValue = null) else instance
-			when (val result = RuleEvaluator.evaluate(effectiveInstance, currentValue.toLong())) {
-				is RuleEvaluationResult.Unchanged -> {
-					// Nothing to persist — the instance's previousValue already
-					// matches the current quantized value.
+
+			// Read existing progress so we can seed the per-metric accumulator with the
+			// last persisted lastTierIndex / lastValue. The registry already loaded the
+			// same table to compute previousTier/previousValue on each RuleInstance, but
+			// we keep this read here because the entity carries the FULL precision
+			// `lastValue: Double` we must preserve when only some instances of a metric
+			// change. The extra query is dwarfed by `metricsProvider.collect()` and only
+			// runs on non-idle passes.
+			val rows = achievementDao.getAll()
+			val progressByMetric = rows.mapNotNull { row ->
+				MetricKey.fromStorageKey(row.metricKey)?.let { it to row }
+			}.toMap()
+
+			val accumulators = HashMap<MetricKey, ProgressAccumulator>()
+			for (instance in instances) {
+				val metric = instance.rule.metric
+				val currentValue = snapshot.valueOf(metric)
+				val accum = accumulators.getOrPut(metric) {
+					val existing = progressByMetric[metric]
+					ProgressAccumulator(
+						lastTierIndex = existing?.lastTierIndex ?: -1,
+						lastValue = existing?.lastValue ?: 0.0,
+					)
 				}
-				is RuleEvaluationResult.TierUnlocked -> {
-					if (definition != null && definition.tierIndex > accum.lastTierIndex) {
-						accum.lastTierIndex = definition.tierIndex
-					}
+				if (accum.lastValue != currentValue) {
+					accum.lastValue = currentValue
 					accum.changed = true
 				}
-				is RuleEvaluationResult.ProgressUpdated -> Unit
-			}
-		}
 
-		val now = System.currentTimeMillis()
-		val updates = accumulators
-			.asSequence()
-			.filter { it.value.changed }
-			.map { (metric, a) ->
-				AchievementProgressEntity(
-					metricKey = metric.storageKey,
-					lastTierIndex = a.lastTierIndex,
-					lastValue = a.lastValue,
-					updatedAt = now,
-				)
+				val definition = instance.attachment as? AchievementDefinition
+				if (definition != null && definition.minimumActiveDays > 1) {
+					val pacingDays = snapshot.valueOf(definition.pacingMetric).toLong()
+					if (!definition.isEligible(pacingDays)) continue
+				}
+				// Eligibility can change while the raw metric is unchanged. Force a
+				// threshold check; previousTier still prevents duplicate unlocks.
+				val effectiveInstance = if ((definition?.minimumActiveDays ?: 1) > 1) instance.copy(previousValue = null) else instance
+				when (val result = RuleEvaluator.evaluate(effectiveInstance, currentValue.toLong())) {
+					is RuleEvaluationResult.Unchanged -> Unit
+					is RuleEvaluationResult.TierUnlocked -> {
+						if (definition != null && definition.tierIndex > accum.lastTierIndex) {
+							accum.lastTierIndex = definition.tierIndex
+						}
+						accum.changed = true
+					}
+					is RuleEvaluationResult.ProgressUpdated -> Unit
+				}
 			}
-			.toList()
-		if (updates.isNotEmpty()) {
-			achievementDao.upsertAll(updates)
-			// Surface progress writes so meta achievements (backed by the
-			// achievement_progress table) re-evaluate on the next scheduled pass.
+
+			val now = System.currentTimeMillis()
+			val updates = accumulators
+				.asSequence()
+				.filter { it.value.changed }
+				.map { (metric, a) ->
+					AchievementProgressEntity(
+						metricKey = metric.storageKey,
+						lastTierIndex = a.lastTierIndex,
+						lastValue = a.lastValue,
+						updatedAt = now,
+					)
+				}
+				.toList()
+			if (updates.isNotEmpty()) {
+				achievementDao.upsertAll(updates)
+				wroteUpdates = true
+			}
+			completed = true
+		}
+		if (wroteUpdates) {
+			// Mark only after the transaction commits. The loop will evaluate this
+			// newer generation before returning.
 			dirtyTracker.markDirty(MetricKeys.TABLE_ACHIEVEMENT_PROGRESS)
 		}
-		return Result.success()
+		return completed
 	}
 
 	private class ProgressAccumulator(

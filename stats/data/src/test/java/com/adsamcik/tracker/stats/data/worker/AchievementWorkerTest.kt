@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
@@ -26,6 +28,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,7 +64,7 @@ class AchievementWorkerTest {
 		ruleRegistry: RuleRegistry,
 		metricsProvider: AchievementMetricsProvider,
 		achievementDao: AchievementProgressDao,
-		dirtyTracker: DefaultMetricDirtyTracker,
+		dirtyTracker: MetricDirtyTracker,
 	): AchievementWorker {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		return TestListenableWorkerBuilder<AchievementWorker>(context)
@@ -76,6 +81,9 @@ class AchievementWorkerTest {
 						metricsProvider,
 						achievementDao,
 						dirtyTracker,
+						object : AchievementEvaluationTransactionRunner {
+							override suspend fun run(block: suspend () -> Unit) = block()
+						},
 					)
 				},
 			)
@@ -134,7 +142,7 @@ class AchievementWorkerTest {
 	}
 
 	@Test
-	fun `empty metric snapshot short-circuits after registry but before DAO read`() = runTest {
+	fun emptyMetricSnapshot_keepsDirtyOrRetries() = runTest {
 		val definition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first()
 		val registry = mockk<RuleRegistry>()
 		coEvery { registry.instancesAffectedByTables(any()) } returns listOf(ruleInstanceFor(definition))
@@ -150,10 +158,12 @@ class AchievementWorkerTest {
 		val worker = newWorker(registry, metricsProvider, achievementDao, dirtyTracker)
 		val result = worker.doWork()
 
-		result shouldBe ListenableWorker.Result.success()
+		result shouldBe ListenableWorker.Result.retry()
 		coVerify(exactly = 1) { metricsProvider.collect() }
 		coVerify(exactly = 0) { achievementDao.getAll() }
 		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).tables shouldContainExactlyInAnyOrder
+			setOf("daily_summary")
 	}
 
 	@Test
@@ -162,7 +172,10 @@ class AchievementWorkerTest {
 		// All three thresholds (1k, 5k, 10k) crossed by 10_000 — worker should write a
 		// SINGLE row whose lastTierIndex equals the max tierIndex of the unlocked set.
 		val registry = mockk<RuleRegistry>()
-		coEvery { registry.instancesAffectedByTables(any()) } returns definitions.map(::ruleInstanceFor)
+		coEvery { registry.instancesAffectedByTables(any()) } returnsMany listOf(
+			definitions.map(::ruleInstanceFor),
+			emptyList(),
+		)
 
 		val metricsProvider = mockk<AchievementMetricsProvider>()
 		coEvery { metricsProvider.collect() } returns MetricSnapshot.of(
@@ -194,7 +207,36 @@ class AchievementWorkerTest {
 	}
 
 	@Test
-	fun `metrics provider throwable re-marks consumed dirty bits`() = runTest {
+	fun `dirty generation arriving during evaluation is drained before success`() = runTest {
+		val definition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first()
+		val registry = mockk<RuleRegistry>()
+		coEvery { registry.instancesAffectedByTables(any()) } returnsMany listOf(
+			listOf(ruleInstanceFor(definition)),
+			emptyList(),
+		)
+		val dirtyTracker = DefaultMetricDirtyTracker().apply {
+			markDirty("daily_summary")
+		}
+		val metricsProvider = mockk<AchievementMetricsProvider>()
+		coEvery { metricsProvider.collect() } answers {
+			dirtyTracker.markDirty("session_segment")
+			MetricSnapshot.of(
+				MetricKey.DISTANCE_TOTAL_M to 2_000,
+				MetricKey.ACTIVE_DAYS_TOTAL to 1,
+			)
+		}
+		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
+		coEvery { achievementDao.getAll() } returns emptyList()
+
+		val result = newWorker(registry, metricsProvider, achievementDao, dirtyTracker).doWork()
+
+		result shouldBe ListenableWorker.Result.success()
+		coVerify(exactly = 2) { registry.instancesAffectedByTables(any()) }
+		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).isEmpty shouldBe true
+	}
+
+	@Test
+	fun `metrics provider throwable leaves dirty snapshot unacknowledged`() = runTest {
 		val definition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first()
 		val registry = mockk<RuleRegistry>()
 		coEvery { registry.instancesAffectedByTables(any()) } returns listOf(ruleInstanceFor(definition))
@@ -206,16 +248,54 @@ class AchievementWorkerTest {
 
 		val dirtyTracker = DefaultMetricDirtyTracker()
 		dirtyTracker.markDirty(setOf("daily_summary", "session_segment"))
-		// Drain the LIVE consumer so the test only observes PERSISTENCE preservation.
-		dirtyTracker.consumeDirty(com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker.Consumer.LIVE)
+		// Acknowledge LIVE so the test only observes PERSISTENCE preservation.
+		val liveSnapshot = dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.LIVE)
+		dirtyTracker.acknowledgeDirty(MetricDirtyTracker.Consumer.LIVE, liveSnapshot)
 
 		val worker = newWorker(registry, metricsProvider, achievementDao, dirtyTracker)
 
 		val thrown = runCatching { worker.doWork() }
 		thrown.exceptionOrNull()!!.shouldBeInstanceOf<IllegalStateException>()
-		// The dirty bits must be observable to the next worker pass.
-		dirtyTracker.consumeDirty(com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker.Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
+		// The unacknowledged snapshot must remain observable to the next worker pass.
+		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).tables shouldContainExactlyInAnyOrder setOf(
 			"daily_summary", "session_segment",
 		)
+	}
+
+	@Test
+	fun overlappingWorkers_cannotRegressLastTierIndex() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val dao = database.achievementProgressDao()
+			coroutineScope {
+				listOf(
+					async {
+						dao.upsert(
+							AchievementProgressEntity(
+								metricKey = MetricKey.DISTANCE_TOTAL_M.storageKey,
+								lastTierIndex = 7,
+								lastValue = 70_000.0,
+								updatedAt = 1L,
+							),
+						)
+					},
+					async {
+						dao.upsert(
+							AchievementProgressEntity(
+								metricKey = MetricKey.DISTANCE_TOTAL_M.storageKey,
+								lastTierIndex = 2,
+								lastValue = 10_000.0,
+								updatedAt = 2L,
+							),
+						)
+					},
+				).awaitAll()
+			}
+
+			dao.getByMetric(MetricKey.DISTANCE_TOTAL_M.storageKey)!!.lastTierIndex shouldBe 7
+		} finally {
+			database.close()
+		}
 	}
 }

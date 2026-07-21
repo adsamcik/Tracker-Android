@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.metric
 
+import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker.Consumer
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -27,15 +29,25 @@ import java.util.concurrent.atomic.AtomicReference
 private class FakePersistentDirtyState(
 	initial: Set<String> = emptySet(),
 ) : PersistentDirtyState {
-	private val state = HashSet(initial)
-	val snapshot: Set<String> get() = synchronized(state) { state.toSet() }
+	private val state = initial.associateWith { 0L }.toMutableMap()
+	val snapshot: Set<String> get() = synchronized(state) { state.keys.toSet() }
 
-	override suspend fun load(): Set<String> = synchronized(state) { state.toSet() }
-	override suspend fun add(tables: Set<String>) {
-		synchronized(state) { state += tables.filter { it.isNotEmpty() } }
+	override suspend fun load(): Map<String, Long> = synchronized(state) { state.toMap() }
+	override suspend fun add(generations: Map<String, Long>) {
+		synchronized(state) {
+			for ((table, generation) in generations) {
+				if (table.isNotEmpty() && generation > (state[table] ?: Long.MIN_VALUE)) {
+					state[table] = generation
+				}
+			}
+		}
 	}
-	override suspend fun remove(tables: Set<String>) {
-		synchronized(state) { state -= tables }
+	override suspend fun acknowledge(generations: Map<String, Long>) {
+		synchronized(state) {
+			state.entries.removeAll { (table, generation) ->
+				generation <= (generations[table] ?: Long.MIN_VALUE)
+			}
+		}
 	}
 }
 
@@ -68,12 +80,21 @@ class DurableMetricDirtyTrackerTest {
 		)
 	}
 
+	private suspend fun consume(
+		tracker: MetricDirtyTracker,
+		consumer: Consumer,
+	): Set<String> {
+		val snapshot = tracker.snapshotDirty(consumer)
+		tracker.acknowledgeDirty(consumer, snapshot)
+		return snapshot.tables
+	}
+
 	@Test
 	fun `init with empty persisted state — tracker starts clean`() = runTest(testDispatcher) {
 		val tracker = newTracker()
 		advanceUntilIdle()
-		tracker.consumeDirty(Consumer.PERSISTENCE).shouldBeEmpty()
-		tracker.consumeDirty(Consumer.LIVE).shouldBeEmpty()
+		consume(tracker, Consumer.PERSISTENCE).shouldBeEmpty()
+		consume(tracker, Consumer.LIVE).shouldBeEmpty()
 	}
 
 	@Test
@@ -81,7 +102,7 @@ class DurableMetricDirtyTrackerTest {
 		runTest(testDispatcher) {
 			val tracker = newTracker(initialPersisted = setOf("daily_summary", "exploration_cell"))
 			advanceUntilIdle()
-			tracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
+			consume(tracker, Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
 				"daily_summary", "exploration_cell",
 			)
 		}
@@ -93,7 +114,7 @@ class DurableMetricDirtyTrackerTest {
 			advanceUntilIdle()
 			// Rehydration fans out to BOTH consumer in-memory views (parity with
 			// what the original markDirty would have done before process death).
-			tracker.consumeDirty(Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("daily_summary")
+			consume(tracker, Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("daily_summary")
 		}
 
 	@Test
@@ -117,7 +138,7 @@ class DurableMetricDirtyTrackerTest {
 		val tracker = newTracker()
 		tracker.markDirty(setOf("a", "b"))
 		advanceUntilIdle()
-		tracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("a", "b")
+		consume(tracker, Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("a", "b")
 		advanceUntilIdle()
 		persistent.snapshot.shouldBeEmpty()
 	}
@@ -129,7 +150,7 @@ class DurableMetricDirtyTrackerTest {
 			tracker.markDirty(setOf("a", "b"))
 			advanceUntilIdle()
 
-			tracker.consumeDirty(Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("a", "b")
+			consume(tracker, Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("a", "b")
 			advanceUntilIdle()
 
 			// Disk still has them — PERSISTENCE consumer needs them for recovery.
@@ -163,9 +184,53 @@ class DurableMetricDirtyTrackerTest {
 			// The second tracker's PERSISTENCE consumer should see the bits the
 			// first tracker marked, even though the first tracker's in-memory CAS
 			// state died with it.
-			secondTracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
+			consume(secondTracker, Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf(
 				"daily_summary", "exploration_cell",
 			)
+		}
+
+	@Test
+	fun cancellationAfterDirtySnapshot_preservesDurableDirtyState() = runTest(testDispatcher) {
+		val sharedStore = FakePersistentDirtyState()
+		val firstTracker = DurableMetricDirtyTracker(
+			delegate = DefaultMetricDirtyTracker(),
+			persistentState = sharedStore,
+			persistenceScope = scope,
+			ioDispatcher = testDispatcher,
+		)
+		firstTracker.markDirty("daily_summary")
+		advanceUntilIdle()
+
+		firstTracker.snapshotDirty(Consumer.PERSISTENCE)
+		// Cancellation/process death happens before acknowledgeDirty.
+
+		val restartedTracker = DurableMetricDirtyTracker(
+			delegate = DefaultMetricDirtyTracker(),
+			persistentState = sharedStore,
+			persistenceScope = scope,
+			ioDispatcher = testDispatcher,
+		)
+		advanceUntilIdle()
+
+		restartedTracker.snapshotDirty(Consumer.PERSISTENCE).tables shouldContainExactlyInAnyOrder
+			setOf("daily_summary")
+	}
+
+	@Test
+	fun `acknowledging older generation preserves newer same-table mark on disk`() =
+		runTest(testDispatcher) {
+			val tracker = newTracker()
+			tracker.markDirty("daily_summary")
+			advanceUntilIdle()
+			val snapshot = tracker.snapshotDirty(Consumer.PERSISTENCE)
+
+			tracker.markDirty("daily_summary")
+			tracker.acknowledgeDirty(Consumer.PERSISTENCE, snapshot)
+			advanceUntilIdle()
+
+			persistent.snapshot shouldContainExactlyInAnyOrder setOf("daily_summary")
+			tracker.snapshotDirty(Consumer.PERSISTENCE).tables shouldContainExactlyInAnyOrder
+				setOf("daily_summary")
 		}
 
 	@Test
@@ -176,12 +241,12 @@ class DurableMetricDirtyTrackerTest {
 			advanceUntilIdle()
 
 			// LIVE drains first (doesn't touch disk).
-			tracker.consumeDirty(Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("a")
+			consume(tracker, Consumer.LIVE) shouldContainExactlyInAnyOrder setOf("a")
 			advanceUntilIdle()
 			persistent.snapshot shouldContainExactlyInAnyOrder setOf("a") // still on disk
 
 			// PERSISTENCE drains second — now removed from disk.
-			tracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("a")
+			consume(tracker, Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("a")
 			advanceUntilIdle()
 			persistent.snapshot.shouldBeEmpty()
 		}
@@ -209,12 +274,12 @@ class DurableMetricDirtyTrackerTest {
 		)
 		advanceUntilIdle()
 		// init() rehydrated → in-memory has "preexisting"; consume it.
-		tracker.consumeDirty(Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("preexisting")
+		consume(tracker, Consumer.PERSISTENCE) shouldContainExactlyInAnyOrder setOf("preexisting")
 		advanceUntilIdle()
 		sharedStore.snapshot.shouldBeEmpty()
 
 		// Now in-memory is empty AND disk is empty. consumeDirty returns empty.
-		tracker.consumeDirty(Consumer.PERSISTENCE).shouldBeEmpty()
+		consume(tracker, Consumer.PERSISTENCE).shouldBeEmpty()
 		advanceUntilIdle()
 		sharedStore.snapshot.shouldBeEmpty()
 	}
@@ -230,12 +295,12 @@ class DurableMetricDirtyTrackerTest {
 		// thread actually blocks on rehydrationComplete.
 		val loadGate = CompletableDeferred<Unit>()
 		val gatedState = object : PersistentDirtyState {
-			override suspend fun load(): Set<String> {
+			override suspend fun load(): Map<String, Long> {
 				loadGate.await()
-				return setOf("recovered")
+				return mapOf("recovered" to 1L)
 			}
-			override suspend fun add(tables: Set<String>) {}
-			override suspend fun remove(tables: Set<String>) {}
+			override suspend fun add(generations: Map<String, Long>) {}
+			override suspend fun acknowledge(generations: Map<String, Long>) {}
 		}
 
 		val tracker = DurableMetricDirtyTracker(
@@ -251,7 +316,7 @@ class DurableMetricDirtyTrackerTest {
 		val result = AtomicReference<Set<String>>()
 		val finished = CountDownLatch(1)
 		val workerThread = Thread {
-			result.set(tracker.consumeDirty(Consumer.PERSISTENCE))
+			result.set(runBlocking { tracker.snapshotDirty(Consumer.PERSISTENCE).tables })
 			finished.countDown()
 		}
 		workerThread.start()
@@ -276,14 +341,14 @@ class DurableMetricDirtyTrackerTest {
 		val controlledScope = CoroutineScope(standardDispatcher + SupervisorJob())
 
 		val neverCompletingState = object : PersistentDirtyState {
-			override suspend fun load(): Set<String> {
+			override suspend fun load(): Map<String, Long> {
 				// Suspend forever — rehydration never completes.
 				CompletableDeferred<Unit>().await()
 				@Suppress("UNREACHABLE_CODE")
-				return emptySet()
+				return emptyMap()
 			}
-			override suspend fun add(tables: Set<String>) {}
-			override suspend fun remove(tables: Set<String>) {}
+			override suspend fun add(generations: Map<String, Long>) {}
+			override suspend fun acknowledge(generations: Map<String, Long>) {}
 		}
 
 		val tracker = DurableMetricDirtyTracker(
@@ -298,7 +363,7 @@ class DurableMetricDirtyTrackerTest {
 		val finished = CountDownLatch(1)
 		val result = AtomicReference<Set<String>>()
 		val workerThread = Thread {
-			result.set(tracker.consumeDirty(Consumer.LIVE))
+			result.set(runBlocking { tracker.snapshotDirty(Consumer.LIVE).tables })
 			finished.countDown()
 		}
 		workerThread.start()

@@ -25,9 +25,13 @@ class WorkManagerAchievementEvaluationScheduler @Inject constructor(
 			)
 			.build()
 
-		WorkManager.getInstance(context).enqueueUniqueWork(
+		enqueue(WorkManager.getInstance(context), workRequest)
+	}
+
+	internal fun enqueue(workManager: WorkManager, workRequest: androidx.work.OneTimeWorkRequest) {
+		workManager.enqueueUniqueWork(
 			AchievementWorker.UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.REPLACE,
+			ExistingWorkPolicy.KEEP,
 			workRequest,
 		)
 	}
