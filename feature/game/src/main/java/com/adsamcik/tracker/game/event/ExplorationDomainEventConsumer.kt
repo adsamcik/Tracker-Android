@@ -64,10 +64,12 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			// (100 cell events × 100 BEGIN+COMMIT+fsync = 100-400 ms of write I/O)
 			// this drops to ONE transaction. Atomicity per event is still preserved
 			// because all cell+streak writes inside the loop roll back together if
-			// any fail. We collect dirty/log effects and apply them outside the
-			// transaction (mark-after-commit contract).
+			// any fail. The cursor acknowledgement is included so mutations and
+			// consumption progress commit or roll back together. We collect dirty/log
+			// effects and apply them outside the transaction (mark-after-commit contract).
 			val dirtyTables = mutableSetOf<String>()
 			val newCellLogCount = mutableListOf<Int>() // captured event.level for new cells
+			val last = batch.last()
 			database.withTransaction {
 				batch.forEach { unconsumed ->
 					val effects = handleEvent(
@@ -78,6 +80,13 @@ class ExplorationDomainEventConsumer @Inject constructor(
 					dirtyTables += effects.dirty
 					if (effects.newCellLevel != null) newCellLogCount += effects.newCellLevel
 				}
+				// Ack the LAST event by (timestamp, id) so a future event sharing the same
+				// timestamp as our boundary doesn't get silently skipped by the next fetch.
+				domainEventRepository.markBatchConsumed(
+					consumerId = CONSUMER_ID,
+					upToTimestamp = last.event.timestampMs,
+					upToEventId = last.persistedId,
+				)
 			}
 
 			if (dirtyTables.isNotEmpty()) dirtyTracker.markDirty(dirtyTables)
@@ -89,15 +98,6 @@ class ExplorationDomainEventConsumer @Inject constructor(
 					),
 				)
 			}
-
-			// Ack the LAST event by (timestamp, id) so a future event sharing the same
-			// timestamp as our boundary doesn't get silently skipped by the next fetch.
-			val last = batch.last()
-			domainEventRepository.markBatchConsumed(
-				consumerId = CONSUMER_ID,
-				upToTimestamp = last.event.timestampMs,
-				upToEventId = last.persistedId,
-			)
 		}
 	}
 

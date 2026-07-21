@@ -38,8 +38,8 @@ interface ExplorationCellDao {
 
 	@Query("""
 		UPDATE exploration_cell
-		SET quality = :quality,
-			last_visited_at = :lastVisitedAt,
+		SET quality = MAX(quality, :quality),
+			last_visited_at = MAX(last_visited_at, :lastVisitedAt),
 			visit_count = visit_count + 1,
 			season_bitmask = season_bitmask | :seasonBit
 		WHERE cell_token = :token

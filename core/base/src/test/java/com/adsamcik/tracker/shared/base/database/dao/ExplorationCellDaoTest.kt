@@ -109,6 +109,25 @@ class ExplorationCellDaoTest {
 	}
 
 	@Test
+	fun explorationOutOfOrderEvent_doesNotRegressMetadata() = runBlocking {
+		dao.insert(
+			createCell(
+				cellToken = "out-of-order",
+				quality = 5,
+				lastVisitedAt = 1_000L,
+				visitCount = 0,
+			),
+		)
+
+		dao.updateVisit(token = "out-of-order", quality = 2, lastVisitedAt = 500L, seasonBit = 1)
+
+		val result = requireNotNull(dao.getByToken("out-of-order"))
+		assertEquals(5, result.quality)
+		assertEquals(1_000L, result.lastVisitedAt)
+		assertEquals(1, result.visitCount)
+	}
+
+	@Test
 	fun countAtLevelReturnsCorrectCount() = runBlocking {
 		dao.insert(createCell(cellToken = "a", level = 14))
 		dao.insert(createCell(cellToken = "b", level = 14))
