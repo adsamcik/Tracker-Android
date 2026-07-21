@@ -175,6 +175,6 @@ class Release2024_1BackupMigrationTest {
 		const val DATABASE_NAME = "release_2024_1_backup.db"
 		const val FIXTURE = "baseline/2024.1/main_database.db"
 		const val RELEASE_VERSION = 10
-		const val CURRENT_VERSION = 36
+		const val CURRENT_VERSION = 38
 	}
 }

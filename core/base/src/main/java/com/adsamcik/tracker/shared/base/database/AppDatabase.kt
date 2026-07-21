@@ -5,6 +5,7 @@ import androidx.annotation.WorkerThread
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
@@ -22,8 +23,7 @@ import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceIntervalDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceAnalysisDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -46,11 +47,7 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
-import com.adsamcik.tracker.shared.base.database.data.PresenceInterval
-import com.adsamcik.tracker.shared.base.database.data.AnalysisCell
-import com.adsamcik.tracker.shared.base.database.data.PresenceCompactionBlock
-import com.adsamcik.tracker.shared.base.database.data.PresenceCellContribution
-import com.adsamcik.tracker.shared.base.database.data.PresenceCompactionCheckpoint
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity
@@ -59,6 +56,7 @@ import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.shared.base.database.data.TripLegEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
@@ -68,20 +66,26 @@ import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
+import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.RouteCacheEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
@@ -95,11 +99,11 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 36 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 38 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 36,
+		version = 38,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -107,16 +111,14 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 			// Sessionless architecture entities
 			LocationSample::class,
 			LocationObservation::class,
-			PresenceInterval::class,
-			AnalysisCell::class,
-			PresenceCompactionBlock::class,
-			PresenceCellContribution::class,
-			PresenceCompactionCheckpoint::class,
+			LocationObservationDecision::class,
 			StepInterval::class,
 			ActivitySnapshot::class,
 			CellSample::class,
 			WifiObservation::class,
 			TrackerRun::class,
+			TrackerStateEvent::class,
+			SourceEvidenceState::class,
 			SessionSegment::class,
 			LegacyRejectedTrackerSession::class,
 			LegacyLocationWifiCount::class,
@@ -143,6 +145,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 			SkiRunSegment::class,
 			// Durable write-ahead log for tracking signals
 			PendingSignalEntity::class,
+			QuarantinedSignalEntity::class,
 			// Game progression and minigames,
 			XpLedgerEntity::class,
 			PlayerProfileEntity::class,
@@ -191,9 +194,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationObservationDao(): LocationObservationDao
 
-	abstract fun presenceIntervalDao(): PresenceIntervalDao
-
-	abstract fun presenceAnalysisDao(): PresenceAnalysisDao
+	abstract fun locationObservationDecisionDao(): LocationObservationDecisionDao
 
 	/**
 	 * Provides access to step interval data (sessionless tracking).
@@ -219,6 +220,10 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to tracker runs (tracking policy state).
 	 */
 	abstract fun trackerRunDao(): TrackerRunDao
+
+	abstract fun trackerStateEventDao(): TrackerStateEventDao
+
+	abstract fun sourceEvidenceStateDao(): SourceEvidenceStateDao
 
 	/**
 	 * Provides access to inferred session segments.
@@ -321,6 +326,16 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun pendingSignalDao(): PendingSignalDao
 
 	/**
+	 * Provides recovery-only claim/lease operations for pending signals.
+	 */
+	abstract fun pendingSignalClaimDao(): PendingSignalClaimDao
+
+	/**
+	 * Provides read/admin access to permanently quarantined signal rows.
+	 */
+	abstract fun quarantinedSignalDao(): QuarantinedSignalDao
+
+	/**
 	 * Provides access to XP ledger entries.
 	 */
 	abstract fun xpLedgerDao(): XpLedgerDao
@@ -393,6 +408,8 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_33_34,
 			MIGRATION_34_35,
 			MIGRATION_35_36,
+			MIGRATION_36_37,
+			MIGRATION_37_38,
 		)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -422,70 +439,105 @@ abstract class AppDatabase : RoomDatabase() {
 			backupStore.deleteAll()
 		}
 
-		internal fun deleteAllCollectedData(database: AppDatabase) {
-			database.runInTransaction {
-				// Sessionless architecture tables
-				database.locationSampleDao().deleteAll()
-				database.locationObservationDao().deleteAll()
-				database.presenceAnalysisDao().deleteAllContributions()
-				database.presenceAnalysisDao().deleteAllBlocks()
-				database.presenceAnalysisDao().deleteAllCheckpoints()
-				database.presenceAnalysisDao().deleteAllCells()
-				database.presenceIntervalDao().deleteAll()
-				database.stepIntervalDao().deleteAll()
-				database.activitySnapshotDao().deleteAll()
-				database.cellSampleDao().deleteAll()
-				database.wifiObservationDao().deleteAll()
-				database.trackerRunDao().deleteAll()
-				database.sessionSegmentDao().deleteAll()
-				database.dailySummaryDao().deleteAll()
-				database.liveStatsDao().deleteAll()
+		/**
+		 * Deletes collected rows while atomically recording the durable lifecycle
+		 * transition that authorized the deletion. The singleton state row remains
+		 * after the clear so an in-flight writer carrying an older epoch cannot
+		 * repopulate the new database generation.
+		 */
+		suspend fun deleteAllCollectedData(
+			context: Context,
+			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			val database = database(context)
+			val backupStore = DatabaseMigrationBackupStore(context)
+			backupStore.markDeletionPending()
+			deleteAllCollectedData(database, collectedDataEpoch, retainedFromMs, updatedAtMs)
+			backupStore.deleteAll()
+		}
 
-				// Trip inference tables (FK-aware order: children first)
-				database.tripLegDao().deleteAll()
-				database.inferredTripDao().deleteAll()
-				database.frequentPlaceDao().deleteAll()
-
-				// Exploration tables
-				database.explorationCellDao().deleteAll()
-				database.explorationStreakDao().deleteAll()
-				database.achievementProgressDao().deleteAll()
-				database.personalRecordDao().deleteAll()
-
-				// Route compression and storage monitoring tables
-				database.routeCacheDao().deleteAll()
-				database.exportLogDao().deleteAll()
-				database.storageSizeSnapshotDao().deleteAll()
-				database.openHelper.writableDatabase.execSQL(
-					"DELETE FROM domain_event_cursor",
+		internal suspend fun deleteAllCollectedData(
+			database: AppDatabase,
+			collectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			database.withTransaction {
+				val stateDao = database.sourceEvidenceStateDao()
+				val lifecycleChanged = stateDao.synchronizeLifecycle(
+					epoch = collectedDataEpoch,
+					retainedFromMs = retainedFromMs,
+					updatedAtMs = updatedAtMs,
 				)
-				database.openHelper.writableDatabase.execSQL(
-					"DELETE FROM domain_event",
-				)
-
-				// Ski detection tables
-				database.pressureSampleDao().deleteAll()
-				database.skiRunSegmentDao().deleteAll()
-
-				// Pending signal WAL
-				database.pendingSignalDao().deleteAll()
-				// Game progression and minigames
-				database.xpLedgerDao().deleteAll()
-				database.playerProfileDao().deleteAll()
-				database.miniGameScoreDao().deleteAll()
-				database.openHelper.writableDatabase.execSQL(
-					"DELETE FROM legacy_rejected_tracker_session",
-				)
-				database.openHelper.writableDatabase.execSQL(
-					"DELETE FROM legacy_location_wifi_count",
-				)
-
-				// OSM road graph (user-imported region; not collected data per-se
-				// but covered by the same "delete everything" semantics).
-				database.osmImportDao().deleteAllTables()
+				if (!lifecycleChanged) {
+					check(stateDao.incrementRevision(updatedAtMs) == 1) {
+						"Unable to advance source-evidence revision for full deletion"
+					}
+				}
+				deleteCollectedRows(database)
 			}
 		}
 
-		private const val CURRENT_DATABASE_VERSION = 36
+		internal fun deleteAllCollectedData(database: AppDatabase) {
+			database.runInTransaction {
+				deleteCollectedRows(database)
+			}
+		}
+
+		private fun deleteCollectedRows(database: AppDatabase) {
+			// Sessionless architecture tables
+			database.locationSampleDao().deleteAll()
+			database.locationObservationDao().deleteAll()
+			database.locationObservationDecisionDao().deleteAll()
+			database.stepIntervalDao().deleteAll()
+			database.activitySnapshotDao().deleteAll()
+			database.cellSampleDao().deleteAll()
+			database.wifiObservationDao().deleteAll()
+			database.trackerRunDao().deleteAll()
+			database.trackerStateEventDao().deleteAll()
+			database.sessionSegmentDao().deleteAll()
+			database.dailySummaryDao().deleteAll()
+			database.liveStatsDao().deleteAll()
+
+			// Trip inference tables (FK-aware order: children first)
+			database.tripLegDao().deleteAll()
+			database.inferredTripDao().deleteAll()
+			database.frequentPlaceDao().deleteAll()
+
+			// Exploration tables
+			database.explorationCellDao().deleteAll()
+			database.explorationStreakDao().deleteAll()
+			database.achievementProgressDao().deleteAll()
+			database.personalRecordDao().deleteAll()
+
+			// Route compression and storage monitoring tables
+			database.routeCacheDao().deleteAll()
+			database.exportLogDao().deleteAll()
+			database.storageSizeSnapshotDao().deleteAll()
+			database.openHelper.writableDatabase.execSQL("DELETE FROM domain_event_cursor")
+			database.openHelper.writableDatabase.execSQL("DELETE FROM domain_event")
+
+			// Ski detection tables
+			database.pressureSampleDao().deleteAll()
+			database.skiRunSegmentDao().deleteAll()
+
+			// Pending signal WAL
+			database.pendingSignalDao().deleteAll()
+			database.quarantinedSignalDao().deleteAll()
+			// Game progression and minigames
+			database.xpLedgerDao().deleteAll()
+			database.playerProfileDao().deleteAll()
+			database.miniGameScoreDao().deleteAll()
+			database.openHelper.writableDatabase.execSQL("DELETE FROM legacy_rejected_tracker_session")
+			database.openHelper.writableDatabase.execSQL("DELETE FROM legacy_location_wifi_count")
+
+			// OSM road graph (user-imported region; not collected data per-se
+			// but covered by the same "delete everything" semantics).
+			database.osmImportDao().deleteAllTables()
+		}
+
+		private const val CURRENT_DATABASE_VERSION = 38
 	}
 }

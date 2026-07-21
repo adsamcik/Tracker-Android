@@ -107,7 +107,6 @@ class MapStore @Inject constructor(
 
         internal val LIVE_REACTIVE_LAYER_SOURCES = mapOf(
             "location_polyline" to setOf(MapDataSource.Location),
-			"observed_presence" to setOf(MapDataSource.Location),
             "location_heatmap" to setOf(MapDataSource.Location),
             "cell_heatmap" to setOf(MapDataSource.Cell),
             "signal_coverage" to setOf(MapDataSource.Cell),
@@ -848,7 +847,6 @@ class MapStore @Inject constructor(
     }
 
     private fun isBoundsSensitiveLayer(layerId: String): Boolean = layerId in setOf(
-		"observed_presence",
         "location_heatmap",
         "cell_heatmap",
         "signal_coverage",

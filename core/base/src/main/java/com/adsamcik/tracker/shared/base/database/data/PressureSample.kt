@@ -13,7 +13,12 @@ import androidx.room.PrimaryKey
     tableName = "pressure_sample",
     indices = [
         Index(value = ["time_ms"], name = "idx_pressure_sample_time"),
-        Index(value = ["bucket_id"], name = "idx_pressure_sample_bucket")
+        Index(value = ["bucket_id"], name = "idx_pressure_sample_bucket"),
+        Index(
+            value = ["source_signal_id"],
+            unique = true,
+            name = "idx_pressure_sample_source_signal",
+        )
     ]
 )
 data class PressureSample(
@@ -42,5 +47,9 @@ data class PressureSample(
 
     /** Row creation timestamp (for auditing/debugging). */
     @ColumnInfo(name = "created_at")
-    val createdAt: Long
+    val createdAt: Long,
+
+    /** Stable pending-signal identity used to make replay idempotent. */
+    @ColumnInfo(name = "source_signal_id")
+    val sourceSignalId: String? = null,
 )

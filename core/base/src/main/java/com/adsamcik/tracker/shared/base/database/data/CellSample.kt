@@ -14,7 +14,12 @@ import androidx.room.PrimaryKey
 	indices = [
 		Index(value = ["time_ms"], name = "idx_cell_sample_time"),
 		Index(value = ["cell_id"], name = "idx_cell_sample_cell_id"),
-		Index(value = ["lat_e7", "lon_e7"], name = "idx_cell_sample_coords")
+		Index(value = ["lat_e7", "lon_e7"], name = "idx_cell_sample_coords"),
+		Index(
+			value = ["source_signal_id", "source_item_index"],
+			unique = true,
+			name = "idx_cell_sample_source_item",
+		),
 	]
 )
 data class CellSample(
@@ -107,7 +112,15 @@ data class CellSample(
 
 	/** Exact longitude retained before E7 conversion. */
 	@ColumnInfo(name = "legacy_lon")
-	val legacyLon: Double? = null
+	val legacyLon: Double? = null,
+
+	/** Stable pending-signal identity for this fan-out item. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
+
+	/** Zero-based item position within the source cell scan. */
+	@ColumnInfo(name = "source_item_index")
+	val sourceItemIndex: Int? = null,
 )
 
 /**

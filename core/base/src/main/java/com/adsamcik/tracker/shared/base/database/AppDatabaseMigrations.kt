@@ -21,6 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 37         │ 400         │ 🚧 UNRELEASED - Durable signal identity,│
+ * │            │             │    replay idempotency, leases, and      │
+ * │            │             │    permanent-failure quarantine.        │
  * │ 36         │ 400         │ 🚧 UNRELEASED - Raw location evidence,  │
  * │            │             │    canonical observed-presence pyramid.  │
  * │ 35         │ 400         │ 🚧 UNRELEASED - Preserve every 2024.1   │
@@ -1811,7 +1814,7 @@ val MIGRATION_34_35: Migration = object : Migration(34, 35) {
 }
 
 /**
- * v35 -> v36: lossless location observations plus versioned observed-presence analytics.
+ * v35 -> v36: lossless location observations.
  *
  * Existing `location_sample` semantics remain curated/accepted. New acquisition columns make those
  * accepted rows auditable, while `location_observation` stores pre-processing provider evidence.
@@ -1919,112 +1922,254 @@ val MIGRATION_35_36: Migration = object : Migration(35, 36) {
 			execSQL("CREATE INDEX IF NOT EXISTS idx_location_observation_fix_time ON location_observation(fix_time_ms, id)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_location_observation_delivery ON location_observation(received_elapsed_realtime_nanos, batch_index)")
 
+		}
+	}
+}
+
+/**
+ * v36 -> v37: make pending-signal recovery idempotent and diagnosable.
+ *
+ * The producer-assigned `signal_id` becomes the durable identity used by every
+ * final destination. Fan-out destinations retain an item index. Existing rows
+ * receive table-prefixed legacy identities so unique constraints can be added
+ * without dropping data. New rows use nullable destination identities only to
+ * preserve compatibility with imported/direct legacy writers; the tracking
+ * write path always supplies a non-null source identity.
+ *
+ * Pending rows gain an envelope version/checksum plus lease metadata. Recovery
+ * ordering moves from wall-clock `created_at` to generated row id, which is
+ * the durable admission order. `quarantined_signal` is an append-only error
+ * ledger populated atomically with removal of an unrecoverable pending row.
+ */
+val MIGRATION_36_37: Migration = object : Migration(36, 37) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// v36 briefly carried the observed-presence tables. They are no longer
+			// part of AppDatabase, so remove children before their referenced
+			// parents to keep upgrades valid with foreign-key enforcement enabled.
+			execSQL("DROP TABLE IF EXISTS presence_cell_contribution")
+			execSQL("DROP TABLE IF EXISTS presence_compaction_checkpoint")
+			execSQL("DROP TABLE IF EXISTS presence_compaction_block")
+			execSQL("DROP TABLE IF EXISTS presence_interval")
+			execSQL("DROP TABLE IF EXISTS analysis_cell")
+
+			// Final destinations: one logical signal per single-row destination,
+			// and one (signal, item index) pair per fan-out destination.
+			addColumnIfMissing(this, "location_sample", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "location_observation", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "pressure_sample", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "step_interval", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "activity_snapshot", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "cell_sample", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "cell_sample", "source_item_index", "INTEGER")
+			addColumnIfMissing(this, "wifi_observation", "source_signal_id", "TEXT")
+			addColumnIfMissing(this, "wifi_observation", "source_item_index", "INTEGER")
+
+			// Stable, unique values make historical destination rows compatible
+			// with the new indexes without pretending they came from current WAL
+			// records. The prefixes prevent cross-table identity collisions in an
+			// operator export while uniqueness remains table-local.
+			execSQL("UPDATE location_sample SET source_signal_id = 'legacy:location_sample:' || id WHERE source_signal_id IS NULL")
+			execSQL("UPDATE location_observation SET source_signal_id = 'legacy:location_observation:' || id WHERE source_signal_id IS NULL")
+			execSQL("UPDATE pressure_sample SET source_signal_id = 'legacy:pressure_sample:' || id WHERE source_signal_id IS NULL")
+			execSQL("UPDATE step_interval SET source_signal_id = 'legacy:step_interval:' || id WHERE source_signal_id IS NULL")
+			execSQL("UPDATE activity_snapshot SET source_signal_id = 'legacy:activity_snapshot:' || id WHERE source_signal_id IS NULL")
+			execSQL("UPDATE cell_sample SET source_signal_id = 'legacy:cell_sample:' || id, source_item_index = 0 WHERE source_signal_id IS NULL")
+			execSQL("UPDATE wifi_observation SET source_signal_id = 'legacy:wifi_observation:' || id, source_item_index = 0 WHERE source_signal_id IS NULL")
+
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_sample_source_signal ON location_sample(source_signal_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_observation_source_signal ON location_observation(source_signal_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_sample_source_signal ON pressure_sample(source_signal_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_interval_source_signal ON step_interval(source_signal_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_snapshot_source_signal ON activity_snapshot(source_signal_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_cell_sample_source_item ON cell_sample(source_signal_id, source_item_index)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_wifi_observation_source_item ON wifi_observation(source_signal_id, source_item_index)")
+
+			// Durable envelope and recovery ownership metadata.
+			addColumnIfMissing(this, "pending_signal", "signal_id", "TEXT NOT NULL DEFAULT ''")
+			addColumnIfMissing(this, "pending_signal", "envelope_version", "INTEGER NOT NULL DEFAULT 0")
+			addColumnIfMissing(this, "pending_signal", "payload_checksum", "TEXT")
+			addColumnIfMissing(this, "pending_signal", "claim_token", "TEXT")
+			addColumnIfMissing(this, "pending_signal", "claim_expires_at", "INTEGER")
+			addColumnIfMissing(this, "pending_signal", "delivery_attempt_count", "INTEGER NOT NULL DEFAULT 0")
+			execSQL("UPDATE pending_signal SET signal_id = 'legacy:pending_signal:' || id WHERE signal_id = ''")
+
+			// Session-local recovery benefits from this index. Global recovery uses
+			// the primary key directly, so the old wall-clock ordering index is
+			// deliberately removed rather than retained as misleading dead weight.
+			execSQL("DROP INDEX IF EXISTS idx_pending_signal_session_time")
+			execSQL("DROP INDEX IF EXISTS idx_pending_signal_recovery_order")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_pending_signal_session_time ON pending_signal(session_id, id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_signal_signal_id ON pending_signal(signal_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_pending_signal_claimable ON pending_signal(claim_token, claim_expires_at, id)")
+
 			execSQL(
 				"""
-				CREATE TABLE IF NOT EXISTS presence_interval (
+				CREATE TABLE IF NOT EXISTS quarantined_signal (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					source_pending_id INTEGER NOT NULL,
+					signal_id TEXT NOT NULL,
 					session_id INTEGER NOT NULL,
-					model_key TEXT NOT NULL,
-					estimator_version INTEGER NOT NULL,
-					calibration_version INTEGER NOT NULL,
-					config_hash TEXT NOT NULL,
-					start_time_ms INTEGER NOT NULL,
-					end_time_ms INTEGER NOT NULL,
-					start_elapsed_realtime_nanos INTEGER,
-					end_elapsed_realtime_nanos INTEGER,
-					resolution_state TEXT NOT NULL,
-					motion_state TEXT,
-					provenance TEXT NOT NULL,
-					unresolved_reason TEXT,
-					center_lat_e7 INTEGER,
-					center_lon_e7 INTEGER,
-					cov_xx_m2 REAL,
-					cov_xy_m2 REAL,
-					cov_yy_m2 REAL,
-					effective_r90_m REAL,
-					posterior_format TEXT,
-					posterior_payload BLOB,
-					source_first_observation_id INTEGER,
-					source_last_observation_id INTEGER,
-					created_at INTEGER NOT NULL
-				)
-				""".trimIndent(),
-			)
-			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_presence_interval_identity ON presence_interval(model_key, session_id, start_time_ms, end_time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_interval_overlap ON presence_interval(model_key, end_time_ms, start_time_ms)")
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS analysis_cell (
-					cell_id TEXT NOT NULL,
-					grid_version INTEGER NOT NULL,
-					resolution_m INTEGER NOT NULL,
-					x_index INTEGER NOT NULL,
-					y_index INTEGER NOT NULL,
-					min_lat_e7 INTEGER NOT NULL,
-					min_lon_e7 INTEGER NOT NULL,
-					max_lat_e7 INTEGER NOT NULL,
-					max_lon_e7 INTEGER NOT NULL,
-					PRIMARY KEY(cell_id)
-				)
-				""".trimIndent(),
-			)
-			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_cell_grid_key ON analysis_cell(grid_version, resolution_m, x_index, y_index)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_analysis_cell_lat_bounds ON analysis_cell(grid_version, resolution_m, min_lat_e7, max_lat_e7)")
-
-			execSQL(
-				"""
-				CREATE TABLE IF NOT EXISTS presence_compaction_block (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					metric_kind TEXT NOT NULL,
-					partition_start_ms INTEGER NOT NULL,
-					partition_end_ms INTEGER NOT NULL,
-					model_key TEXT NOT NULL,
-					grid_version INTEGER NOT NULL,
-					generation INTEGER NOT NULL,
-					status TEXT NOT NULL,
-					source_max_presence_id INTEGER NOT NULL,
-					tracked_ms INTEGER NOT NULL,
-					spatially_observed_ms INTEGER NOT NULL,
-					spatially_inferred_ms INTEGER NOT NULL,
-					spatially_unresolved_ms INTEGER NOT NULL,
+					envelope_version INTEGER NOT NULL,
+					payload_checksum TEXT,
+					signal_json TEXT NOT NULL,
 					created_at INTEGER NOT NULL,
-					committed_at INTEGER
+					delivery_attempt_count INTEGER NOT NULL,
+					failure_reason TEXT NOT NULL,
+					failure_detail TEXT,
+					quarantined_at INTEGER NOT NULL
 				)
 				""".trimIndent(),
 			)
-			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_presence_block_generation ON presence_compaction_block(metric_kind, model_key, grid_version, partition_start_ms, generation)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_block_query ON presence_compaction_block(metric_kind, model_key, grid_version, status, partition_start_ms, partition_end_ms)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_quarantined_signal_source_pending ON quarantined_signal(source_pending_id)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_quarantined_signal_signal_id ON quarantined_signal(signal_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_quarantined_signal_time ON quarantined_signal(quarantined_at, id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_quarantined_signal_reason ON quarantined_signal(failure_reason)")
+		}
+	}
+}
+
+/**
+ * v37 -> v38: make raw location evidence reconstructable without value matching.
+ *
+ * Provider callback/fix identities and conservative clock domains are retained separately from
+ * WAL replay identities. A terminal accepted/rejected decision is append-only and keyed by the
+ * provider fix. Tracker-state events provide the future estimator with bounded, domain-aware
+ * activity evidence, while the singleton source revision lets read-only consumers reject mixed
+ * snapshots after a concurrent source mutation.
+ */
+val MIGRATION_37_38: Migration = object : Migration(37, 38) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			addColumnIfMissing(this, "location_observation", "source_event_id", "TEXT")
+			addColumnIfMissing(this, "location_observation", "callback_id", "TEXT")
+			addColumnIfMissing(this, "location_observation", "clock_domain_id", "TEXT")
+			addColumnIfMissing(
+				this,
+				"location_observation",
+				"source_revision",
+				"INTEGER NOT NULL DEFAULT 0",
+			)
+			// Historical data has no provider identity. Give it stable legacy values rather than
+			// fabricating a relationship to a future accepted-decision row.
+			execSQL(
+				"UPDATE location_observation SET source_event_id = " +
+					"'legacy:location_observation_event:' || id " +
+					"WHERE source_event_id IS NULL",
+			)
+			execSQL(
+				"UPDATE location_observation SET callback_id = " +
+					"'legacy:location_observation_callback:' || id " +
+					"WHERE callback_id IS NULL",
+			)
+			execSQL(
+				"UPDATE location_observation SET clock_domain_id = 'legacy:unknown' " +
+					"WHERE clock_domain_id IS NULL",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_location_observation_source_event " +
+					"ON location_observation(source_event_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_location_observation_clock " +
+					"ON location_observation(clock_domain_id, fix_elapsed_realtime_nanos)",
+			)
+
+			addColumnIfMissing(this, "location_sample", "source_event_id", "TEXT")
+			addColumnIfMissing(this, "location_sample", "clock_domain_id", "TEXT")
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"source_revision",
+				"INTEGER NOT NULL DEFAULT 0",
+			)
+			addColumnIfMissing(
+				this,
+				"pending_signal",
+				"captured_epoch",
+				"INTEGER NOT NULL DEFAULT 0",
+			)
+			addColumnIfMissing(
+				this,
+				"pending_signal",
+				"acquired_at_ms",
+				"INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_location_sample_source_event " +
+					"ON location_sample(source_event_id)",
+			)
 
 			execSQL(
 				"""
-				CREATE TABLE IF NOT EXISTS presence_cell_contribution (
-					block_id INTEGER NOT NULL,
-					cell_id TEXT NOT NULL,
-					expected_ms INTEGER NOT NULL,
-					observed_ms INTEGER NOT NULL,
-					inferred_ms INTEGER NOT NULL,
-					PRIMARY KEY(block_id, cell_id),
-					FOREIGN KEY(block_id) REFERENCES presence_compaction_block(id) ON UPDATE NO ACTION ON DELETE CASCADE,
-					FOREIGN KEY(cell_id) REFERENCES analysis_cell(cell_id) ON UPDATE NO ACTION ON DELETE RESTRICT
+				CREATE TABLE IF NOT EXISTS location_observation_decision (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					observation_source_event_id TEXT NOT NULL,
+					decision TEXT NOT NULL,
+					reason TEXT,
+					decision_version INTEGER NOT NULL,
+					accepted_sample_source_signal_id TEXT,
+					source_signal_id TEXT NOT NULL,
+					clock_domain_id TEXT,
+					decided_at_ms INTEGER NOT NULL,
+					source_revision INTEGER NOT NULL DEFAULT 0
 				)
 				""".trimIndent(),
 			)
-			execSQL("CREATE INDEX IF NOT EXISTS idx_presence_contribution_cell ON presence_cell_contribution(cell_id)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_location_observation_decision_event " +
+					"ON location_observation_decision(observation_source_event_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_location_observation_decision_signal " +
+					"ON location_observation_decision(source_signal_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_location_observation_decision_time " +
+					"ON location_observation_decision(decision, decided_at_ms)",
+			)
 
 			execSQL(
 				"""
-				CREATE TABLE IF NOT EXISTS presence_compaction_checkpoint (
-					pipeline_key TEXT NOT NULL,
-					model_key TEXT NOT NULL,
-					grid_version INTEGER NOT NULL,
-					contiguous_compacted_through_ms INTEGER NOT NULL,
-					source_max_observation_id INTEGER NOT NULL,
-					source_max_presence_id INTEGER NOT NULL,
-					updated_at INTEGER NOT NULL,
-					PRIMARY KEY(pipeline_key)
+				CREATE TABLE IF NOT EXISTS tracker_state_event (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					elapsed_realtime_nanos INTEGER NOT NULL,
+					wall_time_ms INTEGER NOT NULL,
+					state TEXT NOT NULL,
+					policy TEXT NOT NULL,
+					reason TEXT,
+					active_lease_expires_elapsed_nanos INTEGER,
+					created_at_ms INTEGER NOT NULL,
+					source_revision INTEGER NOT NULL DEFAULT 0
 				)
 				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_tracker_state_event_clock " +
+					"ON tracker_state_event(clock_domain_id, elapsed_realtime_nanos, id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_tracker_state_event_wall " +
+					"ON tracker_state_event(wall_time_ms, id)",
+			)
+
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_evidence_state (
+					id INTEGER NOT NULL,
+					revision INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					retained_from_ms INTEGER,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_evidence_state(" +
+					"id, revision, collected_data_epoch, retained_from_ms, updated_at_ms" +
+					") VALUES (1, 0, 0, NULL, 0)",
 			)
 		}
 	}

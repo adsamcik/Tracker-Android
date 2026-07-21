@@ -16,7 +16,13 @@ import androidx.room.PrimaryKey
 		Index(value = ["time_ms"], name = "idx_location_sample_time"),
 		Index(value = ["time_ms", "id"], name = "idx_location_sample_time_id"),
 		Index(value = ["lat_e7", "lon_e7"], name = "idx_location_sample_coords"),
-		Index(value = ["bucket_id"], name = "idx_location_sample_bucket")
+		Index(value = ["bucket_id"], name = "idx_location_sample_bucket"),
+		Index(
+			value = ["source_signal_id"],
+			unique = true,
+			name = "idx_location_sample_source_signal",
+		),
+		Index(value = ["source_event_id"], name = "idx_location_sample_source_event"),
 	]
 )
 data class LocationSample(
@@ -165,7 +171,23 @@ data class LocationSample(
 
 	/** Exact altitude retained from the 2024.1 schema. */
 	@ColumnInfo(name = "legacy_alt_m")
-	val legacyAltM: Double? = null
+	val legacyAltM: Double? = null,
+
+	/** Stable pending-signal identity used to make replay idempotent. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
+
+	/** Immutable provider-fix identity; this links an accepted sample to its raw observation. */
+	@ColumnInfo(name = "source_event_id")
+	val sourceEventId: String? = null,
+
+	/** Conservative clock-domain identity for [elapsedRealtimeNanos]. */
+	@ColumnInfo(name = "clock_domain_id")
+	val clockDomainId: String? = null,
+
+	/** Snapshot revision assigned atomically with this source write. */
+	@ColumnInfo(name = "source_revision", defaultValue = "0")
+	val sourceRevision: Long = 0L,
 )
 
 /**

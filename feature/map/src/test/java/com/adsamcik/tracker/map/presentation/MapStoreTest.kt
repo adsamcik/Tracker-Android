@@ -391,7 +391,6 @@ class MapStoreTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-			"observed_presence",
             "location_heatmap",
             "cell_heatmap",
             "signal_coverage",
@@ -442,11 +441,6 @@ class MapStoreTest {
     fun `wifi sample layers participate in live reactive refreshes`(layerId: String) {
         (layerId in MapStore.LIVE_REACTIVE_LAYER_IDS) shouldBe true
     }
-
-	@Test
-	fun `dwell layer participates in location refreshes`() {
-		MapStore.LIVE_REACTIVE_LAYER_SOURCES["observed_presence"] shouldBe setOf(MapDataSource.Location)
-	}
 
     @Test
     fun `database observer registration does not trigger a redundant refresh`() = runTest {

@@ -19,6 +19,20 @@ import androidx.room.PrimaryKey
 			value = ["received_elapsed_realtime_nanos", "batch_index"],
 			name = "idx_location_observation_delivery",
 		),
+		Index(
+			value = ["source_signal_id"],
+			unique = true,
+			name = "idx_location_observation_source_signal",
+		),
+		Index(
+			value = ["source_event_id"],
+			unique = true,
+			name = "idx_location_observation_source_event",
+		),
+		Index(
+			value = ["clock_domain_id", "fix_elapsed_realtime_nanos"],
+			name = "idx_location_observation_clock",
+		),
 	],
 )
 data class LocationObservation(
@@ -70,4 +84,16 @@ data class LocationObservation(
 	val calibrationVersion: Int,
 	@ColumnInfo(name = "created_at")
 	val createdAt: Long,
+	/** Stable pending-signal identity used to make replay idempotent. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
+	/** Immutable provider-fix identity, independent of WAL replay identity. */
+	@ColumnInfo(name = "source_event_id")
+	val sourceEventId: String? = null,
+	@ColumnInfo(name = "callback_id")
+	val callbackId: String? = null,
+	@ColumnInfo(name = "clock_domain_id")
+	val clockDomainId: String? = null,
+	@ColumnInfo(name = "source_revision", defaultValue = "0")
+	val sourceRevision: Long = 0L,
 )

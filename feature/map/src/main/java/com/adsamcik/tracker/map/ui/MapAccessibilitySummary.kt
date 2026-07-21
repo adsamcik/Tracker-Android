@@ -10,7 +10,6 @@ internal data class MapAccessibilityLabels(
     val searchResultVisible: String,
     val activeRecordingVisible: String,
     val recordedRouteHistory: String,
-    val observedPresence: String,
     val locationHeatmap: String,
     val cellHeatmap: String,
     val wifiHeatmap: String,
@@ -72,7 +71,6 @@ private fun describeVisibleContent(
     activeLayerIds.forEach { layerId ->
         content += when (layerId) {
             "location_polyline" -> labels.recordedRouteHistory
-			"observed_presence" -> labels.observedPresence
             "location_heatmap" -> labels.locationHeatmap
             "cell_heatmap" -> labels.cellHeatmap
             "wifi_heatmap" -> labels.wifiHeatmap

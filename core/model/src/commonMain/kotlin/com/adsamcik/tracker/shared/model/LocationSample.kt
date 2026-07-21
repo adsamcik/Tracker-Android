@@ -31,6 +31,14 @@ val batchSize: Int = 1,
 val isMock: Boolean = false,
 val estimatorVersion: Int = 1,
 val calibrationVersion: Int = 0,
+/** Stable pending-signal identity used by the database write path for replay idempotency. */
+val sourceSignalId: String? = null,
+/** Immutable provider-fix identity used to link this curated sample to raw evidence. */
+val sourceEventId: String? = null,
+/** Conservative monotonic-clock domain associated with [elapsedRealtimeNanos]. */
+val clockDomainId: String? = null,
+/** Source snapshot revision assigned atomically with persistence. */
+val sourceRevision: Long = 0L,
 )
 
 /**

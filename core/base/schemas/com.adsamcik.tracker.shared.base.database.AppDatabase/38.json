@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 36,
-    "identityHash": "e96105a139d65e5c3649dff57eedc3fe",
+    "version": 38,
+    "identityHash": "23c5f5eff8859bf214cfca50a698e188",
     "entities": [
       {
         "tableName": "activity",
@@ -76,7 +76,7 @@
       },
       {
         "tableName": "location_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL, `source_signal_id` TEXT, `source_event_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -251,6 +251,28 @@
             "fieldPath": "legacyAltM",
             "columnName": "legacy_alt_m",
             "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -297,12 +319,30 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_bucket` ON `${TABLE_NAME}` (`bucket_id`)"
+          },
+          {
+            "name": "idx_location_sample_source_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_location_sample_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
+          },
+          {
+            "name": "idx_location_sample_source_event",
+            "unique": false,
+            "columnNames": [
+              "source_event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_source_event` ON `${TABLE_NAME}` (`source_event_id`)"
           }
         ]
       },
       {
         "tableName": "location_observation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fix_time_ms` INTEGER NOT NULL, `fix_elapsed_realtime_nanos` INTEGER NOT NULL, `received_at_ms` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL, `delivery_age_ms` INTEGER, `lat_e7` INTEGER, `lon_e7` INTEGER, `raw_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `acquisition_mode` TEXT NOT NULL, `request_priority` TEXT NOT NULL, `permission_precision` TEXT NOT NULL, `batch_index` INTEGER NOT NULL, `batch_size` INTEGER NOT NULL, `is_mock` INTEGER NOT NULL, `ingress_disposition` TEXT NOT NULL, `estimator_version` INTEGER NOT NULL, `calibration_version` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fix_time_ms` INTEGER NOT NULL, `fix_elapsed_realtime_nanos` INTEGER NOT NULL, `received_at_ms` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL, `delivery_age_ms` INTEGER, `lat_e7` INTEGER, `lon_e7` INTEGER, `raw_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `acquisition_mode` TEXT NOT NULL, `request_priority` TEXT NOT NULL, `permission_precision` TEXT NOT NULL, `batch_index` INTEGER NOT NULL, `batch_size` INTEGER NOT NULL, `is_mock` INTEGER NOT NULL, `ingress_disposition` TEXT NOT NULL, `estimator_version` INTEGER NOT NULL, `calibration_version` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `source_event_id` TEXT, `callback_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -439,6 +479,33 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "callbackId",
+            "columnName": "callback_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -467,12 +534,140 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_observation_delivery` ON `${TABLE_NAME}` (`received_elapsed_realtime_nanos`, `batch_index`)"
+          },
+          {
+            "name": "idx_location_observation_source_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_location_observation_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
+          },
+          {
+            "name": "idx_location_observation_source_event",
+            "unique": true,
+            "columnNames": [
+              "source_event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_location_observation_source_event` ON `${TABLE_NAME}` (`source_event_id`)"
+          },
+          {
+            "name": "idx_location_observation_clock",
+            "unique": false,
+            "columnNames": [
+              "clock_domain_id",
+              "fix_elapsed_realtime_nanos"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_observation_clock` ON `${TABLE_NAME}` (`clock_domain_id`, `fix_elapsed_realtime_nanos`)"
+          }
+        ]
+      },
+      {
+        "tableName": "location_observation_decision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `observation_source_event_id` TEXT NOT NULL, `decision` TEXT NOT NULL, `reason` TEXT, `decision_version` INTEGER NOT NULL, `accepted_sample_source_signal_id` TEXT, `source_signal_id` TEXT NOT NULL, `clock_domain_id` TEXT, `decided_at_ms` INTEGER NOT NULL, `source_revision` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observationSourceEventId",
+            "columnName": "observation_source_event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decision",
+            "columnName": "decision",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "decisionVersion",
+            "columnName": "decision_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedSampleSourceSignalId",
+            "columnName": "accepted_sample_source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "decidedAtMs",
+            "columnName": "decided_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_location_observation_decision_event",
+            "unique": true,
+            "columnNames": [
+              "observation_source_event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_location_observation_decision_event` ON `${TABLE_NAME}` (`observation_source_event_id`)"
+          },
+          {
+            "name": "idx_location_observation_decision_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_location_observation_decision_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
+          },
+          {
+            "name": "idx_location_observation_decision_time",
+            "unique": false,
+            "columnNames": [
+              "decision",
+              "decided_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_observation_decision_time` ON `${TABLE_NAME}` (`decision`, `decided_at_ms`)"
           }
         ]
       },
       {
         "tableName": "step_interval",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `step_count` INTEGER NOT NULL, `sensor_value_start` INTEGER NOT NULL, `sensor_value_end` INTEGER NOT NULL, `sensor_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `step_count` INTEGER NOT NULL, `sensor_value_start` INTEGER NOT NULL, `sensor_value_end` INTEGER NOT NULL, `sensor_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -521,6 +716,11 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -539,12 +739,21 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_interval_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
+          },
+          {
+            "name": "idx_step_interval_source_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_interval_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
           }
         ]
       },
       {
         "tableName": "activity_snapshot",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `activity_type` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `is_transition` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `activity_type` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `is_transition` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -581,6 +790,11 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -598,12 +812,21 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_activity_snapshot_time` ON `${TABLE_NAME}` (`time_ms`)"
+          },
+          {
+            "name": "idx_activity_snapshot_source_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_activity_snapshot_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
           }
         ]
       },
       {
         "tableName": "cell_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_alt_m` REAL, `legacy_mcc` TEXT, `legacy_mnc` TEXT, `legacy_source_id` INTEGER, `legacy_lat` REAL, `legacy_lon` REAL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_alt_m` REAL, `legacy_mcc` TEXT, `legacy_mnc` TEXT, `legacy_source_id` INTEGER, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -704,6 +927,16 @@
             "fieldPath": "legacyLon",
             "columnName": "legacy_lon",
             "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceItemIndex",
+            "columnName": "source_item_index",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -740,12 +973,22 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_cell_sample_coords` ON `${TABLE_NAME}` (`lat_e7`, `lon_e7`)"
+          },
+          {
+            "name": "idx_cell_sample_source_item",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id",
+              "source_item_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_cell_sample_source_item` ON `${TABLE_NAME}` (`source_signal_id`, `source_item_index`)"
           }
         ]
       },
       {
         "tableName": "wifi_observation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_first_seen_ms` INTEGER, `legacy_alt_m` REAL, `legacy_lat` REAL, `legacy_lon` REAL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_first_seen_ms` INTEGER, `legacy_alt_m` REAL, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -830,6 +1073,16 @@
             "fieldPath": "legacyLon",
             "columnName": "legacy_lon",
             "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceItemIndex",
+            "columnName": "source_item_index",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -866,6 +1119,16 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_wifi_obs_coords` ON `${TABLE_NAME}` (`lat_e7`, `lon_e7`)"
+          },
+          {
+            "name": "idx_wifi_observation_source_item",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id",
+              "source_item_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_wifi_observation_source_item` ON `${TABLE_NAME}` (`source_signal_id`, `source_item_index`)"
           }
         ]
       },
@@ -932,6 +1195,141 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_tracker_run_time_range` ON `${TABLE_NAME}` (`start_time_ms`, `end_time_ms`)"
           }
         ]
+      },
+      {
+        "tableName": "tracker_state_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `clock_domain_id` TEXT NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER NOT NULL, `state` TEXT NOT NULL, `policy` TEXT NOT NULL, `reason` TEXT, `active_lease_expires_elapsed_nanos` INTEGER, `created_at_ms` INTEGER NOT NULL, `source_revision` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wallTimeMs",
+            "columnName": "wall_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policy",
+            "columnName": "policy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "activeLeaseExpiresElapsedNanos",
+            "columnName": "active_lease_expires_elapsed_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_tracker_state_event_clock",
+            "unique": false,
+            "columnNames": [
+              "clock_domain_id",
+              "elapsed_realtime_nanos",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_tracker_state_event_clock` ON `${TABLE_NAME}` (`clock_domain_id`, `elapsed_realtime_nanos`, `id`)"
+          },
+          {
+            "name": "idx_tracker_state_event_wall",
+            "unique": false,
+            "columnNames": [
+              "wall_time_ms",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_tracker_state_event_wall` ON `${TABLE_NAME}` (`wall_time_ms`, `id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_evidence_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `retained_from_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retainedFromMs",
+            "columnName": "retained_from_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
       },
       {
         "tableName": "session_segment",
@@ -2315,7 +2713,7 @@
       },
       {
         "tableName": "pressure_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `pressure_hpa` REAL NOT NULL, `altitude_m` REAL NOT NULL, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `pressure_hpa` REAL NOT NULL, `altitude_m` REAL NOT NULL, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -2357,6 +2755,11 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -2383,6 +2786,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_sample_bucket` ON `${TABLE_NAME}` (`bucket_id`)"
+          },
+          {
+            "name": "idx_pressure_sample_source_signal",
+            "unique": true,
+            "columnNames": [
+              "source_signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_pressure_sample_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
           }
         ]
       },
@@ -2491,7 +2903,7 @@
       },
       {
         "tableName": "pending_signal",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `signal_id` TEXT NOT NULL DEFAULT '', `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL DEFAULT 0, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `captured_epoch` INTEGER NOT NULL DEFAULT 0, `acquired_at_ms` INTEGER NOT NULL DEFAULT 0, `claim_token` TEXT, `claim_expires_at` INTEGER, `delivery_attempt_count` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -2500,10 +2912,29 @@
             "notNull": true
           },
           {
+            "fieldPath": "signalId",
+            "columnName": "signal_id",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
             "fieldPath": "sessionId",
             "columnName": "session_id",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "envelopeVersion",
+            "columnName": "envelope_version",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "payloadChecksum",
+            "columnName": "payload_checksum",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "signalJson",
@@ -2516,6 +2947,37 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "capturedEpoch",
+            "columnName": "captured_epoch",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "acquiredAtMs",
+            "columnName": "acquired_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "claimToken",
+            "columnName": "claim_token",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "claimExpiresAt",
+            "columnName": "claim_expires_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "deliveryAttemptCount",
+            "columnName": "delivery_attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -2530,20 +2992,151 @@
             "unique": false,
             "columnNames": [
               "session_id",
-              "created_at"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pending_signal_session_time` ON `${TABLE_NAME}` (`session_id`, `created_at`)"
-          },
-          {
-            "name": "idx_pending_signal_recovery_order",
-            "unique": false,
-            "columnNames": [
-              "created_at",
               "id"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pending_signal_recovery_order` ON `${TABLE_NAME}` (`created_at`, `id`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pending_signal_session_time` ON `${TABLE_NAME}` (`session_id`, `id`)"
+          },
+          {
+            "name": "idx_pending_signal_signal_id",
+            "unique": true,
+            "columnNames": [
+              "signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_pending_signal_signal_id` ON `${TABLE_NAME}` (`signal_id`)"
+          },
+          {
+            "name": "idx_pending_signal_claimable",
+            "unique": false,
+            "columnNames": [
+              "claim_token",
+              "claim_expires_at",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pending_signal_claimable` ON `${TABLE_NAME}` (`claim_token`, `claim_expires_at`, `id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "quarantined_signal",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `source_pending_id` INTEGER NOT NULL, `signal_id` TEXT NOT NULL, `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `delivery_attempt_count` INTEGER NOT NULL, `failure_reason` TEXT NOT NULL, `failure_detail` TEXT, `quarantined_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePendingId",
+            "columnName": "source_pending_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signalId",
+            "columnName": "signal_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "envelopeVersion",
+            "columnName": "envelope_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadChecksum",
+            "columnName": "payload_checksum",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "signalJson",
+            "columnName": "signal_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deliveryAttemptCount",
+            "columnName": "delivery_attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureReason",
+            "columnName": "failure_reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureDetail",
+            "columnName": "failure_detail",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "quarantinedAt",
+            "columnName": "quarantined_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_quarantined_signal_source_pending",
+            "unique": true,
+            "columnNames": [
+              "source_pending_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_quarantined_signal_source_pending` ON `${TABLE_NAME}` (`source_pending_id`)"
+          },
+          {
+            "name": "idx_quarantined_signal_signal_id",
+            "unique": true,
+            "columnNames": [
+              "signal_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_quarantined_signal_signal_id` ON `${TABLE_NAME}` (`signal_id`)"
+          },
+          {
+            "name": "idx_quarantined_signal_time",
+            "unique": false,
+            "columnNames": [
+              "quarantined_at",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_quarantined_signal_time` ON `${TABLE_NAME}` (`quarantined_at`, `id`)"
+          },
+          {
+            "name": "idx_quarantined_signal_reason",
+            "unique": false,
+            "columnNames": [
+              "failure_reason"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_quarantined_signal_reason` ON `${TABLE_NAME}` (`failure_reason`)"
           }
         ]
       },
@@ -2942,7 +3535,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e96105a139d65e5c3649dff57eedc3fe')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '23c5f5eff8859bf214cfca50a698e188')"
     ]
   }
 }

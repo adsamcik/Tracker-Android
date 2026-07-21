@@ -93,6 +93,12 @@ data class LocationData(
  * semantics through that merge/split path.
  */
 data class LocationFixMetadata(
+	/** Identifier shared by every fix in the provider callback that delivered this one. */
+	val callbackId: String? = null,
+	/** Immutable provider-fix identity, distinct from any persistence/WAL identity. */
+	val sourceEventId: String? = null,
+	/** Conservative session-scoped monotonic-clock domain for this provider delivery. */
+	val clockDomainId: String? = null,
 	/** Wall-clock time when the callback containing this fix reached the app. */
 	val receivedAtMs: Long = 0L,
 	/** Monotonic time when the callback containing this fix reached the app. */
@@ -121,6 +127,8 @@ enum class LocationIngressDisposition {
 	DELIVERED_VALID,
 	REJECTED_STALE,
 	REJECTED_INVALID_COORDINATE,
+	/** The raw provider time is retained for audit, but cannot enter the typed epoch-time pipeline. */
+	REJECTED_INVALID_TIMESTAMP,
 }
 
 enum class LocationAcquisitionMode {

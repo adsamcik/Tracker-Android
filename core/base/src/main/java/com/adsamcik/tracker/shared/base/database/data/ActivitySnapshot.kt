@@ -12,7 +12,12 @@ import androidx.room.PrimaryKey
 @Entity(
 	tableName = "activity_snapshot",
 	indices = [
-		Index(value = ["time_ms"], name = "idx_activity_snapshot_time")
+		Index(value = ["time_ms"], name = "idx_activity_snapshot_time"),
+		Index(
+			value = ["source_signal_id"],
+			unique = true,
+			name = "idx_activity_snapshot_source_signal",
+		),
 	]
 )
 data class ActivitySnapshot(
@@ -47,5 +52,9 @@ data class ActivitySnapshot(
 	 * Row creation timestamp (for auditing/debugging).
 	 */
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/** Stable pending-signal identity used to make replay idempotent. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
 )

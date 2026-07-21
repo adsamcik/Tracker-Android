@@ -16,6 +16,9 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	@Query("SELECT COUNT(*) FROM location_observation")
 	suspend fun countAll(): Long
 
+	@Query("SELECT EXISTS(SELECT 1 FROM location_observation WHERE source_event_id = :sourceEventId)")
+	suspend fun existsBySourceEventId(sourceEventId: String): Boolean
+
 	@Query(
 		"""
 		SELECT * FROM location_observation
@@ -26,34 +29,21 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	suspend fun getBetween(fromMs: Long, toMs: Long): List<LocationObservation>
 
 	/**
-	 * Provider fixes that are allowed to seed observation-supported presence.
+	 * Provider fixes explicitly accepted by the curated pipeline.
 	 *
-	 * Migrated rows already came from the accepted-sample table. Live ingress rows must still match
-	 * an accepted [location_sample] exactly: DELIVERED_VALID only records trigger-level validation,
-	 * while a later pipeline stage may reject an outlier before it becomes an accepted sample.
+	 * This deliberately joins the immutable provider-fix identity to an append-only decision. A
+	 * same-valued timestamp/coordinate match is not evidence of acceptance: a batched callback can
+	 * contain distinct fixes with identical values, and a later filter can reject only one of them.
 	 */
 	@Query(
 		"""
 		SELECT observation.*
 		FROM location_observation AS observation
+		INNER JOIN location_observation_decision AS decision
+			ON decision.observation_source_event_id = observation.source_event_id
+			AND decision.decision = 'ACCEPTED'
 		WHERE observation.fix_time_ms >= :fromMs
 		  AND observation.fix_time_ms < :toMs
-		  AND (
-			observation.ingress_disposition = 'MIGRATED_ACCEPTED'
-			OR (
-				observation.ingress_disposition = 'DELIVERED_VALID'
-				AND EXISTS (
-					SELECT 1
-					FROM location_sample AS accepted
-					WHERE accepted.time_ms = observation.fix_time_ms
-					  AND accepted.elapsed_realtime_nanos = observation.fix_elapsed_realtime_nanos
-					  AND accepted.lat_e7 = observation.lat_e7
-					  AND accepted.lon_e7 = observation.lon_e7
-					  AND accepted.batch_index = observation.batch_index
-					  AND accepted.batch_size = observation.batch_size
-				)
-			)
-		  )
 		ORDER BY observation.fix_time_ms ASC, observation.id ASC
 		""",
 	)

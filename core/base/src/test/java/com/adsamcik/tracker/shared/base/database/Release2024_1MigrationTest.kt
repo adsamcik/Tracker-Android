@@ -67,7 +67,7 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
-	fun `actual v10 binary migrates through Room and validates the complete v36 schema`() {
+	fun `actual v10 binary migrates through Room and validates the complete v38 schema`() {
 		val database = migrateAppDatabase()
 		val raw = database.openHelper.writableDatabase
 
@@ -532,7 +532,7 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
-	fun `delete all clears legacy archives`() {
+	fun `delete all clears legacy archives and advances evidence lifecycle`() = runTest {
 		val database = migrateAppDatabase()
 		val raw = database.openHelper.writableDatabase
 		count(raw, "legacy_rejected_tracker_session") shouldBe 2
@@ -550,7 +550,12 @@ class Release2024_1MigrationTest {
 			""".trimIndent(),
 		)
 
-		AppDatabase.deleteAllCollectedData(database)
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			collectedDataEpoch = 7L,
+			retainedFromMs = 2_000L,
+			updatedAtMs = 3_000L,
+		)
 
 		count(raw, "location_sample") shouldBe 0
 		count(raw, "location_observation") shouldBe 0
@@ -559,6 +564,11 @@ class Release2024_1MigrationTest {
 		count(raw, "legacy_location_wifi_count") shouldBe 0
 		count(raw, "domain_event") shouldBe 0
 		count(raw, "domain_event_cursor") shouldBe 0
+		val sourceEvidenceState = database.sourceEvidenceStateDao().get()
+		sourceEvidenceState?.revision shouldBe 1L
+		sourceEvidenceState?.collectedDataEpoch shouldBe 7L
+		sourceEvidenceState?.retainedFromMs shouldBe 2_000L
+		sourceEvidenceState?.updatedAtMs shouldBe 3_000L
 	}
 
 	@Test
@@ -712,7 +722,7 @@ class Release2024_1MigrationTest {
 
 	private companion object {
 		const val RELEASE_APP_DATABASE_VERSION = 10
-		const val CURRENT_APP_DATABASE_VERSION = 36
+		const val CURRENT_APP_DATABASE_VERSION = 38
 
 		val rangeOfNativeActivityIds = (-34..-2).toList()
 
@@ -732,16 +742,14 @@ class Release2024_1MigrationTest {
 			"network_operator",
 			"location_sample",
 			"location_observation",
-			"presence_interval",
-			"analysis_cell",
-			"presence_compaction_block",
-			"presence_cell_contribution",
-			"presence_compaction_checkpoint",
+			"location_observation_decision",
 			"step_interval",
 			"activity_snapshot",
 			"cell_sample",
 			"wifi_observation",
 			"tracker_run",
+			"tracker_state_event",
+			"source_evidence_state",
 			"session_segment",
 			"legacy_rejected_tracker_session",
 			"legacy_location_wifi_count",
@@ -762,6 +770,7 @@ class Release2024_1MigrationTest {
 			"pressure_sample",
 			"ski_run_segment",
 			"pending_signal",
+			"quarantined_signal",
 			"xp_ledger",
 			"player_profile",
 			"minigame_score",

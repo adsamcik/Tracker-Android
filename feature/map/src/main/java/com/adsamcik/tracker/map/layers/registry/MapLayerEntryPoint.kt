@@ -2,7 +2,6 @@ package com.adsamcik.tracker.map.layers.registry
 
 import android.content.Context
 import com.adsamcik.tracker.stats.api.roadmatch.RoadMatcher
-import com.adsamcik.tracker.stats.api.repository.ObservedPresenceRepository
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
 import dagger.hilt.EntryPoint
@@ -23,7 +22,6 @@ interface MapLayerEntryPoint {
 	fun roadMatcher(): RoadMatcher
 	fun skiRunSegmentRepository(): SkiRunSegmentRepository
 	fun locationSampleRepository(): LocationSampleRepository
-	fun observedPresenceRepository(): ObservedPresenceRepository
 }
 
 internal fun Context.mapLayerEntryPoint(): MapLayerEntryPoint =

@@ -12,7 +12,12 @@ import androidx.room.PrimaryKey
 @Entity(
 	tableName = "step_interval",
 	indices = [
-		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_step_interval_time_range")
+		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_step_interval_time_range"),
+		Index(
+			value = ["source_signal_id"],
+			unique = true,
+			name = "idx_step_interval_source_signal",
+		),
 	]
 )
 data class StepInterval(
@@ -59,5 +64,9 @@ data class StepInterval(
 	 * Row creation timestamp (for auditing/debugging).
 	 */
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/** Stable pending-signal identity used to make replay idempotent. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
 )

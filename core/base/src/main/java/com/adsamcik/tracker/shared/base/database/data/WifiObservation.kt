@@ -14,7 +14,12 @@ import androidx.room.PrimaryKey
 	indices = [
 		Index(value = ["time_ms"], name = "idx_wifi_obs_time"),
 		Index(value = ["bssid"], name = "idx_wifi_obs_bssid"),
-		Index(value = ["lat_e7", "lon_e7"], name = "idx_wifi_obs_coords")
+		Index(value = ["lat_e7", "lon_e7"], name = "idx_wifi_obs_coords"),
+		Index(
+			value = ["source_signal_id", "source_item_index"],
+			unique = true,
+			name = "idx_wifi_observation_source_item",
+		),
 	]
 )
 data class WifiObservation(
@@ -93,5 +98,13 @@ data class WifiObservation(
 
 	/** Exact longitude retained before E7 conversion. */
 	@ColumnInfo(name = "legacy_lon")
-	val legacyLon: Double? = null
+	val legacyLon: Double? = null,
+
+	/** Stable pending-signal identity for this fan-out item. */
+	@ColumnInfo(name = "source_signal_id")
+	val sourceSignalId: String? = null,
+
+	/** Zero-based item position within the source Wi-Fi scan. */
+	@ColumnInfo(name = "source_item_index")
+	val sourceItemIndex: Int? = null,
 )

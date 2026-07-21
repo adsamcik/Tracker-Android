@@ -111,6 +111,10 @@ batchSize = batchSize,
 isMock = isMock,
 estimatorVersion = estimatorVersion,
 calibrationVersion = calibrationVersion,
+sourceSignalId = sourceSignalId,
+sourceEventId = sourceEventId,
+clockDomainId = clockDomainId,
+sourceRevision = sourceRevision,
 )
 
 fun ModelLocationSample.toEntity(): EntityLocationSample = EntityLocationSample(
@@ -141,6 +145,10 @@ batchSize = batchSize,
 isMock = isMock,
 estimatorVersion = estimatorVersion,
 calibrationVersion = calibrationVersion,
+sourceSignalId = sourceSignalId,
+sourceEventId = sourceEventId,
+clockDomainId = clockDomainId,
+sourceRevision = sourceRevision,
 )
 
 fun EntitySkiRunSegment.toModel(): ModelSkiRunSegment = ModelSkiRunSegment(
