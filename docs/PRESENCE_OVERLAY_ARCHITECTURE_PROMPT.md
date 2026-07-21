@@ -1,5 +1,9 @@
 # External research brief: time-preserving presence overlays for Tracker Android
 
+> **SUPERSEDED:** Historical research prompt for the observed-presence subsystem. Its
+> `presence_interval`, `analysis_cell`, and related compaction tables were removed
+> in `MIGRATION_36_37`; they are not part of the current `AppDatabase`.
+
 You are a geospatial-algorithm engineer, GIS rendering specialist, trajectory-analysis researcher, Android/Room architect, and mobile performance researcher advising the implementation team for Tracker Android.
 
 ## Task

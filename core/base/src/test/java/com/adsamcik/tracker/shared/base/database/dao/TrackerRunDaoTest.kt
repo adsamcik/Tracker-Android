@@ -57,6 +57,18 @@ class TrackerRunDaoTest {
 		closed.endTimeMs shouldBe 5_000L
 	}
 
+	@Test
+	fun `deleteOlderThan retains active and newer closed runs`() = runTest {
+		dao.insert(run(startTimeMs = 100L, endTimeMs = null))
+		dao.insert(run(startTimeMs = 200L, endTimeMs = 300L))
+		dao.insert(run(startTimeMs = 400L, endTimeMs = 1_400L))
+
+		dao.deleteOlderThan(beforeMs = 1_000L) shouldBe 1
+
+		dao.getActiveRun()?.startTimeMs shouldBe 100L
+		dao.getOverlapping(fromMs = 0L, toMs = 2_000L).map { it.startTimeMs } shouldBe listOf(100L, 400L)
+	}
+
 	private fun run(
 		startTimeMs: Long,
 		endTimeMs: Long?,

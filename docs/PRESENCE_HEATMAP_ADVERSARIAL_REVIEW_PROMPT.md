@@ -1,5 +1,9 @@
 # Adversarial review brief: Tracker location-history heatmap architecture
 
+> **SUPERSEDED:** Historical review prompt for the observed-presence subsystem. Its
+> `presence_interval`, `analysis_cell`, and related compaction tables were removed
+> in `MIGRATION_36_37`; they are not part of the current `AppDatabase`.
+
 You are an adversarial principal reviewer with expertise in geospatial inference, trajectory analysis,
 probabilistic location uncertainty, Android/Room/WorkManager, MapLibre rendering, mobile performance,
 privacy, and local-first product design.

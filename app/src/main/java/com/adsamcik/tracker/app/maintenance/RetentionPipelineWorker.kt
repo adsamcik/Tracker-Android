@@ -109,6 +109,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
             db.activitySnapshotDao().deleteOlderThan(cutoff)
             db.trackerRunDao().deleteOlderThan(cutoff)
             db.pressureSampleDao().deleteOlderThan(cutoff)
+            db.skiRunSegmentDao().deleteOlderThan(cutoff)
 			RawRetentionResult.PURGED
         }
     }

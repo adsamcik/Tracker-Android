@@ -35,6 +35,10 @@ interface SkiRunSegmentDao : BaseDao<SkiRunSegment> {
     @Query("DELETE FROM ski_run_segment WHERE session_id = :sessionId")
     suspend fun deleteBySession(sessionId: Long): Int
 
+    /** Delete completed segments ending before the given timestamp. */
+    @Query("DELETE FROM ski_run_segment WHERE end_time_ms < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
     /** Delete all ski run segments. */
     @Query("DELETE FROM ski_run_segment")
     fun deleteAll()

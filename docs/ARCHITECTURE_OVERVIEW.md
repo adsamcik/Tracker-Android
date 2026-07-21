@@ -108,7 +108,7 @@ remain in `:app`. Shared Compose dependencies and theming live in `:core:ui`.
 
 The main Room database is `AppDatabase` in
 `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt`.
-Its current schema version is **34**. Other local databases include the debug,
+Its current schema version is **38**. Other local databases include the debug,
 preferences, logging, and points databases; their versions are independent.
 Schema changes require a Room migration and a migration test.
 

@@ -94,6 +94,6 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	/**
 	 * Delete runs older than given timestamp.
 	 */
-	@Query("DELETE FROM tracker_run WHERE IFNULL(end_time_ms, start_time_ms) < :beforeMs")
+	@Query("DELETE FROM tracker_run WHERE end_time_ms IS NOT NULL AND end_time_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 }

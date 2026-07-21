@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
@@ -85,6 +86,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		val activityDao: ActivitySnapshotDao = mockk(relaxed = true)
 		val runDao: TrackerRunDao = mockk(relaxed = true)
 		val pressureDao: PressureSampleDao = mockk(relaxed = true)
+		val skiRunSegmentDao: SkiRunSegmentDao = mockk(relaxed = true)
 		val cellDao: CellSampleDao = mockk(relaxed = true)
 		val wifiDao: WifiObservationDao = mockk(relaxed = true)
 		val sessionDao: SessionSegmentDao = mockk(relaxed = true)
@@ -110,6 +112,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.activitySnapshotDao() } returns activityDao
 		every { db.trackerRunDao() } returns runDao
 		every { db.pressureSampleDao() } returns pressureDao
+		every { db.skiRunSegmentDao() } returns skiRunSegmentDao
 		every { db.cellSampleDao() } returns cellDao
 		every { db.wifiObservationDao() } returns wifiDao
 		every { db.sessionSegmentDao() } returns sessionDao
@@ -155,6 +158,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { activityDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { runDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { pressureDao.deleteOlderThan(any()) }
+		coVerify(exactly = 1) { skiRunSegmentDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { cellDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { wifiDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { sessionDao.deleteOlderThan(any()) }
@@ -366,6 +370,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.activitySnapshotDao() } returns mockk(relaxed = true)
 		every { db.trackerRunDao() } returns trackerRunDao
 		every { db.pressureSampleDao() } returns mockk(relaxed = true)
+		every { db.skiRunSegmentDao() } returns mockk(relaxed = true)
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao
 		every { db.pendingSignalDao() } returns pendingSignalDao
