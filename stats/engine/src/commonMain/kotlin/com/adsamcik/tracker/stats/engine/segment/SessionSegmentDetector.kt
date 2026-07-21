@@ -273,8 +273,8 @@ class SessionSegmentDetector(
 		activityConfidenceCount = 0
 		consecutiveStillCycles = 0
 
-		// Count initial signal
-		accumulateTripData(signal)
+		// The departure accumulators already include this signal's distance and steps.
+		accumulateTripData(signal, includeDistanceAndSteps = false)
 
 		return SegmentEvent.TripStarted(
 			startTimeMs = tripStartMs,
@@ -338,12 +338,14 @@ class SessionSegmentDetector(
 
 	// --- Data accumulation ---
 
-	private fun accumulateTripData(signal: SegmentSignal) {
-		// Distance
-		signal.distanceDeltaM?.let { tripDistanceM += it }
-
-		// Steps
-		tripSteps += signal.stepDelta
+	private fun accumulateTripData(
+		signal: SegmentSignal,
+		includeDistanceAndSteps: Boolean = true,
+	) {
+		if (includeDistanceAndSteps) {
+			signal.distanceDeltaM?.let { tripDistanceM += it }
+			tripSteps += signal.stepDelta
+		}
 
 		// Location sample count
 		val sigLat = signal.latE7
@@ -532,6 +534,8 @@ class SessionSegmentDetector(
 	companion object {
 		// Approximate meters per E7 unit at the equator
 		private const val METERS_PER_E7_LAT = 0.0111f // ~111km / 1e7
+		private const val WORLD_E7 = 3_600_000_000L
+		private const val HALF_WORLD_E7 = WORLD_E7 / 2
 
 		/**
 		 * Fast approximate distance between two E7 coordinate pairs.
@@ -545,8 +549,14 @@ class SessionSegmentDetector(
 			// Approximate longitude scaling using average latitude
 			val avgLatRad = ((lat1E7 + lat2E7) / 2.0) / 1e7 * (Math.PI / 180.0)
 			val cosLat = kotlin.math.cos(avgLatRad).toFloat()
-			val dLon = (lon2E7 - lon1E7) * METERS_PER_E7_LAT * cosLat
+			val longitudeDeltaE7 = signedLongitudeDeltaE7(lon2E7.toLong() - lon1E7.toLong())
+			val dLon = longitudeDeltaE7.toFloat() * METERS_PER_E7_LAT * cosLat
 			return sqrt(dLat * dLat + dLon * dLon)
 		}
+
+		private fun normalizeLongitudeE7(value: Long): Long =
+			Math.floorMod(value + HALF_WORLD_E7, WORLD_E7) - HALF_WORLD_E7
+
+		private fun signedLongitudeDeltaE7(delta: Long): Long = normalizeLongitudeE7(delta)
 	}
 }

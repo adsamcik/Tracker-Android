@@ -5,6 +5,7 @@ import com.adsamcik.tracker.stats.api.SegmentEvent
 import com.adsamcik.tracker.stats.api.SegmentSignal
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.TripState
+import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan as intShouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
@@ -427,6 +428,59 @@ class SessionSegmentDetectorTest {
 			detector.state shouldBe TripState.IN_TRIP
 			tripStartedEvent.shouldNotBeNull()
 		}
+
+		@Test
+		fun `departure evidence is counted exactly once when trip is confirmed`() {
+			val departureConfig = config.copy(
+				departureConfirmationMs = 20_000L,
+				departureDisplacementM = 100_000f,
+				departureMinSteps = 60,
+			)
+			detector = SessionSegmentDetector(
+				config = departureConfig,
+				clock = { currentTimeMs },
+			)
+			detector.onSignal(stationarySignal())
+
+			currentTimeMs += 1_000L
+			detector.onSignal(
+				movingSignal(
+					timeMs = currentTimeMs,
+					latE7 = baseLat,
+					stepDelta = 10,
+					distanceDeltaM = 10f,
+				)
+			)
+
+			currentTimeMs += 10_000L
+			detector.onSignal(
+				movingSignal(
+					timeMs = currentTimeMs,
+					latE7 = baseLat,
+					stepDelta = 20,
+					distanceDeltaM = 20f,
+				)
+			)
+
+			currentTimeMs += 10_000L
+			val started = detector.onSignal(
+				movingSignal(
+					timeMs = currentTimeMs,
+					latE7 = baseLat,
+					stepDelta = 30,
+					distanceDeltaM = 30f,
+				)
+			)
+			started.shouldBeInstanceOf<SegmentEvent.TripStarted>()
+
+			val ended = detector.forceEnd(currentTimeMs)
+				.shouldBeInstanceOf<SegmentEvent.TripEnded>()
+			ended.totalDistanceM shouldBe (60f plusOrMinus 0.001f)
+			ended.totalSteps shouldBe 60
+			ended.sampleCount shouldBe 1
+			ended.primaryActivity shouldBe DetectedActivityType.WALKING
+			ended.averageActivityConfidence shouldBe 80
+		}
 	}
 
 	@Nested
@@ -841,6 +895,16 @@ class SessionSegmentDetectorTest {
 			// At ~40.7°N, longitude is shorter (~85m per 0.001°)
 			(dist > 50f) shouldBe true
 			(dist < 120f) shouldBe true
+		}
+
+		@Test
+		fun `uses shortest distance across antimeridian`() {
+			val dist = SessionSegmentDetector.approximateDistanceE7(
+				0, 1_799_000_000,
+				0, -1_799_000_000,
+			)
+
+			dist shouldBe (22_200f plusOrMinus 1f)
 		}
 	}
 }
