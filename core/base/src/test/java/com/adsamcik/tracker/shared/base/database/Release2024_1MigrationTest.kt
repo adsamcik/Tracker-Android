@@ -791,6 +791,8 @@ class Release2024_1MigrationTest {
 			"osm_import",
 			"osm_way",
 			"osm_way_cell",
+			"import_job_receipt",
+			"import_entry_receipt",
 		)
 
 		val fixtures = listOf(
