@@ -25,10 +25,13 @@ data class PlaneDetectionConfig(
 	/** Vertical rate above which DESCENDING is exited (hysteresis). */
 	val descendExitVerticalRateMps: Float = -1.5f,
 
-	// Speed thresholds (m/s). Purely corroborating — never required, since GPS is frequently
-	// unavailable at cruise altitude / in airplane mode.
-	/** Sustained ground speed that alone is enough to classify CRUISING even without a preceding climb. */
+	// Speed thresholds (m/s). Speed-only cruise is a transport hint, never flight confirmation.
+	/** Sustained ground speed that can classify a low-confidence CRUISING transport hint. */
 	val cruiseMinSpeedMps: Float = 50f,
+
+	// Climb-evidence thresholds
+	/** Minimum sustained barometric altitude gain required to qualify a climb as flight evidence. */
+	val minQualifiedClimbAltitudeGainM: Float = 300f,
 
 	// Step thresholds
 	/** Step rate above which WALK is entered (steps per minute) — e.g. the terminal, or the aisle mid-flight. */
@@ -39,6 +42,8 @@ data class PlaneDetectionConfig(
 	val minStateDurationMs: Long = 20_000L,
 	/** Cumulative airborne time (climbing + cruising + descending) before the session is confirmed as a flight. */
 	val minFlightDurationForConfirmationMs: Long = 900_000L,
+	/** Maximum gap in barometric samples before the current phase becomes UNKNOWN. */
+	val pressureFreshnessTimeoutMs: Long = 120_000L,
 
 	// Smoothing parameters (mirrors ski's barometric smoothing)
 	/** Median filter window size for barometric altitude (samples at ~1Hz). */

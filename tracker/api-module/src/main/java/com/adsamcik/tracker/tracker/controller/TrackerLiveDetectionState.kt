@@ -50,6 +50,7 @@ data class LivePlaneState(
 
 enum class LivePlanePhase {
 	IDLE,
+	UNKNOWN,
 	CLIMBING,
 	CRUISING,
 	DESCENDING,

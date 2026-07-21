@@ -6,6 +6,8 @@ package com.adsamcik.tracker.stats.engine.plane
 enum class PlaneState {
 	/** On the ground: parked, taxiing slowly, boarding. */
 	IDLE,
+	/** Insufficient fresh barometric data to infer a current flight phase. */
+	UNKNOWN,
 	/** Climbing — rapid, sustained altitude/cabin-pressure increase after takeoff. */
 	CLIMBING,
 	/** Level flight at (cabin-pressure-equivalent) altitude, sustained. */
@@ -16,6 +18,13 @@ enum class PlaneState {
 	WALK,
 }
 
+/** Provenance for CRUISING, used to keep high-speed ground transport out of flight confirmation. */
+enum class CruiseEvidence {
+	UNKNOWN,
+	SPEED_ONLY,
+	QUALIFIED_CLIMB,
+}
+
 /**
  * Input signal for the plane state machine at a point in time.
  */
@@ -24,6 +33,7 @@ data class PlaneSignal(
 	val verticalRateMps: Float,
 	val speedMps: Float = 0f,
 	val stepRatePerMin: Float = 0f,
+	val cruiseEvidence: CruiseEvidence = CruiseEvidence.UNKNOWN,
 )
 
 /**
@@ -41,11 +51,11 @@ data class PlaneStateSegment(
  * Rule-based state machine for flight segmentation.
  *
  * Classifies each time window using barometric vertical rate (primary — always available,
- * unlike GPS at cruise altitude) and step rate, with GPS speed only as an optional corroborator.
- * [PlaneState.CRUISING] is special: it is never a "default" classification for an isolated
- * sample (there is no way to tell "level, stable altitude" apart from "on the ground, stable
- * altitude" without context) — it is only reached either via sustained high GPS speed, or by
- * "graduating" out of [PlaneState.CLIMBING] once the climb rate flattens. See
+ * unlike GPS at cruise altitude) and step rate, with GPS speed only as a low-confidence hint.
+ * [PlaneState.CRUISING] is special: a flat isolated sample is always IDLE, because there is no
+ * way to distinguish level flight from stable ground altitude without context. It is reached only
+ * via sustained high GPS speed, or by "graduating" out of [PlaneState.CLIMBING] once the climb
+ * rate flattens. See
  * [classifyWithHysteresis].
  *
  * Structurally mirrors [com.adsamcik.tracker.stats.engine.ski.SkiStateMachine]'s segment-merge /
@@ -84,8 +94,9 @@ class PlaneStateMachine(private val config: PlaneDetectionConfig = PlaneDetectio
 	}
 
 	/**
-	 * Classify a single signal context-free. Never returns [PlaneState.CRUISING] — that state is
-	 * only reachable via [classifyWithHysteresis] (see class kdoc).
+	 * Classify a single signal context-free. A speed-only [PlaneState.CRUISING] is a
+	 * low-confidence transport hint; qualified climbs reach CRUISING through
+	 * [classifyWithHysteresis].
 	 */
 	internal fun classifySignal(signal: PlaneSignal): PlaneState {
 		if (signal.stepRatePerMin >= config.walkStepRateThreshold) return PlaneState.WALK
@@ -117,7 +128,11 @@ class PlaneStateMachine(private val config: PlaneDetectionConfig = PlaneDetectio
 
 			PlaneState.CRUISING -> {
 				val raw = classifySignal(signal)
-				if (raw == PlaneState.WALK || raw == PlaneState.DESCENDING) raw else PlaneState.CRUISING
+				when {
+					raw == PlaneState.WALK || raw == PlaneState.DESCENDING -> raw
+					raw == PlaneState.IDLE && signal.cruiseEvidence != CruiseEvidence.QUALIFIED_CLIMB -> PlaneState.IDLE
+					else -> PlaneState.CRUISING
+				}
 			}
 
 			PlaneState.DESCENDING ->
@@ -130,7 +145,7 @@ class PlaneStateMachine(private val config: PlaneDetectionConfig = PlaneDetectio
 			PlaneState.WALK ->
 				if (signal.stepRatePerMin >= config.walkStepRateThreshold) PlaneState.WALK else classifySignal(signal)
 
-			PlaneState.IDLE -> classifySignal(signal)
+			PlaneState.IDLE, PlaneState.UNKNOWN -> classifySignal(signal)
 		}
 	}
 

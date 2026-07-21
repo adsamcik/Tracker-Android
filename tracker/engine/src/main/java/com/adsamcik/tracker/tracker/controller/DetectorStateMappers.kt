@@ -57,6 +57,7 @@ internal fun RealTimePlaneState.toLiveState(): LivePlaneState = LivePlaneState(
 
 private fun PlaneState.toLivePhase(): LivePlanePhase = when (this) {
 	PlaneState.IDLE -> LivePlanePhase.IDLE
+	PlaneState.UNKNOWN -> LivePlanePhase.UNKNOWN
 	PlaneState.CLIMBING -> LivePlanePhase.CLIMBING
 	PlaneState.CRUISING -> LivePlanePhase.CRUISING
 	PlaneState.DESCENDING -> LivePlanePhase.DESCENDING

@@ -16,6 +16,7 @@ class PlaneStateMachineTest {
 		verticalRate: Float,
 		speed: Float = 0f,
 		stepRate: Float = 0f,
+		cruiseEvidence: CruiseEvidence = CruiseEvidence.UNKNOWN,
 	): List<PlaneSignal> {
 		val count = (durationMs / intervalMs).toInt()
 		return (0 until count).map { i ->
@@ -24,6 +25,7 @@ class PlaneStateMachineTest {
 				verticalRateMps = verticalRate,
 				speedMps = speed,
 				stepRatePerMin = stepRate,
+				cruiseEvidence = cruiseEvidence,
 			)
 		}
 	}
@@ -45,7 +47,12 @@ class PlaneStateMachineTest {
 			t += 480_000L
 
 			// CRUISING (flattened, cabin pressure plateau) 60 min
-			signals += generateSignals(3_600_000L, startTimeMs = t, verticalRate = 0f)
+			signals += generateSignals(
+				3_600_000L,
+				startTimeMs = t,
+				verticalRate = 0f,
+				cruiseEvidence = CruiseEvidence.QUALIFIED_CLIMB,
+			)
 			t += 3_600_000L
 
 			// DESCENDING 8 min
@@ -147,11 +154,31 @@ class PlaneStateMachineTest {
 		}
 
 		@Test
-		fun `CRUISING stays CRUISING through a flat, otherwise-IDLE-looking sample`() {
+		fun `qualified CRUISING stays CRUISING through a flat sample`() {
 			machine.classifyWithHysteresis(
-				PlaneSignal(0L, verticalRateMps = 0f),
+				PlaneSignal(
+					timeMs = 0L,
+					verticalRateMps = 0f,
+					cruiseEvidence = CruiseEvidence.QUALIFIED_CLIMB,
+				),
 				currentState = PlaneState.CRUISING,
 			) shouldBe PlaneState.CRUISING
+		}
+
+		@Test
+		fun `speed-only CRUISING closes on sustained flat stationary signals`() {
+			val signals = buildList {
+				add(PlaneSignal(timeMs = 0L, verticalRateMps = 0f, speedMps = 60f))
+				addAll(
+					generateSignals(
+						durationMs = 60_000L,
+						startTimeMs = 1_000L,
+						verticalRate = 0f,
+					),
+				)
+			}
+
+			machine.process(signals).last().state shouldBe PlaneState.IDLE
 		}
 
 		@Test

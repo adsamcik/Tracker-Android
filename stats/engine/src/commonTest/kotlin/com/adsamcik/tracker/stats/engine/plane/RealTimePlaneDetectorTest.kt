@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.nulls.shouldBeNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -88,6 +89,27 @@ class RealTimePlaneDetectorTest {
 			feedAltitude(durationSeconds = 40, verticalRateMps = 0f, speedMps = 60f)
 			detector.getCurrentState().state shouldBe PlaneState.CRUISING
 		}
+
+		@Test
+		fun `speed-only cruise does not confirm a flight and closes when stationary`() {
+			val fastConfig = PlaneDetectionConfig(
+				baroMedianWindow = 1,
+				verticalRateEmaAlpha = 1f,
+				minStateDurationMs = 1_000L,
+				minFlightDurationForConfirmationMs = 10_000L,
+			)
+			detector = RealTimePlaneDetector(fastConfig)
+
+			feedAltitude(durationSeconds = 20, verticalRateMps = 0f, speedMps = 60f)
+			detector.getCurrentState().apply {
+				state shouldBe PlaneState.CRUISING
+				cruiseEvidence shouldBe CruiseEvidence.SPEED_ONLY
+				isConfirmedFlight.shouldBeFalse()
+			}
+
+			feedAltitude(durationSeconds = 2, verticalRateMps = 0f)
+			detector.getCurrentState().state shouldBe PlaneState.IDLE
+		}
 	}
 
 	@Nested
@@ -139,6 +161,47 @@ class RealTimePlaneDetectorTest {
 		}
 
 		@Test
+		fun `qualified pressure climb plus speed confirms a flight`() {
+			val fastConfig = PlaneDetectionConfig(
+				baroMedianWindow = 1,
+				verticalRateEmaAlpha = 1f,
+				minStateDurationMs = 1_000L,
+				minQualifiedClimbAltitudeGainM = 10f,
+				minFlightDurationForConfirmationMs = 8_000L,
+			)
+			detector = RealTimePlaneDetector(fastConfig)
+
+			feedAltitude(durationSeconds = 5, verticalRateMps = 5f, speedMps = 60f)
+			feedAltitude(durationSeconds = 8, verticalRateMps = 0f, speedMps = 60f)
+
+			detector.getCurrentState().apply {
+				cruiseEvidence shouldBe CruiseEvidence.QUALIFIED_CLIMB
+				isConfirmedFlight.shouldBeTrue()
+			}
+		}
+
+		@Test
+		fun `barometer gap after a qualified climb reports UNKNOWN without rejecting the flight`() {
+			val fastConfig = PlaneDetectionConfig(
+				baroMedianWindow = 1,
+				verticalRateEmaAlpha = 1f,
+				minStateDurationMs = 1_000L,
+				minQualifiedClimbAltitudeGainM = 10f,
+				minFlightDurationForConfirmationMs = 4_000L,
+				pressureFreshnessTimeoutMs = 3_000L,
+			)
+			detector = RealTimePlaneDetector(fastConfig)
+
+			feedAltitude(durationSeconds = 5, verticalRateMps = 5f, speedMps = 60f)
+			feedAltitude(durationSeconds = 5, verticalRateMps = 0f, speedMps = 60f)
+			detector.onDataGap(t + 1_000L)
+			val afterGap = detector.onDataGap(t + fastConfig.pressureFreshnessTimeoutMs)
+
+			afterGap.state shouldBe PlaneState.UNKNOWN
+			afterGap.isConfirmedFlight.shouldBeTrue()
+		}
+
+		@Test
 		fun `tracks max speed while airborne`() {
 			feedAltitude(durationSeconds = 40, verticalRateMps = 10f, speedMps = 100f)
 			feedAltitude(durationSeconds = 30, verticalRateMps = 0f, speedMps = 200f)
@@ -175,6 +238,48 @@ class RealTimePlaneDetectorTest {
 			state.state shouldBe PlaneState.IDLE
 			state.totalAirborneDurationMs shouldBe 0L
 			state.isConfirmedFlight.shouldBeFalse()
+		}
+
+		@Nested
+		inner class MonotonicTimeValidation {
+			@Test
+			fun `uses monotonic elapsed time despite a backward wall-clock jump`() {
+				val fastConfig = PlaneDetectionConfig(
+					baroMedianWindow = 1,
+					verticalRateEmaAlpha = 1f,
+					minStateDurationMs = 1_000L,
+					minQualifiedClimbAltitudeGainM = 10f,
+					minFlightDurationForConfirmationMs = 4_000L,
+				)
+				detector = RealTimePlaneDetector(fastConfig)
+				val wallClockTimes = listOf(100_000L, 101_000L, 1_000L, 2_000L, 3_000L, 4_000L, 5_000L)
+				val elapsedTimes = List(wallClockTimes.size) { index -> (index + 1) * 1_000L }
+
+				elapsedTimes.forEachIndexed { index, elapsedTimeMs ->
+					@Suppress("UNUSED_VARIABLE")
+					val wallClockTimeMs = wallClockTimes[index]
+					detector.onSample(elapsedTimeMs, altitudeM = index * 5f, speedMps = 60f)
+				}
+
+				detector.getCurrentState().apply {
+					stateDurationMs shouldBe 4_000L
+					totalAirborneDurationMs shouldBe 4_000L
+				}
+			}
+
+			@Test
+			fun `duplicate sample leaves detector state unchanged`() {
+				detector = RealTimePlaneDetector(
+					PlaneDetectionConfig(baroMedianWindow = 1, verticalRateEmaAlpha = 1f),
+				)
+				detector.onSample(timeMs = 1_000L, altitudeM = 0f)
+				detector.onSample(timeMs = 2_000L, altitudeM = 10f)
+				val beforeDuplicate = detector.getCurrentState()
+
+				detector.onSample(timeMs = 2_000L, altitudeM = 10_000f, speedMps = 100f).shouldBeNull()
+
+				detector.getCurrentState() shouldBe beforeDuplicate
+			}
 		}
 	}
 }

@@ -35,8 +35,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * dataset) and does not persist discrete flight segments — it only drives GPS-tier adaptation
  * and exposes state for auto-tagging the session's activity as a flight.
  *
- * No required data: operates on whatever barometer data is available. If barometric data is
- * missing, the component silently does nothing.
+ * No required data: operates on whatever barometer data is available. A sustained barometric gap
+ * transitions the detector to UNKNOWN rather than fabricating a landing.
  */
 internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
@@ -82,10 +82,16 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 		collectionData: CollectionData,
 		cycle: TrackingCycle,
 	) {
-		val reading = cycle.pressure ?: return
+		val timeMs = cycle.elapsedRealtimeNanos / 1_000_000L
+		val reading = cycle.pressure
+		if (reading == null) {
+			if (_planeState.value != null) {
+				_planeState.value = detector.onDataGap(timeMs)
+			}
+			return
+		}
 
 		val speedMps = collectionData.location?.speed ?: 0f
-		val timeMs = cycle.timestampMs
 
 		// Compute step rate from step delta and elapsed time (same derivation as ski's/sailing's).
 		val newSteps = cycle.stepDelta ?: 0
@@ -136,6 +142,7 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 					engine.clearMinimumTier()
 				}
 			}
+			PlaneState.UNKNOWN -> engine.clearMinimumTier()
 		}
 	}
 }
