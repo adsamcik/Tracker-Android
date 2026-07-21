@@ -126,9 +126,9 @@ class LayerControllerCacheBudgetTest {
 
         @Test
         fun `reading an entry promotes it so it survives later eviction`() {
-            val cache = ViewportConfigCache(maxBytes = 16L * 1024L)
+            val cache = ViewportConfigCache(maxBytes = 20L * 1024L)
 
-            // Fill near budget with 4 KB payloads (4 fit).
+            // Fill near budget with 4 KB payloads plus the fixed per-entry charge (4 fit).
             repeat(4) { i ->
                 cache.put(bucketKey(i), heatmapOfKb(approxKb = 4))
             }
@@ -146,16 +146,38 @@ class LayerControllerCacheBudgetTest {
         }
 
         @Test
-        fun `null payload entries are cached and tracked at zero bytes`() {
+        fun `null payload entries are cached with an entry overhead charge`() {
             val cache = ViewportConfigCache(maxBytes = 4L * 1024L)
 
             cache.put(bucketKey(0), null)
             cache.put(bucketKey(1), null)
 
-            cache.byteSize() shouldBe 0L
+            cache.byteSize() shouldBe ViewportConfigCache.ENTRY_OVERHEAD_BYTES * 2
             cache.containsKey(bucketKey(0)).shouldBeTrue()
             cache.containsKey(bucketKey(1)).shouldBeTrue()
             cache.size() shouldBe 2
+        }
+
+        @Test
+        fun `distinct null entries cannot grow beyond the entry limit`() {
+            val cache = ViewportConfigCache(maxBytes = 16L * 1024L, maxEntries = 3)
+
+            repeat(100) { cache.put(bucketKey(it), null) }
+
+            cache.size() shouldBe 3
+            cache.containsKey(bucketKey(99)).shouldBeTrue()
+            cache.byteSize() shouldBe ViewportConfigCache.ENTRY_OVERHEAD_BYTES * 3
+        }
+
+        @Test
+        fun `entry count limit applies even when byte budget has room`() {
+            val cache = ViewportConfigCache(maxBytes = 16L * 1024L, maxEntries = 3)
+
+            repeat(10) { cache.put(bucketKey(it), MapLibreLayerConfig.Line(geoJson = "x", colorArgb = 0)) }
+
+            cache.size() shouldBe 3
+            cache.byteSize() shouldBeLessThanOrEqualTo 16L * 1024L
+            cache.containsKey(bucketKey(9)).shouldBeTrue()
         }
     }
 
@@ -173,13 +195,14 @@ class LayerControllerCacheBudgetTest {
             val composite = MapLibreLayerConfig.Composite(listOf(child1, child2))
 
             ViewportConfigCache.estimateBytes(composite) shouldBe
+                ViewportConfigCache.ENTRY_OVERHEAD_BYTES +
                 (child1.geoJson.length.toLong() * 2L) +
                 (child2.geoJson.length.toLong() * 2L)
         }
 
         @Test
-        fun `null estimate is zero`() {
-            ViewportConfigCache.estimateBytes(null) shouldBe 0L
+        fun `null estimate includes entry overhead`() {
+            ViewportConfigCache.estimateBytes(null) shouldBe ViewportConfigCache.ENTRY_OVERHEAD_BYTES
         }
     }
 }

@@ -42,9 +42,8 @@ class GeoRepositoryTest {
         val dao = mockk<UnifiedGeoDao>()
         val state: MutableStateFlow<List<GeoWeightedFeatureEntity>> = MutableStateFlow(
             listOf(
-                GeoWeightedFeatureEntity(0.01,0.01,1L,1.0),
-                GeoWeightedFeatureEntity(0.02,0.02,2L,2.0),
-                GeoWeightedFeatureEntity(1.0,1.0,3L,3.0)
+                GeoWeightedFeatureEntity(0.015,0.015,2L,3.0),
+                GeoWeightedFeatureEntity(1.0,1.0,3L,3.0),
             )
         )
         every { dao.queryLocationsWeighted(any()) } returns state
@@ -54,7 +53,7 @@ class GeoRepositoryTest {
             bounds = Bounds(2.0,2.0,-1.0,-1.0)
         )
         val result = repo.queryWeightedAggregated(q, "speed", Aggregation.Sum, 0.5, 0.5).first()
-        // First two points in same 0.5x0.5 cell (approx), third separate => 2 cells
+        // The DAO returns one SQL-aggregated row per grid cell, not raw input points.
         result.size shouldBe 2
         val combined = result.first { it.weight == 3.0 } // 1 + 2
         combined.weight shouldBe 3.0
@@ -97,10 +96,7 @@ class GeoRepositoryTest {
     fun `aggregation avg`() = runTest {
         val dao = mockk<UnifiedGeoDao>()
         val flow: Flow<List<GeoWeightedFeatureEntity>> = MutableStateFlow(
-            listOf(
-                GeoWeightedFeatureEntity(0.0,0.0,1L,2.0),
-                GeoWeightedFeatureEntity(0.01,0.01,2L,4.0)
-            )
+            listOf(GeoWeightedFeatureEntity(0.005,0.005,2L,3.0))
         )
         every { dao.queryLocationsWeighted(any()) } returns flow
         val repo = GeoRepositoryImpl(dao)
@@ -114,11 +110,7 @@ class GeoRepositoryTest {
     fun `aggregation max`() = runTest {
         val dao = mockk<UnifiedGeoDao>()
         val flow: Flow<List<GeoWeightedFeatureEntity>> = MutableStateFlow(
-            listOf(
-                GeoWeightedFeatureEntity(0.0,0.0,1L,2.0),
-                GeoWeightedFeatureEntity(0.01,0.01,2L,4.0),
-                GeoWeightedFeatureEntity(0.02,0.02,3L,3.0)
-            )
+            listOf(GeoWeightedFeatureEntity(0.01,0.01,3L,4.0))
         )
         every { dao.queryLocationsWeighted(any()) } returns flow
         val repo = GeoRepositoryImpl(dao)
@@ -126,6 +118,32 @@ class GeoRepositoryTest {
         val result = repo.queryWeightedAggregated(q, "speed", Aggregation.Max, 0.5, 0.5).first()
         result.size shouldBe 1
         result[0].weight shouldBe 4.0
+    }
+
+    @Test
+    fun `aggregation delegates spatial grouping to SQL before Room materializes rows`() = runTest {
+        val dao = mockk<UnifiedGeoDao>()
+        val state = MutableStateFlow(
+            listOf(
+                GeoWeightedFeatureEntity(0.1, 0.1, 1L, 10.0),
+                GeoWeightedFeatureEntity(1.1, 1.1, 2L, 20.0),
+            ),
+        )
+        val querySlot = io.mockk.slot<SupportSQLiteQuery>()
+        every { dao.queryLocationsWeighted(capture(querySlot)) } returns state
+        val repo = GeoRepositoryImpl(dao)
+
+        val result = repo.queryWeightedAggregated(
+            GeoQuery(GeoSource.LOCATION, bounds = Bounds(2.0, 2.0, -1.0, -1.0)),
+            weightColumn = "speed",
+            aggregation = Aggregation.Sum,
+            cellSizeLatDeg = 0.5,
+            cellSizeLonDeg = 0.5,
+        ).first()
+
+        result.size shouldBe 2
+        querySlot.captured.sql shouldContain "GROUP BY lat_bucket, lon_bucket"
+        querySlot.captured.sql shouldContain "WITH source AS"
     }
 
     @Test

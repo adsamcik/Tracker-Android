@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.layers.registry.collectBoundedChunks
+import com.adsamcik.tracker.map.layers.registry.downSampleEvenly
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -293,32 +295,41 @@ class VehicleComplianceE2ETest {
 			val fromMs = if (!range.isEmpty()) range.first else now - DEFAULT_LOCATION_RANGE_MS
 			val toMs = if (!range.isEmpty()) range.last else now
 
-			val rows = mutableListOf<com.adsamcik.tracker.shared.base.database.dao.VehicleSpeedSampleRow>()
 			var afterTimeMs: Long? = null
 			var afterId: Long? = null
-
-			while (true) {
+			val initialRows = collectBoundedChunks(
+				chunkSize = VEHICLE_CHUNK_SIZE,
+				maxMaterializedRows = VEHICLE_MAX_MATERIALIZED_SAMPLES - 1,
+			) { limit ->
 				val chunk = dao.getDrivingChunkBetweenOrdered(
 					fromMs = fromMs,
 					toMs = toMs,
 					drivingActivities = drivingActivityIds,
 					afterTimeMs = afterTimeMs,
 					afterId = afterId,
-					limit = VEHICLE_CHUNK_SIZE,
+					limit = limit,
 				)
-				if (chunk.isEmpty()) break
-				rows.addAll(chunk)
-				val lastRow = chunk.last()
-				afterTimeMs = lastRow.timeMs
-				afterId = lastRow.id
-				if (chunk.size < VEHICLE_CHUNK_SIZE) break
+				chunk.lastOrNull()?.let { lastRow ->
+					afterTimeMs = lastRow.timeMs
+					afterId = lastRow.id
+				}
+				chunk
+			}
+			val lastRow = dao.getLatestDrivingBetween(
+				fromMs = fromMs,
+				toMs = toMs,
+				drivingActivities = drivingActivityIds,
+			)
+			val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
+				initialRows + lastRow
+			} else {
+				initialRows
 			}
 
 			if (rows.isEmpty()) {
 				emptyList()
 			} else {
-				val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES).coerceAtLeast(1)
-				val sampled = if (step == 1) rows else rows.filterIndexed { index, _ -> index % step == 0 }
+				val sampled = downSampleEvenly(rows, VEHICLE_MAX_PRE_SAMPLES)
 				val observations = sampled.map { row ->
 					RoadObservation(row.latE7, row.lonE7, DEFAULT_ACCURACY_M, row.timeMs)
 				}
@@ -441,6 +452,7 @@ class VehicleComplianceE2ETest {
 		const val DEFAULT_LOCATION_RANGE_MS: Long = 30L * 24 * 60 * 60 * 1_000
 		const val VEHICLE_CHUNK_SIZE: Int = 2_000
 		const val VEHICLE_MAX_PRE_SAMPLES: Int = 30_000
+		const val VEHICLE_MAX_MATERIALIZED_SAMPLES: Int = VEHICLE_MAX_PRE_SAMPLES * 2
 		const val BASELINE_50_KMH_MPS: Double = 50.0 / 3.6
 		const val MPS_PER_KMH: Float = 1000f / 3600f
 		const val DEFAULT_ACCURACY_M: Float = 8f

@@ -117,6 +117,92 @@ class SafeQueryBuilder private constructor(
     }
 
     fun build(): SupportSQLiteQuery {
+        val parts = buildParts()
+        return SimpleSQLiteQuery(parts.sql, parts.args.toTypedArray())
+    }
+
+    /**
+     * Aggregate a weighted source query by a viewport-relative spatial grid before Room
+     * materializes any rows. The source query is retained as a CTE so its filters and optional
+     * sampling semantics stay identical to [build].
+     */
+    fun buildWeightedAggregation(
+        aggregation: WeightedAggregation,
+        south: Double,
+        west: Double,
+        cellSizeLatDeg: Double,
+        cellSizeLonDeg: Double,
+    ): SupportSQLiteQuery {
+        require(weightColumn != null) { "weighted aggregation requires a weight column" }
+        val source = buildParts()
+        val latBucket = "CAST((lat - ?) / ? AS INTEGER)"
+        val lonBucket = "CAST((lon - ?) / ? AS INTEGER)"
+        val prefix = """
+            WITH source AS (${source.sql}),
+            bucketed AS (
+                SELECT source.*,
+                    $latBucket AS lat_bucket,
+                    $lonBucket AS lon_bucket
+                FROM source
+            )
+        """.trimIndent()
+        val aggregationSql = when (aggregation) {
+            WeightedAggregation.Sum -> """
+                SELECT AVG(lat) AS lat, AVG(lon) AS lon, MAX(time) AS time, SUM(weight) AS weight
+                FROM bucketed
+                GROUP BY lat_bucket, lon_bucket
+                ORDER BY time ASC
+            """.trimIndent()
+            WeightedAggregation.Avg -> """
+                SELECT AVG(lat) AS lat, AVG(lon) AS lon, MAX(time) AS time, AVG(weight) AS weight
+                FROM bucketed
+                GROUP BY lat_bucket, lon_bucket
+                ORDER BY time ASC
+            """.trimIndent()
+            WeightedAggregation.Count -> """
+                SELECT AVG(lat) AS lat, AVG(lon) AS lon, MAX(time) AS time, COUNT(*) AS weight
+                FROM bucketed
+                GROUP BY lat_bucket, lon_bucket
+                ORDER BY time ASC
+            """.trimIndent()
+            WeightedAggregation.Max -> """
+                , aggregates AS (
+                    SELECT lat_bucket, lon_bucket, MAX(time) AS time, MAX(weight) AS weight
+                    FROM bucketed
+                    GROUP BY lat_bucket, lon_bucket
+                )
+                SELECT
+                    (
+                        SELECT candidate.lat
+                        FROM bucketed AS candidate
+                        WHERE candidate.lat_bucket = aggregates.lat_bucket
+                            AND candidate.lon_bucket = aggregates.lon_bucket
+                            AND candidate.weight = aggregates.weight
+                        ORDER BY candidate.time ASC
+                        LIMIT 1
+                    ) AS lat,
+                    (
+                        SELECT candidate.lon
+                        FROM bucketed AS candidate
+                        WHERE candidate.lat_bucket = aggregates.lat_bucket
+                            AND candidate.lon_bucket = aggregates.lon_bucket
+                            AND candidate.weight = aggregates.weight
+                        ORDER BY candidate.time ASC
+                        LIMIT 1
+                    ) AS lon,
+                    time,
+                    weight
+                FROM aggregates
+                ORDER BY time ASC
+            """.trimIndent()
+        }
+        return SimpleSQLiteQuery(
+            "$prefix\n$aggregationSql",
+            (source.args + listOf(south, cellSizeLatDeg, west, cellSizeLonDeg)).toTypedArray(),
+        )
+    }
+
+    private fun buildParts(): QueryParts {
         // All tables use E7 lat/lon and time_ms; convert to degrees in projection
         val baseCols = listOf(
             "CAST(lat_e7 AS REAL) / $E7_DIVISOR AS lat",
@@ -257,12 +343,24 @@ class SafeQueryBuilder private constructor(
             limit?.let { sql.append(" LIMIT ").append(it) }
         }
 
-        return SimpleSQLiteQuery(sql.toString(), args.toTypedArray())
+        return QueryParts(sql.toString(), args)
     }
 
     private fun appendClause(builder: StringBuilder, clause: String) {
         if (builder.isNotEmpty()) builder.append(" AND ")
         builder.append(clause)
+    }
+
+    private data class QueryParts(
+        val sql: String,
+        val args: List<Any>,
+    )
+
+    enum class WeightedAggregation {
+        Sum,
+        Avg,
+        Max,
+        Count,
     }
 
     enum class Table(

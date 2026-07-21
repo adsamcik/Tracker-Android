@@ -60,6 +60,40 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.withContext
 
+/**
+ * Read ordered DAO chunks without ever decoding more than [maxMaterializedRows] objects.
+ *
+ * Callers advance their keyset cursor inside [fetch]. Sampling happens after collection so the
+ * selected first and last rows are retained by [downSampleEvenly].
+ */
+internal suspend fun <T> collectBoundedChunks(
+    chunkSize: Int,
+    maxMaterializedRows: Int,
+    fetch: suspend (limit: Int) -> List<T>,
+): List<T> {
+    require(chunkSize > 0) { "chunkSize must be positive" }
+    require(maxMaterializedRows > 0) { "maxMaterializedRows must be positive" }
+    val rows = ArrayList<T>(maxMaterializedRows)
+    while (rows.size < maxMaterializedRows) {
+        val requested = minOf(chunkSize, maxMaterializedRows - rows.size)
+        val chunk = fetch(requested)
+        if (chunk.isEmpty()) break
+        rows.addAll(chunk)
+        if (chunk.size < requested) break
+    }
+    return rows
+}
+
+/** Evenly retain at most [maxPoints] rows, pinning both endpoints. */
+internal fun <T> downSampleEvenly(rows: List<T>, maxPoints: Int): List<T> {
+    require(maxPoints > 0) { "maxPoints must be positive" }
+    if (rows.size <= maxPoints) return rows
+    if (maxPoints == 1) return listOf(rows.first())
+    return List(maxPoints) { index ->
+        rows[((index.toLong() * rows.lastIndex) / (maxPoints - 1)).toInt()]
+    }
+}
+
 /** Registry for map layers: registers layers directly. */
 class DefaultLayerRegistry(
     private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
@@ -68,9 +102,12 @@ class DefaultLayerRegistry(
     private companion object {
         const val LOCATION_PATH_CHUNK_SIZE = 2_000
         const val LOCATION_PATH_MAX_PRE_POINTS = 30_000
+        const val LOCATION_PATH_MAX_MATERIALIZED_POINTS = LOCATION_PATH_MAX_PRE_POINTS * 2
         const val DEFAULT_LOCATION_RANGE_MS = 30L * 24 * 60 * 60 * 1_000
         const val VEHICLE_CHUNK_SIZE = 2_000
         const val VEHICLE_MAX_PRE_SAMPLES = 30_000
+        const val VEHICLE_MAX_MATERIALIZED_SAMPLES = VEHICLE_MAX_PRE_SAMPLES * 2
+        const val E7 = 10_000_000.0
 
         /** Conversion factor from km/h to m/s for matched road speed limits. */
         const val VEHICLE_MPS_PER_KMH = 1000f / 3600f
@@ -387,27 +424,35 @@ class DefaultLayerRegistry(
                                             now - DEFAULT_LOCATION_RANGE_MS
                                         }
                                         val toMs = if (!range.isEmpty()) range.last else now
-                                        val rows = mutableListOf<com.adsamcik.tracker.shared.base.database.dao.VehicleSpeedSampleRow>()
                                         var afterTimeMs: Long? = null
                                         var afterId: Long? = null
-
-                                        while (true) {
+                                        val initialRows = collectBoundedChunks(
+                                            chunkSize = VEHICLE_CHUNK_SIZE,
+                                            maxMaterializedRows = VEHICLE_MAX_MATERIALIZED_SAMPLES - 1,
+                                        ) { limit ->
                                             val chunk = dao.getDrivingChunkBetweenOrdered(
                                                 fromMs = fromMs,
                                                 toMs = toMs,
                                                 drivingActivities = drivingActivityIds,
                                                 afterTimeMs = afterTimeMs,
                                                 afterId = afterId,
-                                                limit = VEHICLE_CHUNK_SIZE,
+                                                limit = limit,
                                             )
-                                            if (chunk.isEmpty()) break
-
-                                            rows.addAll(chunk)
-
-                                            val lastRow = chunk.last()
-                                            afterTimeMs = lastRow.timeMs
-                                            afterId = lastRow.id
-                                            if (chunk.size < VEHICLE_CHUNK_SIZE) break
+                                            chunk.lastOrNull()?.let { lastRow ->
+                                                afterTimeMs = lastRow.timeMs
+                                                afterId = lastRow.id
+                                            }
+                                            chunk
+                                        }
+                                        val lastRow = dao.getLatestDrivingBetween(
+                                            fromMs = fromMs,
+                                            toMs = toMs,
+                                            drivingActivities = drivingActivityIds,
+                                        )
+                                        val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
+                                            initialRows + lastRow
+                                        } else {
+                                            initialRows
                                         }
                                         if (rows.isEmpty()) {
                                             emptyList()
@@ -415,13 +460,7 @@ class DefaultLayerRegistry(
                                             // Decimate to keep the matcher's work bounded, then map-match
                                             // the drive onto the OSM road graph. Each MatchedEdge already
                                             // follows the real road; we only classify it by speed-vs-limit.
-                                            val step = (rows.size / VEHICLE_MAX_PRE_SAMPLES)
-                                                .coerceAtLeast(1)
-                                            val sampled = if (step == 1) {
-                                                rows
-                                            } else {
-                                                rows.filterIndexed { index, _ -> index % step == 0 }
-                                            }
+                                            val sampled = downSampleEvenly(rows, VEHICLE_MAX_PRE_SAMPLES)
                                             val observations = sampled.map { row ->
                                                 RoadObservation(
                                                     latE7 = row.latE7,
@@ -515,7 +554,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao = AppDatabase.database(ctx).locationSampleDao()
                             LocationPathLayer(
-                                pointsProvider = { range ->
+                                pointsProvider = { range, bounds ->
                                     withContext(dispatchers.io) {
                                         val now = System.currentTimeMillis()
                                         val fromMs = if (!range.isEmpty()) {
@@ -524,36 +563,60 @@ class DefaultLayerRegistry(
                                             now - DEFAULT_LOCATION_RANGE_MS
                                         }
                                         val toMs = if (!range.isEmpty()) range.last else now
-                                        val rows = buildList {
-                                            var afterTimeMs: Long? = null
-                                            var afterId: Long? = null
-
-                                            while (true) {
-                                                val chunk = dao.getChunkBetweenOrdered(
+                                        var afterTimeMs: Long? = null
+                                        var afterId: Long? = null
+                                        val initialRows = collectBoundedChunks(
+                                            chunkSize = LOCATION_PATH_CHUNK_SIZE,
+                                            maxMaterializedRows = LOCATION_PATH_MAX_MATERIALIZED_POINTS - 1,
+                                        ) { limit ->
+                                            val chunk = if (bounds == null) {
+                                                dao.getChunkBetweenOrdered(
                                                     fromMs = fromMs,
                                                     toMs = toMs,
                                                     afterTimeMs = afterTimeMs,
                                                     afterId = afterId,
-                                                    limit = LOCATION_PATH_CHUNK_SIZE,
+                                                    limit = limit,
                                                 )
-                                                if (chunk.isEmpty()) break
-
-                                                addAll(chunk)
-
-                                                val lastRow = chunk.last()
+                                            } else {
+                                                dao.getChunkBetweenOrderedInBounds(
+                                                    fromMs = fromMs,
+                                                    toMs = toMs,
+                                                    northE7 = (bounds.north * E7).toInt(),
+                                                    eastE7 = (bounds.east * E7).toInt(),
+                                                    southE7 = (bounds.south * E7).toInt(),
+                                                    westE7 = (bounds.west * E7).toInt(),
+                                                    afterTimeMs = afterTimeMs,
+                                                    afterId = afterId,
+                                                    limit = limit,
+                                                )
+                                            }
+                                            chunk.lastOrNull()?.let { lastRow ->
                                                 afterTimeMs = lastRow.timeMs
                                                 afterId = lastRow.id
-                                                if (chunk.size < LOCATION_PATH_CHUNK_SIZE) {
-                                                    break
-                                                }
                                             }
+                                            chunk
+                                        }
+                                        val lastRow = if (bounds == null) {
+                                            dao.getLatestBetween(fromMs, toMs)
+                                        } else {
+                                            dao.getLatestBetweenInBounds(
+                                                fromMs = fromMs,
+                                                toMs = toMs,
+                                                northE7 = (bounds.north * E7).toInt(),
+                                                eastE7 = (bounds.east * E7).toInt(),
+                                                southE7 = (bounds.south * E7).toInt(),
+                                                westE7 = (bounds.west * E7).toInt(),
+                                            )
+                                        }
+                                        val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
+                                            initialRows + lastRow
+                                        } else {
+                                            initialRows
                                         }
                                         if (rows.isEmpty()) {
                                             emptyList()
                                         } else {
-                                            val step = (rows.size / LOCATION_PATH_MAX_PRE_POINTS).coerceAtLeast(1)
-                                            rows.asSequence()
-                                                .filterIndexed { index, _ -> index % step == 0 }
+                                            downSampleEvenly(rows, LOCATION_PATH_MAX_PRE_POINTS).asSequence()
                                                 .mapNotNull { row ->
                                                     val latE7 = row.latE7
                                                     val lonE7 = row.lonE7

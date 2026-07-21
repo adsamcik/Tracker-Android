@@ -111,26 +111,37 @@ class GeoRepositoryImpl(
     ): Flow<List<WeightedGeoFeature>> {
         require(cellSizeLatDeg > 0 && cellSizeLonDeg > 0) { "Cell size must be > 0" }
         val b = query.bounds ?: error("Bounds required for aggregation")
-        val baseFlow = queryWeighted(query, weightColumn)
-        return baseFlow.map { points ->
-            if (points.isEmpty()) return@map emptyList()
-            val south = b.south
-            val west = b.west
-            val grid = HashMap<Long, MutableList<WeightedGeoFeature>>()
-            val invLat = 1.0 / cellSizeLatDeg
-            val invLon = 1.0 / cellSizeLonDeg
-            points.forEach { p ->
-                val latIdx = ((p.lat - south) * invLat).toLong()
-                val lonIdx = ((p.lon - west) * invLon).toLong()
-                val key = (latIdx shl 32) xor lonIdx
-                val list = grid.getOrPut(key) { mutableListOf() }
-                list += p
-            }
-            grid.values.map { cellPoints ->
-                val representative = aggregation.reduce(cellPoints)
-                representative
-            }
+        val builder = when (query.source) {
+            GeoSource.LOCATION -> SafeQueryBuilder.location()
+            GeoSource.WIFI -> SafeQueryBuilder.wifi()
+            GeoSource.CELL -> SafeQueryBuilder.cell()
         }
+        query.bounds.let { builder.bounds(it.north, it.east, it.south, it.west) }
+        builder.timeRange(query.timeFrom, query.timeTo)
+        query.limit?.let { builder.limit(it) }
+        query.sampleLimit?.let { builder.sample(it) }
+        query.newestLimit?.let { builder.newest(it) }
+        if (query.extraColumns.isNotEmpty()) builder.columns(*query.extraColumns.toTypedArray())
+        builder.weight(weightColumn)
+        val sql = builder.buildWeightedAggregation(
+            aggregation = aggregation.toSqlAggregation(),
+            south = b.south,
+            west = b.west,
+            cellSizeLatDeg = cellSizeLatDeg,
+            cellSizeLonDeg = cellSizeLonDeg,
+        )
+        return when (query.source) {
+            GeoSource.LOCATION -> dao.queryLocationsWeighted(sql).map { it.map { row -> row.toDomain() } }
+            GeoSource.WIFI -> dao.queryWifiWeighted(sql).map { it.map { row -> row.toDomain() } }
+            GeoSource.CELL -> dao.queryCellsWeighted(sql).map { it.map { row -> row.toDomain() } }
+        }
+    }
+
+    private fun Aggregation.toSqlAggregation(): SafeQueryBuilder.WeightedAggregation = when (this) {
+        Aggregation.Sum -> SafeQueryBuilder.WeightedAggregation.Sum
+        Aggregation.Avg -> SafeQueryBuilder.WeightedAggregation.Avg
+        Aggregation.Max -> SafeQueryBuilder.WeightedAggregation.Max
+        Aggregation.Count -> SafeQueryBuilder.WeightedAggregation.Count
     }
 }
 

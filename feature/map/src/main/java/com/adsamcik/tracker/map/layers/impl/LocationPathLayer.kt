@@ -13,7 +13,7 @@ import com.adsamcik.tracker.map.shared.CoordinateBounds
 
 /** Polyline layer drawing user paths with decimation. Produces MapLibreLayerConfig.Line. */
 class LocationPathLayer(
-    private val pointsProvider: suspend (LongRange) -> List<LatLngModel>,
+    private val pointsProvider: suspend (LongRange, Bounds?) -> List<LatLngModel>,
     private val perf: PerformanceManager = PerformanceManager()
 ) : BaseMapLayer<LocationPathLayer.Input, LocationPathLayer.Prepared>(), SupportsDateRange {
 
@@ -27,8 +27,7 @@ class LocationPathLayer(
     override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
     override suspend fun loadData(context: Context, bounds: Bounds?): Input {
-        // Path layer always loads the full track regardless of viewport
-        val points = pointsProvider(dateRange)
+        val points = pointsProvider(dateRange, bounds)
         return Input(points)
     }
 

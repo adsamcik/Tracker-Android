@@ -11,23 +11,28 @@ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
  *
  * Semantics:
  *  - Access-ordered LRU. Reads via [get] and overwrites via [put] move the entry to MRU.
- *  - On insert, oldest entries are evicted until the running byte total fits within
- *    [maxBytes], or until only the just-inserted (MRU) entry remains. The single MRU entry
+ *  - On insert, oldest entries are evicted until both the running byte total and entry count fit
+ *    within their limits, or until only the just-inserted (MRU) entry remains. The single MRU entry
  *    is always retained even if it alone exceeds the budget — this preserves the original
  *    perf intent (skip re-encode on rapid back-and-forth pan within the same viewport)
  *    while keeping retention bounded in steady state.
  *  - `null` entries are tracked (a viewport that legitimately produces no config caches as
- *    null so the next refresh in the same bucket can skip the reload) and count as zero bytes.
- *  - Byte size of a [MapLibreLayerConfig] is the sum of `geoJson.length * 2` (UTF-16) across
- *    Heatmap/Line payloads, recursing into Composite. This matches the dominant retained cost.
+ *    null so the next refresh in the same bucket can skip the reload) and receive the fixed
+ *    per-entry charge, so empty buckets cannot become unbounded free entries.
+ *  - Byte size includes a conservative fixed entry charge plus `geoJson.length * 2` (UTF-16)
+ *    across payloads, recursing into Composite.
  *
  * Not thread-safe by itself: [LayerController] callers already serialize cache access
  * through its single-threaded coroutine context, mirroring the previous behaviour.
  */
-internal class ViewportConfigCache(private val maxBytes: Long) {
+internal class ViewportConfigCache(
+    private val maxBytes: Long,
+    private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
+) {
 
     init {
         require(maxBytes > 0) { "maxBytes must be positive, was $maxBytes" }
+        require(maxEntries > 0) { "maxEntries must be positive, was $maxEntries" }
     }
 
     private val entries = LinkedHashMap<LayerController.ViewportCacheKey, MapLibreLayerConfig?>(
@@ -38,7 +43,7 @@ internal class ViewportConfigCache(private val maxBytes: Long) {
 
     private var currentBytes: Long = 0L
 
-    /** Total estimated bytes retained across cached entries (excludes map overhead). */
+    /** Total estimated bytes retained across cached entries. */
     fun byteSize(): Long = currentBytes
 
     /** Number of cached entries (including null entries). */
@@ -77,9 +82,13 @@ internal class ViewportConfigCache(private val maxBytes: Long) {
     }
 
     private fun evictUntilWithinBudget(protect: LayerController.ViewportCacheKey) {
-        if (currentBytes <= maxBytes) return
+        if (currentBytes <= maxBytes && entries.size <= maxEntries) return
         val iterator = entries.entries.iterator()
-        while (iterator.hasNext() && currentBytes > maxBytes && entries.size > 1) {
+        while (
+            iterator.hasNext() &&
+            (currentBytes > maxBytes || entries.size > maxEntries) &&
+            entries.size > 1
+        ) {
             val entry = iterator.next()
             if (entry.key == protect) continue
             currentBytes -= estimateBytes(entry.value)
@@ -89,11 +98,14 @@ internal class ViewportConfigCache(private val maxBytes: Long) {
 
     companion object {
         /**
-         * Estimate retained bytes for [config]. Returns 0 for null. UTF-16 is two bytes per
-         * `Char`. Composite layers sum their children. Non-GeoJSON metadata (color stops,
-         * floats, etc.) is small and ignored to keep accounting fast.
+         * Estimate retained bytes for one cache entry. Every entry includes a conservative fixed
+         * charge for the key, LinkedHashMap node, and config wrapper; payload strings use two
+         * bytes per UTF-16 `Char`.
          */
-        fun estimateBytes(config: MapLibreLayerConfig?): Long = when (config) {
+        fun estimateBytes(config: MapLibreLayerConfig?): Long =
+            ENTRY_OVERHEAD_BYTES + estimatePayloadBytes(config)
+
+        private fun estimatePayloadBytes(config: MapLibreLayerConfig?): Long = when (config) {
             null -> 0L
             is MapLibreLayerConfig.Heatmap -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.HeatLine -> config.geoJson.length.toLong() * 2L
@@ -103,7 +115,10 @@ internal class ViewportConfigCache(private val maxBytes: Long) {
             is MapLibreLayerConfig.Circle -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.GradientLine -> config.geoJson.length.toLong() * 2L
             is MapLibreLayerConfig.Symbol -> config.geoJson.length.toLong() * 2L
-            is MapLibreLayerConfig.Composite -> config.layers.sumOf { estimateBytes(it) }
+            is MapLibreLayerConfig.Composite -> config.layers.sumOf { estimatePayloadBytes(it) }
         }
+
+        internal const val DEFAULT_MAX_ENTRIES = 64
+        internal const val ENTRY_OVERHEAD_BYTES = 256L
     }
 }

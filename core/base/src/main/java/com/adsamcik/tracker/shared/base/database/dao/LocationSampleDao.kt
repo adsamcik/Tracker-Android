@@ -64,6 +64,81 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		limit: Int,
 	): List<LocationSample>
 
+	@Query(
+		"""
+		SELECT * FROM location_sample
+		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+		ORDER BY time_ms DESC, id DESC
+		LIMIT 1
+		"""
+	)
+	suspend fun getLatestBetween(fromMs: Long, toMs: Long): LocationSample?
+
+	/**
+	 * Get the next ordered chunk within a viewport. Handles antimeridian-crossing bounds
+	 * (`eastE7 < westE7`) while retaining the same stable keyset cursor as the unbounded query.
+	 */
+	@Query(
+		"""
+		SELECT *
+		FROM location_sample
+		WHERE time_ms >= :fromMs
+			AND time_ms <= :toMs
+			AND lat_e7 IS NOT NULL
+			AND lon_e7 IS NOT NULL
+			AND lat_e7 <= :northE7
+			AND lat_e7 >= :southE7
+			AND (
+				(:eastE7 >= :westE7 AND lon_e7 BETWEEN :westE7 AND :eastE7)
+				OR (:eastE7 < :westE7 AND (lon_e7 >= :westE7 OR lon_e7 <= :eastE7))
+			)
+			AND (
+				:afterTimeMs IS NULL
+				OR time_ms > :afterTimeMs
+				OR (time_ms = :afterTimeMs AND id > COALESCE(:afterId, 0))
+			)
+		ORDER BY time_ms ASC, id ASC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getChunkBetweenOrderedInBounds(
+		fromMs: Long,
+		toMs: Long,
+		northE7: Int,
+		eastE7: Int,
+		southE7: Int,
+		westE7: Int,
+		afterTimeMs: Long?,
+		afterId: Long?,
+		limit: Int,
+	): List<LocationSample>
+
+	@Query(
+		"""
+		SELECT * FROM location_sample
+		WHERE time_ms >= :fromMs
+			AND time_ms <= :toMs
+			AND lat_e7 IS NOT NULL
+			AND lon_e7 IS NOT NULL
+			AND lat_e7 <= :northE7
+			AND lat_e7 >= :southE7
+			AND (
+				(:eastE7 >= :westE7 AND lon_e7 BETWEEN :westE7 AND :eastE7)
+				OR (:eastE7 < :westE7 AND (lon_e7 >= :westE7 OR lon_e7 <= :eastE7))
+			)
+		ORDER BY time_ms DESC, id DESC
+		LIMIT 1
+		"""
+	)
+	suspend fun getLatestBetweenInBounds(
+		fromMs: Long,
+		toMs: Long,
+		northE7: Int,
+		eastE7: Int,
+		southE7: Int,
+		westE7: Int,
+	): LocationSample?
+
 	/**
 	 * Get the next ordered chunk of location samples within a time range that fall
 	 * inside a driving session segment, filtered to samples with coordinates and
@@ -115,6 +190,34 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		afterId: Long?,
 		limit: Int,
 	): List<VehicleSpeedSampleRow>
+
+	@Query(
+		"""
+		SELECT ls.time_ms AS time_ms,
+		       ls.id AS id,
+		       ls.lat_e7 AS lat_e7,
+		       ls.lon_e7 AS lon_e7,
+		       ls.speed_mps AS speed_mps
+		FROM location_sample ls
+		INNER JOIN session_segment ss
+			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
+		WHERE ss.primary_activity IN (:drivingActivities)
+			AND ls.lat_e7 IS NOT NULL
+			AND ls.lon_e7 IS NOT NULL
+			AND ls.speed_mps IS NOT NULL
+			AND ls.quality NOT IN ('LOW', 'COARSE')
+			AND (ls.speed_accuracy_mps IS NULL OR ls.speed_accuracy_mps <= 3.0)
+			AND ls.time_ms >= :fromMs
+			AND ls.time_ms <= :toMs
+		ORDER BY ls.time_ms DESC, ls.id DESC
+		LIMIT 1
+		"""
+	)
+	suspend fun getLatestDrivingBetween(
+		fromMs: Long,
+		toMs: Long,
+		drivingActivities: List<Int>,
+	): VehicleSpeedSampleRow?
 
 	/**
 	 * Get location samples within time range as Flow.

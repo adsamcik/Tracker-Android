@@ -205,4 +205,22 @@ class SafeQueryBuilderTest {
         val sql = (q as SimpleSQLiteQuery).sql
         sql shouldContain "signal_strength AS weight"
     }
+
+    @Test
+    fun `weighted aggregation groups rows in SQL`() {
+        val query = SafeQueryBuilder.location()
+            .bounds(north = 2.0, east = 2.0, south = -1.0, west = -1.0)
+            .weight("speed")
+            .buildWeightedAggregation(
+                aggregation = SafeQueryBuilder.WeightedAggregation.Sum,
+                south = -1.0,
+                west = -1.0,
+                cellSizeLatDeg = 0.5,
+                cellSizeLonDeg = 0.5,
+            ) as SimpleSQLiteQuery
+
+        query.sql shouldContain "WITH source AS"
+        query.sql shouldContain "GROUP BY lat_bucket, lon_bucket"
+        query.sql shouldContain "SUM(weight) AS weight"
+    }
 }
