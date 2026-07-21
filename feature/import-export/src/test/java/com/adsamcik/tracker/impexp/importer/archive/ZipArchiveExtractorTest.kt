@@ -5,19 +5,11 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -26,10 +18,16 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 
 @DisplayName("ZipArchiveExtractor")
 class ZipArchiveExtractorTest {
-
 	private val extractor = ZipArchiveExtractor()
 	private val mockContext = mockk<Context>()
 	private lateinit var cacheDir: File
@@ -48,26 +46,42 @@ class ZipArchiveExtractorTest {
 	}
 
 	private fun buildZipBytes(entries: List<Pair<String, ByteArray>>): ByteArray {
-		val baos = ByteArrayOutputStream()
-		ZipOutputStream(baos).use { zos ->
+		val output = ByteArrayOutputStream()
+		ZipOutputStream(output).use { zip ->
 			entries.forEach { (name, data) ->
-				zos.putNextEntry(ZipEntry(name))
-				zos.write(data)
-				zos.closeEntry()
+				zip.putNextEntry(ZipEntry(name))
+				zip.write(data)
+				zip.closeEntry()
 			}
 		}
-		return baos.toByteArray()
+		return output.toByteArray()
 	}
 
 	private fun mockFile(
-		stream: InputStream?,
-		isDirectory: Boolean = false
+		bytes: ByteArray?,
+		isDirectory: Boolean = false,
+		declaredLength: Long = bytes?.size?.toLong() ?: 0L,
 	): DocumentFile {
 		val file = mockk<DocumentFile> {
 			every { this@mockk.isDirectory } returns isDirectory
+			every { length() } returns declaredLength
 		}
-		every { file.openInputStream(mockContext) } returns stream
+		every { file.openInputStream(mockContext) } answers {
+			bytes?.let(::ByteArrayInputStream)
+		}
 		return file
+	}
+
+	private suspend fun extractAll(
+		extractor: ZipArchiveExtractor,
+		file: DocumentFile,
+	): List<Pair<String, ByteArray>> = buildList {
+		extractor.extract(
+			context = mockContext,
+			file = file,
+			shouldExtract = { true },
+			consume = { stream -> add(stream.fileName to stream.readBytes()) },
+		) shouldBe true
 	}
 
 	private fun cachedFiles(): List<File> = cacheDir.walkTopDown().filter { it.isFile }.toList()
@@ -83,10 +97,10 @@ class ZipArchiveExtractorTest {
 	}
 
 	private class CloseCountingInputStream(
-			delegate: InputStream,
-			private val onClose: () -> Unit
+		delegate: InputStream,
+		private val onClose: () -> Unit,
 	) : FilterInputStream(delegate) {
-		private var closed: Boolean = false
+		private var closed = false
 
 		override fun close() {
 			if (closed) return
@@ -102,7 +116,6 @@ class ZipArchiveExtractorTest {
 	@Nested
 	@DisplayName("Properties")
 	inner class Properties {
-
 		@Test
 		fun `supportedExtensions contains only zip`() {
 			extractor.supportedExtensions shouldContainExactly listOf("zip")
@@ -112,191 +125,201 @@ class ZipArchiveExtractorTest {
 	@Nested
 	@DisplayName("Preconditions")
 	inner class Preconditions {
-
 		@Test
-		fun `throws IllegalArgumentException when file is a directory`() {
-			val file = mockFile(stream = null, isDirectory = true)
-			assertThrows<IllegalArgumentException> {
-				extractor.extract(mockContext, file)
+		fun `throws IllegalArgumentException when file is a directory`() = runTest {
+			assertFailsWith<IllegalArgumentException> {
+				extractor.extract(mockContext, mockFile(null, isDirectory = true), { true }, {})
 			}
 		}
-	}
-
-	@Nested
-	@DisplayName("Null stream handling")
-	inner class NullStream {
 
 		@Test
-		fun `returns null when openInputStream returns null`() {
-			val file = mockFile(stream = null)
-			extractor.extract(mockContext, file).shouldBeNull()
+		fun `returns false when openInputStream returns null`() = runTest {
+			extractor.extract(mockContext, mockFile(null), { true }, {}) shouldBe false
+		}
+
+		@Test
+		fun `rejects source whose declared compressed size exceeds cap`() = runTest {
+			val file = mockFile(
+				bytes = byteArrayOf(),
+				declaredLength = ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES + 1,
+			)
+			assertFailsWith<IOException> {
+				extractor.extract(mockContext, file, { true }, {})
+			}
 		}
 	}
 
 	@Nested
 	@DisplayName("Extraction")
 	inner class Extraction {
-
 		@Test
-		fun `returns non-null sequence for valid zip with one entry`() {
-			val zipBytes = buildZipBytes(listOf("data.gpx" to "content".toByteArray()))
-			val file = mockFile(ByteArrayInputStream(zipBytes))
-
-			extractor.extract(mockContext, file).shouldNotBeNull()
+		fun `entry metadata and content are delivered to consumer`() = runTest {
+			val entries = extractAll(
+				extractor,
+				mockFile(buildZipBytes(listOf("track.gpx" to "<gpx/>".toByteArray()))),
+			)
+			entries.single().first shouldBe "track.gpx"
+			entries.single().second shouldBe "<gpx/>".toByteArray()
 		}
 
 		@Test
-		fun `first entry has correct filename`() {
-			val zipBytes = buildZipBytes(listOf("track.gpx" to "<gpx/>".toByteArray()))
-			val file = mockFile(ByteArrayInputStream(zipBytes))
-
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			result.first().fileName shouldBe "track.gpx"
-		}
-
-		@Test
-		fun `first entry extension is parsed correctly`() {
+		fun `archive source closes after extraction`() = runTest {
 			val zipBytes = buildZipBytes(listOf("export.json" to "{}".toByteArray()))
-			val file = mockFile(ByteArrayInputStream(zipBytes))
-
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			result.first().extension shouldBe "json"
-		}
-
-		@Test
-		fun `entry content remains readable after extractor returns`() {
-			val zipBytes = buildZipBytes(listOf("export.json" to """{"locations":[]}""".toByteArray()))
 			val archiveStream = CloseTrackingInputStream(ByteArrayInputStream(zipBytes))
-			val file = mockFile(archiveStream)
+			val file = mockk<DocumentFile> {
+				every { isDirectory } returns false
+				every { length() } returns zipBytes.size.toLong()
+			}
+			every { file.openInputStream(mockContext) } returns archiveStream
 
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
+			extractor.extract(mockContext, file, { true }, { it.readBytes() }) shouldBe true
 			archiveStream.closed shouldBe true
-			val text = result.first().bufferedReader().use { it.readText() }
-			text shouldBe """{"locations":[]}"""
 		}
 
 		@Test
-		fun `temp files are deleted when extracted stream closes`() {
-			val content = "<gpx/>".toByteArray()
-			val zipBytes = buildZipBytes(listOf("track.gpx" to content))
-			val file = mockFile(ByteArrayInputStream(zipBytes))
+		fun `temp file is deleted before next entry is materialized`() = runTest {
+			var created = 0
+			val lazyExtractor = ZipArchiveExtractor(
+				tempFileFactory = { directory ->
+					if (created > 0) cachedFiles().shouldBeEmpty()
+					created++
+					File.createTempFile("zip-entry-", ".tmp", directory)
+				},
+			)
+			val zip = buildZipBytes(
+				listOf(
+					"one.gpx" to "one".toByteArray(),
+					"two.gpx" to "two".toByteArray(),
+					"three.gpx" to "three".toByteArray(),
+				)
+			)
+			val consumed = mutableListOf<String>()
 
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			val stream = result.single()
+			lazyExtractor.extract(
+				mockContext,
+				mockFile(zip),
+				shouldExtract = { true },
+				consume = { stream ->
+					cachedFiles().size shouldBe 1
+					consumed += stream.readBytes().decodeToString()
+				},
+			) shouldBe true
 
-			try {
-				cachedFiles().size shouldBe 1
-				stream.readBytes() shouldBe content
-			} finally {
-				stream.close()
-			}
+			consumed shouldContainExactly listOf("one", "two", "three")
+			created shouldBe 3
 			cachedFiles().shouldBeEmpty()
 		}
 
 		@Test
-		fun `many entries open temp input streams lazily and one at a time`() {
+		fun `many entries open temp input streams one at a time`() = runTest {
 			var openedStreams = 0
 			var currentOpenStreams = 0
 			var maxOpenStreams = 0
 			val countingExtractor = ZipArchiveExtractor(
-					tempInputStreamFactory = { tempFile ->
-						openedStreams++
-						currentOpenStreams++
-						maxOpenStreams = maxOf(maxOpenStreams, currentOpenStreams)
-						CloseCountingInputStream(tempFile.inputStream()) {
-							currentOpenStreams--
-						}
+				tempInputStreamFactory = { tempFile ->
+					openedStreams++
+					currentOpenStreams++
+					maxOpenStreams = maxOf(maxOpenStreams, currentOpenStreams)
+					CloseCountingInputStream(tempFile.inputStream()) {
+						currentOpenStreams--
 					}
+				}
 			)
 			val entries = (0 until 64).map { index ->
 				"entry-$index.gpx" to "content-$index".toByteArray()
 			}
-			val zipBytes = buildZipBytes(entries)
-			val file = mockFile(ByteArrayInputStream(zipBytes))
 
-			val result = countingExtractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			val streams = result.toList()
+			val extracted = extractAll(countingExtractor, mockFile(buildZipBytes(entries)))
 
-			openedStreams shouldBe 0
-			streams.size shouldBe entries.size
-			streams.forEachIndexed { index, stream ->
-				stream.use {
-					it.readBytes() shouldBe entries[index].second
-				}
-				currentOpenStreams shouldBe 0
-			}
+			extracted.map { it.second.decodeToString() } shouldContainExactly
+				entries.map { it.second.decodeToString() }
 			openedStreams shouldBe entries.size
 			maxOpenStreams shouldBe 1
+			currentOpenStreams shouldBe 0
 			cachedFiles().shouldBeEmpty()
 		}
 
 		@Test
-		fun `materialized temp files are deleted when later entry extraction fails`() {
+		fun `materialized temp file is deleted when later extraction fails`() = runTest {
 			var createdTempFiles = 0
 			val failingExtractor = ZipArchiveExtractor(
-					tempFileFactory = { importCacheDir ->
-						createdTempFiles++
-						if (createdTempFiles == 2) throw IOException("Simulated temp file failure")
-						File.createTempFile("zip-entry-", ".tmp", importCacheDir)
-					}
+				tempFileFactory = { importCacheDir ->
+					createdTempFiles++
+					if (createdTempFiles == 2) throw IOException("Simulated temp file failure")
+					File.createTempFile("zip-entry-", ".tmp", importCacheDir)
+				}
 			)
-			val zipBytes = buildZipBytes(
-					listOf(
-							"first.gpx" to "first".toByteArray(),
-							"second.gpx" to "second".toByteArray(),
-					)
+			val zip = buildZipBytes(
+				listOf(
+					"first.gpx" to "first".toByteArray(),
+					"second.gpx" to "second".toByteArray(),
+				)
 			)
-			val file = mockFile(ByteArrayInputStream(zipBytes))
 
-			assertThrows<IOException> {
-				failingExtractor.extract(mockContext, file)
+			assertFailsWith<IOException> {
+				failingExtractor.extract(mockContext, mockFile(zip), { true }, { it.readBytes() })
 			}
 			cachedFiles().shouldBeEmpty()
 		}
 
 		@Test
-		fun `empty zip returns non-null sequence with no elements`() {
-			val zipBytes = buildZipBytes(emptyList())
-			val file = mockFile(ByteArrayInputStream(zipBytes))
+		fun `empty and directory-only archives consume no entries`() = runTest {
+			extractAll(extractor, mockFile(buildZipBytes(emptyList()))).shouldBeEmpty()
 
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			result.toList().shouldBeEmpty()
-		}
-
-		@Test
-		fun `directory-only zip returns non-null empty sequence`() {
-			// Zip containing only a directory entry — no regular files
-			val baos = ByteArrayOutputStream()
-			ZipOutputStream(baos).use { zos ->
-				zos.putNextEntry(ZipEntry("subdir/"))
-				zos.closeEntry()
+			val output = ByteArrayOutputStream()
+			ZipOutputStream(output).use { zip ->
+				zip.putNextEntry(ZipEntry("subdir/"))
+				zip.closeEntry()
 			}
-			val file = mockFile(ByteArrayInputStream(baos.toByteArray()))
-
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			result.toList().shouldBeEmpty()
+			extractAll(extractor, mockFile(output.toByteArray())).shouldBeEmpty()
 		}
 
 		@Test
-		fun `unsafe traversal entries are skipped`() {
-			val zipBytes = buildZipBytes(
-				listOf(
-					"../evil.gpx" to "bad".toByteArray(),
-					"tracks/safe.gpx" to "good".toByteArray(),
-				)
+		fun `unsafe traversal entries are skipped`() = runTest {
+			val entries = extractAll(
+				extractor,
+				mockFile(
+					buildZipBytes(
+						listOf(
+							"../evil.gpx" to "bad".toByteArray(),
+							"tracks/safe.gpx" to "good".toByteArray(),
+						)
+					)
+				),
 			)
-			val file = mockFile(ByteArrayInputStream(zipBytes))
+			entries.map { it.first } shouldContainExactly listOf("tracks/safe.gpx")
+		}
+	}
 
-			val result = extractor.extract(mockContext, file)
-			result.shouldNotBeNull()
-			result.map { it.fileName }.toList() shouldContainExactly listOf("tracks/safe.gpx")
+	@Nested
+	@DisplayName("Resource limits")
+	inner class ResourceLimits {
+		@Test
+		fun `archive exceeding maximum entry count is rejected`() = runTest {
+			val entries = (0..ZipArchiveExtractor.MAX_ENTRY_COUNT).map { index ->
+				"entry-$index.json" to byteArrayOf()
+			}
+			val file = mockFile(buildZipBytes(entries))
+
+			val failure = assertFailsWith<IOException> {
+				extractor.extract(mockContext, file, { true }, { it.readBytes() })
+			}
+
+			failure.message.orEmpty().contains("entry count limit") shouldBe true
+			cachedFiles().shouldBeEmpty()
+		}
+
+		@Test
+		fun `entry exceeding maximum compression ratio is rejected`() = runTest {
+			val highlyCompressible = ByteArray(4 * 1024 * 1024) { 'A'.code.toByte() }
+			val file = mockFile(buildZipBytes(listOf("bomb.json" to highlyCompressible)))
+
+			val failure = assertFailsWith<IOException> {
+				extractor.extract(mockContext, file, { true }, { it.readBytes() })
+			}
+
+			failure.message.orEmpty().contains("compression ratio") shouldBe true
+			cachedFiles().shouldBeEmpty()
 		}
 	}
 }

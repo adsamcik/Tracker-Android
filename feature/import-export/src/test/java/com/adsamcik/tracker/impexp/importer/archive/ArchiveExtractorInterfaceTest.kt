@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.importer.archive
 
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -32,30 +33,36 @@ class ArchiveExtractorInterfaceTest {
 	inner class ContractVerification {
 
 		@Test
-		fun `implementor exposes supported extensions`() {
+		fun `implementor exposes supported extensions`() = runTest {
 			val stub = object : ArchiveExtractor {
 				override val supportedExtensions = listOf("tar", "7z")
-				override fun extract(
+				override suspend fun extract(
 					context: android.content.Context,
 					file: androidx.documentfile.provider.DocumentFile,
-				) = null
+					shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+					consume: suspend (com.adsamcik.tracker.impexp.importer.FileImportStream) -> Unit,
+				) = false
 			}
 			stub.supportedExtensions shouldBe listOf("tar", "7z")
 		}
 
 		@Test
-		fun `extract can return null for unsupported archive`() {
+		fun `extract can report an unavailable archive stream`() = runTest {
 			val stub = object : ArchiveExtractor {
 				override val supportedExtensions = listOf("custom")
-				override fun extract(
+				override suspend fun extract(
 					context: android.content.Context,
 					file: androidx.documentfile.provider.DocumentFile,
-				) = null
+					shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+					consume: suspend (com.adsamcik.tracker.impexp.importer.FileImportStream) -> Unit,
+				) = false
 			}
 			stub.extract(
 				context = io.mockk.mockk(),
 				file = io.mockk.mockk(),
-			) shouldBe null
+				shouldExtract = { true },
+				consume = {},
+			) shouldBe false
 		}
 	}
 }

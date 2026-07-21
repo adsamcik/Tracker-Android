@@ -12,6 +12,8 @@ class FileImportStream private constructor(
 		 * File name with extension.
 		 */
 		val fileName: String,
+		/** Stable identity within a content-addressed import job. */
+		val receiptKey: String,
 		private val onClose: () -> Unit = {},
 		initialStream: InputStream? = null
 ) : InputStream() {
@@ -19,13 +21,20 @@ class FileImportStream private constructor(
 			stream: InputStream,
 			fileName: String,
 			onClose: () -> Unit = {}
-	) : this({ stream }, fileName, onClose, stream)
+	) : this({ stream }, fileName, fileName, onClose, stream)
 
 	constructor(
 			fileName: String,
 			streamProvider: () -> InputStream,
 			onClose: () -> Unit = {}
-	) : this(streamProvider, fileName, onClose)
+	) : this(streamProvider, fileName, fileName, onClose)
+
+	constructor(
+			fileName: String,
+			receiptKey: String,
+			streamProvider: () -> InputStream,
+			onClose: () -> Unit = {}
+	) : this(streamProvider, fileName, receiptKey, onClose)
 
 	private var stream: InputStream? = initialStream
 	private var closed: Boolean = false

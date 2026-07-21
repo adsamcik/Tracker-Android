@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 40         │ 400         │ 🚧 UNRELEASED - Durable content-addressed│
+ * │            │             │    import job and entry receipts.        │
  * │ 39         │ 400         │ 🚧 UNRELEASED - OSM import publication  │
  * │            │             │    status and crash-orphan recovery.     │
  * │ 38         │ 400         │ 🚧 UNRELEASED - Reconstructable raw     │
@@ -2192,5 +2194,53 @@ val MIGRATION_38_39: Migration = object : Migration(38, 39) {
 		db.execSQL(
 			"ALTER TABLE osm_import ADD COLUMN status TEXT NOT NULL DEFAULT 'READY'",
 		)
+	}
+}
+
+/** Adds durable content-addressed import job and per-entry receipts. */
+val MIGRATION_39_40: Migration = object : Migration(39, 40) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS import_job_receipt (
+					job_id TEXT NOT NULL,
+					source_name TEXT NOT NULL,
+					source_size_bytes INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					started_at INTEGER NOT NULL,
+					completed_at INTEGER,
+					updated_at INTEGER NOT NULL,
+					PRIMARY KEY(job_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS index_import_job_receipt_status " +
+					"ON import_job_receipt(status)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS import_entry_receipt (
+					job_id TEXT NOT NULL,
+					entry_key TEXT NOT NULL,
+					entry_name TEXT NOT NULL,
+					status TEXT NOT NULL,
+					success_count INTEGER NOT NULL,
+					skipped_count INTEGER NOT NULL,
+					failed_count INTEGER NOT NULL,
+					error_message TEXT,
+					updated_at INTEGER NOT NULL,
+					PRIMARY KEY(job_id, entry_key),
+					FOREIGN KEY(job_id) REFERENCES import_job_receipt(job_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS index_import_entry_receipt_job_id_status " +
+					"ON import_entry_receipt(job_id, status)",
+			)
+		}
 	}
 }

@@ -11,7 +11,20 @@ interface ArchiveExtractor {
 	val supportedExtensions: Collection<String>
 
 	/**
-	 * Extracts an archive.
+	 * Extracts and consumes one entry at a time. The entry stream is closed before the next
+	 * entry is inspected, bounding temporary files and open descriptors to O(1).
+	 *
+	 * @return false when the archive source cannot be opened.
 	 */
-	fun extract(context: Context, file: DocumentFile): Sequence<FileImportStream>?
+	suspend fun extract(
+		context: Context,
+		file: DocumentFile,
+		shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+		consume: suspend (FileImportStream) -> Unit,
+	): Boolean
 }
+
+data class ArchiveEntryMetadata(
+	val receiptKey: String,
+	val fileName: String,
+)

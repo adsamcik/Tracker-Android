@@ -11,16 +11,18 @@ import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import androidx.room.withTransaction
 import androidx.hilt.work.HiltWorker
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportJobRunner
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
+import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
-import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -44,6 +46,7 @@ class ImportWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, workerParams) {
 
     private val import = DataImport()
+    private val importJobRunner = ImportJobRunner(RoomImportReceiptStore(database))
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private var errorCount: Int = 0
@@ -63,7 +66,22 @@ class ImportWorker @AssistedInject constructor(
         )
 
         return try {
-            val importResult = handleFile(file)
+            val fileName = file.name ?: throw IOException("Missing import file name")
+            val sourceReadLimit = if (
+                file.extension.equals("zip", ignoreCase = true)
+            ) {
+                ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
+            } else {
+                Long.MAX_VALUE
+            }
+            val jobId = computeImportJobId(context, file, sourceReadLimit)
+            if (!importJobRunner.start(jobId, fileName, file.length())) {
+                val alreadyImported = ImportResult(skippedCount = 1)
+                showNotification(buildNotificationText(alreadyImported), false)
+                return Result.success()
+            }
+            val importResult = handleFile(file, jobId)
+            importJobRunner.completeIfSuccessful(jobId, importResult)
 
             val notificationText = buildNotificationText(importResult)
             showNotification(notificationText, false)
@@ -136,34 +154,23 @@ class ImportWorker @AssistedInject constructor(
     }
 
     @WorkerThread
-    private suspend fun extract(file: DocumentFile, extractor: ArchiveExtractor): ImportResult {
+    private suspend fun extract(
+        file: DocumentFile,
+        extractor: ArchiveExtractor,
+        jobId: String,
+    ): ImportResult {
         showNotification(
             context.getString(R.string.import_notification_extracting, file.name),
             true
         )
 
-        val extractionStream = extractor.extract(context, file)
-            ?: throw IOException("Failed to extract ${file.name ?: "archive"}")
-
-        val extractedStreams = extractionStream.toList()
-        return try {
-            importAll(extractedStreams.asSequence())
-        } finally {
-            extractedStreams.forEach { stream ->
-                runWithReport { stream.close() }
-            }
-        }
-    }
-
-    @WorkerThread
-    private suspend fun importAll(stream: Sequence<FileImportStream>): ImportResult {
-        var result = ImportResult.EMPTY
-        for (importStream in stream) {
-            importStream.use {
-                result += tryImport(it)
-            }
-        }
-        return result
+        return importJobRunner.importArchive(
+            jobId = jobId,
+            context = context,
+            file = file,
+            extractor = extractor,
+            importEntry = ::tryImport,
+        )
     }
 
     @WorkerThread
@@ -199,18 +206,7 @@ class ImportWorker @AssistedInject constructor(
 
         return runWithResultAndReport {
             try {
-                when (import.transactionMode) {
-                    ImportTransactionMode.IMPORTER_MANAGED ->
-                        import.import(context, database, stream)
-                    ImportTransactionMode.WORKER_MANAGED ->
-                        database.withTransaction {
-                            import.import(context, database, stream).also { result ->
-                                if (result.failedCount > 0) {
-                                    throw ImportTransactionRollback(result)
-                                }
-                            }
-                        }
-                }
+                import.import(context, database, stream)
             } catch (e: SQLiteCantOpenDatabaseException) {
                 showErrorNotification(
                     context.getString(
@@ -219,34 +215,37 @@ class ImportWorker @AssistedInject constructor(
                     )
                 )
                 throw e
-            } catch (rollback: ImportTransactionRollback) {
-                rollback.result
             }
         }.getOrThrow()
     }
 
-    private suspend fun handleFile(file: DocumentFile): ImportResult {
+    private suspend fun handleFile(file: DocumentFile, jobId: String): ImportResult {
         val extension = file.extension?.lowercase(Locale.ROOT)
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }
 
         return if (extractor != null) {
-            extract(file, extractor)
+            extract(file, extractor, jobId)
         } else {
             val fileName = file.name ?: throw IOException("Missing import file name")
             file.openInputStream(context)?.use { inputStream ->
-                tryImport(FileImportStream(inputStream, fileName))
+                importJobRunner.importSingle(
+                    jobId = jobId,
+                    stream = FileImportStream(
+                        fileName = fileName,
+                        receiptKey = DIRECT_ENTRY_KEY,
+                        streamProvider = { inputStream },
+                    ),
+                    importEntry = ::tryImport,
+                )
             } ?: throw IOException("Failed to open ${fileName}")
         }
     }
-
-    private class ImportTransactionRollback(
-        val result: ImportResult,
-    ) : RuntimeException()
 
     companion object {
         const val NOTIFICATION_ID: Int = 98784
         const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
         const val ARG_FILE_URI: String = "filePath"
+        private const val DIRECT_ENTRY_KEY: String = "direct-source-v1"
     }
 }

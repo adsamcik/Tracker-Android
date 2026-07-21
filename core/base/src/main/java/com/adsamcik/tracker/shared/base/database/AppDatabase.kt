@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
@@ -42,6 +43,8 @@ import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
 import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
@@ -99,11 +102,11 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 39 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 40 (App versionCode: 400 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 39,
+		version = 40,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -136,6 +139,8 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 			// Route compression and storage monitoring (Phase 6a)
 			RouteCacheEntity::class,
 			ExportLogEntity::class,
+			ImportJobReceiptEntity::class,
+			ImportEntryReceiptEntity::class,
 			StorageSizeSnapshotEntity::class,
 			// Domain events (stats pipeline)
 			DomainEventEntity::class,
@@ -294,6 +299,9 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun exportLogDao(): ExportLogDao
 
+	/** Provides durable job and entry receipts for resumable imports. */
+	abstract fun importReceiptDao(): ImportReceiptDao
+
 	/**
 	 * Provides access to daily storage size snapshots.
 	 */
@@ -411,6 +419,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_36_37,
 			MIGRATION_37_38,
 			MIGRATION_38_39,
+			MIGRATION_39_40,
 		)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -516,6 +525,8 @@ abstract class AppDatabase : RoomDatabase() {
 			// Route compression and storage monitoring tables
 			database.routeCacheDao().deleteAll()
 			database.exportLogDao().deleteAll()
+			database.importReceiptDao().deleteAllEntries()
+			database.importReceiptDao().deleteAllJobs()
 			database.storageSizeSnapshotDao().deleteAll()
 			database.openHelper.writableDatabase.execSQL("DELETE FROM domain_event_cursor")
 			database.openHelper.writableDatabase.execSQL("DELETE FROM domain_event")
@@ -539,6 +550,6 @@ abstract class AppDatabase : RoomDatabase() {
 			database.osmImportDao().deleteAllTables()
 		}
 
-		private const val CURRENT_DATABASE_VERSION = 39
+		private const val CURRENT_DATABASE_VERSION = 40
 	}
 }
