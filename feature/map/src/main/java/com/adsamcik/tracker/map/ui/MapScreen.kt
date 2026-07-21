@@ -901,8 +901,8 @@ fun MapScreen(
         LocationAndSensorsManager(appContext, uiLocationProvider)
     }
 
-    LaunchedEffect(locationManager, hasLocationPermission, overlayMode) {
-        if (!hasLocationPermission || overlayMode) return@LaunchedEffect
+    LaunchedEffect(locationManager, hasLocationPermission, overlayMode, isMapVisible) {
+        if (!isMapVisible || !hasLocationPermission || overlayMode) return@LaunchedEffect
         try {
             locationManager.locationUpdates(highAccuracy = true).collectLatest { (lat, lng, accuracy) ->
                 store.dispatch(
@@ -919,8 +919,8 @@ fun MapScreen(
         }
     }
 
-    LaunchedEffect(locationManager, overlayMode) {
-        if (overlayMode) return@LaunchedEffect
+    LaunchedEffect(locationManager, overlayMode, isMapVisible) {
+        if (!isMapVisible || overlayMode) return@LaunchedEffect
         try {
             locationManager.bearingUpdates().collectLatest { bearing ->
                 store.dispatch(MapEvent.SetBearing(bearing))
@@ -933,7 +933,8 @@ fun MapScreen(
     }
 
     // Observe gesture-initiated camera moves to cancel follow
-    LaunchedEffect(cameraState) {
+    LaunchedEffect(cameraState, isMapVisible) {
+        if (!isMapVisible) return@LaunchedEffect
         snapshotFlow { cameraState.moveReason }
             .collect { reason ->
                 if (!overlayMode && reason == CameraMoveReason.GESTURE) {
@@ -943,7 +944,8 @@ fun MapScreen(
     }
 
     // Report camera position changes
-    LaunchedEffect(cameraState) {
+    LaunchedEffect(cameraState, isMapVisible) {
+        if (!isMapVisible) return@LaunchedEffect
         snapshotFlow { cameraState.position }
             .distinctUntilChanged()
             .collect { pos ->
@@ -974,7 +976,8 @@ fun MapScreen(
     }
 
     // Consume one-off effects
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isMapVisible) {
+        if (!isMapVisible) return@LaunchedEffect
         store.effects.collectLatest { effect ->
             when (effect) {
                 is MapEffect.CenterCamera -> {
