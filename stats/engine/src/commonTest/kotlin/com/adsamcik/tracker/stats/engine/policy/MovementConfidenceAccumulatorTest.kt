@@ -314,6 +314,63 @@ class MovementConfidenceAccumulatorTest {
 	}
 
 	@Nested
+	inner class FalseEscalationBackoffTests {
+		@Test
+		fun `reachabilityInvariant_precisionAlwaysReachableAtMaxMultiplier`() {
+			repeat(3) {
+				performActiveCycle(rapid = true)
+			}
+
+			sustainMovementUntil(PolicyTier.PRECISION)
+
+			accumulator.tier shouldBe PolicyTier.PRECISION
+			accumulator.currentConfidence shouldBe MovementConfidenceAccumulator.MAX_CONFIDENCE
+		}
+
+		@Test
+		fun `ordinaryLegitimateActivation_doesNotIncrementFalseEscalationBudget`() {
+			repeat(4) {
+				val confidenceAtActivation = performActiveCycle(rapid = false)
+				confidenceAtActivation shouldBeLessThan safeActiveThreshold
+			}
+
+			escalateToPrecisionWithoutSaturating()
+
+			accumulator.tier shouldBe PolicyTier.PRECISION
+			accumulator.currentConfidence shouldBeLessThan MovementConfidenceAccumulator.MAX_CONFIDENCE
+		}
+
+		@Test
+		fun `rapidFlappingCycles_doesTriggerBackoffButRemainsReachable`() {
+			repeat(3) {
+				performActiveCycle(rapid = true)
+			}
+
+			assertBackoffEngaged()
+			sustainMovementUntil(PolicyTier.PRECISION)
+
+			accumulator.tier shouldBe PolicyTier.PRECISION
+			accumulator.currentConfidence shouldBe MovementConfidenceAccumulator.MAX_CONFIDENCE
+		}
+
+		@Test
+		fun `falseEscalationWindowReset_alsoResetsMultiplier`() {
+			repeat(3) {
+				performActiveCycle(rapid = true)
+			}
+			assertBackoffEngaged()
+
+			currentTimeMs += 3_600_001L
+			accumulator.setTier(PolicyTier.AMBIENT, currentTimeMs)
+			currentTimeMs += 30_000L
+			accumulator.onActivityDetected(DetectedActivityType.RUNNING, 100, currentTimeMs)
+
+			accumulator.tier shouldBe PolicyTier.ACTIVE
+			accumulator.currentConfidence shouldBeLessThan safeActiveThreshold
+		}
+	}
+
+	@Nested
 	inner class MotionRetentionTests {
 		@Test
 		fun `moving speed after long callback gap prevents downgrade`() {
@@ -417,6 +474,75 @@ class MovementConfidenceAccumulatorTest {
 				DetectedActivityType.RUNNING, 100, currentTimeMs
 			)
 			currentTimeMs += 5_000L // 5s spacing → satisfies dwell times gradually
+			iterations++
+		}
+	}
+
+	private val safeActiveThreshold: Double
+		get() = MovementConfidenceAccumulator.THRESHOLD_ACTIVE *
+			(MovementConfidenceAccumulator.MAX_CONFIDENCE /
+				MovementConfidenceAccumulator.THRESHOLD_PRECISION)
+
+	private fun performActiveCycle(rapid: Boolean): Double {
+		escalateToActive()
+		val confidenceAtActivation = accumulator.currentConfidence
+
+		currentTimeMs += if (rapid) 60_000L else 180_000L
+		accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+		currentTimeMs += MovementConfidenceAccumulator.STILLNESS_CONFIRMATION_MS
+		accumulator.onActivityDetected(DetectedActivityType.STILL, 100, currentTimeMs)
+
+		accumulator.tier shouldBe PolicyTier.AMBIENT
+		return confidenceAtActivation
+	}
+
+	private fun escalateToActive() {
+		if (accumulator.tier == PolicyTier.OFF) {
+			while (accumulator.tier < PolicyTier.AMBIENT) {
+				accumulator.onActivityDetected(DetectedActivityType.RUNNING, 100, currentTimeMs)
+			}
+			currentTimeMs += 30_000L
+		} else {
+			currentTimeMs += 60_000L
+		}
+
+		var iterations = 0
+		while (accumulator.tier < PolicyTier.ACTIVE && iterations < 10) {
+			accumulator.onActivityDetected(DetectedActivityType.RUNNING, 100, currentTimeMs)
+			iterations++
+		}
+		accumulator.tier shouldBe PolicyTier.ACTIVE
+	}
+
+	private fun assertBackoffEngaged() {
+		accumulator.setTier(PolicyTier.AMBIENT, currentTimeMs)
+		currentTimeMs += 60_000L
+		while (accumulator.currentConfidence <= MovementConfidenceAccumulator.THRESHOLD_ACTIVE) {
+			accumulator.onSignificantMotion(currentTimeMs)
+		}
+
+		accumulator.tier shouldBe PolicyTier.AMBIENT
+		accumulator.currentConfidence shouldBeLessThan safeActiveThreshold
+	}
+
+	private fun escalateToPrecisionWithoutSaturating() {
+		escalateToActive()
+		currentTimeMs += 120_000L
+
+		var iterations = 0
+		while (accumulator.tier < PolicyTier.PRECISION && iterations < 10) {
+			accumulator.onActivityDetected(DetectedActivityType.RUNNING, 100, currentTimeMs)
+			iterations++
+		}
+	}
+
+	private fun sustainMovementUntil(targetTier: PolicyTier) {
+		var iterations = 0
+		while (accumulator.tier < targetTier && iterations < 20) {
+			currentTimeMs += 60_000L
+			repeat(8) {
+				accumulator.onActivityDetected(DetectedActivityType.RUNNING, 100, currentTimeMs)
+			}
 			iterations++
 		}
 	}

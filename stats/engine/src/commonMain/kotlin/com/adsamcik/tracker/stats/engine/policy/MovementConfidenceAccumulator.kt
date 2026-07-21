@@ -32,6 +32,7 @@ class MovementConfidenceAccumulator(
 	private var falseEscalationCount: Int = 0
 	private var falseEscalationWindowStartMs: Long = 0L
 	private var thresholdMultiplier: Double = 1.0
+	private var trackedEscalationTier: PolicyTier? = null
 	private var lastMotionEvidenceMs: Long = 0L
 	private var stillnessStartedMs: Long = 0L
 
@@ -158,6 +159,7 @@ class MovementConfidenceAccumulator(
 		falseEscalationCount = 0
 		falseEscalationWindowStartMs = 0L
 		thresholdMultiplier = 1.0
+		trackedEscalationTier = null
 		lastMotionEvidenceMs = 0L
 		stillnessStartedMs = 0L
 	}
@@ -172,6 +174,7 @@ class MovementConfidenceAccumulator(
 		lastUpdateMs = timestampMs
 		lastMotionEvidenceMs = if (tier.isGpsEnabled) timestampMs else 0L
 		stillnessStartedMs = 0L
+		trackedEscalationTier = null
 	}
 
 	private fun observeActivityEvidence(
@@ -199,17 +202,17 @@ class MovementConfidenceAccumulator(
 	}
 
 	private fun evaluateTierTransition(timestampMs: Long): PolicyTier? {
+		resetFalseEscalationWindowIfExpired(timestampMs)
 		val requestedTier = tierFromConfidence(confidence)
 
 		if (requestedTier == currentTier) return null
 
 		if (requestedTier > currentTier) {
 			if (!canEscalate(timestampMs)) return null
-			val previousTier = currentTier
 			currentTier = requestedTier
 			tierEntryTimeMs = timestampMs
-			if (previousTier < PolicyTier.ACTIVE && requestedTier >= PolicyTier.ACTIVE) {
-				trackEscalation(timestampMs)
+			if (requestedTier >= PolicyTier.ACTIVE) {
+				trackedEscalationTier = requestedTier
 			}
 			return requestedTier
 		}
@@ -220,6 +223,12 @@ class MovementConfidenceAccumulator(
 		// moving track. Each lower tier must independently satisfy its own dwell/evidence window.
 		val nextLowerTier = PolicyTier.entries[currentTier.ordinal - 1]
 		val effectiveTier = maxOf(requestedTier, nextLowerTier)
+		if (trackedEscalationTier == currentTier) {
+			if (isRapidFalseEscalation(currentTier, timestampMs - tierEntryTimeMs)) {
+				trackFalseEscalation(timestampMs)
+			}
+			trackedEscalationTier = null
+		}
 		currentTier = effectiveTier
 		tierEntryTimeMs = timestampMs
 		lastDeEscalationTimeMs = timestampMs
@@ -266,10 +275,27 @@ class MovementConfidenceAccumulator(
 		return confirmedStillness || prolongedAbsenceOfMotion
 	}
 
-	private fun trackEscalation(timestampMs: Long) {
-		// Reset window if more than 1 hour has passed
-		if (timestampMs - falseEscalationWindowStartMs > FALSE_ESCALATION_WINDOW_MS) {
+	private fun isRapidFalseEscalation(tier: PolicyTier, activationDurationMs: Long): Boolean {
+		// De-escalation is already blocked for the tier's normal dwell. One additional minimum
+		// dwell is a narrow grace period that identifies exits at the earliest allowed opportunity.
+		val rapidExitLimitMs = deEscalationDwellTimeMs(tier) + minDwellTimeMs(tier)
+		return activationDurationMs.coerceAtLeast(0L) < rapidExitLimitMs
+	}
+
+	private fun resetFalseEscalationWindowIfExpired(timestampMs: Long) {
+		if (
+			falseEscalationCount > 0 &&
+			timestampMs - falseEscalationWindowStartMs > FALSE_ESCALATION_WINDOW_MS
+		) {
 			falseEscalationCount = 0
+			falseEscalationWindowStartMs = 0L
+			thresholdMultiplier = 1.0
+		}
+	}
+
+	private fun trackFalseEscalation(timestampMs: Long) {
+		resetFalseEscalationWindowIfExpired(timestampMs)
+		if (falseEscalationCount == 0) {
 			falseEscalationWindowStartMs = timestampMs
 		}
 		falseEscalationCount++
@@ -326,7 +352,7 @@ class MovementConfidenceAccumulator(
 		/** False escalation tracking. */
 		private const val FALSE_ESCALATION_WINDOW_MS = 3_600_000L // 1 hour
 		private const val FALSE_ESCALATION_LIMIT = 3
-		private const val MAX_THRESHOLD_MULTIPLIER = 4.0
+		private const val MAX_THRESHOLD_MULTIPLIER = MAX_CONFIDENCE / THRESHOLD_PRECISION
 
 		private fun confidenceFloorForTier(tier: PolicyTier): Double = when (tier) {
 			PolicyTier.OFF -> 0.0
