@@ -8,33 +8,41 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceAnalysisDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -73,8 +81,6 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.endTransaction() } returns Unit
 		val locationDao: LocationSampleDao = mockk(relaxed = true)
 		val locationObservationDao: LocationObservationDao = mockk(relaxed = true)
-		val presenceIntervalDao: PresenceIntervalDao = mockk(relaxed = true)
-		val presenceAnalysisDao: PresenceAnalysisDao = mockk(relaxed = true)
 		val stepDao: StepIntervalDao = mockk(relaxed = true)
 		val activityDao: ActivitySnapshotDao = mockk(relaxed = true)
 		val runDao: TrackerRunDao = mockk(relaxed = true)
@@ -90,14 +96,16 @@ class RetentionPipelineWorkerRobolectricTest {
 		val domainEventDao: DomainEventDao = mockk(relaxed = true)
 		val exportLogDao: ExportLogDao = mockk(relaxed = true)
 		val pendingSignalDao: PendingSignalDao = mockk(relaxed = true)
-		coEvery { presenceAnalysisDao.getCheckpoint(any()) } returns null
+		val locationObservationDecisionDao: LocationObservationDecisionDao = mockk(relaxed = true)
+		val trackerStateEventDao: TrackerStateEventDao = mockk(relaxed = true)
+		val sourceEvidenceStateDao = sourceEvidenceStateDao()
+		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
+		val collectedDataLifecycleStore = lifecycleStore()
 		coEvery { runDao.minStartTimeMs() } returns null
 		coEvery { locationObservationDao.minFixTimeMs() } returns null
 
 		every { db.locationSampleDao() } returns locationDao
 		every { db.locationObservationDao() } returns locationObservationDao
-		every { db.presenceIntervalDao() } returns presenceIntervalDao
-		every { db.presenceAnalysisDao() } returns presenceAnalysisDao
 		every { db.stepIntervalDao() } returns stepDao
 		every { db.activitySnapshotDao() } returns activityDao
 		every { db.trackerRunDao() } returns runDao
@@ -117,15 +125,32 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao
 		every { db.pendingSignalDao() } returns pendingSignalDao
+		every { db.locationObservationDecisionDao() } returns locationObservationDecisionDao
+		every { db.trackerStateEventDao() } returns trackerStateEventDao
+		every { db.sourceEvidenceStateDao() } returns sourceEvidenceStateDao
 
-		val worker = worker(context, store, db)
+		val worker = worker(
+			context,
+			store,
+			db,
+			migrationBackupRepository,
+			collectedDataLifecycleStore,
+		)
 
 		assertEquals(ListenableWorker.Result.success(), worker.doWork())
 
 		coVerify(exactly = 1) { locationDao.deleteOlderThan(any()) }
+		coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+		coVerifyOrder {
+			collectedDataLifecycleStore.advanceRetainedFrom(any())
+			locationDao.deleteOlderThan(any())
+		}
 		coVerify(exactly = 1) { locationObservationDao.deleteOlderThan(any()) }
 		coVerify(exactly = 0) { locationObservationDao.deleteOlderThanThroughId(any(), any()) }
-		verify(exactly = 0) { db.presenceAnalysisDao() }
+		coVerify(exactly = 1) { locationObservationDecisionDao.deleteOlderThan(any()) }
+		coVerify(exactly = 1) { locationObservationDecisionDao.deleteWithoutObservation() }
+		coVerify(exactly = 1) { trackerStateEventDao.deleteOlderThan(any()) }
+		coVerify(exactly = 1) { sourceEvidenceStateDao.updateLifecycle(any(), any(), any()) }
 		coVerify(exactly = 1) { stepDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { activityDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { runDao.deleteOlderThan(any()) }
@@ -140,12 +165,17 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { dailySummaryDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { exportLogDao.deleteOlderThan(any()) }
+		verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 	}
 
 	@Test
-	fun `pending signal WAL blocks raw retention`() = runTest {
+	fun `pending signal WAL defers raw retention after advancing privacy boundary`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val db = AppDatabase.testDatabase(context)
+		val collectedDataLifecycleStore = lifecycleStore(
+			CollectedDataLifecycleSnapshot(epoch = 9L, retainedFromMs = 1_234L),
+		)
+		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 		try {
 			db.locationSampleDao().insert(
 				LocationSample(
@@ -172,16 +202,23 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(
-				ListenableWorker.Result.success(),
+				ListenableWorker.Result.retry(),
 				worker(
 					context,
 					retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
 					db,
+					migrationBackupRepository = migrationBackupRepository,
+					collectedDataLifecycleStore = collectedDataLifecycleStore,
 				).doWork(),
 			)
 
 			assertEquals(1L, db.locationSampleDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
+			assertEquals(1L, db.sourceEvidenceStateDao().get()?.revision)
+			assertEquals(9L, db.sourceEvidenceStateDao().get()?.collectedDataEpoch)
+			assertEquals(1_234L, db.sourceEvidenceStateDao().get()?.retainedFromMs)
+			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
 			db.close()
 		}
@@ -272,6 +309,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		context: Context,
 		store: RetentionConfigStore,
 		db: AppDatabase,
+		migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true),
+		collectedDataLifecycleStore: CollectedDataLifecycleStore = lifecycleStore(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -283,7 +322,9 @@ class RetentionPipelineWorkerRobolectricTest {
 					appContext,
 					workerParameters,
 					store,
+					collectedDataLifecycleStore,
 					db,
+					migrationBackupRepository,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -309,16 +350,18 @@ class RetentionPipelineWorkerRobolectricTest {
 	): AppDatabase {
 		val db: AppDatabase = mockk(relaxed = true)
 		every { db.transactionExecutor } returns DIRECT_EXECUTOR
+		every { db.suspendingTransactionContext } returns
+			ThreadLocal.withInitial { EmptyCoroutineContext }
+		every { db.beginTransaction() } returns Unit
+		every { db.setTransactionSuccessful() } returns Unit
+		every { db.endTransaction() } returns Unit
 		val locationObservationDao: LocationObservationDao = mockk(relaxed = true)
-		val presenceAnalysisDao: PresenceAnalysisDao = mockk(relaxed = true)
+		val sourceEvidenceStateDao = sourceEvidenceStateDao()
 		val trackerRunDao: TrackerRunDao = mockk(relaxed = true)
-		coEvery { presenceAnalysisDao.getCheckpoint(any()) } returns null
 		coEvery { trackerRunDao.minStartTimeMs() } returns null
 		coEvery { locationObservationDao.minFixTimeMs() } returns null
 		every { db.locationSampleDao() } returns mockk(relaxed = true)
 		every { db.locationObservationDao() } returns locationObservationDao
-		every { db.presenceIntervalDao() } returns mockk(relaxed = true)
-		every { db.presenceAnalysisDao() } returns presenceAnalysisDao
 		every { db.stepIntervalDao() } returns mockk(relaxed = true)
 		every { db.activitySnapshotDao() } returns mockk(relaxed = true)
 		every { db.trackerRunDao() } returns trackerRunDao
@@ -326,7 +369,24 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao
 		every { db.pendingSignalDao() } returns pendingSignalDao
+		every { db.locationObservationDecisionDao() } returns mockk(relaxed = true)
+		every { db.trackerStateEventDao() } returns mockk(relaxed = true)
+		every { db.sourceEvidenceStateDao() } returns sourceEvidenceStateDao
 		return db
+	}
+
+	private fun lifecycleStore(
+		snapshot: CollectedDataLifecycleSnapshot =
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 1L),
+	): CollectedDataLifecycleStore = mockk {
+		coEvery { advanceRetainedFrom(any()) } returns snapshot
+	}
+
+	private fun sourceEvidenceStateDao(): SourceEvidenceStateDao = mockk {
+		coEvery { ensure(any()) } just Runs
+		coEvery { get() } returns SourceEvidenceState()
+		coEvery { updateLifecycle(any(), any(), any()) } returns 1
+		coEvery { incrementRevision(any()) } returns 1
 	}
 
 	private companion object {

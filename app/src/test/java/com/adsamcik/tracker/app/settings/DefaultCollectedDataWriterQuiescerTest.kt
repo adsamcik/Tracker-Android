@@ -13,9 +13,13 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
+import com.adsamcik.tracker.impexp.importer.DataImporter
+import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.osm.imp.OsmImportWorker
@@ -95,6 +99,36 @@ class DefaultCollectedDataWriterQuiescerTest {
 			ExistingWorkPolicy.REPLACE,
 			osmImport,
 		).result.get()
+		val import = delayedWork()
+		workManager.enqueueUniqueWork(
+			DataImporter.UNIQUE_WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			import,
+		).result.get()
+		val pendingSignalDrain = delayedWork()
+		workManager.enqueueUniqueWork(
+			PendingSignalDrainWork.UNIQUE_WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			pendingSignalDrain,
+		).result.get()
+		val retention = delayedWork()
+		workManager.enqueueUniqueWork(
+			RetentionPipelineWorker.WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			retention,
+		).result.get()
+		val legacyRetention = delayedWork()
+		workManager.enqueueUniqueWork(
+			RetentionPipelineWorker.LEGACY_WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			legacyRetention,
+		).result.get()
+		val databaseMaintenance = delayedWork()
+		workManager.enqueueUniqueWork(
+			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
+			ExistingWorkPolicy.REPLACE,
+			databaseMaintenance,
+		).result.get()
 		val quiescer = DefaultCollectedDataWriterQuiescer(
 			context = context,
 			trackerStateReader = trackerStateReader,
@@ -104,7 +138,8 @@ class DefaultCollectedDataWriterQuiescerTest {
 
 		quiescer.quiesce()
 
-		(requests + dailySummary + osmImport).forEach { request ->
+		(requests + dailySummary + osmImport + import + pendingSignalDrain + retention +
+			legacyRetention + databaseMaintenance).forEach { request ->
 			workManager.getWorkInfoById(request.id).get()?.state shouldBe WorkInfo.State.CANCELLED
 		}
 		verify(exactly = 1) { activityWatcherController.pauseForDataDeletion() }
@@ -116,6 +151,12 @@ class DefaultCollectedDataWriterQuiescerTest {
 		verify(exactly = 1) { activityWatcherController.resumeAfterDataDeletion() }
 		workManager.getWorkInfosForUniqueWork(
 			DailySummaryMaterializationWorker.UNIQUE_WORK_ID,
+		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
+		workManager.getWorkInfosForUniqueWork(
+			RetentionPipelineWorker.WORK_NAME,
+		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
+		workManager.getWorkInfosForUniqueWork(
+			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
 		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
 	}
 

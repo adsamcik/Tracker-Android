@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
@@ -117,6 +119,12 @@ abstract class RepositoryModule {
 			context = context,
 			ioDispatcher = dispatchers.io,
 		)
+
+		@Provides
+		@Singleton
+		fun provideCollectedDataLifecycleStore(
+			@ApplicationContext context: Context,
+		): CollectedDataLifecycleStore = DefaultCollectedDataLifecycleStore(context)
 
 		@Provides
 		@Singleton

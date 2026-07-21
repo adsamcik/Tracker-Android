@@ -4,16 +4,22 @@ import android.content.Context
 import android.system.Os
 import android.system.OsConstants
 import androidx.work.Operation
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
+import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
+import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
@@ -23,6 +29,8 @@ import java.io.FileOutputStream
 import java.util.concurrent.ExecutionException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
 interface CollectedDataDeletionService {
@@ -44,8 +52,13 @@ class DefaultCollectedDataWriterQuiescer(
 	private val exportAutomationController: ExportAutomationController,
 ) : CollectedDataWriterQuiescer {
 	private val workManager = WorkManager.getInstance(context)
+	private var restoreRetentionSchedule = false
+	private var restoreDatabaseMaintenance = false
 
 	override suspend fun quiesce() {
+		restoreRetentionSchedule = hasActiveUniqueWork(RetentionPipelineWorker.WORK_NAME) ||
+			hasActiveUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME)
+		restoreDatabaseMaintenance = hasActiveUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
 		activityWatcherController.pauseForDataDeletion()
 		TrackerServiceApi.stopService(context)
 		try {
@@ -74,6 +87,26 @@ class DefaultCollectedDataWriterQuiescer(
 				workManager.cancelUniqueWork(OsmImportWorker.UNIQUE_WORK_NAME),
 				"OSM import",
 			)
+			awaitCancellation(
+				DataImporter.cancel(context),
+				"data import",
+			)
+			awaitCancellation(
+				PendingSignalDrainWork.cancel(context),
+				"pending-signal recovery",
+			)
+			awaitCancellation(
+				workManager.cancelUniqueWork(RetentionPipelineWorker.WORK_NAME),
+				"data retention",
+			)
+			awaitCancellation(
+				workManager.cancelUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME),
+				"legacy data retention",
+			)
+			awaitCancellation(
+				DatabaseMaintenanceWorker.cancel(context),
+				"database maintenance",
+			)
 			exportAutomationController.pauseForDataDeletion()
 		} catch (error: TimeoutCancellationException) {
 			throw DatabaseMigrationBackupException(
@@ -84,6 +117,14 @@ class DefaultCollectedDataWriterQuiescer(
 	}
 
 	override fun resume() {
+		if (restoreRetentionSchedule) {
+			RetentionPipelineWorker.ensureScheduled(context)
+		}
+		if (restoreDatabaseMaintenance) {
+			DatabaseMaintenanceWorker.schedule(context)
+		}
+		restoreRetentionSchedule = false
+		restoreDatabaseMaintenance = false
 		DailySummaryMaterializationWorker.schedule(context)
 		exportAutomationController.resumeAfterDataDeletion()
 		activityWatcherController.resumeAfterDataDeletion()
@@ -106,8 +147,30 @@ class DefaultCollectedDataWriterQuiescer(
 		}
 	}
 
+	private fun hasActiveUniqueWork(uniqueWorkName: String): Boolean = try {
+		workManager.getWorkInfosForUniqueWork(uniqueWorkName).get().any { workInfo ->
+			workInfo.state in ACTIVE_WORK_STATES
+		}
+	} catch (error: InterruptedException) {
+		Thread.currentThread().interrupt()
+		throw DatabaseMigrationBackupException(
+			"Interrupted while checking $uniqueWorkName work",
+			error,
+		)
+	} catch (error: ExecutionException) {
+		throw DatabaseMigrationBackupException(
+			"Could not check $uniqueWorkName work",
+			error.cause ?: error,
+		)
+	}
+
 	private companion object {
 		const val TRACKER_STOP_TIMEOUT_MS = 30_000L
+		val ACTIVE_WORK_STATES = setOf(
+			WorkInfo.State.ENQUEUED,
+			WorkInfo.State.RUNNING,
+			WorkInfo.State.BLOCKED,
+		)
 	}
 }
 
@@ -116,27 +179,51 @@ class DefaultCollectedDataDeletionService(
 	private val pointsAwardedDao: PointsAwardedDao,
 	private val exportPlanStore: ExportPlanStore,
 	private val writerQuiescer: CollectedDataWriterQuiescer,
-	private val appDatabaseDeletion: (Context) -> Unit = AppDatabase::deleteAllCollectedData,
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
+	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
+		{ context, epoch, retainedFromMs, updatedAtMs ->
+			AppDatabase.deleteAllCollectedData(
+				context = context,
+				collectedDataEpoch = epoch,
+				retainedFromMs = retainedFromMs,
+				updatedAtMs = updatedAtMs,
+			)
+		},
 	private val markerFile: File = File(
 		context.noBackupFilesDir,
 		"collected-data-deletion-pending",
 	),
 	private val directorySync: (File) -> Unit = ::syncDirectory,
 ) : CollectedDataDeletionService {
+	private val deletionMutex = Mutex()
+
 	override suspend fun deleteAll() {
-		runDeletion(writeMarker = true)
+		deletionMutex.withLock {
+			runDeletion(writeMarker = true)
+		}
 	}
 
 	override suspend fun reconcilePendingDeletion() {
-		if (!markerFile.exists()) return
-		runDeletion(writeMarker = false)
+		deletionMutex.withLock {
+			if (!markerFile.exists()) return@withLock
+			runDeletion(writeMarker = false)
+		}
 	}
 
 	private suspend fun runDeletion(writeMarker: Boolean) {
 		try {
-			writerQuiescer.quiesce()
 			if (writeMarker) writeDeletionMarker()
-			performDeletion()
+			// This transition is deliberately outside collected Room rows and happens
+			// before writers are stopped or the database is cleared.  Any work that
+			// captured the old epoch can no longer publish after this point.
+			val lifecycleUpdatedAtMs = System.currentTimeMillis()
+			val lifecycle = collectedDataLifecycleStore.beginFullDeletion(lifecycleUpdatedAtMs)
+			writerQuiescer.quiesce()
+			performDeletion(
+				epoch = lifecycle.epoch,
+				retainedFromMs = lifecycle.retainedFromMs,
+				updatedAtMs = lifecycleUpdatedAtMs,
+			)
 			exportPlanStore.resetAllWatermarks()
 			clearDeletionMarker()
 		} finally {
@@ -144,9 +231,13 @@ class DefaultCollectedDataDeletionService(
 		}
 	}
 
-	private fun performDeletion() {
+	private suspend fun performDeletion(
+		epoch: Long,
+		retainedFromMs: Long?,
+		updatedAtMs: Long,
+	) {
 		pointsAwardedDao.deleteAll()
-		appDatabaseDeletion(context)
+		appDatabaseDeletion(context, epoch, retainedFromMs, updatedAtMs)
 		RETIRED_DATABASE_NAMES.forEach(::deleteRetiredDatabase)
 	}
 

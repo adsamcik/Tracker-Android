@@ -83,13 +83,13 @@ class DatabaseMaintenanceWorkerTest {
 		}
 
 		@Test
-		fun `uses UPDATE policy for existing periodic work`() {
+		fun `uses KEEP policy for existing periodic work`() {
 			DatabaseMaintenanceWorker.schedule(context)
 
 			verify {
 				mockWorkManager.enqueueUniquePeriodicWork(
 					any(),
-					eq(ExistingPeriodicWorkPolicy.UPDATE),
+					eq(ExistingPeriodicWorkPolicy.KEEP),
 					any<PeriodicWorkRequest>()
 				)
 			}

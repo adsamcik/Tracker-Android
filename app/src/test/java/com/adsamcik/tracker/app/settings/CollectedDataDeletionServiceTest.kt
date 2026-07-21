@@ -6,11 +6,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
 import com.adsamcik.tracker.points.database.PointsAwardedDao
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -32,6 +35,7 @@ class CollectedDataDeletionServiceTest {
 	private val pointsAwardedDao: PointsAwardedDao = mockk()
 	private val exportPlanStore: ExportPlanStore = mockk()
 	private val writerQuiescer: CollectedDataWriterQuiescer = mockk()
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk()
 
 	@Before
 	fun setUp() {
@@ -47,6 +51,8 @@ class CollectedDataDeletionServiceTest {
 			ExportPlansProto.getDefaultInstance()
 		coEvery { writerQuiescer.quiesce() } just Runs
 		every { writerQuiescer.resume() } just Runs
+		coEvery { collectedDataLifecycleStore.beginFullDeletion(any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 1L)
 	}
 
 	@After
@@ -58,8 +64,12 @@ class CollectedDataDeletionServiceTest {
 	@Test
 	fun `delete clears every database`() = runTest {
 		var appDeletionCount = 0
-		val service = createService {
+		var capturedEpoch: Long? = null
+		var capturedRetainedFromMs: Long? = null
+		val service = createService { _, epoch, retainedFromMs, _ ->
 			appDeletionCount++
+			capturedEpoch = epoch
+			capturedRetainedFromMs = retainedFromMs
 		}
 
 		service.deleteAll()
@@ -67,8 +77,15 @@ class CollectedDataDeletionServiceTest {
 		verify(exactly = 1) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
 		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 1) { collectedDataLifecycleStore.beginFullDeletion(any()) }
+		coVerifyOrder {
+			collectedDataLifecycleStore.beginFullDeletion(any())
+			writerQuiescer.quiesce()
+		}
 		verify(exactly = 1) { writerQuiescer.resume() }
 		appDeletionCount shouldBe 1
+		capturedEpoch shouldBe 1L
+		capturedRetainedFromMs shouldBe 1L
 		markerFile.exists() shouldBe false
 		RETIRED_DATABASE_NAMES.forEach {
 			context.getDatabasePath(it).exists() shouldBe false
@@ -77,7 +94,7 @@ class CollectedDataDeletionServiceTest {
 
 	@Test
 	fun `pending deletion resumes`() = runTest {
-		val firstAttempt = createService {
+		val firstAttempt = createService { _, _, _, _ ->
 			throw SQLiteException("interrupted")
 		}
 
@@ -88,13 +105,14 @@ class CollectedDataDeletionServiceTest {
 		markerFile.exists() shouldBe true
 
 		var resumedAppDeletionCount = 0
-		val resumed = createService {
+		val resumed = createService { _, _, _, _ ->
 			resumedAppDeletionCount++
 		}
 		resumed.reconcilePendingDeletion()
 
 		verify(exactly = 2) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { collectedDataLifecycleStore.beginFullDeletion(any()) }
 		verify(exactly = 2) { writerQuiescer.resume() }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
 		resumedAppDeletionCount shouldBe 1
@@ -105,12 +123,13 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	private fun createService(
-		appDatabaseDeletion: (android.content.Context) -> Unit,
+		appDatabaseDeletion: suspend (android.content.Context, Long, Long?, Long) -> Unit,
 	) = DefaultCollectedDataDeletionService(
 		context = context,
 		pointsAwardedDao = pointsAwardedDao,
 		exportPlanStore = exportPlanStore,
 		writerQuiescer = writerQuiescer,
+		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		appDatabaseDeletion = appDatabaseDeletion,
 		markerFile = markerFile,
 		directorySync = {},

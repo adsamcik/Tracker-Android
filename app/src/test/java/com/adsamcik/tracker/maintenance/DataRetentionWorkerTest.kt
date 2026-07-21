@@ -12,12 +12,14 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.resetRetentionConfigForTests
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +45,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28])
 class DataRetentionWorkerTest {
     private companion object {
-        const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
+        const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_PIPELINE_WEEKLY"
     }
 
     private lateinit var context: Context
@@ -55,6 +57,8 @@ class DataRetentionWorkerTest {
     private val cellSampleDao: CellSampleDao = mockk(relaxed = true)
     private val sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true)
     private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
+    private val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -110,6 +114,8 @@ class DataRetentionWorkerTest {
                         cellSampleDao,
                         sessionSegmentDao,
                         exportPlanStore,
+                        migrationBackupRepository,
+						collectedDataLifecycleStore,
                     )
                 }
             })

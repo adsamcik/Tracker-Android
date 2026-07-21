@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -32,13 +33,14 @@ import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceIntervalDao
-import com.adsamcik.tracker.shared.base.database.dao.PresenceAnalysisDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
+import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
@@ -47,7 +49,9 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -180,11 +184,13 @@ object InfrastructureModule {
         pointsDatabase: PointsDatabase,
         exportPlanStore: ExportPlanStore,
         writerQuiescer: CollectedDataWriterQuiescer,
+		collectedDataLifecycleStore: CollectedDataLifecycleStore,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
         context = context,
         pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
         exportPlanStore = exportPlanStore,
         writerQuiescer = writerQuiescer,
+		collectedDataLifecycleStore = collectedDataLifecycleStore,
     )
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.
@@ -210,11 +216,12 @@ object InfrastructureModule {
         database.locationObservationDao()
 
     @Provides
-    fun providePresenceIntervalDao(database: AppDatabase): PresenceIntervalDao =
-        database.presenceIntervalDao()
+    fun provideLocationObservationDecisionDao(database: AppDatabase): LocationObservationDecisionDao =
+        database.locationObservationDecisionDao()
 
     @Provides
-    fun providePresenceAnalysisDao(database: AppDatabase): PresenceAnalysisDao = database.presenceAnalysisDao()
+    fun provideSourceEvidenceStateDao(database: AppDatabase): SourceEvidenceStateDao =
+        database.sourceEvidenceStateDao()
 
     @Provides
     fun provideStepIntervalDao(database: AppDatabase): StepIntervalDao = database.stepIntervalDao()
@@ -230,6 +237,10 @@ object InfrastructureModule {
 
     @Provides
     fun provideTrackerRunDao(database: AppDatabase): TrackerRunDao = database.trackerRunDao()
+
+    @Provides
+    fun provideTrackerStateEventDao(database: AppDatabase): TrackerStateEventDao =
+        database.trackerStateEventDao()
 
     @Provides
     fun provideSessionSegmentDao(database: AppDatabase): SessionSegmentDao = database.sessionSegmentDao()
@@ -284,6 +295,14 @@ object InfrastructureModule {
 
     @Provides
     fun providePendingSignalDao(database: AppDatabase): PendingSignalDao = database.pendingSignalDao()
+
+    @Provides
+    fun providePendingSignalClaimDao(database: AppDatabase): PendingSignalClaimDao =
+        database.pendingSignalClaimDao()
+
+    @Provides
+    fun provideQuarantinedSignalDao(database: AppDatabase): QuarantinedSignalDao =
+        database.quarantinedSignalDao()
 
     @Provides
     fun provideXpLedgerDao(database: AppDatabase): XpLedgerDao = database.xpLedgerDao()

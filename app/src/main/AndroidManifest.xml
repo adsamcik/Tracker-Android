@@ -38,6 +38,7 @@
     <application
         android:name="com.adsamcik.tracker.app.Application"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
@@ -46,7 +47,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
-        tools:replace="android:allowBackup,android:fullBackupContent"
+        tools:replace="android:allowBackup,android:dataExtractionRules,android:fullBackupContent"
         tools:targetApi="q">
         <meta-data
             android:name="android.max_aspect"

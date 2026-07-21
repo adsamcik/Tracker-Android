@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.Operation
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -25,7 +26,7 @@ class DatabaseMaintenanceWorker @AssistedInject constructor(
     }
 
     companion object {
-        private const val MAINTENANCE_UNIQUE_ID = "AppDatabaseMaintenance"
+        internal const val MAINTENANCE_UNIQUE_ID = "AppDatabaseMaintenance"
         private const val REPEAT_INTERVAL_H: Long = 6L
 
         fun schedule(context: Context) {
@@ -36,9 +37,12 @@ class DatabaseMaintenanceWorker @AssistedInject constructor(
             )
             workManager.enqueueUniquePeriodicWork(
                 MAINTENANCE_UNIQUE_ID,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                ExistingPeriodicWorkPolicy.KEEP,
                 builder.build()
             )
         }
+
+		fun cancel(context: Context): Operation =
+			WorkManager.getInstance(context).cancelUniqueWork(MAINTENANCE_UNIQUE_ID)
     }
 }

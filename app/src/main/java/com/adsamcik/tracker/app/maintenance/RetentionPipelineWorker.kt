@@ -10,9 +10,11 @@ import androidx.work.WorkerParameters
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.analysis.PresenceCompactor
-import com.adsamcik.tracker.shared.base.database.analysis.LegacyPresencePersistence
+import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import dagger.assisted.Assisted
@@ -25,7 +27,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val retentionConfigStore: RetentionConfigStore,
+    private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
     private val appDatabase: AppDatabase,
+    private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -44,48 +48,76 @@ class RetentionPipelineWorker @AssistedInject constructor(
         return try {
             val now = System.currentTimeMillis()
 
-            purgeRawData(appDatabase, config, now)
+			val rawRetentionResult = if (config.rawDataRetentionDays == 0) {
+				RawRetentionResult.NOT_APPLICABLE
+			} else {
+				val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+				// Establish the durable policy before deleting either live source rows
+				// or a migration backup. A delayed WAL entry must be rejected even if
+				// it postpones the physical delete.
+				val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
+				migrationBackupRepository.deleteAll()
+				purgeRawData(appDatabase, cutoff, lifecycle, now)
+			}
             purgeWifiCellData(appDatabase, config, now)
             purgeTripData(appDatabase, config, now)
             purgeDailySummaries(appDatabase, config, now)
             purgeExplorationData(appDatabase, config, now)
             purgeOperationalData(appDatabase, config, now)
 
-            Result.success()
+			if (rawRetentionResult == RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS) {
+				Result.retry()
+			} else {
+				Result.success()
+			}
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             ReporterFacade.report(e)
             Result.retry()
         }
     }
 
-    private suspend fun purgeRawData(db: AppDatabase, config: RetentionConfigState, now: Long) {
-        if (config.rawDataRetentionDays == 0) return
-        if (db.pendingSignalDao().hasAny()) return
-        val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        val progress = if (LegacyPresencePersistence.PROACTIVE_COMPACTION_ENABLED) {
-            PresenceCompactor(db).compactThroughExclusive(cutoff)
-        } else {
-            null
-        }
-        val safeCutoff = progress?.let { minOf(cutoff, it.safeThroughMs) } ?: cutoff
-        db.withTransaction {
-            if (db.pendingSignalDao().hasAny()) return@withTransaction
+	private suspend fun purgeRawData(
+		db: AppDatabase,
+		cutoff: Long,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		updatedAtMs: Long,
+	): RawRetentionResult {
+        return db.withTransaction {
+			val sourceEvidenceStateDao = db.sourceEvidenceStateDao()
+			val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
+				epoch = lifecycle.epoch,
+				retainedFromMs = lifecycle.retainedFromMs,
+				updatedAtMs = updatedAtMs,
+			)
+			if (db.pendingSignalDao().hasAny()) {
+				return@withTransaction RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS
+			}
+			if (!lifecycleChanged) {
+				check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+					"Unable to advance source-evidence revision for raw-data retention"
+				}
+			}
             val observationDao = db.locationObservationDao()
-            // A source committed after compaction can carry an old provider fix time. Keep the
-            // whole raw evidence set until that id has been reconciled into the checkpoint.
-            if (progress != null && observationDao.maxId() > progress.safeObservationId) return@withTransaction
-            if (progress == null) {
-                observationDao.deleteOlderThan(safeCutoff)
-            } else {
-                observationDao.deleteOlderThanThroughId(safeCutoff, progress.safeObservationId)
-            }
-            db.locationSampleDao().deleteOlderThan(safeCutoff)
-            db.stepIntervalDao().deleteOlderThan(safeCutoff)
-            db.activitySnapshotDao().deleteOlderThan(safeCutoff)
-            db.trackerRunDao().deleteOlderThan(safeCutoff)
-            db.pressureSampleDao().deleteOlderThan(safeCutoff)
+            observationDao.deleteOlderThan(cutoff)
+			db.locationObservationDecisionDao().apply {
+				deleteOlderThan(cutoff)
+				deleteWithoutObservation()
+			}
+			db.trackerStateEventDao().deleteOlderThan(cutoff)
+            db.locationSampleDao().deleteOlderThan(cutoff)
+            db.stepIntervalDao().deleteOlderThan(cutoff)
+            db.activitySnapshotDao().deleteOlderThan(cutoff)
+            db.trackerRunDao().deleteOlderThan(cutoff)
+            db.pressureSampleDao().deleteOlderThan(cutoff)
+			RawRetentionResult.PURGED
         }
     }
+
+	private enum class RawRetentionResult {
+		NOT_APPLICABLE,
+		PURGED,
+		DEFERRED_FOR_PENDING_SIGNALS,
+	}
 
     private suspend fun purgeWifiCellData(db: AppDatabase, config: RetentionConfigState, now: Long) {
         if (config.wifiCellRetentionDays == 0) return
@@ -150,22 +182,28 @@ class RetentionPipelineWorker @AssistedInject constructor(
     }
 
     companion object {
-        private const val WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
+        internal const val WORK_NAME = "APP.DATA_RETENTION_PIPELINE_WEEKLY"
+        internal const val LEGACY_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
         private const val DAYS_PER_YEAR = 365
 
         fun ensureScheduled(context: Context) {
+            val workManager = WorkManager.getInstance(context)
+            workManager.cancelUniqueWork(LEGACY_WORK_NAME)
             val request = PeriodicWorkRequestBuilder<RetentionPipelineWorker>(
                 7, TimeUnit.DAYS,
             ).build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            workManager.enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                ExistingPeriodicWorkPolicy.KEEP,
                 request,
             )
         }
 
         fun cancel(context: Context) {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            WorkManager.getInstance(context).run {
+                cancelUniqueWork(WORK_NAME)
+                cancelUniqueWork(LEGACY_WORK_NAME)
+            }
         }
 
         fun schedule(context: Context) = ensureScheduled(context)

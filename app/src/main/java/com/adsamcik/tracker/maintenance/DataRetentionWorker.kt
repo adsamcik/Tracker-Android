@@ -6,21 +6,21 @@ import androidx.annotation.WorkerThread
 import androidx.annotation.VisibleForTesting
 import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.analysis.PresenceCompactor
-import com.adsamcik.tracker.shared.base.database.analysis.LegacyPresencePersistence
+import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import java.time.Duration
 
 /**
  * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
@@ -46,6 +45,8 @@ class DataRetentionWorker @AssistedInject constructor(
     private val cellSampleDao: CellSampleDao,
     private val sessionSegmentDao: SessionSegmentDao,
     private val exportPlanStore: ExportPlanStore,
+    private val migrationBackupRepository: DatabaseMigrationBackupRepository,
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -58,10 +59,22 @@ class DataRetentionWorker @AssistedInject constructor(
         if (years == 0) {
             return Result.success()
         }
-        val cutoff = System.currentTimeMillis() - yearsToMillis(years)
+        val now = System.currentTimeMillis()
+        val cutoff = now - yearsToMillis(years)
         return try {
-            pruneOlderThan(cutoff)
-            Result.success()
+			// The policy and backup cleanup precede the physical delete, so a WAL
+			// entry can defer that delete without preserving expired history in a
+			// migration snapshot.
+			val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
+			migrationBackupRepository.deleteAll()
+			when (pruneRawData(cutoff, lifecycle, now)) {
+				RawRetentionPruneResult.PRUNED -> {
+					Result.success()
+				}
+				RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS -> {
+					Result.retry()
+				}
+			}
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -71,7 +84,6 @@ class DataRetentionWorker @AssistedInject constructor(
     }
 
     companion object {
-        private const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
         private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
 
         /**
@@ -92,20 +104,12 @@ class DataRetentionWorker @AssistedInject constructor(
 
         /** Schedule weekly cleanup with unique work policy. */
         fun ensureScheduled(context: Context) {
-            val workManager = WorkManager.getInstance(context)
-            val request = PeriodicWorkRequestBuilder<DataRetentionWorker>(Duration.ofDays(7))
-                .addTag(UNIQUE_WORK_NAME)
-                .build()
-            workManager.enqueueUniquePeriodicWork(
-                UNIQUE_WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                request
-            )
+            RetentionPipelineWorker.ensureScheduled(context)
         }
 
         /** Cancel scheduled cleanup. */
         fun cancel(context: Context) {
-            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+            RetentionPipelineWorker.cancel(context)
         }
 
         internal fun syncScheduling(context: Context, enabled: Boolean) {
@@ -130,31 +134,47 @@ class DataRetentionWorker @AssistedInject constructor(
     }
 
     @WorkerThread
-    private suspend fun pruneOlderThan(cutoffMillis: Long) {
-        if (appDatabase.pendingSignalDao().hasAny()) return
-        val progress = if (LegacyPresencePersistence.PROACTIVE_COMPACTION_ENABLED) {
-            PresenceCompactor(appDatabase).compactThroughExclusive(cutoffMillis)
-        } else {
-            null
-        }
-        val safeCutoff = progress?.let { minOf(cutoffMillis, it.safeThroughMs) } ?: cutoffMillis
+	private suspend fun pruneRawData(
+		cutoffMillis: Long,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		updatedAtMs: Long,
+	): RawRetentionPruneResult {
         val pruned = appDatabase.withTransaction {
-            if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+			val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
+			val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
+				epoch = lifecycle.epoch,
+				retainedFromMs = lifecycle.retainedFromMs,
+				updatedAtMs = updatedAtMs,
+			)
+			if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+			if (!lifecycleChanged) {
+				check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+					"Unable to advance source-evidence revision for raw-data retention"
+				}
+			}
             val observationDao = appDatabase.locationObservationDao()
-            if (progress != null && observationDao.maxId() > progress.safeObservationId) {
-                return@withTransaction false
-            }
-            if (progress == null) {
-                observationDao.deleteOlderThan(safeCutoff)
-            } else {
-                observationDao.deleteOlderThanThroughId(safeCutoff, progress.safeObservationId)
-            }
-            locationSampleDao.deleteOlderThan(safeCutoff)
-            wifiObservationDao.deleteOlderThan(safeCutoff)
-            cellSampleDao.deleteOlderThan(safeCutoff)
-            sessionSegmentDao.deleteOlderThan(safeCutoff)
+            observationDao.deleteOlderThan(cutoffMillis)
+			appDatabase.locationObservationDecisionDao().apply {
+				deleteOlderThan(cutoffMillis)
+				deleteWithoutObservation()
+			}
+			appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
+            locationSampleDao.deleteOlderThan(cutoffMillis)
+            wifiObservationDao.deleteOlderThan(cutoffMillis)
+            cellSampleDao.deleteOlderThan(cutoffMillis)
+            sessionSegmentDao.deleteOlderThan(cutoffMillis)
             true
         }
-        if (pruned) exportPlanStore.resetAllWatermarks()
+		return if (pruned) {
+            exportPlanStore.resetAllWatermarks()
+			RawRetentionPruneResult.PRUNED
+		} else {
+			RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS
+		}
     }
+
+	private enum class RawRetentionPruneResult {
+		PRUNED,
+		DEFERRED_FOR_PENDING_SIGNALS,
+	}
 }
