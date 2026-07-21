@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
@@ -48,7 +49,11 @@ class ActivityWatcherService : CoreService() {
 		activityWatcherController.attachService(this)
 		activityInfo = activityRequestManager.lastActivity.toLegacyActivityInfo()
 
-		startForegroundCompat(updateNotification())
+		if (!startForegroundCompat(updateNotification())) {
+			Reporter.w(TAG, "Unable to start in foreground; stopping")
+			stopSelf()
+			return
+		}
 
 		notificationManager = (this as Context).notificationManager
 
@@ -78,18 +83,19 @@ class ActivityWatcherService : CoreService() {
 		return START_REDELIVER_INTENT
 	}
 
-	private fun startForegroundCompat(notification: Notification) {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-			// SPECIAL_USE foreground service type is available from Android 14.
-			startForeground(
-				NOTIFICATION_ID,
-				notification,
-				ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-			)
-		} else {
-			startForeground(NOTIFICATION_ID, notification)
+	private fun startForegroundCompat(notification: Notification): Boolean =
+		startForegroundTolerant(sdkInt = Build.VERSION.SDK_INT, tag = TAG) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+				// SPECIAL_USE foreground service type is available from Android 14.
+				startForeground(
+					NOTIFICATION_ID,
+					notification,
+					ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+				)
+			} else {
+				startForeground(NOTIFICATION_ID, notification)
+			}
 		}
-	}
 
 	private fun updateNotification(): Notification {
 		val intent = packageManager.getLaunchIntentForPackage(packageName)
@@ -132,5 +138,44 @@ class ActivityWatcherService : CoreService() {
 
 	companion object {
 		private const val NOTIFICATION_ID = -568465
+		private const val TAG = "ActivityWatcherService"
 	}
 }
+
+/**
+ * Runs [start] and reports whether the platform's foreground-service start restrictions blocked
+ * it, mirroring [TrackerService]'s `tryStartForeground`.
+ *
+ * On Android 12+ ([Build.VERSION_CODES.S]) a background-restricted start throws
+ * `ForegroundServiceStartNotAllowedException`, checked by class name to avoid an API-31 type
+ * reference. A [SecurityException] can also surface if the declared foreground-service type is no
+ * longer permitted. Both are tolerated rejections; every other exception propagates.
+ *
+ * @return `true` when [start] completed without a tolerated rejection.
+ */
+internal inline fun startForegroundTolerant(
+	sdkInt: Int,
+	tag: String,
+	start: () -> Unit,
+): Boolean = try {
+	start()
+	true
+} catch (exception: SecurityException) {
+	Reporter.w(tag, "Foreground start rejected: ${exception.message}")
+	false
+} catch (@Suppress("TooGenericExceptionCaught") exception: RuntimeException) {
+	if (!isForegroundServiceStartRestriction(sdkInt, exception::class.java.name)) throw exception
+	Reporter.w(tag, "Foreground start not allowed from background: ${exception.message}")
+	false
+}
+
+/**
+ * True when [exceptionClassName] identifies `android.app.ForegroundServiceStartNotAllowedException`
+ * on an SDK where that platform exception can actually be thrown ([Build.VERSION_CODES.S]+).
+ *
+ * Matching by name (rather than `is ForegroundServiceStartNotAllowedException`) avoids referencing
+ * an API-31 type directly, since this codebase's `minSdk` predates it.
+ */
+internal fun isForegroundServiceStartRestriction(sdkInt: Int, exceptionClassName: String): Boolean =
+	sdkInt >= Build.VERSION_CODES.S &&
+		exceptionClassName == "android.app.ForegroundServiceStartNotAllowedException"
