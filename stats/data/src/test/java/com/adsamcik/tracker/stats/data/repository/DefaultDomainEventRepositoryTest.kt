@@ -49,7 +49,7 @@ class DefaultDomainEventRepositoryTest {
 		repo.persist(listOf(event))
 
 		coEvery { dao.getCursor(any()) } returns null
-		coEvery { dao.getUnconsumedBatchSeek(any(), any(), any()) } returns entitySlot.captured
+		coEvery { dao.getUnconsumedBatchById(any(), any()) } returns entitySlot.captured
 
 		val result = repo.getUnconsumedBatchWithIds(
 			consumerId = "test-consumer",

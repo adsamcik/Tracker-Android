@@ -12,9 +12,7 @@ import androidx.room.PrimaryKey
 @Entity(
 	tableName = "domain_event",
 	indices = [
-		// Composite (timestamp_ms, id) — supports the cursor query's
-		// `(timestamp_ms > T) OR (timestamp_ms = T AND id > lastId)` predicate
-		// as an index seek instead of an ordered scan.
+		// Supports timestamp-window observation and retention queries.
 		Index(value = ["timestamp_ms", "id"]),
 		Index(value = ["event_type", "processor_id"]),
 	],

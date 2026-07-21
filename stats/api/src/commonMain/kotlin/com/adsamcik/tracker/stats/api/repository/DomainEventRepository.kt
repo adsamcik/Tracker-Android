@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 /**
  * A persisted [DomainEvent] paired with its row id. Consumers ack via
  * [DomainEventRepository.markBatchConsumed] using the LAST returned event's
- * `(timestampMs, persistedId)` pair so the composite cursor advances precisely.
+ * [persistedId]. The timestamp is also recorded for retention safety.
  */
 data class UnconsumedEvent(
 	val event: DomainEvent,
@@ -22,7 +22,7 @@ interface DomainEventRepository {
 	 *
 	 * This stream is intended as a wake/refresh signal for consumers that should re-check
 	 * recent activity. Authoritative consumption should use [getUnconsumedBatchWithIds]
-	 * with [markBatchConsumed] so events are processed by composite cursor state.
+	 * with [markBatchConsumed] so events are processed by persisted id.
 	 */
 	fun observeEvents(since: EpochMs): Flow<List<DomainEvent>>
 
@@ -48,9 +48,9 @@ interface DomainEventRepository {
 	suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent>
 
 	/**
-	 * Fetch the next unconsumed batch paired with persisted row ids. Use with
-	 * [markBatchConsumed] to advance the composite `(timestamp_ms, id)` cursor so
-	 * events sharing a millisecond are never silently skipped.
+	 * Fetch the next unconsumed batch in persisted-id order. Use with
+	 * [markBatchConsumed] so events inserted later are delivered even when their
+	 * event timestamps precede previously consumed events.
 	 */
 	suspend fun getUnconsumedBatchWithIds(consumerId: String, limit: Int): List<UnconsumedEvent>
 
@@ -72,9 +72,9 @@ interface DomainEventRepository {
 	suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs)
 
 	/**
-	 * Advance the composite cursor to `(upToTimestamp, upToEventId)` — inclusive bound.
-	 * The next [getUnconsumedBatchWithIds] will return events strictly after this point
-	 * using `(timestamp_ms > upToTimestamp) OR (timestamp_ms = upToTimestamp AND id > upToEventId)`.
+	 * Advance the inclusive delivery cursor to [upToEventId]. [upToTimestamp] is retained
+	 * for purge safety but does not participate in delivery ordering. The next
+	 * [getUnconsumedBatchWithIds] returns events with a strictly larger persisted id.
 	 */
 	suspend fun markBatchConsumed(consumerId: String, upToTimestamp: EpochMs, upToEventId: Long)
 

@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit
  *
  *  1. [DefaultDomainEventRepository] persists [DomainEvent] subtypes through
  *     the real [com.adsamcik.tracker.shared.base.database.dao.DomainEventDao]
- *     (serialization + composite-cursor consumption).
+ *     (serialization + id-cursor consumption).
  *  2. [DailySummaryAggregator] reads `session_segment` rows and materializes
  *     `daily_summary` rows.
  *
@@ -46,8 +46,7 @@ import java.util.concurrent.TimeUnit
  * statistics surface (which observes events and reads daily summaries). The
  * test pins:
  *
- *  - Composite `(timestamp_ms, id)` cursor ordering across out-of-order
- *    persists and same-ms clusters.
+ *  - Persisted-id cursor ordering across out-of-order timestamps and same-ms clusters.
  *  - Partial [DomainEventRepository.markBatchConsumed] leaves remaining
  *    events available for the next batch in the correct order.
  *  - [DailySummaryAggregator] sums intra-day segments correctly.
@@ -82,10 +81,9 @@ class EventConsumerBridgeTest {
 	// region domain-event bridge
 
 	@Test
-	fun `getUnconsumedBatchWithIds returns events in (timestamp, id) order across out-of-order persists and same-ms cluster`() = runTest {
+	fun `getUnconsumedBatchWithIds returns events in persisted id order across out-of-order timestamps`() = runTest {
 		// Persist five events in deliberately out-of-order timestamps so the
-		// row id order does NOT match the timestamp order — the ORDER BY in
-		// getUnconsumedBatchSeek must surface them by (timestamp_ms, id).
+		// delivery order must follow insertion ids rather than event timestamps.
 		repository.persist(
 			listOf(
 				sessionStarted(timestampMs = 1_500L, processorId = "p-mid"),
@@ -110,11 +108,12 @@ class EventConsumerBridgeTest {
 		)
 
 		batch shouldHaveSize 8
-		val timestamps = batch.map { it.event.timestampMs.raw }
-		// Strictly non-decreasing — primary ordering is by timestamp_ms ASC.
-		for (i in 1 until timestamps.size) {
-			(timestamps[i] >= timestamps[i - 1]) shouldBe true
+		val ids = batch.map { it.persistedId }
+		for (i in 1 until ids.size) {
+			(ids[i] > ids[i - 1]) shouldBe true
 		}
+		batch.map { it.event.timestampMs.raw } shouldBe
+			listOf(1_500L, 3_000L, 2_000L, 1_000L, 1_000L, 2_500L, 2_500L, 2_500L)
 		// The same-ms cluster must be ordered by persisted id ASC (insertion
 		// order at that timestamp) — cluster-a, then cluster-b, then cluster-c.
 		val cluster = batch.filter { it.event.timestampMs.raw == 2_500L }
@@ -144,8 +143,7 @@ class EventConsumerBridgeTest {
 		firstBatch shouldHaveSize 3
 		firstBatch.map { it.event.processorId } shouldBe listOf("evt-1", "evt-2", "evt-3")
 
-		// Ack only the first batch — using the LAST event's composite
-		// (timestamp, id) as the inclusive cursor.
+		// Ack only the first batch using the last event's persisted id.
 		val lastInFirstBatch = firstBatch.last()
 		repository.markBatchConsumed(
 			consumerId = "test-consumer",

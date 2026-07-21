@@ -56,66 +56,25 @@ interface DomainEventDao {
 	@Query("SELECT * FROM domain_event_cursor WHERE consumer_id = :consumerId")
 	suspend fun getCursor(consumerId: String): DomainEventCursorEntity?
 
-	/**
-	 * Seek-style batch fetch using the composite `(timestamp_ms, id)` index, expressed as
-	 * a UNION ALL of two bounded SEARCH branches.
-	 *
-	 * The obvious scalar form
-	 *   `WHERE timestamp_ms > :lastMs OR (timestamp_ms = :lastMs AND id > :lastId)`
-	 * is *logically* a clean seek on `(timestamp_ms, id)`, but the SQLite planner
-	 * collapses the OR disjunction and plans it as a full `SCAN` of
-	 * `index_domain_event_timestamp_ms_id` rather than two `SEARCH` ranges. With 50k–200k
-	 * retained events and multiple lagging consumers each draining in batches, that scan
-	 * burns CPU and wakelock on every poll.
-	 *
-	 * The natural row-value form `WHERE (timestamp_ms, id) > (:lastMs, :lastId)` is
-	 * accepted by SQLite ≥ 3.15 and would yield the same clean seek, but Room's `@Query`
-	 * parser rejects tuple comparisons and refuses to generate the DAO impl.
-	 *
-	 * UNION ALL of the two halves is the next-best alternative — each branch is
-	 * individually SEARCH-able, and the outer wrapper re-applies the global ORDER/LIMIT
-	 * to merge them deterministically. Each branch also carries its own LIMIT so the
-	 * planner can stop early.
-	 *
-	 * EXPLAIN QUERY PLAN (expected):
-	 *   SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms=? AND id>?)
-	 *   SEARCH domain_event USING INDEX index_domain_event_timestamp_ms_id (timestamp_ms>?)
-	 * (Plus a compound merge step. Crucially: no SCAN of `domain_event`.)
-	 *
-	 * Regression-guarded by `DomainEventDaoTest.seek query plans as SEARCH not SCAN…`.
-	 */
+	/** Delivery follows insertion order so late events cannot fall behind a timestamp cursor. */
 	@Query(
 		"""
-		SELECT * FROM (
-			SELECT * FROM (
-				SELECT *
-				FROM domain_event
-				WHERE timestamp_ms = :lastMs AND id > :lastId
-				ORDER BY id ASC
-				LIMIT :limit
-			)
-			UNION ALL
-			SELECT * FROM (
-				SELECT *
-				FROM domain_event
-				WHERE timestamp_ms > :lastMs
-				ORDER BY timestamp_ms ASC, id ASC
-				LIMIT :limit
-			)
-		)
-		ORDER BY timestamp_ms ASC, id ASC
+		SELECT *
+		FROM domain_event
+		WHERE id > :lastId
+		ORDER BY id ASC
 		LIMIT :limit
 		"""
 	)
-	suspend fun getUnconsumedBatchSeek(lastMs: Long, lastId: Long, limit: Int): List<DomainEventEntity>
+	suspend fun getUnconsumedBatchById(lastId: Long, limit: Int): List<DomainEventEntity>
 
 	/**
-	 * Legacy CTE batch fetch. Replaced by [getCursor] + [getUnconsumedBatchSeek] which
-	 * allows the SQLite planner to use an index seek rather than an ordered scan.
+	 * Legacy timestamp-ordered CTE batch fetch. Delivery consumers must use
+	 * [getCursor] + [getUnconsumedBatchById] so delayed events are not skipped.
 	 */
 	@Deprecated(
-		message = "Use getCursor(consumerId) + getUnconsumedBatchSeek(lastMs, lastId, limit) for index-seek performance.",
-		replaceWith = ReplaceWith("getCursor(consumerId).let { c -> getUnconsumedBatchSeek(c?.lastProcessedMs ?: 0L, c?.lastProcessedId ?: 0L, boundaryOffset + 1) }"),
+		message = "Use getCursor(consumerId) + getUnconsumedBatchById(lastId, limit) for insertion-ordered delivery.",
+		replaceWith = ReplaceWith("getCursor(consumerId).let { c -> getUnconsumedBatchById(c?.lastProcessedId ?: 0L, boundaryOffset + 1) }"),
 	)
 	@Query(
 		"""
@@ -153,9 +112,21 @@ interface DomainEventDao {
 		boundaryOffset: Int,
 	): List<DomainEventEntity>
 
-	/** Update or insert the consumer cursor to mark events as processed. */
-	@Insert(onConflict = OnConflictStrategy.REPLACE)
-	suspend fun upsertCursor(cursor: DomainEventCursorEntity)
+	/** Advance both cursor fields monotonically so stale acknowledgements cannot regress progress. */
+	@Query(
+		"""
+		INSERT INTO domain_event_cursor (consumer_id, last_processed_ms, last_processed_id)
+		VALUES (:consumerId, :lastProcessedMs, :lastProcessedId)
+		ON CONFLICT(consumer_id) DO UPDATE SET
+			last_processed_ms = MAX(last_processed_ms, excluded.last_processed_ms),
+			last_processed_id = MAX(last_processed_id, excluded.last_processed_id)
+		"""
+	)
+	suspend fun upsertCursor(
+		consumerId: String,
+		lastProcessedMs: Long,
+		lastProcessedId: Long,
+	)
 
 	@Deprecated(
 		message = "Unbounded domain-event flows can allocate very large lists. Use observeSinceLimited or cursor batches.",

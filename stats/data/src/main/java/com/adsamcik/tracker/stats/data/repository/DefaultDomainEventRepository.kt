@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
-import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -36,15 +35,11 @@ class DefaultDomainEventRepository @Inject constructor(
 		}
 	}
 
-	@Suppress("OVERRIDE_DEPRECATION")
+	@Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
 	override suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent> {
 		require(limit > 0) { "limit must be greater than zero" }
-		val cursor = dao.getCursor(consumerId)
-		return dao.getUnconsumedBatchSeek(
-			lastMs = cursor?.lastProcessedMs ?: 0L,
-			lastId = cursor?.lastProcessedId ?: 0L,
-			limit = limit,
-		).mapNotNull { it.toDomain() }
+		return dao.getUnconsumedBatchFor(consumerId, boundaryOffset = limit - 1)
+			.mapNotNull { it.toDomain() }
 	}
 
 	override suspend fun getUnconsumedBatchWithIds(
@@ -53,8 +48,7 @@ class DefaultDomainEventRepository @Inject constructor(
 	): List<com.adsamcik.tracker.stats.api.repository.UnconsumedEvent> {
 		require(limit > 0) { "limit must be greater than zero" }
 		val cursor = dao.getCursor(consumerId)
-		return dao.getUnconsumedBatchSeek(
-			lastMs = cursor?.lastProcessedMs ?: 0L,
+		return dao.getUnconsumedBatchById(
 			lastId = cursor?.lastProcessedId ?: 0L,
 			limit = limit,
 		).mapNotNull { entity ->
@@ -69,7 +63,7 @@ class DefaultDomainEventRepository @Inject constructor(
 		// Legacy timestamp-only ack: use Long.MAX_VALUE as the id sentinel so any event
 		// with timestamp_ms <= upToTimestamp is considered consumed regardless of id.
 		// Prefer markBatchConsumed for new code.
-		dao.upsertCursor(DomainEventCursorEntity(consumerId, upToTimestamp.raw, Long.MAX_VALUE))
+		dao.upsertCursor(consumerId, upToTimestamp.raw, Long.MAX_VALUE)
 	}
 
 	override suspend fun markBatchConsumed(
@@ -77,7 +71,7 @@ class DefaultDomainEventRepository @Inject constructor(
 		upToTimestamp: EpochMs,
 		upToEventId: Long,
 	) {
-		dao.upsertCursor(DomainEventCursorEntity(consumerId, upToTimestamp.raw, upToEventId))
+		dao.upsertCursor(consumerId, upToTimestamp.raw, upToEventId)
 	}
 
 	// region serialization
