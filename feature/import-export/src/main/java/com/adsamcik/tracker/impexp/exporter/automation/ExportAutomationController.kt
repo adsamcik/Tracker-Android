@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.exporter.automation
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -31,8 +32,8 @@ class ExportAutomationController(
     private val dispatchers: DispatchersProvider,
     private val clock: Clock,
     private val scope: CoroutineScope,
+    private val workManager: WorkManager = WorkManager.getInstance(context),
 ) {
-    private val workManager = WorkManager.getInstance(context)
     private val schedulingConstraints = Constraints.Builder()
         .setRequiresCharging(true)
         .setRequiresBatteryNotLow(true)
@@ -132,7 +133,13 @@ class ExportAutomationController(
             .setInputData(inputData)
             .addTag(WORK_TAG_PLAN)
             .build()
-        workManager.enqueue(request)
+        // Queue a follow-up trigger without cancelling an in-flight export; replace only
+        // a failed/cancelled prerequisite chain so future sessions are not suppressed.
+        workManager.enqueueUniqueWork(
+            plan.workName(),
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
     }
 
     private fun AfterSessionTrigger.tag(): String? = when (this) {

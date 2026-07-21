@@ -15,19 +15,27 @@ class ExportResultTest {
 
 		@Test
 		fun `Success is instance of ExportResult`() {
-			ExportResult.Success.shouldBeInstanceOf<ExportResult>()
+			ExportResult.Success().shouldBeInstanceOf<ExportResult>()
 		}
 
 		@Test
 		fun `Success isSuccess is true`() {
-			ExportResult.Success.isSuccess shouldBe true
+			ExportResult.Success().isSuccess shouldBe true
 		}
 
 		@Test
-		fun `Success is a data object singleton`() {
-			val a = ExportResult.Success
-			val b = ExportResult.Success
-			(a === b) shouldBe true
+		fun `Success progress defaults to unspecified`() {
+			val result = ExportResult.Success()
+
+			result.recordCount shouldBe null
+			result.maxTimeMs shouldBe null
+			result.maxId shouldBe null
+		}
+
+		@Test
+		fun `Success carries exporter progress`() {
+			ExportResult.Success(recordCount = 3, maxTimeMs = 2_000L, maxId = 7L) shouldBe
+				ExportResult.Success(recordCount = 3, maxTimeMs = 2_000L, maxId = 7L)
 		}
 	}
 

@@ -11,6 +11,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.impexp.exporter.EXPORT_LOG_SOURCE
+import com.adsamcik.tracker.impexp.exporter.CursorAwareExporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
@@ -82,6 +83,7 @@ class ExportPlanWorker @AssistedInject constructor(
                         planStore.updateWatermark(
                             planId = plan.id,
                             watermarkMs = exportResult.maxTimeMs,
+                            watermarkId = exportResult.maxId,
                             completedAt = completedAt,
                             recordCount = exportResult.recordCount,
                         )
@@ -120,6 +122,7 @@ class ExportPlanWorker @AssistedInject constructor(
                 fileSizeBytes = 0L,
                 recordCount = 0,
                 maxTimeMs = 0L,
+                maxId = 0L,
                 isDelta = true,
                 shouldAdvanceWatermark = false,
             )
@@ -140,16 +143,22 @@ class ExportPlanWorker @AssistedInject constructor(
         val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
         var maxTimeMs = 0L
+        var maxId = 0L
         val locationSequence = pagedLocationSequence(
             locationSampleDao = locationSampleDao,
             fromMs = fromMs,
             toMs = toMs,
             pageSize = PAGE_SIZE,
+            initialAfterTimeMs = exportRange.afterTimeMs,
+            initialAfterId = exportRange.afterId,
         )
             .filter { it.latE7 != null && it.lonE7 != null }
             .onEach {
                 recordCount++
-                if (it.timeMs > maxTimeMs) maxTimeMs = it.timeMs
+                if (it.timeMs > maxTimeMs || (it.timeMs == maxTimeMs && it.id > maxId)) {
+                    maxTimeMs = it.timeMs
+                    maxId = it.id
+                }
             }
 
         val result = try {
@@ -159,7 +168,18 @@ class ExportPlanWorker @AssistedInject constructor(
                 return@withContext PlanExportResult.Failed("Unable to open export destination")
             }
             outputStream.use { stream ->
-                exporter.export(applicationContext, locationSequence, stream, dateRange)
+                if (exporter is CursorAwareExporter) {
+                    exporter.exportAfter(
+                        applicationContext,
+                        locationSequence,
+                        stream,
+                        dateRange,
+                        exportRange.afterTimeMs,
+                        exportRange.afterId,
+                    )
+                } else {
+                    exporter.export(applicationContext, locationSequence, stream, dateRange)
+                }
             }
         } catch (e: CancellationException) {
             output.deletePartial()
@@ -170,14 +190,18 @@ class ExportPlanWorker @AssistedInject constructor(
         }
 
         when (result) {
-            is ExportResult.Success -> PlanExportResult.Success(
-                fileName = output.fileName,
-                fileSizeBytes = output.length(),
-                recordCount = recordCount,
-                maxTimeMs = maxTimeMs,
-                isDelta = exportRange.isDelta,
-                shouldAdvanceWatermark = exportRange.shouldAdvanceWatermark,
-            )
+            is ExportResult.Success -> {
+                val progress = resolveExportProgress(result, recordCount, maxTimeMs, maxId)
+                PlanExportResult.Success(
+                    fileName = output.fileName,
+                    fileSizeBytes = output.length(),
+                    recordCount = progress.recordCount,
+                    maxTimeMs = progress.maxTimeMs,
+                    maxId = progress.maxId,
+                    isDelta = exportRange.isDelta,
+                    shouldAdvanceWatermark = exportRange.shouldAdvanceWatermark,
+                )
+            }
             is ExportResult.Error -> {
                 val errorMessage = result.message?.localize(applicationContext)
                     ?: "Export returned error for ${plan.name}"
@@ -197,6 +221,8 @@ class ExportPlanWorker @AssistedInject constructor(
         val isDelta: Boolean,
         val shouldAdvanceWatermark: Boolean,
         val skipBecauseEmptyIncremental: Boolean,
+        val afterTimeMs: Long? = null,
+        val afterId: Long? = null,
     )
 
     internal fun resolveExportRange(
@@ -227,7 +253,7 @@ class ExportPlanWorker @AssistedInject constructor(
 
         val scopeStart = scopeDateRange?.first ?: 0L
         val scopeEnd = scopeDateRange?.last ?: Long.MAX_VALUE
-        val effectiveStart = maxOf(plan.lastWatermarkMs + 1, scopeStart)
+        val effectiveStart = maxOf(plan.lastWatermarkMs, scopeStart)
         if (effectiveStart > scopeEnd) {
             return ResolvedExportRange(
                 dateRange = null,
@@ -242,8 +268,27 @@ class ExportPlanWorker @AssistedInject constructor(
             isDelta = true,
             shouldAdvanceWatermark = true,
             skipBecauseEmptyIncremental = false,
+            afterTimeMs = plan.lastWatermarkMs.takeIf { scopeStart <= it },
+            afterId = plan.lastWatermarkId.takeIf { scopeStart <= plan.lastWatermarkMs },
         )
     }
+
+    internal data class ExportProgress(
+        val recordCount: Int,
+        val maxTimeMs: Long,
+        val maxId: Long,
+    )
+
+    internal fun resolveExportProgress(
+        result: ExportResult.Success,
+        fallbackRecordCount: Int,
+        fallbackMaxTimeMs: Long,
+        fallbackMaxId: Long,
+    ): ExportProgress = ExportProgress(
+        recordCount = result.recordCount ?: fallbackRecordCount,
+        maxTimeMs = result.maxTimeMs ?: fallbackMaxTimeMs,
+        maxId = result.maxId ?: fallbackMaxId,
+    )
 
     private suspend fun resolveDateRange(scope: ExportScope): LongRange? {
         return when (scope) {
@@ -417,6 +462,7 @@ private sealed interface PlanExportResult {
         val fileSizeBytes: Long,
         val recordCount: Int,
         val maxTimeMs: Long = 0L,
+        val maxId: Long = 0L,
         val isDelta: Boolean = false,
         val shouldAdvanceWatermark: Boolean = false,
     ) : PlanExportResult

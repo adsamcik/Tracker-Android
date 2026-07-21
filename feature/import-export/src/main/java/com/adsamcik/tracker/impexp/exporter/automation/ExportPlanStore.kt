@@ -126,6 +126,7 @@ class ExportPlanStore(
     suspend fun updateWatermark(
         planId: ExportPlanId,
         watermarkMs: Long,
+        watermarkId: Long,
         completedAt: Long,
         recordCount: Int,
     ) = withContext(ioDispatcher) {
@@ -133,8 +134,13 @@ class ExportPlanStore(
             val builder = current.toBuilder()
             val index = builder.plansList.indexOfFirst { it.id == planId.value }
             if (index < 0) return@updateData current
-            val plan = builder.getPlans(index).toDomain().copy(
+            val existing = builder.getPlans(index).toDomain()
+            val advances = watermarkMs > existing.lastWatermarkMs ||
+                (watermarkMs == existing.lastWatermarkMs && watermarkId > existing.lastWatermarkId)
+            if (!advances) return@updateData current
+            val plan = existing.copy(
                 lastWatermarkMs = watermarkMs,
+                lastWatermarkId = watermarkId,
                 lastCompletedAt = completedAt,
                 lastRecordCount = recordCount,
             )
@@ -151,6 +157,7 @@ class ExportPlanStore(
             if (index < 0) return@updateData current
             val plan = builder.getPlans(index).toDomain().copy(
                 lastWatermarkMs = 0L,
+                lastWatermarkId = 0L,
                 lastCompletedAt = 0L,
                 lastRecordCount = 0,
             )
@@ -166,6 +173,7 @@ class ExportPlanStore(
             for (i in 0 until builder.plansCount) {
                 val plan = builder.getPlans(i).toDomain().copy(
                     lastWatermarkMs = 0L,
+                    lastWatermarkId = 0L,
                     lastCompletedAt = 0L,
                     lastRecordCount = 0,
                 )

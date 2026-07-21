@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
@@ -39,13 +40,37 @@ class JsonExporterTest {
         "\"schemaVersion\":2".toRegex().findAll(output).count() shouldBe 2_000
     }
 
+    @Test
+    fun `reports location count and composite maximum cursor`() {
+        val output = ByteArrayOutputStream()
+        val result = exporter.writeJson(
+            output,
+            sequenceOf(
+                sessionExport(
+                    locations = listOf(
+                        location(id = 4L, timeMs = 2_000L),
+                        location(id = 9L, timeMs = 2_000L),
+                        location(id = 1L, timeMs = 3_000L),
+                    ),
+                ),
+            ),
+        ).shouldBeInstanceOf<ExportResult.Success>()
+
+        result.recordCount shouldBe 3
+        result.maxTimeMs shouldBe 3_000L
+        result.maxId shouldBe 1L
+    }
+
     private fun export(sessions: Sequence<SessionExport>): String {
         val output = ByteArrayOutputStream()
-        exporter.writeJson(output, sessions) shouldBe ExportResult.Success
+        exporter.writeJson(output, sessions).shouldBeInstanceOf<ExportResult.Success>()
         return output.toString(Charsets.UTF_8.name())
     }
 
-    private fun sessionExport(id: Long = 42) = SessionExport(
+    private fun sessionExport(
+        id: Long = 42,
+        locations: List<LocationSample> = listOf(location()),
+    ) = SessionExport(
         session = SessionSnapshot(
             id = id,
             startTimeMs = 1_725_000_000_000L,
@@ -58,26 +83,7 @@ class JsonExporterTest {
             source = "USER_CREATED",
             hasDistanceAnomaly = false,
         ),
-        locations = listOf(
-            LocationSample(
-                timeMs = 1_725_000_000_000L,
-                elapsedRealtimeNanos = 0L,
-                latE7 = 501_000_000,
-                lonE7 = 144_000_000,
-                altitudeM = 120f,
-                rawGpsAltitudeM = null,
-                hAccM = 5f,
-                vAccM = null,
-                speedMps = 3.5f,
-                speedAccuracyMps = null,
-                provider = "gps",
-                quality = SampleQuality.HIGH,
-                motionState = null,
-                policy = null,
-                bucketId = null,
-                createdAt = 1_725_000_000_000L,
-            ),
-        ),
+        locations = locations,
         wifiObservations = listOf(
             WifiObservation(
                 timeMs = 1_725_000_010_000L,
@@ -107,5 +113,28 @@ class JsonExporterTest {
                 createdAt = 1_725_000_020_000L,
             ),
         ),
+    )
+
+    private fun location(
+        id: Long = 7L,
+        timeMs: Long = 1_725_000_000_000L,
+    ) = LocationSample(
+        id = id,
+        timeMs = timeMs,
+        elapsedRealtimeNanos = 0L,
+        latE7 = 501_000_000,
+        lonE7 = 144_000_000,
+        altitudeM = 120f,
+        rawGpsAltitudeM = null,
+        hAccM = 5f,
+        vAccM = null,
+        speedMps = 3.5f,
+        speedAccuracyMps = null,
+        provider = "gps",
+        quality = SampleQuality.HIGH,
+        motionState = null,
+        policy = null,
+        bucketId = null,
+        createdAt = timeMs,
     )
 }

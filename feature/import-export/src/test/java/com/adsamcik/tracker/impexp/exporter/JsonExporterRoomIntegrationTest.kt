@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample as EntityLo
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
@@ -151,14 +152,18 @@ class JsonExporterRoomIntegrationTest {
 		locationSampleDao.countBetween(dateRange.first, dateRange.last) shouldBe inRangeSamples.size
 
 		val outputFile = createTempExportFile()
+		lateinit var exportResult: ExportResult.Success
 		outputFile.outputStream().use { outputStream ->
-			exporter.export(
+			exportResult = exporter.export(
 				context = context,
 				locationData = loadPersistedLocations(dateRange),
 				outputStream = outputStream,
 				dateRange = dateRange,
-			) shouldBe ExportResult.Success
+			).shouldBeInstanceOf()
 		}
+		exportResult.recordCount shouldBe inRangeSamples.size
+		exportResult.maxTimeMs shouldBe inRangeSamples.last().timeMs
+		(exportResult.maxId ?: 0L) shouldBeGreaterThan 0L
 
 		outputFile.exists() shouldBe true
 		outputFile.length() shouldBeGreaterThan 0L
@@ -218,10 +223,96 @@ class JsonExporterRoomIntegrationTest {
 				locationData = emptySequence(),
 				outputStream = outputStream,
 				dateRange = baseTimeMs..(baseTimeMs + sessionCount * 60_000L),
-			) shouldBe ExportResult.Success
+			).shouldBeInstanceOf<ExportResult.Success>()
 		}
 
 		JSONArray(outputFile.readText(Charsets.UTF_8)).length() shouldBe sessionCount
+	}
+
+	@Test
+	fun `json export includes a straddling session with its complete own-range data`() = runTest {
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val sessionStart = 10_000L
+		val sessionEnd = 30_000L
+		val samples = listOf(
+			createLocationSample(10_000L, 50.0, 14.0, 100f, 1f, 5f),
+			createLocationSample(20_000L, 50.1, 14.1, 101f, 1f, 5f),
+			createLocationSample(30_000L, 50.2, 14.2, 102f, 1f, 5f),
+		)
+		locationSampleDao.insert(samples)
+		sessionSegmentDao.insert(
+			createSessionSegment(
+				startTimeMs = sessionStart,
+				endTimeMs = sessionEnd,
+				sampleCount = samples.size,
+				distanceM = 50f,
+				steps = 10,
+			),
+		)
+
+		val outputFile = createTempExportFile()
+		outputFile.outputStream().use { stream ->
+			exporter.export(
+				context = context,
+				locationData = emptySequence(),
+				outputStream = stream,
+				dateRange = 20_000L..25_000L,
+			).shouldBeInstanceOf<ExportResult.Success>()
+		}
+
+		val records = JSONArray(outputFile.readText(Charsets.UTF_8))
+		records.length() shouldBe 1
+		val record = records.getJSONObject(0)
+		record.getJSONObject("session").getLong("startTimeMs") shouldBe sessionStart
+		record.getJSONArray("locations").length() shouldBe samples.size
+		record.getJSONArray("locations").getJSONObject(0).getLong("timeMs") shouldBe sessionStart
+		record.getJSONArray("locations").getJSONObject(2).getLong("timeMs") shouldBe sessionEnd
+	}
+
+	@Test
+	fun `json export preserves locations outside every session in an orphaned data record`() = runTest {
+		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+		val orphan = createLocationSample(40_000L, 50.3, 14.3, 103f, 1f, 5f)
+		locationSampleDao.insert(orphan)
+
+		val outputFile = createTempExportFile()
+		val result = outputFile.outputStream().use { stream ->
+			exporter.export(
+				context = context,
+				locationData = emptySequence(),
+				outputStream = stream,
+				dateRange = 35_000L..45_000L,
+			).shouldBeInstanceOf<ExportResult.Success>()
+		}
+
+		result.recordCount shouldBe 1
+		result.maxTimeMs shouldBe orphan.timeMs
+		val record = JSONArray(outputFile.readText(Charsets.UTF_8)).getJSONObject(0)
+		record.getBoolean("orphanedData") shouldBe true
+		record.getJSONArray("locations").getJSONObject(0).getLong("timeMs") shouldBe orphan.timeMs
+	}
+
+	@Test
+	fun `composite cursor skips older ids and includes a newer id at the same timestamp`() = runTest {
+		val timeMs = 50_000L
+		val ids = locationSampleDao.insert(
+			listOf(
+				createLocationSample(timeMs, 50.0, 14.0, 100f, 1f, 5f),
+				createLocationSample(timeMs, 50.1, 14.1, 101f, 1f, 5f),
+				createLocationSample(timeMs, 50.2, 14.2, 102f, 1f, 5f),
+			),
+		)
+
+		val exportedIds = pagedLocationSequence(
+			locationSampleDao = locationSampleDao,
+			fromMs = timeMs,
+			toMs = timeMs,
+			pageSize = 2,
+			initialAfterTimeMs = timeMs,
+			initialAfterId = ids[1],
+		).map { it.id }.toList()
+
+		exportedIds shouldBe listOf(ids[2])
 	}
 
 	private suspend fun loadPersistedLocations(dateRange: LongRange): Sequence<LocationSample> {

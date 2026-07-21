@@ -26,6 +26,7 @@ message ExportBackupPlanProto {
   int64 last_export_completed_at = 11;
   int32 last_export_record_count = 12;
   optional bool incremental_enabled = 13;
+  int64 last_export_watermark_id = 14;
 }
 
 enum ExportFormatProto {

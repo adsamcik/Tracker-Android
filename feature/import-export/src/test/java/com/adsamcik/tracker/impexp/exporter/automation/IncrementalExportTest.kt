@@ -43,6 +43,7 @@ class IncrementalExportTest {
             createdAtMillis = 1_000L,
             updatedAtMillis = 2_000L,
             lastWatermarkMs = 1_700_000_000_000L,
+            lastWatermarkId = 17L,
             lastCompletedAt = 1_700_000_001_000L,
             lastRecordCount = 42,
             incrementalEnabled = true,
@@ -52,6 +53,7 @@ class IncrementalExportTest {
 
         assertEquals(plan, rebuilt)
         assertEquals(1_700_000_000_000L, rebuilt.lastWatermarkMs)
+        assertEquals(17L, rebuilt.lastWatermarkId)
         assertEquals(1_700_000_001_000L, rebuilt.lastCompletedAt)
         assertEquals(42, rebuilt.lastRecordCount)
         assertTrue(rebuilt.incrementalEnabled)
@@ -112,7 +114,9 @@ class IncrementalExportTest {
             scopeDateRange = 1_000L..5_000L,
         )
 
-        assertEquals(3_001L..5_000L, resolved.dateRange)
+        assertEquals(3_000L..5_000L, resolved.dateRange)
+        assertEquals(3_000L, resolved.afterTimeMs)
+        assertEquals(0L, resolved.afterId)
         assertTrue(resolved.isDelta)
         assertTrue(resolved.shouldAdvanceWatermark)
     }
@@ -138,7 +142,7 @@ class IncrementalExportTest {
             scopeDateRange = null,
         )
 
-        assertEquals(2_001L..Long.MAX_VALUE, resolved.dateRange)
+        assertEquals(2_000L..Long.MAX_VALUE, resolved.dateRange)
     }
 
     @Test
@@ -193,6 +197,34 @@ class IncrementalExportTest {
         assertEquals(5_000L, updated.lastWatermarkMs)
         assertEquals(6_000L, updated.lastCompletedAt)
         assertEquals(25, updated.lastRecordCount)
+    }
+
+    @Test
+    fun jsonScheduledExport_prefersExporterReportedProgressForWatermarkAdvance() {
+        val progress = worker().resolveExportProgress(
+            result = ExportResult.Success(recordCount = 3, maxTimeMs = 5_000L, maxId = 9L),
+            fallbackRecordCount = 0,
+            fallbackMaxTimeMs = 0L,
+            fallbackMaxId = 0L,
+        )
+
+        assertEquals(3, progress.recordCount)
+        assertEquals(5_000L, progress.maxTimeMs)
+        assertEquals(9L, progress.maxId)
+        assertTrue(progress.recordCount > 0 && progress.maxTimeMs > 0L)
+    }
+
+    @Test
+    fun incrementalScopeResolution_sameTimestampCarriesBoundaryId() {
+        val resolved = worker().resolveExportRange(
+            plan = buildTestPlan(lastWatermarkMs = 3_000L, lastWatermarkId = 12L),
+            exporter = dateRangeExporter(),
+            scopeDateRange = 1_000L..5_000L,
+        )
+
+        assertEquals(3_000L..5_000L, resolved.dateRange)
+        assertEquals(3_000L, resolved.afterTimeMs)
+        assertEquals(12L, resolved.afterId)
     }
 
     @Test
@@ -269,6 +301,7 @@ class IncrementalExportTest {
 
     private fun buildTestPlan(
         lastWatermarkMs: Long = 0L,
+        lastWatermarkId: Long = 0L,
         lastCompletedAt: Long = 0L,
         lastRecordCount: Int = 0,
         incrementalEnabled: Boolean = true,
@@ -284,6 +317,7 @@ class IncrementalExportTest {
         createdAtMillis = 100L,
         updatedAtMillis = 200L,
         lastWatermarkMs = lastWatermarkMs,
+        lastWatermarkId = lastWatermarkId,
         lastCompletedAt = lastCompletedAt,
         lastRecordCount = lastRecordCount,
         incrementalEnabled = incrementalEnabled,

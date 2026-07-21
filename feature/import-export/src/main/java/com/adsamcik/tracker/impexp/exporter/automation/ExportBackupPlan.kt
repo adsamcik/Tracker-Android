@@ -138,6 +138,7 @@ data class ExportBackupPlan(
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
     val lastWatermarkMs: Long = 0L,
+    val lastWatermarkId: Long = 0L,
     val lastCompletedAt: Long = 0L,
     val lastRecordCount: Int = 0,
     val incrementalEnabled: Boolean = true,
@@ -173,6 +174,7 @@ internal fun ExportBackupPlanProto.toDomain(): ExportBackupPlan {
         createdAtMillis = createdAtEpochMillis,
         updatedAtMillis = updatedAtEpochMillis,
         lastWatermarkMs = lastExportWatermarkMs,
+        lastWatermarkId = lastExportWatermarkId,
         lastCompletedAt = lastExportCompletedAt,
         lastRecordCount = lastExportRecordCount,
         incrementalEnabled = if (hasIncrementalEnabled()) incrementalEnabled else true,
@@ -194,6 +196,7 @@ internal fun ExportBackupPlan.toProto(): ExportBackupPlanProto {
         .setCreatedAtEpochMillis(createdAtMillis)
         .setUpdatedAtEpochMillis(updatedAtMillis)
         .setLastExportWatermarkMs(lastWatermarkMs)
+        .setLastExportWatermarkId(lastWatermarkId)
         .setLastExportCompletedAt(lastCompletedAt)
         .setLastExportRecordCount(lastRecordCount)
         .setIncrementalEnabled(incrementalEnabled)

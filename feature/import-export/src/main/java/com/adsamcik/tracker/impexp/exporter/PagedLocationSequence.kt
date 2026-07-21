@@ -14,13 +14,15 @@ internal fun pagedLocationSequence(
 	fromMs: Long,
 	toMs: Long,
 	pageSize: Int,
+	initialAfterTimeMs: Long? = null,
+	initialAfterId: Long? = null,
 ): Sequence<LocationSample> = Sequence {
 	object : Iterator<LocationSample> {
 		private var buffer: List<LocationSample> = emptyList()
 		private var index = 0
 		private var exhausted = false
-		private var afterTimeMs: Long? = null
-		private var afterId: Long? = null
+		private var afterTimeMs: Long? = initialAfterTimeMs
+		private var afterId: Long? = initialAfterId
 
 		override fun hasNext(): Boolean {
 			if (index < buffer.size) return true

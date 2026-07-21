@@ -99,6 +99,31 @@ class PagedLocationSequenceTest {
 		}
 
 		@Test
+		fun `initial composite cursor includes only newer ids at the same timestamp`() {
+			val newer = createSample(6L, 100L)
+			coEvery {
+				dao.getChunkBetweenOrdered(100L, 200L, 100L, 5L, 10)
+			} returns listOf(newer)
+			coEvery {
+				dao.getChunkBetweenOrdered(100L, 200L, 100L, 6L, 10)
+			} returns emptyList()
+
+			val result = pagedLocationSequence(
+				locationSampleDao = dao,
+				fromMs = 100L,
+				toMs = 200L,
+				pageSize = 10,
+				initialAfterTimeMs = 100L,
+				initialAfterId = 5L,
+			).toList()
+
+			result.map { it.id } shouldBe listOf(6L)
+			coVerify(exactly = 0) {
+				dao.getChunkBetweenOrdered(100L, 200L, null, null, 10)
+			}
+		}
+
+		@Test
 		fun `stops when empty page is returned`() {
 			val page1 = listOf(createSample(1, 100L), createSample(2, 200L))
 

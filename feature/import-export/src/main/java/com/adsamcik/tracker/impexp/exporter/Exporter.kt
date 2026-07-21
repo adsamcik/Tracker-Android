@@ -41,3 +41,18 @@ interface Exporter {
 			dateRange: LongRange? = null
 	): ExportResult
 }
+
+/**
+ * Exporter that performs its own database reads and therefore needs the persisted
+ * location cursor in addition to the outer date range.
+ */
+internal interface CursorAwareExporter : Exporter {
+	suspend fun exportAfter(
+		context: Context,
+		locationData: Sequence<LocationSample>,
+		outputStream: OutputStream,
+		dateRange: LongRange?,
+		afterTimeMs: Long?,
+		afterId: Long?,
+	): ExportResult
+}

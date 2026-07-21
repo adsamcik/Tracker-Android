@@ -11,8 +11,32 @@ import com.adsamcik.tracker.shared.base.misc.LocalizedString
 sealed class ExportResult {
 	/**
 	 * Export completed successfully.
+	 *
+	 * Exporters that perform their own database reads may report location progress so
+	 * scheduled exports can advance their incremental cursor accurately.
 	 */
-	data object Success : ExportResult()
+	open class Success(
+		val recordCount: Int? = null,
+		val maxTimeMs: Long? = null,
+		val maxId: Long? = null,
+	) : ExportResult() {
+		// Preserve existing `ExportResult.Success` expression call sites while allowing
+		// exporters that own their reads to return per-operation progress instances.
+		companion object : Success()
+
+		override fun equals(other: Any?): Boolean =
+			other is Success &&
+				recordCount == other.recordCount &&
+				maxTimeMs == other.maxTimeMs &&
+				maxId == other.maxId
+
+		override fun hashCode(): Int {
+			var result = recordCount ?: 0
+			result = 31 * result + (maxTimeMs?.hashCode() ?: 0)
+			result = 31 * result + (maxId?.hashCode() ?: 0)
+			return result
+		}
+	}
 
 	/**
 	 * Export failed with an optional localized message for the user.
