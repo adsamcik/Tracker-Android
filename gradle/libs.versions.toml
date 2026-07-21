@@ -59,6 +59,9 @@ arrow = "2.2.3"
 # JSON / DB
 moshi = "1.15.2"
 room = "2.8.4"
+# sqlite-android 3.49.0 is the newest reproducible requery/JitPack release. Upstream's
+# post-3.49 work is not published as a fixed release, so do not substitute master/SNAPSHOT here.
+# Runtime telemetry records the loaded engine's source ID until a >= 3.51.3 release is available.
 sqliteAndroid = "3.49.0"
 
 # Third party
