@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.Normalizer
 import kotlin.math.atan2
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -27,21 +28,15 @@ data class GeoPlace(
  * sync with it. Decoupled from asset loading so it can be unit-tested with a
  * synthetic in-memory buffer.
  *
- * Coordinates are stored as 1e-7 degree integers; places are grouped into a
- * fixed-size lat/lon grid so a nearest-place query only scans a handful of cells.
+ * Coordinates are stored as 1e-7 degree integers. Records remain grouped into a
+ * fixed-size grid for compact generation, while nearest-place queries scan raw
+ * coordinates directly to guarantee a globally correct result.
  */
 class PlacesDataset(private val bytes: ByteArray) {
 
     private val buffer: ByteBuffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
     val placeCount: Int
-    private val cellSizeE7: Int
-    private val cellCount: Int
-
-    /** Cell keys, ascending — enables binary search. Parallel to [cellStarts]/[cellCounts]. */
-    private val cellKeys: LongArray
-    private val cellStarts: IntArray
-    private val cellCounts: IntArray
 
     private val placesOffset: Int
     private val stringOffset: Int
@@ -56,22 +51,15 @@ class PlacesDataset(private val bytes: ByteArray) {
         require(version == VERSION) { "places.geo unsupported version $version" }
 
         placeCount = buffer.getInt(8)
-        cellSizeE7 = buffer.getInt(12)
-        cellCount = buffer.getInt(16)
+        val cellSizeE7 = buffer.getInt(12)
+        val cellCount = buffer.getInt(16)
         require(placeCount >= 0 && cellSizeE7 > 0 && cellCount >= 0) { "places.geo corrupt header" }
 
-        cellKeys = LongArray(cellCount)
-        cellStarts = IntArray(cellCount)
-        cellCounts = IntArray(cellCount)
-        var p = HEADER_SIZE
-        for (i in 0 until cellCount) {
-            cellKeys[i] = buffer.getLong(p)
-            cellStarts[i] = buffer.getInt(p + 8)
-            cellCounts[i] = buffer.getInt(p + 12)
-            p += CELL_ENTRY_SIZE
-        }
-        placesOffset = HEADER_SIZE + cellCount * CELL_ENTRY_SIZE
-        stringOffset = placesOffset + placeCount * RECORD_SIZE
+        val placesOffsetLong = HEADER_SIZE.toLong() + cellCount.toLong() * CELL_ENTRY_SIZE
+        val stringOffsetLong = placesOffsetLong + placeCount.toLong() * RECORD_SIZE
+        require(stringOffsetLong <= bytes.size) { "places.geo truncated" }
+        placesOffset = placesOffsetLong.toInt()
+        stringOffset = stringOffsetLong.toInt()
     }
 
     /** Read the place record at [index] (0-based). */
@@ -89,38 +77,48 @@ class PlacesDataset(private val bytes: ByteArray) {
         return GeoPlace(latE7, lonE7, name, country, population)
     }
 
+    private fun normalizedNameAt(index: Int): String {
+        val base = placesOffset + index * RECORD_SIZE
+        val nameOff = buffer.getInt(base + 20)
+        val nameLen = buffer.getShort(base + 24).toInt() and 0xFFFF
+        return String(bytes, stringOffset + nameOff, nameLen, Charsets.UTF_8)
+    }
+
     /**
-     * Nearest place to ([latE7], [lonE7]). Searches the containing grid cell and
-     * progressively wider rings (up to [MAX_RING]) until a candidate is found, then
-     * returns the closest by distance.
+     * Nearest place to ([latE7], [lonE7]), or `null` for an out-of-range latitude.
+     * Longitude is wrapped into [-180, 180) before a deterministic full spherical scan.
      */
     fun nearest(latE7: Int, lonE7: Int): GeoPlace? {
         if (placeCount == 0) return null
-        val latCell = Math.floorDiv(latE7, cellSizeE7)
-        val lonCell = Math.floorDiv(lonE7, cellSizeE7)
+        val query = normalizeQuery(latE7, lonE7) ?: return null
+        val queryLat = query.latE7 / E7
+        val queryLon = query.lonE7 / E7
 
-        var best: GeoPlace? = null
-        var bestDistSq = Double.MAX_VALUE
-        var ring = 0
-        while (ring <= MAX_RING) {
-            forEachCellInRing(latCell, lonCell, ring) { ci ->
-                val start = cellStarts[ci]
-                val end = start + cellCounts[ci]
-                for (idx in start until end) {
-                    val place = placeAt(idx)
-                    val d = approxDistSq(latE7, lonE7, place.latitudeE7, place.longitudeE7)
-                    if (d < bestDistSq) {
-                        bestDistSq = d
-                        best = place
-                    }
-                }
+        var bestIndex = -1
+        var bestDistance = Double.POSITIVE_INFINITY
+        var bestPopulation = Int.MIN_VALUE
+        for (index in 0 until placeCount) {
+            val base = placesOffset + index * RECORD_SIZE
+            val candidateLat = buffer.getInt(base) / E7
+            val candidateLon = buffer.getInt(base + 4) / E7
+            val population = buffer.getInt(base + 8)
+            val distance = haversineMeters(queryLat, queryLon, candidateLat, candidateLon)
+            val tied = abs(distance - bestDistance) <= DISTANCE_TIE_EPSILON_METRES
+            // Equal-distance places prefer larger population, then the lower asset record index.
+            if (
+                bestIndex < 0 ||
+                distance < bestDistance - DISTANCE_TIE_EPSILON_METRES ||
+                tied && (
+                    population > bestPopulation ||
+                        population == bestPopulation && index < bestIndex
+                    )
+            ) {
+                bestIndex = index
+                bestDistance = distance
+                bestPopulation = population
             }
-            // Once we have a candidate, scan one extra ring to catch a closer place
-            // just across a cell boundary, then stop.
-            if (best != null && ring >= 1) break
-            ring++
         }
-        return best
+        return if (bestIndex >= 0) placeAt(bestIndex) else null
     }
 
     /**
@@ -136,11 +134,15 @@ class PlacesDataset(private val bytes: ByteArray) {
     ): List<GeoPlace> {
         val needle = normalizeForSearch(query)
         if (needle.isEmpty() || limit <= 0) return emptyList()
+        val near = if (nearLatE7 != null && nearLonE7 != null) {
+            normalizeQuery(nearLatE7, nearLonE7) ?: return emptyList()
+        } else {
+            null
+        }
 
         val matches = ArrayList<Scored>()
         for (i in 0 until placeCount) {
-            val place = placeAt(i)
-            val norm = normalizeForSearch(place.name)
+            val norm = normalizedNameAt(i)
             val matchScore = when {
                 norm == needle -> 3
                 norm.startsWith(needle) -> 2
@@ -148,8 +150,14 @@ class PlacesDataset(private val bytes: ByteArray) {
                 else -> 0
             }
             if (matchScore == 0) continue
-            val proximity = if (nearLatE7 != null && nearLonE7 != null) {
-                -approxDistSq(nearLatE7, nearLonE7, place.latitudeE7, place.longitudeE7)
+            val place = placeAt(i)
+            val proximity = if (near != null) {
+                -haversineMeters(
+                    near.latE7 / E7,
+                    near.lonE7 / E7,
+                    place.latitude,
+                    place.longitude,
+                )
             } else {
                 place.population.toDouble()
             }
@@ -161,65 +169,44 @@ class PlacesDataset(private val bytes: ByteArray) {
         return matches.take(limit).map { it.place }
     }
 
-    private inline fun forEachCellInRing(
-        latCell: Int,
-        lonCell: Int,
-        ring: Int,
-        action: (cellIndex: Int) -> Unit,
-    ) {
-        if (ring == 0) {
-            cellIndexOf(latCell, lonCell)?.let(action)
-            return
-        }
-        var dLat = -ring
-        while (dLat <= ring) {
-            var dLon = -ring
-            while (dLon <= ring) {
-                // Only the outer border of the ring (interior was covered by smaller rings).
-                if (kotlin.math.abs(dLat) == ring || kotlin.math.abs(dLon) == ring) {
-                    cellIndexOf(latCell + dLat, lonCell + dLon)?.let(action)
-                }
-                dLon++
-            }
-            dLat++
-        }
+    private fun normalizeQuery(latE7: Int, lonE7: Int): QueryCoordinates? {
+        if (latE7 !in MIN_LATITUDE_E7..MAX_LATITUDE_E7) return null
+        val normalizedLon =
+            Math.floorMod(lonE7.toLong() + HALF_LONGITUDE_RANGE_E7, LONGITUDE_RANGE_E7) -
+                HALF_LONGITUDE_RANGE_E7
+        return QueryCoordinates(latE7, normalizedLon.toInt())
     }
 
-    private fun cellIndexOf(latCell: Int, lonCell: Int): Int? {
-        val key = (latCell.toLong() shl 32) or (lonCell.toLong() and 0xFFFFFFFFL)
-        val i = java.util.Arrays.binarySearch(cellKeys, key)
-        return if (i >= 0) i else null
-    }
-
+    private data class QueryCoordinates(val latE7: Int, val lonE7: Int)
     private class Scored(val place: GeoPlace, val matchScore: Int, val tieBreak: Double)
 
     companion object {
         private val MAGIC = "TGEO".toByteArray(Charsets.US_ASCII)
-        private const val VERSION = 1
+        private const val VERSION = 2
         private const val HEADER_SIZE = 20
         private const val CELL_ENTRY_SIZE = 16
-        private const val RECORD_SIZE = 20
-        private const val MAX_RING = 4
-        private const val METRES_PER_E7_DEG = 0.01112
-
-        /**
-         * Squared planar distance in metres using an equirectangular approximation,
-         * sufficient for ranking nearby candidates without full haversine cost.
-         */
-        private fun approxDistSq(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int): Double {
-            val cosLat = cos(aLatE7 / 1e7 * Math.PI / 180.0)
-            val dx = (bLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
-            val dy = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
-            return dx * dx + dy * dy
-        }
+        private const val RECORD_SIZE = 28
+        private const val MIN_LATITUDE_E7 = -900_000_000
+        private const val MAX_LATITUDE_E7 = 900_000_000
+        private const val HALF_LONGITUDE_RANGE_E7 = 1_800_000_000L
+        private const val LONGITUDE_RANGE_E7 = 3_600_000_000L
+        private const val E7 = 10_000_000.0
+        private const val DISTANCE_TIE_EPSILON_METRES = 1e-6
 
         /** Great-circle distance in metres (exposed for callers/tests). */
         fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
             val p = Math.PI / 180.0
-            val a = sin((lat2 - lat1) * p / 2).let { it * it } +
-                cos(lat1 * p) * cos(lat2 * p) * sin((lon2 - lon1) * p / 2).let { it * it }
-            return 6_371_000.0 * 2 * atan2(sqrt(a), sqrt(1 - a))
+            val deltaLongitude = normalizeLongitudeDegrees(lon2 - lon1)
+            val a = (
+                sin((lat2 - lat1) * p / 2).let { it * it } +
+                    cos(lat1 * p) * cos(lat2 * p) *
+                    sin(deltaLongitude * p / 2).let { it * it }
+                ).coerceIn(0.0, 1.0)
+            return 6_371_000.0 * 2 * atan2(sqrt(a), sqrt(1.0 - a))
         }
+
+        private fun normalizeLongitudeDegrees(longitude: Double): Double =
+            ((longitude + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
 
         /** Lowercase + strip diacritics for diacritic-insensitive matching. */
         fun normalizeForSearch(s: String): String {

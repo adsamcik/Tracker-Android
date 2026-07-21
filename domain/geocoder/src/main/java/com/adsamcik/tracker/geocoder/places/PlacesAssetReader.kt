@@ -11,7 +11,7 @@ import javax.inject.Singleton
 
 /**
  * Loads the bundled `places.geo` asset into a [PlacesDataset] once, lazily, off the
- * main thread. The asset (~5 MB) is parsed in place; failures are swallowed and
+ * main thread. The asset (~9 MB) is parsed in place; failures are swallowed and
  * surfaced as `null` so the geocoder degrades gracefully (callers fall back to raw
  * coordinates) rather than crashing.
  */

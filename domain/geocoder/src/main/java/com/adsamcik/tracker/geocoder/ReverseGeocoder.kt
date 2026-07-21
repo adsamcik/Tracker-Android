@@ -39,7 +39,8 @@ interface ReverseGeocoder {
     /**
      * Resolve the nearest human-readable place to ([latitude], [longitude]), or
      * `null` if nothing is found (only in degenerate cases — the bundled dataset
-     * has worldwide coverage at locality level).
+     * has worldwide coverage at locality level). Non-finite coordinates and
+     * latitudes outside [-90, 90] return `null`; finite longitudes are wrapped.
      */
     suspend fun reverseGeocode(latitude: Double, longitude: Double): GeocodedPlace?
 
@@ -47,7 +48,7 @@ interface ReverseGeocoder {
      * Forward search: match [query] against place names, returning up to [limit]
      * results ranked by match quality and population (or proximity when
      * [nearLatitude]/[nearLongitude] are provided). Returns an empty list for a
-     * blank query or no matches.
+     * blank query, no matches, or an invalid complete proximity coordinate pair.
      */
     suspend fun searchPlaces(
         query: String,

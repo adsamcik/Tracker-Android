@@ -48,27 +48,33 @@ object TestPlacesAssetBuilder {
         // String blob with de-dup.
         val blob = ByteArrayOutputStream()
         val offsets = HashMap<String, Int>()
-        val records = ByteBuffer.allocate(sorted.size * 20).order(ByteOrder.LITTLE_ENDIAN)
+        fun offsetOf(value: String): Int = offsets.getOrPut(value) {
+            val offset = blob.size()
+            blob.write(value.toByteArray(Charsets.UTF_8))
+            offset
+        }
+
+        val records = ByteBuffer.allocate(sorted.size * 28).order(ByteOrder.LITTLE_ENDIAN)
         for (p in sorted) {
             val nameBytes = p.name.toByteArray(Charsets.UTF_8)
-            val off = offsets.getOrPut(p.name) {
-                val o = blob.size()
-                blob.write(nameBytes)
-                o
-            }
+            val normalizedName = PlacesDataset.normalizeForSearch(p.name)
+            val normalizedBytes = normalizedName.toByteArray(Charsets.UTF_8)
             val country = (p.country + "  ").substring(0, 2)
             records.putInt(p.latE7)
             records.putInt(p.lonE7)
             records.putInt(p.population)
             records.put(country.toByteArray(Charsets.US_ASCII))
-            records.putInt(off)
+            records.putInt(offsetOf(p.name))
             records.putShort(nameBytes.size.toShort())
+            records.putInt(offsetOf(normalizedName))
+            records.putShort(normalizedBytes.size.toShort())
+            records.putShort(0)
         }
 
         val out = ByteArrayOutputStream()
         val header = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
         header.put("TGEO".toByteArray(Charsets.US_ASCII))
-        header.put(1) // version
+        header.put(2) // version
         header.put(0); header.put(0); header.put(0) // reserved
         header.putInt(sorted.size)
         header.putInt(CELL_SIZE_E7)

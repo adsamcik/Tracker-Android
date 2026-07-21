@@ -13,11 +13,11 @@ asset therefore requires attribution in the app's about/licenses screen.
 Usage:
     python build_places.py <cities1000.txt> <out/places.geo>
 
-Binary format (little-endian) — must stay in sync with PlacesAssetReader.kt:
+Binary format (little-endian) — must stay in sync with PlacesDataset.kt:
 
-    Header (24 bytes):
+    Header (20 bytes):
         magic        : 4 bytes  "TGEO"
-        version      : u8       = 1
+        version      : u8       = 2
         reserved     : 3 bytes  = 0
         placeCount   : u32
         cellSizeE7   : u32      grid cell size in 1e-7 degrees (2_500_000 = 0.25 deg)
@@ -26,18 +26,22 @@ Binary format (little-endian) — must stay in sync with PlacesAssetReader.kt:
         cellKey      : i64      (latCell << 32) | (lonCell & 0xFFFFFFFF)
         startPlaceIdx: u32
         count        : u32
-    Places (placeCount entries, fixed 20 bytes, grouped in cell-index order):
+    Places (placeCount entries, fixed 28 bytes, grouped in cell-index order):
         latE7        : i32
         lonE7        : i32
         population   : u32
         country      : 2 bytes  ASCII, space-padded
         nameOffset   : u32      byte offset into the string blob
         nameLength   : u16      UTF-8 byte length
+        normOffset   : u32      normalized-name byte offset into the string blob
+        normLength   : u16      normalized UTF-8 byte length
+        reserved     : 2 bytes  = 0
     String blob:
-        concatenated UTF-8 place names
+        de-duplicated raw and normalized UTF-8 place names
 """
 import struct
 import sys
+import unicodedata
 
 CELL_SIZE_E7 = 2_500_000  # 0.25 degrees
 
@@ -46,6 +50,11 @@ def cell_key(lat_e7: int, lon_e7: int) -> int:
     lat_cell = lat_e7 // CELL_SIZE_E7  # Python // is floor division
     lon_cell = lon_e7 // CELL_SIZE_E7
     return (lat_cell << 32) | (lon_cell & 0xFFFFFFFF)
+
+
+def normalize_name(name: str) -> str:
+    decomposed = unicodedata.normalize("NFD", name.strip())
+    return "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn").lower()
 
 
 def main() -> int:
@@ -84,6 +93,14 @@ def main() -> int:
     place_records = bytearray()
     name_offsets = {}  # de-dup identical names to shrink the blob
 
+    def add_string(encoded: bytes) -> int:
+        off = name_offsets.get(encoded)
+        if off is None:
+            off = len(string_blob)
+            name_offsets[encoded] = off
+            string_blob.extend(encoded)
+        return off
+
     cur_key = None
     cur_start = 0
     for idx, (key, lat_e7, lon_e7, population, country, name) in enumerate(places):
@@ -93,20 +110,18 @@ def main() -> int:
             cur_key = key
             cur_start = idx
         encoded = name.encode("utf-8")
-        off = name_offsets.get(encoded)
-        if off is None:
-            off = len(string_blob)
-            name_offsets[encoded] = off
-            string_blob.extend(encoded)
+        normalized = normalize_name(name).encode("utf-8")
         place_records.extend(
             struct.pack(
-                "<iiI2sIH",
+                "<iiI2sIHIH2x",
                 lat_e7,
                 lon_e7,
                 population,
                 country.encode("ascii", "replace"),
-                off,
+                add_string(encoded),
                 len(encoded),
+                add_string(normalized),
+                len(normalized),
             )
         )
     if cur_key is not None:
@@ -114,7 +129,7 @@ def main() -> int:
 
     with open(out, "wb") as fh:
         fh.write(b"TGEO")
-        fh.write(struct.pack("<B3x", 1))
+        fh.write(struct.pack("<B3x", 2))
         fh.write(struct.pack("<III", len(places), CELL_SIZE_E7, len(cell_index)))
         for key, start, count in cell_index:
             fh.write(struct.pack("<qII", key, start, count))

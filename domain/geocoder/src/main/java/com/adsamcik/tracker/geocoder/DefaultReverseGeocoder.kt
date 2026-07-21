@@ -27,8 +27,9 @@ class DefaultReverseGeocoder @Inject constructor(
 ) : ReverseGeocoder {
 
     override suspend fun reverseGeocode(latitude: Double, longitude: Double): GeocodedPlace? {
-        val latE7 = (latitude * 1e7).roundToInt()
-        val lonE7 = (longitude * 1e7).roundToInt()
+        val coordinates = toE7CoordinatesOrNull(latitude, longitude) ?: return null
+        val latE7 = coordinates.latitude
+        val lonE7 = coordinates.longitude
 
         val (place, street) = coroutineScope {
             val placeDeferred = async(dispatchers.default) {
@@ -52,8 +53,8 @@ class DefaultReverseGeocoder @Inject constructor(
             street = street,
             locality = locality,
             countryCode = place?.countryCode,
-            latitude = place?.latitude ?: latitude,
-            longitude = place?.longitude ?: longitude,
+            latitude = place?.latitude ?: coordinates.latitude / E7,
+            longitude = place?.longitude ?: coordinates.longitude / E7,
         )
     }
 
@@ -64,11 +65,14 @@ class DefaultReverseGeocoder @Inject constructor(
         limit: Int,
     ): List<PlaceSearchResult> {
         if (query.isBlank()) return emptyList()
+        val near = if (nearLatitude != null && nearLongitude != null) {
+            toE7CoordinatesOrNull(nearLatitude, nearLongitude) ?: return emptyList()
+        } else {
+            null
+        }
         val dataset = placesReader.dataset() ?: return emptyList()
-        val nearLatE7 = nearLatitude?.let { (it * 1e7).roundToInt() }
-        val nearLonE7 = nearLongitude?.let { (it * 1e7).roundToInt() }
         return withContext(dispatchers.default) {
-            dataset.search(query, nearLatE7, nearLonE7, limit).map { place ->
+            dataset.search(query, near?.latitude, near?.longitude, limit).map { place ->
                 PlaceSearchResult(
                     displayName = place.name,
                     locality = place.name,
@@ -81,3 +85,16 @@ class DefaultReverseGeocoder @Inject constructor(
         }
     }
 }
+
+internal data class E7Coordinates(val latitude: Int, val longitude: Int)
+
+internal fun toE7CoordinatesOrNull(latitude: Double, longitude: Double): E7Coordinates? {
+    if (!latitude.isFinite() || !longitude.isFinite() || latitude !in -90.0..90.0) return null
+    val wrappedLongitude = ((longitude + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+    return E7Coordinates(
+        latitude = (latitude * E7).roundToInt(),
+        longitude = (wrappedLongitude * E7).roundToInt(),
+    )
+}
+
+private const val E7 = 10_000_000.0
