@@ -184,6 +184,8 @@ class OsmHmmMapMatcher @Inject constructor(
 			},
 		)
 
+		if (chosen.isEmpty()) return emptyList()
+
 		val edges = ArrayList<MatchedEdge>(length - 1)
 		for (localI in 1 until length) {
 			val prev = candidatesPerObs[start + localI - 1][chosen[localI - 1]]

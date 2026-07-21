@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,9 +38,15 @@ class OsmModuleInitializer @Inject constructor(
 	override val priority: Int = 500
 
 	override fun initialize() {
+		val startupStartedAt = System.currentTimeMillis()
 		appScope.launch(dispatchers.io) {
 			try {
-				val removedImports = osmImportDao.deleteBuildingImports()
+				val abandonedImports = osmImportDao.observeAll().first()
+					.filter {
+						it.status == "BUILDING" && it.importedAt < startupStartedAt
+					}
+				abandonedImports.forEach { osmImportDao.delete(it.id) }
+				val removedImports = abandonedImports.size
 				if (removedImports > 0) {
 					ReporterFacade.log(
 						"OsmModuleInitializer: removed $removedImports abandoned OSM imports",

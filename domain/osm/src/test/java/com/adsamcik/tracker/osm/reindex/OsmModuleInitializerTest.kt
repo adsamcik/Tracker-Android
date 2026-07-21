@@ -15,9 +15,13 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -27,6 +31,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@OptIn(ExperimentalCoroutinesApi::class)
 class OsmModuleInitializerTest {
 	private lateinit var context: Application
 	private lateinit var database: AppDatabase
@@ -79,12 +84,53 @@ class OsmModuleInitializerTest {
 		scope.cancel()
 	}
 
-	private suspend fun seedImport(displayName: String, status: String): Long =
+	@Test
+	fun `startup preserves BUILDING import created after its startup marker`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val scope = CoroutineScope(SupervisorJob() + dispatcher)
+		val reindexer = mockk<OsmWayCellReindexer>()
+		val reindexStarted = CompletableDeferred<Unit>()
+		coEvery { reindexer.reindexIfNeeded() } coAnswers {
+			reindexStarted.complete(Unit)
+			0
+		}
+		seedImport(
+			displayName = "abandoned.osm.pbf",
+			status = OsmImportEntity.STATUS_BUILDING,
+			importedAt = 1_700_000_000_000L,
+		)
+
+		OsmModuleInitializer(
+			appScope = scope,
+			dispatchers = TestDispatchersProvider(dispatcher),
+			osmImportDao = database.osmImportDao(),
+			reindexer = reindexer,
+		).initialize()
+		seedImport(
+			displayName = "restarting.osm.pbf",
+			status = OsmImportEntity.STATUS_BUILDING,
+			importedAt = Long.MAX_VALUE,
+		)
+
+		advanceUntilIdle()
+		reindexStarted.await()
+
+		database.osmImportDao().count() shouldBe 1
+		importNames() shouldContainExactly listOf("restarting.osm.pbf")
+		coVerify(exactly = 1) { reindexer.reindexIfNeeded() }
+		scope.cancel()
+	}
+
+	private suspend fun seedImport(
+		displayName: String,
+		status: String,
+		importedAt: Long = 1_700_000_000_000L,
+	): Long =
 		database.osmImportDao().insert(
 			OsmImportEntity(
 				displayName = displayName,
 				fileUri = "content://test/$displayName",
-				importedAt = 1_700_000_000_000L,
+				importedAt = importedAt,
 				wayCount = 1,
 				nodeCount = 2,
 				minLatE7 = 500_000_000,

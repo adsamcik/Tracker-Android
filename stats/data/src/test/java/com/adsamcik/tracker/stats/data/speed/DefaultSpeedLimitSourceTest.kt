@@ -27,9 +27,9 @@ import org.junit.jupiter.api.Test
  *
  *   coords?  ×  OSM imported?
  *
- * After R2 round-6 the dispatcher caches `osmImportDao.observeCount()` via a
+ * After R2 round-6 the dispatcher caches `osmImportDao.observeReadyCount()` via a
  * StateFlow snapshot to keep the hot path off the IO thread. These tests use
- * a `MutableStateFlow` fake for [OsmImportDao.observeCount] so the cache
+ * a `MutableStateFlow` fake for [OsmImportDao.observeReadyCount] so the cache
  * value is deterministic.
  *
  * **Why [UnconfinedTestDispatcher]?** `stateIn(Eagerly)` launches an internal
@@ -56,8 +56,8 @@ class DefaultSpeedLimitSourceTest {
 	private fun newImportDao(count: Int): Pair<OsmImportDao, MutableStateFlow<Int>> {
 		val dao = mockk<OsmImportDao>()
 		val countFlow = MutableStateFlow(count)
-		every { dao.observeCount() } returns countFlow
-		coEvery { dao.count() } answers { countFlow.value }
+		every { dao.observeReadyCount() } returns countFlow
+		coEvery { dao.readyCount() } answers { countFlow.value }
 		return dao to countFlow
 	}
 
@@ -119,7 +119,7 @@ class DefaultSpeedLimitSourceTest {
 	}
 
 	@Test
-	fun `OSM count snapshot updates when observeCount emits`() = runTest {
+	fun `OSM READY count snapshot updates when observeReadyCount emits`() = runTest {
 		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
 		val osm = mockk<OsmSpeedLimitSource>()
 		val (importDao, countFlow) = newImportDao(count = 0)
@@ -130,7 +130,7 @@ class DefaultSpeedLimitSourceTest {
 		// 1st call: snapshot already populated with 0 (no imports) -> fixed.
 		source.limitMpsAt(0L, 500_000_000, 144_000_000)
 
-		// User imports a region: observeCount emits the new value and the
+		// User's import becomes READY: observeReadyCount emits the new value and the
 		// cached snapshot updates synchronously under Unconfined.
 		countFlow.value = 1
 
@@ -138,22 +138,22 @@ class DefaultSpeedLimitSourceTest {
 
 		second.shouldBeBetween(25.0, 25.0, 1e-9)
 		coVerify(exactly = 1) { osm.findRoadLimitMps(any(), any()) }
-		// dao.count() must NEVER be hit on the warm path — the whole point of
+		// dao.readyCount() must NEVER be hit on the warm path — the whole point of
 		// the snapshot is to keep hot callers off the IO thread.
-		coVerify(exactly = 0) { importDao.count() }
+		coVerify(exactly = 0) { importDao.readyCount() }
 		scope.cancel()
 	}
 
 	@Test
-	fun `cold start falls back to direct count when cache is uninitialized`() = runTest {
+	fun `cold start falls back to direct READY count when cache is uninitialized`() = runTest {
 		// Use a paused (never-advanced) scope so the stateIn collector is
 		// launched but never gets to emit. Cache stays at the sentinel for the
 		// duration of the test, proving the cold-path fallback works.
 		val osm = mockk<OsmSpeedLimitSource>()
 		val importDao = mockk<OsmImportDao>()
 		val pausedFlow = MutableStateFlow(-1)
-		every { importDao.observeCount() } returns pausedFlow
-		coEvery { importDao.count() } returns 1
+		every { importDao.observeReadyCount() } returns pausedFlow
+		coEvery { importDao.readyCount() } returns 1
 		coEvery { osm.findRoadLimitMps(any(), any()) } returns 25.0
 
 		// StandardTestDispatcher without advance => collector queued but never runs.
@@ -163,20 +163,20 @@ class DefaultSpeedLimitSourceTest {
 		val limit = source.limitMpsAt(0L, 500_000_000, 144_000_000)
 
 		limit.shouldBeBetween(25.0, 25.0, 1e-9)
-		coVerify(atLeast = 1) { importDao.count() }
+		coVerify(atLeast = 1) { importDao.readyCount() }
 	}
 
 	@Test
-	fun `cold start single-flights direct count across parallel callers`() = runTest {
+	fun `cold start single-flights direct READY count across parallel callers`() = runTest {
 		// R2 round-6 (round 2): if many hot-path callers race the StateFlow's
 		// first emission, the previous implementation issued one
-		// osmImportDao.count() per caller. The single-flight cold-start cache
+		// osmImportDao.readyCount() per caller. The single-flight cold-start cache
 		// must collapse them all into exactly one DAO query.
 		val osm = mockk<OsmSpeedLimitSource>()
 		val importDao = mockk<OsmImportDao>()
 		val pausedFlow = MutableStateFlow(-1)
-		every { importDao.observeCount() } returns pausedFlow
-		coEvery { importDao.count() } returns 2
+		every { importDao.observeReadyCount() } returns pausedFlow
+		coEvery { importDao.readyCount() } returns 2
 		coEvery { osm.findRoadLimitMps(any(), any()) } returns 25.0
 
 		val pausedScope = TestScope().backgroundScope
@@ -189,8 +189,30 @@ class DefaultSpeedLimitSourceTest {
 		val results = jobs.awaitAll()
 
 		results.forEach { it.shouldBeBetween(25.0, 25.0, 1e-9) }
-		// Exactly one DAO count() across all callers: the cold-start mutex
+		// Exactly one DAO readyCount() across all callers: the cold-start mutex
 		// plus the cached coldStartCount field must ensure single-flight.
-		coVerify(exactly = 1) { importDao.count() }
+		coVerify(exactly = 1) { importDao.readyCount() }
+	}
+
+	@Test
+	fun `BUILDING import skips OSM until it becomes READY`() = runTest {
+		val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+		val osm = mockk<OsmSpeedLimitSource>()
+		val (importDao, readyCount) = newImportDao(count = 0)
+		coEvery { osm.findRoadLimitMps(any(), any()) } returns 25.0
+		val source = DefaultSpeedLimitSource(newFixed(scope), osm, importDao, scope)
+
+		val whileBuilding = source.limitMpsAt(0L, 500_000_000, 144_000_000)
+
+		whileBuilding.shouldBeBetween(baselineMps, baselineMps, 1e-9)
+		coVerify(exactly = 0) { osm.findRoadLimitMps(any(), any()) }
+
+		readyCount.value = 1
+
+		val onceReady = source.limitMpsAt(0L, 500_000_000, 144_000_000)
+
+		onceReady.shouldBeBetween(25.0, 25.0, 1e-9)
+		coVerify(exactly = 1) { osm.findRoadLimitMps(any(), any()) }
+		scope.cancel()
 	}
 }

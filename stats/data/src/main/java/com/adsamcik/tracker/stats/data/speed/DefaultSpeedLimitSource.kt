@@ -24,12 +24,12 @@ import javax.inject.Singleton
  *  - Otherwise → [FixedSpeedLimitSource].
  *
  * **Snapshot pattern (R2 round-6 perf review):** the previous implementation
- * called `osmImportDao.count()` on every `limitMpsAt` invocation. Hot callers
+ * called `osmImportDao.readyCount()` on every `limitMpsAt` invocation. Hot callers
  * — most notably the vehicle-compliance map layer — iterate over hundreds of
  * samples per heatmap rebuild, so the aggregate cost is significant even
  * though a `COUNT(*)` is cheap individually.
  *
- * We now subscribe to [OsmImportDao.observeCount] once in init and cache the
+ * We now subscribe to [OsmImportDao.observeReadyCount] once in init and cache the
  * latest count in a [kotlinx.coroutines.flow.StateFlow]. The hot path reads
  * the cached value with no IO. Disabling all OSM regions still takes effect
  * for the next sample after the Flow propagates, exactly as before.
@@ -39,7 +39,7 @@ import javax.inject.Singleton
  * the first `limitMpsAt` caller arrives — a heatmap rebuild triggered from
  * `Application.onCreate` can issue hundreds of parallel calls before the
  * Room observer has had a chance to fire. The previous implementation issued
- * an `osmImportDao.count()` on every cold-start caller, which defeated the
+ * an `osmImportDao.readyCount()` on every cold-start caller, which defeated the
  * snapshot benefit and reintroduced the IO storm we were trying to avoid.
  *
  * The cold-start fallback is now serialised by [coldStartMutex] and the
@@ -59,11 +59,11 @@ class DefaultSpeedLimitSource @Inject constructor(
 	@ApplicationScope appScope: CoroutineScope,
 ) : SpeedLimitSource {
 
-	private val cachedOsmImportCount: StateFlow<Int> = osmImportDao.observeCount()
+	private val cachedOsmImportCount: StateFlow<Int> = osmImportDao.observeReadyCount()
 		.stateIn(appScope, SharingStarted.Eagerly, COUNT_UNINITIALIZED)
 
 	/**
-	 * Cached result of the cold-start direct `count()` fallback. Guarded by
+	 * Cached result of the cold-start direct `readyCount()` fallback. Guarded by
 	 * [coldStartMutex] for writes; reads are lock-free via the volatile
 	 * field — readers either see [COUNT_UNINITIALIZED] (and pay the mutex
 	 * cost to re-check) or a final value (and skip the mutex entirely).
@@ -72,7 +72,7 @@ class DefaultSpeedLimitSource @Inject constructor(
 	private var coldStartCount: Int = COUNT_UNINITIALIZED
 
 	/**
-	 * Serialises the cold-start `count()` fallback so N parallel callers
+	 * Serialises the cold-start `readyCount()` fallback so N parallel callers
 	 * before the StateFlow's first emission issue at most one DAO query.
 	 */
 	private val coldStartMutex = Mutex()
@@ -106,14 +106,14 @@ class DefaultSpeedLimitSource @Inject constructor(
 			if (liveRecheck != COUNT_UNINITIALIZED) return@withLock liveRecheck
 			val coldRecheck = coldStartCount
 			if (coldRecheck != COUNT_UNINITIALIZED) return@withLock coldRecheck
-			val direct = osmImportDao.count()
+			val direct = osmImportDao.readyCount()
 			coldStartCount = direct
 			direct
 		}
 	}
 
 	private companion object {
-		// Sentinel for "the upstream observeCount() flow has not emitted yet".
+		// Sentinel for "the upstream observeReadyCount() flow has not emitted yet".
 		// Valid counts are always >= 0.
 		private const val COUNT_UNINITIALIZED = -1
 	}
