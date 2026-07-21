@@ -8,6 +8,29 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegmentStats
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Maps the detailed native activity ids shipped in database v10 to the activity ids stored by
+ * current session segments. This composes the historical v10 detailed-to-simplified mapping with
+ * `NativeSessionActivity.toSegmentPrimaryActivityId()`. Custom and unknown legacy ids remain null.
+ */
+private const val EFFECTIVE_ACTIVITY_SQL = """
+COALESCE(
+	primary_activity,
+	CASE
+		WHEN legacy_activity_id IN (-2, -19) THEN 7
+		WHEN legacy_activity_id = -3 THEN 8
+		WHEN legacy_activity_id = -4 THEN 1
+		WHEN legacy_activity_id IN (
+			-34, -33, -32, -31, -30, -29, -28, -27, -26, -25,
+			-21, -20, -18, -17, -16, -15, -14, -13, -12, -11,
+			-10, -9, -8, -7, -6, -5
+		) THEN 0
+		WHEN legacy_activity_id IN (-24, -23, -22) THEN -22
+		ELSE NULL
+	END
+)
+"""
+
 data class SessionSegmentBounds(
 	@ColumnInfo(name = "min_start")
 	val minStart: Long?,
@@ -27,8 +50,8 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
+			COALESCE(SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
+			COALESCE(SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
 			COALESCE(SUM(steps), 0) AS step_count
 		FROM session_segment
 		WHERE sample_count > 0
@@ -45,8 +68,8 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(end_time_ms - start_time_ms), 0) AS duration_ms,
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
+			COALESCE(SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
+			COALESCE(SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
 			COALESCE(SUM(steps), 0) AS step_count
 		FROM session_segment
 		WHERE sample_count > 0
@@ -191,19 +214,25 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	/**
 	 * Count distinct primary_activity values (transport modes used).
 	 */
-	@Query("SELECT COUNT(DISTINCT primary_activity) FROM session_segment WHERE primary_activity IS NOT NULL")
+	@Query(
+		"""
+		SELECT COUNT(DISTINCT $EFFECTIVE_ACTIVITY_SQL)
+		FROM session_segment
+		WHERE $EFFECTIVE_ACTIVITY_SQL IS NOT NULL
+		"""
+	)
 	suspend fun countDistinctActivities(): Long
 
 	/**
 	 * Count segments by primary activity type.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity = :activityType")
+	@Query("SELECT COUNT(*) FROM session_segment WHERE $EFFECTIVE_ACTIVITY_SQL = :activityType")
 	suspend fun countByActivity(activityType: Int): Long
 
 	/**
 	 * Count segments by a set of primary activities.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	@Query("SELECT COUNT(*) FROM session_segment WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)")
 	suspend fun countByActivities(activityTypes: List<Int>): Long
 
 	/** Count distinct local calendar days containing a classified activity. */
@@ -211,7 +240,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		"""
 		SELECT COUNT(DISTINCT strftime('%Y-%m-%d', start_time_ms / 1000, 'unixepoch', 'localtime'))
 		FROM session_segment
-		WHERE primary_activity IN (:activityTypes)
+		WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)
 			AND sample_count > 0
 		"""
 	)
@@ -227,7 +256,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query(
 		"""
 		SELECT COUNT(*) FROM session_segment
-		WHERE primary_activity IN (:activityTypes)
+		WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)
 			AND start_time_ms < :toMs AND end_time_ms > :fromMs
 		"""
 	)
@@ -236,7 +265,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	/**
 	 * Sum distance for a set of primary activities (meters).
 	 */
-	@Query("SELECT CAST(COALESCE(SUM(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	@Query("SELECT CAST(COALESCE(SUM(distance_m), 0) AS INTEGER) FROM session_segment WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)")
 	suspend fun sumDistanceByActivities(activityTypes: List<Int>): Long
 
 	/**
@@ -258,7 +287,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			), 0) AS INTEGER
 		)
 		FROM session_segment
-		WHERE primary_activity IN (:activityTypes)
+		WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)
 			AND start_time_ms < :toMs AND end_time_ms > :fromMs
 		"""
 	)
@@ -279,7 +308,14 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query("SELECT COUNT(DISTINCT strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime')) FROM session_segment")
 	suspend fun countDistinctStartHours(): Long
 
-	@Query("SELECT COUNT(DISTINCT primary_activity) FROM session_segment WHERE primary_activity IS NOT NULL AND start_time_ms < :toMs AND end_time_ms > :fromMs")
+	@Query(
+		"""
+		SELECT COUNT(DISTINCT $EFFECTIVE_ACTIVITY_SQL)
+		FROM session_segment
+		WHERE $EFFECTIVE_ACTIVITY_SQL IS NOT NULL
+			AND start_time_ms < :toMs AND end_time_ms > :fromMs
+		"""
+	)
 	suspend fun countDistinctActivitiesBetween(fromMs: Long, toMs: Long): Long
 
 	@Query("SELECT MIN(start_time_ms) FROM session_segment")
@@ -299,7 +335,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun countSessionsStartingBetweenHours(fromHour: Int, toHour: Int): Long
 
 	/** Maximum single-segment distance (meters) for a set of primary activities. */
-	@Query("SELECT CAST(COALESCE(MAX(distance_m), 0) AS INTEGER) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	@Query("SELECT CAST(COALESCE(MAX(distance_m), 0) AS INTEGER) FROM session_segment WHERE $EFFECTIVE_ACTIVITY_SQL IN (:activityTypes)")
 	suspend fun maxDistanceByActivities(activityTypes: List<Int>): Long
 
 	/**
@@ -312,9 +348,9 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			SELECT strftime('%Y-%m-%d', start_time_ms / 1000, 'unixepoch', 'localtime') AS day
 			FROM session_segment
 			GROUP BY day
-			HAVING SUM(CASE WHEN primary_activity IN (:walk) THEN 1 ELSE 0 END) > 0
-				AND SUM(CASE WHEN primary_activity IN (:cycle) THEN 1 ELSE 0 END) > 0
-				AND SUM(CASE WHEN primary_activity IN (:drive) THEN 1 ELSE 0 END) > 0
+			HAVING SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:walk) THEN 1 ELSE 0 END) > 0
+				AND SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:cycle) THEN 1 ELSE 0 END) > 0
+				AND SUM(CASE WHEN $EFFECTIVE_ACTIVITY_SQL IN (:drive) THEN 1 ELSE 0 END) > 0
 		)
 		"""
 	)

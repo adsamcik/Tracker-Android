@@ -461,6 +461,18 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
+	fun `migrated native activities are visible through typed segment statistics`() = runTest {
+		val dao = migrateAppDatabase().sessionSegmentDao()
+
+		dao.countByActivity(7) shouldBe 2L
+		dao.countByActivity(8) shouldBe 1L
+		dao.countByActivity(1) shouldBe 1L
+		dao.countByActivity(0) shouldBe 26L
+		dao.countByActivity(-22) shouldBe 3L
+		dao.countDistinctActivities() shouldBe 5L
+	}
+
+	@Test
 	fun `reference data and custom activities survive unchanged`() {
 		val raw = migrateAppDatabase().openHelper.writableDatabase
 		count(raw, "activity") shouldBe 34
