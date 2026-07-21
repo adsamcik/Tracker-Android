@@ -79,6 +79,8 @@ class ShadowValidationTest {
 	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
+	private val stagedSignals = mutableListOf<TrackingSignal>()
+	private var nextCheckpointId = 1L
 
 	private val transactor = object : TrackingPersistenceTransactor {
 		override suspend fun <R> inTransaction(block: suspend () -> R): R = block()
@@ -86,6 +88,8 @@ class ShadowValidationTest {
 
 	@BeforeEach
 	fun setup() {
+		stagedSignals.clear()
+		nextCheckpointId = 1L
 		locationDao = mockk(relaxed = true)
 		locationObservationDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
@@ -104,7 +108,31 @@ class ShadowValidationTest {
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
-		coEvery { durableBuffer.checkpoint(any()) } returns emptyList()
+		coEvery { durableBuffer.claimBatch(any()) } returns null
+		every { durableBuffer.stagingSize } answers { stagedSignals.size }
+		every { durableBuffer.stage(any<TrackingSignal>()) } answers {
+			val signal = firstArg<TrackingSignal>()
+			stagedSignals += signal
+			DurableSignalBuffer.StagedSignal("shadow-${stagedSignals.size}", signal)
+		}
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+			val committed = stagedSignals.map { signal ->
+				val id = nextCheckpointId++
+				DurableSignalBuffer.CheckpointedSignal(
+					id = id,
+					signalId = "shadow-$id",
+					signal = signal,
+					capturedEpoch = 0L,
+					acquiredAtMs = signal.timestampMs.raw,
+				)
+			}
+			stagedSignals.clear()
+			firstArg<(List<DurableSignalBuffer.CheckpointedSignal>) -> Unit>().invoke(committed)
+			DurableSignalBuffer.CheckpointAdmission(
+				admittedIds = committed.map(DurableSignalBuffer.CheckpointedSignal::id),
+				lifecycleRejectedCount = 0,
+			)
+		}
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,

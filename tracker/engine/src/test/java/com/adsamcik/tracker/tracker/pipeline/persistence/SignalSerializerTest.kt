@@ -23,6 +23,7 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -130,6 +131,129 @@ class SignalSerializerTest {
 	)
 
 	// endregion
+
+	@Test
+	fun `current envelope round trips with a verified checksum`() {
+		val original = createFullSignal()
+		val encoded = SignalSerializer.encode(original)
+
+		encoded.envelopeVersion shouldBe SignalSerializer.CURRENT_ENVELOPE_VERSION
+		encoded.payloadChecksum shouldBe SignalSerializer.payloadChecksum(encoded.payloadJson)
+
+		val decoded = SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = encoded.payloadJson,
+			payloadChecksum = encoded.payloadChecksum,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>()
+
+		decoded.signal shouldBe original
+	}
+
+	@Test
+	fun `current envelope rejects a payload checksum mismatch`() {
+		val encoded = SignalSerializer.encode(createMinimalSignal())
+		val alteredPayload = encoded.payloadJson.replace("1700000000000", "1700000000001")
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = alteredPayload,
+			payloadChecksum = encoded.payloadChecksum,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.PAYLOAD_CHECKSUM_MISMATCH
+	}
+
+	@Test
+	fun `current envelope requires a payload checksum`() {
+		val encoded = SignalSerializer.encode(createMinimalSignal())
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = encoded.payloadJson,
+			payloadChecksum = null,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.MISSING_PAYLOAD_CHECKSUM
+	}
+
+	@Test
+	fun `future envelope version is surfaced as unsupported`() {
+		val encoded = SignalSerializer.encode(createMinimalSignal())
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = SignalSerializer.CURRENT_ENVELOPE_VERSION + 1,
+			payloadJson = encoded.payloadJson,
+			payloadChecksum = encoded.payloadChecksum,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Unsupported>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.UNSUPPORTED_ENVELOPE_VERSION
+	}
+
+	@Test
+	fun `unknown current signal type is surfaced as unsupported`() {
+		val encoded = SignalSerializer.encode(createMinimalSignal())
+		val futurePayload = encoded.payloadJson.replace("tracking_signal", "future_signal")
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = futurePayload,
+			payloadChecksum = SignalSerializer.payloadChecksum(futurePayload),
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Unsupported>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.UNSUPPORTED_SIGNAL_TYPE
+	}
+
+	@Test
+	fun `unknown current activity code is surfaced as unsupported`() {
+		val encoded = SignalSerializer.encode(createActivityOnlySignal())
+		val futurePayload = encoded.payloadJson.replace("\"running\"", "\"hoverboard\"")
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = futurePayload,
+			payloadChecksum = SignalSerializer.payloadChecksum(futurePayload),
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Unsupported>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.UNSUPPORTED_ACTIVITY_TYPE
+	}
+
+	@Test
+	fun `legacy ordinal payloads remain readable`() {
+		val result = SignalSerializer.decode(
+			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
+			payloadJson = """{"ts":1700000000000,"act":{"t":1,"c":50}}""",
+			payloadChecksum = null,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>()
+
+		result.signal.activity.shouldNotBeNull().type shouldBe DetectedActivityType.WALKING
+	}
+
+	@Test
+	fun `legacy metadata cannot bypass current envelope checksum verification`() {
+		val encoded = SignalSerializer.encode(createMinimalSignal())
+
+		val result = SignalSerializer.decode(
+			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
+			payloadJson = encoded.payloadJson,
+			payloadChecksum = null,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_PAYLOAD
+	}
+
+	@Test
+	fun `serializer writes stable enum codes rather than ordinals`() {
+		val json = SignalSerializer.serialize(
+			TrackingSignal(
+				timestampMs = EpochMs(1_700_000_000_000L),
+				activity = ActivitySignal(DetectedActivityType.RUNNING, ActivityConfidence(90)),
+				policy = PolicySignal(PolicyTier.PRECISION),
+			),
+		)
+
+		json.contains("\"t\":\"running\"") shouldBe true
+		json.contains("\"tier\":\"precision\"") shouldBe true
+	}
 
 
 	@Test

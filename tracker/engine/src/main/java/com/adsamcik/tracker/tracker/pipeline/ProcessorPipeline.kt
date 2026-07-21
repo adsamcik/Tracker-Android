@@ -16,8 +16,30 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 
+/** Whether a durability checkpoint admitted a signal, intentionally discarded it, or failed. */
+enum class DurableAdmissionStatus {
+	ADMITTED,
+	LIFECYCLE_REJECTED,
+	FAILED,
+}
+
 internal interface DurableSignalProcessor : SignalProcessor {
 	suspend fun checkpointStagedSignals(): Boolean
+
+	/**
+	 * Preserves the Boolean contract for existing implementations while allowing the persistence
+	 * processor to distinguish a terminal lifecycle discard from a storage failure.
+	 */
+	suspend fun checkpointStagedSignalsStatus(): DurableAdmissionStatus =
+		if (checkpointStagedSignals()) DurableAdmissionStatus.ADMITTED else DurableAdmissionStatus.FAILED
+
+	/**
+	 * Admission result for one just-staged signal. Implementations that keep per-signal admission
+	 * metadata override this so a lifecycle-rejected older row does not suppress fan-out of a newer
+	 * row checkpointed in the same batch.
+	 */
+	suspend fun checkpointStagedSignalStatus(signal: TrackingSignal): DurableAdmissionStatus =
+		checkpointStagedSignalsStatus()
 }
 
 /**
@@ -43,6 +65,8 @@ class ProcessorPipeline(
 	private val processors: Set<SignalProcessor>,
 	@Suppress("UNUSED_PARAMETER") scope: CoroutineScope,
 	private val onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
+	/** Production pipelines make the pending-signal commit the acceptance boundary. */
+	private val requireDurableAdmission: Boolean = false,
 ) {
 	private companion object {
 		const val TAG = "ProcessorPipeline"
@@ -59,6 +83,11 @@ class ProcessorPipeline(
 	// slow-path flushes from multiple onSignal callers — a small cost in exchange
 	// for guaranteed correctness against the now-thread-safe StreamingAggregator.
 	private val slowPathSerializer = Mutex()
+	// Admission is deliberately serialized separately from the normal state mutex.
+	// A signal must be committed to pending_signal before downstream processors can
+	// consume it; without this gate, two callers could checkpoint B before A and
+	// advance producer state out of order.
+	private val durableAdmissionSerializer = Mutex()
 	private val sortedProcessors = processors.sortedBy { it.descriptor.priority }
 	private var currentTier: PolicyTier = PolicyTier.OFF
 
@@ -202,46 +231,92 @@ class ProcessorPipeline(
 	suspend fun onSignal(
 		signal: TrackingSignal,
 		onAccepted: () -> Unit = {},
-	) {
-		val processorsToFlush: List<SignalProcessor>
+	): Boolean = durableAdmissionSerializer.withLock {
+		slowPathSerializer.withLock slowPath@{
+			var durabilityProcessor: DurableSignalProcessor? = null
+			var durabilityDeliveryFailed = false
+			var durabilityUnavailable = false
 
-		// Fast path: deliver signal + identify flush candidates under lock
-		mutex.withLock {
-			if (!isRunning) return
-			flushCandidates.clear()
-
-			for (processor in cachedActiveProcessors) {
-				val id = processor.descriptor.id
+			// Stage only after owning the slow path. This gives every path the same
+			// lock order (admission -> slow path -> state mutex), so stop/escalate
+			// cannot checkpoint a staged signal and then make this call report that
+			// it was rejected before downstream consumers see it.
+			val pipelineActive = mutex.withLock {
+				if (!isRunning) return@withLock false
+				durabilityProcessor = cachedActiveProcessors
+					.filterIsInstance<DurableSignalProcessor>()
+					.firstOrNull()
+				val durability = durabilityProcessor
+				if (durability == null) {
+					durabilityUnavailable = requireDurableAdmission
+					return@withLock true
+				}
 				try {
-					processor.onSignal(signal)
-					resetFailureCount(id)
+					durability.onSignal(signal)
+					resetFailureCount(durability.descriptor.id)
+					true
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					recordFailure(id, "signal", e)
+					recordFailure(durability.descriptor.id, "signal", e)
+					durabilityDeliveryFailed = true
+					false
 				}
 			}
-			onAccepted()
-
-			val now = signal.timestampMs.raw
-			for (processor in cachedActiveProcessors) {
-				val lastFlush = lastFlushTime[processor.descriptor.id] ?: 0L
-				val shouldFlush = now - lastFlush >= processor.descriptor.flushIntervalMs
-				if (shouldFlush) {
-					lastFlushTime[processor.descriptor.id] = now
-					flushCandidates.add(processor)
-				}
+			if (!pipelineActive || durabilityUnavailable || durabilityDeliveryFailed) {
+				return@slowPath false
 			}
-			processorsToFlush = flushCandidates.toList()
-		}
 
-		// Slow path: flush outside the signal-delivery mutex. Event persistence shares the
-		// same serializer so batches cannot overtake one another or the final SessionEnded.
-		slowPathSerializer.withLock {
-			if (!isRunning) return  // stop() set the flag before we acquired the lock
-			checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
+			// The initial state-mutex section is the stop boundary. Once it has
+			// staged this signal, finish its checkpoint and fan-out even if stop()
+			// flips isRunning while waiting for the mutex: stop waits on this slow
+			// path before it can tear any processor down.
+			val durability = durabilityProcessor
+			if (durability != null) {
+					val admission = try {
+						durability.checkpointStagedSignalStatus(signal)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					mutex.withLock {
+						recordFailure(durability.descriptor.id, "signal checkpoint", e)
+					}
+					DurableAdmissionStatus.FAILED
+				}
+				if (admission != DurableAdmissionStatus.ADMITTED) return@slowPath false
+			} else if (requireDurableAdmission) {
+				return@slowPath false
+			}
+
+			val processorsToFlush = mutex.withLock {
+				flushCandidates.clear()
+				for (processor in cachedActiveProcessors) {
+					if (processor === durability) continue
+					val id = processor.descriptor.id
+					try {
+						processor.onSignal(signal)
+						resetFailureCount(id)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordFailure(id, "signal", e)
+					}
+				}
+
+				onAccepted()
+				val now = signal.timestampMs.raw
+				for (processor in cachedActiveProcessors) {
+					val lastFlush = lastFlushTime[processor.descriptor.id] ?: 0L
+					if (now - lastFlush >= processor.descriptor.flushIntervalMs) {
+						lastFlushTime[processor.descriptor.id] = now
+						flushCandidates.add(processor)
+					}
+				}
+				flushCandidates.toList()
+			}
+
 			persistPendingEvents(pendingRuntimeEvents, "runtime")
-			if (processorsToFlush.isEmpty()) return
+			if (processorsToFlush.isEmpty()) return@slowPath true
 
 			val events = mutableListOf<DomainEvent>()
 			for (processor in processorsToFlush) {
@@ -257,9 +332,9 @@ class ProcessorPipeline(
 			}
 			if (events.isNotEmpty()) {
 				mutex.withLock { pendingRuntimeEvents.addAll(events) }
-				checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
 				persistPendingEvents(pendingRuntimeEvents, "runtime")
 			}
+			true
 		}
 	}
 
@@ -272,27 +347,29 @@ class ProcessorPipeline(
 	 */
 	suspend fun checkpointDurableSignals(signals: List<TrackingSignal>): Boolean {
 		if (signals.isEmpty()) return true
-		return slowPathSerializer.withLock {
-			mutex.withLock {
-				if (!isRunning) return@withLock false
-				val processor = cachedActiveProcessors
-					.filterIsInstance<DurableSignalProcessor>()
-					.firstOrNull()
-					?: return@withLock false
-				val id = processor.descriptor.id
-				try {
-					signals.forEach(processor::onSignal)
-					val checkpointed = processor.checkpointStagedSignals()
-					if (checkpointed) resetFailureCount(id)
-					checkpointed
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					recordFailure(id, "raw-signal checkpoint", e)
-					false
+		return durableAdmissionSerializer.withLock {
+			slowPathSerializer.withLock {
+				mutex.withLock {
+					if (!isRunning) return@withLock false
+					val processor = cachedActiveProcessors
+						.filterIsInstance<DurableSignalProcessor>()
+						.firstOrNull()
+						?: return@withLock false
+					val id = processor.descriptor.id
+					try {
+						signals.forEach(processor::onSignal)
+						val admission = processor.checkpointStagedSignalsStatus()
+						if (admission == DurableAdmissionStatus.ADMITTED) resetFailureCount(id)
+						admission == DurableAdmissionStatus.ADMITTED
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						recordFailure(id, "raw-signal checkpoint", e)
+						false
+					}
 				}
 			}
-		}
+	}
 	}
 
 	/**
@@ -443,7 +520,7 @@ class ProcessorPipeline(
 			}
 		}
 		if (durabilityProcessor != null) {
-			check(durabilityProcessor.checkpointStagedSignals()) {
+			check(durabilityProcessor.checkpointStagedSignalsStatus() != DurableAdmissionStatus.FAILED) {
 				"Unable to checkpoint tracking signals before domain event dispatch"
 			}
 		}

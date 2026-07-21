@@ -5,7 +5,9 @@ import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
@@ -16,8 +18,11 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
@@ -45,6 +50,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -69,9 +75,12 @@ class PersistenceProcessorTest {
 	private lateinit var stepDao: StepIntervalDao
 	private lateinit var activityDao: ActivitySnapshotDao
 	private lateinit var pendingSignalDao: PendingSignalDao
+	private lateinit var pendingSignalClaimDao: PendingSignalClaimDao
 	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
+	private val stagedSignals = mutableListOf<TrackingSignal>()
+	private var nextCheckpointId = 1L
 
 	/**
 	 * Transactor that simply runs the block. It preserves the key property the
@@ -86,6 +95,8 @@ class PersistenceProcessorTest {
 
 	@BeforeEach
 	fun setup() {
+		stagedSignals.clear()
+		nextCheckpointId = 1L
 		locationDao = mockk(relaxed = true)
 		locationObservationDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
@@ -94,6 +105,7 @@ class PersistenceProcessorTest {
 		stepDao = mockk(relaxed = true)
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
+		pendingSignalClaimDao = mockk(relaxed = true)
 		durableBuffer = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
@@ -107,7 +119,21 @@ class PersistenceProcessorTest {
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
-		coEvery { durableBuffer.checkpoint(any()) } returns emptyList()
+		coEvery { durableBuffer.claimBatch(any()) } returns null
+		every { durableBuffer.stagingSize } answers { stagedSignals.size }
+		coEvery { pendingSignalClaimDao.deleteClaimedByIds(any(), any()) } answers {
+			firstArg<List<Long>>().size
+		}
+		coEvery { pendingSignalClaimDao.quarantineClaimed(any(), any()) } returns true
+		every { durableBuffer.stage(any<TrackingSignal>()) } answers {
+			val signal = firstArg<TrackingSignal>()
+			stagedSignals += signal
+			DurableSignalBuffer.StagedSignal("test-staged-${stagedSignals.size}", signal)
+		}
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+			val ids = stagedSignals.map { nextCheckpointId++ }
+			completeCheckpoint(ids, firstArg())
+		}
 		coEvery { pendingSignalDao.countByIds(any()) } answers {
 			firstArg<List<Long>>().size
 		}
@@ -121,11 +147,64 @@ class PersistenceProcessorTest {
 			stepIntervalDao = stepDao,
 			activitySnapshotDao = activityDao,
 			pendingSignalDao = pendingSignalDao,
+			pendingSignalClaimDao = pendingSignalClaimDao,
 			durableBuffer = durableBuffer,
 			transactor = transactor,
 			errorCollector = errorCollector,
 		)
 	}
+
+	private fun completeCheckpoint(
+		ids: List<Long>,
+		callback: (List<DurableSignalBuffer.CheckpointedSignal>) -> Unit,
+		signals: List<TrackingSignal> = stagedSignals.toList(),
+	): DurableSignalBuffer.CheckpointAdmission {
+		callback(
+			ids.mapIndexed { index, id ->
+				DurableSignalBuffer.CheckpointedSignal(
+					id = id,
+					signalId = "test-signal-$id",
+					signal = signals.getOrElse(index) { emptySignal },
+					capturedEpoch = 0L,
+					acquiredAtMs = signals.getOrElse(index) { emptySignal }.timestampMs.raw,
+				)
+			},
+		)
+		stagedSignals.clear()
+		return DurableSignalBuffer.CheckpointAdmission(
+			admittedIds = ids,
+			lifecycleRejectedCount = 0,
+		)
+	}
+
+	private fun lifecycleAwareProcessor(
+		stateDao: SourceEvidenceStateDao,
+		lifecycleStore: CollectedDataLifecycleStore? = null,
+	): PersistenceProcessor = PersistenceProcessor(
+		locationSampleDao = locationDao,
+		locationObservationDao = locationObservationDao,
+		sourceEvidenceStateDao = stateDao,
+		collectedDataLifecycleStore = lifecycleStore,
+		cellSampleDao = cellDao,
+		wifiObservationDao = wifiDao,
+		pressureSampleDao = pressureDao,
+		stepIntervalDao = stepDao,
+		activitySnapshotDao = activityDao,
+		pendingSignalDao = pendingSignalDao,
+		pendingSignalClaimDao = pendingSignalClaimDao,
+		durableBuffer = durableBuffer,
+		transactor = transactor,
+		errorCollector = errorCollector,
+	)
+
+	private fun claimedBatch(
+		signals: List<DurableSignalBuffer.PeekedSignal>,
+		claimToken: String = "test-claim",
+	): DurableSignalBuffer.ClaimedBatch = DurableSignalBuffer.ClaimedBatch(
+		claimToken = claimToken,
+		leaseExpiresAtMs = Long.MAX_VALUE,
+		signals = signals,
+	)
 
 	private fun signalWithLocation(
 		timestampMs: Long = 1_000_000L,
@@ -254,8 +333,8 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `flush checkpoints staged signals before persisting destinations`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
-				listOf(10L, 11L).also(firstArg<(List<Long>) -> Unit>())
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				completeCheckpoint(listOf(10L, 11L), firstArg())
 			}
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
@@ -263,13 +342,13 @@ class PersistenceProcessorTest {
 
 			processor.onFlush()
 
-			coVerify(exactly = 1) { durableBuffer.checkpoint(any()) }
+			coVerify(exactly = 1) { durableBuffer.checkpointWithAdmission(any()) }
 			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 		}
 
 		@Test
 		fun `checkpoint failure preserves staged signals and skips the flush`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } throws RuntimeException("wal write failed")
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } throws RuntimeException("wal write failed")
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 			processor.onSignal(signalWithLocation())
@@ -285,14 +364,32 @@ class PersistenceProcessorTest {
 		}
 
 		@Test
+		fun `lifecycle rejection is terminal and does not report a checkpoint failure`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } returns
+				DurableSignalBuffer.CheckpointAdmission(
+					admittedIds = emptyList(),
+					lifecycleRejectedCount = 1,
+				)
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithLocation())
+
+			processor.checkpointStagedSignals() shouldBe false
+			processor.onStop()
+
+			coVerify(exactly = 0) { errorCollector.reportError(any()) }
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+		}
+
+		@Test
 		fun `cancellation after destination commit still acknowledges committed buffers`() = runTest {
 			var firstCheckpoint = true
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
 				if (firstCheckpoint) {
 					firstCheckpoint = false
-					listOf(41L).also(firstArg<(List<Long>) -> Unit>())
+					completeCheckpoint(listOf(41L), firstArg())
 				} else {
-					emptyList()
+					DurableSignalBuffer.CheckpointAdmission.EMPTY
 				}
 			}
 			coEvery { pendingSignalDao.countByIds(listOf(41L)) } returns 0
@@ -333,10 +430,10 @@ class PersistenceProcessorTest {
 		@Test
 		fun `transaction timeout reconciles a commit before retrying buffered rows`() = runTest {
 			var checkpointed = false
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
 				val ids = if (checkpointed) emptyList() else listOf(43L)
 				checkpointed = true
-				ids.also(firstArg<(List<Long>) -> Unit>())
+				completeCheckpoint(ids, firstArg())
 			}
 			coEvery { pendingSignalDao.countByIds(listOf(43L)) } returns 0
 			val commitThenStallTransactor = object : TrackingPersistenceTransactor {
@@ -372,7 +469,7 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `restart retries typed buffers retained after final checkpoint failure`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } throws RuntimeException("wal write failed")
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } throws RuntimeException("wal write failed")
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L))
 			processor.onSignal(signalWithLocation())
@@ -380,8 +477,8 @@ class PersistenceProcessorTest {
 				processor.onStop()
 			}
 
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
-				listOf(42L).also(firstArg<(List<Long>) -> Unit>())
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				completeCheckpoint(listOf(42L), firstArg())
 			}
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(1L), sessionId = 2L))
 
@@ -396,8 +493,8 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `successful flush acknowledges exactly the checkpointed WAL ids`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
-				listOf(10L, 11L).also(firstArg<(List<Long>) -> Unit>())
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				completeCheckpoint(listOf(10L, 11L), firstArg())
 			}
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
@@ -414,8 +511,8 @@ class PersistenceProcessorTest {
 		@Test
 		fun `large WAL acknowledgement is deleted within SQLite bind limits`() = runTest {
 			val ids = (1L..901L).toList()
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
-				ids.also(firstArg<(List<Long>) -> Unit>())
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				completeCheckpoint(ids, firstArg())
 			}
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
@@ -433,9 +530,9 @@ class PersistenceProcessorTest {
 		@Test
 		fun `destination failure retains buffers and does not acknowledge WAL`() = runTest {
 			var checkpointCall = 0
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
 				val ids = if (checkpointCall++ == 0) listOf(10L, 11L) else emptyList()
-				ids.also(firstArg<(List<Long>) -> Unit>())
+				completeCheckpoint(ids, firstArg())
 			}
 			coEvery { cellDao.insert(any<Collection<CellSample>>()) } throws RuntimeException("DB error")
 
@@ -460,8 +557,8 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `CancellationException propagates and keeps data retryable`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } coAnswers {
-				listOf(10L).also(firstArg<(List<Long>) -> Unit>())
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				completeCheckpoint(listOf(10L), firstArg())
 			}
 			coEvery {
 				locationDao.insert(any<Collection<LocationSample>>())
@@ -480,6 +577,81 @@ class PersistenceProcessorTest {
 			caught shouldBe true
 			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
 		}
+
+		@Test
+		fun `stale in-memory WAL entry is discarded while a current entry still persists`() = runTest {
+			val lifecycleStateDao = mockk<SourceEvidenceStateDao>(relaxed = true)
+			coEvery { lifecycleStateDao.get() } returns SourceEvidenceState(
+				collectedDataEpoch = 7L,
+				retainedFromMs = 5_000L,
+			)
+		coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				firstArg<(List<DurableSignalBuffer.CheckpointedSignal>) -> Unit>().invoke(
+					listOf(
+						DurableSignalBuffer.CheckpointedSignal(
+							id = 10L,
+							signalId = "stale-pressure",
+							signal = signalWithPressure(timestampMs = 1_000L),
+							capturedEpoch = 6L,
+							acquiredAtMs = 1_000L,
+						),
+						DurableSignalBuffer.CheckpointedSignal(
+							id = 11L,
+							signalId = "current-pressure",
+							signal = signalWithPressure(timestampMs = 6_000L),
+							capturedEpoch = 7L,
+							acquiredAtMs = 6_000L,
+						),
+					),
+				)
+				DurableSignalBuffer.CheckpointAdmission(
+					admittedIds = listOf(10L, 11L),
+					lifecycleRejectedCount = 0,
+				)
+			}
+			val lifecycleProcessor = lifecycleAwareProcessor(lifecycleStateDao)
+
+			lifecycleProcessor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			lifecycleProcessor.onFlush()
+
+			val pressures = slot<Collection<PressureSample>>()
+			coVerify(exactly = 1) { pressureDao.insert(capture(pressures)) }
+			pressures.captured.map(PressureSample::timeMs) shouldBe listOf(6_000L)
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(10L, 11L)) }
+		}
+
+		@Test
+		fun `flush synchronizes authoritative lifecycle before publishing buffered WAL`() = runTest {
+			var mirroredGuard = SourceEvidenceState(
+				collectedDataEpoch = 0L,
+				retainedFromMs = null,
+			)
+			val lifecycleStateDao = mockk<SourceEvidenceStateDao>(relaxed = true)
+			coEvery { lifecycleStateDao.get() } coAnswers { mirroredGuard }
+			coEvery { lifecycleStateDao.updateLifecycle(any(), any(), any()) } coAnswers {
+				mirroredGuard = mirroredGuard.copy(
+					collectedDataEpoch = firstArg(),
+					retainedFromMs = secondArg(),
+				)
+				1
+			}
+			val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+			coEvery { lifecycleStore.snapshot() } returns CollectedDataLifecycleSnapshot(
+				epoch = 1L,
+				retainedFromMs = 5_000L,
+			)
+			val lifecycleProcessor = lifecycleAwareProcessor(lifecycleStateDao, lifecycleStore)
+
+			lifecycleProcessor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			lifecycleProcessor.onSignal(signalWithPressure(timestampMs = 1_000L))
+			lifecycleProcessor.onFlush()
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
+			coVerify(exactly = 1) {
+				lifecycleStateDao.updateLifecycle(1L, 5_000L, any())
+			}
+		}
 	}
 
 	@Nested
@@ -487,13 +659,15 @@ class PersistenceProcessorTest {
 	inner class StartupRecovery {
 
 		@Test
-		fun `recovery peeks pending entries and persists then acknowledges them`() = runTest {
-			coEvery { durableBuffer.peekBatch(any()) } returnsMany listOf(
-				listOf(
+		fun `recovery claims pending entries and persists then acknowledges them`() = runTest {
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(
+					listOf(
 					DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(timestampMs = 1_000_000L)),
 					DurableSignalBuffer.PeekedSignal(2L, signalWithPressure(timestampMs = 1_000_500L)),
 				),
-				emptyList(),
+				),
+				null,
 			)
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 42L))
@@ -501,33 +675,126 @@ class PersistenceProcessorTest {
 			verify(exactly = 1) { durableBuffer.setSessionId(42L) }
 			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L, 2L)) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L, 2L), "test-claim")
+			}
 		}
 
 		@Test
-		fun `corrupted WAL rows are acknowledged so recovery makes progress`() = runTest {
-			coEvery { durableBuffer.peekBatch(any()) } returnsMany listOf(
-				listOf(
+		fun `recovery discards stale WAL before publishing current entries`() = runTest {
+			val lifecycleStateDao = mockk<SourceEvidenceStateDao>(relaxed = true)
+			coEvery { lifecycleStateDao.get() } returns SourceEvidenceState(
+				collectedDataEpoch = 4L,
+				retainedFromMs = 5_000L,
+			)
+			val stale = DurableSignalBuffer.PeekedSignal(
+				1L,
+				signalWithPressure(timestampMs = 1_000L),
+			).copy(
+				signalId = "stale-recovery",
+				capturedEpoch = 3L,
+				acquiredAtMs = 1_000L,
+			)
+			val current = DurableSignalBuffer.PeekedSignal(
+				2L,
+				signalWithPressure(timestampMs = 6_000L),
+			).copy(
+				signalId = "current-recovery",
+				capturedEpoch = 4L,
+				acquiredAtMs = 6_000L,
+			)
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(stale, current)),
+				null,
+			)
+			val lifecycleProcessor = lifecycleAwareProcessor(lifecycleStateDao)
+
+			lifecycleProcessor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+			val pressures = slot<Collection<PressureSample>>()
+			coVerify(exactly = 1) { pressureDao.insert(capture(pressures)) }
+			pressures.captured.map(PressureSample::timeMs) shouldBe listOf(6_000L)
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(2L), "test-claim")
+			}
+		}
+
+		@Test
+		fun `recovery synchronizes authoritative lifecycle when no new admission occurred`() = runTest {
+			var mirroredGuard = SourceEvidenceState(
+				collectedDataEpoch = 0L,
+				retainedFromMs = null,
+			)
+			val lifecycleStateDao = mockk<SourceEvidenceStateDao>(relaxed = true)
+			coEvery { lifecycleStateDao.get() } coAnswers { mirroredGuard }
+			coEvery { lifecycleStateDao.updateLifecycle(any(), any(), any()) } coAnswers {
+				mirroredGuard = mirroredGuard.copy(
+					collectedDataEpoch = firstArg(),
+					retainedFromMs = secondArg(),
+				)
+				1
+			}
+			val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+			coEvery { lifecycleStore.snapshot() } returns CollectedDataLifecycleSnapshot(
+				epoch = 1L,
+				retainedFromMs = 5_000L,
+			)
+			val stale = DurableSignalBuffer.PeekedSignal(
+				1L,
+				signalWithPressure(timestampMs = 1_000L),
+			).copy(
+				signalId = "expired-before-retention-recovery",
+				capturedEpoch = 0L,
+				acquiredAtMs = 1_000L,
+			)
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(stale)),
+				null,
+			)
+			val lifecycleProcessor = lifecycleAwareProcessor(lifecycleStateDao, lifecycleStore)
+
+			lifecycleProcessor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
+			coVerify(exactly = 1) {
+				lifecycleStateDao.updateLifecycle(1L, 5_000L, any())
+			}
+		}
+
+		@Test
+		fun `corrupted WAL rows are quarantined while valid rows continue`() = runTest {
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(
+					listOf(
 					DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(timestampMs = 1_000_000L)),
 					DurableSignalBuffer.PeekedSignal(2L, null), // corrupted
 					DurableSignalBuffer.PeekedSignal(3L, signalWithPressure(timestampMs = 1_000_500L)),
 				),
-				emptyList(),
+				),
+				null,
 			)
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 
-			// All peeked ids — including the corrupted one — are acknowledged in
-			// the same transaction, so the WAL always drains and never loops.
-			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L, 2L, 3L)) }
-			coVerify(exactly = 2) { durableBuffer.peekBatch(any()) }
+			coVerify(exactly = 1) { pendingSignalClaimDao.quarantineClaimed(any(), "test-claim") }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L, 3L), "test-claim")
+			}
+			coVerify(exactly = 2) { durableBuffer.claimBatch(any()) }
 		}
 
 		@Test
 		fun `recovery persist failure leaves WAL rows and retries on next flush`() = runTest {
-			coEvery { durableBuffer.peekBatch(any()) } returnsMany listOf(
-				listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(timestampMs = 1_000_000L))),
-				emptyList(),
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(timestampMs = 1_000_000L)))),
+				claimedBatch(listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(timestampMs = 1_000_000L)))),
+				null,
 			)
 			coEvery {
 				locationDao.insert(any<Collection<LocationSample>>())
@@ -535,24 +802,28 @@ class PersistenceProcessorTest {
 
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 
-			// Persist failed during recovery: the row is NOT acknowledged and the
-			// loop stops (single peek) to avoid spinning.
-			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
-			coVerify(exactly = 1) { durableBuffer.peekBatch(any()) }
+			// Persist failed during recovery: the row is not acknowledged and its
+			// lease is released so a later pass can retry it.
+			coVerify(exactly = 0) { pendingSignalClaimDao.deleteClaimedByIds(any(), any()) }
+			coVerify(exactly = 1) { durableBuffer.releaseClaim("test-claim") }
+			coVerify(exactly = 1) { durableBuffer.claimBatch(any()) }
 
 			// A later flush (with a healthy DAO) retries and acknowledges it.
 			coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
 			processor.onFlush()
 
-			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
 		}
 
 		@Test
 		fun `successful recovery retry continues draining later WAL batches`() = runTest {
-			coEvery { durableBuffer.peekBatch(any()) } returnsMany listOf(
-				listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(1_000_000L))),
-				listOf(DurableSignalBuffer.PeekedSignal(2L, signalWithLocation(2_000_000L))),
-				emptyList(),
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(1_000_000L)))),
+				claimedBatch(listOf(DurableSignalBuffer.PeekedSignal(1L, signalWithLocation(1_000_000L)))),
+				claimedBatch(listOf(DurableSignalBuffer.PeekedSignal(2L, signalWithLocation(2_000_000L)))),
+				null,
 			)
 			coEvery {
 				locationDao.insert(any<Collection<LocationSample>>())
@@ -563,9 +834,13 @@ class PersistenceProcessorTest {
 			coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
 			processor.onFlush()
 
-			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
-			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(2L)) }
-			coVerify(exactly = 3) { durableBuffer.peekBatch(any()) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(2L), "test-claim")
+			}
+			coVerify(exactly = 4) { durableBuffer.claimBatch(any()) }
 		}
 	}
 
@@ -723,7 +998,7 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `onStop fails when final signals cannot be checkpointed durably`() = runTest {
-			coEvery { durableBuffer.checkpoint(any()) } throws IllegalStateException("WAL unavailable")
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } throws IllegalStateException("WAL unavailable")
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 			processor.onSignal(signalWithLocation())
 

@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
 import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -340,7 +341,7 @@ class FusedLocationCollectionTriggerTest {
 		every {
 			mockClient.requestLocationUpdates(any<LocationRequest>(), capture(callbackSlot), any())
 		} returns mockk(relaxed = true)
-		every { receiver.onUpdate(capture(cycleSlot)) } just Runs
+		every { receiver.onUpdate(capture(cycleSlot)) } returns mockk(relaxed = true)
 		trigger.onEnable(context, receiver)
 
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
@@ -384,7 +385,7 @@ class FusedLocationCollectionTriggerTest {
 		every {
 			mockClient.requestLocationUpdates(any<LocationRequest>(), capture(callbackSlot), any())
 		} returns mockk(relaxed = true)
-		every { receiver.onUpdate(capture(cycleSlot)) } just Runs
+		every { receiver.onUpdate(capture(cycleSlot)) } returns mockk(relaxed = true)
 		trigger.onEnable(context, receiver)
 
 		val invalid = Location("fused").apply {

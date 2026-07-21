@@ -40,6 +40,15 @@ android {
     }
 }
 
+tasks.withType<Test>().configureEach {
+    // The default 512m worker heap is too small for this module's large Robolectric-backed
+    // pipeline/persistence suite and causes intermittent "Java heap space" failures. Forking a
+    // fresh worker periodically also reclaims Robolectric's per-test SDK/shadow state instead of
+    // letting it accumulate across the whole suite in one JVM. forkEvery counts test *classes*.
+    maxHeapSize = "6g"
+    setForkEvery(5)
+}
+
 dependencies {
     api(project(":tracker:api"))
     implementation(project(":core:base"))

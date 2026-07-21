@@ -23,6 +23,7 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 		rawLocation.latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&
 		rawLocation.longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE
 	val observation = LocationObservationSignal(
+		rawFixTimeMs = rawLocation.time,
 		coordinate = if (hasValidCoordinate) {
 			CoordinateE7(
 				lat = LatE7.fromDegrees(rawLocation.latitude),
@@ -50,11 +51,20 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 		batchSize = fixMetadata.batchSize,
 		isMock = LocationCompat.isMock(rawLocation),
 		ingressDisposition = ingressDisposition.name,
+		callbackId = fixMetadata.callbackId,
+		sourceEventId = fixMetadata.sourceEventId,
 	)
 	return TrackingSignal(
+		// EpochMs deliberately rejects negative values. Preserve the provider value above and use
+		// this envelope-safe fallback only for dispatch ordering; the ingress disposition keeps an
+		// invalid provider timestamp out of canonical evidence.
 		timestampMs = EpochMs(rawLocation.time.coerceAtLeast(0L)),
 		elapsedRealtimeNanos = rawLocation.elapsedRealtimeNanos,
+		clockDomainId = fixMetadata.clockDomainId,
 		locationObservation = observation,
 		policy = PolicySignal(policyTier, policyName),
+		persistenceSignalId = fixMetadata.sourceEventId
+			?.takeIf(String::isNotBlank)
+			?.let { sourceEventId -> "location-observation:$sourceEventId" },
 	)
 }

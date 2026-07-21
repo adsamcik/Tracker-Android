@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -57,6 +58,8 @@ object SignalAdapter {
 	 * @param pressureAltitudeM Barometric altitude in meters, null if unavailable
 	 * @param policyTier Current tracking policy tier, null if unavailable
 	 * @param policyName Current tracking policy name, null if unavailable
+	 * @param persistenceSignalId Stable outer-WAL identity supplied by the producer, null when the
+	 * buffer should create one for this staging attempt
 	 */
 	fun buildSignal(
 		timestampMs: Long,
@@ -79,6 +82,9 @@ object SignalAdapter {
 		batchIndex: Int = 0,
 		batchSize: Int = 1,
 		isMock: Boolean = false,
+		sourceEventId: String? = null,
+		clockDomainId: String? = null,
+		locationDecision: LocationDecisionSignal? = null,
 		activityTypeCode: Int? = null,
 		activityConfidence: Int? = null,
 		activityFresh: Boolean = true,
@@ -97,6 +103,7 @@ object SignalAdapter {
 		pressureAltitudeM: Float? = null,
 		policyTier: PolicyTier? = null,
 		policyName: String? = null,
+		persistenceSignalId: String? = null,
 	): TrackingSignal {
 		val locationSignal = if (latitude != null && longitude != null && accuracy != null) {
 			LocationSignal(
@@ -119,6 +126,7 @@ object SignalAdapter {
 				batchIndex = batchIndex,
 				batchSize = batchSize,
 				isMock = isMock,
+				sourceEventId = sourceEventId,
 			)
 		} else {
 			null
@@ -185,8 +193,10 @@ object SignalAdapter {
 		return TrackingSignal(
 			timestampMs = EpochMs(timestampMs),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			clockDomainId = clockDomainId,
 			locationObservation = locationObservation,
 			location = locationSignal,
+			locationDecision = locationDecision,
 			activity = activitySignal,
 			activityFresh = activityFresh,
 			steps = stepSignal,
@@ -194,6 +204,7 @@ object SignalAdapter {
 			wifi = wifiSignal,
 			pressure = pressureSignal,
 			policy = policySignal,
+			persistenceSignalId = persistenceSignalId,
 		)
 	}
 }

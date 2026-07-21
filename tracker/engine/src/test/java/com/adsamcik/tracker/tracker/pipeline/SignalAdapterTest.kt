@@ -104,4 +104,14 @@ class SignalAdapterTest {
 
 		signal.location.shouldBeNull()
 	}
+
+	@Test
+	fun `producer persistence identity is carried into the tracking signal`() {
+		val signal = SignalAdapter.buildSignal(
+			timestampMs = 8_000L,
+			persistenceSignalId = "producer-cycle-identity",
+		)
+
+		signal.persistenceSignalId shouldBe "producer-cycle-identity"
+	}
 }

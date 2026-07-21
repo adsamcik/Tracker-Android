@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.core.location.LocationCompat
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.api.signal.LocationDecision
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
@@ -39,6 +41,14 @@ internal class SignalDispatchStage(
 			val collectionData = cycleContext.collectionData
 			val rawLocation = cycle.location?.lastLocation
 			val locationMetadata = cycle.location?.lastFixMetadata
+			val sourceEventId = locationMetadata?.sourceEventId
+			// Keep the decision boundary identical to SignalAdapter's LocationSignal construction.
+			// A partial curated object is not an accepted persisted sample.
+			val locationAccepted = collectionData.location?.let { location ->
+				location.latitude != null &&
+					location.longitude != null &&
+					location.horizontalAccuracy != null
+			} == true
 
 			val cellTowers = cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }
@@ -84,6 +94,19 @@ internal class SignalDispatchStage(
 				batchIndex = locationMetadata?.batchIndex ?: 0,
 				batchSize = locationMetadata?.batchSize ?: 1,
 				isMock = rawLocation?.let(LocationCompat::isMock) ?: false,
+				sourceEventId = sourceEventId,
+				clockDomainId = locationMetadata?.clockDomainId,
+				locationDecision = sourceEventId?.let { eventId ->
+					LocationDecisionSignal(
+						sourceEventId = eventId,
+						decision = if (locationAccepted) {
+							LocationDecision.ACCEPTED
+						} else {
+							LocationDecision.REJECTED
+						},
+						reason = if (locationAccepted) null else "CURATED_LOCATION_REJECTED",
+					)
+				},
 				activityTypeCode = effectiveActivity?.activityType,
 				activityConfidence = effectiveActivity?.confidence,
 				activityFresh = cycle.activityFresh ||
@@ -107,6 +130,7 @@ internal class SignalDispatchStage(
 				pressureAltitudeM = cycle.pressure?.altitudeM,
 				policyTier = currentTierProvider(),
 				policyName = currentPolicyNameProvider(),
+				persistenceSignalId = cycle.persistenceSignalId,
 			)
 			signal
 		} catch (e: CancellationException) {
@@ -117,10 +141,19 @@ internal class SignalDispatchStage(
 		}
 
 		cycleContext.signal = signal
-		pipeline.onSignal(signal) {
+		val admitted = pipeline.onSignal(signal) {
 			lastEffectiveActivity = effectiveActivity
 		}
-		return StageResult.Continue
+		return if (admitted) {
+			StageResult.Continue
+		} else {
+			// Do not advance downstream SignalProcessor state or the activity
+			// acknowledgement until the persistence processor has committed the
+			// pending-signal admission record. A storage failure remains staged for
+			// retry; a lifecycle rejection is a terminal, intentionally unforwarded
+			// discard.
+			StageResult.Skip("durable signal admission failed")
+		}
 	}
 
 	private fun effectiveActivityChanged(

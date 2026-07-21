@@ -168,6 +168,7 @@ internal class TrackingCycleDispatcher(
 				stepSensorReset = isLast && cycle.stepSensorReset,
 				pressure = cycle.pressure.takeIf { isLast },
 				rawGpsAltitude = cycle.rawGpsAltitude.takeIf { isLast },
+				persistenceSignalId = "${cycle.persistenceSignalId}:location-$index",
 			)
 		}
 	}
@@ -196,6 +197,10 @@ internal class TrackingCycleDispatcher(
 			stepSensorReset = first.stepSensorReset || second.stepSensorReset,
 			pressure = second.pressure ?: first.pressure,
 			rawGpsAltitude = second.rawGpsAltitude ?: first.rawGpsAltitude,
+			// The tail cycle has not entered durable admission yet. Preserve its
+			// identity while absorbing newer data so a retry of this queued work
+			// resolves the same pending-signal key instead of minting a duplicate.
+			persistenceSignalId = first.persistenceSignalId,
 		)
 	}
 

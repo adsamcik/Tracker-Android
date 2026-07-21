@@ -1,10 +1,20 @@
 package com.adsamcik.tracker.stats.engine.heatmap
 
-import kotlin.math.asin
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
+private fun requireRepresentableDuration(startMs: Long, endMsExclusive: Long) {
+	require(endMsExclusive > startMs)
+	require(startMs >= 0L || endMsExclusive <= Long.MAX_VALUE + startMs) {
+		"Time range is too large to represent as a millisecond duration"
+	}
+}
+
+private fun exactNonNegativeSum(left: Long, right: Long): Long {
+	require(left >= 0L && right >= 0L)
+	require(left <= Long.MAX_VALUE - right) { "Millisecond duration overflow" }
+	return left + right
+}
+
+private fun exactDurationSum(intervals: Iterable<SpatialSupportInterval>): Long =
+	intervals.fold(0L) { total, interval -> exactNonNegativeSum(total, interval.durationMs) }
 
 /**
  * Pure V1 contract for the analytical quantity behind the location-history heatmap.
@@ -22,7 +32,7 @@ data class HeatmapInstantRange(
 	val endMsExclusive: Long,
 ) {
 	init {
-		require(endMsExclusive > startMs)
+		requireRepresentableDuration(startMs, endMsExclusive)
 	}
 }
 
@@ -33,7 +43,7 @@ data class TrackerActiveSpan(
 	val clockDomainId: Long,
 ) {
 	init {
-		require(endMsExclusive > startMs)
+		requireRepresentableDuration(startMs, endMsExclusive)
 	}
 }
 
@@ -99,20 +109,31 @@ fun interface SpatialKernelPolicy {
 sealed interface SpatialSupportInterval {
 	val startMs: Long
 	val endMsExclusive: Long
+	val clockDomainId: Long?
 
 	val durationMs: Long get() = endMsExclusive - startMs
 
 	data class Supported(
 		override val startMs: Long,
 		override val endMsExclusive: Long,
+		override val clockDomainId: Long,
 		val kernel: NormalizedCompactKernel,
 		val sourceEvidenceId: Long,
-	) : SpatialSupportInterval
+	) : SpatialSupportInterval {
+		init {
+			requireRepresentableDuration(startMs, endMsExclusive)
+		}
+	}
 
 	data class Unresolved(
 		override val startMs: Long,
 		override val endMsExclusive: Long,
-	) : SpatialSupportInterval
+		override val clockDomainId: Long?,
+	) : SpatialSupportInterval {
+		init {
+			requireRepresentableDuration(startMs, endMsExclusive)
+		}
+	}
 }
 
 data class SpatiallySupportedTimeResult(
@@ -124,8 +145,8 @@ data class SpatiallySupportedTimeResult(
 ) {
 	init {
 		require(supportedMs >= 0L && unresolvedMs >= 0L)
-		require(supportedMs + unresolvedMs == canonicalTrackedMs)
-		require(intervals.sumOf(SpatialSupportInterval::durationMs) == canonicalTrackedMs)
+		require(exactNonNegativeSum(supportedMs, unresolvedMs) == canonicalTrackedMs)
+		require(exactDurationSum(intervals) == canonicalTrackedMs)
 	}
 }
 
@@ -157,17 +178,19 @@ class SpatiallySupportedTimeEstimator(
 			.mapNotNull { it.clip(request) }
 			.groupBy(TrackerActiveSpan::clockDomainId)
 			.mapValues { (_, spans) -> mergeDomainSpans(spans) }
-		val canonicalSpans = mergeCanonicalSpans(clippedByDomain.values.flatten())
+		val canonicalSpans = buildCanonicalSpans(clippedByDomain.values.flatten())
 		if (canonicalSpans.isEmpty()) return emptyResult()
 
 		val candidates = buildCandidates(clippedByDomain, evidence)
 		val intervals = partitionCanonicalTime(canonicalSpans, candidates)
 		val supportedMs = intervals.filterIsInstance<SpatialSupportInterval.Supported>()
-			.sumOf(SpatialSupportInterval.Supported::durationMs)
-		val canonicalMs = canonicalSpans.sumOf { it.endMsExclusive - it.startMs }
+			.fold(0L) { total, interval -> exactNonNegativeSum(total, interval.durationMs) }
+		val canonicalMs = canonicalSpans.fold(0L) { total, span ->
+			exactNonNegativeSum(total, span.endMsExclusive - span.startMs)
+		}
 		val unresolvedMs = canonicalMs - supportedMs
 		check(unresolvedMs >= 0L)
-		check(intervals.sumOf(SpatialSupportInterval::durationMs) == canonicalMs)
+		check(exactDurationSum(intervals) == canonicalMs)
 		return SpatiallySupportedTimeResult(
 			intervals = intervals,
 			canonicalTrackedMs = canonicalMs,
@@ -189,16 +212,18 @@ class SpatiallySupportedTimeEstimator(
 			.mapValues { requireNotNull(it.value) }
 			.entries
 			.groupBy({ it.key.clockDomainId }, { EvidenceGroup(it.key.timeMs, it.value) })
+			.mapValues { (_, groups) -> groups.sortedBy(EvidenceGroup::timeMs) }
 
-		return buildList {
+		val candidates = buildList {
 			for ((clockDomainId, spans) in spansByDomain) {
-				val domainGroups = groupsByDomain[clockDomainId].orEmpty().sortedBy(EvidenceGroup::timeMs)
+				val domainGroups = groupsByDomain[clockDomainId].orEmpty()
 				for (span in spans) {
-					val inSpan = domainGroups.filter { it.timeMs >= span.startMs && it.timeMs < span.endMsExclusive }
-					for (index in inSpan.indices) {
-						val group = inSpan[index]
-						val previous = inSpan.getOrNull(index - 1)
-						val next = inSpan.getOrNull(index + 1)
+					val firstIndex = domainGroups.lowerBound(span.startMs)
+					val endIndexExclusive = domainGroups.lowerBound(span.endMsExclusive)
+					for (index in firstIndex until endIndexExclusive) {
+						val group = domainGroups[index]
+						val previous = if (index > firstIndex) domainGroups[index - 1] else null
+						val next = if (index + 1 < endIndexExclusive) domainGroups[index + 1] else null
 						val start = maxOf(
 							span.startMs,
 							saturatedSubtract(group.timeMs, config.freshnessBeforeMs),
@@ -209,73 +234,89 @@ class SpatiallySupportedTimeEstimator(
 							saturatedAdd(group.timeMs, config.freshnessAfterMs),
 							next?.let { midpoint(group.timeMs, it.timeMs) } ?: Long.MAX_VALUE,
 						)
-						if (end > start) add(SupportCandidate(start, end, group.selected))
+						if (end > start) {
+							add(SupportCandidate(start, end, clockDomainId, group.selected))
+						}
 					}
 				}
 			}
-		}.sortedWith(SUPPORT_CANDIDATE_ORDER)
+		}.sortedWith(SUPPORT_CANDIDATE_TIME_ORDER)
+		// Midpoint bounds make candidates within one clock domain mutually exclusive. Keeping this
+		// invariant explicit lets partitioning stream them instead of re-scanning every candidate at
+		// every boundary.
+		checkCandidatesDoNotOverlap(candidates)
+		return candidates
 	}
 
 	/** Conflicting same-time alternatives are unresolved instead of each receiving full time. */
 	private fun selectCompatibleEvidence(group: List<LocationEvidence>): SelectedEvidence? {
-		val placeable = group
-			.asSequence()
-			.mapNotNull { item -> kernelPolicy.kernelFor(item)?.let { SelectedEvidence(item, it) } }
-			.distinctBy { selected ->
-				listOf(
-					selected.evidence.latitudeDegrees,
-					selected.evidence.longitudeDegrees,
-					selected.kernel.supportRadiusM,
-				)
+		var kernel: NormalizedCompactKernel? = null
+		var selected: SelectedEvidence? = null
+		for (item in group) {
+			val candidateKernel = kernelPolicy.kernelFor(item) ?: continue
+			val candidate = SelectedEvidence(item, candidateKernel)
+			when (val firstKernel = kernel) {
+				null -> {
+					kernel = candidateKernel
+					selected = candidate
+				}
+				else -> {
+					if (candidateKernel != firstKernel) return null
+					if (checkNotNull(selected).let { SELECTED_EVIDENCE_ORDER.compare(candidate, it) < 0 }) {
+						selected = candidate
+					}
+				}
 			}
-			.sortedWith(SELECTED_EVIDENCE_ORDER)
-			.toList()
-		val selected = placeable.firstOrNull() ?: return null
-		val compatible = placeable.all { alternative ->
-			haversineMeters(
-				selected.kernel.centerLatitudeDegrees,
-				selected.kernel.centerLongitudeDegrees,
-				alternative.kernel.centerLatitudeDegrees,
-				alternative.kernel.centerLongitudeDegrees,
-			) <= selected.kernel.supportRadiusM + alternative.kernel.supportRadiusM
 		}
-		return selected.takeIf { compatible }
+		return selected
 	}
 
 	private fun partitionCanonicalTime(
 		canonicalSpans: List<CanonicalSpan>,
 		candidates: List<SupportCandidate>,
 	): List<SpatialSupportInterval> {
+		val candidatesByDomain = candidates.groupBy(SupportCandidate::clockDomainId)
 		val result = ArrayList<SpatialSupportInterval>()
 		for (span in canonicalSpans) {
-			val relevant = candidates.filter { it.endMsExclusive > span.startMs && it.startMs < span.endMsExclusive }
-			val boundaries = buildSet {
-				add(span.startMs)
-				add(span.endMsExclusive)
-				relevant.forEach {
-					add(maxOf(span.startMs, it.startMs))
-					add(minOf(span.endMsExclusive, it.endMsExclusive))
-				}
-			}.sorted()
-			for (index in 0 until boundaries.lastIndex) {
-				val start = boundaries[index]
-				val end = boundaries[index + 1]
-				if (end <= start) continue
-				val winner = relevant
-					.asSequence()
-					.filter { it.startMs <= start && it.endMsExclusive >= end }
-					.minWithOrNull(SUPPORT_CANDIDATE_ORDER)
-				val interval = if (winner == null) {
-					SpatialSupportInterval.Unresolved(start, end)
-				} else {
-					SpatialSupportInterval.Supported(
-						startMs = start,
-						endMsExclusive = end,
-						kernel = winner.selected.kernel,
-						sourceEvidenceId = winner.selected.evidence.stableId,
+			val clockDomainId = span.clockDomainId
+			if (clockDomainId == null) {
+				appendMerged(result, SpatialSupportInterval.Unresolved(span.startMs, span.endMsExclusive, null))
+				continue
+			}
+			val domainCandidates = candidatesByDomain[clockDomainId].orEmpty()
+			var cursor = span.startMs
+			var candidateIndex = domainCandidates.firstEndingAfter(span.startMs)
+			while (candidateIndex < domainCandidates.size) {
+				val candidate = domainCandidates[candidateIndex]
+				if (candidate.startMs >= span.endMsExclusive) break
+				val supportedStart = maxOf(cursor, candidate.startMs, span.startMs)
+				val supportedEnd = minOf(candidate.endMsExclusive, span.endMsExclusive)
+				if (supportedEnd > supportedStart) {
+					if (cursor < supportedStart) {
+						appendMerged(
+							result,
+							SpatialSupportInterval.Unresolved(cursor, supportedStart, clockDomainId),
+						)
+					}
+					appendMerged(
+						result,
+						SpatialSupportInterval.Supported(
+							startMs = supportedStart,
+							endMsExclusive = supportedEnd,
+							clockDomainId = clockDomainId,
+							kernel = candidate.selected.kernel,
+							sourceEvidenceId = candidate.selected.evidence.stableId,
+						),
 					)
+					cursor = supportedEnd
 				}
-				appendMerged(result, interval)
+				candidateIndex++
+			}
+			if (cursor < span.endMsExclusive) {
+				appendMerged(
+					result,
+					SpatialSupportInterval.Unresolved(cursor, span.endMsExclusive, clockDomainId),
+				)
 			}
 		}
 		return result
@@ -288,9 +329,12 @@ class SpatiallySupportedTimeEstimator(
 		val previous = result.lastOrNull()
 		val merged = when {
 			previous is SpatialSupportInterval.Unresolved && interval is SpatialSupportInterval.Unresolved &&
-				previous.endMsExclusive == interval.startMs -> previous.copy(endMsExclusive = interval.endMsExclusive)
+				previous.endMsExclusive == interval.startMs &&
+				previous.clockDomainId == interval.clockDomainId ->
+				previous.copy(endMsExclusive = interval.endMsExclusive)
 			previous is SpatialSupportInterval.Supported && interval is SpatialSupportInterval.Supported &&
 				previous.endMsExclusive == interval.startMs &&
+				previous.clockDomainId == interval.clockDomainId &&
 				previous.sourceEvidenceId == interval.sourceEvidenceId && previous.kernel == interval.kernel ->
 				previous.copy(endMsExclusive = interval.endMsExclusive)
 			else -> null
@@ -314,24 +358,37 @@ class SpatiallySupportedTimeEstimator(
 	private data class SupportCandidate(
 		val startMs: Long,
 		val endMsExclusive: Long,
+		val clockDomainId: Long,
 		val selected: SelectedEvidence,
 	)
-	private data class CanonicalSpan(val startMs: Long, val endMsExclusive: Long)
+	private data class CanonicalSpan(
+		val startMs: Long,
+		val endMsExclusive: Long,
+		val clockDomainId: Long?,
+	)
+	private data class DomainBoundary(
+		val timeMs: Long,
+		val clockDomainId: Long,
+		val delta: Int,
+	)
 
 	private companion object {
-		const val EARTH_RADIUS_M = 6_371_008.8
-
 		val SELECTED_EVIDENCE_ORDER = compareBy<SelectedEvidence>(
+			{ it.kernel.family },
+			{ it.kernel.version },
+			{ it.kernel.centerLatitudeDegrees },
+			{ it.kernel.centerLongitudeDegrees },
 			{ it.kernel.supportRadiusM },
 			{ it.evidence.sourceQualityRank },
 			{ it.evidence.stableId },
 		)
-		val SUPPORT_CANDIDATE_ORDER = compareBy<SupportCandidate>(
+		val SUPPORT_CANDIDATE_TIME_ORDER = compareBy<SupportCandidate>(
+			{ it.clockDomainId },
+			{ it.startMs },
+			{ it.endMsExclusive },
 			{ it.selected.kernel.supportRadiusM },
 			{ it.selected.evidence.sourceQualityRank },
 			{ it.selected.evidence.stableId },
-			{ it.startMs },
-			{ it.endMsExclusive },
 		)
 
 		fun TrackerActiveSpan.clip(range: HeatmapInstantRange): TrackerActiveSpan? {
@@ -356,23 +413,41 @@ class SpatiallySupportedTimeEstimator(
 			return result
 		}
 
-		fun mergeCanonicalSpans(spans: List<TrackerActiveSpan>): List<CanonicalSpan> {
-			val sorted = spans.sortedWith(compareBy(TrackerActiveSpan::startMs, TrackerActiveSpan::endMsExclusive))
+		fun buildCanonicalSpans(spans: List<TrackerActiveSpan>): List<CanonicalSpan> {
+			val boundaries = spans.flatMap { span ->
+				listOf(
+					DomainBoundary(span.startMs, span.clockDomainId, 1),
+					DomainBoundary(span.endMsExclusive, span.clockDomainId, -1),
+				)
+			}.sortedWith(compareBy(DomainBoundary::timeMs, DomainBoundary::clockDomainId))
 			val result = ArrayList<CanonicalSpan>()
-			for (span in sorted) {
+			val activeDomainCounts = mutableMapOf<Long, Int>()
+			var index = 0
+			while (index < boundaries.size) {
+				val timeMs = boundaries[index].timeMs
+				while (index < boundaries.size && boundaries[index].timeMs == timeMs) {
+					val boundary = boundaries[index++]
+					val count = activeDomainCounts.getOrElse(boundary.clockDomainId) { 0 } + boundary.delta
+					if (count == 0) activeDomainCounts.remove(boundary.clockDomainId)
+					else activeDomainCounts[boundary.clockDomainId] = count
+				}
+				val nextTimeMs = boundaries.getOrNull(index)?.timeMs ?: continue
+				if (nextTimeMs <= timeMs || activeDomainCounts.isEmpty()) continue
+				val clockDomainId = activeDomainCounts.keys.singleOrNull()
 				val previous = result.lastOrNull()
-				if (previous != null && span.startMs <= previous.endMsExclusive) {
-					result[result.lastIndex] = previous.copy(
-						endMsExclusive = maxOf(previous.endMsExclusive, span.endMsExclusive),
-					)
+				if (previous != null && previous.endMsExclusive == timeMs &&
+					previous.clockDomainId == clockDomainId
+				) {
+					result[result.lastIndex] = previous.copy(endMsExclusive = nextTimeMs)
 				} else {
-					result += CanonicalSpan(span.startMs, span.endMsExclusive)
+					result += CanonicalSpan(timeMs, nextTimeMs, clockDomainId)
 				}
 			}
 			return result
 		}
 
-		fun midpoint(first: Long, second: Long): Long = first + (second - first) / 2L
+		fun midpoint(first: Long, second: Long): Long =
+			(first and second) + ((first xor second) shr 1)
 
 		fun saturatedAdd(value: Long, delta: Long): Long =
 			if (value > Long.MAX_VALUE - delta) Long.MAX_VALUE else value + delta
@@ -380,19 +455,37 @@ class SpatiallySupportedTimeEstimator(
 		fun saturatedSubtract(value: Long, delta: Long): Long =
 			if (value < Long.MIN_VALUE + delta) Long.MIN_VALUE else value - delta
 
-		fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-			val lat1Rad = lat1 * kotlin.math.PI / 180.0
-			val lat2Rad = lat2 * kotlin.math.PI / 180.0
-			val deltaLat = lat2Rad - lat1Rad
-			val rawDeltaLon = (lon2 - lon1) * kotlin.math.PI / 180.0
-			val deltaLon = when {
-				rawDeltaLon > kotlin.math.PI -> rawDeltaLon - 2.0 * kotlin.math.PI
-				rawDeltaLon < -kotlin.math.PI -> rawDeltaLon + 2.0 * kotlin.math.PI
-				else -> rawDeltaLon
+		fun List<EvidenceGroup>.lowerBound(timeMs: Long): Int {
+			var low = 0
+			var high = size
+			while (low < high) {
+				val middle = (low + high) ushr 1
+				if (this[middle].timeMs < timeMs) low = middle + 1 else high = middle
 			}
-			val a = sin(deltaLat / 2.0) * sin(deltaLat / 2.0) +
-				cos(lat1Rad) * cos(lat2Rad) * sin(deltaLon / 2.0) * sin(deltaLon / 2.0)
-			return 2.0 * EARTH_RADIUS_M * asin(min(1.0, sqrt(a)))
+			return low
+		}
+
+		fun List<SupportCandidate>.firstEndingAfter(timeMs: Long): Int {
+			var low = 0
+			var high = size
+			while (low < high) {
+				val middle = (low + high) ushr 1
+				if (this[middle].endMsExclusive <= timeMs) low = middle + 1 else high = middle
+			}
+			return low
+		}
+
+		fun checkCandidatesDoNotOverlap(candidates: List<SupportCandidate>) {
+			var previous: SupportCandidate? = null
+			for (candidate in candidates) {
+				val prior = previous
+				if (prior != null && prior.clockDomainId == candidate.clockDomainId) {
+					check(prior.endMsExclusive <= candidate.startMs) {
+						"Support candidates for one clock domain must not overlap"
+					}
+				}
+				previous = candidate
+			}
 		}
 	}
 }

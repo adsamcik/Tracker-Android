@@ -247,7 +247,11 @@ internal class DataProducerManager(
 	 * and returns an enriched [TrackingCycle].
 	 */
 	suspend fun getData(incomingCycle: TrackingCycle): TrackingCycle = lifecycleMutex.withLock {
-		val builder = TrackingCycleBuilder(incomingCycle.timestampMs, incomingCycle.elapsedRealtimeNanos)
+		val builder = TrackingCycleBuilder(
+			timestampMs = incomingCycle.timestampMs,
+			elapsedRealtimeNanos = incomingCycle.elapsedRealtimeNanos,
+			persistenceSignalId = incomingCycle.persistenceSignalId,
+		)
 		// Carry over location from the trigger (if present)
 		builder.location = incomingCycle.location
 		// Run all active producers in parallel on a background dispatcher to keep main thread free.

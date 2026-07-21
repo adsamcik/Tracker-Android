@@ -111,10 +111,30 @@ class ProcessorPipelineTest {
 	) : RecordingProcessor(descriptor), DurableSignalProcessor {
 		var checkpointCount = 0
 		var checkpointHealthy = true
+		var lifecycleRejected = false
+		var perSignalAdmissionStatus: DurableAdmissionStatus? = null
 
 		override suspend fun checkpointStagedSignals(): Boolean {
 			checkpointCount++
-			return checkpointHealthy
+			return admissionStatus() == DurableAdmissionStatus.ADMITTED
+		}
+
+		override suspend fun checkpointStagedSignalsStatus(): DurableAdmissionStatus {
+			checkpointCount++
+			return admissionStatus()
+		}
+
+		override suspend fun checkpointStagedSignalStatus(
+			signal: TrackingSignal,
+		): DurableAdmissionStatus {
+			checkpointCount++
+			return perSignalAdmissionStatus ?: admissionStatus()
+		}
+
+		private fun admissionStatus(): DurableAdmissionStatus = when {
+			lifecycleRejected -> DurableAdmissionStatus.LIFECYCLE_REJECTED
+			checkpointHealthy -> DurableAdmissionStatus.ADMITTED
+			else -> DurableAdmissionStatus.FAILED
 		}
 	}
 
@@ -148,8 +168,14 @@ class ProcessorPipelineTest {
 	private fun createPipeline(
 		processors: Set<SignalProcessor>,
 		scope: CoroutineScope,
+		requireDurableAdmission: Boolean = false,
 		onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
-	) = ProcessorPipeline(processors, scope, onDomainEvents)
+	) = ProcessorPipeline(
+		processors = processors,
+		scope = scope,
+		onDomainEvents = onDomainEvents,
+		requireDurableAdmission = requireDurableAdmission,
+	)
 
 	// endregion
 
@@ -424,6 +450,86 @@ class ProcessorPipelineTest {
 		pipeline.checkpointDurableSignals(listOf(testSignal())) shouldBe false
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 		pipeline.checkpointDurableSignals(listOf(testSignal())) shouldBe false
+	}
+
+	@Test
+	fun `normal signals checkpoint before producer acceptance`() = runTest {
+		val persistence = DurableRecordingProcessor()
+		val pipeline = createPipeline(setOf(persistence), this)
+		var accepted = 0
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.onSignal(testSignal()) { accepted++ } shouldBe true
+
+		persistence.checkpointCount shouldBe 1
+		accepted shouldBe 1
+	}
+
+	@Test
+	fun `failed normal signal checkpoint does not advance producer acceptance`() = runTest {
+		val persistence = DurableRecordingProcessor().apply { checkpointHealthy = false }
+		val analytics = ambientProcessor(id = "analytics", priority = 10)
+		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		var accepted = 0
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.onSignal(testSignal()) { accepted++ } shouldBe false
+
+		persistence.checkpointCount shouldBe 1
+		accepted shouldBe 0
+		analytics.signals shouldHaveSize 0
+	}
+
+	@Test
+	fun `lifecycle-rejected signal never fans out to downstream processors`() = runTest {
+		val persistence = DurableRecordingProcessor().apply { lifecycleRejected = true }
+		val analytics = ambientProcessor(id = "analytics", priority = 10)
+		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		var accepted = 0
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.onSignal(testSignal()) { accepted++ } shouldBe false
+
+		persistence.checkpointCount shouldBe 1
+		accepted shouldBe 0
+		analytics.signals shouldHaveSize 0
+	}
+
+	@Test
+	fun `current signal fans out when an older row was lifecycle-rejected in the same checkpoint`() = runTest {
+		val persistence = DurableRecordingProcessor().apply {
+			// The aggregate result represents an older staged row. The current producer ID was
+			// admitted, so only it may advance downstream state.
+			lifecycleRejected = true
+			perSignalAdmissionStatus = DurableAdmissionStatus.ADMITTED
+		}
+		val analytics = ambientProcessor(id = "analytics", priority = 10)
+		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		var accepted = 0
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.onSignal(testSignal().copy(persistenceSignalId = "current-admitted")) {
+			accepted++
+		} shouldBe true
+
+		persistence.checkpointCount shouldBe 1
+		accepted shouldBe 1
+		analytics.signals shouldHaveSize 1
+	}
+
+	@Test
+	fun `strict admission rejects signals when no durability processor is active`() = runTest {
+		val analytics = ambientProcessor(id = "analytics")
+		val pipeline = createPipeline(
+			processors = setOf(analytics),
+			scope = this,
+			requireDurableAdmission = true,
+		)
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
+
+		pipeline.onSignal(testSignal()) shouldBe false
+
+		analytics.signals shouldHaveSize 0
 	}
 
 	// endregion

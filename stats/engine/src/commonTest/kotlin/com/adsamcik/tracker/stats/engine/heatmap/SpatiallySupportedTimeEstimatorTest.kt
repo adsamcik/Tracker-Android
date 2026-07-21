@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.engine.heatmap
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.random.Random
@@ -40,7 +41,7 @@ class SpatiallySupportedTimeEstimatorTest {
 		assertEquals(800L, result.canonicalTrackedMs)
 		assertEquals(0L, result.supportedMs)
 		assertEquals(800L, result.unresolvedMs)
-		assertEquals(listOf(SpatialSupportInterval.Unresolved(100L, 900L)), result.intervals)
+		assertEquals(listOf(SpatialSupportInterval.Unresolved(100L, 900L, 1L)), result.intervals)
 	}
 
 	@Test
@@ -81,6 +82,24 @@ class SpatiallySupportedTimeEstimatorTest {
 		assertEquals(once.supportedMs, duplicated.supportedMs)
 		assertEquals(once.unresolvedMs, duplicated.unresolvedMs)
 		assertEquals(once.intervals, duplicated.intervals)
+	}
+
+	@Test
+	fun `reversed identical duplicates select the same deterministic source`() {
+		val forward = estimateRun(
+			300_000L,
+			listOf(fix(8L, 150_000L), fix(3L, 150_000L)),
+		)
+		val reversed = estimateRun(
+			300_000L,
+			listOf(fix(3L, 150_000L), fix(8L, 150_000L)),
+		)
+
+		assertEquals(forward, reversed)
+		assertEquals(
+			3L,
+			forward.intervals.filterIsInstance<SpatialSupportInterval.Supported>().single().sourceEvidenceId,
+		)
 	}
 
 	@Test
@@ -129,6 +148,47 @@ class SpatiallySupportedTimeEstimatorTest {
 	}
 
 	@Test
+	fun `same-time star conflict is unresolved`() {
+		val result = estimateRun(
+			runEndMs = 300_000L,
+			evidence = listOf(
+				fix(1L, 150_000L, longitude = 14.0000),
+				fix(2L, 150_000L, longitude = 14.0002),
+				fix(3L, 150_000L, longitude = 13.9998),
+			),
+		)
+
+		assertEquals(0L, result.supportedMs)
+		assertEquals(300_000L, result.unresolvedMs)
+	}
+
+	@Test
+	fun `kernel family version and center participate in same-time identity`() {
+		val versionedEstimator = SpatiallySupportedTimeEstimator(
+			config = SpatiallySupportedTimeConfig(60_000L, 60_000L),
+			kernelPolicy = SpatialKernelPolicy { evidence ->
+				NormalizedCompactKernel(
+					centerLatitudeDegrees = evidence.latitudeDegrees,
+					centerLongitudeDegrees = evidence.longitudeDegrees,
+					supportRadiusM = checkNotNull(evidence.reportedHorizontalAccuracyM),
+					version = evidence.sourceQualityRank,
+				)
+			},
+		)
+		val result = versionedEstimator.estimate(
+			request = HeatmapInstantRange(0L, 120_000L),
+			activeSpans = listOf(TrackerActiveSpan(0L, 120_000L, 1L)),
+			evidence = listOf(
+				fix(1L, 60_000L).copy(sourceQualityRank = 1),
+				fix(2L, 60_000L).copy(sourceQualityRank = 2),
+			),
+		)
+
+		assertEquals(0L, result.supportedMs)
+		assertEquals(120_000L, result.unresolvedMs)
+	}
+
+	@Test
 	fun `freshness never crosses a clock-domain boundary`() {
 		val result = estimator.estimate(
 			request = HeatmapInstantRange(0L, 300_000L),
@@ -143,6 +203,47 @@ class SpatiallySupportedTimeEstimatorTest {
 		assertEquals(230_000L, result.unresolvedMs)
 		assertIs<SpatialSupportInterval.Unresolved>(result.intervals.last())
 		assertEquals(150_000L, result.intervals.last().startMs)
+		assertEquals(2L, result.intervals.last().clockDomainId)
+	}
+
+	@Test
+	fun `overlapping projected clock domains are entirely unresolved`() {
+		val result = estimator.estimate(
+			request = HeatmapInstantRange(0L, 120_000L),
+			activeSpans = listOf(
+				TrackerActiveSpan(0L, 120_000L, clockDomainId = 1L),
+				TrackerActiveSpan(0L, 120_000L, clockDomainId = 2L),
+			),
+			evidence = listOf(fix(1L, 60_000L, clockDomainId = 1L)),
+		)
+
+		assertEquals(120_000L, result.canonicalTrackedMs)
+		assertEquals(0L, result.supportedMs)
+		assertEquals(listOf(SpatialSupportInterval.Unresolved(0L, 120_000L, null)), result.intervals)
+	}
+
+	@Test
+	fun `support resumes after an overlapping clock domain ends`() {
+		val result = estimator.estimate(
+			request = HeatmapInstantRange(0L, 200_000L),
+			activeSpans = listOf(
+				TrackerActiveSpan(0L, 200_000L, clockDomainId = 1L),
+				TrackerActiveSpan(50_000L, 150_000L, clockDomainId = 2L),
+			),
+			evidence = listOf(fix(1L, 100_000L, clockDomainId = 1L)),
+		)
+
+		assertEquals(20_000L, result.supportedMs)
+		assertEquals(180_000L, result.unresolvedMs)
+		val supported = result.intervals.filterIsInstance<SpatialSupportInterval.Supported>()
+		assertEquals(
+			listOf(
+				40_000L to 50_000L,
+				150_000L to 160_000L,
+			),
+			supported.map { it.startMs to it.endMsExclusive },
+		)
+		assertEquals(listOf(1L, 1L), supported.map { it.sourceEvidenceId })
 	}
 
 	@Test
@@ -154,6 +255,60 @@ class SpatiallySupportedTimeEstimatorTest {
 
 		assertEquals(0L, result.supportedMs)
 		assertEquals(120_000L, result.unresolvedMs)
+	}
+
+	@Test
+	fun `unrepresentable timeline duration is rejected instead of overflowing`() {
+		assertFailsWith<IllegalArgumentException> {
+			HeatmapInstantRange(Long.MIN_VALUE, Long.MAX_VALUE)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			TrackerActiveSpan(Long.MIN_VALUE, Long.MAX_VALUE, clockDomainId = 1L)
+		}
+	}
+
+	@Test
+	fun `large dense trace is exactly partitioned without quadratic candidate scans`() {
+		val observationCount = 20_000
+		val stepMs = 1_000L
+		val runEndMs = (observationCount + 1L) * stepMs
+		val result = estimateRun(
+			runEndMs = runEndMs,
+			evidence = List(observationCount) { index ->
+				fix(id = index + 1L, timeMs = (index + 1L) * stepMs)
+			},
+		)
+
+		assertEquals(runEndMs, result.canonicalTrackedMs)
+		assertEquals(runEndMs, result.supportedMs)
+		assertEquals(0L, result.unresolvedMs)
+		assertEquals(
+			observationCount,
+			result.intervals.filterIsInstance<SpatialSupportInterval.Supported>().size,
+		)
+	}
+
+	@Test
+	fun `many disjoint active spans remain deterministic when inputs are reversed`() {
+		val spanCount = 6_000
+		val stepMs = 10L
+		val spanWidthMs = 5L
+		val spans = List(spanCount) { index ->
+			val startMs = index * stepMs
+			TrackerActiveSpan(startMs, startMs + spanWidthMs, clockDomainId = 1L)
+		}
+		val evidence = List(spanCount) { index ->
+			fix(id = index + 1L, timeMs = index * stepMs + 2L)
+		}
+		val request = HeatmapInstantRange(0L, spanCount * stepMs)
+
+		val forward = estimator.estimate(request, spans, evidence)
+		val reversed = estimator.estimate(request, spans.reversed(), evidence.reversed())
+
+		assertEquals(forward, reversed)
+		assertEquals(spanCount * spanWidthMs, forward.canonicalTrackedMs)
+		assertEquals(forward.canonicalTrackedMs, forward.supportedMs)
+		assertEquals(0L, forward.unresolvedMs)
 	}
 
 	@Test

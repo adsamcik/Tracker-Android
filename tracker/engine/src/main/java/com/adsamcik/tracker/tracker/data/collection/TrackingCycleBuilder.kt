@@ -14,6 +14,7 @@ import com.adsamcik.tracker.tracker.component.producer.PressureReading
 internal class TrackingCycleBuilder(
 	val timestampMs: Long,
 	val elapsedRealtimeNanos: Long,
+	val persistenceSignalId: String = java.util.UUID.randomUUID().toString(),
 ) {
 	@Volatile
 	var activity: ActivityInfo? = null
@@ -74,5 +75,6 @@ internal class TrackingCycleBuilder(
 		stepSensorReset = stepSensorReset,
 		pressure = pressure,
 		rawGpsAltitude = rawGpsAltitude,
+		persistenceSignalId = persistenceSignalId,
 	)
 }

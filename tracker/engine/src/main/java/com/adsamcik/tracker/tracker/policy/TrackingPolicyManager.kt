@@ -7,8 +7,10 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
+import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +53,8 @@ class TrackingPolicyManager(
 	} else {
 		PolicyTier.AMBIENT
 	},
+	private val clockDomainId: String = TrackingClockDomain.currentId(),
+	private val trackerStateEvidenceWriter: TrackerStateEvidenceWriter? = null,
 ) {
 	private val database = database ?: AppDatabase.database(context)
 	private val trackerRunDao by lazy { this.database.trackerRunDao() }
@@ -72,6 +76,7 @@ class TrackingPolicyManager(
 
 	private var currentRunId: Long? = null
 	private var lastTransitionTime: Long = 0L
+	private var lastStateHeartbeatElapsedRealtimeNanos: Long = Long.MIN_VALUE
 
 	// Legacy movement detection state (used only when engine is null)
 	private var lastStepCount: Int = 0
@@ -86,6 +91,7 @@ class TrackingPolicyManager(
 	 */
 	suspend fun start() = stateMutex.withLock {
 		val now = Time.nowMillis
+		val elapsedNow = Time.elapsedRealtimeNanos
 		val policy = _currentPolicy.value
 
 		val run = TrackerRun(
@@ -97,12 +103,14 @@ class TrackingPolicyManager(
 			createdAt = now,
 		)
 
-		currentRunId = withContext(dispatchers.io) {
-			// A process can die before stop() closes its run. Reconcile every orphan first so an
-			// open-ended historical run cannot be interpreted as continuous presence up to now.
-			trackerRunDao.closeOpenRuns(now)
-			trackerRunDao.insert(run)
-		}
+		currentRunId = withContext(dispatchers.io) { trackerRunDao.insert(run) }
+		appendStateEvidence(
+			elapsedRealtimeNanos = elapsedNow,
+			wallTimeMs = now,
+			state = TrackerStateEvent.START,
+			policy = policy.name,
+			reason = "SESSION_START",
+		)
 		lastTransitionTime = now
 
 		// Start the escalation engine and observe tier changes
@@ -134,12 +142,45 @@ class TrackingPolicyManager(
 		engineObservationJob = null
 		escalationEngine?.stop()
 
-		val runId = currentRunId ?: return@withLock
-		trackerRunDao.endRun(runId, Time.nowMillis)
+		val now = Time.nowMillis
+		val elapsedNow = Time.elapsedRealtimeNanos
+		val runId = currentRunId
+		if (runId != null) {
+			withContext(dispatchers.io) { trackerRunDao.endRun(runId, now) }
+		}
+		appendStateEvidence(
+			elapsedRealtimeNanos = elapsedNow,
+			wallTimeMs = now,
+			state = TrackerStateEvent.STOP,
+			policy = _currentPolicy.value.name,
+			reason = "SESSION_STOP",
+			active = false,
+		)
 		if (BuildConfig.DEBUG) {
 			android.util.Log.d("TrackerQA", "TrackingPolicyManager.stop(): endRun called for runId=$runId")
 		}
 		currentRunId = null
+	}
+
+	/**
+	 * Refreshes the bounded active lease while tracking is actually producing cycles. If the process
+	 * dies or no trustworthy activity arrives, the most recent state event naturally expires rather
+	 * than being extended to a later process's wall clock.
+	 */
+	suspend fun heartbeatIfDue() = stateMutex.withLock {
+		val nowElapsed = Time.elapsedRealtimeNanos
+		if (
+			lastStateHeartbeatElapsedRealtimeNanos != Long.MIN_VALUE &&
+			nowElapsed - lastStateHeartbeatElapsedRealtimeNanos < HEARTBEAT_INTERVAL_NANOS
+		) return@withLock
+		appendStateEvidence(
+			elapsedRealtimeNanos = nowElapsed,
+			wallTimeMs = Time.nowMillis,
+			state = TrackerStateEvent.HEARTBEAT,
+			policy = _currentPolicy.value.name,
+			reason = "TRACKING_CYCLE",
+		)
+		lastStateHeartbeatElapsedRealtimeNanos = nowElapsed
 	}
 
 	/**
@@ -278,9 +319,6 @@ class TrackingPolicyManager(
 
 		_currentPolicy.value = newPolicy
 
-		// Persist transition to tracker_run
-		currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
-
 		val run = TrackerRun(
 			startTimeMs = timeMs,
 			endTimeMs = null,
@@ -290,8 +328,16 @@ class TrackingPolicyManager(
 			createdAt = timeMs,
 		)
 		currentRunId = withContext(dispatchers.io) {
+			currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
 			trackerRunDao.insert(run)
 		}
+		appendStateEvidence(
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+			wallTimeMs = timeMs,
+			state = TrackerStateEvent.POLICY_TRANSITION,
+			policy = newPolicy.name,
+			reason = reasonName,
+		)
 		lastTransitionTime = timeMs
 
 		if (BuildConfig.DEBUG) {
@@ -308,8 +354,6 @@ class TrackingPolicyManager(
 
 		_currentPolicy.value = newPolicy
 
-		currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
-
 		val run = TrackerRun(
 			startTimeMs = timeMs,
 			endTimeMs = null,
@@ -319,8 +363,16 @@ class TrackingPolicyManager(
 			createdAt = timeMs,
 		)
 		currentRunId = withContext(dispatchers.io) {
+			currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
 			trackerRunDao.insert(run)
 		}
+		appendStateEvidence(
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+			wallTimeMs = timeMs,
+			state = TrackerStateEvent.POLICY_TRANSITION,
+			policy = newPolicy.name,
+			reason = reason.name,
+		)
 		lastTransitionTime = timeMs
 
 		if (BuildConfig.DEBUG) {
@@ -348,6 +400,35 @@ class TrackingPolicyManager(
 			else -> { /* No cooldown for PASSIVE_LOW or USER_INITIATED */ }
 		}
 	}
+
+	private suspend fun appendStateEvidence(
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		state: String,
+		policy: String,
+		reason: String?,
+		active: Boolean = true,
+	) {
+		val writer = trackerStateEvidenceWriter ?: return
+		withContext(dispatchers.io) {
+			writer.append(
+				clockDomainId = clockDomainId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = wallTimeMs,
+				state = state,
+				policy = policy,
+				reason = reason,
+				activeLeaseExpiresElapsedNanos = if (active) {
+					elapsedRealtimeNanos.saturatingAdd(ACTIVE_LEASE_NANOS)
+				} else {
+					null
+				},
+			)
+		}
+	}
+
+	private fun Long.saturatingAdd(other: Long): Long =
+		if (this > Long.MAX_VALUE - other) Long.MAX_VALUE else this + other
 
 	private fun buildPolicyParams(
 		policy: TrackingPolicy,
@@ -406,5 +487,7 @@ class TrackingPolicyManager(
 		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
 		private const val DISPLACEMENT_THRESHOLD_METERS = 50f
 		private const val COOLDOWN_DURATION_MS = 5 * 60 * 1000L
+		private const val HEARTBEAT_INTERVAL_NANOS = 30L * Time.SECOND_IN_NANOSECONDS
+		private const val ACTIVE_LEASE_NANOS = 2L * Time.MINUTE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS
 	}
 }

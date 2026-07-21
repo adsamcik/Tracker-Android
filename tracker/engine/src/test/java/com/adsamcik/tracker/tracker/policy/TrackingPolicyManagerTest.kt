@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.policy
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
@@ -14,7 +15,9 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.Runs
 import io.mockk.slot
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -614,9 +617,7 @@ class TrackingPolicyManagerTest {
 	}
 
 	@Test
-	fun `start closes orphaned runs at replacement start before inserting new run`() = runTest {
-		val closeTime = slot<Long>()
-		val insertedRun = slot<TrackerRun>()
+	fun `start does not bridge a previous orphaned run to this session`() = runTest {
 		val manager = TrackingPolicyManager(
 			context = context,
 			isUserInitiated = false,
@@ -626,11 +627,8 @@ class TrackingPolicyManagerTest {
 
 		startAndAwait(manager)
 
-		coVerifyOrder {
-			trackerRunDao.closeOpenRuns(capture(closeTime))
-			trackerRunDao.insert(capture(insertedRun))
-		}
-		assertEquals(insertedRun.captured.startTimeMs, closeTime.captured)
+		coVerify(exactly = 0) { trackerRunDao.closeOpenRuns(any()) }
+		coVerify(exactly = 1) { trackerRunDao.insert(any<TrackerRun>()) }
 	}
 
 	@Test
@@ -687,17 +685,20 @@ class TrackingPolicyManagerTest {
 	fun `engine transition run records disabled controlled-exploration propensity`() = runTest {
 		val insertedRuns = mutableListOf<TrackerRun>()
 		val engine = DefaultPolicyEscalationEngine()
+		val testDispatcher = StandardTestDispatcher(testScheduler)
 		val manager = TrackingPolicyManager(
 			context = context,
 			isUserInitiated = false,
 			escalationEngine = engine,
 			scope = backgroundScope,
 			database = database,
+			dispatchers = TestDispatchersProvider(testDispatcher),
 		)
 
 		startAndAwait(manager)
+		runCurrent()
 		engine.overrideTier(PolicyTier.ACTIVE, "controlled-exploration serialization test")
-		advanceUntilIdle()
+		runCurrent()
 
 		coVerify(exactly = 2) { trackerRunDao.insert(capture(insertedRuns)) }
 		val transitionRun = insertedRuns.last()

@@ -2,13 +2,22 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
+import androidx.room.withTransaction
+import java.util.UUID
+import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 /**
  * Durable write-ahead buffer for [TrackingSignal]s.
@@ -30,9 +39,12 @@ import javax.inject.Inject
 class DurableSignalBuffer @Inject constructor(
 	private val pendingSignalDao: PendingSignalDao,
 	private val dispatchers: DispatchersProvider,
+	private val pendingSignalClaimDao: PendingSignalClaimDao? = null,
+	private val appDatabase: AppDatabase? = null,
+	private val collectedDataLifecycleStore: CollectedDataLifecycleStore? = null,
 ) {
 	private val stagingLock = Any()
-	private val staging = mutableListOf<TrackingSignal>()
+	private val staging = mutableListOf<StagedSignal>()
 	private var sessionId: Long = 0L
 
 	fun setSessionId(id: Long) {
@@ -40,12 +52,42 @@ class DurableSignalBuffer @Inject constructor(
 	}
 
 	/**
-	 * Stage a signal in the in-memory buffer. Fast, no I/O.
-	 * Called from [PersistenceProcessor.onSignal] (non-suspend).
+	 * Stage a signal in the in-memory buffer with a stable identity. Fast, no
+	 * I/O. When the producer supplied [TrackingSignal.persistenceSignalId], use
+	 * it so retrying the same logical signal reaches the same WAL row; otherwise
+	 * mint an identity for this staging attempt. The identity then survives
+	 * staging, checkpointing, recovery, and destination insertion.
+	 *
+	 * [CheckpointedSignal] is only emitted after the corresponding
+	 * `pending_signal` insert succeeds. Callers should therefore defer consuming
+	 * producer state or creating typed destination rows until checkpoint commit.
 	 */
-	fun stage(signal: TrackingSignal) {
+	fun stage(signal: TrackingSignal): StagedSignal {
+		val stagedSignal = StagedSignal(
+			signalId = signal.persistenceSignalId?.takeIf(String::isNotBlank)
+				?: UUID.randomUUID().toString(),
+			signal = signal,
+		)
+		stage(stagedSignal)
+		return stagedSignal
+	}
+
+	/**
+	 * Stage a signal with an existing stable identity (primarily useful in tests and producer
+	 * retries). Re-delivery of the same payload before checkpoint is coalesced here, so the DAO never
+	 * receives two rows for one logical signal in a single admission batch.
+	 */
+	fun stage(stagedSignal: StagedSignal) {
+		require(stagedSignal.signalId.isNotBlank()) { "signalId must not be blank" }
 		synchronized(stagingLock) {
-			staging.add(signal)
+			val existing = staging.firstOrNull { it.signalId == stagedSignal.signalId }
+			if (existing == null) {
+				staging.add(stagedSignal)
+			} else {
+				require(existing.signal == stagedSignal.signal) {
+					"Signal identity ${stagedSignal.signalId} was reused for a different staged payload"
+				}
+			}
 		}
 	}
 
@@ -61,22 +103,54 @@ class DurableSignalBuffer @Inject constructor(
 	 * checkpoint. Returns the generated WAL row IDs (empty when nothing was
 	 * staged).
 	 */
-	suspend fun checkpoint(onCommitted: (List<Long>) -> Unit = {}): List<Long> {
-		val signals: List<TrackingSignal> = synchronized(stagingLock) {
-			if (staging.isEmpty()) return emptyList()
+	suspend fun checkpoint(
+		onCommitted: (List<CheckpointedSignal>) -> Unit = {},
+	): List<Long> = checkpointWithAdmission(onCommitted).admittedIds
+
+	/**
+	 * Checkpoint staged signals and report whether the lifecycle guard admitted every candidate.
+	 *
+	 * A lifecycle rejection is a successful, terminal discard rather than a storage failure: the
+	 * rejected staged rows are removed with the admitted rows, but callers that would otherwise fan
+	 * a signal out to derived consumers must not treat that signal as accepted.
+	 */
+	suspend fun checkpointWithAdmission(
+		onCommitted: (List<CheckpointedSignal>) -> Unit = {},
+	): CheckpointAdmission {
+		val signals: List<StagedSignal> = synchronized(stagingLock) {
+			if (staging.isEmpty()) return CheckpointAdmission.EMPTY
 			staging.toList()
 		}
 
+		// This is the epoch observed while the producer owns the signal. It is
+		// intentionally captured before admission: a later lifecycle transition
+		// must reject this candidate instead of relabelling old data as new.
+		val capturedLifecycle = collectedDataLifecycleStore?.snapshot()
 		return withContext(NonCancellable + dispatchers.io) {
 			val now = Time.nowMillis
-			val entities = signals.map { signal ->
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(signal),
-					createdAt = now,
+			val candidates = signals.map { stagedSignal ->
+				val encoded = SignalSerializer.encode(stagedSignal.signal)
+				CandidateAdmission(
+					stagedSignal = stagedSignal,
+					acquiredAtMs = stagedSignal.signal.acquiredAtMs(now),
+					capturedEpoch = capturedLifecycle?.epoch ?: 0L,
+					entity = PendingSignalEntity(
+						sessionId = sessionId,
+						signalId = stagedSignal.signalId,
+						envelopeVersion = encoded.envelopeVersion,
+						payloadChecksum = encoded.payloadChecksum,
+						signalJson = encoded.payloadJson,
+						createdAt = now,
+						capturedEpoch = capturedLifecycle?.epoch ?: 0L,
+						acquiredAtMs = stagedSignal.signal.acquiredAtMs(now),
+					),
 				)
 			}
-			val ids = pendingSignalDao.insertAll(entities)
+			val admitted = admitCandidates(candidates, now)
+			val ids = admitted.ids
+			check(ids.size == admitted.candidates.size) {
+				"Pending signal insert returned ${ids.size} IDs for ${admitted.candidates.size} rows"
+			}
 
 			// Keep the WAL commit, staging removal, and caller ID registration in
 			// one non-cancellable section. This closes the post-commit cancellation
@@ -89,10 +163,128 @@ class DurableSignalBuffer @Inject constructor(
 					repeat(count) { staging.removeAt(0) }
 				}
 			}
-			onCommitted(ids)
+			onCommitted(
+				admitted.rows.zip(admitted.candidates) { row, candidate ->
+					CheckpointedSignal(
+						id = row.id,
+						signalId = row.signalId,
+						signal = candidate.stagedSignal.signal,
+						// A retry can resolve a row committed by an earlier attempt. Keep
+						// that row's immutable lifecycle metadata rather than relabelling
+						// it with the retry's newer observation.
+						capturedEpoch = row.capturedEpoch,
+						acquiredAtMs = row.acquiredAtMs,
+					)
+				},
+			)
 
-			ids
+			val admittedSignalIds = admitted.candidates.map { it.stagedSignal.signalId }.toSet()
+			val rejectedSignalIds = candidates.asSequence()
+				.map { it.stagedSignal.signalId }
+				.filterNot(admittedSignalIds::contains)
+				.toSet()
+			CheckpointAdmission(
+				admittedIds = ids,
+				lifecycleRejectedCount = candidates.size - admitted.candidates.size,
+				admittedSignalIds = admittedSignalIds,
+				rejectedSignalIds = rejectedSignalIds,
+			)
 		}
+	}
+
+	private data class CandidateAdmission(
+		val stagedSignal: StagedSignal,
+		val capturedEpoch: Long,
+		val acquiredAtMs: Long,
+		val entity: PendingSignalEntity,
+	)
+
+	private data class AdmittedCandidates(
+		val rows: List<PendingSignalEntity>,
+		val candidates: List<CandidateAdmission>,
+	) {
+		init {
+			require(rows.size == candidates.size) {
+				"Pending signal resolution returned ${rows.size} rows for ${candidates.size} candidates"
+			}
+		}
+
+		val ids: List<Long> get() = rows.map(PendingSignalEntity::id)
+	}
+
+	/**
+	 * Checks the mirrored lifecycle guard in the same transaction as the WAL insert. The
+	 * authoritative DataStore snapshot is read *inside* that transaction: a candidate carries its
+	 * earlier captured epoch, while a retention/deletion transition observed here rejects it. If a
+	 * deletion starts after the read, its source-delete transaction waits for this admission and
+	 * removes the newly inserted row before it completes.
+	 */
+	private suspend fun admitCandidates(
+		candidates: List<CandidateAdmission>,
+		now: Long,
+	): AdmittedCandidates {
+		val database = appDatabase
+		if (database == null) {
+			return AdmittedCandidates(
+				rows = pendingSignalDao.insertOrResolveEntities(
+					candidates.map(CandidateAdmission::entity),
+				),
+				candidates = candidates,
+			)
+		}
+		return database.withTransaction {
+			// Do not seed the Room mirror from the producer's captured snapshot. It
+			// may have become stale while this coroutine waited for the database
+			// transaction, particularly across a full collected-data deletion.
+			val authoritativeLifecycle = collectedDataLifecycleStore?.snapshot()
+			val guard = reconcileLifecycleGuard(
+				stateDao = database.sourceEvidenceStateDao(),
+				external = authoritativeLifecycle,
+				now = now,
+			)
+			val admitted = candidates.filter { candidate ->
+				guard.accepts(candidate.capturedEpoch, candidate.acquiredAtMs)
+			}
+			AdmittedCandidates(
+				rows = if (admitted.isEmpty()) emptyList() else pendingSignalDao.insertOrResolveEntities(
+					admitted.map(CandidateAdmission::entity),
+				),
+				candidates = admitted,
+			)
+		}
+	}
+
+	private suspend fun reconcileLifecycleGuard(
+		stateDao: SourceEvidenceStateDao,
+		external: CollectedDataLifecycleSnapshot?,
+		now: Long,
+	): SourceEvidenceState {
+		stateDao.ensure()
+		val current = requireNotNull(stateDao.get())
+		val desiredEpoch = maxOf(current.collectedDataEpoch, external?.epoch ?: current.collectedDataEpoch)
+		val externalRetainedFrom = external?.retainedFromMs
+		val desiredRetainedFrom = listOfNotNull(current.retainedFromMs, externalRetainedFrom)
+			.maxOrNull()
+		if (
+			desiredEpoch != current.collectedDataEpoch ||
+			desiredRetainedFrom != current.retainedFromMs
+		) {
+			check(stateDao.updateLifecycle(desiredEpoch, desiredRetainedFrom, now) == 1)
+		}
+		return requireNotNull(stateDao.get())
+	}
+
+	private fun SourceEvidenceState.accepts(capturedEpoch: Long, acquiredAtMs: Long): Boolean {
+		val retainedFrom = retainedFromMs
+		return capturedEpoch == collectedDataEpoch &&
+			(retainedFrom == null || acquiredAtMs >= retainedFrom)
+	}
+
+	private fun TrackingSignal.acquiredAtMs(fallback: Long): Long {
+		val rawFixTime = locationObservation?.rawFixTimeMs ?: timestampMs.raw
+		return rawFixTime.takeIf { it >= 0L }
+			?: locationObservation?.receivedAtMs?.takeIf { it >= 0L }
+			?: fallback
 	}
 
 	/**
@@ -101,22 +293,57 @@ class DurableSignalBuffer @Inject constructor(
 	 *
 	 * Recovery is intentionally session-agnostic: a restarted process mints a
 	 * new session id, so filtering by the current session would strand rows
-	 * written under the previous one. Each returned [PeekedSignal] pairs the row
-	 * [PeekedSignal.id] with the deserialized [PeekedSignal.signal] (null when
-	 * the row is corrupted). The caller acknowledges the exact IDs (via
+	 * written under the previous one. Each returned [PeekedSignal] includes the
+	 * row ID, stable source signal ID, envelope metadata, and a typed payload
+	 * result. The caller acknowledges the exact IDs (via
 	 * [PendingSignalDao.deleteByIds]) once the destination writes commit, so a
-	 * failure before that leaves the rows available for retry.
+	 * failure before that leaves the rows available for retry. Malformed and
+	 * unsupported rows are surfaced for transactional quarantine, never silently
+	 * converted to an acknowledgement.
 	 */
 	suspend fun peekBatch(limit: Int = RECOVERY_BATCH_SIZE): List<PeekedSignal> =
 		withContext(dispatchers.io) {
 			val entities = pendingSignalDao.getOldestAcrossSessions(limit)
-			entities.map { entity ->
-				PeekedSignal(
-					id = entity.id,
-					signal = SignalSerializer.deserialize(entity.signalJson),
+			entities.map { it.toPeekedSignal() }
+		}
+
+	/**
+	 * Claim an exclusive recovery batch. A second coordinator can only observe
+	 * this batch after its lease expires; its destination writes must still use
+	 * [PendingSignalClaimDao.deleteClaimedByIds] with [ClaimedBatch.claimToken]
+	 * in the same transaction as its destination inserts.
+	 */
+	suspend fun claimBatch(limit: Int = RECOVERY_BATCH_SIZE): ClaimedBatch? =
+		withContext(dispatchers.io) {
+			val claimDao = requireNotNull(pendingSignalClaimDao) {
+				"PendingSignalClaimDao is required for claim-based recovery"
+			}
+			val now = Time.nowMillis
+			val leaseExpiresAt = now + CLAIM_LEASE_DURATION_MS
+			val claimToken = UUID.randomUUID().toString()
+			val entities = claimDao.claimOldestAvailable(
+				claimToken = claimToken,
+				nowMs = now,
+				leaseExpiresAtMs = leaseExpiresAt,
+				limit = limit,
+			)
+			if (entities.isEmpty()) {
+				null
+			} else {
+				ClaimedBatch(
+					claimToken = claimToken,
+					leaseExpiresAtMs = leaseExpiresAt,
+					signals = entities.map { it.toPeekedSignal() },
 				)
 			}
 		}
+
+	/** Release a batch after a transient failure so another recovery pass can retry it. */
+	suspend fun releaseClaim(claimToken: String): Int = withContext(dispatchers.io) {
+		requireNotNull(pendingSignalClaimDao) {
+			"PendingSignalClaimDao is required for claim-based recovery"
+		}.releaseClaim(claimToken)
+	}
 
 	/** True when there are still WAL entries for **any** session (recovery scope). */
 	suspend fun hasPendingEntries(): Boolean = withContext(dispatchers.io) {
@@ -129,15 +356,137 @@ class DurableSignalBuffer @Inject constructor(
 	}
 
 	/**
-	 * A single peeked WAL row: its primary key plus the deserialized signal,
-	 * or `null` [signal] when the stored JSON could not be parsed (corruption).
+	 * An in-memory signal accepted into staging. The [signalId] is generated
+	 * once, before the object reaches any typed persistence buffer.
 	 */
+	data class StagedSignal(
+		val signalId: String,
+		val signal: TrackingSignal,
+	)
+
+	/** A staged signal whose `pending_signal` row has committed. */
+	data class CheckpointedSignal(
+		val id: Long,
+		val signalId: String,
+		val signal: TrackingSignal,
+		val capturedEpoch: Long = 0L,
+		val acquiredAtMs: Long = 0L,
+	)
+
+	/** Result of one staging admission attempt. */
+	data class CheckpointAdmission(
+		val admittedIds: List<Long>,
+		val lifecycleRejectedCount: Int,
+		/** Stable producer identities admitted by this checkpoint. */
+		val admittedSignalIds: Set<String> = emptySet(),
+		/** Stable producer identities terminally rejected by the lifecycle guard. */
+		val rejectedSignalIds: Set<String> = emptySet(),
+	) {
+		init {
+			require(lifecycleRejectedCount >= 0) { "lifecycleRejectedCount must not be negative" }
+		}
+
+		val fullyAdmitted: Boolean get() = lifecycleRejectedCount == 0
+
+		/**
+		 * Resolve admission for one signal when a checkpoint contains a mixture of old rejected and
+		 * new admitted rows. Older test/fallback implementations expose only the aggregate result,
+		 * so retain that behavior when no identity metadata is available.
+		 */
+		fun statusFor(signalId: String?): DurableAdmissionStatus = when {
+			signalId.isNullOrBlank() -> if (fullyAdmitted) {
+				DurableAdmissionStatus.ADMITTED
+			} else {
+				DurableAdmissionStatus.LIFECYCLE_REJECTED
+			}
+			signalId in admittedSignalIds -> DurableAdmissionStatus.ADMITTED
+			signalId in rejectedSignalIds -> DurableAdmissionStatus.LIFECYCLE_REJECTED
+			fullyAdmitted -> DurableAdmissionStatus.ADMITTED
+			else -> DurableAdmissionStatus.LIFECYCLE_REJECTED
+		}
+
+		companion object {
+			val EMPTY = CheckpointAdmission(admittedIds = emptyList(), lifecycleRejectedCount = 0)
+		}
+	}
+
+	/** Rows currently owned by one recovery coordinator. */
+	data class ClaimedBatch(
+		val claimToken: String,
+		val leaseExpiresAtMs: Long,
+		val signals: List<PeekedSignal>,
+	)
+
+	/** A pending row plus its verified payload result and durable metadata. */
 	data class PeekedSignal(
 		val id: Long,
-		val signal: TrackingSignal?,
-	)
+		val signalId: String,
+		val sessionId: Long,
+		val envelopeVersion: Int,
+		val payloadChecksum: String?,
+		val signalJson: String,
+		val createdAt: Long,
+		val capturedEpoch: Long,
+		val acquiredAtMs: Long,
+		val deliveryAttemptCount: Int,
+		val payload: PendingSignalDecodeResult,
+	) {
+		/** Compatibility view for callers that only need a successfully decoded signal. */
+		val signal: TrackingSignal?
+			get() = (payload as? PendingSignalDecodeResult.Valid)?.signal
+
+		/** Convenience constructor for legacy tests and hand-built fixtures. */
+		constructor(id: Long, signal: TrackingSignal?) : this(
+			id = id,
+			signalId = "legacy-pending-$id",
+			sessionId = 0L,
+			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
+			payloadChecksum = null,
+			signalJson = signal?.let(SignalSerializer::serialize).orEmpty(),
+			createdAt = 0L,
+			capturedEpoch = 0L,
+			acquiredAtMs = signal?.timestampMs?.raw ?: 0L,
+			deliveryAttemptCount = 0,
+			payload = signal?.let(PendingSignalDecodeResult::Valid)
+				?: PendingSignalDecodeResult.Malformed(
+					PendingSignalDecodeFailure.MALFORMED_PAYLOAD,
+				),
+		)
+	}
+
+	private fun PendingSignalEntity.toPeekedSignal(): PeekedSignal {
+		val isLegacy = envelopeVersion == SignalSerializer.LEGACY_ENVELOPE_VERSION
+		val resolvedSignalId = signalId.ifBlank {
+			// Migrations cannot synthesize a UUID for an existing row. Its immutable
+			// primary key gives legacy rows a deterministic identity.
+			"legacy-pending-$id"
+		}
+		val decodedPayload = if (!isLegacy && signalId.isBlank()) {
+			PendingSignalDecodeResult.Malformed(PendingSignalDecodeFailure.MISSING_SIGNAL_ID)
+		} else {
+			SignalSerializer.decode(
+				envelopeVersion = envelopeVersion,
+				payloadJson = signalJson,
+				payloadChecksum = payloadChecksum,
+			)
+		}
+		return PeekedSignal(
+			id = id,
+			signalId = resolvedSignalId,
+			sessionId = sessionId,
+			envelopeVersion = envelopeVersion,
+			payloadChecksum = payloadChecksum,
+			signalJson = signalJson,
+			createdAt = createdAt,
+			capturedEpoch = capturedEpoch,
+			acquiredAtMs = acquiredAtMs,
+			deliveryAttemptCount = deliveryAttemptCount,
+			payload = decodedPayload,
+		)
+	}
 
 	companion object {
 		internal const val RECOVERY_BATCH_SIZE = 100
+		private const val CLAIM_LEASE_DURATION_MS = 60_000L
 	}
 }

@@ -32,6 +32,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
+import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
 import com.adsamcik.tracker.tracker.data.collection.hasPersistableProducerPayload
@@ -47,6 +48,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -172,6 +174,7 @@ internal class TrackingOrchestrator(
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
 		sessionJob = newSessionJob
 		currentTier = initialTier
+		val clockDomainId = TrackingClockDomain.beginSession()
 
 		dataProducerManager = DataProducerManager(
 			context = context,
@@ -190,6 +193,8 @@ internal class TrackingOrchestrator(
 			database = appDatabase,
 			dispatchers = dispatchers,
 			initialTier = initialTier,
+			clockDomainId = clockDomainId,
+			trackerStateEvidenceWriter = RoomTrackerStateEvidenceWriter(appDatabase),
 		).apply {
 			start() // Start tracking run + engine
 		}
@@ -286,6 +291,7 @@ internal class TrackingOrchestrator(
 			processors = signalProcessors,
 			scope = sessionScope,
 			onDomainEvents = { events -> domainEventRepository.persist(events) },
+			requireDurableAdmission = true,
 		)
 		processorPipeline = pipeline
 		pipeline.start(
@@ -418,20 +424,50 @@ internal class TrackingOrchestrator(
 			// only in volatile staging. Checkpoint every provider delivery before any rejection path.
 			if (processorPipeline?.checkpointDurableSignals(observationSignals) != true) {
 				Reporter.report("Unable to durably checkpoint raw location observations")
+				// Do not admit an accepted location when its reconstructable raw source has not reached
+				// the WAL. The durability processor retains staged evidence for a later checkpoint; this
+				// curated cycle intentionally remains unresolved rather than becoming source-less.
+				return
 			}
 		}
 		if (triggerCycle.isLocationObservationOnly()) return
+		trackingPolicyManager?.heartbeatIfDue()
 
 		for (component in preComponentList) {
 			if (!component.requirementsMet(triggerCycle)) continue
 			val accepted = tryWithResultAndReport({ true }) {
 				component.onNewData(triggerCycle)
 			}
-			if (!accepted) return
+			if (!accepted) {
+				checkpointCuratedLocationRejection(triggerCycle, "PRETRACKER_REJECTED")
+				return
+			}
 		}
 
 		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
 		executeCycle(context, cycle)
+	}
+
+	private suspend fun checkpointCuratedLocationRejection(
+		cycle: TrackingCycle,
+		reason: String,
+	) {
+		val metadata = cycle.location?.lastFixMetadata ?: return
+		val sourceEventId = metadata.sourceEventId ?: return
+		val signal = com.adsamcik.tracker.stats.api.signal.TrackingSignal(
+			timestampMs = EpochMs(cycle.timestampMs.coerceAtLeast(0L)),
+			elapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
+			clockDomainId = metadata.clockDomainId,
+			locationDecision = com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal(
+				sourceEventId = sourceEventId,
+				decision = com.adsamcik.tracker.stats.api.signal.LocationDecision.REJECTED,
+				reason = reason,
+			),
+			persistenceSignalId = "location-decision:$sourceEventId:$reason",
+		)
+		if (processorPipeline?.checkpointDurableSignals(listOf(signal)) != true) {
+			Reporter.report("Unable to durably checkpoint curated location rejection")
+		}
 	}
 
 	private suspend fun executeCycle(context: Context, cycle: TrackingCycle) {

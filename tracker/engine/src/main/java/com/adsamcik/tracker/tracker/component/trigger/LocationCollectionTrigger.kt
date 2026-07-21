@@ -15,8 +15,10 @@ import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -37,7 +39,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 		private set
 
 	private var startedAtElapsedRealtimeNanos: Long = Long.MIN_VALUE
-	private var permissionPrecision: LocationPermissionPrecision = LocationPermissionPrecision.UNKNOWN
+	private var appContext: Context? = null
 
 	protected val newDataLock = ReentrantLock()
 
@@ -67,8 +69,22 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 			val receivedAtMs = Time.nowMillis
 			val receivedElapsedRealtimeNanos = Time.elapsedRealtimeNanos
 			val batchSize = locations.size
+			val callbackId = UUID.randomUUID().toString()
+			val clockDomainId = TrackingClockDomain.currentId()
+			// Permission can change while a trigger is live, so record what was in effect for this
+			// callback rather than the value cached when the request was first enabled.
+			val permissionPrecision = appContext?.let { context ->
+				if (context.hasPreciseLocationPermission) {
+					LocationPermissionPrecision.PRECISE
+				} else {
+					LocationPermissionPrecision.APPROXIMATE
+				}
+			} ?: LocationPermissionPrecision.UNKNOWN
 			val metadata = locations.indices.map { index ->
 				LocationFixMetadata(
+					callbackId = callbackId,
+					sourceEventId = UUID.randomUUID().toString(),
+					clockDomainId = clockDomainId,
 					receivedAtMs = receivedAtMs,
 					receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 					acquisitionMode = acquisitionMode,
@@ -80,6 +96,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 			}
 			val observations = locations.mapIndexed { index, location ->
 				val disposition = when {
+					location.time < 0L -> LocationIngressDisposition.REJECTED_INVALID_TIMESTAMP
 					!isLocationValid(location) -> LocationIngressDisposition.REJECTED_INVALID_COORDINATE
 					!isLocationFreshEnough(location) -> LocationIngressDisposition.REJECTED_STALE
 					else -> LocationIngressDisposition.DELIVERED_VALID
@@ -143,16 +160,12 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	}
 
 	@CallSuper
-	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
+		override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		newDataLock.withLock {
 			this.receiver = receiver
+			appContext = context.applicationContext
 			previousLocation = null
 			startedAtElapsedRealtimeNanos = Time.elapsedRealtimeNanos
-			permissionPrecision = if (context.hasPreciseLocationPermission) {
-				LocationPermissionPrecision.PRECISE
-			} else {
-				LocationPermissionPrecision.APPROXIMATE
-			}
 		}
 	}
 
@@ -160,8 +173,8 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	override fun onDisable(context: Context) {
 		newDataLock.withLock {
 			this.receiver = null
+			appContext = null
 			previousLocation = null
-			permissionPrecision = LocationPermissionPrecision.UNKNOWN
 		}
 	}
 

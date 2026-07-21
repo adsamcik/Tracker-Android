@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
@@ -14,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
@@ -61,13 +63,29 @@ class PersistenceRecoveryCrossSessionTest {
 				id
 			}
 
+		override suspend fun insertAllIgnoringSignalIdConflicts(
+			signals: List<PendingSignalEntity>,
+		): List<Long> = signals.map { signal ->
+			val existing = store.firstOrNull { it.signalId == signal.signalId }
+			if (existing != null) {
+				-1L
+			} else {
+				val id = nextId++
+				store.add(signal.copy(id = id))
+				id
+			}
+		}
+
+		override suspend fun getBySignalIds(signalIds: List<String>): List<PendingSignalEntity> =
+			store.filter { it.signalId in signalIds }
+
 		override suspend fun getOldest(sessionId: Long, limit: Int): List<PendingSignalEntity> =
 			store.filter { it.sessionId == sessionId }
-				.sortedWith(compareBy({ it.createdAt }, { it.id }))
+				.sortedBy(PendingSignalEntity::id)
 				.take(limit)
 
 		override suspend fun getOldestAcrossSessions(limit: Int): List<PendingSignalEntity> =
-			store.sortedWith(compareBy({ it.createdAt }, { it.id })).take(limit)
+			store.sortedBy(PendingSignalEntity::id).take(limit)
 
 		override suspend fun deleteByIds(ids: List<Long>) {
 			store.removeAll { it.id in ids }
@@ -85,9 +103,88 @@ class PersistenceRecoveryCrossSessionTest {
 
 		override suspend fun countAll(): Int = store.size
 
+		override suspend fun hasAny(): Boolean = store.isNotEmpty()
+
 		override fun deleteAll() {
 			store.clear()
 		}
+	}
+
+	private class FakePendingSignalClaimDao(
+		private val pending: FakePendingSignalDao,
+	) : PendingSignalClaimDao {
+		private val quarantined = mutableListOf<QuarantinedSignalEntity>()
+
+		override suspend fun selectClaimable(nowMs: Long, limit: Int): List<PendingSignalEntity> =
+			pending.store
+				.filter { row ->
+					val expiresAt = row.claimExpiresAt
+					row.claimToken == null || expiresAt == null || expiresAt <= nowMs
+				}
+				.sortedBy(PendingSignalEntity::id)
+				.take(limit)
+
+		override suspend fun claimIds(
+			ids: List<Long>,
+			claimToken: String,
+			nowMs: Long,
+			leaseExpiresAtMs: Long,
+		): Int {
+			var claimed = 0
+			pending.store.replaceAll { row ->
+				val expiresAt = row.claimExpiresAt
+				if (
+					row.id in ids &&
+					(row.claimToken == null || expiresAt == null || expiresAt <= nowMs)
+				) {
+					claimed++
+					row.copy(
+						claimToken = claimToken,
+						claimExpiresAt = leaseExpiresAtMs,
+						deliveryAttemptCount = row.deliveryAttemptCount + 1,
+					)
+				} else {
+					row
+				}
+			}
+			return claimed
+		}
+
+		override suspend fun getClaimedByToken(
+			claimToken: String,
+			limit: Int,
+		): List<PendingSignalEntity> = pending.store
+			.filter { it.claimToken == claimToken }
+			.sortedBy(PendingSignalEntity::id)
+			.take(limit)
+
+		override suspend fun deleteClaimedByIds(ids: List<Long>, claimToken: String): Int {
+			val matches = pending.store.count { it.id in ids && it.claimToken == claimToken }
+			pending.store.removeAll { it.id in ids && it.claimToken == claimToken }
+			return matches
+		}
+
+		override suspend fun releaseClaim(claimToken: String): Int {
+			var released = 0
+			pending.store.replaceAll { row ->
+				if (row.claimToken == claimToken) {
+					released++
+					row.copy(claimToken = null, claimExpiresAt = null)
+				} else {
+					row
+				}
+			}
+			return released
+		}
+
+		override suspend fun insertQuarantine(signal: QuarantinedSignalEntity): Long {
+			if (quarantined.any { it.sourcePendingId == signal.sourcePendingId }) return -1L
+			quarantined += signal.copy(id = quarantined.size.toLong() + 1L)
+			return quarantined.last().id
+		}
+
+		override suspend fun hasQuarantineForSource(sourcePendingId: Long): Boolean =
+			quarantined.any { it.sourcePendingId == sourcePendingId }
 	}
 
 	private val passthroughTransactor = object : TrackingPersistenceTransactor {
@@ -111,10 +208,11 @@ class PersistenceRecoveryCrossSessionTest {
 
 	@Test
 	fun `rows written under session A are recovered and acknowledged when starting under session B`() =
-		runTest {
+			runTest {
 			val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
 			val fakeDao = FakePendingSignalDao()
-			val durableBuffer = DurableSignalBuffer(fakeDao, dispatchers)
+			val claimDao = FakePendingSignalClaimDao(fakeDao)
+			val durableBuffer = DurableSignalBuffer(fakeDao, dispatchers, claimDao)
 
 			// --- Session A checkpoints two signals to the WAL, then "dies". ---
 			val sessionA = 100L
@@ -144,6 +242,7 @@ class PersistenceRecoveryCrossSessionTest {
 				stepIntervalDao = stepDao,
 				activitySnapshotDao = activityDao,
 				pendingSignalDao = fakeDao,
+				pendingSignalClaimDao = claimDao,
 				durableBuffer = durableBuffer,
 				transactor = passthroughTransactor,
 				errorCollector = errorCollector,

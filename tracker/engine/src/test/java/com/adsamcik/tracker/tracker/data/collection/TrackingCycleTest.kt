@@ -132,8 +132,20 @@ class TrackingCycleTest {
 		@Test
 		fun `two cycles with same data are equal`() {
 			val activity = ActivityInfo(activityType = 0, confidence = 100)
-			val a = TrackingCycle(TIME_MS, ELAPSED_NANOS, activity = activity, stepDelta = 5)
-			val b = TrackingCycle(TIME_MS, ELAPSED_NANOS, activity = activity, stepDelta = 5)
+			val a = TrackingCycle(
+				TIME_MS,
+				ELAPSED_NANOS,
+				activity = activity,
+				stepDelta = 5,
+				persistenceSignalId = "same-cycle",
+			)
+			val b = TrackingCycle(
+				TIME_MS,
+				ELAPSED_NANOS,
+				activity = activity,
+				stepDelta = 5,
+				persistenceSignalId = "same-cycle",
+			)
 
 			a shouldBe b
 		}

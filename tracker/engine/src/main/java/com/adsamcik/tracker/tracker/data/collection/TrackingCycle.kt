@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
+import java.util.UUID
 
 /**
  * Typed envelope for one collection cycle's worth of sensor data.
@@ -27,6 +28,12 @@ internal data class TrackingCycle(
 	val stepSensorReset: Boolean = false,
 	val pressure: PressureReading? = null,
 	val rawGpsAltitude: Double? = null,
+	/**
+	 * Stable identity assigned while this collection unit is still owned by the
+	 * cycle queue. It is propagated to [com.adsamcik.tracker.stats.api.signal.TrackingSignal]
+	 * and becomes the pending-signal idempotency key.
+	 */
+	val persistenceSignalId: String = UUID.randomUUID().toString(),
 )
 
 /**
