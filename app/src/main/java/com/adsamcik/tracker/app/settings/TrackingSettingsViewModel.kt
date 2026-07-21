@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,60 +60,20 @@ class TrackingSettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
+    private var latestParams: TrackingParamsState? = null
 
     init {
         viewModelScope.launch {
             trackingParamsRepository.data.collect { params ->
-                val preset = params.preset
-                val wifiPermissionGranted = context.hasWifiScanPermission
-                val cellPermissionGranted = context.hasCellScanPermission
-                val barometerAvailable = context.hasPressureSensor
-                val activityPermissionGranted = context.hasActivityPermission
-                val stepCounterAvailable = context.hasStepCounterSensor
-                val effectiveActivityEnabled = params.activityEnabled && activityPermissionGranted
-                val effectiveStepsEnabled = params.stepsEnabled &&
-                    activityPermissionGranted && stepCounterAvailable
-                val effectiveWifiEnabled = params.wifiEnabled && wifiPermissionGranted
-                val effectiveCellEnabled = params.cellEnabled && cellPermissionGranted
-                val effectiveBarometerEnabled = params.barometerEnabled && barometerAvailable
-
-                _uiState.update {
-                    it.copy(
-                        isLoaded = true,
-                        currentPreset = preset,
-                        locationEnabled = params.locationEnabled,
-                        activityEnabled = effectiveActivityEnabled,
-                        stepsEnabled = effectiveStepsEnabled,
-                        wifiEnabled = effectiveWifiEnabled,
-                        cellEnabled = effectiveCellEnabled,
-                        barometerEnabled = effectiveBarometerEnabled,
-                        barometerAvailable = barometerAvailable,
-                        activityPermissionGranted = activityPermissionGranted,
-                        stepCounterAvailable = stepCounterAvailable,
-                        wifiPermissionGranted = wifiPermissionGranted,
-                        cellPermissionGranted = cellPermissionGranted,
-                        autoTrackingEnabled = params.autoTrackingMode > 0,
-                        transitionDetectionEnabled = params.transitionDetectionEnabled,
-                        notificationStyled = params.notificationStyled,
-                        minDistance = params.minDistanceMeters,
-                        minTime = params.minTimeSeconds,
-                        requiredAccuracy = params.requiredAccuracyMeters,
-                        hasValidSources = params.hasAnyCaptureSource(
-                            activityAvailable = activityPermissionGranted,
-                            stepsAvailable = activityPermissionGranted && stepCounterAvailable,
-                            wifiAvailable = wifiPermissionGranted,
-                            cellAvailable = cellPermissionGranted,
-                            barometerAvailable = barometerAvailable,
-                        ),
-                        skiDetectionEnabled = params.skiDetectionEnabled && effectiveBarometerEnabled,
-                        vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
-                        sailingDetectionEnabled = params.sailingDetectionEnabled,
-                        planeDetectionEnabled = params.planeDetectionEnabled && effectiveBarometerEnabled,
-                    )
-                }
-                recalculateBatteryImpact()
+                latestParams = params
+                updateUiState(params)
             }
         }
+    }
+
+    /** Re-evaluates permission- and hardware-gated state after returning to this screen. */
+    fun refreshPermissionState() {
+        latestParams?.let(::updateUiState)
     }
 
     fun setLocationEnabled(enabled: Boolean) {
@@ -124,16 +85,14 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setActivityEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setActivityEnabled(enabled && context.hasActivityPermission)
+            trackingParamsRepository.setActivityEnabled(enabled)
             markCustomPreset()
         }
     }
 
     fun setStepsEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setStepsEnabled(
-                enabled && context.hasActivityPermission && context.hasStepCounterSensor,
-            )
+            trackingParamsRepository.setStepsEnabled(enabled)
             markCustomPreset()
         }
     }
@@ -152,7 +111,7 @@ class TrackingSettingsViewModel @Inject constructor(
 
     fun setCellEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            trackingParamsRepository.setCellEnabled(enabled && context.hasCellScanPermission)
+            trackingParamsRepository.setCellEnabled(enabled)
             markCustomPreset()
         }
     }
@@ -258,21 +217,16 @@ class TrackingSettingsViewModel @Inject constructor(
     fun applyPreset(preset: TrackingPreset) {
         viewModelScope.launch {
             val config = preset
-            val wifiAllowed = context.hasWifiScanPermission
-            val cellAllowed = context.hasCellScanPermission
-            val activityAllowed = context.hasActivityPermission
-            val stepCounterAllowed = activityAllowed && context.hasStepCounterSensor
-            val barometerAllowed = config.barometerEnabled && context.hasPressureSensor
             trackingParamsRepository.update {
                 copy(
                     locationEnabled = config.locationEnabled,
-                    activityEnabled = config.activityEnabled && activityAllowed,
-                    stepsEnabled = config.stepsEnabled && stepCounterAllowed,
-                    wifiEnabled = config.wifiEnabled && wifiAllowed,
-                    cellEnabled = config.cellEnabled && cellAllowed,
-                    barometerEnabled = barometerAllowed,
-                    skiDetectionEnabled = skiDetectionEnabled && barometerAllowed,
-                    planeDetectionEnabled = planeDetectionEnabled && barometerAllowed,
+                    activityEnabled = config.activityEnabled,
+                    stepsEnabled = config.stepsEnabled,
+                    wifiEnabled = config.wifiEnabled,
+                    cellEnabled = config.cellEnabled,
+                    barometerEnabled = config.barometerEnabled,
+                    skiDetectionEnabled = skiDetectionEnabled && config.barometerEnabled,
+                    planeDetectionEnabled = planeDetectionEnabled && config.barometerEnabled,
                     transitionDetectionEnabled = transitionDetectionEnabled,
                     minDistanceMeters = config.minDistanceMeters,
                     minTimeSeconds = config.minTimeSeconds,
@@ -281,6 +235,56 @@ class TrackingSettingsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun updateUiState(params: TrackingParamsState) {
+        val wifiPermissionGranted = context.hasWifiScanPermission
+        val cellPermissionGranted = context.hasCellScanPermission
+        val barometerAvailable = context.hasPressureSensor
+        val activityPermissionGranted = context.hasActivityPermission
+        val stepCounterAvailable = context.hasStepCounterSensor
+        val effectiveActivityEnabled = params.activityEnabled && activityPermissionGranted
+        val effectiveStepsEnabled = params.stepsEnabled &&
+            activityPermissionGranted && stepCounterAvailable
+        val effectiveWifiEnabled = params.wifiEnabled && wifiPermissionGranted
+        val effectiveCellEnabled = params.cellEnabled && cellPermissionGranted
+        val effectiveBarometerEnabled = params.barometerEnabled && barometerAvailable
+
+        _uiState.update {
+            it.copy(
+                isLoaded = true,
+                currentPreset = params.preset,
+                locationEnabled = params.locationEnabled,
+                activityEnabled = effectiveActivityEnabled,
+                stepsEnabled = effectiveStepsEnabled,
+                wifiEnabled = effectiveWifiEnabled,
+                cellEnabled = effectiveCellEnabled,
+                barometerEnabled = effectiveBarometerEnabled,
+                barometerAvailable = barometerAvailable,
+                activityPermissionGranted = activityPermissionGranted,
+                stepCounterAvailable = stepCounterAvailable,
+                wifiPermissionGranted = wifiPermissionGranted,
+                cellPermissionGranted = cellPermissionGranted,
+                autoTrackingEnabled = params.autoTrackingMode > 0,
+                transitionDetectionEnabled = params.transitionDetectionEnabled,
+                notificationStyled = params.notificationStyled,
+                minDistance = params.minDistanceMeters,
+                minTime = params.minTimeSeconds,
+                requiredAccuracy = params.requiredAccuracyMeters,
+                hasValidSources = params.hasAnyCaptureSource(
+                    activityAvailable = activityPermissionGranted,
+                    stepsAvailable = activityPermissionGranted && stepCounterAvailable,
+                    wifiAvailable = wifiPermissionGranted,
+                    cellAvailable = cellPermissionGranted,
+                    barometerAvailable = barometerAvailable,
+                ),
+                skiDetectionEnabled = params.skiDetectionEnabled && effectiveBarometerEnabled,
+                vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
+                sailingDetectionEnabled = params.sailingDetectionEnabled,
+                planeDetectionEnabled = params.planeDetectionEnabled && effectiveBarometerEnabled,
+            )
+        }
+        recalculateBatteryImpact()
     }
 
     private suspend fun markCustomPreset() {

@@ -33,6 +33,7 @@ class TrackingSettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val context: Context = mockk(relaxed = true)
+    private var permissionsGranted = true
 
     // Backing state for the fake repository
     private val paramsFlow = MutableStateFlow(TrackingParamsState())
@@ -44,7 +45,7 @@ class TrackingSettingsViewModelTest {
 
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
-        every { context.hasSelfPermission(any()) } returns true
+        every { context.hasSelfPermission(any()) } answers { permissionsGranted }
         every { context.hasPressureSensor } returns true
         every { context.hasStepCounterSensor } returns true
 
@@ -108,6 +109,7 @@ class TrackingSettingsViewModelTest {
 
     private fun createViewModel(): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
+        permissionsGranted = true
         return TrackingSettingsViewModel(context, trackingParamsRepository)
     }
 
@@ -495,6 +497,40 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
             vm.uiState.value.hasValidSources shouldBe true
         }
+
+        @Test
+        fun `applyPreset persists requested wifi when wifi permission is denied`() =
+            runTest(testDispatcher) {
+                permissionsGranted = false
+                val vm = TrackingSettingsViewModel(context, trackingParamsRepository)
+                advanceUntilIdle()
+
+                vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
+                advanceUntilIdle()
+
+                paramsFlow.value.wifiEnabled shouldBe true
+                vm.uiState.value.wifiEnabled shouldBe false
+            }
+    }
+
+    @Nested
+    @DisplayName("Permission refresh")
+    inner class PermissionRefresh {
+
+        @Test
+        fun `refreshPermissionState updates effective wifi state without repository emission`() =
+            runTest(testDispatcher) {
+                permissionsGranted = false
+                paramsFlow.value = TrackingParamsState(wifiEnabled = true)
+                val vm = TrackingSettingsViewModel(context, trackingParamsRepository)
+                advanceUntilIdle()
+                vm.uiState.value.wifiEnabled shouldBe false
+
+                permissionsGranted = true
+                vm.refreshPermissionState()
+
+                vm.uiState.value.wifiEnabled shouldBe true
+            }
     }
 
     // =========================================================================
