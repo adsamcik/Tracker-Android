@@ -14,7 +14,7 @@ class DatabaseImportTest {
 
 		importer.supportedExtensions shouldContainExactly listOf("db")
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
-		DatabaseImport.IMPORT_MODE shouldBe "COPY_LOCK_REMAP_TRANSACTION"
+		DatabaseImport.IMPORT_MODE shouldBe "READ_ONLY_COMPUTED_REMAP_TRANSACTION"
 	}
 
 	@Test

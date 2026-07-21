@@ -53,6 +53,49 @@ class DatabaseImportCollisionTest {
 			target.query("PRAGMA foreign_key_check").use {
 				it.count shouldBe 0
 			}
+			source.singleInt("SELECT id FROM parent WHERE name = 'imported'") shouldBe 1
+			source.singleInt("SELECT parent_id FROM child WHERE value = 'imported-child'") shouldBe 1
+		}
+
+	@Test
+	fun `database containing an update trigger is rejected before remapping`() =
+		withDatabases { sourceRoom, targetRoom ->
+			val source = sourceRoom.openHelper.writableDatabase
+			val target = targetRoom.openHelper.writableDatabase
+			createParentChildSchema(source, includeForeignKey = true)
+			createParentChildSchema(target, includeForeignKey = true)
+			source.execSQL("CREATE TABLE trigger_marker (`value` TEXT NOT NULL)")
+			source.execSQL(
+				"""
+				CREATE TRIGGER malicious_after_update
+				AFTER UPDATE ON parent
+				BEGIN
+					INSERT INTO trigger_marker (`value`) VALUES ('trigger-fired');
+				END
+				""".trimIndent(),
+			)
+			target.execSQL("INSERT INTO parent (id, name) VALUES (1, 'existing')")
+			source.execSQL("INSERT INTO parent (id, name) VALUES (1, 'imported')")
+
+			val failure = DatabaseImport().importDatabase(source, target)
+				.shouldBeInstanceOf<DatabaseImportResult.Failure>()
+
+			failure.reason.message shouldContain
+				"Unsupported trigger schema object in imported database: malicious_after_update"
+			source.singleInt("SELECT COUNT(*) FROM trigger_marker") shouldBe 0
+			target.singleInt("SELECT COUNT(*) FROM parent") shouldBe 1
+		}
+
+	@Test
+	fun `application database schema remains importable`() =
+		withDatabases { sourceRoom, targetRoom ->
+			val source = sourceRoom.openHelper.writableDatabase
+			val target = targetRoom.openHelper.writableDatabase
+
+			val result = DatabaseImport().importDatabase(source, target)
+				.shouldBeInstanceOf<DatabaseImportResult.Success>()
+
+			result.result.failedCount shouldBe 0
 		}
 
 	@Test
@@ -133,7 +176,7 @@ class DatabaseImportCollisionTest {
 			result.successCount shouldBe 1
 			target.singleInt("SELECT COUNT(*) FROM parent") shouldBe 2
 			target.singleInt("SELECT COUNT(*) FROM child") shouldBe 0
-			source.singleInt("SELECT parent_id FROM child") shouldBe 2
+			source.singleInt("SELECT parent_id FROM child") shouldBe 1
 			source.query("PRAGMA foreign_key_check").use { it.count shouldBe 0 }
 		}
 

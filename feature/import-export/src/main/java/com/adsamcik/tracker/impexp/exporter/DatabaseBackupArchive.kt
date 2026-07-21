@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import java.io.Closeable
 import java.io.File
 import java.io.OutputStream
 import java.security.MessageDigest
@@ -10,11 +11,19 @@ internal object DatabaseBackupArchive {
 	private const val DATABASE_DIRECTORY = "databases/"
 	private const val MANIFEST_FILE = "manifest.json"
 
-	fun write(databaseFiles: List<File>, outputStream: OutputStream) {
+	fun write(
+		databaseFiles: List<File>,
+		outputStream: OutputStream,
+		copyLockProvider: DatabaseCopyLockProvider,
+	) {
 		ZipOutputStream(outputStream).use { archive ->
 			val entries = databaseFiles
 				.sortedBy { it.name }
-				.map { file -> writeDatabaseEntry(archive, file) }
+				.map { file ->
+					copyLockProvider.lock(file).use {
+						writeDatabaseEntry(archive, file)
+					}
+				}
 			writeManifest(archive, entries)
 		}
 	}
@@ -57,6 +66,10 @@ internal object DatabaseBackupArchive {
 
 	private fun escapeJson(value: String): String =
 		value.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+internal fun interface DatabaseCopyLockProvider {
+	fun lock(databaseFile: File): Closeable
 }
 
 internal data class DatabaseBackupEntry(
