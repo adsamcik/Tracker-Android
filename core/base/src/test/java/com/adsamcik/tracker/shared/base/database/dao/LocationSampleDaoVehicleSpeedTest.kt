@@ -102,6 +102,24 @@ class LocationSampleDaoVehicleSpeedTest {
 	}
 
 	@Test
+	fun `driving sample projection retains nullable horizontal accuracy`() = runTest {
+		insertSegment(0L, 10_000L, DetectedActivity.IN_VEHICLE.value)
+		sampleDao.insert(createSample(timeMs = 1_000L, hAccM = 12.5f))
+		sampleDao.insert(createSample(timeMs = 2_000L, hAccM = null))
+
+		val rows = sampleDao.getDrivingChunkBetweenOrdered(
+			fromMs = 0L,
+			toMs = Long.MAX_VALUE,
+			drivingActivities = DRIVING_ACTIVITIES,
+			afterTimeMs = null,
+			afterId = null,
+			limit = 100,
+		)
+
+		rows.map { it.hAccM } shouldBe listOf(12.5f, null)
+	}
+
+	@Test
 	fun `samples with an untrustworthy speed reading are dropped`() = runTest {
 		insertSegment(0L, 10_000L, DetectedActivity.IN_VEHICLE.value)
 
@@ -219,7 +237,8 @@ class LocationSampleDaoVehicleSpeedTest {
 			       ls.id AS id,
 			       ls.lat_e7 AS lat_e7,
 			       ls.lon_e7 AS lon_e7,
-			       ls.speed_mps AS speed_mps
+			       ls.speed_mps AS speed_mps,
+			       ls.h_acc_m AS h_acc_m
 			FROM location_sample ls
 			INNER JOIN session_segment ss
 				ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
@@ -283,6 +302,7 @@ class LocationSampleDaoVehicleSpeedTest {
 		speedMps: Float? = 1.5f,
 		quality: SampleQuality = SampleQuality.HIGH,
 		speedAccuracyMps: Float? = 0.5f,
+		hAccM: Float? = 5f,
 	) = LocationSample(
 		timeMs = timeMs,
 		elapsedRealtimeNanos = timeMs * 1_000_000L,
@@ -290,7 +310,7 @@ class LocationSampleDaoVehicleSpeedTest {
 		lonE7 = lonE7,
 		altitudeM = 100f,
 		rawGpsAltitudeM = 100f,
-		hAccM = 5f,
+		hAccM = hAccM,
 		vAccM = 10f,
 		speedMps = speedMps,
 		speedAccuracyMps = speedAccuracyMps,

@@ -230,6 +230,24 @@ class VehicleComplianceE2ETest {
 	}
 
 	@Test
+	fun `road observations retain horizontal accuracy and default only when absent`() = runTest {
+		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
+		insertSample(timeMs = 1_000L, hAccM = 12.5f)
+		insertSample(timeMs = 2_000L, hAccM = null)
+		val observedAccuracies = mutableListOf<Float>()
+
+		val layer = buildLayer(
+			fixedLimitMps = BASELINE_50_KMH_MPS,
+			onObservations = { observations ->
+				observedAccuracies.addAll(observations.map { it.accuracyM })
+			},
+		)
+		runPipeline(layer)
+
+		observedAccuracies shouldBe listOf(12.5f, DEFAULT_ACCURACY_M)
+	}
+
+	@Test
 	fun `single sample is not drawable - line needs at least 2 points`() = runTest {
 		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
 		insertSample(timeMs = 1_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
@@ -331,7 +349,12 @@ class VehicleComplianceE2ETest {
 			} else {
 				val sampled = downSampleEvenly(rows, VEHICLE_MAX_PRE_SAMPLES)
 				val observations = sampled.map { row ->
-					RoadObservation(row.latE7, row.lonE7, DEFAULT_ACCURACY_M, row.timeMs)
+					RoadObservation(
+						row.latE7,
+						row.lonE7,
+						row.hAccM ?: DEFAULT_ACCURACY_M,
+						row.timeMs,
+					)
 				}
 				val edges = roadMatcher.match(observations)
 				val result = ArrayList<VehicleComplianceLayer.ComplianceEdge>(edges.size)
@@ -392,6 +415,7 @@ class VehicleComplianceE2ETest {
 		speedMps: Float? = 15f,
 		latE7: Int = 500_000_000,
 		lonE7: Int = 140_000_000,
+		hAccM: Float? = 5f,
 	) {
 		database.locationSampleDao().insert(
 			LocationSample(
@@ -401,7 +425,7 @@ class VehicleComplianceE2ETest {
 				lonE7 = lonE7,
 				altitudeM = 100f,
 				rawGpsAltitudeM = 100f,
-				hAccM = 5f,
+				hAccM = hAccM,
 				vAccM = 10f,
 				speedMps = speedMps,
 				speedAccuracyMps = 0.5f,

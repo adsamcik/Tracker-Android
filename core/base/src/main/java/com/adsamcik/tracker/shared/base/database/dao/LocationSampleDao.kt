@@ -22,6 +22,8 @@ data class VehicleSpeedSampleRow(
 	val lonE7: Int,
 	@ColumnInfo(name = "speed_mps")
 	val speedMps: Float,
+	@ColumnInfo(name = "h_acc_m")
+	val hAccM: Float?,
 )
 
 /**
@@ -161,7 +163,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		       ls.id AS id,
 		       ls.lat_e7 AS lat_e7,
 		       ls.lon_e7 AS lon_e7,
-		       ls.speed_mps AS speed_mps
+		       ls.speed_mps AS speed_mps,
+		       ls.h_acc_m AS h_acc_m
 		FROM location_sample ls
 		INNER JOIN session_segment ss
 			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
@@ -197,7 +200,8 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		       ls.id AS id,
 		       ls.lat_e7 AS lat_e7,
 		       ls.lon_e7 AS lon_e7,
-		       ls.speed_mps AS speed_mps
+		       ls.speed_mps AS speed_mps,
+		       ls.h_acc_m AS h_acc_m
 		FROM location_sample ls
 		INNER JOIN session_segment ss
 			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms

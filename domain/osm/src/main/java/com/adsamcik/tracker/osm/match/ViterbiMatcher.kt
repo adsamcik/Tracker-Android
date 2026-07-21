@@ -24,7 +24,7 @@ internal object ViterbiMatcher {
 	 * @param transitionLog `(obsIndex, fromCand, toCand) -> log P(state_obs | state_obs-1)`,
 	 *   evaluated for the step from observation `obsIndex - 1` to `obsIndex`.
 	 * @return for each observation, the index of the chosen candidate. Empty
-	 *   when [candidateCounts] is empty.
+	 *   when [candidateCounts] is empty or no finite complete path exists.
 	 */
 	fun decode(
 		candidateCounts: IntArray,
@@ -35,44 +35,56 @@ internal object ViterbiMatcher {
 		if (n == 0) return IntArray(0)
 		require(candidateCounts.all { it >= 1 }) { "every observation must have >= 1 candidate" }
 
-		var prevDelta = DoubleArray(candidateCounts[0]) { j -> emissionLog(0, j) }
+		var prevDelta = DoubleArray(candidateCounts[0]) { j ->
+			emissionLog(0, j).takeIf { it.isFinite() } ?: Double.NEGATIVE_INFINITY
+		}
 		val backpointers = Array(n) { IntArray(0) }
 
 		for (i in 1 until n) {
 			val count = candidateCounts[i]
 			val delta = DoubleArray(count)
-			val back = IntArray(count)
+			val back = IntArray(count) { NO_PREDECESSOR }
 			for (j in 0 until count) {
 				var bestScore = Double.NEGATIVE_INFINITY
-				var bestK = 0
+				var bestK = NO_PREDECESSOR
 				for (k in prevDelta.indices) {
 					val score = prevDelta[k] + transitionLog(i, k, j)
-					if (score > bestScore) {
+					if (score.isFinite() && score > bestScore) {
 						bestScore = score
 						bestK = k
 					}
 				}
-				delta[j] = bestScore + emissionLog(i, j)
+				val emission = emissionLog(i, j)
+				delta[j] = if (bestK != NO_PREDECESSOR && emission.isFinite()) {
+					bestScore + emission
+				} else {
+					Double.NEGATIVE_INFINITY
+				}
 				back[j] = bestK
 			}
 			backpointers[i] = back
 			prevDelta = delta
 		}
 
-		var bestLast = 0
+		var bestLast = NO_PREDECESSOR
 		var bestScore = Double.NEGATIVE_INFINITY
 		for (j in prevDelta.indices) {
-			if (prevDelta[j] > bestScore) {
+			if (prevDelta[j].isFinite() && prevDelta[j] > bestScore) {
 				bestScore = prevDelta[j]
 				bestLast = j
 			}
 		}
+		if (bestLast == NO_PREDECESSOR) return IntArray(0)
 
 		val path = IntArray(n)
 		path[n - 1] = bestLast
 		for (i in n - 1 downTo 1) {
-			path[i - 1] = backpointers[i][path[i]]
+			val predecessor = backpointers[i][path[i]]
+			if (predecessor == NO_PREDECESSOR) return IntArray(0)
+			path[i - 1] = predecessor
 		}
 		return path
 	}
+
+	private const val NO_PREDECESSOR = -1
 }

@@ -70,4 +70,34 @@ class ViterbiMatcherTest {
 		)
 		path.toList() shouldBe listOf(1, 1, 1)
 	}
+
+	@Test
+	fun `impossible transition sequence signals no complete path`() {
+		val path = ViterbiMatcher.decode(
+			candidateCounts = intArrayOf(2, 2),
+			emissionLog = { _, _ -> 0.0 },
+			transitionLog = { _, _, _ -> Double.NEGATIVE_INFINITY },
+		)
+
+		path.toList() shouldBe emptyList()
+	}
+
+	@Test
+	fun `NaN transition score cannot select an arbitrary predecessor`() {
+		val path = ViterbiMatcher.decode(
+			candidateCounts = intArrayOf(2, 2),
+			emissionLog = { observation, candidate ->
+				if (observation == 1 && candidate == 1) -10.0 else 0.0
+			},
+			transitionLog = { _, from, to ->
+				when (from to to) {
+					0 to 0 -> Double.NaN
+					1 to 0 -> -1.0
+					else -> 0.0
+				}
+			},
+		)
+
+		path.toList() shouldBe listOf(1, 0)
+	}
 }

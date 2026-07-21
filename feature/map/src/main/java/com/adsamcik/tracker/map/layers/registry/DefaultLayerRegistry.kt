@@ -114,8 +114,8 @@ class DefaultLayerRegistry(
 
         /**
          * Emission sigma (GPS noise) handed to the road matcher. The driving
-         * sample projection doesn't carry per-sample accuracy, so we use a
-         * single sensible default that the matcher clamps into its valid range.
+         * fallback when a sample has no recorded horizontal accuracy. The matcher
+         * clamps this and per-sample values into its valid range.
          */
         const val VEHICLE_DEFAULT_ACCURACY_M = 8f
     }
@@ -465,7 +465,7 @@ class DefaultLayerRegistry(
                                                 RoadObservation(
                                                     latE7 = row.latE7,
                                                     lonE7 = row.lonE7,
-                                                    accuracyM = VEHICLE_DEFAULT_ACCURACY_M,
+                                                    accuracyM = row.hAccM ?: VEHICLE_DEFAULT_ACCURACY_M,
                                                     timeMs = row.timeMs,
                                                 )
                                             }
