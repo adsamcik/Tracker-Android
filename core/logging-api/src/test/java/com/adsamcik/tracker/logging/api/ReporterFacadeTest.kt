@@ -40,6 +40,11 @@ class ReporterFacadeTest {
 		fun `log does not throw`() {
 			ReporterFacade.log("ignored")
 		}
+
+		@Test
+		fun `info does not throw`() {
+			ReporterFacade.info("database", "ignored")
+		}
 	}
 
 	@Nested
@@ -74,6 +79,13 @@ class ReporterFacadeTest {
 			ReporterFacade.log("info")
 
 			verify(exactly = 1) { delegate.log("info") }
+		}
+
+		@Test
+		fun `info forwards source and message to delegate`() {
+			ReporterFacade.info("database", "opened")
+
+			verify(exactly = 1) { delegate.info("database", "opened") }
 		}
 	}
 

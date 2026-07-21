@@ -109,9 +109,12 @@ object Reporter : ErrorReporter {
 	/**
 	 * Logs an informational message scoped to a logical source without throwing in debug builds.
 	 */
-	fun i(source: String, message: String) {
+	override fun info(source: String, message: String) {
 		logWithSource(priority = Log.INFO, source = source, message = message)
 	}
+
+	/** Backward-compatible shorthand for [info]. */
+	fun i(source: String, message: String) = info(source, message)
 
 	/**
 	 * Logs a warning message scoped to a logical source without throwing in debug builds.

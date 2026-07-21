@@ -23,4 +23,9 @@ object ReporterFacade {
     fun log(message: String) {
         delegate?.log(message)
     }
+
+    /** Emits a low-severity diagnostic event when the logger module is available. */
+    fun info(source: String, message: String) {
+        delegate?.info(source, message)
+    }
 }
