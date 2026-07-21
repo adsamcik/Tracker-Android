@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.ExistingWorkPolicy
+import androidx.work.Operation
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
@@ -21,11 +22,15 @@ object DataImporter {
 			.setInputData(workDataOf(ImportWorker.ARG_FILE_URI to fileUri.toString()))
 			.build()
 		WorkManager.getInstance(context).enqueueUniqueWork(
-			UNIQUE_IMPORT_WORK,
+			UNIQUE_WORK_NAME,
 			ExistingWorkPolicy.APPEND_OR_REPLACE,
 			workRequest,
 		)
 	}
+
+	/** Stops a database-writing import before collected data is cleared. */
+	fun cancel(context: Context): Operation =
+		WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
 
 	internal fun persistReadPermission(context: Context, fileUri: Uri): Boolean {
 		if (fileUri.scheme != ContentResolver.SCHEME_CONTENT) return false
@@ -43,5 +48,5 @@ object DataImporter {
 	}
 
 	private const val IMPORT_LOG_SOURCE = "import"
-	private const val UNIQUE_IMPORT_WORK = "data-import"
+	const val UNIQUE_WORK_NAME = "data-import"
 }

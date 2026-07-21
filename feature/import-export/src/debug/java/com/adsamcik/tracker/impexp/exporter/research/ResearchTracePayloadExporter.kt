@@ -9,14 +9,12 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
-import com.adsamcik.tracker.shared.base.database.data.PresenceInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
-import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -46,8 +44,8 @@ data class ResearchTraceMetadata(
  * Room into the authenticated encryption stream without a plaintext staging file.
  *
  * Records are self-describing via `recordType`. A manifest comes first, followed by external clock
- * markers, raw provider observations, overlapping tracker runs, canonical presence intervals, the
- * caller-provided accepted location sequence, and a terminal count record. Database pages use an
+ * markers, raw provider observations, overlapping tracker runs, the caller-provided accepted
+ * location sequence, and a terminal count record. Database pages use an
  * ID watermark captured before writing, preventing rows appended during an export from leaking
  * into an otherwise bounded snapshot.
  */
@@ -131,11 +129,9 @@ class ResearchTracePayloadExporter(
 	) {
 		val observations = database.locationObservationDao()
 		val runs = database.trackerRunDao()
-		val presence = database.presenceIntervalDao()
 		val watermarks = SourceWatermarks(
 			locationObservationId = observations.maxId(),
 			trackerRunId = runs.maxId(),
-			presenceIntervalId = presence.maxIdAllModels(),
 		)
 		val toMsExclusive = incrementSaturated(toMsInclusive)
 		val counts = RecordCounts(marker = metadata.markers.size.toLong())
@@ -174,21 +170,6 @@ class ResearchTracePayloadExporter(
 				afterId = advanceCursor(afterId, page.last().id)
 			}
 
-			afterId = 0L
-			while (afterId < watermarks.presenceIntervalId) {
-				val page = presence.getOverlappingChunk(
-					fromMs = fromMs,
-					toMsExclusive = toMsExclusive,
-					afterId = afterId,
-					throughId = watermarks.presenceIntervalId,
-					limit = pageSize,
-				)
-				if (page.isEmpty()) break
-				page.forEach { writer.writeRecord(presenceRecord(it)) }
-				counts.presenceInterval += page.size
-				afterId = advanceCursor(afterId, page.last().id)
-			}
-
 			acceptedLocations.forEach { sample ->
 				if (sample.timeMs in fromMs..toMsInclusive) {
 					writer.writeRecord(acceptedLocationRecord(sample))
@@ -218,7 +199,6 @@ class ResearchTracePayloadExporter(
 		put("sourceWatermarks", JSONObject().apply {
 			put("locationObservationId", watermarks.locationObservationId)
 			put("trackerRunId", watermarks.trackerRunId)
-			put("presenceIntervalId", watermarks.presenceIntervalId)
 		})
 		put("session", JSONObject().apply {
 			putNullable("traceId", metadata.traceId)
@@ -276,38 +256,6 @@ class ResearchTracePayloadExporter(
 		put("createdAtMs", value.createdAt)
 	}
 
-	private fun presenceRecord(value: PresenceInterval): JSONObject = JSONObject().apply {
-		put(RECORD_TYPE, "presence_interval")
-		put("id", value.id)
-		put("sessionId", value.sessionId)
-		put("modelKey", value.modelKey)
-		put("estimatorVersion", value.estimatorVersion)
-		put("calibrationVersion", value.calibrationVersion)
-		put("configHash", value.configHash)
-		put("startTimeMs", value.startTimeMs)
-		put("endTimeMs", value.endTimeMs)
-		putNullable("startElapsedRealtimeNanos", value.startElapsedRealtimeNanos)
-		putNullable("endElapsedRealtimeNanos", value.endElapsedRealtimeNanos)
-		put("resolutionState", value.resolutionState)
-		putNullable("motionState", value.motionState)
-		put("provenance", value.provenance)
-		putNullable("unresolvedReason", value.unresolvedReason)
-		putNullable("centerLatE7", value.centerLatE7)
-		putNullable("centerLonE7", value.centerLonE7)
-		putFinite("covarianceXxM2", value.covarianceXxM2)
-		putFinite("covarianceXyM2", value.covarianceXyM2)
-		putFinite("covarianceYyM2", value.covarianceYyM2)
-		putFinite("effectiveR90M", value.effectiveR90M)
-		putNullable("posteriorFormat", value.posteriorFormat)
-		putNullable(
-			"posteriorPayloadBase64",
-			value.posteriorPayload?.let { Base64.getEncoder().encodeToString(it) },
-		)
-		putNullable("sourceFirstObservationId", value.sourceFirstObservationId)
-		putNullable("sourceLastObservationId", value.sourceLastObservationId)
-		put("createdAtMs", value.createdAt)
-	}
-
 	private fun acceptedLocationRecord(value: LocationSample): JSONObject = JSONObject().apply {
 		put(RECORD_TYPE, "accepted_location_sample")
 		put("id", value.id)
@@ -346,7 +294,6 @@ class ResearchTracePayloadExporter(
 			put("traceMarker", counts.marker)
 			put("locationObservation", counts.locationObservation)
 			put("trackerRun", counts.trackerRun)
-			put("presenceInterval", counts.presenceInterval)
 			put("acceptedLocationSample", counts.acceptedLocationSample)
 		})
 	}
@@ -388,21 +335,19 @@ class ResearchTracePayloadExporter(
 	private data class SourceWatermarks(
 		val locationObservationId: Long,
 		val trackerRunId: Long,
-		val presenceIntervalId: Long,
 	)
 
 	private data class RecordCounts(
 		val marker: Long,
 		var locationObservation: Long = 0,
 		var trackerRun: Long = 0,
-		var presenceInterval: Long = 0,
 		var acceptedLocationSample: Long = 0,
 	)
 
 	private companion object {
 		const val RECORD_TYPE = "recordType"
 		const val FORMAT = "tracker-research-trace-ndjson"
-		const val SCHEMA_VERSION = 1
+		const val SCHEMA_VERSION = 2
 		const val DEFAULT_PAGE_SIZE = 1_000
 	}
 }

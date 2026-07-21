@@ -6,7 +6,6 @@ import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
-import com.adsamcik.tracker.shared.base.database.data.PresenceInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
@@ -42,7 +41,7 @@ class ResearchTracePayloadExporterTest {
 	}
 
 	@Test
-	fun `payload streams manifest markers raw evidence runs presence and accepted samples`() = runTest {
+	fun `payload streams manifest markers raw evidence runs and accepted samples`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val rangeStart = 1_725_000_000_000L
 		val rangeEnd = rangeStart + 10_000L
@@ -57,7 +56,6 @@ class ResearchTracePayloadExporterTest {
 			),
 		)
 		database.locationObservationDao().insert(rejectedObservation(rangeStart + 1_000L))
-		database.presenceIntervalDao().insert(presenceInterval(runId, rangeStart + 500L))
 
 		val exporter = ResearchTracePayloadExporter(
 			metadata = ResearchTraceMetadata(
@@ -100,7 +98,7 @@ class ResearchTracePayloadExporterTest {
 		records.last().getString("recordType") shouldBe "end"
 
 		val manifest = records.first()
-		manifest.getInt("schemaVersion") shouldBe 1
+		manifest.getInt("schemaVersion") shouldBe 2
 		manifest.getLong("rangeStartMs") shouldBe rangeStart
 		manifest.getLong("rangeEndInclusiveMs") shouldBe rangeEnd
 		manifest.getJSONObject("session").getString("traceId") shouldBe "trace-prague-01"
@@ -130,10 +128,6 @@ class ResearchTracePayloadExporterTest {
 		trackerRun.getLong("id") shouldBe runId
 		trackerRun.getString("policy") shouldBe "ACTIVE_MODERATE"
 
-		val presence = records.single { it.getString("recordType") == "presence_interval" }
-		presence.getString("resolutionState") shouldBe "OBSERVED"
-		presence.getString("posteriorPayloadBase64") shouldBe "AQID"
-
 		val acceptedRecord = records.single { it.getString("recordType") == "accepted_location_sample" }
 		acceptedRecord.getLong("id") shouldBe 42L
 		acceptedRecord.getLong("receivedElapsedRealtimeNanos") shouldBe 88_500_000_000L
@@ -143,7 +137,6 @@ class ResearchTracePayloadExporterTest {
 		counts.getLong("traceMarker") shouldBe 1L
 		counts.getLong("locationObservation") shouldBe 1L
 		counts.getLong("trackerRun") shouldBe 1L
-		counts.getLong("presenceInterval") shouldBe 1L
 		counts.getLong("acceptedLocationSample") shouldBe 1L
 	}
 
@@ -197,33 +190,6 @@ class ResearchTracePayloadExporterTest {
 		estimatorVersion = 1,
 		calibrationVersion = 0,
 		createdAt = fixTimeMs + 250L,
-	)
-
-	private fun presenceInterval(sessionId: Long, startTimeMs: Long): PresenceInterval = PresenceInterval(
-		sessionId = sessionId,
-		modelKey = "dwell-estimator-v1-calibration-v0",
-		estimatorVersion = 1,
-		calibrationVersion = 0,
-		configHash = "test-config",
-		startTimeMs = startTimeMs,
-		endTimeMs = startTimeMs + 2_000L,
-		startElapsedRealtimeNanos = 87_000_000_000L,
-		endElapsedRealtimeNanos = 89_000_000_000L,
-		resolutionState = "OBSERVED",
-		motionState = "MOVING",
-		provenance = "PROVIDER:fused",
-		unresolvedReason = null,
-		centerLatE7 = 500_874_650,
-		centerLonE7 = 144_212_540,
-		covarianceXxM2 = 25.0,
-		covarianceXyM2 = 0.0,
-		covarianceYyM2 = 25.0,
-		effectiveR90M = 50.0,
-		posteriorFormat = "ISOTROPIC_GAUSSIAN_V1",
-		posteriorPayload = byteArrayOf(1, 2, 3),
-		sourceFirstObservationId = 1L,
-		sourceLastObservationId = 1L,
-		createdAt = startTimeMs + 2_000L,
 	)
 
 	private fun acceptedSample(timeMs: Long): LocationSample = LocationSample(
