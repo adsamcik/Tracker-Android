@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.util.UUID
 
 /**
  * Compose-first Main activity following north star architecture.
@@ -168,7 +169,7 @@ class MainActivityCompose : ComponentActivity() {
                         ),
                         showOnboardingReadError = startupDestination == StartupDestination.OnboardingReadFailed,
                         onSetupComplete = { viewModel.setStartupDestination(StartupDestination.Main) },
-                        onDeepNavigationHandled = viewModel::clearDeepNavigationRequest,
+                        onDeepNavigationHandled = viewModel::consumeDeepNavigationRequest,
                     ) { route ->
                         if (selectedTab != route) viewModel.setSelectedTab(route)
                     }
@@ -208,6 +209,7 @@ private fun routeFromKey(key: String): Any = when (key) {
 
 data class DeepNavigationRequest(
     val target: String,
+    val requestId: String,
 )
 
 enum class StartupDestination {
@@ -249,8 +251,11 @@ internal fun parseDeepNavigationRequest(intent: Intent?): DeepNavigationRequest?
 
     return target
         .takeIf { it in deepNavigationTargets }
-        ?.let(::DeepNavigationRequest)
+        ?.let(::newDeepNavigationRequest)
 }
+
+private fun newDeepNavigationRequest(target: String): DeepNavigationRequest =
+    DeepNavigationRequest(target = target, requestId = UUID.randomUUID().toString())
 
 private val deepNavigationTargets = setOf(
     MainActivityCompose.TARGET_IMPEXP,
@@ -300,11 +305,34 @@ class MainActivityViewModel @Inject constructor(
 
     fun setDeepNavigationRequest(request: DeepNavigationRequest?) {
         _deepNavigationRequest.value = request
-        savedStateHandle[KEY_DEEP_NAV_TARGET] = request?.target
+        if (request == null) {
+            savedStateHandle.remove<String>(KEY_DEEP_NAV_TARGET)
+            savedStateHandle.remove<String>(KEY_DEEP_NAV_REQUEST_ID)
+        } else {
+            savedStateHandle[KEY_DEEP_NAV_TARGET] = request.target
+            savedStateHandle[KEY_DEEP_NAV_REQUEST_ID] = request.requestId
+        }
     }
 
     fun clearDeepNavigationRequest() {
         setDeepNavigationRequest(null)
+    }
+
+    /**
+     * Claims a pending request before navigation starts, preventing process-death replay.
+     */
+    fun consumeDeepNavigationRequest(requestId: String): Boolean {
+        val request = _deepNavigationRequest.value ?: return false
+        if (request.requestId != requestId) return false
+
+        if (savedStateHandle.get<String>(KEY_LAST_HANDLED_DEEP_NAV_REQUEST_ID) == requestId) {
+            clearDeepNavigationRequest()
+            return false
+        }
+
+        savedStateHandle[KEY_LAST_HANDLED_DEEP_NAV_REQUEST_ID] = requestId
+        clearDeepNavigationRequest()
+        return true
     }
 
     fun setStartupDestination(destination: StartupDestination) {
@@ -314,16 +342,21 @@ class MainActivityViewModel @Inject constructor(
 
     private fun SavedStateHandle.toDeepNavigationRequest(): DeepNavigationRequest? {
         val target = get<String>(KEY_DEEP_NAV_TARGET) ?: return null
-        return DeepNavigationRequest(target = target)
+        val requestId = get<String>(KEY_DEEP_NAV_REQUEST_ID) ?: return null
+        return DeepNavigationRequest(target = target, requestId = requestId)
+            .takeUnless {
+                requestId == get<String>(KEY_LAST_HANDLED_DEEP_NAV_REQUEST_ID)
+            }
     }
 
     companion object {
         const val KEY_SELECTED_TAB = "main_selected_tab"
         const val KEY_DEEP_NAV_TARGET = "main_deep_nav_target"
+        const val KEY_DEEP_NAV_REQUEST_ID = "main_deep_nav_request_id"
+        const val KEY_LAST_HANDLED_DEEP_NAV_REQUEST_ID = "main_last_handled_deep_nav_request_id"
         const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }
-
 
 
 

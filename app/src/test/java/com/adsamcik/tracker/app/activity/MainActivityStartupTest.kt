@@ -33,7 +33,10 @@ class MainActivityStartupTest {
 
     @Test
     fun `deep navigation only executes after startup resolves to main`() {
-        val request = DeepNavigationRequest(MainActivityCompose.TARGET_GAME)
+        val request = DeepNavigationRequest(
+            target = MainActivityCompose.TARGET_GAME,
+            requestId = "test-request",
+        )
 
         gatedDeepNavigationRequest(StartupDestination.Pending, request) shouldBe null
         gatedDeepNavigationRequest(StartupDestination.Onboarding, request) shouldBe null

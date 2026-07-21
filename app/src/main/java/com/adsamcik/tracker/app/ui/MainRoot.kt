@@ -24,6 +24,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +101,7 @@ fun MainRoot(
     deepNavigationRequest: DeepNavigationRequest? = null,
     showOnboardingReadError: Boolean = false,
     onSetupComplete: () -> Unit = {},
-    onDeepNavigationHandled: () -> Unit = {},
+    onDeepNavigationHandled: (String) -> Boolean = { false },
     onRouteChanged: (Any) -> Unit = {}
 ) {
     val viewModel: MainViewModel = hiltViewModel()
@@ -119,7 +121,9 @@ fun MainRoot(
         )
     }
     var settingsLaunchNonce by remember { mutableStateOf(0L) }
-    var tripDetailFallbackRoute by remember { mutableStateOf<Any>(Stats) }
+    var tripDetailFallbackRoute by rememberSaveable(stateSaver = tripDetailFallbackRouteSaver) {
+        mutableStateOf<Any>(Stats)
+    }
     
     // Phase 2: Precision upgrade prompt state
     val context = LocalContext.current
@@ -156,7 +160,7 @@ fun MainRoot(
                 destination.hasRoute<MapTripContext>() -> Map
                 destination.hasRoute<Game>() -> Game
                 destination.hasRoute<Achievements>() -> Achievements
-                destination.hasRoute<TripDetail>() -> Stats
+                destination.hasRoute<TripDetail>() -> tripDetailRouteForFallback(tripDetailFallbackRoute)
                 destination.hasRoute<History>() -> Stats
                 destination.hasRoute<Debug>() -> Debug
                 destination.hasRoute<Settings>() -> Settings()
@@ -176,8 +180,9 @@ fun MainRoot(
         }
     }
 
-    LaunchedEffect(deepNavigationRequest) {
+    LaunchedEffect(deepNavigationRequest?.requestId) {
         val request = deepNavigationRequest ?: return@LaunchedEffect
+        if (!onDeepNavigationHandled(request.requestId)) return@LaunchedEffect
 
         when (request.target) {
             MainActivityCompose.TARGET_IMPEXP,
@@ -220,7 +225,6 @@ fun MainRoot(
             }
         }
 
-        onDeepNavigationHandled()
     }
     
     // Precise location upgrade permission request (from upgrade prompt)
@@ -464,6 +468,31 @@ fun MainRoot(
  */
 internal fun Dp.toSafeBottomPadding(): Dp = this.coerceAtLeast(0.dp)
 
+internal fun tripDetailRouteForFallback(origin: Any): Any = when (origin) {
+    Dashboard, Stats, Map, Game -> origin
+    else -> Stats
+}
+
+private val tripDetailFallbackRouteSaver = Saver<Any, String>(
+    save = { origin ->
+        when (origin) {
+            Dashboard -> "dashboard"
+            Stats -> "stats"
+            Map -> "map"
+            Game -> "game"
+            else -> "stats"
+        }
+    },
+    restore = { routeKey ->
+        when (routeKey) {
+            "dashboard" -> Dashboard
+            "stats" -> Stats
+            "map" -> Map
+            "game" -> Game
+            else -> Stats
+        }
+    },
+)
 
 
 
