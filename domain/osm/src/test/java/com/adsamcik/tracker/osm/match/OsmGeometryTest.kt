@@ -110,6 +110,35 @@ class OsmGeometryTest {
 	}
 
 	@Test
+	fun `distanceM uses the short path across the antimeridian`() {
+		val east179_9 = 1_799_000_000
+		val west179_9 = -1_799_000_000
+
+		OsmGeometry.distanceM(0, east179_9, 0, west179_9) shouldBe
+			(2_000_000 * mPerE7).plusOrMinus(1e-4)
+	}
+
+	@Test
+	fun `projectToPolyline interpolates across the antimeridian`() {
+		val lats = intArrayOf(0, 0)
+		val lons = intArrayOf(1_799_000_000, -1_799_000_000)
+		val cum = OsmGeometry.cumulativeArcLengthM(lats, lons)
+
+		val projection = OsmGeometry.projectToPolyline(
+			latsE7 = lats,
+			lonsE7 = lons,
+			cumArcLenM = cum,
+			pLatE7 = 0,
+			pLonE7 = -1_800_000_000,
+		).shouldNotBeNull()
+
+		projection.t shouldBe 0.5.plusOrMinus(1e-6)
+		projection.snappedLonE7 shouldBe -1_800_000_000
+		projection.distanceM shouldBe 0.0.plusOrMinus(1e-6)
+		projection.arcLengthM shouldBe (1_000_000 * mPerE7).plusOrMinus(1e-4)
+	}
+
+	@Test
 	fun `arc length is non-negative and increasing for a real-ish path`() {
 		val lats = intArrayOf(500_000_000, 500_010_000, 500_020_000)
 		val lons = intArrayOf(140_000_000, 140_005_000, 140_010_000)

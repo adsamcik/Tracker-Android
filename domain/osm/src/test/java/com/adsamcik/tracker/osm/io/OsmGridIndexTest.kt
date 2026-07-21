@@ -55,6 +55,77 @@ class OsmGridIndexTest {
 	}
 
 	@Test
+	fun `cellKeysForBbox splits a narrow antimeridian crossing`() {
+		val keys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = 1_799_000_000,
+			maxLonE7 = -1_799_000_000,
+		)
+		val lonCells = keys.map(::decodeLonCell)
+
+		keys.toList().distinct().shouldHaveSize(21)
+		lonCells.shouldContainExactlyInAnyOrder(
+			(17_990..17_999).toList() + (-18_000..-17_990).toList(),
+		)
+	}
+
+	@Test
+	fun `cellKeysForBbox repairs a legacy wide bbox for a narrow antimeridian crossing`() {
+		val legacyKeys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = -1_799_000_000,
+			maxLonE7 = 1_799_000_000,
+		)
+		val wrappedKeys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = 1_799_000_000,
+			maxLonE7 = -1_799_000_000,
+		)
+
+		legacyKeys.toList().shouldContainExactlyInAnyOrder(wrappedKeys.toList())
+	}
+
+	@Test
+	fun `cellKeysForBbox rejects pathological global coverage without allocating it`() {
+		val keys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = -1_800_000_000,
+			maxLonE7 = 1_800_000_000,
+		)
+
+		keys.size shouldBe 0
+		OsmGridIndex.MAX_CELLS_PER_BBOX shouldBe 20_000
+	}
+
+	@Test
+	fun `cellKeysForBbox handles positive 180 endpoint without expanding worldwide`() {
+		val keys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = 1_799_000_000,
+			maxLonE7 = 1_800_000_000,
+		)
+
+		keys.toList().distinct().shouldHaveSize(11)
+	}
+
+	@Test
+	fun `cellKeysForBbox canonicalizes a point exactly at positive 180`() {
+		val keys = OsmGridIndex.cellKeysForBbox(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			minLonE7 = 1_800_000_000,
+			maxLonE7 = 1_800_000_000,
+		)
+
+		keys shouldBe longArrayOf(OsmGridIndex.cellKey(0, -1_800_000_000))
+	}
+
+	@Test
 	fun `cellAnd8Neighbors returns 9 distinct keys`() {
 		val keys = OsmGridIndex.cellAnd8Neighbors(500_000_000, 144_000_000)
 		keys.size shouldBe 9
@@ -195,4 +266,9 @@ class OsmGridIndexTest {
 	}
 
 	// endregion
+
+	private fun decodeLonCell(key: Long): Int {
+		val raw = (key and 0xFFFFFFL).toInt()
+		return if ((raw and 0x800000) != 0) raw or 0xFF000000.toInt() else raw
+	}
 }

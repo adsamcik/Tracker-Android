@@ -2,6 +2,10 @@ package com.adsamcik.tracker.osm.io
 
 import com.adsamcik.tracker.logging.api.ErrorReporter
 import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.google.protobuf.ByteString
+import crosby.binary.Osmformat
+import crosby.binary.file.BlockOutputStream
+import crosby.binary.file.FileBlock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldHaveSize
@@ -16,6 +20,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 
 /**
  * Behavioural guard tests for [OsmPbfStreamingParser].
@@ -101,6 +106,75 @@ class OsmPbfStreamingParserTest {
 		// floor's own peak (floor × PEAK_BYTES_PER_NODE_REF) fits well inside
 		// a 256 MB heap. 256 000 × 200 B = ~50 MB transient peak.
 		OsmPbfStreamingParser.MIN_REFERENCED_NODES_FLOOR shouldBe 256_000
+	}
+
+	@Test
+	fun `way with a missing middle node is rejected instead of stitched`() = runTest {
+		val pbf = pbfWithWay(
+			wayNodeIds = longArrayOf(1L, 2L, 3L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = 0),
+				TestNode(id = 3L, latE7 = 0, lonE7 = 200_000),
+			),
+		)
+		val emitted = mutableListOf<ParsedOsmWay>()
+
+		val stats = OsmPbfStreamingParser().parse(
+			fileSizeBytes = pbf.size.toLong(),
+			openInputStream = { ByteArrayInputStream(pbf) },
+			onWayBatch = { emitted.addAll(it) },
+		)
+
+		emitted.shouldHaveSize(0)
+		stats.wayCount shouldBe 0L
+	}
+
+	@Test
+	fun `antimeridian way keeps conventional bbox and emits bounded cells`() = runTest {
+		val pbf = pbfWithWay(
+			wayNodeIds = longArrayOf(1L, 2L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = 1_799_000_000),
+				TestNode(id = 2L, latE7 = 0, lonE7 = -1_799_000_000),
+			),
+		)
+		val emitted = mutableListOf<ParsedOsmWay>()
+
+		val stats = OsmPbfStreamingParser().parse(
+			fileSizeBytes = pbf.size.toLong(),
+			openInputStream = { ByteArrayInputStream(pbf) },
+			onWayBatch = { emitted.addAll(it) },
+		)
+
+		emitted.shouldHaveSize(1)
+		emitted.single().bboxMinLonE7 shouldBe -1_799_000_000
+		emitted.single().bboxMaxLonE7 shouldBe 1_799_000_000
+		emitted.single().cellKeys.shouldHaveSize(21)
+		stats.wayCount shouldBe 1L
+		stats.minLonE7 shouldBe -1_799_000_000
+		stats.maxLonE7 shouldBe 1_799_000_000
+	}
+
+	@Test
+	fun `way whose continuous longitude coverage exceeds half the world is rejected`() = runTest {
+		val pbf = pbfWithWay(
+			wayNodeIds = longArrayOf(1L, 2L, 3L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = -1_700_000_000),
+				TestNode(id = 2L, latE7 = 0, lonE7 = 0),
+				TestNode(id = 3L, latE7 = 0, lonE7 = 1_700_000_000),
+			),
+		)
+		val emitted = mutableListOf<ParsedOsmWay>()
+
+		val stats = OsmPbfStreamingParser().parse(
+			fileSizeBytes = pbf.size.toLong(),
+			openInputStream = { ByteArrayInputStream(pbf) },
+			onWayBatch = { emitted.addAll(it) },
+		)
+
+		emitted.shouldHaveSize(0)
+		stats.wayCount shouldBe 0L
 	}
 
 	@Nested
@@ -265,6 +339,50 @@ class OsmPbfStreamingParserTest {
 		override fun log(message: String) {
 			_logs.add(message)
 		}
+	}
+
+	private data class TestNode(
+		val id: Long,
+		val latE7: Int,
+		val lonE7: Int,
+	)
+
+	private fun pbfWithWay(
+		wayNodeIds: LongArray,
+		nodes: List<TestNode>,
+	): ByteArray {
+		val stringTable = Osmformat.StringTable.newBuilder()
+			.addS(ByteString.copyFromUtf8(""))
+			.addS(ByteString.copyFromUtf8("highway"))
+			.addS(ByteString.copyFromUtf8("residential"))
+			.build()
+		val way = Osmformat.Way.newBuilder()
+			.setId(100L)
+			.addKeys(1)
+			.addVals(2)
+		var previousId = 0L
+		for (id in wayNodeIds) {
+			way.addRefs(id - previousId)
+			previousId = id
+		}
+		val group = Osmformat.PrimitiveGroup.newBuilder().addWays(way)
+		for (node in nodes) {
+			group.addNodes(
+				Osmformat.Node.newBuilder()
+					.setId(node.id)
+					.setLat(node.latE7.toLong())
+					.setLon(node.lonE7.toLong()),
+			)
+		}
+		val block = Osmformat.PrimitiveBlock.newBuilder()
+			.setStringtable(stringTable)
+			.addPrimitivegroup(group)
+			.build()
+		val bytes = ByteArrayOutputStream()
+		BlockOutputStream(bytes).use { output ->
+			output.write(FileBlock.newInstance("OSMData", block.toByteString(), null))
+		}
+		return bytes.toByteArray()
 	}
 
 	companion object {

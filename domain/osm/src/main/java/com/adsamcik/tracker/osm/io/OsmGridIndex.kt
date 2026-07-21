@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.osm.io
 
+import com.adsamcik.tracker.logging.api.ReporterFacade
+
 /**
  * Coarse square-degree grid used to index OSM ways for nearest-road lookup.
  *
@@ -29,6 +31,14 @@ object OsmGridIndex {
 	const val CELL_DEGREES = 0.01
 	const val CELL_E7 = 100_000
 
+	/**
+	 * A single OSM way covering 20,000 0.01° cells is already implausibly large
+	 * (for example, a 100 x 200-cell rectangle spans roughly 111 x 222 km at
+	 * the equator). The cap keeps each returned array below 160 KB and prevents
+	 * malformed or unexpectedly broad bboxes from turning into multi-GB arrays.
+	 */
+	internal const val MAX_CELLS_PER_BBOX = 20_000
+
 	/** Returns the cell key for a single point in E7 coordinates. */
 	fun cellKey(latE7: Int, lonE7: Int): Long {
 		val latCell = floorDiv(latE7, CELL_E7).toLong()
@@ -38,7 +48,13 @@ object OsmGridIndex {
 
 	/**
 	 * Returns the set of cell keys that cover the given E7 bounding box.
-	 * Always contains at least one cell (the cell containing the min corner).
+	 *
+	 * A longitude range with `minLonE7 > maxLonE7` represents an antimeridian
+	 * crossing. For backwards compatibility with persisted bboxes produced by
+	 * older imports, an ordered range wider than 180° is interpreted as the
+	 * narrow complementary antimeridian range. Crossing ranges are split into
+	 * two ordinary intervals. Returns an empty array when coverage would exceed
+	 * [MAX_CELLS_PER_BBOX].
 	 */
 	fun cellKeysForBbox(
 		minLatE7: Int,
@@ -47,22 +63,62 @@ object OsmGridIndex {
 		maxLonE7: Int,
 	): LongArray {
 		require(minLatE7 <= maxLatE7) { "minLatE7 ($minLatE7) > maxLatE7 ($maxLatE7)" }
-		require(minLonE7 <= maxLonE7) { "minLonE7 ($minLonE7) > maxLonE7 ($maxLonE7)" }
+		require(minLonE7.toLong() in -HALF_WORLD_E7..HALF_WORLD_E7) {
+			"minLonE7 ($minLonE7) outside [-180°, 180°]"
+		}
+		require(maxLonE7.toLong() in -HALF_WORLD_E7..HALF_WORLD_E7) {
+			"maxLonE7 ($maxLonE7) outside [-180°, 180°]"
+		}
+
 		val latMinCell = floorDiv(minLatE7, CELL_E7)
 		val latMaxCell = floorDiv(maxLatE7, CELL_E7)
-		val lonMinCell = floorDiv(minLonE7, CELL_E7)
-		val lonMaxCell = floorDiv(maxLonE7, CELL_E7)
-		val rows = latMaxCell - latMinCell + 1
-		val cols = lonMaxCell - lonMinCell + 1
-		val out = LongArray(rows * cols)
+		val rows = latMaxCell.toLong() - latMinCell.toLong() + 1L
+		val rawLonSpan = maxLonE7.toLong() - minLonE7.toLong()
+		if (minLonE7 <= maxLonE7 && rawLonSpan >= WORLD_E7) {
+			return rejectExcessiveCoverage(rows * LON_CELL_COUNT)
+		}
+
+		val canonicalMinLon = normalizeLongitudeE7(minLonE7)
+		val canonicalMaxLon = normalizeLongitudeE7(maxLonE7)
+		val lonRanges = when {
+			minLonE7 == maxLonE7 -> arrayOf(
+				floorDiv(canonicalMinLon, CELL_E7) to floorDiv(canonicalMaxLon, CELL_E7),
+			)
+			minLonE7 > maxLonE7 -> crossingLongitudeRanges(minLonE7, maxLonE7)
+			rawLonSpan > HALF_WORLD_E7 -> crossingLongitudeRanges(maxLonE7, minLonE7)
+			maxLonE7.toLong() == HALF_WORLD_E7 -> arrayOf(
+				floorDiv(canonicalMinLon, CELL_E7) to MAX_LON_CELL,
+				MIN_LON_CELL to MIN_LON_CELL,
+			)
+			else -> arrayOf(
+				floorDiv(canonicalMinLon, CELL_E7) to floorDiv(canonicalMaxLon, CELL_E7),
+			)
+		}
+		val cols = lonRanges.sumOf { (minCell, maxCell) ->
+			maxCell.toLong() - minCell.toLong() + 1L
+		}
+		val cellCount = rows * cols
+		if (cellCount > MAX_CELLS_PER_BBOX) {
+			return rejectExcessiveCoverage(cellCount)
+		}
+
+		val out = LongArray(cellCount.toInt())
 		var idx = 0
 		for (lat in latMinCell..latMaxCell) {
-			for (lon in lonMinCell..lonMaxCell) {
-				out[idx++] = (lat.toLong() shl 24) or (lon.toLong() and 0xFFFFFFL)
+			for ((lonMinCell, lonMaxCell) in lonRanges) {
+				for (lon in lonMinCell..lonMaxCell) {
+					out[idx++] = (lat.toLong() shl 24) or (lon.toLong() and 0xFFFFFFL)
+				}
 			}
 		}
 		return out
 	}
+
+	private fun crossingLongitudeRanges(startLonE7: Int, endLonE7: Int): Array<Pair<Int, Int>> =
+		arrayOf(
+			floorDiv(startLonE7, CELL_E7) to MAX_LON_CELL,
+			MIN_LON_CELL to floorDiv(endLonE7, CELL_E7),
+		)
 
 	/**
 	 * Returns the cell key and its 8 immediate neighbours (3x3 block centred
@@ -121,7 +177,15 @@ object OsmGridIndex {
 		return out
 	}
 
-	private fun normalizeLongitudeE7(lonE7: Int): Int =
+	private fun rejectExcessiveCoverage(cellCount: Long): LongArray {
+		ReporterFacade.log(
+			"OsmGridIndex: rejected bbox coverage of $cellCount cells " +
+				"(limit=$MAX_CELLS_PER_BBOX)",
+		)
+		return LongArray(0)
+	}
+
+	internal fun normalizeLongitudeE7(lonE7: Int): Int =
 		Math.floorMod(lonE7.toLong() + HALF_WORLD_E7, WORLD_E7).minus(HALF_WORLD_E7).toInt()
 
 	private fun wrapLongitudeCell(cell: Int): Int =
@@ -137,6 +201,7 @@ object OsmGridIndex {
 	private const val MIN_LAT_CELL = -9_000
 	private const val MAX_LAT_CELL = 9_000
 	private const val MIN_LON_CELL = -18_000
+	private const val MAX_LON_CELL = 17_999
 	private const val LON_CELL_COUNT = 36_000
 	private const val HALF_LON_CELL_COUNT = LON_CELL_COUNT / 2
 }

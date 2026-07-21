@@ -154,7 +154,8 @@ internal object OsmGeometry {
 		sqrt(planarDistSqM(aLatE7, aLonE7, bLatE7, bLonE7, cosLat))
 
 	private fun planarDistSqM(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int, cosLat: Double): Double {
-		val dx = (bLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
+		val dx = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong()).toDouble() *
+			METRES_PER_E7_DEG * cosLat
 		val dy = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
 		return dx * dx + dy * dy
 	}
@@ -166,9 +167,11 @@ internal object OsmGeometry {
 		pLatE7: Int, pLonE7: Int,
 		cosLat: Double,
 	): Double {
-		val bx = (bLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
+		val bx = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong()).toDouble() *
+			METRES_PER_E7_DEG * cosLat
 		val by = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
-		val px = (pLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
+		val px = signedLongitudeDeltaE7(pLonE7.toLong() - aLonE7.toLong()).toDouble() *
+			METRES_PER_E7_DEG * cosLat
 		val py = (pLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
 		val lenSq = bx * bx + by * by
 		if (lenSq < EPSILON) return 0.0
@@ -178,7 +181,16 @@ internal object OsmGeometry {
 	/** Linear interpolation between two E7 points, rounded back to E7 ints. */
 	private fun lerpE7(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int, t: Double): Pair<Int, Int> {
 		val lat = aLatE7 + ((bLatE7 - aLatE7) * t)
-		val lon = aLonE7 + ((bLonE7 - aLonE7) * t)
-		return Math.round(lat).toInt() to Math.round(lon).toInt()
+		val lonDelta = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong())
+		val lon = normalizeLongitudeE7(aLonE7.toLong() + Math.round(lonDelta.toDouble() * t))
+		return Math.round(lat).toInt() to lon.toInt()
 	}
+
+	private fun normalizeLongitudeE7(value: Long): Long =
+		Math.floorMod(value + HALF_WORLD_E7, WORLD_E7) - HALF_WORLD_E7
+
+	private fun signedLongitudeDeltaE7(delta: Long): Long = normalizeLongitudeE7(delta)
+
+	private const val WORLD_E7 = 3_600_000_000L
+	private const val HALF_WORLD_E7 = WORLD_E7 / 2
 }

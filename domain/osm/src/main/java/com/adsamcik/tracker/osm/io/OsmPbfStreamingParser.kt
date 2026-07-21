@@ -231,9 +231,10 @@ class OsmPbfStreamingParser(
 		var globalMinLon = Int.MAX_VALUE
 		var globalMaxLon = Int.MIN_VALUE
 		var emittedWays = 0L
+		val rejectionCounts = WayRejectionCounts()
 		val batch = ArrayList<ParsedOsmWay>(wayBatchSize)
 		for (buffered in wayBuffer) {
-			val parsed = buildParsedWay(buffered, nodePositions) ?: continue
+			val parsed = buildParsedWay(buffered, nodePositions, rejectionCounts) ?: continue
 			if (parsed.bboxMinLatE7 < globalMinLat) globalMinLat = parsed.bboxMinLatE7
 			if (parsed.bboxMaxLatE7 > globalMaxLat) globalMaxLat = parsed.bboxMaxLatE7
 			if (parsed.bboxMinLonE7 < globalMinLon) globalMinLon = parsed.bboxMinLonE7
@@ -253,6 +254,16 @@ class OsmPbfStreamingParser(
 			onWayBatch(batch.toList())
 		}
 		onProgress?.invoke(OsmParseProgress(OsmParsePhase.EMIT_WAYS, emittedWays))
+		if (rejectionCounts.missingNodeWays > 0L ||
+			rejectionCounts.invalidLongitudeCoverageWays > 0L ||
+			rejectionCounts.excessiveCellCoverageWays > 0L
+		) {
+			ReporterFacade.log(
+				"OsmPbfStreamingParser: rejectedMissingNodeWays=${rejectionCounts.missingNodeWays}, " +
+					"rejectedInvalidLongitudeCoverageWays=${rejectionCounts.invalidLongitudeCoverageWays}, " +
+					"rejectedExcessiveCellCoverageWays=${rejectionCounts.excessiveCellCoverageWays}",
+			)
+		}
 
 		return if (emittedWays == 0L) {
 			OsmParseStats(
@@ -295,25 +306,25 @@ class OsmPbfStreamingParser(
 	private fun buildParsedWay(
 		buffered: BufferedWay,
 		nodePositions: Map<Long, Long>,
+		rejectionCounts: WayRejectionCounts,
 	): ParsedOsmWay? {
-		val rawLats = IntArray(buffered.nodeIds.size)
-		val rawLons = IntArray(buffered.nodeIds.size)
-		var resolved = 0
-		for (id in buffered.nodeIds) {
-			val packed = nodePositions[id] ?: continue
-			rawLats[resolved] = unpackLat(packed)
-			rawLons[resolved] = unpackLon(packed)
-			resolved++
+		val lats = IntArray(buffered.nodeIds.size)
+		val lons = IntArray(buffered.nodeIds.size)
+		for (i in buffered.nodeIds.indices) {
+			val packed = nodePositions[buffered.nodeIds[i]]
+			if (packed == null) {
+				rejectionCounts.missingNodeWays++
+				return null
+			}
+			lats[i] = unpackLat(packed)
+			lons[i] = unpackLon(packed)
 		}
-		if (resolved < MIN_NODES_PER_WAY) return null
-		val lats = if (resolved == rawLats.size) rawLats else rawLats.copyOf(resolved)
-		val lons = if (resolved == rawLons.size) rawLons else rawLons.copyOf(resolved)
 
 		var minLat = Int.MAX_VALUE
 		var maxLat = Int.MIN_VALUE
 		var minLon = Int.MAX_VALUE
 		var maxLon = Int.MIN_VALUE
-		for (i in 0 until resolved) {
+		for (i in lats.indices) {
 			val la = lats[i]
 			val lo = lons[i]
 			if (la < minLat) minLat = la
@@ -321,9 +332,19 @@ class OsmPbfStreamingParser(
 			if (lo < minLon) minLon = lo
 			if (lo > maxLon) maxLon = lo
 		}
+		val longitudeBounds = polylineLongitudeBoundsE7(lons)
+		if (longitudeBounds == null) {
+			rejectionCounts.invalidLongitudeCoverageWays++
+			return null
+		}
+		val (cellMinLon, cellMaxLon) = longitudeBounds
 
 		val blob = PolylineE7Codec.encode(lats, lons)
-		val cells = OsmGridIndex.cellKeysForBbox(minLat, maxLat, minLon, maxLon)
+		val cells = OsmGridIndex.cellKeysForBbox(minLat, maxLat, cellMinLon, cellMaxLon)
+		if (cells.isEmpty()) {
+			rejectionCounts.excessiveCellCoverageWays++
+			return null
+		}
 		return ParsedOsmWay(
 			osmId = buffered.osmId,
 			name = buffered.name,
@@ -339,6 +360,26 @@ class OsmPbfStreamingParser(
 			cellKeys = cells,
 		)
 	}
+
+	private fun polylineLongitudeBoundsE7(lonsE7: IntArray): Pair<Int, Int>? {
+		var previousLon = lonsE7[0].toLong()
+		var unwrappedLon = normalizeLongitudeE7(previousLon)
+		var minUnwrappedLon = unwrappedLon
+		var maxUnwrappedLon = unwrappedLon
+		for (i in 1 until lonsE7.size) {
+			val currentLon = lonsE7[i].toLong()
+			unwrappedLon += normalizeLongitudeE7(currentLon - previousLon)
+			if (unwrappedLon < minUnwrappedLon) minUnwrappedLon = unwrappedLon
+			if (unwrappedLon > maxUnwrappedLon) maxUnwrappedLon = unwrappedLon
+			if (maxUnwrappedLon - minUnwrappedLon > HALF_WORLD_E7) return null
+			previousLon = currentLon
+		}
+		return normalizeLongitudeE7(minUnwrappedLon).toInt() to
+			normalizeLongitudeE7(maxUnwrappedLon).toInt()
+	}
+
+	private fun normalizeLongitudeE7(value: Long): Long =
+		Math.floorMod(value + HALF_WORLD_E7, WORLD_E7) - HALF_WORLD_E7
 
 	/**
 	 * Pass 1 inner parser — scans every Way, keeps driveable ones and records
@@ -521,6 +562,12 @@ class OsmPbfStreamingParser(
 		var value: Long = 0L
 	}
 
+	private class WayRejectionCounts {
+		var missingNodeWays: Long = 0L
+		var invalidLongitudeCoverageWays: Long = 0L
+		var excessiveCellCoverageWays: Long = 0L
+	}
+
 	/** Cross-thread cancellation flag set by the outer suspend [parse]. */
 	private class CancellationCheck {
 		@Volatile
@@ -591,6 +638,8 @@ class OsmPbfStreamingParser(
 		const val HEAP_BUDGET_DENOMINATOR: Int = 4
 
 		private const val BYTES_PER_MEGABYTE: Long = 1024L * 1024L
+		private const val WORLD_E7 = 3_600_000_000L
+		private const val HALF_WORLD_E7 = WORLD_E7 / 2
 
 		const val DEFAULT_WAY_BATCH_SIZE: Int = 1_000
 		private const val MIN_NODES_PER_WAY = 2
