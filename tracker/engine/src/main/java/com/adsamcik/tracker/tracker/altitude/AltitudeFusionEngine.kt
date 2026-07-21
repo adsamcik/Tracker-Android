@@ -25,7 +25,7 @@ internal class AltitudeFusionEngine(
 
 	// Calibrated sea-level pressure (derived from GPS + barometer at calibration time)
 	private var calibratedSeaLevelPressureHpa: Double? = null
-	private var lastCalibrationTimeMs: Long = 0L
+	private var lastCalibrationElapsedTimeMs: Long = 0L
 
 	// Previous barometer altitude for change tracking
 	private var previousBaroAltitudeM: Double? = null
@@ -55,23 +55,33 @@ internal class AltitudeFusionEngine(
 	 *
 	 * @param gpsAltitudeMsl GPS altitude in meters above MSL.
 	 * @param currentPressureHpa Current barometer pressure reading in hPa.
-	 * @param timeMs Current time in milliseconds.
+	 * @param elapsedTimeMs Monotonic elapsed realtime in milliseconds.
 	 */
 	@Synchronized
-	fun calibrate(gpsAltitudeMsl: Double, currentPressureHpa: Float, timeMs: Long) {
-		calibratedSeaLevelPressureHpa = BarometricAltitudeFormula.seaLevelPressureHpa(
+	fun calibrate(gpsAltitudeMsl: Double, currentPressureHpa: Float, elapsedTimeMs: Long) {
+		calibrateInternal(gpsAltitudeMsl, currentPressureHpa, elapsedTimeMs)
+	}
+
+	private fun calibrateInternal(
+		gpsAltitudeMsl: Double,
+		currentPressureHpa: Float,
+		elapsedTimeMs: Long
+	): Boolean {
+		val seaLevelPressureHpa = BarometricAltitudeFormula.seaLevelPressureHpa(
 			altitudeM = gpsAltitudeMsl,
 			pressureHpa = currentPressureHpa
-		) ?: return
-		lastCalibrationTimeMs = timeMs
+		) ?: return false
+		calibratedSeaLevelPressureHpa = seaLevelPressureHpa
+		lastCalibrationElapsedTimeMs = elapsedTimeMs
+		return true
 	}
 
 	/**
 	 * Returns whether recalibration is needed based on elapsed time.
 	 */
-	fun needsRecalibration(currentTimeMs: Long): Boolean {
-		val seaLevel = calibratedSeaLevelPressureHpa ?: return true
-		return (currentTimeMs - lastCalibrationTimeMs) >= recalibrationIntervalMs
+	fun needsRecalibration(currentElapsedTimeMs: Long): Boolean {
+		if (calibratedSeaLevelPressureHpa == null) return true
+		return (currentElapsedTimeMs - lastCalibrationElapsedTimeMs) >= recalibrationIntervalMs
 	}
 
 	/**
@@ -97,7 +107,7 @@ internal class AltitudeFusionEngine(
 	 *                             Null to use default noise.
 	 * @param baroPressureHpa Current barometer pressure in hPa.
 	 *                        Null if barometer unavailable.
-	 * @param timeMs Current time in milliseconds.
+	 * @param timeMs Monotonic elapsed realtime in milliseconds.
 	 * @return The fused altitude estimate, or null if insufficient data.
 	 */
 	@Synchronized
@@ -113,10 +123,16 @@ internal class AltitudeFusionEngine(
 		val validBaroPressureHpa = baroPressureHpa
 			?.takeIf(BarometricAltitudeFormula::isValidPressure)
 
+		var calibratedThisCycle = false
+
 		// Try to calibrate/recalibrate if we have both GPS and barometer
 		if (validGpsAltitudeMsl != null && validBaroPressureHpa != null) {
 			if (!isCalibrated || needsRecalibration(timeMs)) {
-				calibrate(validGpsAltitudeMsl, validBaroPressureHpa, timeMs)
+				calibratedThisCycle = calibrateInternal(
+					validGpsAltitudeMsl,
+					validBaroPressureHpa,
+					timeMs
+				)
 			}
 		}
 
@@ -137,7 +153,7 @@ internal class AltitudeFusionEngine(
 
 		// Barometer measurement update
 		val baroAltitude = validBaroPressureHpa?.let { pressureToAltitude(it) }
-		if (baroAltitude != null) {
+		if (baroAltitude != null && !calibratedThisCycle) {
 			kalmanFilter.update(baroAltitude, baroMeasurementNoiseM2, timeMs)
 		}
 
@@ -169,7 +185,7 @@ internal class AltitudeFusionEngine(
 	@Synchronized
 	fun reset() {
 		calibratedSeaLevelPressureHpa = null
-		lastCalibrationTimeMs = 0L
+		lastCalibrationElapsedTimeMs = 0L
 		previousBaroAltitudeM = null
 		kalmanFilter.reset()
 	}

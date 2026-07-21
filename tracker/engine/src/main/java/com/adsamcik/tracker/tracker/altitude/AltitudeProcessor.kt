@@ -83,7 +83,7 @@ internal class AltitudeProcessor(
 			gpsAltitudeMsl = gatedAltitude,
 			gpsVerticalAccuracyM = verticalAccuracyM,
 			baroPressureHpa = baroPressureHpa,
-			timeMs = location.time
+			timeMs = location.elapsedRealtimeNanos / 1_000_000L
 		)
 	}
 

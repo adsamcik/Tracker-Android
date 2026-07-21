@@ -189,13 +189,15 @@ private suspend fun loadSampleInsights(
 			val altitude = sample.altitudeM?.toDouble()
 			if (altitude != null) {
 				val previous = previousAltitude
-				if (previous != null) {
+				if (previous == null) {
+					previousAltitude = altitude
+				} else {
 					val delta = altitude - previous
 					if (abs(delta) >= 1.0) {
 						if (delta > 0) elevationGain += delta else elevationLoss += -delta
+						previousAltitude = altitude
 					}
 				}
-				previousAltitude = altitude
 				maxAltitude = maxOf(maxAltitude ?: altitude, altitude)
 			}
 
@@ -243,10 +245,17 @@ private fun buildInsights(
 	val altitudePoints = samples.mapNotNull { it.altitudeM?.toDouble() }
 	var gain = 0.0
 	var loss = 0.0
-	altitudePoints.zipWithNext { previous, current ->
-		val delta = current - previous
-		if (abs(delta) >= 1.0) {
-			if (delta > 0) gain += delta else loss += -delta
+	var previousAltitude: Double? = null
+	altitudePoints.forEach { altitude ->
+		val previous = previousAltitude
+		if (previous == null) {
+			previousAltitude = altitude
+		} else {
+			val delta = altitude - previous
+			if (abs(delta) >= 1.0) {
+				if (delta > 0) gain += delta else loss += -delta
+				previousAltitude = altitude
+			}
 		}
 	}
 

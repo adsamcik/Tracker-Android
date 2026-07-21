@@ -117,6 +117,59 @@ class AltitudeProcessorTest {
 	}
 
 	@Test
+	fun `backward wall clock jump does not affect monotonic fusion timing`() {
+		val stableClockProcessor = AltitudeProcessor(
+			verticalAccuracyThresholdM = 20f,
+			geoidAltitudeConverter = FakeGeoidAltitudeConverter()
+		)
+		val jumpingClockProcessor = AltitudeProcessor(
+			verticalAccuracyThresholdM = 20f,
+			geoidAltitudeConverter = FakeGeoidAltitudeConverter()
+		)
+
+		stableClockProcessor.process(
+			context,
+			createLocation(
+				altitude = 500.0,
+				verticalAccuracy = 5f,
+				timeMs = 10_000L,
+				elapsedRealtimeNanos = 1_000_000_000L,
+			)
+		)
+		jumpingClockProcessor.process(
+			context,
+			createLocation(
+				altitude = 500.0,
+				verticalAccuracy = 5f,
+				timeMs = 10_000L,
+				elapsedRealtimeNanos = 1_000_000_000L,
+			)
+		)
+
+		val stableResult = stableClockProcessor.process(
+			context,
+			createLocation(
+				altitude = 510.0,
+				verticalAccuracy = 5f,
+				timeMs = 11_000L,
+				elapsedRealtimeNanos = 2_000_000_000L,
+			)
+		)
+		val jumpingResult = jumpingClockProcessor.process(
+			context,
+			createLocation(
+				altitude = 510.0,
+				verticalAccuracy = 5f,
+				timeMs = 5_000L,
+				elapsedRealtimeNanos = 2_000_000_000L,
+			)
+		)
+
+		stableResult.shouldNotBeNull()
+		jumpingResult shouldBe stableResult
+	}
+
+	@Test
 	fun `isFusionCalibrated is false initially`() {
 		processor.isFusionCalibrated shouldBe false
 	}
@@ -221,12 +274,15 @@ class AltitudeProcessorTest {
 		altitude: Double? = null,
 		verticalAccuracy: Float? = null,
 		latitude: Double = 50.0,
-		longitude: Double = 14.0
+		longitude: Double = 14.0,
+		timeMs: Long = System.currentTimeMillis(),
+		elapsedRealtimeNanos: Long = timeMs * 1_000_000L,
 	): Location {
 		return Location("test").apply {
 			this.latitude = latitude
 			this.longitude = longitude
-			time = System.currentTimeMillis()
+			time = timeMs
+			this.elapsedRealtimeNanos = elapsedRealtimeNanos
 			if (altitude != null) {
 				this.altitude = altitude
 			}

@@ -26,7 +26,7 @@ internal class AltitudeKalmanFilter(
 	private var p10: Double = 0.0
 	private var p11: Double = INITIAL_VARIANCE
 
-	private var lastTimeMs: Long = 0L
+	private var lastElapsedTimeMs: Long = 0L
 	private var initialized: Boolean = false
 
 	/**
@@ -58,12 +58,12 @@ internal class AltitudeKalmanFilter(
 	 * Process noise: Q = [[q_alt * dt, 0], [0, q_vel * dt]]
 	 */
 	@Synchronized
-	fun predict(timeMs: Long) {
+	fun predict(elapsedTimeMs: Long) {
 		if (!initialized) return
 
-		val dt = (timeMs - lastTimeMs) / 1000.0
+		val dt = (elapsedTimeMs - lastElapsedTimeMs) / 1000.0
 		if (dt <= 0.0) return
-		lastTimeMs = timeMs
+		lastElapsedTimeMs = elapsedTimeMs
 
 		// State prediction: x = F * x
 		x0 += x1 * dt
@@ -90,10 +90,10 @@ internal class AltitudeKalmanFilter(
 	 * @param altitudeM Measured altitude in meters.
 	 * @param measurementNoiseM2 Measurement noise variance (σ² in m²).
 	 *        For GPS: use verticalAccuracy². For barometer: use ~1.0.
-	 * @param timeMs Current time in milliseconds.
+	 * @param elapsedTimeMs Monotonic elapsed realtime in milliseconds.
 	 */
 	@Synchronized
-	fun update(altitudeM: Double, measurementNoiseM2: Double, timeMs: Long) {
+	fun update(altitudeM: Double, measurementNoiseM2: Double, elapsedTimeMs: Long) {
 		if (!altitudeM.isFinite() || !measurementNoiseM2.isFinite() || measurementNoiseM2 < 0.0) return
 
 		if (!initialized) {
@@ -104,13 +104,13 @@ internal class AltitudeKalmanFilter(
 			p01 = 0.0
 			p10 = 0.0
 			p11 = INITIAL_VELOCITY_VARIANCE
-			lastTimeMs = timeMs
+			lastElapsedTimeMs = elapsedTimeMs
 			initialized = true
 			return
 		}
 
 		// Prediction step first
-		predict(timeMs)
+		predict(elapsedTimeMs)
 
 		// Innovation (measurement residual): y = z - H * x
 		val y = altitudeM - x0
@@ -150,7 +150,7 @@ internal class AltitudeKalmanFilter(
 		p01 = 0.0
 		p10 = 0.0
 		p11 = INITIAL_VARIANCE
-		lastTimeMs = 0L
+		lastElapsedTimeMs = 0L
 		initialized = false
 	}
 

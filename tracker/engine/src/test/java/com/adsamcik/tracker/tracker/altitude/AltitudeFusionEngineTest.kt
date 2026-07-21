@@ -119,6 +119,25 @@ class AltitudeFusionEngineTest {
 	@DisplayName("full fusion (GPS + barometer)")
 	inner class FullFusion {
 		@Test
+		fun `calibration cycle applies only the independent GPS measurement`() {
+			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 1000L)
+
+			abs(engine.altitudeUncertainty() - 15.0) shouldBeLessThan 0.0001
+		}
+
+		@Test
+		fun `ordinary fusion cycle still applies the barometer measurement`() {
+			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 1000L)
+			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 2000L)
+
+			val gpsOnlyEngine = AltitudeFusionEngine()
+			gpsOnlyEngine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = null, timeMs = 1000L)
+			gpsOnlyEngine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = null, timeMs = 2000L)
+
+			engine.altitudeUncertainty() shouldBeLessThan gpsOnlyEngine.altitudeUncertainty()
+		}
+
+		@Test
 		fun `barometer tracks relative changes between GPS updates`() {
 			// Initial GPS+baro calibration
 			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 1000L)
@@ -299,5 +318,11 @@ class AltitudeFusionEngineTest {
 			// Low noise result should be closer to 550
 			abs(resultLow - 550.0) shouldBeLessThan abs(resultHigh - 550.0)
 		}
+	}
+
+	private fun AltitudeFusionEngine.altitudeUncertainty(): Double {
+		val field = AltitudeFusionEngine::class.java.getDeclaredField("kalmanFilter")
+		field.isAccessible = true
+		return (field.get(this) as AltitudeKalmanFilter).altitudeUncertainty
 	}
 }

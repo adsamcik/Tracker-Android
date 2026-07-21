@@ -19,6 +19,8 @@ import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
+import io.kotest.matchers.doubles.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -28,6 +30,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -36,6 +39,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
+import kotlin.math.abs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripDetailPresenterViewModelTest {
@@ -177,6 +181,54 @@ class TripDetailPresenterViewModelTest {
 		stateCollector.cancel()
 	}
 
+	@Test
+	fun `sub meter altitude increments accumulate into elevation gain`() = runTest {
+		val samples = (0..10).map { index ->
+			sample(
+				id = index + 1L,
+				timeMs = TRIP_START_MS + index * 1_000L,
+				latE7 = null,
+				lonE7 = null,
+				altitudeM = 100f + index * 0.3f,
+			)
+		}
+
+		val gain = loadInsights(samples).elevationGainM
+
+		gain.shouldNotBeNull()
+		abs(gain - 3.0) shouldBeLessThan 1.0
+	}
+
+	@Test
+	fun `elevation gain is consistent across fine and coarse sampling cadences`() = runTest {
+		val fineSamples = (0..10).map { index ->
+			sample(
+				id = index + 1L,
+				timeMs = TRIP_START_MS + index * 1_000L,
+				latE7 = null,
+				lonE7 = null,
+				altitudeM = 100f + index * 0.3f,
+			)
+		}
+		val coarseAltitudes = listOf(100f, 101.2f, 102.4f, 103f)
+		val coarseSamples = coarseAltitudes.mapIndexed { index, altitude ->
+			sample(
+				id = index + 1L,
+				timeMs = TRIP_START_MS + index * 3_000L,
+				latE7 = null,
+				lonE7 = null,
+				altitudeM = altitude,
+			)
+		}
+
+		val fineGain = loadInsights(fineSamples).elevationGainM
+		val coarseGain = loadInsights(coarseSamples).elevationGainM
+
+		fineGain.shouldNotBeNull()
+		coarseGain.shouldNotBeNull()
+		abs(fineGain - coarseGain) shouldBeLessThan 0.01
+	}
+
 	private fun buildInsights(
 		trip: TripSummary,
 		projection: Trip?,
@@ -195,6 +247,31 @@ class TripDetailPresenterViewModelTest {
 			dispatchers = dispatchers,
 			savedStateHandle = SavedStateHandle(mapOf("tripId" to TRIP_ID)),
 		)
+
+	private suspend fun TestScope.loadInsights(samples: List<LocationSample>): TripDetailInsights {
+		val tripEndMs = samples.last().timeMs
+		val trip = TripSummary(
+			id = TRIP_ID,
+			startTimeMs = EpochMs(TRIP_START_MS),
+			endTimeMs = EpochMs(tripEndMs),
+			distance = DistanceM(1_000f),
+			steps = StepCount(0),
+			duration = DurationMs(tripEndMs - TRIP_START_MS),
+			primaryMode = TransportMode.WALK,
+			sampleCount = samples.size,
+		)
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
+		coEvery {
+			skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, tripEndMs)
+		} returns emptyList()
+
+		val viewModel = createViewModel(ChunkedLocationSampleRepository(samples))
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+		stateCollector.cancel()
+		return viewModel.insights.value
+	}
 
 	private fun sample(
 		id: Long,
