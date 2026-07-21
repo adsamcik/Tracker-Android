@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -35,12 +36,20 @@ class GameDomainEventConsumer @Inject constructor(
 			val batch = domainEventRepository.getUnconsumedBatchWithIds(CONSUMER_ID, DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE)
 			if (batch.isEmpty()) return@withLock
 			batch.forEach { unconsumed ->
-				try { handleEvent(unconsumed.event) } catch (e: Exception) {
+				try {
+					handleEvent(unconsumed.event)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
 					Logger.log(LogData(message = "Failed to process event ${unconsumed.event::class.simpleName}: ${e.message}", source = GAME_LOG_SOURCE))
+					return@withLock
 				}
+				domainEventRepository.markBatchConsumed(
+					CONSUMER_ID,
+					unconsumed.event.timestampMs,
+					unconsumed.persistedId,
+				)
 			}
-			val last = batch.last()
-			domainEventRepository.markBatchConsumed(CONSUMER_ID, last.event.timestampMs, last.persistedId)
 		}
 	}
 

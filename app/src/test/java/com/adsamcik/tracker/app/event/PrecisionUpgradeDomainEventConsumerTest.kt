@@ -202,6 +202,33 @@ class PrecisionUpgradeDomainEventConsumerTest {
 	}
 
 	@Test
+	fun `marks each event in a batch immediately after processing it`() = runTest {
+		val first = UnconsumedEvent(sessionEndedEvent(sessionId = 1L, timestampMs = 1000L), 1L)
+		val second = UnconsumedEvent(sessionEndedEvent(sessionId = 2L, timestampMs = 2000L), 2L)
+		coEvery {
+			repository.getUnconsumedBatchWithIds(
+				consumerId = PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+			)
+		} returnsMany listOf(listOf(first, second), emptyList())
+
+		consumer.processUnconsumed()
+
+		coVerifyOrder {
+			repository.markBatchConsumed(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				EpochMs(1000L),
+				1L,
+			)
+			repository.markBatchConsumed(
+				PrecisionUpgradeDomainEventConsumer.CONSUMER_ID,
+				EpochMs(2000L),
+				2L,
+			)
+		}
+	}
+
+	@Test
 	fun `marks each drained batch separately`() = runTest {
 		coEvery {
 			repository.getUnconsumedBatchWithIds(

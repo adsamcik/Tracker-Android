@@ -40,13 +40,16 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 			)
 			if (batch.isEmpty()) return@withLock
 
-			batch.forEach { handleEvent(it.event) }
-			val last = batch.last()
-			domainEventRepository.markBatchConsumed(
-				consumerId = CONSUMER_ID,
-				upToTimestamp = last.event.timestampMs,
-				upToEventId = last.persistedId,
-			)
+			batch.forEach { unconsumed ->
+				handleEvent(unconsumed.event)
+				// The preference store and cursor are non-transactional, so a crash between
+				// them can still redeliver this event once; per-event ack narrows that window.
+				domainEventRepository.markBatchConsumed(
+					consumerId = CONSUMER_ID,
+					upToTimestamp = unconsumed.event.timestampMs,
+					upToEventId = unconsumed.persistedId,
+				)
+			}
 		}
 	}
 
