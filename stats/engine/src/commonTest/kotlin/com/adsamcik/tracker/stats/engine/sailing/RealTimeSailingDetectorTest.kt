@@ -25,10 +25,17 @@ class RealTimeSailingDetectorTest {
 		speed: Float,
 		distanceDeltaPerSampleM: Float = 0f,
 		stepRate: Float = 0f,
+		motionContextAvailable: Boolean = true,
 	): Long {
 		var t = startTimeMs
 		for (i in 0 until durationSeconds) {
-			detector.onSample(t, speed, distanceDeltaPerSampleM, stepRate)
+			detector.onSample(
+				timeMs = t,
+				speedMps = speed,
+				distanceDeltaM = distanceDeltaPerSampleM,
+				stepRatePerMin = stepRate,
+				motionContextAvailable = motionContextAvailable,
+			)
 			t += 1000L
 		}
 		return t
@@ -79,6 +86,16 @@ class RealTimeSailingDetectorTest {
 		fun `stays IDLE when speed exceeds the sailing ceiling - eg a car, not a boat`() {
 			feedSpeed(0L, 60, speed = 25f)
 			detector.getCurrentState().state shouldBe SailingState.IDLE
+		}
+
+		@Test
+		fun `speed-only overlap never confirms a sailing session without corroborating context`() {
+			feedSpeed(0L, 650, speed = 5f, motionContextAvailable = false)
+
+			val state = detector.getCurrentState()
+			state.state shouldBe SailingState.IDLE
+			state.detectionReason shouldBe SailingDetectionReason.BOAT_LIKE_MOTION
+			state.isConfirmedSailingSession.shouldBeFalse()
 		}
 	}
 
@@ -135,6 +152,44 @@ class RealTimeSailingDetectorTest {
 			feedSpeed(0L, 60, speed = 5f)
 
 			transitions shouldBeGreaterThan 0
+		}
+
+		@Nested
+		inner class SampleGapsAndClock {
+			@Test
+			fun `large sample gap closes sailing and does not bridge duration or distance`() {
+				val gapConfig = SailingDetectionConfig(
+					minStateDurationMs = 0L,
+					maxSampleGapMs = 30_000L,
+					speedMedianWindow = 1,
+				)
+				detector = RealTimeSailingDetector(gapConfig)
+
+				detector.onSample(1_000L, 5f, 10f, motionContextAvailable = true)
+				detector.onSample(11_000L, 5f, 10f, motionContextAvailable = true)
+				val stateAfterGap = detector.onSample(100_000L, 5f, 500f, motionContextAvailable = true)
+
+				stateAfterGap.state shouldBe SailingState.IDLE
+				stateAfterGap.detectionReason shouldBe SailingDetectionReason.UNKNOWN_SAMPLE_GAP
+				stateAfterGap.totalSailingDurationMs shouldBe 10_000L
+				stateAfterGap.totalSailingDistanceM shouldBe 20f
+
+				detector.onSample(101_000L, 5f, 10f, motionContextAvailable = true)
+					.totalSailingDurationMs shouldBe 10_000L
+			}
+
+			@Test
+			fun `monotonic sample time keeps duration correct when wall clock moves backward`() {
+				val monotonicConfig = SailingDetectionConfig(minStateDurationMs = 0L, speedMedianWindow = 1)
+				detector = RealTimeSailingDetector(monotonicConfig)
+
+				// The associated wall times could be 100_000 then 90_000; only monotonic times enter
+				// the detector and therefore the ten-second sailing interval remains valid.
+				detector.onSample(1_000L, 5f, motionContextAvailable = true)
+				val state = detector.onSample(11_000L, 5f, motionContextAvailable = true)
+
+				state.totalSailingDurationMs shouldBe 10_000L
+			}
 		}
 	}
 

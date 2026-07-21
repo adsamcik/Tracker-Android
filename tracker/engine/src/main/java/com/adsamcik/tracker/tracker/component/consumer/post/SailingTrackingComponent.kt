@@ -14,6 +14,7 @@ import com.adsamcik.tracker.stats.engine.sailing.SailingStateListener
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.google.android.gms.location.DetectedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,19 +32,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * and does not persist discrete run segments — it only drives GPS-tier adaptation and exposes
  * state for auto-tagging the session's activity as sailing.
  *
- * No required data: operates on whatever GPS speed is available. If location data is missing,
- * the component silently does nothing.
+ * No required data: operates on whatever GPS speed and local activity-recognition context are
+ * available. Without context, speed is reported only as boat-like motion and cannot trigger a
+ * precision-tier lock.
  */
 internal class SailingTrackingComponent : PostTrackerComponent, SailingStateListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
-	private val detector = RealTimeSailingDetector(SailingDetectionConfig())
+	private val config = SailingDetectionConfig()
+	private val detector = RealTimeSailingDetector(config)
 	private var escalationEngine: PolicyEscalationEngine? = null
 
 	private val _sailingState = MutableStateFlow<RealTimeSailingState?>(null)
 
-	/** Previous collection timestamp for step rate calculation. */
-	private var lastCollectionTimeMs: Long = 0L
+	/** Previous monotonic collection time for step-rate calculation. */
+	private var lastCollectionElapsedTimeMs: Long = 0L
 
 	/** Previous cumulative session distance, to derive a per-cycle delta. */
 	private var lastSessionDistanceM: Float = 0f
@@ -65,7 +68,7 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 	override suspend fun onEnable(context: Context) {
 		detector.reset()
 		detector.setListener(this)
-		lastCollectionTimeMs = 0L
+		lastCollectionElapsedTimeMs = 0L
 		lastSessionDistanceM = 0f
 	}
 
@@ -73,7 +76,7 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 		detector.setListener(null)
 		escalationEngine?.clearMinimumTier()
 		_sailingState.value = null
-		lastCollectionTimeMs = 0L
+		lastCollectionElapsedTimeMs = 0L
 		lastSessionDistanceM = 0f
 	}
 
@@ -84,17 +87,26 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 		cycle: TrackingCycle,
 	) {
 		val speedMps = collectionData.location?.speed ?: return
-		val timeMs = cycle.timestampMs
+		val elapsedTimeMs = cycle.elapsedRealtimeNanos / 1_000_000L
 
 		// Compute step rate from step delta and elapsed time (same derivation as ski's).
 		val newSteps = cycle.stepDelta ?: 0
-		val stepRatePerMin = if (lastCollectionTimeMs > 0L && newSteps > 0) {
-			val deltaMs = timeMs - lastCollectionTimeMs
+		val stepRatePerMin = if (lastCollectionElapsedTimeMs > 0L && newSteps > 0) {
+			val deltaMs = elapsedTimeMs - lastCollectionElapsedTimeMs
 			if (deltaMs > 0) (newSteps.toFloat() / deltaMs) * 60_000f else 0f
 		} else {
 			0f
 		}
-		lastCollectionTimeMs = timeMs
+		lastCollectionElapsedTimeMs = elapsedTimeMs
+
+		val activity = collectionData.activity
+		val motionContextAvailable = activity != null &&
+			activity.activityType != DetectedActivity.UNKNOWN &&
+			activity.activityType != DetectedActivity.TILTING
+		val hasStrongVehicleOrBicycleSignature = motionContextAvailable &&
+			activity.confidence >= 50 &&
+			(activity.activityType == DetectedActivity.ON_BICYCLE ||
+				activity.activityType == DetectedActivity.IN_VEHICLE)
 
 		// SessionUpdateStage runs before PostProcessingStage, so session.distanceInM already
 		// reflects this cycle; diff against the previous cycle's total for a per-cycle delta.
@@ -103,10 +115,12 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 
 		try {
 			val state = detector.onSample(
-				timeMs = timeMs,
+				timeMs = elapsedTimeMs,
 				speedMps = speedMps,
 				distanceDeltaM = distanceDeltaM,
 				stepRatePerMin = stepRatePerMin,
+				motionContextAvailable = motionContextAvailable,
+				hasStrongVehicleOrBicycleSignature = hasStrongVehicleOrBicycleSignature,
 			)
 			_sailingState.value = state
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

@@ -13,13 +13,82 @@ enum class SailingState {
 }
 
 /**
+ * Confidence context for the current sailing classification.
+ *
+ * A speed in the sailing range is not sufficient evidence by itself because it overlaps cycling
+ * and slow driving. The detector exposes that signal separately instead of treating absent
+ * context as evidence for sailing.
+ */
+enum class SailingDetectionReason {
+	IDLE,
+	WALK,
+	CONTEXT_CONFIRMED_SAILING,
+	BOAT_LIKE_MOTION,
+	VEHICLE_OR_BICYCLE_MOTION,
+	UNKNOWN_SAMPLE_GAP,
+}
+
+/**
  * Input signal for the sailing state machine at a point in time.
  */
 data class SailingSignal(
 	val timeMs: Long,
 	val speedMps: Float,
 	val stepRatePerMin: Float = 0f,
+	/** Whether a current local activity-recognition observation is available. */
+	val motionContextAvailable: Boolean = false,
+	/** A sufficiently confident local bicycle or vehicle observation. */
+	val hasStrongVehicleOrBicycleSignature: Boolean = false,
 )
+
+/**
+ * Classify a sample without applying the state-dependent exit hysteresis.
+ */
+internal fun classifySailingSignal(
+	signal: SailingSignal,
+	config: SailingDetectionConfig,
+): SailingState = when {
+	signal.stepRatePerMin >= config.walkStepRateThreshold -> SailingState.WALK
+	signal.hasStrongVehicleOrBicycleSignature -> SailingState.IDLE
+	signal.speedMps >= config.sailingEnterMinSpeedMps &&
+		signal.speedMps <= config.sailingMaxSpeedMps &&
+		signal.motionContextAvailable -> SailingState.SAILING
+	else -> SailingState.IDLE
+}
+
+/**
+ * The confidence context associated with [classifySailingSignal].
+ */
+internal fun sailingDetectionReason(
+	signal: SailingSignal,
+	config: SailingDetectionConfig,
+): SailingDetectionReason = when {
+	signal.stepRatePerMin >= config.walkStepRateThreshold -> SailingDetectionReason.WALK
+	signal.hasStrongVehicleOrBicycleSignature -> SailingDetectionReason.VEHICLE_OR_BICYCLE_MOTION
+	signal.speedMps >= config.sailingEnterMinSpeedMps &&
+		signal.speedMps <= config.sailingMaxSpeedMps &&
+		!signal.motionContextAvailable -> SailingDetectionReason.BOAT_LIKE_MOTION
+	signal.speedMps >= config.sailingEnterMinSpeedMps &&
+		signal.speedMps <= config.sailingMaxSpeedMps -> SailingDetectionReason.CONTEXT_CONFIRMED_SAILING
+	else -> SailingDetectionReason.IDLE
+}
+
+/**
+ * Shared hysteresis-aware transition candidate for batch and streaming sailing detection.
+ */
+internal fun nextSailingCandidate(
+	signal: SailingSignal,
+	currentState: SailingState,
+	config: SailingDetectionConfig,
+): SailingState {
+	if (signal.stepRatePerMin >= config.walkStepRateThreshold) return SailingState.WALK
+	if (signal.hasStrongVehicleOrBicycleSignature) return SailingState.IDLE
+
+	val shouldStaySailing = currentState == SailingState.SAILING &&
+		signal.speedMps >= config.sailingExitMinSpeedMps &&
+		signal.speedMps <= config.sailingMaxSpeedMps
+	return if (shouldStaySailing) SailingState.SAILING else classifySailingSignal(signal, config)
+}
 
 /**
  * A contiguous time segment in a single sailing state.
@@ -56,10 +125,10 @@ class SailingStateMachine(private val config: SailingDetectionConfig = SailingDe
 
 		// Phase 1: Classify with hysteresis (sticky states using exit thresholds)
 		val rawStates = mutableListOf<Pair<SailingState, Long>>()
-		var currentState = classifySignal(signals[0])
+		var currentState = nextSailingCandidate(signals[0], SailingState.IDLE, config)
 		rawStates.add(currentState to signals[0].timeMs)
 		for (i in 1 until signals.size) {
-			currentState = classifyWithHysteresis(signals[i], currentState)
+			currentState = nextSailingCandidate(signals[i], currentState, config)
 			rawStates.add(currentState to signals[i].timeMs)
 		}
 
@@ -78,20 +147,7 @@ class SailingStateMachine(private val config: SailingDetectionConfig = SailingDe
 	 * Order of checks matters: more specific states first.
 	 */
 	internal fun classifySignal(signal: SailingSignal): SailingState {
-		// Check WALK first (step rate is a strong indicator, regardless of speed)
-		if (signal.stepRatePerMin >= config.walkStepRateThreshold) {
-			return SailingState.WALK
-		}
-
-		// Check SAILING: within the plausible sailing speed band
-		if (signal.speedMps >= config.sailingEnterMinSpeedMps &&
-			signal.speedMps <= config.sailingMaxSpeedMps
-		) {
-			return SailingState.SAILING
-		}
-
-		// Default: IDLE (moored/anchored/becalmed)
-		return SailingState.IDLE
+		return classifySailingSignal(signal, config)
 	}
 
 	/**
@@ -101,19 +157,7 @@ class SailingStateMachine(private val config: SailingDetectionConfig = SailingDe
 	internal fun classifyWithHysteresis(
 		signal: SailingSignal,
 		currentState: SailingState,
-	): SailingState {
-		val shouldStay = when (currentState) {
-			SailingState.SAILING ->
-				signal.stepRatePerMin < config.walkStepRateThreshold &&
-					signal.speedMps >= config.sailingExitMinSpeedMps &&
-					signal.speedMps <= config.sailingMaxSpeedMps
-
-			SailingState.WALK -> signal.stepRatePerMin >= config.walkStepRateThreshold
-
-			SailingState.IDLE -> false
-		}
-		return if (shouldStay) currentState else classifySignal(signal)
-	}
+	): SailingState = nextSailingCandidate(signal, currentState, config)
 
 	internal fun mergeIntoSegments(
 		classifiedPoints: List<Pair<SailingState, Long>>,

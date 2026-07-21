@@ -7,10 +7,10 @@ package com.adsamcik.tracker.stats.engine.sailing
  * Unlike ski detection (which leans on barometric vertical rate), sailing has no reliable
  * altitude signal to exploit — a boat's motion is essentially 2D. Detection is therefore
  * speed- and step-rate based only: "moving at a speed consistent with sailing, without the
- * step cadence of walking". This is a real, documented limitation: cycling and slow driving
- * overlap the same speed range, so this heuristic cannot distinguish "sailing" from "any other
- * silent, wheel-free mode of travel in the same speed band" on speed alone. It is intended as a
- * lightweight signal (auto-tagging + GPS tier adaptation), not a certainty.
+ * step cadence of walking". Cycling and slow driving overlap the same speed range, so speed alone
+ * is retained only as [SailingDetectionReason.BOAT_LIKE_MOTION]. It can become SAILING only when
+ * the pipeline has current activity-recognition context that does not strongly indicate a bicycle
+ * or vehicle. No water or coastline context is available to this detector.
  */
 data class SailingDetectionConfig(
 	// Speed thresholds (m/s)
@@ -30,6 +30,11 @@ data class SailingDetectionConfig(
 	val minStateDurationMs: Long = 45_000L,
 	/** Cumulative time spent in SAILING before the session is confirmed as sailing. */
 	val minSailingDurationForConfirmationMs: Long = 600_000L,
+	/**
+	 * Maximum interval between accepted GPS samples. A 30-second limit is three 10-second
+	 * collection intervals: longer gaps are represented as UNKNOWN rather than bridged.
+	 */
+	val maxSampleGapMs: Long = 30_000L,
 
 	// Smoothing
 	/** Median filter window size for GPS speed (samples), reduces wave/GPS-jitter-induced flicker. */

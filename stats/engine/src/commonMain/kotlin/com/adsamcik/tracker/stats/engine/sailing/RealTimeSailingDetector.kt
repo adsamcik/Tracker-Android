@@ -12,6 +12,7 @@ data class RealTimeSailingState(
 	val isConfirmedSailingSession: Boolean,
 	val currentSpeedMps: Float,
 	val maxSpeedMps: Float,
+	val detectionReason: SailingDetectionReason = SailingDetectionReason.IDLE,
 )
 
 /**
@@ -32,7 +33,7 @@ fun interface SailingStateListener {
  * repeating cycles to count.
  *
  * Architecture mirrors [com.adsamcik.tracker.stats.engine.ski.RealTimeSkiDetector]: a light
- * median smoother for the noisy input signal, [SailingStateMachine.classifySignal] for per-sample
+ * median smoother for the noisy input signal, [nextSailingCandidate] shared with batch
  * classification, and minimum-duration hysteresis to prevent state flicker.
  *
  * Pure Kotlin, no platform dependencies. Thread-safe via synchronized blocks.
@@ -41,7 +42,6 @@ class RealTimeSailingDetector(
 	private val config: SailingDetectionConfig = SailingDetectionConfig(),
 ) {
 	private val speedSmoother = MedianSmoother(config.speedMedianWindow)
-	private val stateMachine = SailingStateMachine(config)
 
 	private val lock = Any()
 
@@ -62,6 +62,7 @@ class RealTimeSailingDetector(
 	// Latest sensor values
 	private var lastSpeedMps: Float = 0f
 	private var lastSampleTimeMs: Long = 0L
+	private var lastDetectionReason: SailingDetectionReason = SailingDetectionReason.IDLE
 
 	// Listener
 	private var listener: SailingStateListener? = null
@@ -100,6 +101,7 @@ class RealTimeSailingDetector(
 			isConfirmedSailingSession = liveTotalSailingDurationMs >= config.minSailingDurationForConfirmationMs,
 			currentSpeedMps = lastSpeedMps,
 			maxSpeedMps = maxSpeedMps,
+			detectionReason = lastDetectionReason,
 		)
 	}
 
@@ -108,10 +110,12 @@ class RealTimeSailingDetector(
 	 *
 	 * Call this on every collection cycle that has a speed reading.
 	 *
-	 * @param timeMs sample timestamp (epoch millis)
+	 * @param timeMs sample timestamp from the monotonic elapsed-realtime clock (milliseconds)
 	 * @param speedMps GPS ground speed in m/s
 	 * @param distanceDeltaM distance traveled since the previous sample (m), 0 if unavailable
 	 * @param stepRatePerMin current step rate (0 if unavailable)
+	 * @param motionContextAvailable whether current local activity-recognition context is available
+	 * @param hasStrongVehicleOrBicycleSignature whether that context rules out sailing
 	 * @return current [RealTimeSailingState]
 	 */
 	fun onSample(
@@ -119,7 +123,15 @@ class RealTimeSailingDetector(
 		speedMps: Float,
 		distanceDeltaM: Float = 0f,
 		stepRatePerMin: Float = 0f,
+		motionContextAvailable: Boolean = false,
+		hasStrongVehicleOrBicycleSignature: Boolean = false,
 	): RealTimeSailingState = synchronized(lock) {
+		val hasSampleGap = lastSampleTimeMs > 0L &&
+			timeMs - lastSampleTimeMs > config.maxSampleGapMs
+		if (hasSampleGap) {
+			closeSampleGap()
+		}
+
 		val smoothedSpeed = speedSmoother.add(speedMps)
 		lastSpeedMps = smoothedSpeed
 		lastSampleTimeMs = timeMs
@@ -128,11 +140,21 @@ class RealTimeSailingDetector(
 			timeMs = timeMs,
 			speedMps = smoothedSpeed,
 			stepRatePerMin = stepRatePerMin,
+			motionContextAvailable = motionContextAvailable,
+			hasStrongVehicleOrBicycleSignature = hasStrongVehicleOrBicycleSignature,
 		)
-		val rawClassification = stateMachine.classifySignal(signal)
+		val candidate = nextSailingCandidate(signal, pendingState, config)
 
-		// Apply minimum-duration hysteresis
-		updateStateWithHysteresis(rawClassification, timeMs)
+		if (hasSampleGap) {
+			// The first resumed sample seeds a fresh candidate but cannot bridge the unknown gap.
+			pendingState = candidate
+			pendingStateEntryMs = timeMs
+			lastDetectionReason = SailingDetectionReason.UNKNOWN_SAMPLE_GAP
+			return@synchronized getCurrentState()
+		}
+
+		lastDetectionReason = sailingDetectionReason(signal, config)
+		updateStateWithHysteresis(candidate, timeMs)
 
 		// Accumulate sailing totals for the CONFIRMED state (avoids counting pending flicker)
 		if (confirmedState == SailingState.SAILING) {
@@ -157,6 +179,7 @@ class RealTimeSailingDetector(
 		maxSpeedMps = 0f
 		lastSpeedMps = 0f
 		lastSampleTimeMs = 0L
+		lastDetectionReason = SailingDetectionReason.IDLE
 	}
 
 	private fun updateStateWithHysteresis(rawState: SailingState, timeMs: Long) {
@@ -186,6 +209,30 @@ class RealTimeSailingDetector(
 
 		// Notify listener
 		listener?.onStateChanged(previousState, getCurrentState())
+	}
+
+	private fun closeSampleGap() {
+		val lastAcceptedSampleMs = lastSampleTimeMs
+		val unknownStartMs = lastAcceptedSampleMs + config.maxSampleGapMs
+		val previousState = confirmedState
+
+		if (previousState == SailingState.SAILING && confirmedStateEntryMs > 0L) {
+			accumulatedSailingDurationMs +=
+				(lastAcceptedSampleMs - confirmedStateEntryMs).coerceAtLeast(0L)
+		}
+
+		confirmedState = SailingState.IDLE
+		confirmedStateEntryMs = unknownStartMs
+		pendingState = SailingState.IDLE
+		pendingStateEntryMs = unknownStartMs
+		lastSampleTimeMs = unknownStartMs
+		lastSpeedMps = 0f
+		lastDetectionReason = SailingDetectionReason.UNKNOWN_SAMPLE_GAP
+		speedSmoother.reset()
+
+		if (previousState != SailingState.IDLE) {
+			listener?.onStateChanged(previousState, getCurrentState())
+		}
 	}
 }
 

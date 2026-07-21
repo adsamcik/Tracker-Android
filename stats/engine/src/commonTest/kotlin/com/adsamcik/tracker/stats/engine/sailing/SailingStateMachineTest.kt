@@ -15,6 +15,7 @@ class SailingStateMachineTest {
 		startTimeMs: Long = 0L,
 		speed: Float,
 		stepRate: Float = 0f,
+		motionContextAvailable: Boolean = true,
 	): List<SailingSignal> {
 		val count = (durationMs / intervalMs).toInt()
 		return (0 until count).map { i ->
@@ -22,6 +23,7 @@ class SailingStateMachineTest {
 				timeMs = startTimeMs + i * intervalMs,
 				speedMps = speed,
 				stepRatePerMin = stepRate,
+				motionContextAvailable = motionContextAvailable,
 			)
 		}
 	}
@@ -66,8 +68,33 @@ class SailingStateMachineTest {
 	inner class ClassifySignal {
 
 		@Test
-		fun `speed within sailing band and low step rate classifies as SAILING`() {
-			machine.classifySignal(SailingSignal(0L, speedMps = 5f)) shouldBe SailingState.SAILING
+		fun `speed within sailing band with local non-vehicle context classifies as SAILING`() {
+			machine.classifySignal(
+				SailingSignal(0L, speedMps = 5f, motionContextAvailable = true),
+			) shouldBe SailingState.SAILING
+		}
+
+		@Test
+		fun `speed within sailing band without corroborating context remains boat-like motion`() {
+			val signal = SailingSignal(0L, speedMps = 5f)
+
+			machine.classifySignal(signal) shouldBe SailingState.IDLE
+			sailingDetectionReason(signal, SailingDetectionConfig()) shouldBe
+				SailingDetectionReason.BOAT_LIKE_MOTION
+		}
+
+		@Test
+		fun `strong bicycle or vehicle context rules out plausible sailing speed`() {
+			val signal = SailingSignal(
+				timeMs = 0L,
+				speedMps = 5f,
+				motionContextAvailable = true,
+				hasStrongVehicleOrBicycleSignature = true,
+			)
+
+			machine.classifySignal(signal) shouldBe SailingState.IDLE
+			sailingDetectionReason(signal, SailingDetectionConfig()) shouldBe
+				SailingDetectionReason.VEHICLE_OR_BICYCLE_MOTION
 		}
 
 		@Test
@@ -118,9 +145,53 @@ class SailingStateMachineTest {
 		@Test
 		fun `IDLE never sticks - always reclassified fresh`() {
 			machine.classifyWithHysteresis(
-				SailingSignal(0L, speedMps = 5f),
+				SailingSignal(0L, speedMps = 5f, motionContextAvailable = true),
 				currentState = SailingState.IDLE,
 			) shouldBe SailingState.SAILING
+		}
+
+		@Nested
+		inner class StreamingBatchParity {
+			@Test
+			fun `batch and streaming agree after entry exit and dwell boundaries`() {
+				val config = SailingDetectionConfig(
+					sailingEnterMinSpeedMps = 0.75f,
+					sailingExitMinSpeedMps = 0.4f,
+					minStateDurationMs = 2_000L,
+					maxSampleGapMs = 60_000L,
+					speedMedianWindow = 1,
+				)
+				val detector = RealTimeSailingDetector(config)
+				val signals = listOf(
+					SailingSignal(0L, 0.75f, motionContextAvailable = true),
+					SailingSignal(1_000L, 0.5f, motionContextAvailable = true),
+					SailingSignal(2_000L, 0.5f, motionContextAvailable = true),
+					SailingSignal(3_000L, 0.4f, motionContextAvailable = true),
+					SailingSignal(4_000L, 0.4f, motionContextAvailable = true),
+					SailingSignal(5_000L, 0.4f, motionContextAvailable = true),
+					SailingSignal(6_000L, 0.39f, motionContextAvailable = true),
+					SailingSignal(7_000L, 0.39f, motionContextAvailable = true),
+					SailingSignal(8_000L, 0.39f, motionContextAvailable = true),
+				)
+
+				val streamingStates = signals.map { signal ->
+					detector.onSample(
+						timeMs = signal.timeMs,
+						speedMps = signal.speedMps,
+						stepRatePerMin = signal.stepRatePerMin,
+						motionContextAvailable = signal.motionContextAvailable,
+					).state
+				}
+
+				streamingStates[2] shouldBe SailingState.SAILING
+				streamingStates[5] shouldBe SailingState.SAILING
+				streamingStates[8] shouldBe SailingState.IDLE
+				machineFor(config).process(signals.take(3)).last().state shouldBe streamingStates[2]
+				machineFor(config).process(signals.take(6)).last().state shouldBe streamingStates[5]
+				machineFor(config).process(signals).last().state shouldBe streamingStates[8]
+			}
+
+			private fun machineFor(config: SailingDetectionConfig) = SailingStateMachine(config)
 		}
 	}
 
