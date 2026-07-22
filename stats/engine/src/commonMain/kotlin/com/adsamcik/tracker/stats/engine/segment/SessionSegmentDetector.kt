@@ -20,11 +20,9 @@ import kotlin.math.sqrt
  * component pipeline thread (TrackerService's componentMutex).
  *
  * @param config Tunable detection thresholds
- * @param clock Time source for testability (epoch millis)
  */
 class SessionSegmentDetector(
 	private val config: SegmentDetectorConfig = SegmentDetectorConfig(),
-	private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
 	/** Current state of the detector. */
@@ -209,7 +207,7 @@ class SessionSegmentDetector(
 
 		// Check mode-dependent timeout
 		val elapsed = signal.timestampMs - stopPendingStartMs
-		val timeout = getStopTimeout()
+		val timeout = getStopTimeout(signal.timestampMs)
 		if (elapsed >= timeout) {
 			// Transition through ARRIVED to STATIONARY
 			state = TripState.ARRIVED
@@ -382,8 +380,8 @@ class SessionSegmentDetector(
 		return speedStill && noSteps && activityStill
 	}
 
-	private fun getStopTimeout(): Long {
-		val currentMode = inferCurrentTransportMode()
+	private fun getStopTimeout(traceTimeMs: Long): Long {
+		val currentMode = inferCurrentTransportMode(traceTimeMs)
 		return when (currentMode) {
 			TransportMode.WALK, TransportMode.RUN -> config.walkStopTimeoutMs
 			TransportMode.TRANSIT, TransportMode.HIGH_SPEED_RAIL -> config.transitStopTimeoutMs
@@ -391,8 +389,14 @@ class SessionSegmentDetector(
 		}
 	}
 
-	private fun inferCurrentTransportMode(): TransportMode {
-		val durationMs = clock() - tripStartMs
+	/**
+	 * Classify the in-progress trip at a recorded trace time.
+	 *
+	 * This must not use host execution time: replaying an old trace on another day
+	 * must preserve the same timeout selection and emitted events.
+	 */
+	private fun inferCurrentTransportMode(traceTimeMs: Long): TransportMode {
+		val durationMs = (traceTimeMs - tripStartMs).coerceAtLeast(0L)
 		val avgSpeed = if (tripSpeedCount > 0) tripSpeedSum / tripSpeedCount else 0f
 		val primaryActivity = activityVotes.maxByOrNull { it.value }?.key
 

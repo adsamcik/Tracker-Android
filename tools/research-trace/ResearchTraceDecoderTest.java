@@ -14,7 +14,10 @@ import javax.crypto.spec.SecretKeySpec;
 public final class ResearchTraceDecoderTest {
     public static void main(String[] args) throws Exception {
         char[] passphrase = "correct horse battery staple".toCharArray();
-        byte[] plaintext = "{\"recordType\":\"manifest\",\"schemaVersion\":1}\n"
+        byte[] plaintext = ("{\"recordType\":\"manifest\",\"schemaVersion\":3,"
+                + "\"evidenceCapabilities\":{\"rawPressureEvents\":false,"
+                + "\"canonicalSegmentationObservations\":false},"
+                + "\"loss\":{\"lossOccurred\":false,\"replayComplete\":false}}\n")
                 .getBytes(StandardCharsets.UTF_8);
         byte[] envelope = envelope(plaintext, passphrase);
 

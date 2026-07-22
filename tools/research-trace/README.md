@@ -17,10 +17,12 @@ nonce lengths, a four-byte big-endian PBKDF2 iteration count, salt, nonce, and A
 with its 128-bit tag. Version 1 uses PBKDF2-HMAC-SHA256, a 256-bit key, 16-byte salt, and 12-byte
 nonce. The entire header is GCM additional authenticated data.
 
-The first plaintext line is a versioned `manifest`. Subsequent `recordType` values are
-`trace_marker`, `location_observation`, `tracker_run`, `presence_interval`,
-`accepted_location_sample`, and finally `end`. The final record contains counts and
-`"complete":true`. Trace markers carry both `wallTimeMs` (Unix epoch milliseconds) and
+The first plaintext line is a versioned `manifest`. The current schema is v3. Subsequent `recordType`
+values are `trace_marker`, `location_observation`, `tracker_run`, `accepted_location_sample`, and
+finally `end`; `presence_interval` is not emitted. The final record contains counts and
+`"complete":true`. The v3 manifest explicitly declares which altitude and segmentation evidence
+capabilities were enabled, plus a loss/replay-completeness assessment. Historical exports declare
+their missing evidence rather than claiming deterministic replay completeness. Trace markers carry both `wallTimeMs` (Unix epoch milliseconds) and
 `elapsedRealtimeNanos` (Android monotonic time since boot) for offline RTK/video/gate alignment.
 Coordinates use signed E7 integers. Binary posterior payloads use Base64.
 

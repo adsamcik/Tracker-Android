@@ -196,6 +196,22 @@ class ResearchTracePayloadExporter(
 		put("wallClockUnit", "unix_epoch_milliseconds")
 		put("monotonicClockUnit", "elapsed_realtime_nanoseconds")
 		put("nonFiniteNumberEncoding", "string")
+		put("evidenceCapabilities", JSONObject().apply {
+			// Schema v3 deliberately declares the historical export's limits. These facts are
+			// not inferred from missing rows, and this exporter must not claim replay completeness.
+			put("rawPressureEvents", false)
+			put("pressureAggregateWindows", false)
+			put("altitudeConversionOutcomes", false)
+			put("altitudeEstimatorDecisions", false)
+			put("canonicalSegmentationObservations", false)
+			put("segmentationReducerOutputs", false)
+			put("truthMarkers", metadata.markers.isNotEmpty())
+		})
+		put("loss", JSONObject().apply {
+			put("lossOccurred", false)
+			put("assessment", "HISTORICAL_EXPORT_NOT_CAPTURE_TRACE")
+			put("replayComplete", false)
+		})
 		put("sourceWatermarks", JSONObject().apply {
 			put("locationObservationId", watermarks.locationObservationId)
 			put("trackerRunId", watermarks.trackerRunId)
@@ -285,6 +301,14 @@ class ResearchTracePayloadExporter(
 		put("isMock", value.isMock)
 		put("estimatorVersion", value.estimatorVersion)
 		put("calibrationVersion", value.calibrationVersion)
+		// A numerical altitude without this contract is not an MSL claim. The
+		// debug research payload preserves the same interpretation metadata as
+		// the durable/exported sample instead of silently relabelling it.
+		put("altitudeDatum", value.altitudeDatum.storageName)
+		put("altitudeSource", value.altitudeSource.storageName)
+		put("altitudeConversionStatus", value.altitudeConversionStatus.storageName)
+		put("rawGpsAltitudeDatum", value.rawGpsAltitudeDatum.storageName)
+		put("altitudeModelVersion", value.altitudeModelVersion)
 	}
 
 	private fun endRecord(counts: RecordCounts): JSONObject = JSONObject().apply {
@@ -347,7 +371,7 @@ class ResearchTracePayloadExporter(
 	private companion object {
 		const val RECORD_TYPE = "recordType"
 		const val FORMAT = "tracker-research-trace-ndjson"
-		const val SCHEMA_VERSION = 2
+		const val SCHEMA_VERSION = 3
 		const val DEFAULT_PAGE_SIZE = 1_000
 	}
 }

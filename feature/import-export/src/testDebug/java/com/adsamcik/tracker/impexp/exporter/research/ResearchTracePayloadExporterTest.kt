@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -98,12 +101,20 @@ class ResearchTracePayloadExporterTest {
 		records.last().getString("recordType") shouldBe "end"
 
 		val manifest = records.first()
-		manifest.getInt("schemaVersion") shouldBe 2
+		manifest.getInt("schemaVersion") shouldBe 3
 		manifest.getLong("rangeStartMs") shouldBe rangeStart
 		manifest.getLong("rangeEndInclusiveMs") shouldBe rangeEnd
 		manifest.getJSONObject("session").getString("traceId") shouldBe "trace-prague-01"
 		manifest.getJSONObject("session").getJSONObject("attributes").getString("groundTruth") shouldBe "RTK+video"
 		manifest.getInt("markerCount") shouldBe 1
+		val capabilities = manifest.getJSONObject("evidenceCapabilities")
+		capabilities.getBoolean("rawPressureEvents") shouldBe false
+		capabilities.getBoolean("canonicalSegmentationObservations") shouldBe false
+		capabilities.getBoolean("truthMarkers") shouldBe true
+		val loss = manifest.getJSONObject("loss")
+		loss.getBoolean("lossOccurred") shouldBe false
+		loss.getString("assessment") shouldBe "HISTORICAL_EXPORT_NOT_CAPTURE_TRACE"
+		loss.getBoolean("replayComplete") shouldBe false
 
 		val marker = records.single { it.getString("recordType") == "trace_marker" }
 		marker.getString("id") shouldBe "gate-a-entry"
@@ -132,6 +143,11 @@ class ResearchTracePayloadExporterTest {
 		acceptedRecord.getLong("id") shouldBe 42L
 		acceptedRecord.getLong("receivedElapsedRealtimeNanos") shouldBe 88_500_000_000L
 		acceptedRecord.getString("permissionPrecision") shouldBe "PRECISE"
+		acceptedRecord.getString("altitudeDatum") shouldBe "android_model_msl"
+		acceptedRecord.getString("altitudeSource") shouldBe "gps_conversion"
+		acceptedRecord.getString("altitudeConversionStatus") shouldBe "success"
+		acceptedRecord.getString("rawGpsAltitudeDatum") shouldBe "wgs84_ellipsoid"
+		acceptedRecord.getInt("altitudeModelVersion") shouldBe 1
 
 		val counts = records.last().getJSONObject("counts")
 		counts.getLong("traceMarker") shouldBe 1L
@@ -220,5 +236,10 @@ class ResearchTracePayloadExporterTest {
 		isMock = false,
 		estimatorVersion = 1,
 		calibrationVersion = 0,
+		altitudeDatum = AltitudeDatum.ANDROID_MODEL_MSL,
+		altitudeSource = AltitudeSource.GPS_CONVERSION,
+		altitudeConversionStatus = AltitudeConversionStatus.SUCCESS,
+		rawGpsAltitudeDatum = AltitudeDatum.WGS84_ELLIPSOID,
+		altitudeModelVersion = 1,
 	)
 }

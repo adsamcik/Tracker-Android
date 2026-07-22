@@ -25,10 +25,7 @@ class SessionSegmentDetectorTest {
 	@BeforeEach
 	fun setUp() {
 		currentTimeMs = 1_000_000L
-		detector = SessionSegmentDetector(
-			config = config,
-			clock = { currentTimeMs },
-		)
+		detector = SessionSegmentDetector(config = config)
 	}
 
 	// --- Test signal helpers ---
@@ -436,10 +433,7 @@ class SessionSegmentDetectorTest {
 				departureDisplacementM = 100_000f,
 				departureMinSteps = 60,
 			)
-			detector = SessionSegmentDetector(
-				config = departureConfig,
-				clock = { currentTimeMs },
-			)
+			detector = SessionSegmentDetector(config = departureConfig)
 			detector.onSignal(stationarySignal())
 
 			currentTimeMs += 1_000L
@@ -622,6 +616,50 @@ class SessionSegmentDetectorTest {
 	@Nested
 	inner class ArrivalTimeout {
 		@Test
+		fun `historical trace selects stop timeout from signal time not host date`() {
+			val traceConfig = config.copy(
+				departureConfirmationMs = 0L,
+				departureMinSteps = 1,
+				walkStopTimeoutMs = 1_000L,
+				driveStopTimeoutMs = 2_000L,
+				transitStopTimeoutMs = 3_000L,
+			)
+			val historical = SessionSegmentDetector(config = traceConfig)
+			var traceTime = 1_000L
+			historical.onSignal(stationarySignal(traceTime))
+
+			traceTime += 1_000L
+			historical.onSignal(
+				movingSignal(
+					timeMs = traceTime,
+					latE7 = baseLat + 3_000,
+					stepDelta = 10,
+				),
+			)
+			traceTime += 1_000L
+			historical.onSignal(
+				movingSignal(
+					timeMs = traceTime,
+					latE7 = baseLat + 6_000,
+					stepDelta = 10,
+				),
+			)
+			historical.state shouldBe TripState.IN_TRIP
+
+			repeat(traceConfig.stillCyclesForStopPending) {
+				traceTime += 1_000L
+				historical.onSignal(stillSignal(traceTime))
+			}
+			historical.state shouldBe TripState.STOP_PENDING
+
+			// This timestamp is historical. A host-date-derived duration would choose DRIVE/UNKNOWN
+			// and fail to end at the recorded walk timeout.
+			traceTime += traceConfig.walkStopTimeoutMs + 1L
+			val event = historical.onSignal(stillSignal(traceTime))
+			event.shouldBeInstanceOf<SegmentEvent.TripEnded>()
+		}
+
+		@Test
 		fun `stop pending timeout triggers TripEnded`() {
 			getToInTrip()
 
@@ -779,10 +817,7 @@ class SessionSegmentDetectorTest {
 				departureConfirmationMs = 30_000L,
 				departureMinSteps = 20,
 			)
-			val customDetector = SessionSegmentDetector(
-				config = customConfig,
-				clock = { currentTimeMs },
-			)
+			val customDetector = SessionSegmentDetector(config = customConfig)
 
 			// Set anchor
 			customDetector.onSignal(stationarySignal())
