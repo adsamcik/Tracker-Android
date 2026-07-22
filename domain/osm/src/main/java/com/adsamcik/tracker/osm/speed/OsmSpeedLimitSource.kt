@@ -1,10 +1,16 @@
 package com.adsamcik.tracker.osm.speed
 
+import com.adsamcik.tracker.osm.io.OsmCellCoverage
 import com.adsamcik.tracker.osm.io.OsmGridIndex
 import com.adsamcik.tracker.osm.io.PolylineE7Codec
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
+import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
+import com.adsamcik.tracker.shared.model.geo.CircularLongitude
+import com.adsamcik.tracker.shared.model.geo.CircularLongitudeInterval
+import com.adsamcik.tracker.shared.model.geo.ConservativeRadiusBounds
+import com.adsamcik.tracker.shared.model.geo.GeoCoordinates
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -19,7 +25,7 @@ import kotlin.math.min
  * returns its `maxspeed_kmh` converted to m/s.
  *
  * Pipeline per call:
- *  1. Compute the 3x3 grid neighborhood ([OsmGridIndex.cellAnd8Neighbors]).
+ *  1. Compute a conservative 50 m grid coverage at the query latitude.
  *  2. Look up candidate way ids via the `osm_way_cell` index.
  *  3. Load those ways' bbox + polyline blob and compute the minimum
  *     perpendicular distance from the sample to any segment.
@@ -49,18 +55,26 @@ class OsmSpeedLimitSource @Inject constructor(
 	 * if no driveable way is close enough.
 	 */
 	suspend fun findRoadLimitMps(latE7: Int, lonE7: Int): Double? {
-		val cacheKey = cacheKey(latE7, lonE7)
+		val coordinate = CheckedCoordinateE7.fromE7OrNull(latE7.toLong(), lonE7.toLong()) ?: return null
+		val cacheKey = cacheKey(coordinate.latitudeE7, coordinate.longitudeE7)
 		val cached = mutex.withLock { cache.get(cacheKey) }
 		if (cached != null) return cached.limitMps
 
-		val cellKeys = OsmGridIndex.cellAnd8Neighbors(latE7, lonE7).toList()
-		val candidateIds = osmWayCellDao.findWayIdsInCells(cellKeys)
+		val bounds = ConservativeRadiusBounds.around(coordinate, SNAP_THRESHOLD_M)
+		val coverage = OsmGridIndex.cellCoverageForBounds(
+			minLatE7 = bounds.minLatitudeE7,
+			maxLatE7 = bounds.maxLatitudeE7,
+			longitude = bounds.longitude,
+		)
+		val cellKeys = (coverage as? OsmCellCoverage.Available)?.cellKeys
+			?: return null // Full/polar coverage must abstain until a bounded range query exists.
+		val candidateIds = findWayIdsInCells(cellKeys)
 		if (candidateIds.isEmpty()) {
 			mutex.withLock { cache.put(cacheKey, CachedLookup(null)) }
 			return null
 		}
-		val ways = osmWayDao.findByIds(candidateIds.toSet())
-		val nearest = pickNearest(ways, latE7, lonE7)
+		val ways = findWaysByIds(candidateIds)
+		val nearest = pickNearest(ways, coordinate, bounds)
 		val limitMps = nearest?.maxspeedKmh?.let { kmhToMps(it) }
 		mutex.withLock { cache.put(cacheKey, CachedLookup(limitMps)) }
 		return limitMps
@@ -73,16 +87,16 @@ class OsmSpeedLimitSource @Inject constructor(
 
 	private fun pickNearest(
 		ways: List<OsmWayEntity>,
-		latE7: Int,
-		lonE7: Int,
+		coordinate: CheckedCoordinateE7,
+		bounds: ConservativeRadiusBounds,
 	): OsmWayEntity? {
 		var bestDist = Double.MAX_VALUE
 		var best: OsmWayEntity? = null
-		val cosLat = cos(degrees(latE7) * Math.PI / 180.0)
+		val cosLat = cos(coordinate.latitudeDegrees * Math.PI / 180.0)
 		val thresholdSq = SNAP_THRESHOLD_M * SNAP_THRESHOLD_M
 		for (way in ways) {
-			if (!bboxWithin(way, latE7, lonE7, SNAP_THRESHOLD_E7)) continue
-			val dist = nearestSegmentDistanceMetersSq(way, latE7, lonE7, cosLat)
+			if (!bboxIntersects(way, bounds)) continue
+			val dist = nearestSegmentDistanceMetersSq(way, coordinate.latitudeE7, coordinate.longitudeE7, cosLat)
 			if (dist < bestDist) {
 				bestDist = dist
 				best = way
@@ -91,16 +105,37 @@ class OsmSpeedLimitSource @Inject constructor(
 		return if (best != null && bestDist <= thresholdSq) best else null
 	}
 
-	private fun bboxWithin(
+	private suspend fun findWayIdsInCells(cellKeys: LongArray): Set<Long> = buildSet {
+		cellKeys.asList().chunked(OsmGridIndex.MAX_SQL_IN_BINDINGS).forEach { chunk ->
+			addAll(osmWayCellDao.findWayIdsInCells(chunk))
+		}
+	}
+
+	private suspend fun findWaysByIds(ids: Set<Long>): List<OsmWayEntity> = buildList {
+		ids.chunked(OsmGridIndex.MAX_SQL_IN_BINDINGS).forEach { chunk ->
+			addAll(osmWayDao.findByIds(chunk))
+		}
+	}
+
+	private fun bboxIntersects(
 		way: OsmWayEntity,
-		latE7: Int,
-		lonE7: Int,
-		marginE7: Int,
+		bounds: ConservativeRadiusBounds,
 	): Boolean {
-		return latE7 >= way.bboxMinLatE7 - marginE7 &&
-			latE7 <= way.bboxMaxLatE7 + marginE7 &&
-			lonE7 >= way.bboxMinLonE7 - marginE7 &&
-			lonE7 <= way.bboxMaxLonE7 + marginE7
+		if (
+			way.bboxMinLatE7 > way.bboxMaxLatE7 ||
+			way.bboxMinLatE7.toLong() !in GeoCoordinates.MIN_LATITUDE_E7..GeoCoordinates.MAX_LATITUDE_E7 ||
+			way.bboxMaxLatE7.toLong() !in GeoCoordinates.MIN_LATITUDE_E7..GeoCoordinates.MAX_LATITUDE_E7 ||
+			way.bboxMinLonE7.toLong() !in GeoCoordinates.MIN_LONGITUDE_E7..GeoCoordinates.MAX_LONGITUDE_INPUT_E7 ||
+			way.bboxMaxLonE7.toLong() !in GeoCoordinates.MIN_LONGITUDE_E7..GeoCoordinates.MAX_LONGITUDE_INPUT_E7
+		) {
+			return false
+		}
+		if (way.bboxMaxLatE7 < bounds.minLatitudeE7 || way.bboxMinLatE7 > bounds.maxLatitudeE7) return false
+		val wayLongitude = CircularLongitudeInterval.fromDirectedEndpoints(
+			way.bboxMinLonE7.toLong(),
+			way.bboxMaxLonE7.toLong(),
+		)
+		return wayLongitude.intersects(bounds.longitude)
 	}
 
 	private fun nearestSegmentDistanceMetersSq(
@@ -132,10 +167,12 @@ class OsmSpeedLimitSource @Inject constructor(
 	): Double {
 		// Convert to local planar metres relative to A using an equirectangular
 		// approximation. Valid for the sub-100 m distances we care about here.
-		val bx = (bLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
-		val by = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
-		val px = (pLonE7 - aLonE7).toDouble() * METRES_PER_E7_DEG * cosLat
-		val py = (pLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
+		val bx = CircularLongitude.shortestDeltaE7(aLonE7.toLong(), bLonE7.toLong()).toDouble() *
+			METRES_PER_E7_DEG * cosLat
+		val by = (bLatE7.toLong() - aLatE7.toLong()).toDouble() * METRES_PER_E7_DEG
+		val px = CircularLongitude.shortestDeltaE7(aLonE7.toLong(), pLonE7.toLong()).toDouble() *
+			METRES_PER_E7_DEG * cosLat
+		val py = (pLatE7.toLong() - aLatE7.toLong()).toDouble() * METRES_PER_E7_DEG
 
 		val lenSq = bx * bx + by * by
 		if (lenSq < EPSILON) {
@@ -177,21 +214,21 @@ class OsmSpeedLimitSource @Inject constructor(
 		/** Cache key bucket size — ~5 m at the equator. */
 		private const val CACHE_BUCKET_E7: Int = 500
 
-		/** Snap threshold in E7 lat-degrees (~1.1 cm per E7 sec lat; 50 m ≈ 4_500 E7). */
-		private const val SNAP_THRESHOLD_E7: Int = 5_000
-
 		/** Metres per 1e-7 degree of latitude (great-circle, ~constant at 1.1132e-2 m). */
 		private const val METRES_PER_E7_DEG: Double = 0.01112
 		private const val EPSILON: Double = 1e-9
 
 		internal fun cacheKey(latE7: Int, lonE7: Int): Long {
-			val lat = (latE7 / CACHE_BUCKET_E7).toLong()
-			val lon = (lonE7 / CACHE_BUCKET_E7).toLong()
+			val lat = Math.floorDiv(latE7.toLong(), CACHE_BUCKET_E7.toLong())
+			val lon = Math.floorDiv(
+				CircularLongitude.normalizeE7(lonE7.toLong()),
+				CACHE_BUCKET_E7.toLong(),
+			)
 			return (lat shl 32) or (lon and 0xFFFFFFFFL)
 		}
 
 		internal fun kmhToMps(kmh: Int): Double = kmh.toDouble() * (1000.0 / 3600.0)
 
-		internal fun degrees(e7: Int): Double = e7.toDouble() / 1e7
+		internal fun degrees(e7: Int): Double = e7.toDouble() / GeoCoordinates.E7_PER_DEGREE
 	}
 }

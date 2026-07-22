@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.ByteArrayOutputStream
 
 @DisplayName("PolylineE7Codec round-trip")
 class PolylineE7CodecTest {
@@ -70,4 +71,51 @@ class PolylineE7CodecTest {
 			PolylineE7Codec.decode(encoded.copyOfRange(0, encoded.size - 1))
 		}
 	}
+
+	@Test
+	fun `canonicalizes antimeridian and pole identity on decode`() {
+		val (lats, lons) = PolylineE7Codec.decode(
+			PolylineE7Codec.encode(
+				intArrayOf(0, 900_000_000),
+				intArrayOf(1_800_000_000, 123_000_000),
+			),
+		)
+
+		lats.toList() shouldBe listOf(0, 900_000_000)
+		lons.toList() shouldBe listOf(-1_800_000_000, 0)
+	}
+
+	@Test
+	fun `rejects coordinates outside Earth range before encoding or narrowing`() {
+		assertThrows<IllegalArgumentException> {
+			PolylineE7Codec.encode(intArrayOf(900_000_001), intArrayOf(0))
+		}
+		assertThrows<IllegalArgumentException> {
+			PolylineE7Codec.decode(packedVarints(1L, zigZag(900_000_001L), zigZag(0L)))
+		}
+	}
+
+	@Test
+	fun `rejects trailing and overflowing varints`() {
+		val valid = PolylineE7Codec.encode(intArrayOf(0), intArrayOf(0))
+		assertThrows<IllegalArgumentException> { PolylineE7Codec.decode(valid + 0x00.toByte()) }
+		assertThrows<IllegalArgumentException> {
+			PolylineE7Codec.decode(byteArrayOf(0x81.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(),
+				0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x80.toByte(), 0x02))
+		}
+	}
+
+	private fun packedVarints(vararg values: Long): ByteArray = ByteArrayOutputStream().use { out ->
+		values.forEach { value ->
+			var remaining = value
+			while ((remaining and 0x7FL.inv()) != 0L) {
+				out.write(((remaining and 0x7FL) or 0x80L).toInt())
+				remaining = remaining ushr 7
+			}
+			out.write(remaining.toInt())
+		}
+		out.toByteArray()
+	}
+
+	private fun zigZag(value: Long): Long = (value shl 1) xor (value shr 63)
 }

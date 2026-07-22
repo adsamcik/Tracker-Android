@@ -62,10 +62,18 @@ data class ParsedOsmWay(
 data class OsmParseStats(
 	val nodeCount: Long,
 	val wayCount: Long,
-	val minLatE7: Int,
-	val maxLatE7: Int,
-	val minLonE7: Int,
-	val maxLonE7: Int,
+	/** Independent extrema for import diagnostics; never a spatial bbox. */
+	val diagnosticMinLatitudeE7: Int,
+	val diagnosticMaxLatitudeE7: Int,
+	/** Ordered longitude extrema for diagnostics; not a circular interval. */
+	val diagnosticMinLongitudeE7: Int,
+	val diagnosticMaxLongitudeE7: Int,
+	/** Aggregate count of target PBF nodes rejected before unsafe E7 narrowing. */
+	val rejectedInvalidCoordinateNodes: Long = 0L,
+	/** Aggregate count of ways whose circular longitude interval was full. */
+	val rejectedInvalidLongitudeCoverageWays: Long = 0L,
+	/** Aggregate count of ways whose bounded cell coverage was too large. */
+	val rejectedExcessiveCellCoverageWays: Long = 0L,
 )
 
 /** Phase identifier reported to [OsmParseProgress] callbacks. */

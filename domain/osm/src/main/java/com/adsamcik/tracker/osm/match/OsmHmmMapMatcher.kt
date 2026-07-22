@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.osm.match
 
 import com.adsamcik.tracker.osm.io.OsmGridIndex
+import com.adsamcik.tracker.osm.io.OsmCellCoverage
 import com.adsamcik.tracker.osm.io.PolylineE7Codec
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
+import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
 import com.adsamcik.tracker.stats.api.roadmatch.MatchedEdge
+import com.adsamcik.tracker.stats.api.roadmatch.RoadLimitProvenance
+import com.adsamcik.tracker.stats.api.roadmatch.RoadMatchStatus
 import com.adsamcik.tracker.stats.api.roadmatch.RoadObservation
 import com.adsamcik.tracker.stats.api.roadmatch.RoadPoint
 import javax.inject.Inject
@@ -52,34 +56,37 @@ class OsmHmmMapMatcher @Inject constructor(
 		val candidatesPerObs = observations.map { obs -> candidatesFor(obs, decodedWays, cellToWayIdx) }
 
 		val edges = ArrayList<MatchedEdge>()
-		var i = 0
-		val n = observations.size
-		while (i < n) {
-			if (candidatesPerObs[i].isEmpty()) {
-				i++
+		var start = 0
+		while (start < observations.lastIndex) {
+			if (!isMatchableTransition(observations, candidatesPerObs, start)) {
+				edges += unavailableEdge(start, start + 1, RoadMatchStatus.GAP)
+				start++
 				continue
 			}
-			var j = i
-			while (j + 1 < n &&
-				candidatesPerObs[j + 1].isNotEmpty() &&
-				!isGap(observations[j], observations[j + 1])
-			) {
-				j++
+			var end = start + 1
+			while (end < observations.lastIndex && isMatchableTransition(observations, candidatesPerObs, end)) {
+				end++
 			}
-			if (j > i) {
-				edges.addAll(matchRun(observations, candidatesPerObs, decodedWays, i, j))
-			}
-			i = j + 1
+			edges.addAll(matchRun(observations, candidatesPerObs, decodedWays, start, end))
+			start = end
 		}
 		return edges
 	}
+
+	private fun isMatchableTransition(
+		observations: List<RoadObservation>,
+		candidatesPerObs: List<List<RoadCandidate>>,
+		fromIndex: Int,
+	): Boolean = candidatesPerObs[fromIndex].isNotEmpty() &&
+		candidatesPerObs[fromIndex + 1].isNotEmpty() &&
+		!isGap(observations[fromIndex], observations[fromIndex + 1])
 
 	// region candidate loading
 
 	private suspend fun loadCandidateWays(observations: List<RoadObservation>): List<DecodedWay> {
 		val cellKeys = LinkedHashSet<Long>()
 		for (obs in observations) {
-			for (cell in OsmGridIndex.cellAnd8Neighbors(obs.latE7, obs.lonE7)) {
+			for (cell in candidateCellsFor(obs).orEmpty()) {
 				cellKeys.add(cell)
 			}
 		}
@@ -102,17 +109,25 @@ class OsmHmmMapMatcher @Inject constructor(
 	private fun decodeWay(entity: OsmWayEntity): DecodedWay? {
 		val (lats, lons) = PolylineE7Codec.decode(entity.geomPolylineE7)
 		if (lats.size < 2) return null
-		val cells = OsmGridIndex.cellKeysForBbox(
+		val coverage = OsmGridIndex.cellCoverageForBbox(
 			minLatE7 = entity.bboxMinLatE7,
 			maxLatE7 = entity.bboxMaxLatE7,
-			minLonE7 = entity.bboxMinLonE7,
-			maxLonE7 = entity.bboxMaxLonE7,
+			startLonE7 = entity.bboxMinLonE7,
+			endLonE7 = entity.bboxMaxLonE7,
 		)
+		val cells = (coverage as? OsmCellCoverage.Available)?.cellKeys ?: return null
 		return DecodedWay(
+			osmWayId = entity.id,
+			importId = entity.importId,
 			latsE7 = lats,
 			lonsE7 = lons,
 			cumArcLenM = OsmGeometry.cumulativeArcLengthM(lats, lons),
 			maxspeedKmh = entity.maxspeedKmh,
+			limitProvenance = when {
+				entity.maxspeedKmh <= 0 -> RoadLimitProvenance.UNSUPPORTED
+				entity.maxspeedExplicit == 1 -> RoadLimitProvenance.EXPLICIT_OSM_TAG
+				else -> RoadLimitProvenance.ROAD_CLASS_HEURISTIC
+			},
 			cells = cells,
 		)
 	}
@@ -133,7 +148,7 @@ class OsmHmmMapMatcher @Inject constructor(
 		cellToWayIdx: Map<Long, MutableList<Int>>,
 	): List<RoadCandidate> {
 		val wayIndices = LinkedHashSet<Int>()
-		for (cell in OsmGridIndex.cellAnd8Neighbors(obs.latE7, obs.lonE7)) {
+		for (cell in candidateCellsFor(obs).orEmpty()) {
 			cellToWayIdx[cell]?.let { wayIndices.addAll(it) }
 		}
 		if (wayIndices.isEmpty()) return emptyList()
@@ -150,6 +165,20 @@ class OsmHmmMapMatcher @Inject constructor(
 		}
 		candidates.sortBy { it.proj.distanceM }
 		return if (candidates.size > MAX_CANDIDATES) candidates.subList(0, MAX_CANDIDATES) else candidates
+	}
+
+	/**
+	 * Uses the same conservative metre-radius coverage as the other OSM
+	 * consumers. Invalid coordinates and polar/full coverage abstain rather than
+	 * throwing or guessing from a truncated fixed neighborhood.
+	 */
+	private fun candidateCellsFor(observation: RoadObservation): LongArray? {
+		val coordinate = CheckedCoordinateE7.fromE7OrNull(
+			latitudeE7 = observation.latE7.toLong(),
+			longitudeE7 = observation.lonE7.toLong(),
+		) ?: return null
+		return (OsmGridIndex.cellCoverageForRadius(coordinate, SNAP_RADIUS_M) as? OsmCellCoverage.Available)
+			?.cellKeys
 	}
 
 	// endregion
@@ -184,24 +213,46 @@ class OsmHmmMapMatcher @Inject constructor(
 			},
 		)
 
-		if (chosen.isEmpty()) return emptyList()
+		if (chosen.isEmpty()) {
+			return (1 until length).map { localI ->
+				unavailableEdge(start + localI - 1, start + localI, RoadMatchStatus.NO_PATH)
+			}
+		}
 
 		val edges = ArrayList<MatchedEdge>(length - 1)
 		for (localI in 1 until length) {
 			val prev = candidatesPerObs[start + localI - 1][chosen[localI - 1]]
 			val cur = candidatesPerObs[start + localI][chosen[localI]]
-			val built = buildEdgePath(prev, cur, decodedWays) ?: continue
-			edges.add(
-				MatchedEdge(
-					fromIndex = start + localI - 1,
-					toIndex = start + localI,
-					path = built.first,
-					maxspeedKmh = built.second,
-				),
-			)
+			val fromIndex = start + localI - 1
+			val toIndex = start + localI
+			val built = buildEdgePath(prev, cur, decodedWays)
+			if (built == null) {
+				edges += unavailableEdge(fromIndex, toIndex, RoadMatchStatus.NO_PATH)
+			} else {
+				edges += MatchedEdge(
+					fromIndex = fromIndex,
+					toIndex = toIndex,
+					path = built.path,
+					maxspeedKmh = built.way.maxspeedKmh,
+					limitProvenance = built.way.limitProvenance,
+					importId = built.way.importId,
+					osmWayId = built.way.osmWayId,
+				)
+			}
 		}
 		return edges
 	}
+
+	private fun unavailableEdge(
+		fromIndex: Int,
+		toIndex: Int,
+		status: RoadMatchStatus,
+	): MatchedEdge = MatchedEdge(
+		fromIndex = fromIndex,
+		toIndex = toIndex,
+		path = emptyList(),
+		matchStatus = status,
+	)
 
 	private fun transitionLog(
 		prevObs: RoadObservation,
@@ -232,7 +283,7 @@ class OsmHmmMapMatcher @Inject constructor(
 		prev: RoadCandidate,
 		cur: RoadCandidate,
 		decodedWays: List<DecodedWay>,
-	): Pair<List<RoadPoint>, Int>? {
+	): BuiltEdge? {
 		return if (prev.wayIndex == cur.wayIndex) {
 			val way = decodedWays[prev.wayIndex]
 			val (lats, lons) = OsmGeometry.slicePolyline(
@@ -242,7 +293,7 @@ class OsmHmmMapMatcher @Inject constructor(
 				cur.proj.snappedLatE7, cur.proj.snappedLonE7,
 			)
 			val points = dedupConsecutive(lats, lons)
-			if (points.size >= 2) points to way.maxspeedKmh else null
+			if (points.size >= 2) BuiltEdge(points, way) else null
 		} else {
 			val gap = OsmGeometry.distanceM(
 				prev.proj.snappedLatE7, prev.proj.snappedLonE7,
@@ -255,7 +306,7 @@ class OsmHmmMapMatcher @Inject constructor(
 					intArrayOf(prev.proj.snappedLatE7, cur.proj.snappedLatE7),
 					intArrayOf(prev.proj.snappedLonE7, cur.proj.snappedLonE7),
 				)
-				if (points.size >= 2) points to decodedWays[prev.wayIndex].maxspeedKmh else null
+				if (points.size >= 2) BuiltEdge(points, decodedWays[prev.wayIndex]) else null
 			}
 		}
 	}
@@ -277,11 +328,19 @@ class OsmHmmMapMatcher @Inject constructor(
 	}
 
 	private class DecodedWay(
+		val osmWayId: Long,
+		val importId: Long,
 		val latsE7: IntArray,
 		val lonsE7: IntArray,
 		val cumArcLenM: DoubleArray,
 		val maxspeedKmh: Int,
+		val limitProvenance: RoadLimitProvenance,
 		val cells: LongArray,
+	)
+
+	private data class BuiltEdge(
+		val path: List<RoadPoint>,
+		val way: DecodedWay,
 	)
 
 	private class RoadCandidate(

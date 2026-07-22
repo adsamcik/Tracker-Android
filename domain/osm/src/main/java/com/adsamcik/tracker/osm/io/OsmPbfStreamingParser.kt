@@ -2,6 +2,8 @@ package com.adsamcik.tracker.osm.io
 
 import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.osm.OsmRoadClass
+import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
+import com.adsamcik.tracker.shared.model.geo.CircularLongitudeInterval
 import crosby.binary.BinaryParser
 import crosby.binary.Osmformat
 import crosby.binary.file.BlockInputStream
@@ -10,103 +12,29 @@ import java.io.InputStream
 import kotlin.coroutines.coroutineContext
 
 /**
- * Streaming two-pass parser over an OpenStreetMap PBF file.
+ * Legacy two-pass OpenStreetMap PBF parser retained only behind the offline-PBF
+ * release gate for focused characterization.
  *
- * **Streaming guarantee (R2 round-6 perf review):** the parser NEVER reads the
- * entire PBF file into memory. Both passes consume the file via
- * [crosby.binary.file.BlockInputStream], which decodes one PBF block (typically
- * 16 MB uncompressed) at a time and discards each block's `Blob` after the
- * registered [BinaryParser] callbacks return. Pass 1 retains only driveable
- * ways and the set of referenced node ids; pass 2 retains lat/lon for those
- * referenced ids (packed into one `Long` each). At no point is the input file's
- * raw bytes held in memory in their entirety. Combined with the
- * [MAX_FILE_SIZE_BYTES] up-front guard, this keeps OSM import RSS bounded even
- * for attacker-supplied .osm.pbf files.
+ * It must not be connected to an untrusted user-selected file. The unmodified
+ * [BlockInputStream] creates generated protobuf object graphs before Tracker
+ * receives callbacks, and the pass-one [BufferedWay] / reference collections
+ * are not bounded by [maxReferencedNodes]. The library also trusts compressed
+ * block metadata while decoding. Therefore [MAX_FILE_SIZE_BYTES] and the
+ * distinct-node cap are legacy product/characterization limits, not an RSS
+ * bound and not a security contract for attacker-controlled `.osm.pbf` input.
  *
- * Pass 1 walks every way and buffers driveable ones (per [OsmRoadClass]) plus
- * the set of node ids they reference. Pass 2 walks every node (regular and
- * dense) and keeps lat/lon (in E7, packed into a single Long) for the
- * referenced ids only. The buffered ways are then resolved into [ParsedOsmWay]
- * batches and handed to [onWayBatch] for persistence.
+ * A future safe intake must use a private actual-byte-counted snapshot, strict
+ * framing and exact decompression, validated headers/primitive structure, and
+ * a combined allocation/disk/work ledger before re-enabling this parser path.
  *
- * Strict offline contract: the input stream factory MUST point at a local file
- * — the parser never opens a URL.
- *
- * **Heap envelope per phase (R2 round-6, round-2; round-7 adaptive cap):** the
- * parser allocates two heavyweight intermediate maps and one buffer. Because
- * both maps key on boxed [Long]s, the per-entry footprint is dominated by the
- * JVM's `HashMap.Node` (~48 B) plus the boxed [Long] (~24 B) — roughly **72
- * bytes per node id** in `nodeIds` and **80 bytes per (id → packed lat/lon)
- * entry** in `nodePositions`. Pass-2 peak concurrently holds both, so the
- * effective worst-case footprint is ~150 B per referenced node, which we round
- * up to [PEAK_BYTES_PER_NODE_REF] (200 B) to absorb hash-table over-allocation
- * (default load factor 0.75 inflates the underlying array by ~33 %).
- *
- * The parser computes its [maxReferencedNodes] cap **adaptively** at
- * construction from [Runtime.getRuntime].maxMemory():
- *
- *  - Budget = 25 % of total JVM heap ([HEAP_BUDGET_NUMERATOR] /
- *    [HEAP_BUDGET_DENOMINATOR]).
- *  - Raw cap = budget / [PEAK_BYTES_PER_NODE_REF].
- *  - Coerced into [[MIN_REFERENCED_NODES_FLOOR], [MAX_REFERENCED_NODES_CEILING]].
- *
- * That gives realistic device-class caps:
- *
- *  | Heap     | Raw cap   | Final cap |
- *  |----------|-----------|-----------|
- *  | 256 MB   | ~336 k    | **~336 k**|
- *  | 384 MB   | ~503 k    | **~503 k**|
- *  | 512 MB   | ~671 k    | **~671 k**|
- *  | 1024 MB  | ~1.34 M   | **~1.34 M**|
- *  | 2048 MB+ | ~2.68 M+  | **2.00 M (ceiling)** |
- *  | <128 MB  | small     | **256 k (floor)** |
- *
- * Per-phase consequences at the chosen cap:
- *
- *  - After pass 1: `nodeIds` ≤ ~70 B × cap; `wayBuffer` typically ≤ 5 MB
- *    (refs are stored as primitive `LongArray`s — no boxing).
- *  - After pass 2: `nodeIds` is no longer needed and is explicitly
- *    [HashSet.clear]ed before the emit loop begins.
- *  - During emit: only `nodePositions` (~80 B × cap) and `wayBuffer` remain
- *    resident, plus the in-flight [ParsedOsmWay] batch (≤
- *    [DEFAULT_WAY_BATCH_SIZE] entries × small bbox header). Downstream
- *    [OsmImportWorker] persists each batch in 5 000-way DB chunks, so peak
- *    transient allocations outside the parser stay bounded too.
- *
- * The 25 % budget leaves the other 75 % of heap for the OS / Compose UI / Room
- * write batches / OkHttp connections / etc. that share the process, which is
- * what makes the cap safe on 256 MB devices that previously OOM'd under the
- * fixed 2 M cap.
- *
- * Together with the [MAX_FILE_SIZE_BYTES] guard (100 MB) this keeps the worst
- * realistic OSM import — a fully driveable, urban .osm.pbf — well inside the
- * Android `dalvik.vm.heapgrowthlimit` envelope on every device class.
- *
- * Tuning: the per-record estimate is intentionally conservative. If a future
- * refactor swaps the boxed-Long collections for a primitive-long set/map
- * (Eclipse Collections / fastutil), drop [PEAK_BYTES_PER_NODE_REF] to ~24 B
- * and the same 25 % budget will unlock ~8× more headroom automatically.
- *
- * Memory guardrails (Phase 2a + R2 round-6 round-2 + R2 round-7):
- *  - PBF file size must not exceed [MAX_FILE_SIZE_BYTES] (~100 MB).
- *  - Referenced node count must not exceed [maxReferencedNodes] (adaptive,
- *    in [[MIN_REFERENCED_NODES_FLOOR], [MAX_REFERENCED_NODES_CEILING]]).
- *
- * Cancellation: cooperative — the parser polls [coroutineContext] and
- * [CancellationCheck.isCancelled] periodically. Mid-stream cancellation throws
- * [ParseCancelledMarker] to unwind the synchronous [BlockInputStream.process]
- * loop, which the outer [parse] catches and re-raises as a
- * [kotlinx.coroutines.CancellationException] via [ensureActive].
- *
- * Thread safety: a single [parse] invocation is single-threaded; concurrent
- * invocations on one instance are NOT supported.
+ * Cancellation is cooperative. A single [parse] invocation is single-threaded;
+ * concurrent invocations on one instance are not supported.
  */
 class OsmPbfStreamingParser(
 	/**
-	 * Total JVM heap budget the parser may scale its caps against. Defaults to
-	 * [Runtime.maxMemory] so production callers pick up the real device limit
-	 * (`dalvik.vm.heapgrowthlimit` on Android). Tests may inject a fixed value
-	 * to exercise specific device classes.
+	 * Legacy heap input used to derive a characterization-only node cap. This
+	 * does not reserve process memory or bound other parser/output allocations.
+	 * Tests may inject a fixed value to exercise the historical calculation.
 	 */
 	private val maxMemoryBytes: Long = Runtime.getRuntime().maxMemory(),
 ) {
@@ -114,8 +42,7 @@ class OsmPbfStreamingParser(
 	/**
 	 * Adaptive cap on distinct referenced node ids retained across both
 	 * passes — derived once at construction from [maxMemoryBytes] via
-	 * [computeMaxReferencedNodes]. See the class KDoc "Heap envelope" section
-	 * for the device-class table.
+	 * [computeMaxReferencedNodes]. It is not a complete resource limit.
 	 */
 	val maxReferencedNodes: Int = computeMaxReferencedNodes(maxMemoryBytes)
 
@@ -154,8 +81,7 @@ class OsmPbfStreamingParser(
 			throw OsmParseException.FileTooLarge(fileSizeBytes, MAX_FILE_SIZE_BYTES)
 		}
 
-		// Log the chosen adaptive cap so field reports can be debugged without
-		// reproducing the device's exact heap envelope. Goes through the
+		// Log the chosen legacy cap for characterization diagnostics. Goes through the
 		// :logging-api facade so this stays a no-op when no delegate is wired
 		// (e.g. unit tests, instrumentation harnesses).
 		ReporterFacade.log(
@@ -192,12 +118,14 @@ class OsmPbfStreamingParser(
 			return OsmParseStats(
 				nodeCount = 0L,
 				wayCount = 0L,
-				minLatE7 = 0,
-				maxLatE7 = 0,
-				minLonE7 = 0,
-				maxLonE7 = 0,
+				diagnosticMinLatitudeE7 = 0,
+				diagnosticMaxLatitudeE7 = 0,
+				diagnosticMinLongitudeE7 = 0,
+				diagnosticMaxLongitudeE7 = 0,
 			)
 		}
+
+		val rejectionCounts = WayRejectionCounts()
 
 		// --- Pass 2: scan nodes (both dense and regular) ---
 		val nodePositions = HashMap<Long, Long>(nodeIds.size)
@@ -210,6 +138,7 @@ class OsmPbfStreamingParser(
 					targetIds = nodeIds,
 					positions = nodePositions,
 					counter = pass2Counter,
+					rejectionCounts = rejectionCounts,
 				)
 				BlockInputStream(input, parser).process()
 			}
@@ -218,11 +147,9 @@ class OsmPbfStreamingParser(
 		onProgress?.invoke(OsmParseProgress(OsmParsePhase.SCAN_NODES, pass2Counter.value))
 
 		// `nodeIds` is no longer needed once `nodePositions` has been built —
-		// the emit phase only looks ids up in `nodePositions`. Explicitly free
-		// the boxed-Long HashSet (~70 bytes per entry × up to the adaptive
-		// `maxReferencedNodes` cap) before the emit loop allocates per-way
-		// [ParsedOsmWay] objects. This matches the per-phase heap envelope
-		// documented on the class KDoc.
+		// the emit phase only looks ids up in `nodePositions`. Releasing it
+		// reduces retained legacy-parser state, but does not make total parsing
+		// allocations safe for untrusted input.
 		nodeIds.clear()
 
 		// --- Emit ---
@@ -231,14 +158,18 @@ class OsmPbfStreamingParser(
 		var globalMinLon = Int.MAX_VALUE
 		var globalMaxLon = Int.MIN_VALUE
 		var emittedWays = 0L
-		val rejectionCounts = WayRejectionCounts()
 		val batch = ArrayList<ParsedOsmWay>(wayBatchSize)
 		for (buffered in wayBuffer) {
 			val parsed = buildParsedWay(buffered, nodePositions, rejectionCounts) ?: continue
 			if (parsed.bboxMinLatE7 < globalMinLat) globalMinLat = parsed.bboxMinLatE7
 			if (parsed.bboxMaxLatE7 > globalMaxLat) globalMaxLat = parsed.bboxMaxLatE7
-			if (parsed.bboxMinLonE7 < globalMinLon) globalMinLon = parsed.bboxMinLonE7
-			if (parsed.bboxMaxLonE7 > globalMaxLon) globalMaxLon = parsed.bboxMaxLonE7
+			// Parse statistics retain their historical ordered numeric extrema;
+			// persisted bbox fields below use explicit directed interval endpoints.
+			val (_, geometryLongitudes) = PolylineE7Codec.decode(parsed.geomPolylineE7)
+			val orderedMinLon = geometryLongitudes.minOrNull() ?: parsed.bboxMinLonE7
+			val orderedMaxLon = geometryLongitudes.maxOrNull() ?: parsed.bboxMaxLonE7
+			if (orderedMinLon < globalMinLon) globalMinLon = orderedMinLon
+			if (orderedMaxLon > globalMaxLon) globalMaxLon = orderedMaxLon
 
 			batch.add(parsed)
 			emittedWays++
@@ -254,12 +185,14 @@ class OsmPbfStreamingParser(
 			onWayBatch(batch.toList())
 		}
 		onProgress?.invoke(OsmParseProgress(OsmParsePhase.EMIT_WAYS, emittedWays))
-		if (rejectionCounts.missingNodeWays > 0L ||
+		if (rejectionCounts.invalidCoordinateNodes > 0L ||
+			rejectionCounts.missingNodeWays > 0L ||
 			rejectionCounts.invalidLongitudeCoverageWays > 0L ||
 			rejectionCounts.excessiveCellCoverageWays > 0L
 		) {
 			ReporterFacade.log(
-				"OsmPbfStreamingParser: rejectedMissingNodeWays=${rejectionCounts.missingNodeWays}, " +
+				"OsmPbfStreamingParser: rejectedInvalidCoordinateNodes=${rejectionCounts.invalidCoordinateNodes}, " +
+					"rejectedMissingNodeWays=${rejectionCounts.missingNodeWays}, " +
 					"rejectedInvalidLongitudeCoverageWays=${rejectionCounts.invalidLongitudeCoverageWays}, " +
 					"rejectedExcessiveCellCoverageWays=${rejectionCounts.excessiveCellCoverageWays}",
 			)
@@ -269,19 +202,25 @@ class OsmPbfStreamingParser(
 			OsmParseStats(
 				nodeCount = pass2Counter.value,
 				wayCount = 0L,
-				minLatE7 = 0,
-				maxLatE7 = 0,
-				minLonE7 = 0,
-				maxLonE7 = 0,
+				diagnosticMinLatitudeE7 = 0,
+				diagnosticMaxLatitudeE7 = 0,
+				diagnosticMinLongitudeE7 = 0,
+				diagnosticMaxLongitudeE7 = 0,
+				rejectedInvalidCoordinateNodes = rejectionCounts.invalidCoordinateNodes,
+				rejectedInvalidLongitudeCoverageWays = rejectionCounts.invalidLongitudeCoverageWays,
+				rejectedExcessiveCellCoverageWays = rejectionCounts.excessiveCellCoverageWays,
 			)
 		} else {
 			OsmParseStats(
 				nodeCount = pass2Counter.value,
 				wayCount = emittedWays,
-				minLatE7 = globalMinLat,
-				maxLatE7 = globalMaxLat,
-				minLonE7 = globalMinLon,
-				maxLonE7 = globalMaxLon,
+				diagnosticMinLatitudeE7 = globalMinLat,
+				diagnosticMaxLatitudeE7 = globalMaxLat,
+				diagnosticMinLongitudeE7 = globalMinLon,
+				diagnosticMaxLongitudeE7 = globalMaxLon,
+				rejectedInvalidCoordinateNodes = rejectionCounts.invalidCoordinateNodes,
+				rejectedInvalidLongitudeCoverageWays = rejectionCounts.invalidLongitudeCoverageWays,
+				rejectedExcessiveCellCoverageWays = rejectionCounts.excessiveCellCoverageWays,
 			)
 		}
 	}
@@ -322,29 +261,28 @@ class OsmPbfStreamingParser(
 
 		var minLat = Int.MAX_VALUE
 		var maxLat = Int.MIN_VALUE
-		var minLon = Int.MAX_VALUE
-		var maxLon = Int.MIN_VALUE
 		for (i in lats.indices) {
 			val la = lats[i]
-			val lo = lons[i]
 			if (la < minLat) minLat = la
 			if (la > maxLat) maxLat = la
-			if (lo < minLon) minLon = lo
-			if (lo > maxLon) maxLon = lo
 		}
-		val longitudeBounds = polylineLongitudeBoundsE7(lons)
-		if (longitudeBounds == null) {
+		val longitudeInterval = CircularLongitudeInterval.fromShortestEdgePolyline(lons)
+		if (longitudeInterval === CircularLongitudeInterval.Full) {
 			rejectionCounts.invalidLongitudeCoverageWays++
 			return null
 		}
-		val (cellMinLon, cellMaxLon) = longitudeBounds
 
 		val blob = PolylineE7Codec.encode(lats, lons)
-		val cells = OsmGridIndex.cellKeysForBbox(minLat, maxLat, cellMinLon, cellMaxLon)
-		if (cells.isEmpty()) {
-			rejectionCounts.excessiveCellCoverageWays++
-			return null
+		val cells = when (
+			val coverage = OsmGridIndex.cellCoverageForBounds(minLat, maxLat, longitudeInterval)
+		) {
+			is OsmCellCoverage.Available -> coverage.cellKeys
+			is OsmCellCoverage.TooLarge -> {
+				rejectionCounts.excessiveCellCoverageWays++
+				return null
+			}
 		}
+		val intervalEnd = checkNotNull(longitudeInterval.endE7)
 		return ParsedOsmWay(
 			osmId = buffered.osmId,
 			name = buffered.name,
@@ -355,31 +293,11 @@ class OsmPbfStreamingParser(
 			geomPolylineE7 = blob,
 			bboxMinLatE7 = minLat,
 			bboxMaxLatE7 = maxLat,
-			bboxMinLonE7 = minLon,
-			bboxMaxLonE7 = maxLon,
+			bboxMinLonE7 = longitudeInterval.startE7.toInt(),
+			bboxMaxLonE7 = intervalEnd.toInt(),
 			cellKeys = cells,
 		)
 	}
-
-	private fun polylineLongitudeBoundsE7(lonsE7: IntArray): Pair<Int, Int>? {
-		var previousLon = lonsE7[0].toLong()
-		var unwrappedLon = normalizeLongitudeE7(previousLon)
-		var minUnwrappedLon = unwrappedLon
-		var maxUnwrappedLon = unwrappedLon
-		for (i in 1 until lonsE7.size) {
-			val currentLon = lonsE7[i].toLong()
-			unwrappedLon += normalizeLongitudeE7(currentLon - previousLon)
-			if (unwrappedLon < minUnwrappedLon) minUnwrappedLon = unwrappedLon
-			if (unwrappedLon > maxUnwrappedLon) maxUnwrappedLon = unwrappedLon
-			if (maxUnwrappedLon - minUnwrappedLon > HALF_WORLD_E7) return null
-			previousLon = currentLon
-		}
-		return normalizeLongitudeE7(minUnwrappedLon).toInt() to
-			normalizeLongitudeE7(maxUnwrappedLon).toInt()
-	}
-
-	private fun normalizeLongitudeE7(value: Long): Long =
-		Math.floorMod(value + HALF_WORLD_E7, WORLD_E7) - HALF_WORLD_E7
 
 	/**
 	 * Pass 1 inner parser — scans every Way, keeps driveable ones and records
@@ -481,6 +399,7 @@ class OsmPbfStreamingParser(
 		private val targetIds: Set<Long>,
 		private val positions: HashMap<Long, Long>,
 		private val counter: LongCounter,
+		private val rejectionCounts: WayRejectionCounts,
 	) : BinaryParser() {
 
 		override fun parseWays(ways: MutableList<Osmformat.Way>?) {
@@ -501,9 +420,12 @@ class OsmPbfStreamingParser(
 				if (cancellation.isCancelled) throw ParseCancelledMarker
 				counter.value++
 				if (!targetIds.contains(n.id)) continue
-				val latE7 = toE7(parseLat(n.lat))
-				val lonE7 = toE7(parseLon(n.lon))
-				positions[n.id] = packLatLon(latE7, lonE7)
+				val coordinate = CheckedCoordinateE7.fromDegreesOrNull(parseLat(n.lat), parseLon(n.lon))
+				if (coordinate == null) {
+					rejectionCounts.invalidCoordinateNodes++
+					continue
+				}
+				positions[n.id] = packLatLon(coordinate.latitudeE7, coordinate.longitudeE7)
 			}
 		}
 
@@ -514,9 +436,9 @@ class OsmPbfStreamingParser(
 			var latAcc = 0L
 			var lonAcc = 0L
 			for (i in 0 until count) {
-				idAcc += nodes.getId(i)
-				latAcc += nodes.getLat(i)
-				lonAcc += nodes.getLon(i)
+				idAcc = checkedDenseAdd(idAcc, nodes.getId(i), "id")
+				latAcc = checkedDenseAdd(latAcc, nodes.getLat(i), "latitude")
+				lonAcc = checkedDenseAdd(lonAcc, nodes.getLon(i), "longitude")
 				counter.value++
 				if (counter.value % CANCEL_POLL_INTERVAL == 0L &&
 					cancellation.isCancelled
@@ -524,14 +446,23 @@ class OsmPbfStreamingParser(
 					throw ParseCancelledMarker
 				}
 				if (!targetIds.contains(idAcc)) continue
-				val latE7 = toE7(parseLat(latAcc))
-				val lonE7 = toE7(parseLon(lonAcc))
-				positions[idAcc] = packLatLon(latE7, lonE7)
+				val coordinate = CheckedCoordinateE7.fromDegreesOrNull(parseLat(latAcc), parseLon(lonAcc))
+				if (coordinate == null) {
+					rejectionCounts.invalidCoordinateNodes++
+					continue
+				}
+				positions[idAcc] = packLatLon(coordinate.latitudeE7, coordinate.longitudeE7)
 			}
 		}
 
 		private fun checkCancellation() {
 			if (cancellation.isCancelled) throw ParseCancelledMarker
+		}
+
+		private fun checkedDenseAdd(current: Long, delta: Long, field: String): Long = try {
+			Math.addExact(current, delta)
+		} catch (_: ArithmeticException) {
+			throw OsmParseException.DenseDeltaOverflow(field)
 		}
 	}
 
@@ -563,6 +494,7 @@ class OsmPbfStreamingParser(
 	}
 
 	private class WayRejectionCounts {
+		var invalidCoordinateNodes: Long = 0L
 		var missingNodeWays: Long = 0L
 		var invalidLongitudeCoverageWays: Long = 0L
 		var excessiveCellCoverageWays: Long = 0L
@@ -578,25 +510,9 @@ class OsmPbfStreamingParser(
 		const val MAX_FILE_SIZE_BYTES: Long = 100L * 1024L * 1024L
 
 		/**
-		 * Hard ceiling on the adaptive [maxReferencedNodes] cap, regardless of
-		 * how much heap is available. Sized so that with the ~70 bytes/entry
-		 * cost of a boxed-`Long` HashSet entry on the Android runtime, the
-		 * pass-1 `nodeIds` set stays under ~140 MB even at the ceiling, and
-		 * the pass-2 `nodePositions` map (~80 bytes/entry — Node + boxed-Long
-		 * key + boxed-Long packed value) stays under ~160 MB.
-		 *
-		 * Even on a 2 GB-heap device, we will not exceed this ceiling — that
-		 * combined ~300 MB transient peak is the absolute upper bound the
-		 * parser is willing to allocate. Adaptive scaling on smaller heaps
-		 * tightens the cap further (see [computeMaxReferencedNodes] and the
-		 * class KDoc "Heap envelope per phase" table).
-		 *
-		 * Historical: lowered from 8 000 000 to 2 000 000 in R2 round-6 round-2
-		 * (the higher cap admitted a worst-case ~560 MB transient that
-		 * adversarial inputs could weaponize). R2 round-7 then made the
-		 * runtime cap adaptive so 256 MB-heap devices get a much smaller
-		 * effective cap (~336 k) instead of being able to allocate up to this
-		 * ceiling.
+		 * Historical ceiling for the legacy distinct-node heuristic. It constrains
+		 * only that one collection and must not be interpreted as a total-memory
+		 * or hostile-input safety bound.
 		 */
 		const val MAX_REFERENCED_NODES_CEILING: Int = 2_000_000
 
@@ -613,21 +529,13 @@ class OsmPbfStreamingParser(
 		)
 		const val MAX_REFERENCED_NODES: Int = MAX_REFERENCED_NODES_CEILING
 
-		/**
-		 * Floor on the adaptive cap. Keeps very small heaps (≤ 128 MB JVMs and
-		 * tightly-constrained test runners) able to import small regions like
-		 * a single town. 256 000 refs × ~200 B peak = ~50 MB transient — fits
-		 * inside the 25 % budget even of a 200 MB heap.
-		 */
+		/** Floor on the historical characterization heuristic. */
 		const val MIN_REFERENCED_NODES_FLOOR: Int = 256_000
 
 		/**
-		 * Conservative per-entry footprint at pass-2 peak, in bytes. Covers the
-		 * concurrent residency of `nodeIds` (~70 B/entry) + `nodePositions`
-		 * (~80 B/entry), plus headroom for hash-table over-allocation (default
-		 * load factor 0.75 inflates the underlying array by ~33 %). Round up
-		 * to 200 B — better to under-cap and accept a `TooManyNodes` rejection
-		 * than to OOM mid-import.
+		 * Legacy per-node estimate used only by [computeMaxReferencedNodes]. It
+		 * excludes ways, references, generated protobuf objects, output batches,
+		 * and all coexistence costs, so it is not a memory-safety reservation.
 		 */
 		const val PEAK_BYTES_PER_NODE_REF: Long = 200L
 
@@ -678,9 +586,6 @@ class OsmPbfStreamingParser(
 				.toInt()
 		}
 
-		internal fun toE7(degrees: Double): Int =
-			kotlin.math.round(degrees * 1e7).toInt()
-
 		internal fun packLatLon(latE7: Int, lonE7: Int): Long =
 			(latE7.toLong() shl 32) or (lonE7.toLong() and 0xFFFFFFFFL)
 
@@ -712,5 +617,10 @@ sealed class OsmParseException(message: String) : RuntimeException(message) {
 
 	class TooManyNodes(val nodeCount: Long, val limit: Long) : OsmParseException(
 		"Referenced node count $nodeCount exceeds limit $limit",
+	)
+
+	/** A dense-node delta cannot be accumulated without signed-Long wraparound. */
+	class DenseDeltaOverflow(field: String) : OsmParseException(
+		"PBF dense-node $field delta overflows the checked accumulator",
 	)
 }

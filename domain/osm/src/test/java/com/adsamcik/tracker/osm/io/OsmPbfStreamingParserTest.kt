@@ -23,14 +23,11 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
 /**
- * Behavioural guard tests for [OsmPbfStreamingParser].
- *
- * Round-6 perf review (R2 round-6) requested explicit verification that the
- * parser refuses to load arbitrarily large PBF files into memory in a single
- * gulp. Round-7 then required the per-instance referenced-node cap to scale
- * with the JVM heap so 256 MB devices no longer hit OOM mid-import. These
- * tests pin both contracts so a future refactor can't silently lift the
- * ceiling or break adaptive scaling.
+ * Characterization tests for the legacy [OsmPbfStreamingParser]. The parser
+ * remains release-gated because its source cap and distinct-node heuristic do
+ * not bound generated protobuf blocks, retained ways/references, or output
+ * allocations for hostile input. These tests preserve historical behavior for
+ * isolated analysis; they do not certify safe PBF intake.
  */
 @DisplayName("OsmPbfStreamingParser")
 class OsmPbfStreamingParserTest {
@@ -46,7 +43,7 @@ class OsmPbfStreamingParserTest {
 	}
 
 	@Test
-	fun `rejects files larger than the 100 MB streaming cap before opening the stream`() = runTest {
+	fun `rejects files larger than the legacy 100 MB cap before opening the stream`() = runTest {
 		val parser = OsmPbfStreamingParser()
 		var openCount = 0
 		val oversize = OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES + 1
@@ -55,10 +52,8 @@ class OsmPbfStreamingParserTest {
 			parser.parse(
 				fileSizeBytes = oversize,
 				openInputStream = {
-					// The guard must trip BEFORE we touch the input stream — any
-					// attempt to open it indicates the size check has regressed
-					// into the streaming loop, which means an attacker-controlled
-					// .osm.pbf could pull arbitrary bytes into the parser.
+					// Preserve the legacy ordering contract for characterization;
+					// it is not a substitute for actual-byte-counted safe intake.
 					openCount++
 					ByteArrayInputStream(ByteArray(0))
 				},
@@ -72,40 +67,72 @@ class OsmPbfStreamingParserTest {
 	}
 
 	@Test
-	fun `streaming cap is the documented 100 MB ceiling`() {
-		// Pin the numeric value so any change is loud — the cap doubles as a
-		// memory budget (worst-case dense-node tables sized off file bytes) and
-		// as an attacker-bounded guarantee for arbitrary .osm.pbf imports.
+	fun `legacy source cap remains 100 MB for characterization`() {
+		// Pin the historical product limit without treating it as a memory or
+		// attacker-safety bound.
 		val oneHundredMb = 100L * 1024L * 1024L
 		OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES shouldBe oneHundredMb
 		OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES.shouldBeGreaterThan(0L)
 	}
 
 	@Test
-	fun `referenced-node ceiling is the documented heap-bound upper bound`() {
-		// Pin MAX_REFERENCED_NODES_CEILING so any change is loud. Combined
-		// with the per-entry cost of a boxed-Long HashSet/HashMap entry on
-		// the Android runtime (~70-80 bytes), this ceiling bounds the
-		// parser's two intermediate maps at ~140 MB and ~160 MB respectively
-		// even when the JVM has plenty of heap — see the class KDoc
-		// "Heap envelope per phase" section. R2 round-6 round-2 lowered this
-		// from 8 000 000 to 2 000 000 because the previous cap admitted a
-		// worst-case ~560 MB transient allocation realistic .osm.pbf payloads
-		// never need but adversarial inputs could weaponize. R2 round-7 kept
-		// the ceiling but made the runtime cap adaptive, so most devices now
-		// see a much tighter effective cap.
+	fun `referenced-node ceiling remains a legacy characterization heuristic`() {
+		// This pins a legacy heuristic only. It says nothing about the total
+		// parser footprint because retained ways, references, generated blocks,
+		// and output work are independently unbounded in this implementation.
 		OsmPbfStreamingParser.MAX_REFERENCED_NODES_CEILING shouldBe 2_000_000
 		@Suppress("DEPRECATION")
 		OsmPbfStreamingParser.MAX_REFERENCED_NODES shouldBe 2_000_000
 	}
 
 	@Test
-	fun `referenced-node floor protects very small heaps`() {
-		// Floor must stay high enough that single-town imports still succeed
-		// on devices with tightly-constrained heaps, but low enough that the
-		// floor's own peak (floor × PEAK_BYTES_PER_NODE_REF) fits well inside
-		// a 256 MB heap. 256 000 × 200 B = ~50 MB transient peak.
+	fun `referenced-node floor remains pinned for legacy characterization`() {
+		// This is historical behavior, not an affordability or safety claim.
 		OsmPbfStreamingParser.MIN_REFERENCED_NODES_FLOOR shouldBe 256_000
+	}
+
+	@Test
+	fun `positive fixture has a standard header and homogeneous primitive groups`() {
+		val fixture = validPbfWithWay(
+			wayNodeIds = longArrayOf(1L, 2L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = 0),
+				TestNode(id = 2L, latE7 = 0, lonE7 = 1),
+			),
+		)
+
+		fixture.header?.requiredFeaturesList shouldBe listOf("OsmSchema-V0.6", "DenseNodes")
+		fixture.primitiveBlock.primitivegroupList.forEach { group ->
+			val populatedKinds = listOf(
+				group.nodesCount,
+				group.waysCount,
+				group.relationsCount,
+			).count { it > 0 }
+			populatedKinds shouldBe 1
+		}
+	}
+
+	@Test
+	fun `headerless and mixed-group fixtures remain explicitly nonconformant`() {
+		val headerless = headerlessOsmDataNegativeFixture(
+			wayNodeIds = longArrayOf(1L, 2L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = 0),
+				TestNode(id = 2L, latE7 = 0, lonE7 = 1),
+			),
+		)
+		val mixed = mixedPrimitiveGroupNegativeFixture(
+			wayNodeIds = longArrayOf(1L, 2L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 0, lonE7 = 0),
+				TestNode(id = 2L, latE7 = 0, lonE7 = 1),
+			),
+		)
+
+		headerless.header shouldBe null
+		mixed.header?.requiredFeaturesList shouldBe listOf("OsmSchema-V0.6", "DenseNodes")
+		mixed.primitiveBlock.primitivegroupList.single().nodesCount shouldBe 2
+		mixed.primitiveBlock.primitivegroupList.single().waysCount shouldBe 1
 	}
 
 	@Test
@@ -130,7 +157,7 @@ class OsmPbfStreamingParserTest {
 	}
 
 	@Test
-	fun `antimeridian way keeps conventional bbox and emits bounded cells`() = runTest {
+	fun `antimeridian way persists the same directed interval used for cells`() = runTest {
 		val pbf = pbfWithWay(
 			wayNodeIds = longArrayOf(1L, 2L),
 			nodes = listOf(
@@ -147,12 +174,33 @@ class OsmPbfStreamingParserTest {
 		)
 
 		emitted.shouldHaveSize(1)
-		emitted.single().bboxMinLonE7 shouldBe -1_799_000_000
-		emitted.single().bboxMaxLonE7 shouldBe 1_799_000_000
+		emitted.single().bboxMinLonE7 shouldBe 1_799_000_000
+		emitted.single().bboxMaxLonE7 shouldBe -1_799_000_000
 		emitted.single().cellKeys.shouldHaveSize(21)
 		stats.wayCount shouldBe 1L
-		stats.minLonE7 shouldBe -1_799_000_000
-		stats.maxLonE7 shouldBe 1_799_000_000
+		stats.diagnosticMinLongitudeE7 shouldBe -1_799_000_000
+		stats.diagnosticMaxLongitudeE7 shouldBe 1_799_000_000
+	}
+
+	@Test
+	fun `invalid target node is rejected before E7 narrowing with an aggregate reason`() = runTest {
+		val pbf = pbfWithWay(
+			wayNodeIds = longArrayOf(1L, 2L),
+			nodes = listOf(
+				TestNode(id = 1L, latE7 = 900_000_001, lonE7 = 0),
+				TestNode(id = 2L, latE7 = 0, lonE7 = 0),
+			),
+		)
+		val emitted = mutableListOf<ParsedOsmWay>()
+
+		val stats = OsmPbfStreamingParser().parse(
+			fileSizeBytes = pbf.size.toLong(),
+			openInputStream = { ByteArrayInputStream(pbf) },
+			onWayBatch = { emitted.addAll(it) },
+		)
+
+		emitted.shouldHaveSize(0)
+		stats.rejectedInvalidCoordinateNodes shouldBe 1L
 	}
 
 	@Test
@@ -350,7 +398,46 @@ class OsmPbfStreamingParserTest {
 	private fun pbfWithWay(
 		wayNodeIds: LongArray,
 		nodes: List<TestNode>,
-	): ByteArray {
+	): ByteArray = validPbfWithWay(wayNodeIds, nodes).bytes
+
+	private fun validPbfWithWay(
+		wayNodeIds: LongArray,
+		nodes: List<TestNode>,
+	): TestPbfFixture = pbfFixture(
+		wayNodeIds = wayNodeIds,
+		nodes = nodes,
+		includeHeader = true,
+		homogeneousGroups = true,
+	)
+
+	/** Negative fixture retained for future strict-header intake tests. */
+	private fun headerlessOsmDataNegativeFixture(
+		wayNodeIds: LongArray,
+		nodes: List<TestNode>,
+	): TestPbfFixture = pbfFixture(
+		wayNodeIds = wayNodeIds,
+		nodes = nodes,
+		includeHeader = false,
+		homogeneousGroups = true,
+	)
+
+	/** Negative fixture retained for future strict-primitive-group intake tests. */
+	private fun mixedPrimitiveGroupNegativeFixture(
+		wayNodeIds: LongArray,
+		nodes: List<TestNode>,
+	): TestPbfFixture = pbfFixture(
+		wayNodeIds = wayNodeIds,
+		nodes = nodes,
+		includeHeader = true,
+		homogeneousGroups = false,
+	)
+
+	private fun pbfFixture(
+		wayNodeIds: LongArray,
+		nodes: List<TestNode>,
+		includeHeader: Boolean,
+		homogeneousGroups: Boolean,
+	): TestPbfFixture {
 		val stringTable = Osmformat.StringTable.newBuilder()
 			.addS(ByteString.copyFromUtf8(""))
 			.addS(ByteString.copyFromUtf8("highway"))
@@ -365,25 +452,48 @@ class OsmPbfStreamingParserTest {
 			way.addRefs(id - previousId)
 			previousId = id
 		}
-		val group = Osmformat.PrimitiveGroup.newBuilder().addWays(way)
+		val nodeGroup = Osmformat.PrimitiveGroup.newBuilder()
 		for (node in nodes) {
-			group.addNodes(
+			nodeGroup.addNodes(
 				Osmformat.Node.newBuilder()
 					.setId(node.id)
 					.setLat(node.latE7.toLong())
 					.setLon(node.lonE7.toLong()),
 			)
 		}
-		val block = Osmformat.PrimitiveBlock.newBuilder()
+		val blockBuilder = Osmformat.PrimitiveBlock.newBuilder()
 			.setStringtable(stringTable)
-			.addPrimitivegroup(group)
-			.build()
+		if (homogeneousGroups) {
+			blockBuilder
+				.addPrimitivegroup(nodeGroup)
+				.addPrimitivegroup(Osmformat.PrimitiveGroup.newBuilder().addWays(way))
+		} else {
+			blockBuilder.addPrimitivegroup(nodeGroup.addWays(way))
+		}
+		val block = blockBuilder.build()
+		val header = if (includeHeader) {
+			Osmformat.HeaderBlock.newBuilder()
+				.addRequiredFeatures("OsmSchema-V0.6")
+				.addRequiredFeatures("DenseNodes")
+				.build()
+		} else {
+			null
+		}
 		val bytes = ByteArrayOutputStream()
 		BlockOutputStream(bytes).use { output ->
+			if (header != null) {
+				output.write(FileBlock.newInstance("OSMHeader", header.toByteString(), null))
+			}
 			output.write(FileBlock.newInstance("OSMData", block.toByteString(), null))
 		}
-		return bytes.toByteArray()
+		return TestPbfFixture(bytes.toByteArray(), header, block)
 	}
+
+	private data class TestPbfFixture(
+		val bytes: ByteArray,
+		val header: Osmformat.HeaderBlock?,
+		val primitiveBlock: Osmformat.PrimitiveBlock,
+	)
 
 	companion object {
 		private const val BYTES_PER_MB: Long = 1024L * 1024L

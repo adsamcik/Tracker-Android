@@ -17,8 +17,8 @@ import com.adsamcik.tracker.osm.R
  * The channel is module-local: the OSM import is a rare user-initiated action
  * that should not be silenced together with the persistent tracking channel.
  *
- * Channel importance is LOW (no sound) — the user already knows the import is
- * happening because they tapped "Import" themselves.
+ * Channel importance is LOW (no sound). Notification content intentionally
+ * never includes a selected file name, URI, parser exception, or PBF content.
  */
 internal object OsmImportNotifications {
 
@@ -33,7 +33,6 @@ internal object OsmImportNotifications {
 	 */
 	fun buildProgress(
 		context: Context,
-		fileName: String,
 		waysProcessed: Long,
 	): android.app.Notification {
 		ensureChannel(context)
@@ -43,7 +42,6 @@ internal object OsmImportNotifications {
 			.setContentText(
 				context.getString(
 					R.string.osm_import_notification_content,
-					fileName,
 					waysProcessed,
 				),
 			)
@@ -63,12 +61,12 @@ internal object OsmImportNotifications {
 	}
 
 	/** Builds the completion notification shown when the import finished successfully. */
-	fun buildCompleted(context: Context, fileName: String): android.app.Notification {
+	fun buildCompleted(context: Context): android.app.Notification {
 		ensureChannel(context)
 		return NotificationCompat.Builder(context, CHANNEL_ID)
 			.setSmallIcon(android.R.drawable.stat_sys_download_done)
 			.setContentTitle(context.getString(R.string.osm_import_complete_title))
-			.setContentText(context.getString(R.string.osm_import_complete_content, fileName))
+			.setContentText(context.getString(R.string.osm_import_complete_content))
 			.setAutoCancel(true)
 			.setSilent(true)
 			.setCategory(NotificationCompat.CATEGORY_STATUS)
@@ -76,19 +74,21 @@ internal object OsmImportNotifications {
 			.build()
 	}
 
-	/** Builds the failure notification shown when parsing failed for any reason. */
-	fun buildFailed(context: Context, fileName: String, reason: String): android.app.Notification {
+	/** Builds a generic failure notification without exposing failure details. */
+	fun buildFailed(context: Context): android.app.Notification {
 		ensureChannel(context)
 		return NotificationCompat.Builder(context, CHANNEL_ID)
 			.setSmallIcon(android.R.drawable.stat_notify_error)
 			.setContentTitle(context.getString(R.string.osm_import_failed_title))
-			.setContentText(
-				context.getString(R.string.osm_import_failed_content, fileName, reason),
-			)
+			.setContentText(context.getString(R.string.osm_import_failed_content))
 			.setAutoCancel(true)
 			.setCategory(NotificationCompat.CATEGORY_ERROR)
 			.setPriority(NotificationCompat.PRIORITY_LOW)
-			.setStyle(NotificationCompat.BigTextStyle().bigText(reason))
+			.setStyle(
+				NotificationCompat.BigTextStyle().bigText(
+					context.getString(R.string.osm_import_failed_content),
+				),
+			)
 			.build()
 	}
 

@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,6 +37,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
+import com.adsamcik.tracker.osm.imp.OsmImportFailureCode
 import com.adsamcik.tracker.osm.imp.OsmImportState
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
 import java.text.DateFormat
@@ -59,7 +59,6 @@ fun LazyListScope.osmImportSection() {
 private fun OsmImportSectionContent() {
 	val viewModel: OsmImportSettingsViewModel = hiltViewModel()
 	val uiState by viewModel.uiState.collectAsState()
-	val context = LocalContext.current
 
 	val picker = rememberLauncherForActivityResult(
 		contract = ActivityResultContracts.OpenDocument(),
@@ -72,30 +71,34 @@ private fun OsmImportSectionContent() {
 	Column {
 		SectionHeader(stringResource(R.string.settings_osm_import_section))
 
-		val (subtitleRes, subtitleArgs) = importActionSubtitle(uiState.runtimeState)
-		val isRunning = uiState.runtimeState is OsmImportState.Running
-		SettingsItem(
-			title = stringResource(R.string.settings_osm_import_action_title),
-			subtitle = if (subtitleArgs.isEmpty()) {
-				stringResource(subtitleRes)
-			} else {
-				stringResource(subtitleRes, *subtitleArgs.toTypedArray())
-			},
-			icon = Icons.Default.Map,
-			onClick = {
-				if (isRunning) {
-					viewModel.cancelImport()
+		if (uiState.runtimeState is OsmImportState.Unavailable) {
+			OfflinePbfImportUnavailableNotice()
+		} else {
+			val (subtitleRes, subtitleArgs) = importActionSubtitle(uiState.runtimeState)
+			val isRunning = uiState.runtimeState is OsmImportState.Running
+			SettingsItem(
+				title = stringResource(R.string.settings_osm_import_action_title),
+				subtitle = if (subtitleArgs.isEmpty()) {
+					stringResource(subtitleRes)
 				} else {
-					picker.launch(arrayOf("*/*"))
-				}
-			},
-		)
-		if (isRunning) {
-			LinearProgressIndicator(
-				modifier = Modifier
-					.fillMaxWidth()
-					.padding(horizontal = 16.dp),
+					stringResource(subtitleRes, *subtitleArgs.toTypedArray())
+				},
+				icon = Icons.Default.Map,
+				onClick = {
+					if (isRunning) {
+						viewModel.cancelImport()
+					} else {
+						picker.launch(arrayOf("*/*"))
+					}
+				},
 			)
+			if (isRunning) {
+				LinearProgressIndicator(
+					modifier = Modifier
+						.fillMaxWidth()
+						.padding(horizontal = 16.dp),
+				)
+			}
 		}
 
 		if (uiState.imports.isEmpty()) {
@@ -158,6 +161,29 @@ private fun OsmImportSectionContent() {
 	}
 }
 
+/**
+ * Release-default Settings content for the fail-closed offline PBF policy.
+ *
+ * This is intentionally informational rather than a disabled button: users
+ * are not offered a picker action that could appear to start an import.
+ */
+@Composable
+internal fun OfflinePbfImportUnavailableNotice() {
+	Column(
+		modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+	) {
+		Text(
+			text = stringResource(R.string.settings_osm_import_unavailable_title),
+			style = MaterialTheme.typography.bodyLarge,
+		)
+		Text(
+			text = stringResource(R.string.settings_osm_import_action_unavailable),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+	}
+}
+
 @Composable
 private fun ImportedRegionRow(
 	entry: OsmImportEntity,
@@ -215,14 +241,30 @@ private fun importActionSubtitle(state: OsmImportState): Pair<Int, List<Any>> {
 	return when (state) {
 		is OsmImportState.Running -> R.string.settings_osm_import_action_running to emptyList()
 		is OsmImportState.Failed ->
-			R.string.settings_osm_import_action_failed to listOf(state.message)
+			importFailureSubtitle(state.failureCode) to emptyList()
 		is OsmImportState.Success ->
 			R.string.settings_osm_import_action_success to
 				listOf<Any>(state.wayCount, state.nodeCount)
+		OsmImportState.Unavailable ->
+			R.string.settings_osm_import_action_unavailable to emptyList()
 		OsmImportState.Idle, OsmImportState.Cancelled ->
 			R.string.settings_osm_import_action_summary to emptyList()
 	}
 }
+
+/** Maps internal failure codes to redacted, localized user text. */
+private fun importFailureSubtitle(failureCode: OsmImportFailureCode): Int =
+	when (failureCode) {
+		OsmImportFailureCode.PBF_IMPORT_UNAVAILABLE ->
+			R.string.settings_osm_import_action_unavailable
+		OsmImportFailureCode.SOURCE_UNAVAILABLE ->
+			R.string.settings_osm_import_action_source_unavailable
+		OsmImportFailureCode.INVALID_REQUEST,
+		OsmImportFailureCode.PARSE_FAILED,
+		OsmImportFailureCode.INTERNAL_ERROR,
+		OsmImportFailureCode.UNKNOWN,
+		-> R.string.settings_osm_import_action_failed
+	}
 
 /** Visible only for unit tests. */
 @Suppress("unused")

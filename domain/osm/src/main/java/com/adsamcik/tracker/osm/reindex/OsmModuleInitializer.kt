@@ -3,6 +3,7 @@ package com.adsamcik.tracker.osm.reindex
 import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
+import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import kotlinx.coroutines.CoroutineScope
@@ -50,6 +51,18 @@ class OsmModuleInitializer @Inject constructor(
 				if (removedImports > 0) {
 					ReporterFacade.log(
 						"OsmModuleInitializer: removed $removedImports abandoned OSM imports",
+					)
+				}
+				// OSM tables have not shipped. Old development rows stored ordinary
+				// longitude extrema, which are ambiguous and cannot safely be
+				// reinterpreted as the directed child-way contract used by V10.
+				val removedLegacyBboxImports = osmImportDao.deleteImportsWithUnsupportedWayBboxEncoding(
+					OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
+				)
+				if (removedLegacyBboxImports > 0) {
+					ReporterFacade.log(
+						"OsmModuleInitializer: removed $removedLegacyBboxImports development OSM imports " +
+							"with obsolete bbox encoding; re-import is required",
 					)
 				}
 				val rowsWritten = reindexer.reindexIfNeeded()

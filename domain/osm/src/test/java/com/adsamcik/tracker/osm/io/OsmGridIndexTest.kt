@@ -1,9 +1,11 @@
 package com.adsamcik.tracker.osm.io
 
+import com.adsamcik.tracker.shared.model.geo.CircularLongitudeInterval
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
@@ -71,33 +73,40 @@ class OsmGridIndexTest {
 	}
 
 	@Test
-	fun `cellKeysForBbox repairs a legacy wide bbox for a narrow antimeridian crossing`() {
-		val legacyKeys = OsmGridIndex.cellKeysForBbox(
+	fun `typed coverage does not infer a complement from an ordered wide bbox`() {
+		val coverage = OsmGridIndex.cellCoverageForBbox(
 			minLatE7 = 0,
 			maxLatE7 = 0,
-			minLonE7 = -1_799_000_000,
-			maxLonE7 = 1_799_000_000,
-		)
-		val wrappedKeys = OsmGridIndex.cellKeysForBbox(
-			minLatE7 = 0,
-			maxLatE7 = 0,
-			minLonE7 = 1_799_000_000,
-			maxLonE7 = -1_799_000_000,
+			startLonE7 = -1_799_000_000,
+			endLonE7 = 1_799_000_000,
 		)
 
-		legacyKeys.toList().shouldContainExactlyInAnyOrder(wrappedKeys.toList())
+		coverage.shouldBeInstanceOf<OsmCellCoverage.TooLarge>()
 	}
 
 	@Test
-	fun `cellKeysForBbox rejects pathological global coverage without allocating it`() {
-		val keys = OsmGridIndex.cellKeysForBbox(
+	fun `endpoint aliases at negative and positive 180 are a point not inferred full world`() {
+		val coverage = OsmGridIndex.cellCoverageForBbox(
 			minLatE7 = 0,
 			maxLatE7 = 0,
-			minLonE7 = -1_800_000_000,
-			maxLonE7 = 1_800_000_000,
+			startLonE7 = -1_800_000_000,
+			endLonE7 = 1_800_000_000,
 		)
 
-		keys.size shouldBe 0
+		val available = coverage.shouldBeInstanceOf<OsmCellCoverage.Available>()
+		available.cellKeys shouldBe longArrayOf(OsmGridIndex.cellKey(0, -1_800_000_000))
+	}
+
+	@Test
+	fun `full world coverage requires the explicit interval state and abstains without allocating`() {
+		val coverage = OsmGridIndex.cellCoverageForBounds(
+			minLatE7 = 0,
+			maxLatE7 = 0,
+			longitude = CircularLongitudeInterval.full(),
+		)
+
+		val tooLarge = coverage.shouldBeInstanceOf<OsmCellCoverage.TooLarge>()
+		tooLarge.requestedCellCount shouldBe 36_000L
 		OsmGridIndex.MAX_CELLS_PER_BBOX shouldBe 20_000
 	}
 
@@ -234,15 +243,10 @@ class OsmGridIndexTest {
 	}
 
 	@Test
-	fun `dateline lon 180 packs into the 24-bit signed slot without collision`() {
-		// lonE7 = +1_800_000_000 → cell index +18_000 fits the signed-24-bit
-		// slot range ±8_388_607 with huge headroom. Make sure
-		// +180° and -180° produce different keys (they're physically the same
-		// meridian but different inputs; OSM never stores +180.0 anyway).
+	fun `dateline lon plus and minus 180 share one canonical cell key`() {
 		val east = OsmGridIndex.cellKey(latE7 = 0, lonE7 = 1_800_000_000)
 		val west = OsmGridIndex.cellKey(latE7 = 0, lonE7 = -1_800_000_000)
-		// Both fit (no overflow / sign-flip), and they decode to distinct cells.
-		(east != west) shouldBe true
+		east shouldBe west
 	}
 
 	@Test

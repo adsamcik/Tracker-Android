@@ -27,17 +27,23 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.io.InputStream
 
 /**
- * Foreground [CoroutineWorker] that parses a user-selected `.osm.pbf` file
- * into the local [AppDatabase] (`osm_import` / `osm_way` / `osm_way_cell`).
+ * Foreground [CoroutineWorker] for the legacy user-selected `.osm.pbf` path.
+ *
+ * The current parser is not safe for untrusted input. Consequently, the
+ * centrally owned [OfflinePbfImportCapability] rejects release execution at
+ * the first line of [doWork], before URI access, foreground work, private
+ * files, parser invocation, or database insertion. The remaining code is
+ * retained only for explicitly wired test characterization while safe intake
+ * is independently reviewed.
  *
  * Inputs (via [WorkerParameters.getInputData]):
  *  - [KEY_FILE_URI] — required, the SAF content URI returned by the SAF picker.
  *  - [KEY_DISPLAY_NAME] — required, the user-facing region name (e.g. "Prague").
- *  - [KEY_FILE_SIZE] — required, the file size in bytes (used for the size guard
- *    BEFORE we open the stream, to fail fast on country-sized files).
+ *  - [KEY_FILE_SIZE] — required only by gated characterization wiring.
  *
  * Outputs:
  *  - [KEY_OUT_WAY_COUNT], [KEY_OUT_NODE_COUNT] — populated on success.
@@ -61,11 +67,13 @@ class OsmImportWorker @AssistedInject constructor(
 	@Assisted params: WorkerParameters,
 	private val appDatabase: AppDatabase,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val offlinePbfImportCapability: OfflinePbfImportCapability,
 ) : CoroutineWorker(appContext, params) {
 
 	private val emitBuffer = ArrayList<ParsedOsmWay>(DB_BATCH_SIZE)
 	private var currentImportId: Long = 0L
 	private var parser: OsmImportParser = StreamingOsmImportParser
+	private var inputStreamOpener: (Uri) -> InputStream = ::openInputStreamOrThrow
 
 	internal constructor(
 		appContext: Context,
@@ -73,24 +81,39 @@ class OsmImportWorker @AssistedInject constructor(
 		appDatabase: AppDatabase,
 		ioDispatcher: CoroutineDispatcher,
 		parser: OsmImportParser,
-	) : this(appContext, params, appDatabase, ioDispatcher) {
+		offlinePbfImportCapability: OfflinePbfImportCapability,
+		inputStreamOpener: (Uri) -> InputStream = { uri ->
+			appContext.contentResolver.openInputStream(uri)
+				?: throw FileNotFoundException("content resolver returned no stream")
+		},
+	) : this(
+		appContext,
+		params,
+		appDatabase,
+		ioDispatcher,
+		offlinePbfImportCapability,
+	) {
 		this.parser = parser
+		this.inputStreamOpener = inputStreamOpener
 	}
 
 	override suspend fun getForegroundInfo(): ForegroundInfo {
-		val displayName = inputData.getString(KEY_DISPLAY_NAME) ?: ""
-		return buildForegroundInfo(displayName, 0L)
+		return buildForegroundInfo(0L)
 	}
 
 	override suspend fun doWork(): Result {
+		if (!offlinePbfImportCapability.isAvailable) {
+			return Result.failure(failureData(OsmImportFailureCode.PBF_IMPORT_UNAVAILABLE))
+		}
+
 		val rawUri = inputData.getString(KEY_FILE_URI)
-			?: return Result.failure(failureData("missing uri"))
+			?: return Result.failure(failureData(OsmImportFailureCode.INVALID_REQUEST))
 		val displayName = inputData.getString(KEY_DISPLAY_NAME) ?: ""
 		val fileSize = inputData.getLong(KEY_FILE_SIZE, -1L)
-		if (fileSize <= 0L) return Result.failure(failureData("missing file size"))
+		if (fileSize <= 0L) return Result.failure(failureData(OsmImportFailureCode.INVALID_REQUEST))
 		val uri = Uri.parse(rawUri)
 
-		setForeground(buildForegroundInfo(displayName, 0L))
+		setForeground(buildForegroundInfo(0L))
 
 		// Insert the header row up front so child ways can FK to it.
 		currentImportId = withContext(ioDispatcher) {
@@ -101,10 +124,11 @@ class OsmImportWorker @AssistedInject constructor(
 					importedAt = System.currentTimeMillis(),
 					wayCount = 0L,
 					nodeCount = 0L,
-					minLatE7 = 0,
-					maxLatE7 = 0,
-					minLonE7 = 0,
-					maxLonE7 = 0,
+					diagnosticMinLatitudeE7 = 0,
+					diagnosticMaxLatitudeE7 = 0,
+					diagnosticMinLongitudeE7 = 0,
+					diagnosticMaxLongitudeE7 = 0,
+					wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
 					status = OsmImportEntity.STATUS_BUILDING,
 				),
 			)
@@ -113,11 +137,11 @@ class OsmImportWorker @AssistedInject constructor(
 		return try {
 			val stats = parser.parse(
 				fileSizeBytes = fileSize,
-				openInputStream = { openInputStreamOrThrow(uri) },
+				openInputStream = { inputStreamOpener(uri) },
 				wayBatchSize = OsmPbfStreamingParser.DEFAULT_WAY_BATCH_SIZE,
 				onProgress = { progress ->
 					if (progress.phase == OsmParsePhase.EMIT_WAYS) {
-						setForeground(buildForegroundInfo(displayName, progress.itemsProcessed))
+						setForeground(buildForegroundInfo(progress.itemsProcessed))
 					}
 				},
 				onWayBatch = { batch -> persistBatch(batch) },
@@ -128,10 +152,10 @@ class OsmImportWorker @AssistedInject constructor(
 					importId = currentImportId,
 					wayCount = stats.wayCount,
 					nodeCount = stats.nodeCount,
-					minLatE7 = stats.minLatE7,
-					maxLatE7 = stats.maxLatE7,
-					minLonE7 = stats.minLonE7,
-					maxLonE7 = stats.maxLonE7,
+					diagnosticMinLatitudeE7 = stats.diagnosticMinLatitudeE7,
+					diagnosticMaxLatitudeE7 = stats.diagnosticMaxLatitudeE7,
+					diagnosticMinLongitudeE7 = stats.diagnosticMinLongitudeE7,
+					diagnosticMaxLongitudeE7 = stats.diagnosticMaxLongitudeE7,
 				)
 				check(updated == 1) {
 					"OSM import $currentImportId was not in BUILDING state during publication"
@@ -140,7 +164,7 @@ class OsmImportWorker @AssistedInject constructor(
 
 			NotificationManagerCompat.from(applicationContext).notify(
 				OsmImportNotifications.NOTIFICATION_ID_COMPLETED,
-				OsmImportNotifications.buildCompleted(applicationContext, displayName),
+				OsmImportNotifications.buildCompleted(applicationContext),
 			)
 			Result.success(
 				Data.Builder()
@@ -154,16 +178,16 @@ class OsmImportWorker @AssistedInject constructor(
 			throw cancelled
 		} catch (parse: OsmParseException) {
 			cleanupFailedImport()
-			notifyFailure(displayName, parse.message ?: "Parse error")
-			Result.failure(failureData(parse.message ?: "parse error"))
-		} catch (io: FileNotFoundException) {
+			notifyFailure()
+			Result.failure(failureData(OsmImportFailureCode.PARSE_FAILED))
+		} catch (io: IOException) {
 			cleanupFailedImport()
-			notifyFailure(displayName, io.message ?: "File not found")
-			Result.failure(failureData(io.message ?: "file not found"))
-		} catch (t: Throwable) {
+			notifyFailure()
+			Result.failure(failureData(OsmImportFailureCode.SOURCE_UNAVAILABLE))
+		} catch (failure: Exception) {
 			cleanupFailedImport()
-			notifyFailure(displayName, t.message ?: t.javaClass.simpleName)
-			Result.failure(failureData(t.message ?: t.javaClass.simpleName))
+			notifyFailure()
+			Result.failure(failureData(OsmImportFailureCode.INTERNAL_ERROR))
 		}
 	}
 
@@ -195,7 +219,7 @@ class OsmImportWorker @AssistedInject constructor(
 
 	private fun openInputStreamOrThrow(uri: Uri): InputStream {
 		return applicationContext.contentResolver.openInputStream(uri)
-			?: throw FileNotFoundException("contentResolver returned null for $uri")
+			?: throw FileNotFoundException("content resolver returned no stream")
 	}
 
 	private suspend fun persistBatch(batch: List<ParsedOsmWay>) {
@@ -249,15 +273,14 @@ class OsmImportWorker @AssistedInject constructor(
 			withContext(ioDispatcher) {
 				appDatabase.osmImportDao().delete(id)
 			}
-		} catch (cleanup: Throwable) {
+		} catch (cleanup: Exception) {
 			// Best-effort cleanup; never mask the original failure.
 		}
 	}
 
-	private fun buildForegroundInfo(displayName: String, waysProcessed: Long): ForegroundInfo {
+	private fun buildForegroundInfo(waysProcessed: Long): ForegroundInfo {
 		val notification = OsmImportNotifications.buildProgress(
 			applicationContext,
-			displayName,
 			waysProcessed,
 		)
 		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -271,15 +294,15 @@ class OsmImportWorker @AssistedInject constructor(
 		}
 	}
 
-	private fun notifyFailure(displayName: String, reason: String) {
+	private fun notifyFailure() {
 		NotificationManagerCompat.from(applicationContext).notify(
 			OsmImportNotifications.NOTIFICATION_ID_FAILED,
-			OsmImportNotifications.buildFailed(applicationContext, displayName, reason),
+			OsmImportNotifications.buildFailed(applicationContext),
 		)
 	}
 
-	private fun failureData(message: String): Data =
-		Data.Builder().putString(KEY_OUT_ERROR, message).build()
+	private fun failureData(failureCode: OsmImportFailureCode): Data =
+		Data.Builder().putString(KEY_OUT_ERROR_CODE, failureCode.name).build()
 
 	companion object {
 		const val KEY_FILE_URI: String = "osm_file_uri"
@@ -288,7 +311,7 @@ class OsmImportWorker @AssistedInject constructor(
 		const val KEY_OUT_WAY_COUNT: String = "osm_out_way_count"
 		const val KEY_OUT_NODE_COUNT: String = "osm_out_node_count"
 		const val KEY_OUT_IMPORT_ROW_ID: String = "osm_out_import_row_id"
-		const val KEY_OUT_ERROR: String = "osm_out_error"
+		const val KEY_OUT_ERROR_CODE: String = "osm_out_error_code"
 
 		const val UNIQUE_WORK_NAME: String = "osm_import"
 

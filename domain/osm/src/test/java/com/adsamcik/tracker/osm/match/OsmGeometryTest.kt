@@ -139,6 +139,68 @@ class OsmGeometryTest {
 	}
 
 	@Test
+	fun `supplied dateline oracle vector stays on the short edge`() {
+		val lats = intArrayOf(0, 10_000)
+		val lons = intArrayOf(1_799_999_000, -1_799_999_000)
+		val projection = OsmGeometry.projectToPolyline(
+			latsE7 = lats,
+			lonsE7 = lons,
+			cumArcLenM = OsmGeometry.cumulativeArcLengthM(lats, lons),
+			pLatE7 = 5_000,
+			pLonE7 = -1_800_000_000,
+		).shouldNotBeNull()
+
+		projection.t shouldBe 0.5.plusOrMinus(1e-6)
+		projection.distanceM shouldBe 0.0.plusOrMinus(1e-6)
+	}
+
+	@Test
+	fun `supplied Prague and polar oracle vectors remain snap candidates`() {
+		val pragueLats = intArrayOf(500_758_596, 500_758_596)
+		val pragueLons = intArrayOf(144_367_523, 144_388_477)
+		val prague = OsmGeometry.projectToPolyline(
+			latsE7 = pragueLats,
+			lonsE7 = pragueLons,
+			cumArcLenM = OsmGeometry.cumulativeArcLengthM(pragueLats, pragueLons),
+			pLatE7 = 500_755_000,
+			pLonE7 = 144_378_000,
+		).shouldNotBeNull()
+		// Production uses a documented planar evaluator, so retain the independent
+		// WGS-84 values as a bounded candidate/snap oracle rather than claiming mm accuracy.
+		prague.distanceM shouldBe 39.999022.plusOrMinus(0.5)
+		(prague.distanceM <= 50.0) shouldBe true
+
+		val polarLats = intArrayOf(889_993_284, 890_006_714)
+		val polarLons = intArrayOf(1_799_730_849, 1_799_730_849)
+		val polar = OsmGeometry.projectToPolyline(
+			latsE7 = polarLats,
+			lonsE7 = polarLons,
+			cumArcLenM = OsmGeometry.cumulativeArcLengthM(polarLats, polarLons),
+			pLatE7 = 890_000_000,
+			pLonE7 = 1_799_500_000,
+		).shouldNotBeNull()
+		polar.distanceM shouldBe 45.000011.plusOrMinus(0.5)
+		(polar.distanceM <= 50.0) shouldBe true
+	}
+
+	@Test
+	fun `repeated vertices retain finite bounded projections`() {
+		val lats = intArrayOf(0, 0, 10_000)
+		val lons = intArrayOf(0, 0, 0)
+		val projection = OsmGeometry.projectToPolyline(
+			latsE7 = lats,
+			lonsE7 = lons,
+			cumArcLenM = OsmGeometry.cumulativeArcLengthM(lats, lons),
+			pLatE7 = 5_000,
+			pLonE7 = 1_000,
+		).shouldNotBeNull()
+
+		(projection.t in 0.0..1.0) shouldBe true
+		projection.distanceM.isFinite() shouldBe true
+		projection.arcLengthM.isFinite() shouldBe true
+	}
+
+	@Test
 	fun `arc length is non-negative and increasing for a real-ish path`() {
 		val lats = intArrayOf(500_000_000, 500_010_000, 500_020_000)
 		val lons = intArrayOf(140_000_000, 140_005_000, 140_010_000)

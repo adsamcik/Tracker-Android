@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
@@ -76,6 +77,16 @@ class OsmStreetResolverTest {
         (roadCell in OsmGridIndex.cellAnd8Neighbors(latE7, 0)) shouldBe false
         resolverReturningWhenCellIsRequested(way, roadCell)
             .nearestRoadName(latE7, 0) shouldBe "Polar Road"
+    }
+
+    @Test
+    fun `full polar coverage abstains without a truncated cell query`() = runTest {
+        val cellDao = mockk<OsmWayCellDao>()
+        val wayDao = mockk<OsmWayDao>()
+
+        OsmStreetResolver(wayDao, cellDao).nearestRoadName(899_998_000, 0) shouldBe null
+
+        coVerify(exactly = 0) { cellDao.findWayIdsInCells(any()) }
     }
 
     @Test

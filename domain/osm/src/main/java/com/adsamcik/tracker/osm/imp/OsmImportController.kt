@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,10 +31,21 @@ import javax.inject.Singleton
 class OsmImportController @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val osmImportDao: OsmImportDao,
+	private val offlinePbfImportCapability: OfflinePbfImportCapability,
 ) {
 
-	/** Enqueues a new OSM import. Replaces any in-flight import. */
-	fun enqueue(request: OsmImportRequest) {
+	/**
+	 * Enqueues a new OSM import when the centrally owned capability permits it.
+	 *
+	 * Production builds always return [OsmImportEnqueueResult.Rejected] until
+	 * the separately reviewed safe intake replaces the current parser path.
+	 */
+	fun enqueue(request: OsmImportRequest): OsmImportEnqueueResult {
+		if (!offlinePbfImportCapability.isAvailable) {
+			return OsmImportEnqueueResult.Rejected(
+				OsmImportFailureCode.PBF_IMPORT_UNAVAILABLE,
+			)
+		}
 		val data = Data.Builder()
 			.putString(OsmImportWorker.KEY_FILE_URI, request.contentUri)
 			.putString(OsmImportWorker.KEY_DISPLAY_NAME, request.displayName)
@@ -52,6 +64,7 @@ class OsmImportController @Inject constructor(
 			ExistingWorkPolicy.REPLACE,
 			work,
 		)
+		return OsmImportEnqueueResult.Enqueued
 	}
 
 	/** Cancels any currently running or pending OSM import. */
@@ -65,6 +78,9 @@ class OsmImportController @Inject constructor(
 	 * enqueued yet.
 	 */
 	fun observeImportState(): Flow<OsmImportState> {
+		if (!offlinePbfImportCapability.isAvailable) {
+			return flowOf(OsmImportState.Unavailable)
+		}
 		val flow = WorkManager.getInstance(context)
 			.getWorkInfosForUniqueWorkFlow(OsmImportWorker.UNIQUE_WORK_NAME)
 		return flow.map { infos -> mapToState(infos) }
@@ -81,10 +97,16 @@ class OsmImportController @Inject constructor(
 				wayCount = info.outputData.getLong(OsmImportWorker.KEY_OUT_WAY_COUNT, 0L),
 				nodeCount = info.outputData.getLong(OsmImportWorker.KEY_OUT_NODE_COUNT, 0L),
 			)
-			WorkInfo.State.FAILED -> OsmImportState.Failed(
-				message = info.outputData.getString(OsmImportWorker.KEY_OUT_ERROR)
-					?: "Import failed",
-			)
+			WorkInfo.State.FAILED -> {
+				val failureCode = OsmImportFailureCode.fromWireValue(
+					info.outputData.getString(OsmImportWorker.KEY_OUT_ERROR_CODE),
+				)
+				if (failureCode == OsmImportFailureCode.PBF_IMPORT_UNAVAILABLE) {
+					OsmImportState.Unavailable
+				} else {
+					OsmImportState.Failed(failureCode)
+				}
+			}
 			WorkInfo.State.CANCELLED -> OsmImportState.Cancelled
 			WorkInfo.State.BLOCKED -> OsmImportState.Running
 		}
@@ -102,8 +124,11 @@ sealed interface OsmImportState {
 	/** Import completed; counts come from the worker output data. */
 	data class Success(val wayCount: Long, val nodeCount: Long) : OsmImportState
 
-	/** Import failed; message is the parser/IO error. */
-	data class Failed(val message: String) : OsmImportState
+	/** Import was rejected by the release gate before any input work began. */
+	data object Unavailable : OsmImportState
+
+	/** Import failed with a stable, non-sensitive code. */
+	data class Failed(val failureCode: OsmImportFailureCode) : OsmImportState
 
 	/** User cancelled the import (or it was replaced by a new request). */
 	data object Cancelled : OsmImportState
@@ -115,6 +140,6 @@ data class OsmImportRequest(
 	val contentUri: String,
 	/** User-facing region name shown in notifications and the settings list. */
 	val displayName: String,
-	/** Size of the file in bytes; used by the parser to fail fast on >100 MB inputs. */
+	/** Legacy source metadata used only by explicitly gated characterization. */
 	val fileSizeBytes: Long,
 )

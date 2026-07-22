@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.osm.reindex
 
 import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.osm.io.OsmCellCoverage
 import com.adsamcik.tracker.osm.io.OsmGridIndex
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
@@ -17,17 +18,18 @@ import javax.inject.Singleton
  * rows after [com.adsamcik.tracker.shared.base.database.MIGRATION_31_32] has
  * cleared the table for the new 0.01° [OsmGridIndex] cell size.
  *
- * The reindexer reads only the bbox columns of `osm_way` via
+ * The reindexer reads only published directed-bbox columns of `osm_way` via
  * [OsmWayDao.pageBboxesAfter], computes cell keys with
- * [OsmGridIndex.cellKeysForBbox] and writes them back into `osm_way_cell` in
+ * [OsmGridIndex.cellCoverageForBbox] and writes them back into `osm_way_cell` in
  * page-sized batches. The packed polyline blobs and the OSM file the user
  * originally selected are never touched, so the reindex completes in seconds
  * even on multi-million-row imports and works fully offline.
  *
- * Triggering rule: if any `osm_import` row has `cell_index_built = 0`, the
- * cell index is stale or incomplete (the migration ran, or a previous reindex
- * was interrupted by a crash). The reindexer clears `osm_way_cell`, rebuilds
- * from scratch, and marks all imports as built only after successful completion.
+ * Triggering rule: if any published import with the current directed-bbox
+ * producer version has `cell_index_built = 0`, the cell index is stale or
+ * incomplete (the migration ran, or a previous reindex was interrupted by a
+ * crash). The reindexer clears `osm_way_cell`, rebuilds from scratch, and
+ * marks eligible imports as built only after successful completion.
  * This guarantees crash-safety: if the process dies mid-batch, imports remain
  * flagged 0 and the heuristic re-triggers on next launch.
  *
@@ -87,9 +89,9 @@ class OsmWayCellReindexer @Inject constructor(
 					afterId = page.last().id
 					if (page.size < pageSize) break
 				}
-				// Mark all imports as having a complete cell index only after
-				// every batch succeeded. If we crash before this line, imports
-				// keep cell_index_built = 0 and the heuristic re-triggers.
+				// Mark eligible imports as having a complete cell index only after
+				// every batch succeeded. If we crash before this line, they keep
+				// cell_index_built = 0 and the heuristic re-triggers.
 				osmImportDao.markAllCellIndexBuilt()
 
 				val durationMs = System.currentTimeMillis() - startMs
@@ -112,22 +114,28 @@ class OsmWayCellReindexer @Inject constructor(
 		}
 
 	private suspend fun needsReindex(): Boolean {
-		val importedRegionCount = osmImportDao.count()
+		val importedRegionCount = osmImportDao.readyCount()
 		if (importedRegionCount <= 0) return false
 		val wayCount = osmWayDao.count()
 		if (wayCount <= 0) return false
 		return osmImportDao.hasUnbuiltCellIndex()
 	}
 
-	private fun cellRowsFor(bbox: OsmWayBbox): List<OsmWayCellEntity> {
-		val keys = OsmGridIndex.cellKeysForBbox(
+	private fun cellRowsFor(bbox: OsmWayBbox): List<OsmWayCellEntity> = when (
+		val coverage = OsmGridIndex.cellCoverageForBbox(
 			minLatE7 = bbox.bboxMinLatE7,
 			maxLatE7 = bbox.bboxMaxLatE7,
-			minLonE7 = bbox.bboxMinLonE7,
-			maxLonE7 = bbox.bboxMaxLonE7,
+			startLonE7 = bbox.bboxMinLonE7,
+			endLonE7 = bbox.bboxMaxLonE7,
 		)
-		if (keys.isEmpty()) return emptyList()
-		return keys.map { key -> OsmWayCellEntity(cellKey = key, wayId = bbox.id) }
+	) {
+		is OsmCellCoverage.Available -> coverage.cellKeys.map { key ->
+			OsmWayCellEntity(cellKey = key, wayId = bbox.id)
+		}
+		is OsmCellCoverage.TooLarge -> throw IllegalStateException(
+			"Cannot reindex way ${bbox.id}: ${coverage.requestedCellCount} cells exceeds " +
+				coverage.maximumCellCount,
+		)
 	}
 
 	private companion object {

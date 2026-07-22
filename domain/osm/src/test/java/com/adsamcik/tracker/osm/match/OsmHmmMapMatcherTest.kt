@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.data.OsmWayEntity
 import com.adsamcik.tracker.stats.api.roadmatch.RoadObservation
+import com.adsamcik.tracker.stats.api.roadmatch.RoadLimitProvenance
+import com.adsamcik.tracker.stats.api.roadmatch.RoadMatchStatus
 import com.adsamcik.tracker.stats.api.roadmatch.RoadPoint
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -52,6 +54,11 @@ class OsmHmmMapMatcherTest {
 		coEvery { wayDao.findByIds(any()) } returns listOf(way)
 	}
 
+	private fun haveRoadsNearby(vararg ways: OsmWayEntity) {
+		coEvery { cellDao.findWayIdsInCells(any()) } returns ways.map { it.id }
+		coEvery { wayDao.findByIds(any()) } returns ways.toList()
+	}
+
 	private fun obs(latE7: Int, lonE7: Int, timeMs: Long) =
 		RoadObservation(latE7 = latE7, lonE7 = lonE7, accuracyM = 8f, timeMs = timeMs)
 
@@ -87,12 +94,31 @@ class OsmHmmMapMatcherTest {
 		edge.fromIndex shouldBe 0
 		edge.toIndex shouldBe 1
 		edge.maxspeedKmh shouldBe 60
+		edge.limitProvenance shouldBe RoadLimitProvenance.EXPLICIT_OSM_TAG
+		edge.importId shouldBe 1L
+		edge.osmWayId shouldBe 1L
 		// Path snaps both ends onto the line and includes the middle vertex.
 		edge.path shouldBe listOf(
 			RoadPoint(500_005_000, 140_000_000),
 			RoadPoint(500_010_000, 140_000_000),
 			RoadPoint(500_015_000, 140_000_000),
 		)
+	}
+
+	@Test
+	fun `road class fallback remains marked heuristic`() = runTest {
+		val fallback = straightWay().copy(maxspeedExplicit = 0)
+		haveRoadNearby(fallback)
+
+		val edge = matcher.match(
+			listOf(
+				obs(500_005_000, 140_000_050, 1_000L),
+				obs(500_015_000, 140_000_050, 2_000L),
+			),
+		).single()
+
+		edge.maxspeedKmh shouldBe 60
+		edge.limitProvenance shouldBe RoadLimitProvenance.ROAD_CLASS_HEURISTIC
 	}
 
 	@Test
@@ -116,10 +142,11 @@ class OsmHmmMapMatcherTest {
 	}
 
 	@Test
-	fun `an off-road observation in the middle drops both spans`() = runTest {
+	fun `an off-road observation in the middle emits typed gap spans`() = runTest {
 		haveRoadNearby()
 		// Middle observation is ~600 m east — far beyond the 50 m snap radius — so it
-		// has no candidate and splits the run into two length-1 runs (no edges).
+		// has no candidate, so neither adjacent interval may be rendered as a
+		// normal compliance edge.
 		val edges = matcher.match(
 			listOf(
 				obs(500_005_000, 140_000_050, 1_000L),
@@ -127,6 +154,30 @@ class OsmHmmMapMatcherTest {
 				obs(500_015_000, 140_000_050, 3_000L),
 			),
 		)
-		edges.shouldBeEmpty()
+		edges shouldHaveSize 2
+		edges.map { it.matchStatus } shouldBe listOf(RoadMatchStatus.GAP, RoadMatchStatus.GAP)
+		edges.forEach { edge -> edge.path.shouldBeEmpty() }
+	}
+
+	@Test
+	fun `unconnected candidate ways emit a typed no path span`() = runTest {
+		val disconnectedLons = lons.map { it + 10_000 }.toIntArray()
+		val disconnected = straightWay().copy(
+			id = 2L,
+			geomPolylineE7 = PolylineE7Codec.encode(lats, disconnectedLons),
+			bboxMinLonE7 = disconnectedLons.min(),
+			bboxMaxLonE7 = disconnectedLons.max(),
+		)
+		haveRoadsNearby(straightWay(), disconnected)
+
+		val edge = matcher.match(
+			listOf(
+				obs(500_005_000, 140_000_000, 1_000L),
+				obs(500_015_000, 140_010_000, 2_000L),
+			),
+		).single()
+
+		edge.matchStatus shouldBe RoadMatchStatus.NO_PATH
+		edge.path.shouldBeEmpty()
 	}
 }

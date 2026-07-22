@@ -121,10 +121,39 @@ class OsmModuleInitializerTest {
 		scope.cancel()
 	}
 
+	@Test
+	fun `startup deletes development imports with legacy ordered way bboxes`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val scope = CoroutineScope(SupervisorJob() + dispatcher)
+		val reindexer = mockk<OsmWayCellReindexer>()
+		coEvery { reindexer.reindexIfNeeded() } returns 0
+		val legacyId = seedImport(
+			displayName = "legacy-bbox.osm.pbf",
+			status = OsmImportEntity.STATUS_READY,
+			wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_LEGACY_ORDERED,
+		)
+		seedWayAndCell(303, legacyId, 43)
+
+		OsmModuleInitializer(
+			appScope = scope,
+			dispatchers = TestDispatchersProvider(dispatcher),
+			osmImportDao = database.osmImportDao(),
+			reindexer = reindexer,
+		).initialize()
+		advanceUntilIdle()
+
+		database.osmImportDao().count() shouldBe 0
+		database.osmWayDao().count() shouldBe 0
+		database.osmWayCellDao().count() shouldBe 0
+		coVerify(exactly = 1) { reindexer.reindexIfNeeded() }
+		scope.cancel()
+	}
+
 	private suspend fun seedImport(
 		displayName: String,
 		status: String,
 		importedAt: Long = 1_700_000_000_000L,
+		wayBboxEncodingVersion: Int = OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
 	): Long =
 		database.osmImportDao().insert(
 			OsmImportEntity(
@@ -133,10 +162,11 @@ class OsmModuleInitializerTest {
 				importedAt = importedAt,
 				wayCount = 1,
 				nodeCount = 2,
-				minLatE7 = 500_000_000,
-				maxLatE7 = 500_001_000,
-				minLonE7 = 144_000_000,
-				maxLonE7 = 144_001_000,
+				diagnosticMinLatitudeE7 = 500_000_000,
+				diagnosticMaxLatitudeE7 = 500_001_000,
+				diagnosticMinLongitudeE7 = 144_000_000,
+				diagnosticMaxLongitudeE7 = 144_001_000,
+				wayBboxEncodingVersion = wayBboxEncodingVersion,
 				status = status,
 				cellIndexBuilt = 1,
 			),

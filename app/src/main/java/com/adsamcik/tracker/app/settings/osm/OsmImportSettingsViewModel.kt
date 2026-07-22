@@ -75,7 +75,7 @@ class OsmImportSettingsViewModel @Inject constructor(
 				queryFileMeta(uri)
 			}
 			if (size <= 0L) {
-				Log.w(TAG, "Refusing to import $uri: file size $size <= 0")
+				Log.w(TAG, "Refusing OSM import because file metadata is unavailable")
 				return@launch
 			}
 			controller.enqueue(

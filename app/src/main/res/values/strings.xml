@@ -75,8 +75,11 @@
     <string name="settings_osm_import_section">Map data (OpenStreetMap)</string>
     <string name="settings_osm_import_action_title">Import OSM region</string>
     <string name="settings_osm_import_action_summary">Pick a .osm.pbf file. Vehicle compliance will then use real road limits offline.</string>
+    <string name="settings_osm_import_unavailable_title">Offline map import unavailable</string>
+    <string name="settings_osm_import_action_unavailable">Offline map import is temporarily unavailable while file-safety protections are completed.</string>
     <string name="settings_osm_import_action_running">Importing — tap to cancel</string>
-    <string name="settings_osm_import_action_failed">Last import failed: %1$s</string>
+    <string name="settings_osm_import_action_failed">Offline map import could not be completed.</string>
+    <string name="settings_osm_import_action_source_unavailable">The selected map file could not be opened.</string>
     <string name="settings_osm_import_action_success">Imported %1$d roads from %2$d nodes.</string>
     <string name="settings_osm_imports_empty">No OpenStreetMap region imported yet.</string>
     <string name="settings_osm_imports_attribution">Map data © OpenStreetMap contributors (ODbL 1.0). All processing happens on-device.</string>

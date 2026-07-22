@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.osm.match
 
+import com.adsamcik.tracker.shared.model.geo.CheckedLatitudeE7
+import com.adsamcik.tracker.shared.model.geo.CircularLongitude
+import com.adsamcik.tracker.shared.model.geo.GeoCoordinates
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -44,7 +47,7 @@ internal object OsmGeometry {
 		if (n == 0) return DoubleArray(0)
 		val out = DoubleArray(n)
 		for (i in 1 until n) {
-			val cosLat = cosLatAt((latsE7[i] + latsE7[i - 1]) / 2)
+			val cosLat = cosLatAt(((latsE7[i].toLong() + latsE7[i - 1].toLong()) / 2L).toInt())
 			out[i] = out[i - 1] + segmentLengthM(
 				latsE7[i - 1], lonsE7[i - 1],
 				latsE7[i], lonsE7[i],
@@ -146,7 +149,7 @@ internal object OsmGeometry {
 
 	/** Great-circle-ish distance in metres between two E7 points. */
 	fun distanceM(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int): Double {
-		val cosLat = cosLatAt((aLatE7 + bLatE7) / 2)
+		val cosLat = cosLatAt(((aLatE7.toLong() + bLatE7.toLong()) / 2L).toInt())
 		return sqrt(planarDistSqM(aLatE7, aLonE7, bLatE7, bLonE7, cosLat))
 	}
 
@@ -154,9 +157,9 @@ internal object OsmGeometry {
 		sqrt(planarDistSqM(aLatE7, aLonE7, bLatE7, bLonE7, cosLat))
 
 	private fun planarDistSqM(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int, cosLat: Double): Double {
-		val dx = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong()).toDouble() *
+		val dx = CircularLongitude.shortestDeltaE7(aLonE7.toLong(), bLonE7.toLong()).toDouble() *
 			METRES_PER_E7_DEG * cosLat
-		val dy = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
+		val dy = (bLatE7.toLong() - aLatE7.toLong()).toDouble() * METRES_PER_E7_DEG
 		return dx * dx + dy * dy
 	}
 
@@ -167,12 +170,12 @@ internal object OsmGeometry {
 		pLatE7: Int, pLonE7: Int,
 		cosLat: Double,
 	): Double {
-		val bx = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong()).toDouble() *
+		val bx = CircularLongitude.shortestDeltaE7(aLonE7.toLong(), bLonE7.toLong()).toDouble() *
 			METRES_PER_E7_DEG * cosLat
-		val by = (bLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
-		val px = signedLongitudeDeltaE7(pLonE7.toLong() - aLonE7.toLong()).toDouble() *
+		val by = (bLatE7.toLong() - aLatE7.toLong()).toDouble() * METRES_PER_E7_DEG
+		val px = CircularLongitude.shortestDeltaE7(aLonE7.toLong(), pLonE7.toLong()).toDouble() *
 			METRES_PER_E7_DEG * cosLat
-		val py = (pLatE7 - aLatE7).toDouble() * METRES_PER_E7_DEG
+		val py = (pLatE7.toLong() - aLatE7.toLong()).toDouble() * METRES_PER_E7_DEG
 		val lenSq = bx * bx + by * by
 		if (lenSq < EPSILON) return 0.0
 		return max(0.0, min(1.0, (px * bx + py * by) / lenSq))
@@ -180,17 +183,17 @@ internal object OsmGeometry {
 
 	/** Linear interpolation between two E7 points, rounded back to E7 ints. */
 	private fun lerpE7(aLatE7: Int, aLonE7: Int, bLatE7: Int, bLonE7: Int, t: Double): Pair<Int, Int> {
-		val lat = aLatE7 + ((bLatE7 - aLatE7) * t)
-		val lonDelta = signedLongitudeDeltaE7(bLonE7.toLong() - aLonE7.toLong())
-		val lon = normalizeLongitudeE7(aLonE7.toLong() + Math.round(lonDelta.toDouble() * t))
-		return Math.round(lat).toInt() to lon.toInt()
+		val latDegrees = (
+			aLatE7.toDouble() + (bLatE7.toLong() - aLatE7.toLong()).toDouble() * t
+		) / GeoCoordinates.E7_PER_DEGREE
+		val lat = CheckedLatitudeE7.requireDegrees(latDegrees).value
+		val lon = CircularLongitude.interpolateShortestE7(aLonE7.toLong(), bLonE7.toLong(), t)
+		return lat to lon.toInt()
 	}
 
-	private fun normalizeLongitudeE7(value: Long): Long =
-		Math.floorMod(value + HALF_WORLD_E7, WORLD_E7) - HALF_WORLD_E7
-
-	private fun signedLongitudeDeltaE7(delta: Long): Long = normalizeLongitudeE7(delta)
-
-	private const val WORLD_E7 = 3_600_000_000L
-	private const val HALF_WORLD_E7 = WORLD_E7 / 2
+	/**
+	 * Returns the shortest signed longitude delta in `[-180°, 180°)`. Callers
+	 * must widen coordinate values before forming [delta].
+	 */
+	internal fun signedLongitudeDeltaE7(delta: Long): Long = CircularLongitude.normalizeSignedDeltaE7(delta)
 }
