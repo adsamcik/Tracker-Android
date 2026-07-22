@@ -91,7 +91,8 @@ android {
         }
         create("traceboxTrial") {
             dimension = "diagnostics"
-            minSdk = 30
+            // Tracebox supports API 23; retain Tracker's established API-26 app baseline.
+            minSdk = 26
             applicationIdSuffix = ".traceboxtrial"
             versionNameSuffix = "-tracebox-trial"
             buildConfigField("boolean", "TRACEBOX_TRIAL_AVAILABLE", "true")
