@@ -894,7 +894,7 @@
     <string name="settings_tracebox_toggle_title">Record structural codes for this app run</string>
     <string name="settings_tracebox_toggle_summary_off">Off. No structural codes are being recorded.</string>
     <string name="settings_tracebox_toggle_summary_on">On for this app run. Turning it off stops recording and clears the codes now.</string>
-    <string name="settings_tracebox_toggle_summary_unavailable">Available only in the Android 11+ Tracebox trial build.</string>
+    <string name="settings_tracebox_toggle_summary_unavailable">Available only in the Android 8.0+ Tracebox trial build.</string>
     <string name="settings_tracebox_records_header">What it records</string>
     <string name="settings_tracebox_records_body">A limited number of predefined codes about app structure and execution order. They are held only in memory and cleared when you turn the trial off or the app process ends.</string>
     <string name="settings_tracebox_privacy_header">What it leaves out</string>
