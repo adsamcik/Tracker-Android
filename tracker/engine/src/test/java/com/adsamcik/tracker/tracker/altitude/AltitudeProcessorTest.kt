@@ -2,6 +2,9 @@ package com.adsamcik.tracker.tracker.altitude
 
 import android.content.Context
 import android.location.Location
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -36,13 +39,15 @@ class AltitudeProcessorTest {
 	fun `returns null when location has no altitude`() {
 		val location = createLocation(altitude = null)
 
-		processor.process(context, location).shouldBeNull()
+		val result = processor.processResult(context, location)
+		result.altitudeM.shouldBeNull()
+		result.conversionStatus shouldBe AltitudeConversionStatus.NOT_ATTEMPTED
 		geoidAltitudeConverter.conversionCount shouldBe 0
 	}
 
 	@Test
 	fun `uses injected geoid converter result as MSL altitude`() {
-		val converter = FakeGeoidAltitudeConverter { 420.0 }
+		val converter = FakeGeoidAltitudeConverter { GeoidAltitudeConversionOutcome.Success(420.0) }
 		val processor = AltitudeProcessor(
 			verticalAccuracyThresholdM = 20f,
 			geoidAltitudeConverter = converter
@@ -56,8 +61,113 @@ class AltitudeProcessorTest {
 	}
 
 	@Test
+	fun `successful conversion keeps raw ellipsoid evidence separate from MSL output`() {
+		val converter = FakeGeoidAltitudeConverter { GeoidAltitudeConversionOutcome.Success(420.0) }
+		val processor = AltitudeProcessor(
+			verticalAccuracyThresholdM = 20f,
+			geoidAltitudeConverter = converter
+		)
+		val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+
+		val result = processor.processResult(context, location)
+
+		location.altitude shouldBe 500.0
+		result.rawWgs84EllipsoidAltitudeM shouldBe 500.0
+		result.rawAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+		result.altitudeM shouldBe 420.0
+		result.datum shouldBe AltitudeDatum.ANDROID_MODEL_MSL
+		result.source shouldBe AltitudeSource.GPS_CONVERSION
+		result.conversionStatus shouldBe AltitudeConversionStatus.SUCCESS
+		converter.conversionCount shouldBe 1
+	}
+
+	@Test
+	fun `conversion failures never substitute raw ellipsoid altitude or calibrate fusion`() {
+		val expectedStatuses = listOf(
+			GeoidAltitudeConversionOutcome.NoMslOutput to AltitudeConversionStatus.NO_MSL_OUTPUT,
+			GeoidAltitudeConversionOutcome.InvalidInput to AltitudeConversionStatus.INVALID_INPUT,
+			GeoidAltitudeConversionOutcome.IoFailure to AltitudeConversionStatus.IO_FAILURE,
+			GeoidAltitudeConversionOutcome.UnexpectedFailure to AltitudeConversionStatus.UNEXPECTED_FAILURE,
+		)
+
+		expectedStatuses.forEach { (outcome, expectedStatus) ->
+			val converter = FakeGeoidAltitudeConverter { outcome }
+			val failedProcessor = AltitudeProcessor(geoidAltitudeConverter = converter)
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+
+			val result = failedProcessor.processWithBarometerResult(
+				context = context,
+				location = location,
+				baroPressureHpa = 955f,
+			)
+
+			location.altitude shouldBe 500.0
+			result.rawWgs84EllipsoidAltitudeM shouldBe 500.0
+			result.rawAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+			result.altitudeM.shouldBeNull()
+			result.datum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+			result.conversionStatus shouldBe expectedStatus
+			failedProcessor.isFusionCalibrated shouldBe false
+		}
+	}
+
+	@Test
+	fun `nonfinite converter success is rejected instead of becoming an MSL measurement`() {
+		val failedProcessor = AltitudeProcessor(
+			geoidAltitudeConverter = FakeGeoidAltitudeConverter {
+				GeoidAltitudeConversionOutcome.Success(Double.NaN)
+			},
+		)
+		val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+
+		val result = failedProcessor.processWithBarometerResult(context, location, baroPressureHpa = 955f)
+
+		location.altitude shouldBe 500.0
+		result.altitudeM.shouldBeNull()
+		result.rawWgs84EllipsoidAltitudeM shouldBe 500.0
+		result.conversionStatus shouldBe AltitudeConversionStatus.INVALID_INPUT
+		failedProcessor.isFusionCalibrated shouldBe false
+	}
+
+	@Test
+	fun `failed conversion permits calibrated barometric continuation without a GPS update`() {
+		val outcomes = ArrayDeque<GeoidAltitudeConversionOutcome>().apply {
+			add(GeoidAltitudeConversionOutcome.Success(420.0))
+			add(GeoidAltitudeConversionOutcome.IoFailure)
+		}
+		val processor = AltitudeProcessor(
+			geoidAltitudeConverter = FakeGeoidAltitudeConverter { outcomes.removeFirst() }
+		)
+
+		processor.processWithBarometerResult(
+			context,
+			createLocation(altitude = 500.0, verticalAccuracy = 5f, elapsedRealtimeNanos = 1_000_000_000L),
+			baroPressureHpa = 955f,
+		)
+		processor.isFusionCalibrated shouldBe true
+
+		val rawFailure = createLocation(
+			altitude = 501.0,
+			verticalAccuracy = 5f,
+			elapsedRealtimeNanos = 2_000_000_000L,
+		)
+		val continuation = processor.processWithBarometerResult(
+			context,
+			rawFailure,
+			baroPressureHpa = 954f,
+		)
+
+		rawFailure.altitude shouldBe 501.0
+		continuation.conversionStatus shouldBe AltitudeConversionStatus.IO_FAILURE
+		continuation.altitudeM.shouldNotBeNull()
+		continuation.datum shouldBe AltitudeDatum.RELATIVE_BAROMETRIC
+		continuation.source shouldBe AltitudeSource.BAROMETER_PREDICTION
+		processor.isFusionCalibrated shouldBe true
+	}
+
+	@Test
 	fun `returns null when geoid converter cannot produce MSL altitude`() {
-		val converter = FakeGeoidAltitudeConverter { null }
+		val converter = FakeGeoidAltitudeConverter { GeoidAltitudeConversionOutcome.NoMslOutput }
 		val processor = AltitudeProcessor(
 			verticalAccuracyThresholdM = 20f,
 			geoidAltitudeConverter = converter
@@ -293,12 +403,17 @@ class AltitudeProcessorTest {
 	}
 
 	private class FakeGeoidAltitudeConverter(
-		private val convert: (Location) -> Double? = { it.altitude }
+		private val convert: (Location) -> GeoidAltitudeConversionOutcome = {
+			GeoidAltitudeConversionOutcome.Success(it.altitude)
+		}
 	) : GeoidAltitudeConverter {
 		var conversionCount = 0
 			private set
 
-		override fun toMslAltitude(context: Context, location: Location): Double? {
+		override fun toMslAltitude(
+			context: Context,
+			location: Location,
+		): GeoidAltitudeConversionOutcome {
 			conversionCount++
 			return convert(location)
 		}

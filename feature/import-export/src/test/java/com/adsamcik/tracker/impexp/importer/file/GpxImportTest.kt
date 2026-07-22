@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -107,6 +110,9 @@ class GpxImportTest {
 			capturedSamples[0].latE7 shouldBe (50.0 * 1e7).roundToInt()
 			capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).roundToInt()
 			capturedSamples[0].altitudeM shouldBe 200.0f
+			capturedSamples[0].altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+			capturedSamples[0].altitudeSource shouldBe AltitudeSource.IMPORTED
+			capturedSamples[0].altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
 			capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
 			capturedSamples[1].lonE7 shouldBe (14.1 * 1e7).roundToInt()
 		}

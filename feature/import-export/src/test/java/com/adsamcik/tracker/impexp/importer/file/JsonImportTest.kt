@@ -7,13 +7,19 @@ import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -45,13 +51,21 @@ class JsonImportTest {
 
 	private val capturedSamples = mutableListOf<LocationSample>()
 	private val capturedSegments = mutableListOf<SessionSegment>()
+	private val capturedWifiObservations = mutableListOf<WifiObservation>()
+	private val capturedCellSamples = mutableListOf<CellSample>()
 	private var locationInsertCallCount = 0
+	private var wifiInsertCallCount = 0
+	private var cellInsertCallCount = 0
 
 	@Before
 	fun setUp() {
 		capturedSamples.clear()
 		capturedSegments.clear()
+		capturedWifiObservations.clear()
+		capturedCellSamples.clear()
 		locationInsertCallCount = 0
+		wifiInsertCallCount = 0
+		cellInsertCallCount = 0
 
 		mockLocationSampleDao = mockk {
 			coEvery { insert(any<Collection<LocationSample>>()) } answers {
@@ -67,8 +81,22 @@ class JsonImportTest {
 				1L
 			}
 		}
-		mockWifiObservationDao = mockk(relaxed = true)
-		mockCellSampleDao = mockk(relaxed = true)
+		mockWifiObservationDao = mockk {
+			coEvery { insert(any<Collection<WifiObservation>>()) } answers {
+				val batch = firstArg<Collection<WifiObservation>>()
+				capturedWifiObservations.addAll(batch)
+				wifiInsertCallCount++
+				batch.map { 0L }
+			}
+		}
+		mockCellSampleDao = mockk {
+			coEvery { insert(any<Collection<CellSample>>()) } answers {
+				val batch = firstArg<Collection<CellSample>>()
+				capturedCellSamples.addAll(batch)
+				cellInsertCallCount++
+				batch.map { 0L }
+			}
+		}
 		mockDatabase = mockk {
 			every { locationSampleDao() } returns mockLocationSampleDao
 				every { sessionSegmentDao() } returns mockSegmentDao
@@ -82,6 +110,52 @@ class JsonImportTest {
 		val bytes = json.toByteArray(Charsets.UTF_8)
 		return FileImportStream(ByteArrayInputStream(bytes), "test.json")
 	}
+
+	private suspend fun importSignalObservations(
+		latitude: String?,
+		longitude: String?,
+		provenance: String? = null,
+	) =
+		jsonImport.import(
+			mockContext,
+			mockDatabase,
+			jsonStream(
+				"""[{"schemaVersion":2,"wifiObservations":[${wifiObservationJson(latitude, longitude, provenance)}],"cellSamples":[${cellSampleJson(latitude, longitude, provenance)}]}]""",
+			),
+		)
+
+	private fun wifiObservationJson(latitude: String?, longitude: String?, provenance: String?): String =
+		"""{"timeMs":1700000000000,"bssid":"00:00:00:00:00:01","ssid":"test","capabilities":"","frequencyMhz":2412,"levelDbm":-50${coordinateFieldsJson(latitude, longitude, provenance)}}"""
+
+	private fun cellSampleJson(latitude: String?, longitude: String?, provenance: String?): String =
+		"""{"timeMs":1700000000000,"cellId":1,"lac":1,"mcc":1,"mnc":1,"networkType":1,"signalStrength":-90${coordinateFieldsJson(latitude, longitude, provenance)}}"""
+
+	private fun coordinateFieldsJson(latitude: String?, longitude: String?, provenance: String?): String =
+		listOfNotNull(
+			latitude?.let { "\"latitude\":$it" },
+			longitude?.let { "\"longitude\":$it" },
+			provenance?.let { "\"coordinateProvenance\":\"$it\"" },
+		).joinToString(",").let { fields -> if (fields.isEmpty()) "" else ",$fields" }
+
+	private fun assertCapturedSignalCoordinates(expectedLatitudeE7: Int?, expectedLongitudeE7: Int?) {
+		capturedWifiObservations shouldHaveSize 1
+		capturedCellSamples shouldHaveSize 1
+		capturedWifiObservations.single().latE7 shouldBe expectedLatitudeE7
+		capturedWifiObservations.single().lonE7 shouldBe expectedLongitudeE7
+		capturedCellSamples.single().latE7 shouldBe expectedLatitudeE7
+		capturedCellSamples.single().lonE7 shouldBe expectedLongitudeE7
+	}
+
+	private fun clearCapturedSignalObservations() {
+		capturedWifiObservations.clear()
+		capturedCellSamples.clear()
+	}
+
+	private data class JsonCoordinateCase(
+		val description: String,
+		val latitude: String?,
+		val longitude: String?,
+	)
 
 	// -- Properties --
 
@@ -115,6 +189,66 @@ class JsonImportTest {
 		capturedSamples[0].speedMps shouldBe 3.5f
 		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
 	} }
+
+	@Test
+	fun `imports JSON schema 3 altitude contract without conflating raw and processed altitude`() = runTest {
+		val json = """
+			[{"schemaVersion":3,"locations":[{
+				"timeMs":1700000000000,
+				"latitude":50.0,
+				"longitude":14.0,
+				"altitudeM":420.0,
+				"rawGpsAltitudeM":500.0,
+				"altitudeDatum":"fused_android_model_msl",
+				"altitudeSource":"fused_gps_barometer",
+				"altitudeConversionStatus":"success",
+				"rawGpsAltitudeDatum":"wgs84_ellipsoid",
+				"altitudeModelVersion":1,
+				"altitudeEstimatorVersion":1,
+				"altitudeCalibrationVersion":1
+			}]}]
+		""".trimIndent()
+
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+
+		val sample = capturedSamples.single()
+		sample.altitudeM shouldBe 420f
+		sample.rawGpsAltitudeM shouldBe 500f
+		sample.altitudeDatum shouldBe AltitudeDatum.FUSED_ANDROID_MODEL_MSL
+		sample.altitudeSource shouldBe AltitudeSource.FUSED_GPS_BAROMETER
+		sample.altitudeConversionStatus shouldBe AltitudeConversionStatus.SUCCESS
+		sample.rawGpsAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+		sample.altitudeModelVersion shouldBe 1
+		sample.estimatorVersion shouldBe 1
+		sample.calibrationVersion shouldBe 1
+	}
+
+	@Test
+	fun `bare historical JSON altitude is imported with unknown datum`() = runTest {
+		val json = """{"schema":1,"locations":[{"time":1700000000000,"lat":50.0,"lon":14.0,"alt":200.0}],"sessions":[]}"""
+
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+
+		val sample = capturedSamples.single()
+		sample.altitudeM shouldBe 200f
+		sample.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		sample.altitudeSource shouldBe AltitudeSource.IMPORTED
+		sample.altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+		sample.rawGpsAltitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+	}
+
+	@Test
+	fun `unknown JSON altitude contract values decode conservatively`() = runTest {
+		val json = """[{"schemaVersion":3,"locations":[{"timeMs":1700000000000,"altitudeDatum":"future","altitudeSource":"future","altitudeConversionStatus":"future","rawGpsAltitudeDatum":"future"}]}]"""
+
+		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
+
+		val sample = capturedSamples.single()
+		sample.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		sample.altitudeSource shouldBe AltitudeSource.UNKNOWN_LEGACY
+		sample.altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+		sample.rawGpsAltitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+	}
 
 	@Test
 	fun `imports valid JSON with sessions`()  { runTest {
@@ -425,6 +559,88 @@ class JsonImportTest {
 		// No exception means segments were skipped
 	} }
 
+	// -- Wi-Fi and Cell Coordinate Validation --
+
+	@Test
+	fun `wifi and cell observations round valid coordinate pairs`() = runTest {
+		val result = importSignalObservations("50.12345678", "14.98765432")
+
+		result.successCount shouldBe 2
+		assertCapturedSignalCoordinates(
+			expectedLatitudeE7 = (50.12345678 * 1e7).roundToInt(),
+			expectedLongitudeE7 = (14.98765432 * 1e7).roundToInt(),
+		)
+	}
+
+	@Test
+	fun `wifi and cell observations accept coordinate boundaries`() = runTest {
+		listOf(
+			Triple("90.0", "180.0", 0),
+			Triple("-90.0", "-180.0", 0),
+			Triple("0.0", "180.0", -1_800_000_000),
+		).forEach { (latitude, longitude, expectedLongitudeE7) ->
+			clearCapturedSignalObservations()
+
+			val result = importSignalObservations(latitude, longitude)
+
+			result.successCount shouldBe 2
+			assertCapturedSignalCoordinates(
+				expectedLatitudeE7 = latitude.toDouble().times(1e7).roundToInt(),
+				expectedLongitudeE7 = expectedLongitudeE7,
+			)
+		}
+	}
+
+	@Test
+	fun `wifi and cell observations clear unusable coordinate pairs but are imported`() = runTest {
+		val unusableCoordinateCases = listOf(
+			JsonCoordinateCase("latitude above the upper boundary", "90.0000001", "14.0"),
+			JsonCoordinateCase("latitude below the lower boundary", "-90.0000001", "14.0"),
+			JsonCoordinateCase("longitude above the upper boundary", "50.0", "180.0000001"),
+			JsonCoordinateCase("longitude below the lower boundary", "50.0", "-180.0000001"),
+			JsonCoordinateCase("NaN latitude", "NaN", "14.0"),
+			JsonCoordinateCase("NaN longitude", "50.0", "NaN"),
+			JsonCoordinateCase("infinite latitude", "Infinity", "14.0"),
+			JsonCoordinateCase("infinite longitude", "50.0", "Infinity"),
+			JsonCoordinateCase("only latitude", "50.0", null),
+			JsonCoordinateCase("only longitude", null, "14.0"),
+			JsonCoordinateCase("null latitude", "null", "14.0"),
+			JsonCoordinateCase("null longitude", "50.0", "null"),
+			JsonCoordinateCase("very large finite latitude", "1e300", "14.0"),
+			JsonCoordinateCase("very large finite longitude", "50.0", "1e300"),
+		)
+
+		unusableCoordinateCases.forEach { case ->
+			clearCapturedSignalObservations()
+			val result = importSignalObservations(case.latitude, case.longitude)
+
+			withClue(case.description) {
+				result.successCount shouldBe 2
+				assertCapturedSignalCoordinates(expectedLatitudeE7 = null, expectedLongitudeE7 = null)
+			}
+		}
+	}
+
+	@Test
+	fun `wifi and cell observations reset provenance when coordinates are cleared`() = runTest {
+		val result = importSignalObservations("91.0", "14.0", provenance = "DIRECT")
+
+		result.successCount shouldBe 2
+		assertCapturedSignalCoordinates(expectedLatitudeE7 = null, expectedLongitudeE7 = null)
+		capturedWifiObservations.single().provenance shouldBe CoordinateProvenance.UNKNOWN
+		capturedCellSamples.single().provenance shouldBe CoordinateProvenance.UNKNOWN
+	}
+
+	@Test
+	fun `valid imported coordinates retain unknown provenance and use positive half E7 ties`() = runTest {
+		val result = importSignalObservations("0.00000005", "-0.00000005", provenance = "NOT_A_SOURCE")
+
+		result.successCount shouldBe 2
+		assertCapturedSignalCoordinates(expectedLatitudeE7 = 1, expectedLongitudeE7 = 0)
+		capturedWifiObservations.single().provenance shouldBe CoordinateProvenance.UNKNOWN
+		capturedCellSamples.single().provenance shouldBe CoordinateProvenance.UNKNOWN
+	}
+
 	// -- Batching --
 
 	@Test
@@ -448,7 +664,8 @@ class JsonImportTest {
 		}
 		val json = """[{"schemaVersion":2,"wifiObservations":[$observations]}]"""
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
-		coVerify(exactly = 3) { mockWifiObservationDao.insert(any<Collection<com.adsamcik.tracker.shared.base.database.data.WifiObservation>>()) }
+		capturedWifiObservations shouldHaveSize 450
+		wifiInsertCallCount shouldBe 3
 	}
 
 	@Test
@@ -458,7 +675,8 @@ class JsonImportTest {
 		}
 		val json = """[{"schemaVersion":2,"cellSamples":[$samples]}]"""
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
-		coVerify(exactly = 3) { mockCellSampleDao.insert(any<Collection<com.adsamcik.tracker.shared.base.database.data.CellSample>>()) }
+		capturedCellSamples shouldHaveSize 450
+		cellInsertCallCount shouldBe 3
 	}
 
 	// -- Empty JSON --

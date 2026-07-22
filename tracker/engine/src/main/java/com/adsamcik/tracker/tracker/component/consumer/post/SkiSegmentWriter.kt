@@ -4,10 +4,12 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.ProcessedAltitudeData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType
 import com.adsamcik.tracker.stats.engine.ski.FinalizedSkiRun
@@ -22,6 +24,31 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+
+/**
+ * Returns a vertical delta only when both processed estimates identify the same continuous
+ * altitude segment. A missing clock domain, unknown datum, or reference-surface transition is a
+ * hard boundary rather than an opportunity to bridge with the raw provider altitude.
+ */
+internal fun processedAltitudeDeltaIfContinuous(
+	start: ProcessedAltitudeData?,
+	end: ProcessedAltitudeData?,
+): Float? {
+	val startValue = start ?: return null
+	val endValue = end ?: return null
+	val startAltitude = startValue.altitudeM?.takeIf { it.isFinite() } ?: return null
+	val endAltitude = endValue.altitudeM?.takeIf { it.isFinite() } ?: return null
+	val startDomain = startValue.clockDomainId?.takeIf { it.isNotBlank() } ?: return null
+	val endDomain = endValue.clockDomainId?.takeIf { it.isNotBlank() } ?: return null
+	if (startValue.datum == AltitudeDatum.UNKNOWN_LEGACY ||
+		endValue.datum == AltitudeDatum.UNKNOWN_LEGACY ||
+		startDomain != endDomain ||
+		!startValue.datum.isContinuousWith(endValue.datum)
+	) {
+		return null
+	}
+	return startAltitude - endAltitude
+}
 
 /**
  * Persists real-time ski state segments to the `ski_run_segment` table.
@@ -43,7 +70,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private var segmentStartTimeMs: Long = 0L
 	private var segmentState: SkiState = SkiState.IDLE
 	private var segmentLiftType: String? = null
-	private var segmentStartAltitudeM: Float = 0f
+	private var segmentStartAltitude: ProcessedAltitudeData? = null
 	private var segmentMaxSpeedMps: Float = 0f
 	private var segmentSpeedSum: Float = 0f
 	private var segmentSpeedSamples: Int = 0
@@ -51,7 +78,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private var lastLatitude: Double = 0.0
 	private var lastLongitude: Double = 0.0
 	private var hasLastLocation: Boolean = false
-	private var lastAltitudeM: Float = 0f
+	private var lastProcessedAltitude: ProcessedAltitudeData? = null
 	private var lastEventTimeMs: Long = 0L
 
 	override suspend fun onEnable(context: Context) {
@@ -61,6 +88,8 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		segmentStartTimeMs = 0L
 		segmentState = SkiState.IDLE
 		hasLastLocation = false
+		segmentStartAltitude = null
+		lastProcessedAltitude = null
 		lastEventTimeMs = 0L
 	}
 
@@ -101,8 +130,8 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 			lastLatitude = loc.latitude
 			lastLongitude = loc.longitude
 			hasLastLocation = true
-			lastAltitudeM = loc.altitude?.toFloat() ?: lastAltitudeM
 		}
+		updateSegmentAltitude(collectionData.processedAltitude)
 	}
 
 	override fun onStateChanged(previousState: SkiState, newState: RealTimeSkiState) {
@@ -124,7 +153,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		// Start tracking the new segment
 		segmentState = newState.state
 		segmentStartTimeMs = now
-		segmentStartAltitudeM = lastAltitudeM
+		segmentStartAltitude = lastProcessedAltitude
 		segmentLiftType = newState.currentLiftType
 		segmentMaxSpeedMps = 0f
 		segmentSpeedSum = 0f
@@ -160,7 +189,9 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		endTimeMs: Long,
 		finalizedRun: FinalizedSkiRun? = null,
 	): SkiRunSegment {
-		val verticalM = finalizedRun?.verticalDropM ?: (segmentStartAltitudeM - lastAltitudeM)
+		val verticalM = finalizedRun?.verticalDropM
+			?: processedAltitudeDeltaIfContinuous(segmentStartAltitude, lastProcessedAltitude)
+			?: 0f
 		val avgSpeed = if (segmentSpeedSamples > 0) {
 			segmentSpeedSum / segmentSpeedSamples
 		} else {
@@ -182,6 +213,17 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		)
 
 		return segment
+	}
+
+	/** Reset the segment baseline whenever this stream cannot continue safely. */
+	private fun updateSegmentAltitude(processedAltitude: ProcessedAltitudeData?) {
+		val previous = lastProcessedAltitude
+		if (segmentStartTimeMs > 0L &&
+			(previous == null || processedAltitudeDeltaIfContinuous(previous, processedAltitude) == null)
+		) {
+			segmentStartAltitude = processedAltitude
+		}
+		lastProcessedAltitude = processedAltitude
 	}
 
 	companion object {

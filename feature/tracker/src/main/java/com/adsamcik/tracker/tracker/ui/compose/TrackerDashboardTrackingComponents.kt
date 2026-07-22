@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
@@ -354,8 +355,8 @@ internal fun buildLocationMetrics(
                 )
             )
         }
-        location.altitude?.let { altitude ->
-            val formattedAltitude = resources.formatDistance(altitude.toFloat(), 0, settings.lengthSystem)
+        collectionData.androidModelMslAltitudeM?.let { altitude ->
+            val formattedAltitude = resources.formatDistance(altitude, 0, settings.lengthSystem)
             add(
                 ComponentMetric(
                     label = context.getString(R.string.altitude_title),

@@ -13,12 +13,15 @@ import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
+import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
-import kotlin.math.roundToInt
 
 /**
  * Imports JSON files produced by [com.adsamcik.tracker.impexp.exporter.JsonExporter].
@@ -78,7 +81,9 @@ internal class JsonImport(
 			while (reader.hasNext()) {
 				when (reader.nextName()) {
 					"schemaVersion" -> {
-						require(reader.nextInt() == 2) { "Unsupported JSON session schema" }
+						require(reader.nextInt() in 2..CURRENT_SCHEMA_VERSION) {
+							"Unsupported JSON session schema"
+						}
 					}
 					"session" -> readSessionAsSegment(reader)?.let {
 						database.sessionSegmentDao().insert(it)
@@ -143,6 +148,7 @@ internal class JsonImport(
 		}
 		reader.endObject()
 		if (timeMs !in MIN_VALID_TIMESTAMP..MAX_VALID_TIMESTAMP || bssid.isBlank()) return null
+		val coordinates = coordinatesE7OrNull(latitude, longitude)
 		return WifiObservation(
 			timeMs = timeMs,
 			bssid = bssid,
@@ -150,9 +156,9 @@ internal class JsonImport(
 			capabilities = capabilities,
 			frequency = frequencyMhz,
 			level = levelDbm,
-			latE7 = latitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
-			lonE7 = longitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
-			provenance = provenance,
+			latE7 = coordinates?.first,
+			lonE7 = coordinates?.second,
+			provenance = if (coordinates == null) CoordinateProvenance.UNKNOWN else provenance,
 			createdAt = System.currentTimeMillis(),
 		)
 	}
@@ -206,6 +212,7 @@ internal class JsonImport(
 		}
 		reader.endObject()
 		if (timeMs !in MIN_VALID_TIMESTAMP..MAX_VALID_TIMESTAMP) return null
+		val coordinates = coordinatesE7OrNull(latitude, longitude)
 		return CellSample(
 			timeMs = timeMs,
 			cellId = cellId,
@@ -214,9 +221,9 @@ internal class JsonImport(
 			mnc = mnc,
 			networkType = networkType,
 			signalStrength = signalStrength,
-			latE7 = latitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
-			lonE7 = longitude?.takeIf(Double::isFinite)?.times(1e7)?.roundToInt(),
-			provenance = provenance,
+			latE7 = coordinates?.first,
+			lonE7 = coordinates?.second,
+			provenance = if (coordinates == null) CoordinateProvenance.UNKNOWN else provenance,
 			createdAt = System.currentTimeMillis(),
 		)
 	}
@@ -255,6 +262,14 @@ internal class JsonImport(
 		var lat: Double? = null
 		var lon: Double? = null
 		var alt: Double? = null
+		var rawGpsAltitude: Double? = null
+		var altitudeDatum = AltitudeDatum.UNKNOWN_LEGACY
+		var altitudeSource = AltitudeSource.IMPORTED
+		var altitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY
+		var rawGpsAltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY
+		var altitudeModelVersion = 0
+		var altitudeEstimatorVersion = 0
+		var altitudeCalibrationVersion = 0
 		var speed: Float? = null
 		var accuracy: Float? = null
 
@@ -265,6 +280,21 @@ internal class JsonImport(
 				"lat", "latitude" -> lat = reader.nextDouble()
 				"lon", "longitude" -> lon = reader.nextDouble()
 				"alt", "altitudeM" -> alt = readNullableDouble(reader)
+				"rawGpsAltitudeM" -> rawGpsAltitude = readNullableDouble(reader)
+				"altitudeDatum" -> altitudeDatum = AltitudeDatum.fromStorageName(
+					readNullableString(reader),
+				)
+				"altitudeSource" -> altitudeSource = AltitudeSource.fromStorageName(
+					readNullableString(reader),
+				)
+				"altitudeConversionStatus" -> altitudeConversionStatus =
+					AltitudeConversionStatus.fromStorageName(readNullableString(reader))
+				"rawGpsAltitudeDatum" -> rawGpsAltitudeDatum = AltitudeDatum.fromStorageName(
+					readNullableString(reader),
+				)
+				"altitudeModelVersion" -> altitudeModelVersion = reader.nextInt()
+				"altitudeEstimatorVersion" -> altitudeEstimatorVersion = reader.nextInt()
+				"altitudeCalibrationVersion" -> altitudeCalibrationVersion = reader.nextInt()
 				"spd", "speedMps" -> speed = readNullableDouble(reader)?.toFloat()
 				"acc", "horizontalAccuracyM" -> accuracy = readNullableDouble(reader)?.toFloat()
 				"act" -> reader.nextInt()
@@ -276,19 +306,15 @@ internal class JsonImport(
 
 		if (time == 0L) return null
 		if (time < MIN_VALID_TIMESTAMP || time > MAX_VALID_TIMESTAMP) return null
-		val coordinates = lat?.takeIf { it.isFinite() && it in -90.0..90.0 }
-			?.let { validLatitude ->
-				lon?.takeIf { it.isFinite() && it in -180.0..180.0 }
-					?.let { validLongitude -> validLatitude to validLongitude }
-			}
+		val coordinates = coordinatesE7OrNull(lat, lon)
 
 		return LocationSample(
 			timeMs = time,
 			elapsedRealtimeNanos = 0L,
-			latE7 = coordinates?.first?.times(1e7)?.roundToInt(),
-			lonE7 = coordinates?.second?.times(1e7)?.roundToInt(),
-			altitudeM = alt?.toFloat(),
-			rawGpsAltitudeM = null,
+			latE7 = coordinates?.first,
+			lonE7 = coordinates?.second,
+			altitudeM = alt?.takeIf(Double::isFinite)?.toFloat(),
+			rawGpsAltitudeM = rawGpsAltitude?.takeIf(Double::isFinite)?.toFloat(),
 			hAccM = accuracy,
 			vAccM = null,
 			speedMps = speed,
@@ -299,7 +325,22 @@ internal class JsonImport(
 			policy = null,
 			bucketId = null,
 			createdAt = System.currentTimeMillis(),
+			altitudeDatum = altitudeDatum,
+			altitudeSource = altitudeSource,
+			altitudeConversionStatus = altitudeConversionStatus,
+			rawGpsAltitudeDatum = rawGpsAltitudeDatum,
+			altitudeModelVersion = altitudeModelVersion,
+			estimatorVersion = altitudeEstimatorVersion,
+			calibrationVersion = altitudeCalibrationVersion,
 		)
+	}
+
+	private fun readNullableString(reader: JsonReader): String? = when (reader.peek()) {
+		JsonToken.NULL -> {
+			reader.nextNull()
+			null
+		}
+		else -> reader.nextString()
 	}
 
 	private fun readNullableDouble(reader: JsonReader): Double? {
@@ -310,6 +351,19 @@ internal class JsonImport(
 			reader.nextDouble()
 		}
 	}
+
+	/**
+	 * Converts an optional geographic coordinate pair to E7 only when both values are usable.
+	 * A missing, non-finite, or out-of-range value invalidates the entire pair.
+	 */
+	private fun coordinatesE7OrNull(latitude: Double?, longitude: Double?): Pair<Int, Int>? =
+		if (latitude == null || longitude == null) {
+			null
+		} else {
+			CheckedCoordinateE7.fromDegreesOrNull(latitude, longitude)?.let {
+				it.latitudeE7 to it.longitudeE7
+			}
+		}
 
 	private suspend fun importSessions(reader: JsonReader, database: AppDatabase): Int {
 		val segmentDao = database.sessionSegmentDao()
@@ -377,7 +431,7 @@ internal class JsonImport(
 
 	companion object {
 		private const val BATCH_SIZE = 200
-		private const val CURRENT_SCHEMA_VERSION = 1
+		private const val CURRENT_SCHEMA_VERSION = 3
 		// 2010-01-01 00:00:00 UTC
 		private const val MIN_VALID_TIMESTAMP = 1_262_304_000_000L
 		// 2100-01-01 00:00:00 UTC

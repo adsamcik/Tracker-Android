@@ -9,6 +9,10 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.base.data.ProcessedAltitudeData
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -25,6 +29,7 @@ import kotlin.math.abs
 internal class LocationTrackerComponent(
 	private val trackingParamsRepository: TrackingParamsRepository? = null,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+	private val altitudeProcessorFactory: () -> AltitudeProcessor = { AltitudeProcessor() },
 ) : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
 			TrackerComponentRequirement.LOCATION
@@ -54,7 +59,7 @@ internal class LocationTrackerComponent(
 				.onEach { requiredAccuracyMeters = it.requiredAccuracyMeters }
 				.launchIn(requireNotNull(settingsScope))
 		}
-		altitudeProcessor = AltitudeProcessor()
+		altitudeProcessor = altitudeProcessorFactory()
 		lastAcceptedLocation = null
 		lastSmoothedSpeed = 0f
 	}
@@ -208,25 +213,47 @@ internal class LocationTrackerComponent(
 		// pre-tracker accuracy gate or teleport guard, preventing systematic distance under-reporting.
 		val distanceFromPrevious = previousLocation?.let { location.distanceTo(it) } ?: 0f
 
-		// Capture raw GPS altitude before any processing
-		lastRawGpsAltitudeM = if (location.hasAltitude()) location.altitude else null
+		// Capture raw GPS altitude before processing. android.location.Location.altitude is defined
+		// against WGS-84 ellipsoid and remains untouched for the rest of this method.
+		lastRawGpsAltitudeM = location.altitude.takeIf { location.hasAltitude() && it.isFinite() }
 
-		// Apply altitude processing pipeline (geoid correction + accuracy gating + Kalman fusion)
+		// Apply altitude processing pipeline (geoid correction + accuracy gating + Kalman fusion).
+		// The processed estimate travels separately so neither MSL nor fusion output overwrites the
+		// provider Location's raw ellipsoid altitude.
 		val ctx = context
 		val processor = altitudeProcessor
-		collectionData.rawGpsAltitudeM = lastRawGpsAltitudeM?.toFloat()
-		if (ctx != null && processor != null) {
-			// Get barometer pressure from cycle if available
-			val pressureReading = cycle.pressure
-			val processedAltitude = processor.processWithBarometer(
-				ctx, location, pressureReading?.pressureHpa
+		val processed = if (ctx != null && processor != null) {
+			processor.processWithBarometerResult(ctx, location, cycle.pressure?.pressureHpa)
+		} else {
+			null
+		}
+		collectionData.rawGpsAltitudeM = processed?.rawWgs84EllipsoidAltitudeM?.toFloat()
+			?: lastRawGpsAltitudeM?.toFloat()
+		collectionData.processedAltitude = if (processed != null) {
+			ProcessedAltitudeData(
+				altitudeM = processed.altitudeM?.toFloat(),
+				datum = processed.datum,
+				source = processed.source,
+				conversionStatus = processed.conversionStatus,
+				modelVersion = processed.modelVersion,
+				estimatorVersion = processed.estimatorVersion,
+				calibrationVersion = processed.calibrationVersion,
+				rawAltitudeDatum = processed.rawAltitudeDatum,
+				clockDomainId = locationResult.lastFixMetadata.clockDomainId,
 			)
-			if (processedAltitude != null) {
-				location.altitude = processedAltitude
-			} else if (location.hasAltitude()) {
-				// Altitude failed quality gate — remove it to prevent noisy data propagation
-				location.removeAltitude()
-			}
+		} else {
+			ProcessedAltitudeData(
+				altitudeM = null,
+				datum = AltitudeDatum.UNKNOWN_LEGACY,
+				source = AltitudeSource.UNKNOWN_LEGACY,
+				conversionStatus = AltitudeConversionStatus.NOT_ATTEMPTED,
+				rawAltitudeDatum = if (lastRawGpsAltitudeM != null) {
+					AltitudeDatum.WGS84_ELLIPSOID
+				} else {
+					AltitudeDatum.UNKNOWN_LEGACY
+				},
+				clockDomainId = locationResult.lastFixMetadata.clockDomainId,
+			)
 		}
 
 		collectionData.setLocation(location)

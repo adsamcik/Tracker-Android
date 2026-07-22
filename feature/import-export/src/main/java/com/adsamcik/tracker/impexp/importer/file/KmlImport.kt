@@ -12,6 +12,9 @@ import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -264,6 +267,10 @@ internal class KmlImport(
 			policy = null,
 			bucketId = null,
 			createdAt = System.currentTimeMillis(),
+			// KML coordinate altitude carries no datum declaration.
+			altitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+			altitudeSource = AltitudeSource.IMPORTED,
+			altitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
 		)
 	}
 

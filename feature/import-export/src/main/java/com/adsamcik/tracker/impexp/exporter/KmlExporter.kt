@@ -48,10 +48,14 @@ class KmlExporter : Exporter {
 		if (!lat.isFinite() || !lon.isFinite()) return
 
 		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(sample.timeMs)}</when></TimeStamp>")
-		val alt = sample.altitudeM?.toDouble()?.takeIf { it.isFinite() } ?: 0.0
-		streamWriter.write(
-				"<Point><coordinates>${lon},${lat},${alt}</coordinates></Point></Placemark>"
-		)
+		val coordinate = sample.altitudeM
+			?.toDouble()
+			?.takeIf { it.isFinite() && sample.altitudeDatum.isAndroidModelMsl }
+			?.let { altitude -> "${lon},${lat},${altitude}" }
+			?: "${lon},${lat}"
+		// KML coordinates have no datum metadata. Do not synthesize a zero altitude or export a
+		// relative/unknown value as if it were an absolute MSL height.
+		streamWriter.write("<Point><coordinates>${coordinate}</coordinates></Point></Placemark>")
 	}
 
 	private fun writeBeginning(streamWriter: OutputStreamWriter) {

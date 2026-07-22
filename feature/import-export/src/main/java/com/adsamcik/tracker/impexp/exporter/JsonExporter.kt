@@ -24,7 +24,7 @@ import javax.inject.Inject
  * Exports a streaming JSON array of self-contained session records.
  *
  * Each record has a `session` summary and the location, Wi-Fi, and cell observations
- * captured during that session. Schema 2 deliberately keeps related raw data together,
+ * captured during that session. Schema 3 deliberately keeps related raw data together,
  * so a consumer can process one session without retaining the complete export in memory.
  */
 class JsonExporter @JvmOverloads @Inject constructor(
@@ -196,7 +196,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 	}
 
 	private fun writeSessionRecordStart(writer: BufferedWriter, session: SessionSnapshot) {
-		writer.write("{\"schemaVersion\":2,\"session\":")
+		writer.write("{\"schemaVersion\":3,\"session\":")
 		writeSession(writer, session)
 		writer.write(",\"locations\":[")
 	}
@@ -453,8 +453,19 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		writer.write("{\"timeMs\":${sample.timeMs}")
 		sample.latE7?.let { writer.write(",\"latitude\":${it / 1e7}") }
 		sample.lonE7?.let { writer.write(",\"longitude\":${it / 1e7}") }
-		sample.altitudeM?.let { writer.write(",\"altitudeM\":${it.toDouble()}") }
-		sample.rawGpsAltitudeM?.let { writer.write(",\"rawGpsAltitudeM\":${it.toDouble()}") }
+		sample.altitudeM?.takeIf { it.isFinite() }?.let { writer.write(",\"altitudeM\":${it.toDouble()}") }
+		sample.rawGpsAltitudeM?.takeIf { it.isFinite() }?.let {
+			writer.write(",\"rawGpsAltitudeM\":${it.toDouble()}")
+		}
+		// JSON has room to preserve the datum rather than labelling a bare number as MSL. A reader
+		// that does not understand these fields still treats the altitude conservatively as legacy.
+		writer.write(",\"altitudeDatum\":\"${sample.altitudeDatum.storageName}\"")
+		writer.write(",\"altitudeSource\":\"${sample.altitudeSource.storageName}\"")
+		writer.write(",\"altitudeConversionStatus\":\"${sample.altitudeConversionStatus.storageName}\"")
+		writer.write(",\"rawGpsAltitudeDatum\":\"${sample.rawGpsAltitudeDatum.storageName}\"")
+		writer.write(",\"altitudeModelVersion\":${sample.altitudeModelVersion}")
+		writer.write(",\"altitudeEstimatorVersion\":${sample.estimatorVersion}")
+		writer.write(",\"altitudeCalibrationVersion\":${sample.calibrationVersion}")
 		sample.hAccM?.let { writer.write(",\"horizontalAccuracyM\":$it") }
 		sample.vAccM?.let { writer.write(",\"verticalAccuracyM\":$it") }
 		sample.speedMps?.let { writer.write(",\"speedMps\":$it") }
@@ -514,7 +525,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		private fun advanceTo(target: Int) {
 			if (stage == 0) {
 				beforeStart()
-				writer.write("{\"schemaVersion\":2,\"orphanedData\":true,\"locations\":[")
+				writer.write("{\"schemaVersion\":3,\"orphanedData\":true,\"locations\":[")
 				stage = 1
 				firstInStage = true
 			}

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.CellBounds
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.OrderedAltitudeSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
@@ -131,7 +132,7 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.PLAYER_LEVEL to (playerProfileDao.get()?.level ?: 0).toDouble(),
 				MetricKey.BEST_DAY_XP to xpLedgerDao.maxDailyXp().toDouble(),
 				MetricKey.MINIGAMES_PLAYED to miniGameScoreDao.countTotal().toDouble(),
-				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudesOrdered()),
+				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudeSamplesOrdered()),
 				MetricKey.XP_SOURCES_USED to xpLedgerDao.countDistinctSources().toDouble(),
 				MetricKey.PERFECT_WEEKS to countPerfectWeeks(goalMetMillis, zoneId).toDouble(),
 				MetricKey.GOAL_STREAK_DAYS to maxGoalStreak(goalMetMillis, zoneId).toDouble(),
@@ -213,20 +214,34 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 	}
 
 	/**
-	 * Total elevation gain (meters) = sum of positive consecutive altitude deltas.
+	 * Total elevation gain (meters) = sum of positive consecutive altitude deltas within one
+	 * identified datum and monotonic clock domain.
 	 * Deltas below [ASCENT_MIN_DELTA_M] are ignored as barometric/GPS jitter and
 	 * deltas above [ASCENT_MAX_DELTA_M] (between adjacent samples) as glitches.
 	 * Computed over the retained `location_sample` history (re-evaluation triggered
 	 * by `daily_summary` writes at session end).
 	 */
-	private fun totalAscent(altitudes: List<Float>): Double {
+	private fun totalAscent(altitudes: List<OrderedAltitudeSampleRow>): Double {
 		if (altitudes.size < 2) return 0.0
 		var ascent = 0.0
-		var previous = altitudes.first().toDouble()
-		for (index in 1 until altitudes.size) {
-			val current = altitudes[index].toDouble()
-			val delta = current - previous
-			if (delta in ASCENT_MIN_DELTA_M..ASCENT_MAX_DELTA_M) ascent += delta
+		var previous: OrderedAltitudeSampleRow? = null
+		altitudes.forEach { current ->
+			if (!current.altitudeM.isFinite() ||
+				current.altitudeDatum == com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY
+			) {
+				previous = null
+				return@forEach
+			}
+			val prior = previous
+			val sameClockDomain = current.clockDomainId?.takeIf(String::isNotBlank) != null &&
+				current.clockDomainId == prior?.clockDomainId
+			if (prior != null && sameClockDomain &&
+				current.altitudeDatum.isContinuousWith(prior.altitudeDatum)
+			) {
+				val delta = current.altitudeM.toDouble() - prior.altitudeM.toDouble()
+				if (delta in ASCENT_MIN_DELTA_M..ASCENT_MAX_DELTA_M) ascent += delta
+			}
+			// An unknown/mismatched datum or clock begins a new segment rather than bridging it.
 			previous = current
 		}
 		return ascent

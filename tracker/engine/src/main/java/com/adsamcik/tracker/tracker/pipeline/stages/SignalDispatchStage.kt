@@ -39,6 +39,7 @@ internal class SignalDispatchStage(
 		val signal = try {
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
+			val processedAltitude = collectionData.processedAltitude
 			val rawLocation = cycle.location?.lastLocation
 			val locationMetadata = cycle.location?.lastFixMetadata
 			val sourceEventId = locationMetadata?.sourceEventId
@@ -81,8 +82,19 @@ internal class SignalDispatchStage(
 				longitude = collectionData.location?.longitude,
 				accuracy = collectionData.location?.horizontalAccuracy,
 				speed = collectionData.location?.speed,
-				altitude = collectionData.location?.altitude?.toFloat(),
+				altitude = processedAltitude?.altitudeM,
 				rawGpsAltitude = collectionData.rawGpsAltitudeM,
+				altitudeDatum = processedAltitude?.datum
+					?: com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
+				altitudeSource = processedAltitude?.source
+					?: com.adsamcik.tracker.shared.model.AltitudeSource.UNKNOWN_LEGACY,
+				altitudeConversionStatus = processedAltitude?.conversionStatus
+					?: com.adsamcik.tracker.shared.model.AltitudeConversionStatus.UNKNOWN_LEGACY,
+				rawGpsAltitudeDatum = processedAltitude?.rawAltitudeDatum
+					?: com.adsamcik.tracker.shared.model.AltitudeDatum.UNKNOWN_LEGACY,
+				altitudeModelVersion = processedAltitude?.modelVersion ?: 0,
+				altitudeEstimatorVersion = processedAltitude?.estimatorVersion ?: 0,
+				altitudeCalibrationVersion = processedAltitude?.calibrationVersion ?: 0,
 				verticalAccuracy = collectionData.location?.verticalAccuracy,
 				speedAccuracy = collectionData.location?.speedAccuracy,
 				distanceDelta = collectionData.distanceFromPreviousM,

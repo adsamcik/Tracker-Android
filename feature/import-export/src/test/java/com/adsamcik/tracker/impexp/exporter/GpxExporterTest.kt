@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -68,6 +69,11 @@ class GpxExporterTest {
             policy = null,
             bucketId = null,
             createdAt = System.currentTimeMillis(),
+			altitudeDatum = if (altitude?.isFinite() == true) {
+				AltitudeDatum.ANDROID_MODEL_MSL
+			} else {
+				AltitudeDatum.UNKNOWN_LEGACY
+			},
         )
     }
 
@@ -210,6 +216,21 @@ class GpxExporterTest {
             output shouldContain "<trkpt"
             output shouldNotContain "<ele>null</ele>"
         }
+
+		@Test
+		fun `omits non-MSL altitude rather than exporting a mislabeled elevation`() = runTest {
+			val location = createTestLocation(
+				time = 1700000000000L,
+				latitude = 50.0,
+				longitude = 14.0,
+				altitude = 200.0,
+			).copy(altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC)
+
+			val outputStream = ByteArrayOutputStream()
+			exporter.export(mockContext, sequenceOf(location), outputStream)
+
+			outputStream.toString("UTF-8") shouldNotContain "<ele>"
+		}
 
         @Test
         fun `handles multiple waypoints`() = runTest {

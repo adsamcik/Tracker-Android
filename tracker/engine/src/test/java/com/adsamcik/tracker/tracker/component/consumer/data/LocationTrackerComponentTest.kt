@@ -2,7 +2,14 @@ package com.adsamcik.tracker.tracker.component.consumer.data
 
 import android.location.Location
 import com.adsamcik.tracker.shared.base.data.LocationData
+import com.adsamcik.tracker.shared.base.data.LocationFixMetadata
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
+import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
+import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConversionOutcome
+import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConverter
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -26,8 +33,18 @@ class LocationTrackerComponentTest {
 
 	@Before
 	fun setup() {
-		component = LocationTrackerComponent()
+		component = createComponent()
 	}
+
+	private fun createComponent(
+		conversion: (Location) -> GeoidAltitudeConversionOutcome = {
+			GeoidAltitudeConversionOutcome.Success(it.altitude - 100.0)
+		},
+	): LocationTrackerComponent = LocationTrackerComponent(
+		altitudeProcessorFactory = {
+			AltitudeProcessor(geoidAltitudeConverter = FakeGeoidAltitudeConverter(conversion))
+		},
+	)
 
 	private fun createAndroidLocation(
 		altitude: Double? = null,
@@ -53,12 +70,14 @@ class LocationTrackerComponentTest {
 
 	private fun createCycle(
 		location: Location,
-		pressureReading: PressureReading? = null
+		pressureReading: PressureReading? = null,
+		clockDomainId: String? = "boot-a",
 	): TrackingCycle {
 		val locationData = LocationData(
 			locations = listOf(location),
 			previousLocation = null,
-			distance = null
+			distance = null,
+			fixMetadata = listOf(LocationFixMetadata(clockDomainId = clockDomainId)),
 		)
 		return TrackingCycle(
 			timestampMs = location.time,
@@ -140,7 +159,7 @@ class LocationTrackerComponentTest {
 
 
 	@Test
-	fun `processes altitude when vertical accuracy is good`() = runTest {
+	fun `keeps platform altitude raw and carries processed altitude separately`() = runTest {
 		component.onEnable(RuntimeEnvironment.getApplication())
 		val location = createAndroidLocation(altitude = 500.0, verticalAccuracy = 5f)
 		val tempData = createCycle(location)
@@ -150,11 +169,20 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.altitude.shouldNotBeNull()
+		result.altitude shouldBe 500.0
+		collectionData.rawGpsAltitudeM shouldBe 500f
+		val processed = collectionData.processedAltitude
+		processed.shouldNotBeNull()
+		processed.altitudeM shouldBe 400f
+		processed.datum shouldBe AltitudeDatum.ANDROID_MODEL_MSL
+		processed.source shouldBe AltitudeSource.GPS_CONVERSION
+		processed.conversionStatus shouldBe AltitudeConversionStatus.SUCCESS
+		processed.rawAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+		processed.clockDomainId shouldBe "boot-a"
 	}
 
 	@Test
-	fun `removes altitude when vertical accuracy is poor`() = runTest {
+	fun `poor vertical accuracy rejects only processed altitude and preserves raw evidence`() = runTest {
 		component.onEnable(RuntimeEnvironment.getApplication())
 		val location = createAndroidLocation(altitude = 500.0, verticalAccuracy = 25f)
 		val tempData = createCycle(location)
@@ -164,7 +192,12 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.altitude.shouldBeNull()
+		result.altitude shouldBe 500.0
+		collectionData.rawGpsAltitudeM shouldBe 500f
+		val processed = collectionData.processedAltitude
+		processed.shouldNotBeNull()
+		processed.altitudeM.shouldBeNull()
+		processed.conversionStatus shouldBe AltitudeConversionStatus.VERTICAL_ACCURACY_REJECTED
 	}
 
 	@Test
@@ -178,7 +211,9 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.altitude.shouldBeNull()
+		result.hasAltitude() shouldBe false
+		collectionData.rawGpsAltitudeM.shouldBeNull()
+		collectionData.processedAltitude?.conversionStatus shouldBe AltitudeConversionStatus.NOT_ATTEMPTED
 	}
 
 	@Test
@@ -188,14 +223,14 @@ class LocationTrackerComponentTest {
 		val collectionData1 = MutableCollectionData()
 		component.onDataUpdated(createCycle(loc1), collectionData1)
 
-		val alt1 = collectionData1.location?.altitude
+		val alt1 = collectionData1.processedAltitude?.altitudeM
 		alt1.shouldNotBeNull()
 
 		val loc2 = createAndroidLocation(altitude = 600.0, verticalAccuracy = 10f, time = 2000L)
 		val collectionData2 = MutableCollectionData()
 		component.onDataUpdated(createCycle(loc2), collectionData2)
 
-		val alt2 = collectionData2.location?.altitude
+		val alt2 = collectionData2.processedAltitude?.altitudeM
 		alt2.shouldNotBeNull()
 
 		// Kalman should dampen the 100m jump
@@ -216,7 +251,8 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.altitude.shouldNotBeNull()
+		result.altitude shouldBe 500.0
+		collectionData.processedAltitude?.altitudeM.shouldNotBeNull()
 	}
 
 	@Test
@@ -230,7 +266,8 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.altitude.shouldNotBeNull()
+		result.altitude shouldBe 500.0
+		collectionData.processedAltitude?.altitudeM.shouldNotBeNull()
 	}
 
 	@Test
@@ -254,13 +291,24 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		val altitude = result.altitude
+		result.altitude shouldBe 530.0
+		val altitude = collectionData.processedAltitude?.altitudeM
 		altitude.shouldNotBeNull()
 
-		// Fused result should be closer to 500 than 530
-		assert(abs(altitude - 500.0) < abs(altitude - 530.0)) {
-			"Expected fused altitude ($altitude) closer to 500 than 530"
+		// The injected converter maps raw 500m to MSL 400m; fusion must affect only that
+		// processed value, never the raw Location altitude asserted above.
+		assert(abs(altitude - 400f) < abs(altitude - 430f)) {
+			"Expected fused altitude ($altitude) closer to 400 than 430"
 		}
+	}
+
+	private class FakeGeoidAltitudeConverter(
+		private val convert: (Location) -> GeoidAltitudeConversionOutcome,
+	) : GeoidAltitudeConverter {
+		override fun toMslAltitude(
+			context: android.content.Context,
+			location: Location,
+		): GeoidAltitudeConversionOutcome = convert(location)
 	}
 
 

@@ -14,6 +14,9 @@ import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.signal.WifiNetworkReading
 import com.adsamcik.tracker.stats.api.signal.WifiSignal
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.CoordinateE7
@@ -39,8 +42,8 @@ object SignalAdapter {
 	 * @param longitude Raw longitude in degrees, null if no GPS fix
 	 * @param accuracy Horizontal accuracy in meters
 	 * @param speed Speed in m/s, null if unavailable
-	 * @param altitude Fused altitude in meters, null if unavailable
-	 * @param rawGpsAltitude Raw GPS altitude before fusion, null if unavailable
+	 * @param altitude Datum-aware processed altitude in meters, null if unavailable
+	 * @param rawGpsAltitude Raw WGS-84 ellipsoid GPS altitude, null if unavailable
 	 * @param verticalAccuracy Vertical accuracy in meters, null if unavailable
 	 * @param speedAccuracy Speed accuracy in m/s, null if unavailable
 	 * @param distanceDelta Distance from previous location in meters
@@ -71,6 +74,13 @@ object SignalAdapter {
 		speed: Float? = null,
 		altitude: Float? = null,
 		rawGpsAltitude: Float? = null,
+		altitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+		altitudeSource: AltitudeSource = AltitudeSource.UNKNOWN_LEGACY,
+		altitudeConversionStatus: AltitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
+		rawGpsAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+		altitudeModelVersion: Int = 0,
+		altitudeEstimatorVersion: Int = 0,
+		altitudeCalibrationVersion: Int = 0,
 		verticalAccuracy: Float? = null,
 		speedAccuracy: Float? = null,
 		distanceDelta: Float? = null,
@@ -115,6 +125,13 @@ object SignalAdapter {
 				speed = speed?.let { SpeedMps.coerced(it) },
 				altitudeM = altitude,
 				rawGpsAltitudeM = rawGpsAltitude,
+				altitudeDatum = altitudeDatum,
+				altitudeSource = altitudeSource,
+				altitudeConversionStatus = altitudeConversionStatus,
+				rawGpsAltitudeDatum = rawGpsAltitudeDatum,
+				altitudeModelVersion = altitudeModelVersion,
+				altitudeEstimatorVersion = altitudeEstimatorVersion,
+				altitudeCalibrationVersion = altitudeCalibrationVersion,
 				verticalAccuracyM = verticalAccuracy,
 				speedAccuracyMps = speedAccuracy,
 				distanceDelta = distanceDelta?.let { DistanceM.coerced(it) },

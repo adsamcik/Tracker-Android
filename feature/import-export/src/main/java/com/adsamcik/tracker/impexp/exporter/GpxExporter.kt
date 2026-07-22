@@ -96,7 +96,11 @@ class GpxExporter : Exporter {
 		val longitude = lon / 1e7
 
 		writer.write("""<trkpt lat="$latitude" lon="$longitude">""")
-		sample.altitudeM?.let { writer.write("<ele>$it</ele>") }
+		// GPX's <ele> has no datum field. Emit it only when Tracker can truthfully provide
+		// Android-model MSL; relative, ellipsoid, and unknown values would otherwise be mislabeled.
+		sample.altitudeM
+			?.takeIf { it.isFinite() && sample.altitudeDatum.isAndroidModelMsl }
+			?.let { writer.write("<ele>$it</ele>") }
 		writer.write("<time>${Instant.ofEpochMilli(sample.timeMs)}</time>")
 		writer.write("</trkpt>")
 		writer.newLine()

@@ -107,10 +107,11 @@ internal class BarometerDataProducer(
 }
 
 /**
- * Holds a single pressure reading with derived altitude.
+ * Aggregate barometric pressure emitted for one collection cycle, with its standard-atmosphere
+ * relative-altitude derivation. It is not a raw pressure-sensor event.
  */
 data class PressureReading(
-	/** Atmospheric pressure in hectopascals (hPa). */
+	/** Mean valid atmospheric pressure in hectopascals (hPa) across the collection window. */
 	val pressureHpa: Float,
 	/** Derived altitude in meters (standard atmosphere approximation). */
 	val altitudeM: Float

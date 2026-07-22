@@ -1,5 +1,24 @@
 package com.adsamcik.tracker.tracker.altitude
 
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
+
+/**
+ * A fusion result with the source actually used by this cycle.
+ *
+ * Callers must use this result rather than inferring provenance from nullable inputs: a prior
+ * calibration can legitimately support a barometric continuation after the current GPS conversion
+ * fails, while that same failed conversion must never calibrate or update the GPS/MSL path.
+ */
+internal data class AltitudeFusionResult(
+	val altitudeM: Double?,
+	val datum: AltitudeDatum,
+	val source: AltitudeSource,
+	val estimatorVersion: Int = AltitudeContractVersions.ESTIMATOR_VERSION,
+	val calibrationVersion: Int = 0,
+)
+
 /**
  * Fuses GPS altitude with barometric pressure using a 1D Kalman filter.
  *
@@ -29,6 +48,7 @@ internal class AltitudeFusionEngine(
 
 	// Previous barometer altitude for change tracking
 	private var previousBaroAltitudeM: Double? = null
+	private var lastEstimateDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY
 
 	/**
 	 * Whether the fusion engine has been calibrated with at least one GPS fix.
@@ -116,7 +136,27 @@ internal class AltitudeFusionEngine(
 		gpsVerticalAccuracyM: Float? = null,
 		baroPressureHpa: Float? = null,
 		timeMs: Long
-	): Double? {
+	): Double? = updateWithProvenance(
+		gpsAltitudeMsl = gpsAltitudeMsl,
+		gpsVerticalAccuracyM = gpsVerticalAccuracyM,
+		baroPressureHpa = baroPressureHpa,
+		timeMs = timeMs,
+	).altitudeM
+
+	/**
+	 * Runs one update while reporting which measurements were actually admitted to the estimate.
+	 *
+	 * [gpsAltitudeMsl] is deliberately named as an MSL-only input. The processor calls this method
+	 * only after a successful Android-model conversion; raw WGS-84 ellipsoid values are never valid
+	 * calibration or GPS-update inputs.
+	 */
+	@Synchronized
+	fun updateWithProvenance(
+		gpsAltitudeMsl: Double?,
+		gpsVerticalAccuracyM: Float? = null,
+		baroPressureHpa: Float? = null,
+		timeMs: Long,
+	): AltitudeFusionResult {
 		val validGpsAltitudeMsl = gpsAltitudeMsl?.takeIf { it.isFinite() }
 		val validGpsVerticalAccuracyM = gpsVerticalAccuracyM
 			?.takeIf { it.isFinite() && it >= 0f }
@@ -136,12 +176,14 @@ internal class AltitudeFusionEngine(
 			}
 		}
 
-		// Run prediction step if filter is already initialized
-		if (kalmanFilter.isInitialized) {
+		// Run prediction step if filter is already initialized.
+		val predictedThisCycle = kalmanFilter.isInitialized
+		if (predictedThisCycle) {
 			kalmanFilter.predict(timeMs)
 		}
 
 		// GPS measurement update
+		var usedGpsMeasurement = false
 		if (validGpsAltitudeMsl != null) {
 			val gpsNoise = if (validGpsVerticalAccuracyM != null) {
 				(validGpsVerticalAccuracyM * validGpsVerticalAccuracyM).toDouble()
@@ -149,12 +191,15 @@ internal class AltitudeFusionEngine(
 				defaultGpsMeasurementNoiseM2
 			}
 			kalmanFilter.update(validGpsAltitudeMsl, gpsNoise, timeMs)
+			usedGpsMeasurement = true
 		}
 
 		// Barometer measurement update
 		val baroAltitude = validBaroPressureHpa?.let { pressureToAltitude(it) }
+		var usedBarometerMeasurement = false
 		if (baroAltitude != null && !calibratedThisCycle) {
 			kalmanFilter.update(baroAltitude, baroMeasurementNoiseM2, timeMs)
+			usedBarometerMeasurement = true
 		}
 
 		// Track barometer altitude for external consumers
@@ -162,7 +207,37 @@ internal class AltitudeFusionEngine(
 			previousBaroAltitudeM = baroAltitude
 		}
 
-		return currentAltitude
+		val altitude = currentAltitude
+		val datum = when {
+			altitude == null -> AltitudeDatum.UNKNOWN_LEGACY
+			usedGpsMeasurement && usedBarometerMeasurement -> AltitudeDatum.FUSED_ANDROID_MODEL_MSL
+			usedGpsMeasurement -> AltitudeDatum.ANDROID_MODEL_MSL
+			usedBarometerMeasurement -> AltitudeDatum.RELATIVE_BAROMETRIC
+			predictedThisCycle -> lastEstimateDatum
+			else -> AltitudeDatum.UNKNOWN_LEGACY
+		}
+		val source = when {
+			altitude == null -> AltitudeSource.UNKNOWN_LEGACY
+			usedGpsMeasurement && usedBarometerMeasurement -> AltitudeSource.FUSED_GPS_BAROMETER
+			usedGpsMeasurement -> AltitudeSource.GPS_CONVERSION
+			usedBarometerMeasurement -> AltitudeSource.BAROMETER_PREDICTION
+			predictedThisCycle -> AltitudeSource.PREDICTION
+			else -> AltitudeSource.UNKNOWN_LEGACY
+		}
+		if (altitude != null && datum != AltitudeDatum.UNKNOWN_LEGACY) {
+			lastEstimateDatum = datum
+		}
+
+		return AltitudeFusionResult(
+			altitudeM = altitude,
+			datum = datum,
+			source = source,
+			calibrationVersion = if (isCalibrated) {
+				AltitudeContractVersions.CALIBRATION_VERSION
+			} else {
+				0
+			},
+		)
 	}
 
 	/**
@@ -187,6 +262,7 @@ internal class AltitudeFusionEngine(
 		calibratedSeaLevelPressureHpa = null
 		lastCalibrationElapsedTimeMs = 0L
 		previousBaroAltitudeM = null
+		lastEstimateDatum = AltitudeDatum.UNKNOWN_LEGACY
 		kalmanFilter.reset()
 	}
 

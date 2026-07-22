@@ -2,6 +2,9 @@ package com.adsamcik.tracker.statistics.presenter
 
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
@@ -319,7 +322,7 @@ class TripDetailInsightsTest {
 		}
 
 		@Test
-		fun `null altitudes are skipped in elevation calculation`() {
+		fun `missing altitude resets elevation baseline`() {
 			val samples = listOf(
 				makeSample(altitudeM = 100f),
 				makeSample(altitudeM = null),
@@ -328,9 +331,8 @@ class TripDetailInsightsTest {
 			val trip = makeTripSummary(distanceM = 500f, durationMs = 1800_000L)
 			val insights = buildInsights(trip, null, samples)
 
-			// Only one valid pair: 100 -> 115 = +15 gain
-			insights.elevationGainM.shouldNotBeNull()
-			insights.elevationGainM!! shouldBe 15.0
+			// No delta may bridge an unknown/missing altitude boundary.
+			insights.elevationGainM.shouldBeNull()
 		}
 
 		@Test
@@ -345,6 +347,47 @@ class TripDetailInsightsTest {
 
 			insights.maxAltitudeM.shouldNotBeNull()
 			insights.maxAltitudeM!! shouldBe 250.0
+		}
+
+		@Test
+		fun `elevation deltas reset across datum and clock boundaries`() {
+			val samples = listOf(
+				makeSample(altitudeM = 100f, clockDomainId = "boot-a"),
+				makeSample(
+					altitudeM = 1_000f,
+					altitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+					clockDomainId = "boot-a",
+				),
+				makeSample(altitudeM = 120f, clockDomainId = "boot-a"),
+				makeSample(
+					altitudeM = 140f,
+					altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
+					clockDomainId = "boot-a",
+				),
+				makeSample(altitudeM = 160f, clockDomainId = "boot-b"),
+			)
+
+			val insights = buildInsights(makeTripSummary(), null, samples)
+
+			insights.elevationGainM.shouldBeNull()
+			insights.elevationLossM.shouldBeNull()
+		}
+
+		@Test
+		fun `max altitude excludes unknown and relative datum values`() {
+			val samples = listOf(
+				makeSample(altitudeM = 250f),
+				makeSample(
+					altitudeM = 1_000f,
+					altitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+				),
+				makeSample(
+					altitudeM = 900f,
+					altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
+				),
+			)
+
+			buildInsights(makeTripSummary(), null, samples).maxAltitudeM shouldBe 250.0
 		}
 
 		@Test
@@ -400,6 +443,12 @@ class TripDetailInsightsTest {
 			lonE7: Int? = null,
 			quality: SampleQuality = SampleQuality.HIGH,
 			speedAccuracyMps: Float? = null,
+			altitudeDatum: AltitudeDatum = if (altitudeM != null) {
+				AltitudeDatum.ANDROID_MODEL_MSL
+			} else {
+				AltitudeDatum.UNKNOWN_LEGACY
+			},
+			clockDomainId: String? = "test-clock",
 		) = LocationSample(
 			id = ++sampleIdCounter,
 			timeMs = 1_700_000_000_000L + sampleIdCounter * 1000,
@@ -418,6 +467,24 @@ class TripDetailInsightsTest {
 			policy = null,
 			bucketId = null,
 			createdAt = 1_700_000_000_000L + sampleIdCounter * 1000,
+			altitudeDatum = altitudeDatum,
+			altitudeSource = if (altitudeM != null) {
+				AltitudeSource.GPS_CONVERSION
+			} else {
+				AltitudeSource.UNKNOWN_LEGACY
+			},
+			altitudeConversionStatus = if (altitudeM != null) {
+				AltitudeConversionStatus.SUCCESS
+			} else {
+				AltitudeConversionStatus.UNKNOWN_LEGACY
+			},
+			rawGpsAltitudeDatum = if (altitudeM != null) {
+				AltitudeDatum.WGS84_ELLIPSOID
+			} else {
+				AltitudeDatum.UNKNOWN_LEGACY
+			},
+			altitudeModelVersion = if (altitudeM != null) 1 else 0,
+			clockDomainId = clockDomainId,
 		)
 
 		fun makeTrip(

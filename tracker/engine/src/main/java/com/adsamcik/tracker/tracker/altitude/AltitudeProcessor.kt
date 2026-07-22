@@ -3,6 +3,28 @@ package com.adsamcik.tracker.tracker.altitude
 import android.content.Context
 import android.location.Location
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
+
+/**
+ * Processed altitude and the evidence needed to interpret it.
+ *
+ * [rawWgs84EllipsoidAltitudeM] is retained separately from [altitudeM]. A failed conversion never
+ * fills [altitudeM] with the raw ellipsoid value.
+ */
+internal data class AltitudeProcessingResult(
+	val rawWgs84EllipsoidAltitudeM: Double?,
+	val rawAltitudeDatum: AltitudeDatum,
+	val altitudeM: Double?,
+	val datum: AltitudeDatum,
+	val source: AltitudeSource,
+	val conversionStatus: AltitudeConversionStatus,
+	val modelVersion: Int = AltitudeContractVersions.MODEL_VERSION,
+	val estimatorVersion: Int = AltitudeContractVersions.ESTIMATOR_VERSION,
+	val calibrationVersion: Int = 0,
+)
 
 /**
  * Processes raw GPS altitude through a correction and fusion pipeline:
@@ -34,20 +56,25 @@ internal class AltitudeProcessor(
 	 * Must be called on a worker thread (geoid model lookup is I/O).
 	 *
 	 * @param context Application context for geoid model access.
-	 * @param location The raw GPS location to process. Modified in place.
+	 * @param location The raw GPS location to process. It is never modified.
 	 * @return The processed altitude in meters above MSL, or null if altitude
 	 *         was unavailable or failed quality gating.
 	 */
 	@WorkerThread
 	fun process(context: Context, location: Location): Double? {
-		return processWithBarometer(context, location, baroPressureHpa = null)
+		return processResult(context, location).altitudeM
 	}
+
+	/** Processes one GPS-only fix while preserving conversion provenance. */
+	@WorkerThread
+	fun processResult(context: Context, location: Location): AltitudeProcessingResult =
+		processWithBarometerResult(context, location, baroPressureHpa = null)
 
 	/**
 	 * Processes altitude through the full pipeline with barometer fusion.
 	 *
 	 * @param context Application context for geoid model access.
-	 * @param location The raw GPS location. Modified in place with geoid correction.
+	 * @param location The raw GPS location. It remains the provider's WGS-84 ellipsoid observation.
 	 * @param baroPressureHpa Current barometer pressure in hPa, or null if unavailable.
 	 * @return The fused altitude in meters above MSL, or null.
 	 */
@@ -56,34 +83,65 @@ internal class AltitudeProcessor(
 		context: Context,
 		location: Location,
 		baroPressureHpa: Float?
-	): Double? {
-		// Step 1: Geoid correction (ellipsoid → MSL)
-		val mslAltitude = if (location.hasAltitude()) {
+	): Double? = processWithBarometerResult(context, location, baroPressureHpa).altitudeM
+
+	/**
+	 * Processes altitude with provenance. This is the production path used by collection and
+	 * persistence; the nullable overload remains only for local compatibility.
+	 */
+	@WorkerThread
+	fun processWithBarometerResult(
+		context: Context,
+		location: Location,
+		baroPressureHpa: Float?,
+	): AltitudeProcessingResult {
+		val rawEllipsoidAltitude = location.altitude.takeIf {
+			location.hasAltitude() && it.isFinite()
+		}
+		val conversion = if (location.hasAltitude()) {
 			geoidAltitudeConverter.toMslAltitude(context, location)
 		} else {
-			null
+			GeoidAltitudeConversionOutcome.NotAttempted
+		}
+		val convertedMsl = (conversion as? GeoidAltitudeConversionOutcome.Success)
+			?.mslAltitudeM
+			?.takeIf(Double::isFinite)
+		val conversionStatus = when {
+			conversion is GeoidAltitudeConversionOutcome.Success && convertedMsl == null ->
+				AltitudeConversionStatus.INVALID_INPUT
+			conversion is GeoidAltitudeConversionOutcome.Success && !passesVerticalAccuracyGate(location) ->
+				AltitudeConversionStatus.VERTICAL_ACCURACY_REJECTED
+			else -> conversion.toStatus()
 		}
 
-		// Step 2: Vertical accuracy gating
-		val gatedAltitude = if (mslAltitude != null && passesVerticalAccuracyGate(location)) {
-			mslAltitude
-		} else {
-			null
-		}
-
-		// Step 3: Get vertical accuracy for Kalman weighting
+		// A raw WGS-84 value may never enter this MSL-only input. Failed conversion and poor vertical
+		// accuracy therefore cannot calibrate the pressure baseline or GPS-update the filter.
+		val admittedMsl = convertedMsl?.takeIf { passesVerticalAccuracyGate(location) }
 		val verticalAccuracyM = if (location.hasVerticalAccuracy()) {
 			location.verticalAccuracyMeters
 		} else {
 			null
 		}
-
-		// Step 4: Kalman fusion (GPS + barometer)
-		return fusionEngine.update(
-			gpsAltitudeMsl = gatedAltitude,
+		val fusion = fusionEngine.updateWithProvenance(
+			gpsAltitudeMsl = admittedMsl,
 			gpsVerticalAccuracyM = verticalAccuracyM,
 			baroPressureHpa = baroPressureHpa,
-			timeMs = location.elapsedRealtimeNanos / 1_000_000L
+			timeMs = location.elapsedRealtimeNanos / 1_000_000L,
+		)
+
+		return AltitudeProcessingResult(
+			rawWgs84EllipsoidAltitudeM = rawEllipsoidAltitude,
+			rawAltitudeDatum = if (rawEllipsoidAltitude != null) {
+				AltitudeDatum.WGS84_ELLIPSOID
+			} else {
+				AltitudeDatum.UNKNOWN_LEGACY
+			},
+			altitudeM = fusion.altitudeM,
+			datum = fusion.datum,
+			source = fusion.source,
+			conversionStatus = conversionStatus,
+			estimatorVersion = fusion.estimatorVersion,
+			calibrationVersion = fusion.calibrationVersion,
 		)
 	}
 
@@ -95,6 +153,15 @@ internal class AltitudeProcessor(
 	private fun passesVerticalAccuracyGate(location: Location): Boolean {
 		if (!location.hasVerticalAccuracy()) return true
 		return location.verticalAccuracyMeters <= verticalAccuracyThresholdM
+	}
+
+	private fun GeoidAltitudeConversionOutcome.toStatus(): AltitudeConversionStatus = when (this) {
+		is GeoidAltitudeConversionOutcome.Success -> AltitudeConversionStatus.SUCCESS
+		GeoidAltitudeConversionOutcome.NotAttempted -> AltitudeConversionStatus.NOT_ATTEMPTED
+		GeoidAltitudeConversionOutcome.NoMslOutput -> AltitudeConversionStatus.NO_MSL_OUTPUT
+		GeoidAltitudeConversionOutcome.InvalidInput -> AltitudeConversionStatus.INVALID_INPUT
+		GeoidAltitudeConversionOutcome.IoFailure -> AltitudeConversionStatus.IO_FAILURE
+		GeoidAltitudeConversionOutcome.UnexpectedFailure -> AltitudeConversionStatus.UNEXPECTED_FAILURE
 	}
 
 	/**

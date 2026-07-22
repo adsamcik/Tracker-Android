@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
@@ -44,6 +47,13 @@ class SignalSerializerTest {
 			speed = SpeedMps(2.5f),
 			altitudeM = 250.0f,
 			rawGpsAltitudeM = 248.0f,
+			altitudeDatum = AltitudeDatum.FUSED_ANDROID_MODEL_MSL,
+			altitudeSource = AltitudeSource.FUSED_GPS_BAROMETER,
+			altitudeConversionStatus = AltitudeConversionStatus.SUCCESS,
+			rawGpsAltitudeDatum = AltitudeDatum.WGS84_ELLIPSOID,
+			altitudeModelVersion = 1,
+			altitudeEstimatorVersion = 1,
+			altitudeCalibrationVersion = 1,
 			verticalAccuracyM = 3.0f,
 			speedAccuracyMps = 0.5f,
 			provider = "gps",
@@ -275,6 +285,13 @@ class SignalSerializerTest {
 		resLoc.speed shouldBe origLoc.speed
 		resLoc.altitudeM shouldBe origLoc.altitudeM
 		resLoc.rawGpsAltitudeM shouldBe origLoc.rawGpsAltitudeM
+		resLoc.altitudeDatum shouldBe origLoc.altitudeDatum
+		resLoc.altitudeSource shouldBe origLoc.altitudeSource
+		resLoc.altitudeConversionStatus shouldBe origLoc.altitudeConversionStatus
+		resLoc.rawGpsAltitudeDatum shouldBe origLoc.rawGpsAltitudeDatum
+		resLoc.altitudeModelVersion shouldBe origLoc.altitudeModelVersion
+		resLoc.altitudeEstimatorVersion shouldBe origLoc.altitudeEstimatorVersion
+		resLoc.altitudeCalibrationVersion shouldBe origLoc.altitudeCalibrationVersion
 		resLoc.verticalAccuracyM shouldBe origLoc.verticalAccuracyM
 		resLoc.speedAccuracyMps shouldBe origLoc.speedAccuracyMps
 		resLoc.provider shouldBe origLoc.provider
@@ -596,6 +613,37 @@ class SignalSerializerTest {
 		restored.wifi.shouldBeNull()
 		restored.pressure.shouldBeNull()
 		restored.policy.shouldBeNull()
+	}
+
+	@Test
+	fun `historical durable location payload defaults missing altitude contract to unknown`() {
+		val restored = SignalSerializer.deserialize(
+			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000,"hAcc":5.0,"alt":250.0,"rAlt":248.0,"prov":"gps"}}""",
+		).shouldNotBeNull()
+		val location = restored.location.shouldNotBeNull()
+
+		location.altitudeM shouldBe 250.0f
+		location.rawGpsAltitudeM shouldBe 248.0f
+		location.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		location.altitudeSource shouldBe AltitudeSource.UNKNOWN_LEGACY
+		location.altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+		location.rawGpsAltitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		location.altitudeModelVersion shouldBe 0
+		location.altitudeEstimatorVersion shouldBe 0
+		location.altitudeCalibrationVersion shouldBe 0
+	}
+
+	@Test
+	fun `unknown altitude contract codes decode conservatively`() {
+		val restored = SignalSerializer.deserialize(
+			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000,"hAcc":5.0,"altDatum":"future_datum","altSource":"future_source","altStatus":"future_status","rawAltDatum":"future_raw","prov":"gps"}}""",
+		).shouldNotBeNull()
+		val location = restored.location.shouldNotBeNull()
+
+		location.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		location.altitudeSource shouldBe AltitudeSource.UNKNOWN_LEGACY
+		location.altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+		location.rawGpsAltitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
 	}
 
 	@Test

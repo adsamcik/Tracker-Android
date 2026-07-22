@@ -11,6 +11,9 @@ import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.mapper.toEntity
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -210,6 +213,10 @@ motionState = null,
 policy = null,
 bucketId = null,
 createdAt = System.currentTimeMillis(),
+	// GPX <ele> has no datum declaration, so imported altitude remains explicitly unknown.
+	altitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+	altitudeSource = AltitudeSource.IMPORTED,
+	altitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
 )
 }
 

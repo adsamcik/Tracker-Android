@@ -21,6 +21,9 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.DetectedActivityType
@@ -222,6 +225,13 @@ class PersistenceProcessorTest {
 			speed = SpeedMps(1.5f),
 			altitudeM = 300f,
 			rawGpsAltitudeM = 295f,
+			altitudeDatum = AltitudeDatum.FUSED_ANDROID_MODEL_MSL,
+			altitudeSource = AltitudeSource.FUSED_GPS_BAROMETER,
+			altitudeConversionStatus = AltitudeConversionStatus.SUCCESS,
+			rawGpsAltitudeDatum = AltitudeDatum.WGS84_ELLIPSOID,
+			altitudeModelVersion = 1,
+			altitudeEstimatorVersion = 1,
+			altitudeCalibrationVersion = 1,
 			verticalAccuracyM = 3f,
 			speedAccuracyMps = 0.5f,
 			provider = "fused",
@@ -869,6 +879,13 @@ class PersistenceProcessorTest {
 			sample.hAccM shouldBe 5f
 			sample.altitudeM shouldBe 300f
 			sample.rawGpsAltitudeM shouldBe 295f
+			sample.altitudeDatum shouldBe AltitudeDatum.FUSED_ANDROID_MODEL_MSL
+			sample.altitudeSource shouldBe AltitudeSource.FUSED_GPS_BAROMETER
+			sample.altitudeConversionStatus shouldBe AltitudeConversionStatus.SUCCESS
+			sample.rawGpsAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+			sample.altitudeModelVersion shouldBe 1
+			sample.estimatorVersion shouldBe 1
+			sample.calibrationVersion shouldBe 1
 			sample.speedMps shouldBe 1.5f
 			sample.provider shouldBe "fused"
 		}

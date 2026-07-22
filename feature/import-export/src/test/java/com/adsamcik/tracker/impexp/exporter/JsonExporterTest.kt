@@ -3,6 +3,9 @@ package com.adsamcik.tracker.impexp.exporter
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.shouldBe
@@ -26,9 +29,12 @@ class JsonExporterTest {
     fun `groups location wifi and cell observations under their session`() {
         val output = export(sequenceOf(sessionExport()))
 
-        output shouldContain "\"schemaVersion\":2"
-        output shouldContain "\"session\":{\"id\":42"
-        output shouldContain "\"locations\":[{\"timeMs\":1725000000000,\"latitude\":50.1"
+		output shouldContain "\"schemaVersion\":3"
+		output shouldContain "\"session\":{\"id\":42"
+		output shouldContain "\"locations\":[{\"timeMs\":1725000000000,\"latitude\":50.1"
+		output shouldContain "\"altitudeDatum\":\"android_model_msl\""
+		output shouldContain "\"altitudeSource\":\"gps_conversion\""
+		output shouldContain "\"rawGpsAltitudeDatum\":\"wgs84_ellipsoid\""
         output shouldContain "\"wifiObservations\":[{\"timeMs\":1725000010000,\"bssid\":\"00:11:22:33:44:55\""
         output shouldContain "\"cellSamples\":[{\"timeMs\":1725000020000,\"cellId\":9876543210"
     }
@@ -37,7 +43,7 @@ class JsonExporterTest {
     fun `streams a large number of session records`() {
         val output = export((1..2_000).asSequence().map { sessionExport(id = it.toLong()) })
 
-        "\"schemaVersion\":2".toRegex().findAll(output).count() shouldBe 2_000
+		"\"schemaVersion\":3".toRegex().findAll(output).count() shouldBe 2_000
     }
 
     @Test
@@ -124,8 +130,8 @@ class JsonExporterTest {
         elapsedRealtimeNanos = 0L,
         latE7 = 501_000_000,
         lonE7 = 144_000_000,
-        altitudeM = 120f,
-        rawGpsAltitudeM = null,
+		altitudeM = 120f,
+		rawGpsAltitudeM = 118f,
         hAccM = 5f,
         vAccM = null,
         speedMps = 3.5f,
@@ -134,7 +140,13 @@ class JsonExporterTest {
         quality = SampleQuality.HIGH,
         motionState = null,
         policy = null,
-        bucketId = null,
-        createdAt = timeMs,
-    )
+		bucketId = null,
+		createdAt = timeMs,
+		altitudeDatum = AltitudeDatum.ANDROID_MODEL_MSL,
+		altitudeSource = AltitudeSource.GPS_CONVERSION,
+		altitudeConversionStatus = AltitudeConversionStatus.SUCCESS,
+		rawGpsAltitudeDatum = AltitudeDatum.WGS84_ELLIPSOID,
+		altitudeModelVersion = 1,
+		estimatorVersion = 1,
+	)
 }

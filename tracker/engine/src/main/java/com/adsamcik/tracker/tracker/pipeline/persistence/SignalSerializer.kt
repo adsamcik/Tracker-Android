@@ -16,6 +16,9 @@ import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.signal.WifiNetworkReading
 import com.adsamcik.tracker.stats.api.signal.WifiSignal
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.CoordinateE7
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -203,7 +206,7 @@ internal object SignalSerializer {
 			append('}')
 		}
 
-		signal.location?.let { loc ->
+			signal.location?.let { loc ->
 			append(",\"loc\":{\"lat\":")
 			append(loc.coordinate.lat.raw)
 			append(",\"lon\":")
@@ -213,6 +216,30 @@ internal object SignalSerializer {
 			loc.speed?.let { append(",\"spd\":"); append(it.raw) }
 			loc.altitudeM?.let { append(",\"alt\":"); append(it) }
 			loc.rawGpsAltitudeM?.let { append(",\"rAlt\":"); append(it) }
+			append(",\"altDatum\":\"")
+			append(loc.altitudeDatum.storageName)
+			append('\"')
+			append(",\"altSource\":\"")
+			append(loc.altitudeSource.storageName)
+			append('\"')
+			append(",\"altStatus\":\"")
+			append(loc.altitudeConversionStatus.storageName)
+			append('\"')
+			append(",\"rawAltDatum\":\"")
+			append(loc.rawGpsAltitudeDatum.storageName)
+			append('\"')
+			if (loc.altitudeModelVersion != 0) {
+				append(",\"altModelV\":")
+				append(loc.altitudeModelVersion)
+			}
+			if (loc.altitudeEstimatorVersion != 0) {
+				append(",\"altEstimatorV\":")
+				append(loc.altitudeEstimatorVersion)
+			}
+			if (loc.altitudeCalibrationVersion != 0) {
+				append(",\"altCalibrationV\":")
+				append(loc.altitudeCalibrationVersion)
+			}
 			loc.verticalAccuracyM?.let { append(",\"vAcc\":"); append(it) }
 			loc.speedAccuracyMps?.let { append(",\"sAcc\":"); append(it) }
 			if (loc.receivedElapsedRealtimeNanos > 0L) {
@@ -489,6 +516,15 @@ internal object SignalSerializer {
 		speed = if (has("spd")) SpeedMps(getDouble("spd").toFloat()) else null,
 		altitudeM = if (has("alt")) getDouble("alt").toFloat() else null,
 		rawGpsAltitudeM = if (has("rAlt")) getDouble("rAlt").toFloat() else null,
+		altitudeDatum = AltitudeDatum.fromStorageName(optString("altDatum", "")),
+		altitudeSource = AltitudeSource.fromStorageName(optString("altSource", "")),
+		altitudeConversionStatus = AltitudeConversionStatus.fromStorageName(
+			optString("altStatus", ""),
+		),
+		rawGpsAltitudeDatum = AltitudeDatum.fromStorageName(optString("rawAltDatum", "")),
+		altitudeModelVersion = optInt("altModelV", 0),
+		altitudeEstimatorVersion = optInt("altEstimatorV", 0),
+		altitudeCalibrationVersion = optInt("altCalibrationV", 0),
 		verticalAccuracyM = if (has("vAcc")) getDouble("vAcc").toFloat() else null,
 		speedAccuracyMps = if (has("sAcc")) getDouble("sAcc").toFloat() else null,
 		provider = optString("prov", "fused"),

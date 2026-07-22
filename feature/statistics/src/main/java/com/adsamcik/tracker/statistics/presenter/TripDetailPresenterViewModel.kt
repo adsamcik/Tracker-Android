@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.SkiRunSegment
+import com.adsamcik.tracker.shared.model.androidModelMslAltitudeOrNull
+import com.adsamcik.tracker.shared.model.hasIdentifiedAltitude
+import com.adsamcik.tracker.shared.model.isAltitudeContinuousAfter
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
@@ -168,7 +171,7 @@ private suspend fun loadSampleInsights(
 	var elevationGain = 0.0
 	var elevationLoss = 0.0
 	var maxAltitude: Double? = null
-	var previousAltitude: Double? = null
+	var previousAltitudeSample: LocationSample? = null
 	var afterTimeMs: Long? = null
 	var afterId: Long? = null
 
@@ -186,18 +189,23 @@ private suspend fun loadSampleInsights(
 			providerCounts[normalizeProviderLabel(sample.provider)] =
 				(providerCounts[normalizeProviderLabel(sample.provider)] ?: 0) + 1
 
-			val altitude = sample.altitudeM?.toDouble()
-			if (altitude != null) {
-				val previous = previousAltitude
-				if (previous == null) {
-					previousAltitude = altitude
-				} else {
+			if (sample.hasIdentifiedAltitude()) {
+				val altitude = requireNotNull(sample.altitudeM).toDouble()
+				if (sample.isAltitudeContinuousAfter(previousAltitudeSample)) {
+					val previous = requireNotNull(previousAltitudeSample?.altitudeM).toDouble()
 					val delta = altitude - previous
 					if (abs(delta) >= 1.0) {
 						if (delta > 0) elevationGain += delta else elevationLoss += -delta
-						previousAltitude = altitude
+						previousAltitudeSample = sample
 					}
+				} else {
+					// Reset at every incompatible/unknown/clock-domain boundary rather than bridging it.
+					previousAltitudeSample = sample
 				}
+			} else {
+				previousAltitudeSample = null
+			}
+			sample.androidModelMslAltitudeOrNull()?.let { altitude ->
 				maxAltitude = maxOf(maxAltitude ?: altitude, altitude)
 			}
 
@@ -242,21 +250,27 @@ private fun buildInsights(
 	projection: com.adsamcik.tracker.shared.model.Trip?,
 	samples: List<LocationSample>,
 ): TripDetailInsights {
-	val altitudePoints = samples.mapNotNull { it.altitudeM?.toDouble() }
 	var gain = 0.0
 	var loss = 0.0
-	var previousAltitude: Double? = null
-	altitudePoints.forEach { altitude ->
-		val previous = previousAltitude
-		if (previous == null) {
-			previousAltitude = altitude
-		} else {
-			val delta = altitude - previous
-			if (abs(delta) >= 1.0) {
-				if (delta > 0) gain += delta else loss += -delta
-				previousAltitude = altitude
+	var previousAltitudeSample: LocationSample? = null
+	val mslAltitudes = mutableListOf<Double>()
+	samples.forEach { sample ->
+		if (sample.hasIdentifiedAltitude()) {
+			val altitude = requireNotNull(sample.altitudeM).toDouble()
+			if (sample.isAltitudeContinuousAfter(previousAltitudeSample)) {
+				val previous = requireNotNull(previousAltitudeSample?.altitudeM).toDouble()
+				val delta = altitude - previous
+				if (abs(delta) >= 1.0) {
+					if (delta > 0) gain += delta else loss += -delta
+					previousAltitudeSample = sample
+				}
+			} else {
+				previousAltitudeSample = sample
 			}
+		} else {
+			previousAltitudeSample = null
 		}
+		sample.androidModelMslAltitudeOrNull()?.let(mslAltitudes::add)
 	}
 
 	val maxSpeed = samples
@@ -283,7 +297,7 @@ private fun buildInsights(
 		maxSpeedMps = maxSpeed,
 		elevationGainM = gain.takeIf { it > 0.0 },
 		elevationLossM = loss.takeIf { it > 0.0 },
-		maxAltitudeM = altitudePoints.maxOrNull(),
+		maxAltitudeM = mslAltitudes.maxOrNull(),
 		routePoints = routePoints,
 	)
 }

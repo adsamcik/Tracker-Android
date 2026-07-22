@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -106,8 +107,8 @@ internal fun StatusAndQuickStatsCard(
     val avgSpeed = pathMetrics.movingAverageSpeedMps
     val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
-    val altitudeText = collectionData?.location?.altitude?.let {
-        resources.formatDistance(it.toFloat(), 0, settings.lengthSystem)
+    val altitudeText = collectionData?.androidModelMslAltitudeM?.let {
+        resources.formatDistance(it, 0, settings.lengthSystem)
     } ?: "—"
     val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
         "±${resources.formatDistance(it, 0, settings.lengthSystem)}"

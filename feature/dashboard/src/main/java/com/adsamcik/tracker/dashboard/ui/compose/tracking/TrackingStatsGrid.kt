@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -86,7 +87,7 @@ internal fun TrackingStatsGrid(
 	}
 	val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
 
-	val altitude = collectionData?.location?.altitude
+	val altitude = collectionData?.androidModelMslAltitudeM
 	val accuracy = collectionData?.location?.horizontalAccuracy
 	val currentActivity = collectionData?.activity
 	val wifiCount = collectionData?.wifi?.inRange?.size
@@ -114,7 +115,7 @@ internal fun TrackingStatsGrid(
 			if (altitude != null) {
 				CompactAnimatedStatItem(
 					label = stringResource(TrackerR.string.altitude_title),
-					value = resources.formatDistance(altitude.toFloat(), 1, settings.lengthSystem),
+					value = resources.formatDistance(altitude, 1, settings.lengthSystem),
 					modifier = Modifier.weight(1f),
 				)
 			} else {

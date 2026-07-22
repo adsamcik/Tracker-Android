@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -49,6 +50,11 @@ class KmlExporterTest {
             policy = null,
             bucketId = null,
             createdAt = System.currentTimeMillis(),
+			altitudeDatum = if (altitude?.isFinite() == true) {
+				AltitudeDatum.ANDROID_MODEL_MSL
+			} else {
+				AltitudeDatum.UNKNOWN_LEGACY
+			},
         )
     }
 
@@ -206,6 +212,22 @@ class KmlExporterTest {
             output shouldContain "14.0,50.0"
         }
 
+		@Test
+		fun `omits third coordinate for non-MSL altitude`() = runTest {
+			val context = mockk<android.content.Context>(relaxed = true)
+			val location = createTestLocation(
+				time = 1700000000000L,
+				latitude = 50.0,
+				longitude = 14.0,
+				altitude = 200.0,
+			).copy(altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC)
+
+			val outputStream = ByteArrayOutputStream()
+			exporter.export(context, sequenceOf(location), outputStream)
+
+			outputStream.toString("UTF-8") shouldContain "<coordinates>14.0,50.0</coordinates>"
+		}
+
         @Test
         fun `handles extreme coordinate values`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
@@ -280,7 +302,7 @@ class KmlExporterTest {
     inner class InvalidValues {
 
         @Test
-        fun `NaN altitude produces valid KML with 0 altitude`() = runTest {
+		fun `NaN altitude produces valid KML without an invented altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NaN)
@@ -293,11 +315,11 @@ class KmlExporterTest {
             val output = outputStream.toString("UTF-8")
 
             output shouldNotContain "NaN"
-            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+			output shouldContain "<coordinates>14.0,50.0</coordinates>"
         }
 
         @Test
-        fun `Infinity altitude produces valid KML with 0 altitude`() = runTest {
+		fun `Infinity altitude produces valid KML without an invented altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.POSITIVE_INFINITY)
@@ -310,11 +332,11 @@ class KmlExporterTest {
             val output = outputStream.toString("UTF-8")
 
             output shouldNotContain "Infinity"
-            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+			output shouldContain "<coordinates>14.0,50.0</coordinates>"
         }
 
         @Test
-        fun `negative Infinity altitude produces valid KML with 0 altitude`() = runTest {
+		fun `negative Infinity altitude produces valid KML without an invented altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NEGATIVE_INFINITY)
@@ -327,7 +349,7 @@ class KmlExporterTest {
             val output = outputStream.toString("UTF-8")
 
             output shouldNotContain "Infinity"
-            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+			output shouldContain "<coordinates>14.0,50.0</coordinates>"
         }
 
         @Test

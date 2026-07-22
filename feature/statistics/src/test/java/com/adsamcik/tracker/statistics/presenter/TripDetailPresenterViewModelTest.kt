@@ -4,6 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import arrow.core.right
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -299,6 +302,28 @@ class TripDetailPresenterViewModelTest {
 		policy = null,
 		bucketId = null,
 		createdAt = timeMs,
+		altitudeDatum = if (altitudeM != null) {
+			AltitudeDatum.ANDROID_MODEL_MSL
+		} else {
+			AltitudeDatum.UNKNOWN_LEGACY
+		},
+		altitudeSource = if (altitudeM != null) {
+			AltitudeSource.GPS_CONVERSION
+		} else {
+			AltitudeSource.UNKNOWN_LEGACY
+		},
+		altitudeConversionStatus = if (altitudeM != null) {
+			AltitudeConversionStatus.SUCCESS
+		} else {
+			AltitudeConversionStatus.UNKNOWN_LEGACY
+		},
+		rawGpsAltitudeDatum = if (altitudeM != null) {
+			AltitudeDatum.WGS84_ELLIPSOID
+		} else {
+			AltitudeDatum.UNKNOWN_LEGACY
+		},
+		altitudeModelVersion = if (altitudeM != null) 1 else 0,
+		clockDomainId = "test-clock",
 	)
 
 	private data class ChunkRequest(

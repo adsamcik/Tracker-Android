@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
@@ -192,13 +193,13 @@ internal fun SensorDetailsCard(
 					Spacer(Modifier.height(4.dp))
 
 					// Altitude
-					val altitude = collectionData.location?.altitude
+					val altitude = collectionData.androidModelMslAltitudeM
 					if (altitude != null) {
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
 							label = stringResource(R.string.dashboard_sensor_altitude),
 							value = context.resources.formatDistance(
-								altitude.toFloat(), 1, settings.lengthSystem,
+								altitude, 1, settings.lengthSystem,
 							),
 						)
 					}

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.notification.component
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
@@ -27,8 +28,7 @@ internal class AltitudeNotificationComponent : TrackerNotificationComponent() {
 			session: TrackerSession,
 			data: CollectionData
 	): String? {
-		val location = data.location ?: return null
-		val altitude = location.altitude ?: return null
+		val altitude = data.androidModelMslAltitudeM ?: return null
 
 		return context.getString(
 				R.string.altitude_value,

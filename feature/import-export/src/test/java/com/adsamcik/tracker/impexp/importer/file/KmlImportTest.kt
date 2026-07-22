@@ -7,6 +7,9 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -75,6 +78,9 @@ class KmlImportTest {
 
 		capturedSamples shouldHaveSize (KmlImport.BATCH_SIZE * 4 + 5)
 		locationInsertCallCount shouldBe 5
+		capturedSamples.first().altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+		capturedSamples.first().altitudeSource shouldBe AltitudeSource.IMPORTED
+		capturedSamples.first().altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
 	}
 
 	@Test
