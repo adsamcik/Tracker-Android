@@ -248,6 +248,12 @@ class ValueClassTest {
 			val roundTripped = LatE7.fromDegrees(original).toDegrees()
 			(kotlin.math.abs(roundTripped - original) < 1e-6).shouldBeTrue()
 		}
+
+		@Test
+		fun `fromDegrees rejects non finite and out of Earth range`() {
+			assertThrows<IllegalArgumentException> { LatE7.fromDegrees(Double.NaN) }
+			assertThrows<IllegalArgumentException> { LatE7.fromDegrees(90.0000001) }
+		}
 	}
 
 	// ── LonE7 ──────────────────────────────────────────────────────────
@@ -290,6 +296,12 @@ class ValueClassTest {
 			val original = -73.9857
 			val roundTripped = LonE7.fromDegrees(original).toDegrees()
 			(kotlin.math.abs(roundTripped - original) < 1e-6).shouldBeTrue()
+		}
+
+		@Test
+		fun `factory canonicalizes positive antimeridian`() {
+			LonE7.fromDegrees(180.0).raw shouldBe -1_800_000_000
+			LonE7(1_800_000_000).canonicalSpatial().raw shouldBe -1_800_000_000
 		}
 	}
 
@@ -427,6 +439,12 @@ class ValueClassTest {
 			assertThrows<IllegalArgumentException> {
 				CoordinateE7(LatE7(0), LonE7(1_900_000_000))
 			}
+		}
+
+		@Test
+		fun `canonical spatial pair normalizes poles and legacy antimeridian`() {
+			CoordinateE7(LatE7(900_000_000), LonE7(1_800_000_000)).canonicalSpatial() shouldBe
+				CoordinateE7(LatE7(900_000_000), LonE7(0))
 		}
 	}
 }

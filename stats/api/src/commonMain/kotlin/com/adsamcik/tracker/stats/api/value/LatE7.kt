@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.api.value
 
+import com.adsamcik.tracker.shared.model.geo.CheckedLatitudeE7
 import kotlin.jvm.JvmInline
 
 /** Latitude in E7 format (degrees × 1e7). Bounded [-900_000_000, 900_000_000]. */
@@ -12,6 +13,7 @@ value class LatE7(val raw: Int) {
 	fun toDegrees(): Double = raw / 1e7
 
 	companion object {
-		fun fromDegrees(degrees: Double): LatE7 = LatE7((degrees * 1e7).toInt())
+		fun fromDegrees(degrees: Double): LatE7 =
+			LatE7(CheckedLatitudeE7.requireDegrees(degrees).value)
 	}
 }

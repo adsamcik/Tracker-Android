@@ -39,6 +39,9 @@ class V39ToV40MigrationTest {
 				.build(),
 		)
 		db = helper.writableDatabase
+		db.execSQL(
+			"CREATE TABLE location_sample (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, alt_m REAL)",
+		)
 	}
 
 	@After
@@ -61,6 +64,46 @@ class V39ToV40MigrationTest {
 		foreignKeyDeleteAction("import_entry_receipt") shouldBe "CASCADE"
 	}
 
+	@Test
+	fun `migration marks pre-contract altitude rows as unknown`() {
+		db.execSQL("INSERT INTO location_sample(id, alt_m) VALUES (1, 321.5)")
+
+		MIGRATION_39_40.migrate(db)
+
+		columnExists("location_sample", "alt_datum") shouldBe true
+		columnExists("location_sample", "alt_source") shouldBe true
+		columnExists("location_sample", "alt_conversion_status") shouldBe true
+		columnExists("location_sample", "raw_gps_alt_datum") shouldBe true
+		columnExists("location_sample", "alt_model_version") shouldBe true
+		db.query(
+			"SELECT alt_datum, alt_source, alt_conversion_status, raw_gps_alt_datum, alt_model_version " +
+				"FROM location_sample WHERE id = 1",
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getString(0) shouldBe "unknown_legacy"
+			cursor.getString(1) shouldBe "unknown_legacy"
+			cursor.getString(2) shouldBe "unknown_legacy"
+			cursor.getString(3) shouldBe "unknown_legacy"
+			cursor.getInt(4) shouldBe 0
+		}
+	}
+
+	@Test
+	fun `migration marks pre-directed development OSM rows as legacy`() {
+		db.execSQL(
+			"CREATE TABLE osm_import (id INTEGER PRIMARY KEY NOT NULL, display_name TEXT NOT NULL)",
+		)
+		db.execSQL("INSERT INTO osm_import(id, display_name) VALUES (1, 'legacy')")
+
+		MIGRATION_39_40.migrate(db)
+
+		columnExists("osm_import", "way_bbox_encoding_version") shouldBe true
+		db.query("SELECT way_bbox_encoding_version FROM osm_import WHERE id = 1").use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getInt(0) shouldBe 0
+		}
+	}
+
 	private fun tableExists(table: String): Boolean =
 		db.query(
 			"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
@@ -75,6 +118,13 @@ class V39ToV40MigrationTest {
 			val nameIndex = cursor.getColumnIndexOrThrow("name")
 			generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
 				.any { it == index }
+		}
+
+	private fun columnExists(table: String, column: String): Boolean =
+		db.query("PRAGMA table_info($table)").use { cursor ->
+			val nameIndex = cursor.getColumnIndexOrThrow("name")
+			generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+				.any { it == column }
 		}
 
 	private fun foreignKeyDeleteAction(table: String): String =

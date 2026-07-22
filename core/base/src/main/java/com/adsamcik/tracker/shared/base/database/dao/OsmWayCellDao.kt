@@ -21,7 +21,19 @@ interface OsmWayCellDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAll(entries: Collection<OsmWayCellEntity>)
 
-	@Query("SELECT way_id FROM osm_way_cell WHERE cell_key IN (:cellKeys)")
+	/**
+	 * Old numeric-extrema rows are not spatially readable as directed bboxes.
+	 * Join through the import header so stale cell-index rows cannot leak them
+	 * into lookup, geocoding, or matching before startup cleanup deletes them.
+	 */
+	@Query(
+		"SELECT osm_way_cell.way_id FROM osm_way_cell " +
+			"INNER JOIN osm_way ON osm_way.id = osm_way_cell.way_id " +
+			"INNER JOIN osm_import ON osm_import.id = osm_way.import_id " +
+			"WHERE osm_way_cell.cell_key IN (:cellKeys) " +
+			"AND osm_import.status = 'READY' " +
+			"AND osm_import.way_bbox_encoding_version = 1",
+	)
 	suspend fun findWayIdsInCells(cellKeys: Collection<Long>): List<Long>
 
 	@Query("SELECT COUNT(*) FROM osm_way_cell")

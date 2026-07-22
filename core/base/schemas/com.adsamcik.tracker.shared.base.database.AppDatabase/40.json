@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 40,
-    "identityHash": "57d7599afa65c8cdd60b2b3a73a0c6bf",
+    "identityHash": "23ae5e29dcbb719557a24b26984e87b2",
     "entities": [
       {
         "tableName": "activity",
@@ -76,7 +76,7 @@
       },
       {
         "tableName": "location_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL, `source_signal_id` TEXT, `source_event_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL, `source_signal_id` TEXT, `source_event_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0, `alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_source` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_conversion_status` TEXT NOT NULL DEFAULT 'unknown_legacy', `raw_gps_alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_model_version` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -270,6 +270,41 @@
           {
             "fieldPath": "sourceRevision",
             "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "altitudeDatum",
+            "columnName": "alt_datum",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'unknown_legacy'"
+          },
+          {
+            "fieldPath": "altitudeSource",
+            "columnName": "alt_source",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'unknown_legacy'"
+          },
+          {
+            "fieldPath": "altitudeConversionStatus",
+            "columnName": "alt_conversion_status",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'unknown_legacy'"
+          },
+          {
+            "fieldPath": "rawGpsAltitudeDatum",
+            "columnName": "raw_gps_alt_datum",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'unknown_legacy'"
+          },
+          {
+            "fieldPath": "altitudeModelVersion",
+            "columnName": "alt_model_version",
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
@@ -3445,7 +3480,7 @@
       },
       {
         "tableName": "osm_import",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `display_name` TEXT NOT NULL, `file_uri` TEXT NOT NULL, `imported_at` INTEGER NOT NULL, `way_count` INTEGER NOT NULL, `node_count` INTEGER NOT NULL, `min_lat_e7` INTEGER NOT NULL, `max_lat_e7` INTEGER NOT NULL, `min_lon_e7` INTEGER NOT NULL, `max_lon_e7` INTEGER NOT NULL, `status` TEXT NOT NULL DEFAULT 'READY', `cell_index_built` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `display_name` TEXT NOT NULL, `file_uri` TEXT NOT NULL, `imported_at` INTEGER NOT NULL, `way_count` INTEGER NOT NULL, `node_count` INTEGER NOT NULL, `min_lat_e7` INTEGER NOT NULL, `max_lat_e7` INTEGER NOT NULL, `min_lon_e7` INTEGER NOT NULL, `max_lon_e7` INTEGER NOT NULL, `way_bbox_encoding_version` INTEGER NOT NULL DEFAULT 0, `status` TEXT NOT NULL DEFAULT 'READY', `cell_index_built` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -3484,28 +3519,35 @@
             "notNull": true
           },
           {
-            "fieldPath": "minLatE7",
+            "fieldPath": "diagnosticMinLatitudeE7",
             "columnName": "min_lat_e7",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "maxLatE7",
+            "fieldPath": "diagnosticMaxLatitudeE7",
             "columnName": "max_lat_e7",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "minLonE7",
+            "fieldPath": "diagnosticMinLongitudeE7",
             "columnName": "min_lon_e7",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "maxLonE7",
+            "fieldPath": "diagnosticMaxLongitudeE7",
             "columnName": "max_lon_e7",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "wayBboxEncodingVersion",
+            "columnName": "way_bbox_encoding_version",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           },
           {
             "fieldPath": "status",
@@ -3697,7 +3739,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '57d7599afa65c8cdd60b2b3a73a0c6bf')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '23ae5e29dcbb719557a24b26984e87b2')"
     ]
   }
 }

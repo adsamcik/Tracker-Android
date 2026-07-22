@@ -5,6 +5,9 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import kotlinx.parcelize.Parcelize
 
 /**
@@ -35,7 +38,50 @@ interface CollectionData : Parcelable {
 	 * Data about Wi-Fi
 	 */
 	val wifi: WifiData?
+
+	/**
+	 * Datum-aware altitude derived from the raw provider location, when this collection cycle
+	 * produced one. The raw [location] remains the provider observation and must not be used as an
+	 * MSL estimate.
+	 *
+	 * A default keeps non-pipeline implementations of this lightweight interface conservative.
+	 */
+	val processedAltitude: ProcessedAltitudeData?
+		get() = null
 }
+
+/**
+ * Processed altitude kept separately from [Location.altitude].
+ *
+ * The collection [Location] is a direct copy of the Android provider fix and therefore retains
+ * its raw WGS-84 ellipsoid altitude. This parcelable carries the optional MSL/fusion estimate and
+ * its datum through the Android-only collection boundary without repurposing that raw field.
+ */
+@Parcelize
+data class ProcessedAltitudeData(
+	val altitudeM: Float?,
+	val datum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+	val source: AltitudeSource = AltitudeSource.UNKNOWN_LEGACY,
+	val conversionStatus: AltitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
+	val modelVersion: Int = 0,
+	val estimatorVersion: Int = 0,
+	val calibrationVersion: Int = 0,
+	val rawAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+	/** Stable monotonic-clock domain of the provider fix that produced this estimate. */
+	val clockDomainId: String? = null,
+) : Parcelable
+
+/**
+ * Finite processed altitude that can safely be shown as Android-model mean sea level.
+ *
+ * Unknown, ellipsoid, and relative barometric values are deliberately hidden rather than being
+ * presented as an absolute MSL altitude.
+ */
+val CollectionData.androidModelMslAltitudeM: Float?
+	get() = processedAltitude
+		?.takeIf { it.datum.isAndroidModelMsl }
+		?.altitudeM
+		?.takeIf(Float::isFinite)
 
 /**
  * Object containing raw collection data.
@@ -89,6 +135,14 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	var rawGpsAltitudeM: Float?
 		get() = if (bundle.containsKey(RAW_GPS_ALTITUDE)) bundle.getFloat(RAW_GPS_ALTITUDE) else null
 		set(value) = set(RAW_GPS_ALTITUDE, value)
+
+	/**
+	 * Datum-aware processed altitude for the accepted location, if one was produced this cycle.
+	 * This remains separate from [location], whose altitude is raw platform evidence.
+	 */
+	override var processedAltitude: ProcessedAltitudeData?
+		get() = tryGet(PROCESSED_ALTITUDE)
+		set(value) = set(PROCESSED_ALTITUDE, value)
 
 
 	/**
@@ -201,6 +255,6 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		private const val ACTIVITY = "Activity"
 		private const val DISTANCE = "Distance"
 		private const val RAW_GPS_ALTITUDE = "RawGpsAltitude"
+		private const val PROCESSED_ALTITUDE = "ProcessedAltitude"
 	}
 }
-

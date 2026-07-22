@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.DisplayName
@@ -68,6 +71,17 @@ class LocationSampleTest {
 			s.altitudeM shouldBe null
 			s.motionState shouldBe null
 			s.policy shouldBe null
+		}
+
+		@Test
+		fun `bare historical-style sample has explicit unknown altitude provenance`() {
+			val s = sample()
+
+			s.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+			s.altitudeSource shouldBe AltitudeSource.UNKNOWN_LEGACY
+			s.altitudeConversionStatus shouldBe AltitudeConversionStatus.UNKNOWN_LEGACY
+			s.rawGpsAltitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
+			s.altitudeModelVersion shouldBe 0
 		}
 	}
 

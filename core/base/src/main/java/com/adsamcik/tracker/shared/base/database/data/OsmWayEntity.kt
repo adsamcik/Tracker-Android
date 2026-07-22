@@ -28,8 +28,11 @@ import androidx.room.PrimaryKey
  *  - otherwise the value comes from the road-class default table
  *    (`OsmRoadClassDefaults`) and `maxspeed_explicit = 0`.
  *
- * Bounding boxes are stored in E7 to make the per-cell spatial index (see
- * [OsmWayCellEntity]) cheap to query without re-decoding the polyline blob.
+ * Latitude bounds are ordered E7 extrema. Longitude bounds are a directed
+ * circular interval: `bbox_min_lon_e7` is the canonical start and
+ * `bbox_max_lon_e7` is the eastward end. Thus `start > end` explicitly means
+ * an antimeridian crossing; consumers must not reinterpret a wide ordered
+ * range as a complement.
  */
 @Entity(
 	tableName = "osm_way",
@@ -72,7 +75,9 @@ data class OsmWayEntity(
 
 	@ColumnInfo(name = "bbox_min_lat_e7") val bboxMinLatE7: Int,
 	@ColumnInfo(name = "bbox_max_lat_e7") val bboxMaxLatE7: Int,
+	/** Canonical directed longitude-interval start (legacy column name retained). */
 	@ColumnInfo(name = "bbox_min_lon_e7") val bboxMinLonE7: Int,
+	/** Canonical directed longitude-interval eastward end (legacy column name retained). */
 	@ColumnInfo(name = "bbox_max_lon_e7") val bboxMaxLonE7: Int,
 ) {
 	// Custom equals/hashCode because Kotlin's generated ones don't handle ByteArray sanely.

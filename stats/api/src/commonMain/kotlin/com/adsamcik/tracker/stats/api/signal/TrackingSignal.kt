@@ -2,6 +2,9 @@ package com.adsamcik.tracker.stats.api.signal
 
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.stats.api.value.*
 
 /**
@@ -46,7 +49,12 @@ data class LocationSignal(
 	val coordinate: CoordinateE7,
 	val horizontalAccuracyM: Float,
 	val speed: SpeedMps?,
+	/**
+	 * Datum-aware processed altitude. This is never populated with the raw Android ellipsoid
+	 * altitude as a fallback when MSL conversion fails.
+	 */
 	val altitudeM: Float? = null,
+	/** Raw platform altitude retained as separate WGS-84 ellipsoid evidence. */
 	val rawGpsAltitudeM: Float? = null,
 	val verticalAccuracyM: Float? = null,
 	val speedAccuracyMps: Float? = null,
@@ -67,6 +75,18 @@ data class LocationSignal(
 	val isMock: Boolean = false,
 	/** Stable provider-fix identity; distinct from the persistence WAL signal identity. */
 	val sourceEventId: String? = null,
+	/** Datum of [altitudeM]; unknown values must never be labelled as MSL. */
+	val altitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+	/** Source actually used for [altitudeM] in this cycle. */
+	val altitudeSource: AltitudeSource = AltitudeSource.UNKNOWN_LEGACY,
+	/** Typed Android-model conversion outcome for the current raw GPS observation. */
+	val altitudeConversionStatus: AltitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
+	/** Datum for [rawGpsAltitudeM], normally WGS-84 ellipsoid for a live Android location. */
+	val rawGpsAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+	/** Version of the geoid/model contract used to interpret this processed result. */
+	val altitudeModelVersion: Int = 0,
+	val altitudeEstimatorVersion: Int = 0,
+	val altitudeCalibrationVersion: Int = 0,
 )
 
 /**
@@ -168,7 +188,7 @@ data class WifiNetworkReading(
 	val level: Int,
 )
 
-/** Barometric pressure reading for a single cycle. */
+/** Aggregate barometric pressure for one collection cycle, not an individual sensor event. */
 data class PressureSignal(
 	val pressureHpa: Float,
 	val altitudeM: Float,

@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.model.AltitudeDatum
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -26,6 +27,16 @@ data class VehicleSpeedSampleRow(
 	val hAccM: Float?,
 )
 
+/** Minimal ordered altitude projection for datum-safe aggregate calculations. */
+data class OrderedAltitudeSampleRow(
+	@ColumnInfo(name = "alt_m")
+	val altitudeM: Float,
+	@ColumnInfo(name = "alt_datum")
+	val altitudeDatum: AltitudeDatum,
+	@ColumnInfo(name = "clock_domain_id")
+	val clockDomainId: String?,
+)
+
 /**
  * DAO for accessing location_sample table.
  */
@@ -35,9 +46,15 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT COUNT(*) FROM location_sample")
 	suspend fun countAll(): Long
 
-	/** Ordered (by time) non-null fused MSL altitudes, for total-ascent computation. */
-	@Query("SELECT alt_m FROM location_sample WHERE alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC")
-	suspend fun getAltitudesOrdered(): List<Float>
+	/**
+	 * Ordered identified-altitude evidence for gain/loss aggregation. Callers must reset the baseline
+	 * at datum or clock-domain boundaries rather than treating this as an untyped MSL list.
+	 */
+	@Query(
+		"SELECT alt_m, alt_datum, clock_domain_id FROM location_sample " +
+			"WHERE alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC",
+	)
+	suspend fun getAltitudeSamplesOrdered(): List<OrderedAltitudeSampleRow>
 	
 	/**
 	 * Get the next ordered chunk of location samples within a time range.

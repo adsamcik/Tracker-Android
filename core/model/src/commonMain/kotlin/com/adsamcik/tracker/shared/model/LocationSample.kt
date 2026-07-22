@@ -39,6 +39,16 @@ val sourceEventId: String? = null,
 val clockDomainId: String? = null,
 /** Source snapshot revision assigned atomically with persistence. */
 val sourceRevision: Long = 0L,
+/** Datum for [altitudeM]; unknown historical/imported values must not be presented as MSL. */
+val altitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+/** Source actually used for [altitudeM]. */
+val altitudeSource: AltitudeSource = AltitudeSource.UNKNOWN_LEGACY,
+/** Android-model conversion outcome captured with this processed result. */
+val altitudeConversionStatus: AltitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
+/** Datum for [rawGpsAltitudeM], normally WGS-84 ellipsoid for fresh Android provider evidence. */
+val rawGpsAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+/** Version of the model/geoid contract used for [altitudeM]. */
+val altitudeModelVersion: Int = 0,
 )
 
 /**

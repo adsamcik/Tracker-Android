@@ -1035,6 +1035,14 @@ private fun columnExists(
 		found
 	}
 
+private fun tableExists(db: SupportSQLiteDatabase, table: String): Boolean =
+	db.query(
+		"SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
+		arrayOf<Any?>(table),
+	).use { cursor ->
+		cursor.moveToFirst() && cursor.getInt(0) != 0
+	}
+
 /**
  * Migration 19 → 20: Add has_distance_anomaly flag to session_segment.
  *
@@ -2201,6 +2209,49 @@ val MIGRATION_38_39: Migration = object : Migration(38, 39) {
 val MIGRATION_39_40: Migration = object : Migration(39, 40) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
+			// Schema 40 is unreleased. Preserve all earlier bare altitude rows as explicitly unknown
+			// rather than claiming that an old `alt_m` value used an Android-model MSL datum.
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"alt_datum",
+				"TEXT NOT NULL DEFAULT 'unknown_legacy'",
+			)
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"alt_source",
+				"TEXT NOT NULL DEFAULT 'unknown_legacy'",
+			)
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"alt_conversion_status",
+				"TEXT NOT NULL DEFAULT 'unknown_legacy'",
+			)
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"raw_gps_alt_datum",
+				"TEXT NOT NULL DEFAULT 'unknown_legacy'",
+			)
+			addColumnIfMissing(
+				this,
+				"location_sample",
+				"alt_model_version",
+				"INTEGER NOT NULL DEFAULT 0",
+			)
+			// OSM schemas are unreleased. Mark pre-directed development rows as
+			// legacy so startup can delete/re-import them rather than reinterpret
+			// ordinary longitude extrema as circular directed bounds.
+			if (tableExists(this, "osm_import")) {
+				addColumnIfMissing(
+					this,
+					"osm_import",
+					"way_bbox_encoding_version",
+					"INTEGER NOT NULL DEFAULT 0",
+				)
+			}
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS import_job_receipt (

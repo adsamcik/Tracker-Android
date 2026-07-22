@@ -35,7 +35,11 @@ interface OsmImportDao {
 	@Query("SELECT COUNT(*) FROM osm_import")
 	suspend fun count(): Int
 
-	@Query("SELECT COUNT(*) FROM osm_import WHERE status = 'READY'")
+	/** Only published imports with directed child-way bboxes are spatially usable. */
+	@Query(
+		"SELECT COUNT(*) FROM osm_import " +
+			"WHERE status = 'READY' AND way_bbox_encoding_version = 1",
+	)
 	suspend fun readyCount(): Int
 
 	/**
@@ -44,20 +48,31 @@ interface OsmImportDao {
 	 * instead of `osm_way_cell.count == 0` so a crash mid-reindex is always
 	 * detected.
 	 */
-	@Query("SELECT EXISTS(SELECT 1 FROM osm_import WHERE cell_index_built = 0)")
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM osm_import " +
+			"WHERE cell_index_built = 0 " +
+			"AND status = 'READY' " +
+			"AND way_bbox_encoding_version = 1)",
+	)
 	suspend fun hasUnbuiltCellIndex(): Boolean
 
 	/**
 	 * Marks all imports as having a complete cell index. Called by the
 	 * reindexer after a successful full rebuild.
 	 */
-	@Query("UPDATE osm_import SET cell_index_built = 1")
+	@Query(
+		"UPDATE osm_import SET cell_index_built = 1 " +
+			"WHERE status = 'READY' AND way_bbox_encoding_version = 1",
+	)
 	suspend fun markAllCellIndexBuilt()
 
 	@Query("SELECT COUNT(*) FROM osm_import")
 	fun observeCount(): Flow<Int>
 
-	@Query("SELECT COUNT(*) FROM osm_import WHERE status = 'READY'")
+	@Query(
+		"SELECT COUNT(*) FROM osm_import " +
+			"WHERE status = 'READY' AND way_bbox_encoding_version = 1",
+	)
 	fun observeReadyCount(): Flow<Int>
 
 	/**
@@ -67,18 +82,18 @@ interface OsmImportDao {
 	 */
 	@Query(
 		"UPDATE osm_import SET way_count = :wayCount, node_count = :nodeCount, " +
-			"min_lat_e7 = :minLatE7, max_lat_e7 = :maxLatE7, " +
-			"min_lon_e7 = :minLonE7, max_lon_e7 = :maxLonE7, status = 'READY' " +
+			"min_lat_e7 = :diagnosticMinLatitudeE7, max_lat_e7 = :diagnosticMaxLatitudeE7, " +
+			"min_lon_e7 = :diagnosticMinLongitudeE7, max_lon_e7 = :diagnosticMaxLongitudeE7, status = 'READY' " +
 			"WHERE id = :importId AND status = 'BUILDING'",
 	)
 	suspend fun markReady(
 		importId: Long,
 		wayCount: Long,
 		nodeCount: Long,
-		minLatE7: Int,
-		maxLatE7: Int,
-		minLonE7: Int,
-		maxLonE7: Int,
+		diagnosticMinLatitudeE7: Int,
+		diagnosticMaxLatitudeE7: Int,
+		diagnosticMinLongitudeE7: Int,
+		diagnosticMaxLongitudeE7: Int,
 	): Int
 
 	/** Cascades to osm_way and osm_way_cell via FK. */
@@ -88,6 +103,14 @@ interface OsmImportDao {
 	/** Removes imports left unpublished by a prior process death. */
 	@Query("DELETE FROM osm_import WHERE status = 'BUILDING'")
 	suspend fun deleteBuildingImports(): Int
+
+	/**
+	 * OSM tables are unreleased. Drop development imports whose child-way bbox
+	 * values use an obsolete encoding instead of reinterpreting ordered extrema
+	 * as directed circular arcs.
+	 */
+	@Query("DELETE FROM osm_import WHERE way_bbox_encoding_version <> :supportedVersion")
+	suspend fun deleteImportsWithUnsupportedWayBboxEncoding(supportedVersion: Int): Int
 
 	@Query("DELETE FROM osm_import")
 	fun deleteAll()

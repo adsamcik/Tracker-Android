@@ -6,7 +6,10 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Raw barometric pressure sample captured during tracking.
+ * Cycle-aggregate barometric pressure captured during tracking.
+ *
+ * This table does not retain individual pressure-sensor events; each row is the producer's
+ * aggregate for one collection window.
  * Used for altitude estimation and vertical rate computation in activity recognition.
  */
 @Entity(
@@ -33,7 +36,7 @@ data class PressureSample(
     @ColumnInfo(name = "elapsed_realtime_nanos")
     val elapsedRealtimeNanos: Long,
 
-    /** Raw atmospheric pressure in hectopascals (hPa / mbar). */
+    /** Aggregate atmospheric pressure in hectopascals (hPa / mbar). */
     @ColumnInfo(name = "pressure_hpa")
     val pressureHpa: Float,
 

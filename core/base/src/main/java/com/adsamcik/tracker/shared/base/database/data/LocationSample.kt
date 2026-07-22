@@ -4,6 +4,9 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 
 /**
  * Raw location sample captured during tracking.
@@ -54,10 +57,9 @@ data class LocationSample(
 	val lonE7: Int?,
 
 	/**
-	 * Altitude in meters above Mean Sea Level (MSL).
-	 * This is the best available altitude: fused (GPS+barometer via Kalman filter)
-	 * when barometer data is available, otherwise geoid-corrected GPS altitude.
-	 * Null if unavailable or failed vertical accuracy gating.
+	 * Datum-aware processed altitude. The associated [altitudeDatum] determines whether this is
+	 * Android-model MSL, a relative barometric continuation, or historical/unknown evidence.
+	 * This field is never populated with a raw WGS-84 ellipsoid altitude as an MSL fallback.
 	 */
 	@ColumnInfo(name = "alt_m")
 	val altitudeM: Float?,
@@ -188,6 +190,25 @@ data class LocationSample(
 	/** Snapshot revision assigned atomically with this source write. */
 	@ColumnInfo(name = "source_revision", defaultValue = "0")
 	val sourceRevision: Long = 0L,
+
+	/** Reference surface for [altitudeM]. Historical rows default to [AltitudeDatum.UNKNOWN_LEGACY]. */
+	@ColumnInfo(name = "alt_datum", defaultValue = "'unknown_legacy'")
+	val altitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+
+	/** Source actually used for [altitudeM]; not an inferred label based on nullable inputs. */
+	@ColumnInfo(name = "alt_source", defaultValue = "'unknown_legacy'")
+	val altitudeSource: AltitudeSource = AltitudeSource.UNKNOWN_LEGACY,
+
+	/** Typed Android-model conversion result for this location cycle. */
+	@ColumnInfo(name = "alt_conversion_status", defaultValue = "'unknown_legacy'")
+	val altitudeConversionStatus: AltitudeConversionStatus = AltitudeConversionStatus.UNKNOWN_LEGACY,
+
+	/** Datum of [rawGpsAltitudeM], WGS-84 for newly captured Android raw altitude evidence. */
+	@ColumnInfo(name = "raw_gps_alt_datum", defaultValue = "'unknown_legacy'")
+	val rawGpsAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
+
+	@ColumnInfo(name = "alt_model_version", defaultValue = "0")
+	val altitudeModelVersion: Int = 0,
 )
 
 /**

@@ -115,6 +115,11 @@ sourceSignalId = sourceSignalId,
 sourceEventId = sourceEventId,
 clockDomainId = clockDomainId,
 sourceRevision = sourceRevision,
+altitudeDatum = altitudeDatum,
+altitudeSource = altitudeSource,
+altitudeConversionStatus = altitudeConversionStatus,
+rawGpsAltitudeDatum = rawGpsAltitudeDatum,
+altitudeModelVersion = altitudeModelVersion,
 )
 
 fun ModelLocationSample.toEntity(): EntityLocationSample = EntityLocationSample(
@@ -149,6 +154,11 @@ sourceSignalId = sourceSignalId,
 sourceEventId = sourceEventId,
 clockDomainId = clockDomainId,
 sourceRevision = sourceRevision,
+altitudeDatum = altitudeDatum,
+altitudeSource = altitudeSource,
+altitudeConversionStatus = altitudeConversionStatus,
+rawGpsAltitudeDatum = rawGpsAltitudeDatum,
+altitudeModelVersion = altitudeModelVersion,
 )
 
 fun EntitySkiRunSegment.toModel(): ModelSkiRunSegment = ModelSkiRunSegment(

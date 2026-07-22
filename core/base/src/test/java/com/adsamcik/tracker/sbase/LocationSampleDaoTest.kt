@@ -7,6 +7,9 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
@@ -266,7 +269,15 @@ class LocationSampleDaoTest {
 			quality = SampleQuality.MEDIUM,
 			motionState = MotionState.STILL,
 			policy = "ACTIVE_ELEVATED",
-			bucketId = 42L
+			bucketId = 42L,
+		).copy(
+			altitudeDatum = AltitudeDatum.FUSED_ANDROID_MODEL_MSL,
+			altitudeSource = AltitudeSource.FUSED_GPS_BAROMETER,
+			altitudeConversionStatus = AltitudeConversionStatus.SUCCESS,
+			rawGpsAltitudeDatum = AltitudeDatum.WGS84_ELLIPSOID,
+			altitudeModelVersion = 1,
+			estimatorVersion = 1,
+			calibrationVersion = 1,
 		)
 		dao.insert(sample)
 
@@ -274,6 +285,13 @@ class LocationSampleDaoTest {
 		result.latE7 shouldBe 500_123_456
 		result.lonE7 shouldBe 139_876_543
 		result.altitudeM shouldBe 42.5f
+		result.altitudeDatum shouldBe AltitudeDatum.FUSED_ANDROID_MODEL_MSL
+		result.altitudeSource shouldBe AltitudeSource.FUSED_GPS_BAROMETER
+		result.altitudeConversionStatus shouldBe AltitudeConversionStatus.SUCCESS
+		result.rawGpsAltitudeDatum shouldBe AltitudeDatum.WGS84_ELLIPSOID
+		result.altitudeModelVersion shouldBe 1
+		result.estimatorVersion shouldBe 1
+		result.calibrationVersion shouldBe 1
 		result.hAccM shouldBe 3.2f
 		result.speedMps shouldBe 2.7f
 		result.provider shouldBe "gps"

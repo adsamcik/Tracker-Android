@@ -5,6 +5,9 @@ import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -154,6 +157,33 @@ class SessionlessTypeConverterTest {
 			assertThrows<IllegalArgumentException> {
 				converter.toSkiSegmentType("SNOWBOARD")
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Altitude contract")
+	inner class AltitudeContractTests {
+		@Test
+		fun `all altitude contract values round trip through stable storage names`() {
+			AltitudeDatum.entries.forEach { datum ->
+				converter.toAltitudeDatum(converter.fromAltitudeDatum(datum)) shouldBe datum
+			}
+			AltitudeSource.entries.forEach { source ->
+				converter.toAltitudeSource(converter.fromAltitudeSource(source)) shouldBe source
+			}
+			AltitudeConversionStatus.entries.forEach { status ->
+				converter.toAltitudeConversionStatus(
+					converter.fromAltitudeConversionStatus(status),
+				) shouldBe status
+			}
+		}
+
+		@Test
+		fun `unknown durable altitude codes are conservative legacy values`() {
+			converter.toAltitudeDatum("future_datum") shouldBe AltitudeDatum.UNKNOWN_LEGACY
+			converter.toAltitudeSource("future_source") shouldBe AltitudeSource.UNKNOWN_LEGACY
+			converter.toAltitudeConversionStatus("future_status") shouldBe
+				AltitudeConversionStatus.UNKNOWN_LEGACY
 		}
 	}
 }

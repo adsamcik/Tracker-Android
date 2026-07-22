@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.data
 
+import com.adsamcik.tracker.shared.model.AltitudeDatum
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -54,5 +55,21 @@ class MutableCollectionDataTest {
 		// distanceFromPreviousM is a separate bundle entry and must not affect location.
 		data.location.shouldBeNull()
 		data.distanceFromPreviousM shouldBe 42f
+	}
+
+	@Test
+	fun `exposes only Android model MSL processed altitude to presentation consumers`() {
+		val data = MutableCollectionData(1_000L)
+		data.processedAltitude = ProcessedAltitudeData(
+			altitudeM = 420f,
+			datum = AltitudeDatum.ANDROID_MODEL_MSL,
+		)
+		data.androidModelMslAltitudeM shouldBe 420f
+
+		data.processedAltitude = ProcessedAltitudeData(
+			altitudeM = 500f,
+			datum = AltitudeDatum.WGS84_ELLIPSOID,
+		)
+		data.androidModelMslAltitudeM.shouldBeNull()
 	}
 }
