@@ -15,6 +15,7 @@ import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
+import com.adsamcik.tracker.app.tracebox.TraceboxTrialController
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
 import android.util.Log
@@ -115,6 +116,14 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var trackingStartupGuard: TrackingStartupGuard
+
+	/**
+	 * Creates the disabled Tracebox alpha handle at process startup. The user-facing settings flow
+	 * controls whether its bounded structural trial is enabled for this process.
+	 */
+	@Suppress("unused")
+	@Inject
+	lateinit var traceboxTrialController: TraceboxTrialController
 
 	@Volatile
 	var isStartupReady: Boolean = false

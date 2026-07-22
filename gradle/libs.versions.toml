@@ -3,6 +3,7 @@
 kotlin = "2.4.0"
 ksp = "2.3.8"
 agp = "9.2.1"
+tracebox = "0.1.0-alpha.1"
 
 # Tools
 benmanes = "0.54.0"
@@ -112,6 +113,7 @@ compose-compiler-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compos
 
 # Arrow
 arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrow" }
+tracebox = { group = "io.github.tracebox", name = "tracebox", version.ref = "tracebox" }
 
 # Test libraries - JUnit 5 (for unit tests)
 junit5-bom = { group = "org.junit", name = "junit-bom", version.ref = "junit5" }

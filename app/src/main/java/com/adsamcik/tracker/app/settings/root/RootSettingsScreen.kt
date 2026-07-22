@@ -82,6 +82,7 @@ fun RootSettingsScreen(
     RootSettingsContent(
         state = state,
         showDebug = showDebug,
+        showTraceboxTrial = com.adsamcik.tracker.BuildConfig.TRACEBOX_TRIAL_AVAILABLE,
         developerModeEnabled = developerModeEnabled,
         onNavigate = onNavigate,
         onNavigateToActivities = onNavigateToActivities,
@@ -96,6 +97,7 @@ fun RootSettingsScreen(
 internal fun RootSettingsContent(
     state: TrackerSettingsState,
     showDebug: Boolean,
+    showTraceboxTrial: Boolean,
     developerModeEnabled: Boolean,
     onNavigate: (SettingsScreen) -> Unit,
     onNavigateToActivities: () -> Unit,
@@ -242,6 +244,14 @@ internal fun RootSettingsContent(
                     icon = Icons.Default.PrivacyTip,
                     onClick = { showPrivacyPolicy = true }
                 )
+                if (showTraceboxTrial) {
+                    SettingsItem(
+                        title = stringResource(R.string.settings_tracebox_title),
+                        subtitle = stringResource(R.string.settings_tracebox_root_summary),
+                        icon = Icons.Default.Info,
+                        onClick = { onNavigate(SettingsScreen.TraceboxTrial) }
+                    )
+                }
             }
         }
 
@@ -338,6 +348,7 @@ private fun RootSettingsScreenPreview() {
                 speedFormat = SpeedFormat.Hour,
             ),
             showDebug = true,
+            showTraceboxTrial = true,
             developerModeEnabled = true,
             onNavigate = {},
             onNavigateToActivities = {},
