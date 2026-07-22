@@ -83,6 +83,21 @@ android {
         resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
     }
 
+    flavorDimensions += "diagnostics"
+    productFlavors {
+        create("standard") {
+            dimension = "diagnostics"
+            buildConfigField("boolean", "TRACEBOX_TRIAL_AVAILABLE", "false")
+        }
+        create("traceboxTrial") {
+            dimension = "diagnostics"
+            minSdk = 30
+            applicationIdSuffix = ".traceboxtrial"
+            versionNameSuffix = "-tracebox-trial"
+            buildConfigField("boolean", "TRACEBOX_TRIAL_AVAILABLE", "true")
+        }
+    }
+
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }
@@ -275,6 +290,10 @@ dependencies {
     // App Startup
     implementation(libs.androidx.startup.runtime)
 
+    // Privacy-bounded alpha diagnostics trial. It is isolated to an API-30+
+    // flavor so Tracker's standard API-26 support contract remains unchanged.
+    add("traceboxTrialImplementation", libs.tracebox)
+
     // Compose
     androidTestImplementation(platform(libs.compose.bom))
 
@@ -354,18 +373,16 @@ tasks.configureEach {
 	}
 }
 
-// Fix for KSP running before R class generation
-// Ensure KSP waits for resource processing to complete
+// Fix for KSP running before R class generation. Flavored variants use names such as
+// kspStandardDebugKotlin and kspTraceboxTrialDebugKotlin, so derive the matching resource task
+// rather than assuming the app has one unflavored debug/release variant.
 afterEvaluate {
-	tasks.named("kspDebugKotlin") {
-		dependsOn("processDebugResources")
+	tasks.matching { task ->
+		task.name.startsWith("ksp") && task.name.endsWith("Kotlin")
+	}.configureEach {
+		val variantName = name.removePrefix("ksp").removeSuffix("Kotlin")
+		tasks.findByName("process${variantName}Resources")?.let { resourceTask ->
+			dependsOn(resourceTask)
+		}
 	}
-	tasks.named("kspReleaseKotlin") {
-		dependsOn("processReleaseResources")
-	}
-	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }
-
-
-
-

@@ -35,7 +35,7 @@ import com.adsamcik.tracker.app.settings.debug.DebugSettingsScreen
 import com.adsamcik.tracker.app.settings.game.GameSettingsScreen
 import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
-
+import com.adsamcik.tracker.app.settings.tracebox.TraceboxTrialScreen
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 
@@ -113,6 +113,7 @@ fun SettingsRoute(
                     SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
                     SettingsScreen.Map -> MapSettingsScreen()
                     SettingsScreen.Game -> GameSettingsScreen()
+                    SettingsScreen.TraceboxTrial -> TraceboxTrialScreen()
                     SettingsScreen.Statistics -> {
                         // Statistics sub-screen removed — navigate back to root as defensive fallback.
                         LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
@@ -147,6 +148,9 @@ sealed class SettingsScreen {
     data object Game : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.module_game_title)
     }
+    data object TraceboxTrial : SettingsScreen() {
+        @Composable override fun title() = stringResource(R.string.settings_tracebox_title)
+    }
     data object Statistics : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.module_statistics_title)
     }
@@ -161,6 +165,7 @@ sealed class SettingsScreen {
         Export -> "export"
         Map -> "map"
         Game -> "game"
+        TraceboxTrial -> "tracebox_trial"
         Statistics -> "statistics"
         Debug -> "debug"
     }
@@ -173,6 +178,7 @@ sealed class SettingsScreen {
             "export" -> Export
             "map" -> Map
             "game" -> Game
+            "tracebox_trial" -> TraceboxTrial
             "statistics" -> Statistics
             "debug" -> Debug
             else -> null

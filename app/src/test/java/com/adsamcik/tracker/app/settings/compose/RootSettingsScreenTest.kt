@@ -35,6 +35,7 @@ class RootSettingsScreenTest {
 
     private fun setContentWithDefaults(
         showDebug: Boolean = false,
+        showTraceboxTrial: Boolean = false,
         developerModeEnabled: Boolean = false,
         onNavigate: (SettingsScreen) -> Unit = {},
         onNavigateToActivities: () -> Unit = {},
@@ -46,6 +47,7 @@ class RootSettingsScreenTest {
                 RootSettingsContent(
                     state = defaultState,
                     showDebug = showDebug,
+                    showTraceboxTrial = showTraceboxTrial,
                     developerModeEnabled = developerModeEnabled,
                     onNavigate = onNavigate,
                     onNavigateToActivities = onNavigateToActivities,
@@ -114,6 +116,28 @@ class RootSettingsScreenTest {
         setContentWithDefaults(onNavigate = { navigatedTo = it })
         composeTestRule.onNodeWithText("Data", substring = true).performClick()
         navigatedTo shouldBe SettingsScreen.Data
+    }
+
+    @Test
+    fun navigateToTraceboxTrialCallsCallback() {
+        var navigatedTo: SettingsScreen? = null
+        setContentWithDefaults(
+            showTraceboxTrial = true,
+            onNavigate = { navigatedTo = it },
+        )
+        scrollTo("Tracebox alpha trial")
+
+        composeTestRule.onNodeWithText("Tracebox alpha trial").performClick()
+
+        navigatedTo shouldBe SettingsScreen.TraceboxTrial
+    }
+
+    @Test
+    fun traceboxTrialHiddenWhenUnavailable() {
+        setContentWithDefaults(showTraceboxTrial = false)
+        scrollTo("Privacy Policy")
+
+        composeTestRule.onNodeWithText("Tracebox alpha trial").assertDoesNotExist()
     }
 
     @Test
