@@ -178,45 +178,48 @@ android {
         includeInBundle = true
     }
 }
-val releaseLintReport = layout.buildDirectory.file("reports/lint-results-release.xml")
+val releaseLintReports = listOf(
+	layout.buildDirectory.file("reports/lint-results-standardRelease.xml"),
+	layout.buildDirectory.file("reports/lint-results-traceboxRelease.xml"),
+)
 
 tasks.register("checkReleaseLintReport") {
 	group = "verification"
-	description = "Fails when app release lint reports unbaselined fatal/error issues."
-	dependsOn("lintReportRelease")
-	mustRunAfter("lintRelease")
-	inputs.file(releaseLintReport)
+	description = "Fails when either app release flavor has unbaselined fatal/error lint issues."
+	dependsOn("lintStandardRelease", "lintTraceboxRelease")
+	inputs.files(releaseLintReports)
 
 	doLast {
-		val report = releaseLintReport.get().asFile
-		if (!report.isFile) {
-			throw GradleException("Release lint report was not generated: ${report.absolutePath}")
-		}
-
-		val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply {
-			setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-			isExpandEntityReferences = false
-		}
-		val document = documentBuilderFactory.newDocumentBuilder().parse(report)
-		val issues = document.getElementsByTagName("issue")
 		val blockingIssues = buildList {
-			for (index in 0 until issues.length) {
-				val issue = issues.item(index) as? Element ?: continue
-				val severity = issue.getAttribute("severity")
-				if (severity != "Fatal" && severity != "Error") continue
-
-				val id = issue.getAttribute("id")
-				val message = issue.getAttribute("message")
-				val locations = issue.getElementsByTagName("location")
-				val location = if (locations.length > 0) {
-					val element = locations.item(0) as Element
-					val file = element.getAttribute("file")
-					val line = element.getAttribute("line")
-					if (line.isBlank()) file else "$file:$line"
-				} else {
-					"no location"
+			releaseLintReports.forEach { reportProvider ->
+				val report = reportProvider.get().asFile
+				if (!report.isFile) {
+					throw GradleException("Release lint report was not generated: ${report.absolutePath}")
 				}
-				add("[$severity][$id] $message ($location)")
+				val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply {
+					setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+					isExpandEntityReferences = false
+				}
+				val document = documentBuilderFactory.newDocumentBuilder().parse(report)
+				val issues = document.getElementsByTagName("issue")
+				for (index in 0 until issues.length) {
+					val issue = issues.item(index) as? Element ?: continue
+					val severity = issue.getAttribute("severity")
+					if (severity != "Fatal" && severity != "Error") continue
+
+					val id = issue.getAttribute("id")
+					val message = issue.getAttribute("message")
+					val locations = issue.getElementsByTagName("location")
+					val location = if (locations.length > 0) {
+						val element = locations.item(0) as Element
+						val file = element.getAttribute("file")
+						val line = element.getAttribute("line")
+						if (line.isBlank()) file else "$file:$line"
+					} else {
+						"no location"
+					}
+					add("${report.name}: [$severity][$id] $message ($location)")
+				}
 			}
 		}
 
@@ -383,5 +386,4 @@ afterEvaluate {
 		}
 	}
 }
-
 
