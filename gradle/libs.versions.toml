@@ -3,6 +3,7 @@
 kotlin = "2.4.0"
 ksp = "2.3.8"
 agp = "9.2.1"
+tracebox = "0.1.0-foundation.1"
 
 # Tools
 benmanes = "0.54.0"
@@ -106,6 +107,7 @@ kotest = "6.2.2"
 # Gradle plugin artifacts for convention plugins
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
 kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
+tracebox = { group = "io.github.tracebox", name = "tracebox", version.ref = "tracebox" }
 ksp-gradlePlugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 hilt-gradlePlugin = { group = "com.google.dagger", name = "hilt-android-gradle-plugin", version.ref = "hilt" }
 compose-compiler-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }

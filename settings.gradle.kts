@@ -10,6 +10,21 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
 	repositories {
+		maven {
+		    name = "TraceboxGitHubPackages"
+		    url = uri("https://maven.pkg.github.com/adsamcik/Tracebox")
+		    credentials {
+		        username = providers.gradleProperty("gpr.user")
+		            .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+		            .orNull
+		        password = providers.gradleProperty("gpr.key")
+		            .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+		            .orNull
+		    }
+		    content {
+		        includeGroup("io.github.tracebox")
+		    }
+		}
 		google()
 		maven("https://jitpack.io")
 		mavenCentral()
@@ -29,7 +44,6 @@ include(":stats:api", ":stats:engine", ":stats:data")
 include(":domain:points", ":domain:osm", ":domain:geocoder")
 include(":sensor:activity-api", ":sensor:activity")
 include(":feature:map:api", ":feature:map", ":feature:statistics:api", ":feature:statistics", ":feature:dashboard:api", ":feature:dashboard", ":feature:game:api", ":feature:game", ":feature:activity", ":feature:import-export", ":feature:tracker")
-
 
 
 

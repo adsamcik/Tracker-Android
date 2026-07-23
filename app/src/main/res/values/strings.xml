@@ -140,6 +140,31 @@
     <string name="settings_version_format">Version: %1$s (%2$d)</string>
     <string name="settings_error_reporting_summary">Crash reports stay on-device unless you choose to export them manually.</string>
     <string name="settings_error_reporting_title">Local crash reports</string>
+    <string name="settings_tracebox_title">Tracebox diagnostics</string>
+    <string name="settings_tracebox_root_subtitle">Optional local crash and ANR diagnostics</string>
+    <string name="settings_tracebox_enable_title">Enable Tracebox diagnostics</string>
+    <string name="settings_tracebox_unavailable">This standard build does not include Tracebox.</string>
+    <string name="settings_tracebox_disabled">Off. No new Tracebox diagnostics are recorded.</string>
+    <string name="settings_tracebox_enabled">On. Diagnostics stay on this device until you explicitly export an approved package.</string>
+    <string name="settings_tracebox_privacy_title">Privacy and control</string>
+    <string name="settings_tracebox_privacy_body">Tracebox is disabled by default. Tracker sends no location, Wi-Fi, cell, sensor, account, user-entered text, or Tracker identifiers to Tracebox. Standard packages exclude raw crash artifacts.</string>
+    <string name="settings_tracebox_capture_title">What it records</string>
+    <string name="settings_tracebox_capture_body">When enabled, Tracebox can collect bounded structural failure diagnostics, including crash and ANR evidence. It does not upload data or add a network capability to Tracker.</string>
+    <string name="settings_tracebox_export_title">Local export</string>
+    <string name="settings_tracebox_prepare_title">Prepare Standard package</string>
+    <string name="settings_tracebox_prepare_body">Create deterministic local bytes for review. Raw crash artifacts are excluded.</string>
+    <string name="settings_tracebox_review_title">Review and approve exact package</string>
+    <string name="settings_tracebox_review_body">%1$d values, %2$d bytes, from %3$d process(es). Approval is bound to these exact bytes.</string>
+    <string name="settings_tracebox_digest">SHA-256: %1$s</string>
+    <string name="settings_tracebox_share_title">Share approved package</string>
+    <string name="settings_tracebox_share_body">Open Android Sharesheet for the exact approved bytes. Delivery cannot be proven.</string>
+    <string name="settings_tracebox_save_title">Save approved package</string>
+    <string name="settings_tracebox_save_body">Choose a destination with Android’s file picker. The destination provider may retain the file.</string>
+    <string name="settings_tracebox_cancel_title">Cancel package</string>
+    <string name="settings_tracebox_cancel_body">Delete Tracebox-owned staging for the current package.</string>
+    <string name="settings_tracebox_delete_group_title">Delete Tracebox data</string>
+    <string name="settings_tracebox_delete_title">Delete all Tracebox diagnostics</string>
+    <string name="settings_tracebox_delete_body">Disable Tracebox and remove library-owned diagnostics and local staging. Android-owned exit history is unaffected.</string>
 
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
     <string name="settings_hello_world_title">Hello world!</string>

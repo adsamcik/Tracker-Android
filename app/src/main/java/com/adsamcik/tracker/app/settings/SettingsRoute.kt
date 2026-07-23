@@ -37,6 +37,7 @@ import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
 
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
+import com.adsamcik.tracker.app.settings.tracebox.TraceboxSettingsScreen
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens.
@@ -118,6 +119,7 @@ fun SettingsRoute(
                         LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
                     }
                     SettingsScreen.Debug -> DebugSettingsScreen(onNavigateToDebug)
+                    SettingsScreen.Tracebox -> TraceboxSettingsScreen()
                 }
             }
         }
@@ -153,6 +155,9 @@ sealed class SettingsScreen {
     data object Debug : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.settings_debug_title)
     }
+    data object Tracebox : SettingsScreen() {
+        @Composable override fun title() = stringResource(R.string.settings_tracebox_title)
+    }
 
     internal fun saveKey(): String = when (this) {
         Root -> "root"
@@ -163,6 +168,7 @@ sealed class SettingsScreen {
         Game -> "game"
         Statistics -> "statistics"
         Debug -> "debug"
+        Tracebox -> "tracebox"
     }
 
     internal companion object {
@@ -175,6 +181,7 @@ sealed class SettingsScreen {
             "game" -> Game
             "statistics" -> Statistics
             "debug" -> Debug
+            "tracebox" -> Tracebox
             else -> null
         }
     }

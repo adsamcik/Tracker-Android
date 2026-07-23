@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app
 
 import android.app.ActivityManager
 import android.app.ApplicationExitInfo
+import android.content.Context
 import android.os.Build
 import android.database.sqlite.SQLiteException
 import androidx.annotation.MainThread
@@ -122,6 +123,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private val deferredStartupStarted = AtomicBoolean(false)
 	private val maintenanceStartupStarted = AtomicBoolean(false)
+
+	override fun attachBaseContext(base: Context) {
+		super.attachBaseContext(base)
+		// The flavor implementation is a no-op in standard builds. Tracebox itself initializes
+		// disabled and performs durable work off the main thread.
+		com.adsamcik.tracker.app.tracebox.TraceboxStartup.install(this)
+	}
 	
 	override val workManagerConfiguration: Configuration
 		get() = Configuration.Builder()

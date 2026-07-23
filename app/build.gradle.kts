@@ -83,6 +83,18 @@ android {
         resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
     }
 
+    flavorDimensions += "diagnostics"
+    productFlavors {
+        create("standard") {
+            dimension = "diagnostics"
+            buildConfigField("boolean", "TRACEBOX_AVAILABLE", "false")
+        }
+        create("tracebox") {
+            dimension = "diagnostics"
+            buildConfigField("boolean", "TRACEBOX_AVAILABLE", "true")
+        }
+    }
+
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }
@@ -265,6 +277,10 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     androidTestImplementation(libs.androidx.work.testing)
 
+    // Published immutable Tracebox foundation artifact. The source branch and its workflow build
+    // every AAR from pinned source; this variant never resolves Maven Local.
+    add("traceboxImplementation", libs.tracebox)
+
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.work)
 
@@ -365,7 +381,6 @@ afterEvaluate {
 	}
 	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }
-
 
 
 

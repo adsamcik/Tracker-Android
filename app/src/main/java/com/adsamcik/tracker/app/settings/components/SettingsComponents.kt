@@ -50,13 +50,14 @@ fun SettingsItem(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     icon: ImageVector? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = if (subtitle != null) "$title: $subtitle" else title

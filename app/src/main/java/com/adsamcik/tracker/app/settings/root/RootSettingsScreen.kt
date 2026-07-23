@@ -131,6 +131,12 @@ internal fun RootSettingsContent(
                     onClick = { onNavigate(SettingsScreen.Data) }
                 )
                 SettingsItem(
+                    title = stringResource(R.string.settings_tracebox_title),
+                    subtitle = stringResource(R.string.settings_tracebox_root_subtitle),
+                    icon = Icons.Default.BugReport,
+                    onClick = { onNavigate(SettingsScreen.Tracebox) },
+                )
+                SettingsItem(
                     title = stringResource(com.adsamcik.tracker.activity.R.string.settings_activity_title),
                     icon = Icons.AutoMirrored.Filled.DirectionsRun,
                     onClick = onNavigateToActivities
