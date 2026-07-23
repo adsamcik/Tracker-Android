@@ -370,17 +370,18 @@ tasks.configureEach {
 	}
 }
 
-// Fix for KSP running before R class generation
-// Ensure KSP waits for resource processing to complete
+// Fix for KSP running before R class generation. Flavored variants use names such as
+// kspStandardDebugKotlin and kspTraceboxDebugKotlin, so derive the matching resource task
+// instead of assuming an unflavored debug/release task exists.
 afterEvaluate {
-	tasks.named("kspDebugKotlin") {
-		dependsOn("processDebugResources")
+	tasks.matching { task ->
+		task.name.startsWith("ksp") && task.name.endsWith("Kotlin")
+	}.configureEach {
+		val variantName = name.removePrefix("ksp").removeSuffix("Kotlin")
+		tasks.findByName("process${variantName}Resources")?.let { resourceTask ->
+			dependsOn(resourceTask)
+		}
 	}
-	tasks.named("kspReleaseKotlin") {
-		dependsOn("processReleaseResources")
-	}
-	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }
-
 
 
