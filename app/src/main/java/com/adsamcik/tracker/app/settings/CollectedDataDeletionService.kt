@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
+import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import com.adsamcik.tracker.osm.imp.OsmImportWorker
 import java.io.File
 import java.io.FileOutputStream
@@ -82,6 +83,12 @@ class DefaultCollectedDataWriterQuiescer(
 			awaitCancellation(
 				workManager.cancelUniqueWork(DailySummaryMaterializationWorker.UNIQUE_WORK_ID),
 				"daily summary",
+			)
+			awaitCancellation(
+				workManager.cancelUniqueWork(
+					HistoricalTrajectoryReconstructionWorker.UNIQUE_WORK_NAME,
+				),
+				"historical reconstruction",
 			)
 			awaitCancellation(
 				workManager.cancelUniqueWork(OsmImportWorker.UNIQUE_WORK_NAME),

@@ -54,6 +54,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
+import com.adsamcik.tracker.shared.base.database.dao.TrajectoryReconstructionDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
@@ -262,6 +263,10 @@ object InfrastructureModule {
 
     @Provides
     fun provideTripLegDao(database: AppDatabase): TripLegDao = database.tripLegDao()
+
+    @Provides
+    fun provideTrajectoryReconstructionDao(database: AppDatabase): TrajectoryReconstructionDao =
+        database.trajectoryReconstructionDao()
 
     @Provides
     fun provideExplorationCellDao(database: AppDatabase): ExplorationCellDao = database.explorationCellDao()

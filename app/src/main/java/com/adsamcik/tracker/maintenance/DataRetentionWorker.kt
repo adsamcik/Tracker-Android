@@ -152,6 +152,7 @@ class DataRetentionWorker @AssistedInject constructor(
 					"Unable to advance source-evidence revision for raw-data retention"
 				}
 			}
+			appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
             val observationDao = appDatabase.locationObservationDao()
             observationDao.deleteOlderThan(cutoffMillis)
 			appDatabase.locationObservationDecisionDao().apply {

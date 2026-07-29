@@ -97,6 +97,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					"Unable to advance source-evidence revision for raw-data retention"
 				}
 			}
+			// A derived run is only auditable while its complete raw source range remains.
+			// Cascades remove states, visits, hypotheses, and lineage links atomically.
+			db.trajectoryReconstructionDao().deleteWithSourceBefore(cutoff)
             val observationDao = db.locationObservationDao()
             observationDao.deleteOlderThan(cutoff)
 			db.locationObservationDecisionDao().apply {
