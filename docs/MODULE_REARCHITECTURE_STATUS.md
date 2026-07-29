@@ -72,14 +72,13 @@ Added a `build-logic` included build with convention plugins (`tracker.android.l
 duplicated `android { … }` + test/compose/hilt/room boilerplate (~1.6k net LOC removed). KMP modules
 (`:core:model`, `:stats:api`, `:stats:engine`) left as-is. Verified green.
 
-### Incremental `:core:model` migration (LARGELY DONE)
+### Incremental `:core:model` migration (COMPLETE FOR CURRENT BOUNDARIES)
 Migrated ~38 of 55 Room-type usages in `:feature:*` / `:domain:*` / `:tracker:engine` / `:sensor:activity`
 onto `:core:model` (`Location`, `Trip`, `LocationSample`, `SkiRunSegment`) behind the `:core:base`
-mappers, committed per-module and verified green. Intentionally left (need a follow-up that touches a
-public contract or Room construction, out of scope for a behind-the-mappers pass):
-- `DefaultTrackerServiceController` still exposes `base.data.Location` because `:tracker:api` owns that
-  public signature (migrating it changes the api surface).
-- `SegmentSource` at `SessionSegment` Room-construction boundaries.
+mappers, committed per-module and verified green. The two previously deferred boundaries are now
+closed: `TrackerServiceController` exposes the Room-free `shared.model.Location` contract, and
+`SessionSegment`, its DAO/type converter, and all construction paths use the single
+`shared.model.SegmentSource` enum while retaining the existing enum-name database representation.
 
 ## Guardrails
 - `CoreCommonBoundaryTest` (`:core:common`) fails if `:core:common` imports Room, the database

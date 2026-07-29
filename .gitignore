@@ -154,6 +154,14 @@ run_test.bat
 /.worktrees
 .github/v10-validation/
 
+# Repository-owned, reproducible V10 device benchmark collector.
+!tools/v10-benchmarks/collect-v10-import-benchmark.ps1
+
+# Local agent output and one-off numeric/debug scratch files.
+/.skillopt-sleep/
+/$null
+/FP.java
+
 ############################################################
 # Node.js diagnostic reports (OOM, fatal)
 ############################################################
