@@ -65,6 +65,11 @@ class ResearchEvidenceTest {
 			canonicalSegmentationObservations = true,
 			segmentationReducerOutputs = true,
 			truthMarkers = true,
+			controlTraceEvents = true,
+			logicalTrackingLifecycle = true,
+			acquisitionDecisions = true,
+			horizontalEstimatorDecisions = true,
+			replayDigests = true,
 		)
 		val loss = ResearchLossRange(8, 9, ResearchLossRange.Reason.BUFFER_OVERFLOW)
 		val records: List<ResearchEvidenceRecord> = listOf(
@@ -76,7 +81,59 @@ class ResearchEvidenceTest {
 			AltitudeFilterRecord(AltitudeFilterDecision.GPS_UPDATE, "filter-v1", 10, 20, 1, 203.0, 0.1, listOf(1.0), listOf(2.0), listOf(1.0), listOf(1.0), listOf(0.1), listOf(2.0), 1.0, 2.0, 1, 2, "accepted"),
 			ResearchLifecycleRecord(ResearchLifecycleBoundary.PAUSE, "user"),
 			ResearchTraceLossRecord(listOf(loss)),
-			ResearchGapRecord(10, 20, "boot", "gap"),
+			ResearchGapRecord(10, 20, "boot", "gap", "logical", 10, 20),
+			ResearchControlEventRecord(
+				logicalTrackingId = "logical",
+				eventEpochMs = 10,
+				eventElapsedNanos = 20,
+				kind = ResearchControlEventKind.POLICY_STATE_CHANGED,
+				reason = "motion",
+				correlationId = "cycle-1",
+				payload = mapOf("tier" to "ACTIVE"),
+			),
+			ResearchTrackingLifecycleRecord(
+				logicalTrackingId = "logical",
+				transition = ResearchTrackingLifecycleTransition.STARTED,
+				trackingMode = ResearchTrackingMode.USER_INITIATED,
+				eventEpochMs = 10,
+				eventElapsedNanos = 20,
+			),
+			ResearchAcquisitionRecord(
+				logicalTrackingId = "logical",
+				requestId = "request-1",
+				eventEpochMs = 10,
+				eventElapsedNanos = 20,
+				desired = ResearchAcquisitionConfiguration(ResearchAcquisitionMode.BALANCED, intervalMs = 10_000),
+				applied = ResearchAcquisitionConfiguration(ResearchAcquisitionMode.PASSIVE, intervalMs = 0),
+				outcome = ResearchAcquisitionApplyOutcome.APPLIED,
+			),
+			ResearchHorizontalEstimatorRecord(
+				logicalTrackingId = "logical",
+				estimatorVersion = "enu-kf-v1",
+				decision = ResearchHorizontalEstimatorDecision.UPDATED,
+				eventEpochMs = 10,
+				sourceElapsedNanos = 20,
+				stateBefore = listOf(1.0, 2.0, 3.0, 4.0),
+				stateAfter = listOf(2.0, 3.0, 4.0, 5.0),
+				covarianceBefore = List(16) { 1.0 },
+				covarianceAfter = List(16) { 2.0 },
+				processNoise = List(16) { 0.1 },
+				measurementEastM = 2.0,
+				measurementNorthM = 3.0,
+				measurementCovariance = listOf(1.0, 0.0, 0.0, 1.0),
+				innovation = listOf(0.1, 0.2),
+				normalizedInnovationSquared = 0.3,
+				accepted = true,
+			),
+			ResearchControlDigestRecord(
+				kind = ResearchControlDigestKind.LEGACY_V1_REPLAY,
+				digestAlgorithm = "sha-256",
+				digest = "deadbeef",
+				logicalTrackingId = "logical",
+				envelopeCount = 1,
+				firstSequence = 0,
+				lastSequence = 0,
+			),
 			ResearchTruthMarkerRecord("marker", "arrival", 20),
 			ResearchManualCorrectionRecord("correction", 10, 20, "walk", "reviewed"),
 			CanonicalSegmentationObservation(
@@ -112,6 +169,41 @@ class ResearchEvidenceTest {
 			assertEquals(envelope, ResearchEvidenceCodec.decode(ResearchEvidenceCodec.encode(envelope)))
 		}
 		assertEquals("tools/research-trace/RESEARCH_EVIDENCE_SCHEMA.md", RESEARCH_EVIDENCE_SCHEMA_DOCUMENT)
-		assertEquals(1, RESEARCH_EVIDENCE_SCHEMA_VERSION)
+		assertEquals(2, RESEARCH_EVIDENCE_SCHEMA_VERSION)
+	}
+
+	@Test
+	fun `V1 historical envelopes remain codec compatible and refuse V2-only declarations`() {
+		val historical = ResearchEvidenceEnvelope(
+			identity = ResearchTraceIdentity("trace"),
+			sequence = 0,
+			clockDomain = ResearchClockDomain("boot", ResearchClockDomain.Kind.ANDROID_ELAPSED_REALTIME),
+			privacyClass = ResearchPrivacyClass.ENCRYPTED_RESEARCH,
+			record = PressureSensorDescriptorRecord("TYPE_PRESSURE"),
+			schemaVersion = RESEARCH_EVIDENCE_SCHEMA_V1,
+		)
+		assertEquals(historical, ResearchEvidenceCodec.decode(ResearchEvidenceCodec.encode(historical)))
+
+		assertFailsWith<IllegalArgumentException> {
+			ResearchEvidenceEnvelope(
+				identity = historical.identity,
+				sequence = 1,
+				clockDomain = historical.clockDomain,
+				privacyClass = historical.privacyClass,
+				record = ResearchControlEventRecord("logical", kind = ResearchControlEventKind.UNKNOWN),
+				schemaVersion = RESEARCH_EVIDENCE_SCHEMA_V1,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			ResearchEvidenceEnvelope(
+				identity = historical.identity,
+				sequence = 1,
+				clockDomain = historical.clockDomain,
+				privacyClass = historical.privacyClass,
+				capabilities = ResearchEvidenceCapabilities(controlTraceEvents = true),
+				record = PressureSensorDescriptorRecord("TYPE_PRESSURE"),
+				schemaVersion = RESEARCH_EVIDENCE_SCHEMA_V1,
+			)
+		}
 	}
 }

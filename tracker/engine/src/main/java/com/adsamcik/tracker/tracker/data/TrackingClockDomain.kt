@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.data
 
+import android.content.Context
+import android.provider.Settings
 import java.util.UUID
 
 /**
@@ -14,7 +16,27 @@ internal object TrackingClockDomain {
 	@Volatile
 	private var activeId: String = UUID.randomUUID().toString()
 
-	fun beginSession(): String = UUID.randomUUID().toString().also { activeId = it }
+	@Volatile
+	private var activeBootId: String = "process-${UUID.randomUUID()}"
+
+	fun beginSession(context: Context): String {
+		activeBootId = readBootDomain(context)
+		return UUID.randomUUID().toString().also { activeId = it }
+	}
 
 	fun currentId(): String = activeId
+
+	fun currentBootId(): String = activeBootId
+
+	private fun readBootDomain(context: Context): String = runCatching {
+		val bootCount = Settings.Global.getInt(
+			context.contentResolver,
+			Settings.Global.BOOT_COUNT,
+		)
+		"android-boot-$bootCount"
+	}.getOrElse {
+		// A random process boundary is deliberately conservative: it never joins evidence across
+		// an unknown reboot when a vendor blocks access to BOOT_COUNT.
+		activeBootId.takeIf { id -> id.startsWith("process-") } ?: "process-${UUID.randomUUID()}"
+	}
 }

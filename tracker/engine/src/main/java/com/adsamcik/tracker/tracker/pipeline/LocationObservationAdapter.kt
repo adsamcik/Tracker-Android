@@ -41,6 +41,10 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 		speedAccuracyMps = rawLocation.speedAccuracyMetersPerSecond.takeIf {
 			rawLocation.hasSpeedAccuracy()
 		},
+		bearingDeg = rawLocation.bearing.takeIf { rawLocation.hasBearing() },
+		bearingAccuracyDeg = rawLocation.bearingAccuracyDegrees.takeIf {
+			rawLocation.hasBearingAccuracy()
+		},
 		provider = rawLocation.provider ?: "unknown",
 		receivedAtMs = fixMetadata.receivedAtMs,
 		receivedElapsedRealtimeNanos = fixMetadata.receivedElapsedRealtimeNanos,
@@ -61,6 +65,7 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 		timestampMs = EpochMs(rawLocation.time.coerceAtLeast(0L)),
 		elapsedRealtimeNanos = rawLocation.elapsedRealtimeNanos,
 		clockDomainId = fixMetadata.clockDomainId,
+		bootClockDomainId = fixMetadata.bootClockDomainId,
 		locationObservation = observation,
 		policy = PolicySignal(policyTier, policyName),
 		persistenceSignalId = fixMetadata.sourceEventId

@@ -21,6 +21,10 @@ internal class TrackingCycleBuilder(
 
 	@Volatile
 	var activityFresh: Boolean = false
+	@Volatile
+	var activitySourceElapsedRealtimeNanos: Long? = null
+	@Volatile
+	var activitySourceSequence: Long? = null
 
 	@Volatile
 	var location: LocationData? = null
@@ -51,6 +55,14 @@ internal class TrackingCycleBuilder(
 
 	@Volatile
 	var stepSensorReset: Boolean = false
+	@Volatile
+	var stepWindowStartElapsedRealtimeNanos: Long? = null
+	@Volatile
+	var stepWindowEndElapsedRealtimeNanos: Long? = null
+	@Volatile
+	var stepSourceFirstSequence: Long? = null
+	@Volatile
+	var stepSourceLastSequence: Long? = null
 
 	@Volatile
 	var pressure: PressureReading? = null
@@ -63,6 +75,8 @@ internal class TrackingCycleBuilder(
 		elapsedRealtimeNanos = elapsedRealtimeNanos,
 		activity = activity,
 		activityFresh = activityFresh,
+		activitySourceElapsedRealtimeNanos = activitySourceElapsedRealtimeNanos,
+		activitySourceSequence = activitySourceSequence,
 		location = location,
 		locationObservations = locationObservations,
 		cellScan = cellScan,
@@ -73,6 +87,10 @@ internal class TrackingCycleBuilder(
 		stepSensorValueStart = stepSensorValueStart,
 		stepSensorValueEnd = stepSensorValueEnd,
 		stepSensorReset = stepSensorReset,
+		stepWindowStartElapsedRealtimeNanos = stepWindowStartElapsedRealtimeNanos,
+		stepWindowEndElapsedRealtimeNanos = stepWindowEndElapsedRealtimeNanos,
+		stepSourceFirstSequence = stepSourceFirstSequence,
+		stepSourceLastSequence = stepSourceLastSequence,
 		pressure = pressure,
 		rawGpsAltitude = rawGpsAltitude,
 		persistenceSignalId = persistenceSignalId,

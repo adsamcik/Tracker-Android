@@ -27,5 +27,18 @@ class TrackerRestartDecisionTest {
 		) shouldBe false
 		shouldScheduleTrackerRestart(null, false, false) shouldBe false
 	}
-}
 
+	@Test
+	fun `paused and stop candidate user sessions never schedule watchdog restart`() {
+		shouldScheduleTrackerRestart(
+			userSession.pause(),
+			gracefulStopRequested = false,
+			restartAlreadyScheduled = false,
+		) shouldBe false
+		shouldScheduleTrackerRestart(
+			userSession.proposeStop(TrackingStopCandidateReason.EXPLICIT_REQUEST),
+			gracefulStopRequested = false,
+			restartAlreadyScheduled = false,
+		) shouldBe false
+	}
+}

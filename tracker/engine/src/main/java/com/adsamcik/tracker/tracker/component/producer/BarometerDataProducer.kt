@@ -5,6 +5,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -27,9 +28,16 @@ internal class BarometerDataProducer(
 			enabledFlow = trackingParamsRepository?.data?.map { it.barometerEnabled },
 		),
 		SensorEventListener {
-	private val lockObject = Object()
+	private val lockObject = Any()
 	private var pressureSum = 0.0
+	private var pressureSquaredDeviationSum = 0.0
 	private var sampleCount = 0
+	private var minPressureHpa = Float.POSITIVE_INFINITY
+	private var maxPressureHpa = Float.NEGATIVE_INFINITY
+	private var windowStartElapsedRealtimeNanos: Long? = null
+	private var windowEndElapsedRealtimeNanos: Long? = null
+	private var firstSourceSequence: Long? = null
+	private var sourceSequence = 0L
 	private var sensorManager: SensorManager? = null
 
 	override val preferenceKey: String
@@ -42,9 +50,24 @@ internal class BarometerDataProducer(
 			if (sampleCount > 0) {
 				val avgPressure = (pressureSum / sampleCount).toFloat()
 				val altitude = pressureToAltitude(avgPressure)
-				builder.pressure = PressureReading(avgPressure, altitude)
-				pressureSum = 0.0
-				sampleCount = 0
+				val variance = if (sampleCount > 1) {
+					pressureSquaredDeviationSum / (sampleCount - 1)
+				} else {
+					0.0
+				}
+				builder.pressure = PressureReading(
+					pressureHpa = avgPressure,
+					altitudeM = altitude,
+					sampleCount = sampleCount,
+					minPressureHpa = minPressureHpa,
+					maxPressureHpa = maxPressureHpa,
+					standardDeviationHpa = kotlin.math.sqrt(variance).toFloat(),
+					windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+					windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+					sourceFirstSequence = firstSourceSequence,
+					sourceLastSequence = sourceSequence,
+				)
+				clearWindow()
 			}
 		}
 	}
@@ -55,8 +78,8 @@ internal class BarometerDataProducer(
 			sensorManager = null
 		} finally {
 			synchronized(lockObject) {
-				pressureSum = 0.0
-				sampleCount = 0
+				clearWindow()
+				sourceSequence = 0L
 			}
 		}
 		super.onDisable(context)
@@ -82,16 +105,42 @@ internal class BarometerDataProducer(
 
 	override fun onSensorChanged(event: SensorEvent) {
 		if (event.sensor.type == Sensor.TYPE_PRESSURE) {
-			recordPressure(event.values.first())
+			recordPressure(event.values.first(), event.timestamp)
 		}
 	}
 
-	internal fun recordPressure(pressureHpa: Float) {
+	internal fun recordPressure(
+		pressureHpa: Float,
+		elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	) {
 		if (!BarometricAltitudeFormula.isValidPressure(pressureHpa)) return
 		synchronized(lockObject) {
+			sourceSequence++
+			if (firstSourceSequence == null) firstSourceSequence = sourceSequence
+			if (windowStartElapsedRealtimeNanos == null) {
+				windowStartElapsedRealtimeNanos = elapsedRealtimeNanos
+			}
+			windowEndElapsedRealtimeNanos = elapsedRealtimeNanos
+			val previousMean = if (sampleCount == 0) 0.0 else pressureSum / sampleCount
 			pressureSum += pressureHpa.toDouble()
 			sampleCount++
+			val newMean = pressureSum / sampleCount
+			pressureSquaredDeviationSum +=
+				(pressureHpa - previousMean) * (pressureHpa - newMean)
+			minPressureHpa = minOf(minPressureHpa, pressureHpa)
+			maxPressureHpa = maxOf(maxPressureHpa, pressureHpa)
 		}
+	}
+
+	private fun clearWindow() {
+		pressureSum = 0.0
+		pressureSquaredDeviationSum = 0.0
+		sampleCount = 0
+		minPressureHpa = Float.POSITIVE_INFINITY
+		maxPressureHpa = Float.NEGATIVE_INFINITY
+		windowStartElapsedRealtimeNanos = null
+		windowEndElapsedRealtimeNanos = null
+		firstSourceSequence = null
 	}
 
 	override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -114,5 +163,13 @@ data class PressureReading(
 	/** Mean valid atmospheric pressure in hectopascals (hPa) across the collection window. */
 	val pressureHpa: Float,
 	/** Derived altitude in meters (standard atmosphere approximation). */
-	val altitudeM: Float
+	val altitudeM: Float,
+	val sampleCount: Int = 1,
+	val minPressureHpa: Float = pressureHpa,
+	val maxPressureHpa: Float = pressureHpa,
+	val standardDeviationHpa: Float = 0f,
+	val windowStartElapsedRealtimeNanos: Long? = null,
+	val windowEndElapsedRealtimeNanos: Long? = null,
+	val sourceFirstSequence: Long? = null,
+	val sourceLastSequence: Long? = null,
 )

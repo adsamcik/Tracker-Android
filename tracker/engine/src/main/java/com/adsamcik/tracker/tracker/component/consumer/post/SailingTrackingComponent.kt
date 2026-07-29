@@ -86,7 +86,7 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 		collectionData: CollectionData,
 		cycle: TrackingCycle,
 	) {
-		val speedMps = collectionData.location?.speed ?: return
+		val speedMps = collectionData.estimatedSpeedMps ?: return
 		val elapsedTimeMs = cycle.elapsedRealtimeNanos / 1_000_000L
 
 		// Compute step rate from step delta and elapsed time (same derivation as ski's).

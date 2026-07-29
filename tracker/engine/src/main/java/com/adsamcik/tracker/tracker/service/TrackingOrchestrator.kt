@@ -30,6 +30,13 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingCompo
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+
+import com.adsamcik.tracker.tracker.control.NoOpTrackingControlOutputSink
+import com.adsamcik.tracker.tracker.control.NoOpTrackingControlAcquisitionOutcomeSink
+import com.adsamcik.tracker.tracker.control.TrackingControlAcquisitionOutcomeSink
+import com.adsamcik.tracker.tracker.control.TrackingControlOutputSink
+import com.adsamcik.tracker.tracker.control.TrackingControlShadow
+import com.adsamcik.tracker.tracker.control.TrackingDecisionFeatureFlags
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
@@ -59,6 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -94,6 +102,14 @@ internal class TrackingOrchestrator(
 	 * call sites working without DI churn.
 	 */
 	private val onDailySummaryWritten: () -> Unit = {},
+	/** Feature-gated uncertainty-aware tracking path. All default switches are off. */
+	private val trackingDecisionFeatureFlags: TrackingDecisionFeatureFlags = TrackingDecisionFeatureFlags(),
+	/** Debug/research sink for ordered shadow decisions; production default intentionally discards. */
+	private val trackingControlOutputSink: TrackingControlOutputSink = NoOpTrackingControlOutputSink,
+	/** Uses the same recorder when it supports correlated platform acquisition outcomes. */
+	private val trackingControlAcquisitionOutcomeSink: TrackingControlAcquisitionOutcomeSink =
+		(trackingControlOutputSink as? TrackingControlAcquisitionOutcomeSink)
+			?: NoOpTrackingControlAcquisitionOutcomeSink,
 ) {
 	private companion object {
 		const val TAG = "TrackingOrchestrator"
@@ -109,6 +125,11 @@ internal class TrackingOrchestrator(
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var persistenceErrorCollector: PersistenceErrorCollector? = null
 	private var sessionJob: Job? = null
+	private var controlTimerReceiver: TrackerTimerReceiver? = null
+	private var controlSessionScope: CoroutineScope? = null
+
+	@Volatile
+	private var controlLocationEnabled: Boolean = true
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private var skiTrackingComponent: SkiTrackingComponent? = null
@@ -133,6 +154,12 @@ internal class TrackingOrchestrator(
 		)
 	}
 	private val policyFeeder = TrackerPolicyFeeder()
+	private val trackingControlShadow by lazy {
+		TrackingControlShadow(
+			flags = trackingDecisionFeatureFlags,
+			outputSink = trackingControlOutputSink,
+		)
+	}
 	private lateinit var tierEscalationHandler: TrackerTierEscalationHandler
 
 	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
@@ -155,6 +182,8 @@ internal class TrackingOrchestrator(
 		scope: CoroutineScope,
 		timerReceiver: TrackerTimerReceiver,
 		timerAccessor: TrackerTierEscalationHandler.TimerAccessor,
+		/** Durable logical identity supplied by the service; legacy callers fall back to segment id. */
+		logicalTrackingId: String? = null,
 	) = componentMutex.withLock {
 		val previousSessionJob = sessionJob
 		try {
@@ -173,8 +202,10 @@ internal class TrackingOrchestrator(
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
 		sessionJob = newSessionJob
+		controlTimerReceiver = timerReceiver
+		controlSessionScope = sessionScope
 		currentTier = initialTier
-		val clockDomainId = TrackingClockDomain.beginSession()
+		val clockDomainId = TrackingClockDomain.beginSession(context)
 
 		dataProducerManager = DataProducerManager(
 			context = context,
@@ -222,20 +253,40 @@ internal class TrackingOrchestrator(
 			this.processorPipeline = null // set below after pipeline creation
 			this.timerAccessor = timerAccessor
 		}
-		tierEscalationHandler.configureCurrentLocationRequest(
-			requireNotNull(trackingPolicyManager).currentPolicy.value,
-		)
+		if (!trackingDecisionFeatureFlags.applyAcquisitionRequests) {
+			tierEscalationHandler.configureCurrentLocationRequest(
+				requireNotNull(trackingPolicyManager).currentPolicy.value,
+			)
+		}
 
 		// Observe policy changes and delegate tier/interval updates
 		trackingPolicyManager?.let { policyManager ->
 			sessionScope.launch {
 				policyManager.currentPolicy.collect { newPolicy ->
-					tierEscalationHandler.onPolicyChanged(
-						policy = newPolicy,
-						context = context,
-						timerReceiver = timerReceiver,
-						scope = sessionScope,
-					)
+					if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
+						tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(
+							policy = newPolicy,
+							scope = sessionScope,
+						)
+						componentMutex.withLock {
+							if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
+								trackingControlShadow.onPolicy(
+									policy = newPolicy,
+									wallTimeMs = Time.nowMillis,
+									elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+									locationEnabled = controlLocationEnabled,
+								)
+								applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
+							}
+						}
+					} else {
+						tierEscalationHandler.onPolicyChanged(
+							policy = newPolicy,
+							context = context,
+							timerReceiver = timerReceiver,
+							scope = sessionScope,
+						)
+					}
 				}
 			}
 		}
@@ -246,11 +297,30 @@ internal class TrackingOrchestrator(
 			trackingParamsRepository.data
 				.distinctUntilChanged()
 				.drop(1)
-				.collect {
+				.collect { params ->
+					controlLocationEnabled = params.locationEnabled
 					val policy = trackingPolicyManager?.currentPolicy?.value ?: return@collect
-					tierEscalationHandler.onPolicyChanged(
-						policy, context, timerReceiver, sessionScope,
-					)
+					if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
+						tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(
+							policy = policy,
+							scope = sessionScope,
+						)
+						componentMutex.withLock {
+							if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
+								trackingControlShadow.onPolicy(
+									policy = policy,
+									wallTimeMs = Time.nowMillis,
+									elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+									locationEnabled = controlLocationEnabled,
+								)
+								applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
+							}
+						}
+					} else {
+						tierEscalationHandler.onPolicyChanged(
+							policy, context, timerReceiver, sessionScope,
+						)
+					}
 				}
 		}
 
@@ -279,6 +349,17 @@ internal class TrackingOrchestrator(
 		skiSegmentWriter = componentSet.skiSegmentWriter
 		sailingTrackingComponent = componentSet.sailingTrackingComponent
 		planeTrackingComponent = componentSet.planeTrackingComponent
+		controlLocationEnabled = trackingParamsRepository.data.first().locationEnabled
+		trackingControlShadow.begin(
+			logicalTrackingId = logicalTrackingId ?: "segment:${session.id}",
+			isUserInitiated = isSessionUserInitiated,
+			wallTimeMs = Time.nowMillis,
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+			clockDomainId = clockDomainId,
+			initialTier = initialTier,
+			locationEnabled = controlLocationEnabled,
+		)
+		applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
 
 		persistenceErrorCollector = componentSet.errorCollector
 		controller.updatePersistenceErrorFlow(componentSet.errorCollector.errors)
@@ -325,6 +406,33 @@ internal class TrackingOrchestrator(
 	}
 
 	/**
+	 * Serializes Android provider callbacks into the same shadow-control stream as collection
+	 * evidence. The legacy notification and stop paths remain owned by [TrackerService].
+	 */
+	fun onLocationProviderAvailabilityChanged(
+		context: Context,
+		available: Boolean,
+		reason: String,
+	) {
+		if (!trackingDecisionFeatureFlags.shadowEnabled) return
+		val sessionScope = controlSessionScope ?: return
+		sessionScope.launch {
+			componentMutex.withLock {
+				if (controlSessionScope !== sessionScope) return@withLock
+				trackingControlShadow.onProviderAvailability(
+					available = available,
+					reason = reason,
+					wallTimeMs = Time.nowMillis,
+					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				)
+				controlTimerReceiver?.let { timerReceiver ->
+					applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
+				}
+			}
+		}
+	}
+
+	/**
 	 * Shut down all tracking components.
 	 *
 	 * @param context     Android context for component lifecycle calls.
@@ -360,7 +468,31 @@ internal class TrackingOrchestrator(
 		scope: CoroutineScope,
 	) {
 		val policy = trackingPolicyManager?.currentPolicy?.value ?: return
+		if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
+			tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(policy, scope)
+			applyControlAcquisitionIfEnabled(context, timerReceiver, scope)
+			return
+		}
 		tierEscalationHandler.onPolicyChanged(policy, context, timerReceiver, scope)
+	}
+
+	private fun applyControlAcquisitionIfEnabled(
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+		scope: CoroutineScope,
+	) {
+		if (!trackingDecisionFeatureFlags.applyAcquisitionRequests || !::tierEscalationHandler.isInitialized) {
+			return
+		}
+		trackingControlShadow.latestAcquisitionCommand()?.let { command ->
+			tierEscalationHandler.onControlAcquisitionRequest(
+				command = command,
+				context = context,
+				timerReceiver = timerReceiver,
+				scope = scope,
+				outcomeSink = trackingControlAcquisitionOutcomeSink,
+			)
+		}
 	}
 
 	/**
@@ -378,6 +510,8 @@ internal class TrackingOrchestrator(
 		controller.updateSkiState(null)
 		controller.updateSailingState(null)
 		controller.updatePlaneState(null)
+		controlTimerReceiver = null
+		controlSessionScope = null
 		// Ensure error collector scope is always cancelled
 		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
 		persistenceErrorCollector = null
@@ -429,6 +563,9 @@ internal class TrackingOrchestrator(
 				// curated cycle intentionally remains unresolved rather than becoming source-less.
 				return
 			}
+			// Shadow control is intentionally downstream of the raw WAL checkpoint: every decision can
+			// be replayed from durable evidence rather than a volatile callback.
+			trackingControlShadow.onRawLocationObservations(triggerCycle)
 		}
 		if (triggerCycle.isLocationObservationOnly()) return
 		trackingPolicyManager?.heartbeatIfDue()
@@ -440,11 +577,31 @@ internal class TrackingOrchestrator(
 			}
 			if (!accepted) {
 				checkpointCuratedLocationRejection(triggerCycle, "PRETRACKER_REJECTED")
+				trackingControlShadow.onCuratedLocationDecision(
+					cycle = triggerCycle,
+					accepted = false,
+					reason = "PRETRACKER_REJECTED",
+				)
 				return
 			}
 		}
 
+		trackingControlShadow.onCuratedLocationDecision(triggerCycle, accepted = true)
 		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
+		trackingPolicyManager?.currentPolicy?.value?.let { policy ->
+			trackingControlShadow.onPolicy(
+				policy = policy,
+				wallTimeMs = cycle.timestampMs,
+				elapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
+				locationEnabled = controlLocationEnabled,
+			)
+		}
+		trackingControlShadow.onCycleSignals(cycle)
+		val receiver = controlTimerReceiver
+		val scope = controlSessionScope
+		if (receiver != null && scope != null) {
+			applyControlAcquisitionIfEnabled(context, receiver, scope)
+		}
 		executeCycle(context, cycle)
 	}
 
@@ -729,6 +886,13 @@ internal class TrackingOrchestrator(
 		} else {
 			enqueueDailySummaryFallback(context)
 		}
+		trackingControlShadow.finish(
+			reason = "ORCHESTRATOR_SHUTDOWN",
+			wallTimeMs = Time.nowMillis,
+			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+		)
+		controlTimerReceiver = null
+		controlSessionScope = null
 		shutdownFailure?.let { throw it }
 		return ShutdownResult(
 			dailySummaryMaterialized = dailySummaryMaterialized,

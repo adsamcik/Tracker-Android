@@ -53,6 +53,7 @@ internal class CellDataProducer(
 	private var lastCellScanElapsedRealtimeMillis: Long = -1L
 	private var lastPersistedFingerprint: String? = null
 	private var lastPersistedElapsedRealtimeMillis: Long = -1L
+	private var sourceSequence: Long = 0L
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val context = requireNotNull(context)
@@ -83,7 +84,13 @@ internal class CellDataProducer(
 			}
 
 			if (scanData != null) {
-				lastCellScanData = scanData
+				sourceSequence++
+				lastCellScanData = scanData.copy(
+					observedAtEpochMs = System.currentTimeMillis(),
+					observedAtElapsedRealtimeNanos =
+						SystemClock.elapsedRealtimeNanos(),
+					sourceSequence = sourceSequence,
+				)
 				lastCellScanElapsedRealtimeMillis = now
 				val fingerprint = CellSnapshotGate.fingerprint(
 					scanData.registeredCells.map { cell ->
@@ -258,6 +265,7 @@ internal class CellDataProducer(
 		lastPersistedFingerprint = null
 		lastPersistedElapsedRealtimeMillis = -1L
 		lastCellScanElapsedRealtimeMillis = -1L
+		sourceSequence = 0L
 		super.onDisable(context)
 	}
 

@@ -124,7 +124,8 @@ internal class WifiDataProducer(
     }
 
     private fun recordIfMeaningfullyChanged(scan: WifiScanData): WifiScanData? {
-        scan.data.maxOfOrNull { it.timestamp }?.let {
+        val freshestTimestampMicros = scan.data.maxOfOrNull { it.timestamp }
+        freshestTimestampMicros?.let {
             lastRecordedScanMicros = maxOf(lastRecordedScanMicros, it)
         }
         val fingerprint = WifiScanGate.fingerprint(
@@ -147,7 +148,7 @@ internal class WifiDataProducer(
             )) return null
         lastSnapshotFingerprint = fingerprint
         lastSnapshotRecordedAtNanos = now
-        return scan
+        return scan.copy(sourceSequence = freshestTimestampMicros?.coerceAtLeast(0L))
     }
 
     private fun readCachedScanOrNull(): WifiScanData? {

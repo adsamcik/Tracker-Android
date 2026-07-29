@@ -11,13 +11,24 @@ import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.LocationRequestFidelity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.control.AcquisitionRequest
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyOutcome
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyResult
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionCommand
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionCommandOrigin
+import com.adsamcik.tracker.tracker.control.LocationAcquisitionMode as DecisionAcquisitionMode
+import com.adsamcik.tracker.tracker.control.NoOpTrackingControlAcquisitionOutcomeSink
+import com.adsamcik.tracker.tracker.control.TrackingControlAcquisitionOutcomeSink
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.PolicyTierMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -59,6 +70,11 @@ internal class TrackerTierEscalationHandler(
 	lateinit var timerAccessor: TimerAccessor
 
 	var processorPipeline: ProcessorPipeline? = null
+
+	/** Last feature-gated control request applied to a platform trigger, separate from legacy tier. */
+	private var appliedControlRequest: AcquisitionRequest? = null
+	private var lastCompletedControlRequestId: String? = null
+	private var controlProbeExpiryJob: Job? = null
 
 	/**
 	 * Called when the tracking policy changes. Applies runtime caps, updates the timer interval,
@@ -161,6 +177,183 @@ internal class TrackerTierEscalationHandler(
 		)
 	}
 
+	/**
+	 * Retains the legacy policy-tier effects while an experimental acquisition controller owns the
+	 * physical request. Unlike [onPolicyChanged], this deliberately does not touch the trigger,
+	 * its fidelity/cadence, or foreground-service type.
+	 *
+	 * Keeping this separate avoids a transient legacy location request racing the controller while
+	 * still keeping processor activation, UI state, and raw-signal tier attribution correct.
+	 */
+	fun onPolicyTierChangedWithoutAcquisition(
+		policy: TrackingPolicy,
+		scope: CoroutineScope,
+	) {
+		val requestedTier = PolicyTierMapper.toTier(policy)
+		val newTier = tierAdjuster(requestedTier)
+		scope.launch {
+			componentMutex.withLock {
+				val oldTier = currentTier
+				if (newTier == oldTier) return@withLock
+				try {
+					processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					Reporter.report(e)
+					return@withLock
+				}
+				currentTier = newTier
+				onEffectiveTierChanged(newTier)
+				controller.updatePolicyTier(newTier)
+			}
+		}
+	}
+
+	/**
+	 * Applies a request produced by the independent acquisition reducer.
+	 *
+	 * This is called only when [TrackingDecisionFeatureFlags.applyAcquisitionRequests] is enabled;
+	 * legacy policy/tier handling remains untouched otherwise. It deliberately does not mutate the
+	 * legacy [currentTier] or processor pipeline tier, allowing a fast rollback to the old request
+	 * owner while retaining complete shadow evidence.
+	 */
+	fun onControlAcquisitionRequest(
+		command: ControlAcquisitionCommand,
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+		scope: CoroutineScope,
+		outcomeSink: TrackingControlAcquisitionOutcomeSink = NoOpTrackingControlAcquisitionOutcomeSink,
+	) {
+		val request = command.request
+		scope.launch {
+			componentMutex.withLock {
+				if (lastCompletedControlRequestId == command.requestId) return@withLock
+				appliedControlRequest?.takeIf { it.samePlatformShapeAs(request) }?.let { applied ->
+					completeControlRequest(
+						command = command,
+						outcome = ControlAcquisitionApplyOutcome.NO_CHANGE,
+						applied = applied,
+						reason = "PLATFORM_SHAPE_ALREADY_APPLIED",
+						outcomeSink = outcomeSink,
+					)
+					return@withLock
+				}
+				val params = trackingParamsRepository.data.first()
+				val shouldUseLocation = request.mode != DecisionAcquisitionMode.DISABLED
+				val requiresHealth = params.activityEnabled || params.stepsEnabled
+				val currentlyUsesLocation = timerAccessor.get().isLocationTrigger
+				val transition = prepareTriggerTransition(
+					shouldUseGps = shouldUseLocation,
+					requiresHealth = requiresHealth,
+					context = context,
+					timerReceiver = timerReceiver,
+					requestFidelity = request.toLocationRequestFidelity(),
+				)
+				if (transition == TriggerTransition.Failed) {
+					completeControlRequest(
+						command = command,
+						outcome = ControlAcquisitionApplyOutcome.FAILED,
+						reason = "TRIGGER_PREPARATION_FAILED",
+						outcomeSink = outcomeSink,
+					)
+					return@withLock
+				}
+				if (
+					transition == TriggerTransition.NotNeeded &&
+					!foregroundServiceTypeUpdater(shouldUseLocation, requiresHealth, true)
+				) {
+					completeControlRequest(
+						command = command,
+						outcome = ControlAcquisitionApplyOutcome.FAILED,
+						reason = "FOREGROUND_SERVICE_TYPE_UPDATE_FAILED",
+						outcomeSink = outcomeSink,
+					)
+					return@withLock
+				}
+
+				try {
+					if (transition == TriggerTransition.NotNeeded) {
+						configureLocationRequestFidelity(timerAccessor.get(), request.toLocationRequestFidelity())
+					}
+					transition.commit(context, timerAccessor)
+					if (!shouldUseLocation && currentlyUsesLocation &&
+						!foregroundServiceTypeUpdater(false, requiresHealth, true)
+					) {
+						// The trigger transition has already committed, so rolling back here would leave
+						// neither timer reliably enabled. Record the actual applied request with an
+						// explicit degraded FGS outcome instead of claiming the platform request failed.
+						Reporter.report("Foreground-service type removal failed after control de-escalation")
+						appliedControlRequest = request
+						completeControlRequest(
+							command = command,
+							outcome = ControlAcquisitionApplyOutcome.APPLIED,
+							applied = request,
+							reason = "PLATFORM_REQUEST_APPLIED_FGS_TYPE_REMOVAL_FAILED",
+							outcomeSink = outcomeSink,
+						)
+						scheduleProbeExpiryIfNeeded(command, context, timerReceiver, scope, outcomeSink)
+						return@withLock
+					}
+					updateTimerInterval(
+						context = context,
+						intervalMs = request.intervalMs,
+						minDistanceMeters = request.minDistanceMeters,
+					)
+				} catch (e: CancellationException) {
+					transition.rollback(context)
+					throw e
+				} catch (e: Exception) {
+					transition.rollback(context)
+					Reporter.report(e)
+					completeControlRequest(
+						command = command,
+						outcome = ControlAcquisitionApplyOutcome.FAILED,
+						reason = "PLATFORM_APPLY_EXCEPTION:${e.javaClass.simpleName}",
+						outcomeSink = outcomeSink,
+					)
+					return@withLock
+				}
+
+				appliedControlRequest = request
+				completeControlRequest(
+					command = command,
+					outcome = ControlAcquisitionApplyOutcome.APPLIED,
+					applied = request,
+					reason = "PLATFORM_REQUEST_APPLIED",
+					outcomeSink = outcomeSink,
+				)
+				scheduleProbeExpiryIfNeeded(command, context, timerReceiver, scope, outcomeSink)
+			}
+		}
+	}
+
+	private fun completeControlRequest(
+		command: ControlAcquisitionCommand,
+		outcome: ControlAcquisitionApplyOutcome,
+		applied: AcquisitionRequest? = null,
+		reason: String,
+		outcomeSink: TrackingControlAcquisitionOutcomeSink,
+	) {
+		lastCompletedControlRequestId = command.requestId
+		try {
+			outcomeSink.onAcquisitionOutcome(
+				ControlAcquisitionApplyResult(
+					command = command,
+					outcome = outcome,
+					applied = applied,
+					reason = reason,
+					eventEpochMs = Time.nowMillis.coerceAtLeast(0L),
+					eventElapsedNanos = Time.elapsedRealtimeNanos.coerceAtLeast(0L),
+					clockDomainId = TrackingClockDomain.currentId(),
+				),
+			)
+		} catch (e: Exception) {
+			// Research instrumentation must never change whether the physical request succeeds.
+			Reporter.report(e)
+		}
+	}
+
 	private suspend fun prepareTriggerTransition(
 		shouldUseGps: Boolean,
 		requiresHealth: Boolean,
@@ -191,8 +384,10 @@ internal class TrackerTierEscalationHandler(
 		var prepared = false
 		return try {
 			val gpsTimer = gpsTriggerFactory(context)
+			// Native passive/low-power modes accept coarse permission, whereas its default high
+			// fidelity requires fine permission. Configure before the permission check.
+			configureLocationRequestFidelity(gpsTimer, requestFidelity)
 			if (gpsTimer.hasRequiredPermissions(context)) {
-				configureLocationRequestFidelity(gpsTimer, requestFidelity)
 				gpsTimer.onEnable(context, timerReceiver)
 				prepared = true
 				TriggerTransition.Ready(
@@ -238,6 +433,19 @@ internal class TrackerTierEscalationHandler(
 		timer.updateInterval(context, intervalSeconds, minDistanceMeters)
 	}
 
+	private fun updateTimerInterval(
+		context: Context,
+		intervalMs: Long,
+		minDistanceMeters: Int,
+	) {
+		val timer = timerAccessor.get()
+		if (timer !is DynamicIntervalCollectionTrigger) return
+		val seconds = ((intervalMs.coerceAtLeast(1L) + 999L) / 1_000L)
+			.coerceAtMost(Int.MAX_VALUE.toLong())
+			.toInt()
+		timer.updateInterval(context, seconds, minDistanceMeters.coerceAtLeast(0))
+	}
+
 	private fun configureLocationRequestFidelity(
 		trigger: CollectionTriggerComponent,
 		fidelity: LocationRequestFidelity,
@@ -253,6 +461,63 @@ internal class TrackerTierEscalationHandler(
 		TrackingPolicy.MOVEMENT_SUSPECTED,
 		TrackingPolicy.ACTIVE_MODERATE,
 		-> LocationRequestFidelity.BALANCED
+	}
+
+	private fun AcquisitionRequest.toLocationRequestFidelity(): LocationRequestFidelity = when (mode) {
+		DecisionAcquisitionMode.DISABLED -> LocationRequestFidelity.DISABLED
+		DecisionAcquisitionMode.PASSIVE -> LocationRequestFidelity.PASSIVE
+		DecisionAcquisitionMode.LOW_POWER -> LocationRequestFidelity.LOW_POWER
+		DecisionAcquisitionMode.BALANCED -> LocationRequestFidelity.BALANCED
+		DecisionAcquisitionMode.HIGH_ACCURACY -> LocationRequestFidelity.HIGH_ACCURACY
+		DecisionAcquisitionMode.PROBE -> LocationRequestFidelity.PROBE
+	}
+
+	private fun AcquisitionRequest.samePlatformShapeAs(other: AcquisitionRequest): Boolean =
+		mode == other.mode && intervalMs == other.intervalMs &&
+			minDistanceMeters == other.minDistanceMeters && probeDurationMs == other.probeDurationMs
+
+	private fun scheduleProbeExpiryIfNeeded(
+		command: ControlAcquisitionCommand,
+		context: Context,
+		timerReceiver: TrackerTimerReceiver,
+		scope: CoroutineScope,
+		outcomeSink: TrackingControlAcquisitionOutcomeSink,
+	) {
+		val request = command.request
+		if (request.mode != DecisionAcquisitionMode.PROBE) {
+			controlProbeExpiryJob?.cancel()
+			controlProbeExpiryJob = null
+			return
+		}
+		controlProbeExpiryJob?.cancel()
+		val durationMs = requireNotNull(request.probeDurationMs)
+		controlProbeExpiryJob = scope.launch {
+			delay(durationMs)
+			// Clear our own reference before applying the fallback so the fallback does not cancel
+			// the currently executing coroutine at its deadline boundary.
+			controlProbeExpiryJob = null
+			onControlAcquisitionRequest(
+				command = ControlAcquisitionCommand(
+					requestId = "${command.requestId}:adapter-probe-deadline",
+					logicalTrackingId = command.logicalTrackingId,
+					decisionLedgerSequence = command.decisionLedgerSequence,
+					request = AcquisitionRequest(
+						mode = DecisionAcquisitionMode.PASSIVE,
+						intervalMs = 60_000L,
+						minDistanceMeters = 0,
+						reason = "ADAPTER_PROBE_DEADLINE",
+					),
+					decisionEpochMs = Time.nowMillis.coerceAtLeast(0L),
+					decisionElapsedNanos = Time.elapsedRealtimeNanos.coerceAtLeast(0L),
+					clockDomainId = TrackingClockDomain.currentId(),
+					origin = ControlAcquisitionCommandOrigin.ADAPTER_PROBE_DEADLINE,
+				),
+				context = context,
+				timerReceiver = timerReceiver,
+				scope = scope,
+				outcomeSink = outcomeSink,
+			)
+		}
 	}
 
 	/**

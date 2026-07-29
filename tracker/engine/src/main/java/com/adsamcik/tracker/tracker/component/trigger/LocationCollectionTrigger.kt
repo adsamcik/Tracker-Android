@@ -71,6 +71,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 			val batchSize = locations.size
 			val callbackId = UUID.randomUUID().toString()
 			val clockDomainId = TrackingClockDomain.currentId()
+			val bootClockDomainId = TrackingClockDomain.currentBootId()
 			// Permission can change while a trigger is live, so record what was in effect for this
 			// callback rather than the value cached when the request was first enabled.
 			val permissionPrecision = appContext?.let { context ->
@@ -85,6 +86,7 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 					callbackId = callbackId,
 					sourceEventId = UUID.randomUUID().toString(),
 					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
 					receivedAtMs = receivedAtMs,
 					receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 					acquisitionMode = acquisitionMode,

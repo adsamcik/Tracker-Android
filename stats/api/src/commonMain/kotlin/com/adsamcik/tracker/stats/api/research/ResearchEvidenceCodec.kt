@@ -115,6 +115,77 @@ data class GapWire(
 	val endEpochMs: Long?,
 	val clockDomainId: String,
 	val reason: String?,
+	val logicalTrackingId: String? = null,
+	val startElapsedNanos: Long? = null,
+	val endElapsedNanos: Long? = null,
+) : ResearchEvidenceWireRecord
+
+data class ControlEventWire(
+	val logicalTrackingId: String,
+	val eventEpochMs: Long?,
+	val eventElapsedNanos: Long?,
+	val kind: ResearchControlEventKind,
+	val reason: String?,
+	val correlationId: String?,
+	val payload: Map<String, String>,
+) : ResearchEvidenceWireRecord
+
+data class TrackingLifecycleWire(
+	val logicalTrackingId: String,
+	val transition: ResearchTrackingLifecycleTransition,
+	val trackingMode: ResearchTrackingMode,
+	val eventEpochMs: Long?,
+	val eventElapsedNanos: Long?,
+	val stopCause: ResearchTrackingStopCause?,
+	val reason: String?,
+	val correlationId: String?,
+	val resumedFromLogicalTrackingId: String?,
+) : ResearchEvidenceWireRecord
+
+data class AcquisitionWire(
+	val logicalTrackingId: String,
+	val requestId: String,
+	val eventEpochMs: Long?,
+	val eventElapsedNanos: Long?,
+	val desired: ResearchAcquisitionConfiguration,
+	val applied: ResearchAcquisitionConfiguration?,
+	val outcome: ResearchAcquisitionApplyOutcome,
+	val reason: String?,
+	val correlationId: String?,
+) : ResearchEvidenceWireRecord
+
+data class HorizontalEstimatorWire(
+	val logicalTrackingId: String,
+	val estimatorVersion: String,
+	val decision: ResearchHorizontalEstimatorDecision,
+	val eventEpochMs: Long?,
+	val sourceElapsedNanos: Long?,
+	val deltaNanos: Long?,
+	val sourceSequence: Long?,
+	val stateDimension: Int,
+	val stateBefore: List<Double>,
+	val stateAfter: List<Double>,
+	val covarianceBefore: List<Double>,
+	val covarianceAfter: List<Double>,
+	val processNoise: List<Double>,
+	val measurementEastM: Double?,
+	val measurementNorthM: Double?,
+	val measurementCovariance: List<Double>,
+	val innovation: List<Double>,
+	val normalizedInnovationSquared: Double?,
+	val accepted: Boolean?,
+	val reason: String?,
+	val correlationId: String?,
+) : ResearchEvidenceWireRecord
+
+data class ControlDigestWire(
+	val kind: ResearchControlDigestKind,
+	val digestAlgorithm: String,
+	val digest: String,
+	val logicalTrackingId: String?,
+	val envelopeCount: Long,
+	val firstSequence: Long?,
+	val lastSequence: Long?,
 ) : ResearchEvidenceWireRecord
 
 data class TruthMarkerWire(val markerId: String, val label: String, val eventEpochMs: Long?) : ResearchEvidenceWireRecord
@@ -166,10 +237,10 @@ data class TerminalIntegrityWire(
 	val complete: Boolean,
 ) : ResearchEvidenceWireRecord
 
-/** The only supported domain <-> wire conversion for schema [RESEARCH_EVIDENCE_SCHEMA_VERSION]. */
+/** The supported domain <-> wire conversion for V1 historical and V2 control evidence. */
 object ResearchEvidenceCodec {
 	fun encode(envelope: ResearchEvidenceEnvelope): ResearchEvidenceWireEnvelope {
-		require(envelope.schemaVersion == RESEARCH_EVIDENCE_SCHEMA_VERSION) {
+		require(isResearchEvidenceSchemaSupported(envelope.schemaVersion)) {
 			"Unsupported research evidence schema ${envelope.schemaVersion}"
 		}
 		return ResearchEvidenceWireEnvelope(
@@ -188,7 +259,7 @@ object ResearchEvidenceCodec {
 	}
 
 	fun decode(wire: ResearchEvidenceWireEnvelope): ResearchEvidenceEnvelope {
-		require(wire.schemaVersion == RESEARCH_EVIDENCE_SCHEMA_VERSION) {
+		require(isResearchEvidenceSchemaSupported(wire.schemaVersion)) {
 			"Unsupported research evidence schema ${wire.schemaVersion}"
 		}
 		return ResearchEvidenceEnvelope(
@@ -232,7 +303,29 @@ object ResearchEvidenceCodec {
 		)
 		is ResearchLifecycleRecord -> LifecycleWire(boundary, detail)
 		is ResearchTraceLossRecord -> TraceLossWire(ranges)
-		is ResearchGapRecord -> GapWire(startEpochMs, endEpochMs, clockDomainId, reason)
+		is ResearchGapRecord -> GapWire(
+			startEpochMs, endEpochMs, clockDomainId, reason, logicalTrackingId, startElapsedNanos, endElapsedNanos,
+		)
+		is ResearchControlEventRecord -> ControlEventWire(
+			logicalTrackingId, eventEpochMs, eventElapsedNanos, kind, reason, correlationId, payload.toSortedMap(),
+		)
+		is ResearchTrackingLifecycleRecord -> TrackingLifecycleWire(
+			logicalTrackingId, transition, trackingMode, eventEpochMs, eventElapsedNanos, stopCause, reason,
+			correlationId, resumedFromLogicalTrackingId,
+		)
+		is ResearchAcquisitionRecord -> AcquisitionWire(
+			logicalTrackingId, requestId, eventEpochMs, eventElapsedNanos, desired, applied, outcome, reason,
+			correlationId,
+		)
+		is ResearchHorizontalEstimatorRecord -> HorizontalEstimatorWire(
+			logicalTrackingId, estimatorVersion, decision, eventEpochMs, sourceElapsedNanos, deltaNanos,
+			sourceSequence, stateDimension, stateBefore, stateAfter, covarianceBefore, covarianceAfter,
+			processNoise, measurementEastM, measurementNorthM, measurementCovariance, innovation,
+			normalizedInnovationSquared, accepted, reason, correlationId,
+		)
+		is ResearchControlDigestRecord -> ControlDigestWire(
+			kind, digestAlgorithm, digest, logicalTrackingId, envelopeCount, firstSequence, lastSequence,
+		)
 		is ResearchTruthMarkerRecord -> TruthMarkerWire(markerId, label, eventEpochMs)
 		is ResearchManualCorrectionRecord -> ManualCorrectionWire(
 			correctionId, boundaryStartEpochMs, boundaryEndEpochMs, mode, reason,
@@ -277,7 +370,29 @@ object ResearchEvidenceCodec {
 		)
 		is LifecycleWire -> ResearchLifecycleRecord(boundary, detail)
 		is TraceLossWire -> ResearchTraceLossRecord(ranges)
-		is GapWire -> ResearchGapRecord(startEpochMs, endEpochMs, clockDomainId, reason)
+		is GapWire -> ResearchGapRecord(
+			startEpochMs, endEpochMs, clockDomainId, reason, logicalTrackingId, startElapsedNanos, endElapsedNanos,
+		)
+		is ControlEventWire -> ResearchControlEventRecord(
+			logicalTrackingId, eventEpochMs, eventElapsedNanos, kind, reason, correlationId, payload,
+		)
+		is TrackingLifecycleWire -> ResearchTrackingLifecycleRecord(
+			logicalTrackingId, transition, trackingMode, eventEpochMs, eventElapsedNanos, stopCause, reason,
+			correlationId, resumedFromLogicalTrackingId,
+		)
+		is AcquisitionWire -> ResearchAcquisitionRecord(
+			logicalTrackingId, requestId, eventEpochMs, eventElapsedNanos, desired, applied, outcome, reason,
+			correlationId,
+		)
+		is HorizontalEstimatorWire -> ResearchHorizontalEstimatorRecord(
+			logicalTrackingId, estimatorVersion, decision, eventEpochMs, sourceElapsedNanos, deltaNanos,
+			sourceSequence, stateDimension, stateBefore, stateAfter, covarianceBefore, covarianceAfter,
+			processNoise, measurementEastM, measurementNorthM, measurementCovariance, innovation,
+			normalizedInnovationSquared, accepted, reason, correlationId,
+		)
+		is ControlDigestWire -> ResearchControlDigestRecord(
+			kind, digestAlgorithm, digest, logicalTrackingId, envelopeCount, firstSequence, lastSequence,
+		)
 		is TruthMarkerWire -> ResearchTruthMarkerRecord(markerId, label, eventEpochMs)
 		is ManualCorrectionWire -> ResearchManualCorrectionRecord(
 			correctionId, boundaryStartEpochMs, boundaryEndEpochMs, mode, reason,

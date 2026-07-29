@@ -18,12 +18,12 @@ class DefaultActiveTrackingSessionStoreTest {
 	@Test
 	fun `descriptor survives repository recreation and is removed on graceful clear`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		context.filesDir.resolve("datastore/active_tracking_session.pb").delete()
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val store = DefaultActiveTrackingSessionStore(
 			context,
 			TestDispatchersProvider(dispatcher),
 		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 		val descriptor = ActiveTrackingSessionDescriptor(
 			isUserInitiated = true,
 			isAmbient = false,
@@ -35,5 +35,39 @@ class DefaultActiveTrackingSessionStoreTest {
 		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 	}
-}
 
+	@Test
+	fun `conditional clear cannot erase a resumed or newer service run`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val firstRun = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical-session",
+			serviceRunId = "service-run-one",
+		).proposeStop(
+			reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+			changedAtEpochMs = 100L,
+		)
+		val replacement = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = firstRun.logicalTrackingId,
+			serviceRunId = "service-run-two",
+		)
+
+		val resumed = firstRun.withdrawStopCandidate(changedAtEpochMs = 101L)
+		store.save(resumed) shouldBe ActiveTrackingSessionStoreResult.Success(resumed)
+		store.clearIfCurrent(firstRun) shouldBe ActiveTrackingSessionStoreResult.Success(resumed)
+		store.save(replacement) shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+		store.clearIfCurrent(firstRun) shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+	}
+}

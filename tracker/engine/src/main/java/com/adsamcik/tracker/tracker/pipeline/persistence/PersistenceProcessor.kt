@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
@@ -41,6 +42,7 @@ import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationDecision
 import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance
+import com.adsamcik.tracker.stats.api.signal.ObservationStamp
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
@@ -331,6 +333,8 @@ class PersistenceProcessor @Inject constructor(
 				vAccM = observation.verticalAccuracyM,
 				speedMps = observation.speedMps,
 				speedAccuracyMps = observation.speedAccuracyMps,
+				bearingDeg = observation.bearingDeg,
+				bearingAccuracyDeg = observation.bearingAccuracyDeg,
 				provider = observation.provider,
 				acquisitionMode = observation.acquisitionMode,
 				requestPriority = observation.requestPriority,
@@ -346,6 +350,7 @@ class PersistenceProcessor @Inject constructor(
 				sourceEventId = observation.sourceEventId,
 				callbackId = observation.callbackId,
 				clockDomainId = signal.clockDomainId,
+				bootClockDomainId = signal.bootClockDomainId,
 			),
 		)
 		// Invalid-at-ingress provider fixes never reach the curated dispatch stage. Their terminal
@@ -402,6 +407,10 @@ class PersistenceProcessor @Inject constructor(
 				vAccM = location.verticalAccuracyM,
 				speedMps = location.speed?.raw,
 				speedAccuracyMps = location.speedAccuracyMps,
+				rawPlatformSpeedMps = location.rawPlatformSpeedMps,
+				rawPlatformSpeedAccuracyMps = location.rawPlatformSpeedAccuracyMps,
+				bearingDeg = location.bearingDeg,
+				bearingAccuracyDeg = location.bearingAccuracyDeg,
 				provider = location.provider,
 				quality = quality,
 				motionState = motionState,
@@ -424,6 +433,7 @@ class PersistenceProcessor @Inject constructor(
 				sourceSignalId = sourceSignalId,
 				sourceEventId = location.sourceEventId,
 				clockDomainId = signal.clockDomainId,
+				bootClockDomainId = signal.bootClockDomainId,
 			),
 		)
 	}
@@ -479,6 +489,7 @@ class PersistenceProcessor @Inject constructor(
 					createdAt = timeMs,
 					sourceSignalId = sourceSignalId,
 					sourceItemIndex = itemIndex,
+					observationStamp = cells.stamp.toColumns(signal),
 				),
 			)
 		}
@@ -517,6 +528,7 @@ class PersistenceProcessor @Inject constructor(
 					createdAt = timeMs,
 					sourceSignalId = sourceSignalId,
 					sourceItemIndex = itemIndex,
+					observationStamp = wifi.stamp.toColumns(signal),
 				),
 			)
 		}
@@ -533,22 +545,42 @@ class PersistenceProcessor @Inject constructor(
 				bucketId = null,
 				createdAt = signal.timestampMs.raw,
 				sourceSignalId = sourceSignalId,
+				sampleCount = pressure.sampleCount,
+				minPressureHpa = pressure.minPressureHpa,
+				maxPressureHpa = pressure.maxPressureHpa,
+				standardDeviationHpa = pressure.standardDeviationHpa,
+				windowStartElapsedRealtimeNanos =
+					pressure.windowStartElapsedRealtimeNanos,
+				windowEndElapsedRealtimeNanos =
+					pressure.windowEndElapsedRealtimeNanos,
+				observationStamp = pressure.stamp.toColumns(signal),
 			),
 		)
 	}
 
 	private fun bufferSteps(signal: TrackingSignal, sourceSignalId: String) {
 		val steps = signal.steps ?: return
+		val stamp = steps.stamp
+		val endTimeMs = stamp.sourceEpochOrEstimate(signal.timestampMs.raw)
+		val sourceEndElapsed = stamp?.sourceElapsedRealtimeNanos
+		val sourceStartElapsed = stamp?.sourceFirstElapsedRealtimeNanos
+		val windowDurationMs = if (sourceEndElapsed != null && sourceStartElapsed != null) {
+			((sourceEndElapsed - sourceStartElapsed).coerceAtLeast(0L) /
+				Time.MILLISECONDS_IN_NANOSECONDS)
+		} else {
+			0L
+		}
 		stepBuffer.add(
 			StepInterval(
-				startTimeMs = signal.timestampMs.raw,
-				endTimeMs = signal.timestampMs.raw,
+				startTimeMs = endTimeMs - windowDurationMs,
+				endTimeMs = endTimeMs,
 				stepCount = steps.stepDelta.raw,
 				sensorValueStart = steps.sensorValueStart,
 				sensorValueEnd = steps.sensorValueEnd,
 				sensorReset = steps.sensorReset,
 				createdAt = signal.timestampMs.raw,
 				sourceSignalId = sourceSignalId,
+				observationStamp = stamp.toColumns(signal),
 			),
 		)
 	}
@@ -564,7 +596,38 @@ class PersistenceProcessor @Inject constructor(
 				isTransition = false,
 				createdAt = signal.timestampMs.raw,
 				sourceSignalId = sourceSignalId,
+				observationStamp = activity.stamp.toColumns(signal),
 			),
+		)
+	}
+
+	private fun ObservationStamp?.sourceEpochOrEstimate(fallbackEpochMs: Long): Long {
+		if (this == null) return fallbackEpochMs
+		sourceEpochMs?.let { return it }
+		return fallbackEpochMs - (sourceAgeMs ?: 0L)
+	}
+
+	private fun ObservationStamp?.toColumns(signal: TrackingSignal): ObservationStampColumns {
+		val stamp = this
+		return ObservationStampColumns(
+			sourceTimeMs = stamp?.sourceEpochMs,
+			sourceElapsedRealtimeNanos = stamp?.sourceElapsedRealtimeNanos,
+			sourceFirstElapsedRealtimeNanos = stamp?.sourceFirstElapsedRealtimeNanos,
+			receivedTimeMs = stamp?.receivedEpochMs ?: signal.timestampMs.raw,
+			receivedElapsedRealtimeNanos =
+				stamp?.receivedElapsedRealtimeNanos ?: signal.elapsedRealtimeNanos,
+			sourceSequence = stamp?.sourceSequence,
+			sourceFirstSequence = stamp?.sourceFirstSequence,
+			clockDomainId = stamp?.clockDomainId ?: signal.clockDomainId,
+			bootClockDomainId = stamp?.bootClockDomainId ?: signal.bootClockDomainId,
+			sourceAgeMs = stamp?.sourceAgeMs,
+			timeUncertaintyMs = stamp?.timeUncertaintyMs,
+			capabilityFlags = stamp?.capabilityFlags
+				?.takeIf(Set<String>::isNotEmpty)
+				?.toList()
+				?.sorted()
+				?.joinToString(","),
+			permissionPrecision = stamp?.permissionPrecision,
 		)
 	}
 

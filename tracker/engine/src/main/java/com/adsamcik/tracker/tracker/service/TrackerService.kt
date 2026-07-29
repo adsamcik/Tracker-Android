@@ -48,9 +48,13 @@ import com.adsamcik.tracker.tracker.receiver.TrackerRestartReceiver
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
+import com.adsamcik.tracker.tracker.resilience.LogicalTrackingLifecycleState
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidate
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.shouldScheduleTrackerRestart
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
+import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -212,12 +216,21 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		super.onStartCommand(intent, flags, startId)
 
 		if (intent?.action == TrackerServiceContract.ACTION_GRACEFUL_STOP) {
-			requestGracefulStop(startId)
+			requestGracefulStop(startId, intent.stopCandidateReason())
 			return START_NOT_STICKY
 		}
 
 		val recoveredSessionInfo = sessionInfo ?: controller.sessionInfoFlow.value
 		val isWatchdogRestart = intent?.hasExtra(ARG_POLICY_TIER) == true
+		val watchdogDescriptor = intent?.takeIf { isWatchdogRestart }?.toRestartDescriptor()
+		if (isWatchdogRestart && watchdogDescriptor?.isRestartEligible != true) {
+			Reporter.w(
+				"TrackerService",
+				"Ignoring restart intent without an active, user-initiated logical session",
+			)
+			requestGracefulStop(startId)
+			return START_NOT_STICKY
+		}
 		if (isWatchdogRestart && sessionInfo != null && !gracefulStopRequested) {
 			Reporter.log("Ignoring watchdog restart because this service instance is already active")
 			return if (sessionInfo?.isInitiatedByUser == true) {
@@ -232,7 +245,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				when (val result = activeTrackingSessionStore.read()) {
 					is ActiveTrackingSessionStoreResult.Success -> {
 						val descriptor = result.descriptor
-						?.takeIf { it.isUserInitiated }
+						?.takeIf { it.isRestartEligible }
 						?: run {
 							Reporter.w(
 								"TrackerService",
@@ -256,19 +269,21 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			return START_REDELIVER_INTENT
 		}
 
-		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
+		val isUserInitiated = watchdogDescriptor?.isUserInitiated
+			?: intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
 			?: recoveredSessionInfo?.isInitiatedByUser
 			?: DEFAULT_IS_USER_INITIATED
-		val isAmbient = intent?.getBooleanExtra(ARG_IS_AMBIENT, false)
+		val isAmbient = watchdogDescriptor?.isAmbient
+			?: intent?.getBooleanExtra(ARG_IS_AMBIENT, false)
 			?: !isUserInitiated
-		val recoveredTier = if (intent == null) {
+		val recoveredTier = watchdogDescriptor?.policyTier ?: if (intent == null) {
 			controller.policyTierFlow.value.takeUnless { it == PolicyTier.OFF }
 		} else {
 			intent.getStringExtra(ARG_POLICY_TIER)
 				?.let { name -> PolicyTier.entries.firstOrNull { it.name == name } }
 		}
 		beginSession(
-			ActiveTrackingSessionDescriptor(
+			watchdogDescriptor ?: ActiveTrackingSessionDescriptor(
 				isUserInitiated = isUserInitiated,
 				isAmbient = isAmbient,
 				policyTier = recoveredTier ?: PolicyTier.OFF,
@@ -279,15 +294,72 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		return if (isUserInitiated) START_REDELIVER_INTENT else START_NOT_STICKY
 	}
 
+	/** Parses only a watchdog/restart intent; ordinary starts deliberately create a new logical ID. */
+	private fun Intent.toRestartDescriptor(): ActiveTrackingSessionDescriptor? {
+		val tier = getStringExtra(ARG_POLICY_TIER)
+			?.let { name -> PolicyTier.entries.firstOrNull { it.name == name } }
+			?: return null
+		if (tier == PolicyTier.OFF) return null
+
+		val lifecycleStateValue = getStringExtra(TrackerServiceContract.ARG_LIFECYCLE_STATE)
+		val lifecycleState = when {
+			lifecycleStateValue == null -> LogicalTrackingLifecycleState.ACTIVE
+			else -> LogicalTrackingLifecycleState.entries.firstOrNull {
+				it.name == lifecycleStateValue
+			} ?: LogicalTrackingLifecycleState.STOP_CANDIDATE
+		}
+		val stopCandidate = if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
+			TrackingStopCandidate(
+				reason = getStringExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REASON)
+					?.let { name ->
+						TrackingStopCandidateReason.entries.firstOrNull { it.name == name }
+					}
+					?: TrackingStopCandidateReason.UNKNOWN,
+				requestedAtEpochMs = getLongExtra(
+					TrackerServiceContract.ARG_STOP_CANDIDATE_REQUESTED_AT_EPOCH_MS,
+					0L,
+				).takeIf { it > 0L },
+			)
+		} else {
+			null
+		}
+
+		return ActiveTrackingSessionDescriptor(
+			isUserInitiated = getBooleanExtra(ARG_IS_USER_INITIATED, false),
+			isAmbient = getBooleanExtra(ARG_IS_AMBIENT, false),
+			policyTier = tier,
+			logicalTrackingId = getStringExtra(TrackerServiceContract.ARG_LOGICAL_TRACKING_ID)
+				?.takeIf { it.isNotBlank() }
+				?: java.util.UUID.randomUUID().toString(),
+			lifecycleState = lifecycleState,
+			lifecycleRevision = getLongExtra(
+				TrackerServiceContract.ARG_LIFECYCLE_REVISION,
+				0L,
+			).coerceAtLeast(0L),
+			lifecycleChangedAtEpochMs = getLongExtra(
+				TrackerServiceContract.ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS,
+				0L,
+			).takeIf { it > 0L },
+			stopCandidate = stopCandidate,
+		)
+	}
+
+	private fun Intent.stopCandidateReason(): TrackingStopCandidateReason =
+		getStringExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REASON)
+			?.let { name -> TrackingStopCandidateReason.entries.firstOrNull { it.name == name } }
+			?: TrackingStopCandidateReason.EXPLICIT_REQUEST
+
 	private fun beginSession(
 		startDescriptor: ActiveTrackingSessionDescriptor,
 		startId: Int,
 	) {
 		gracefulStopRequested = false
 		restartScheduled.set(false)
-		val isUserInitiated = startDescriptor.isUserInitiated
-		val isAmbient = startDescriptor.isAmbient
-		val provisionalDescriptor = startDescriptor.copy(
+		// A restart retains the logical session identity but is a distinct Android-service run.
+		val serviceRunDescriptor = startDescriptor.forNewServiceRun(System.currentTimeMillis())
+		val isUserInitiated = serviceRunDescriptor.isUserInitiated
+		val isAmbient = serviceRunDescriptor.isAmbient
+		val provisionalDescriptor = serviceRunDescriptor.copy(
 			policyTier = resolveInitialPolicyTier(
 				isUserInitiated = isUserInitiated,
 				isAmbient = isAmbient,
@@ -309,7 +381,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		if (!isUserInitiated) {
 			lockObservationJob = launch {
 				lockManager.isLockedFlow.collect { isLocked ->
-					if (isLocked) requestGracefulStop()
+					if (isLocked) {
+						requestGracefulStop(reason = TrackingStopCandidateReason.DEVICE_LOCKED)
+					}
 				}
 			}
 		}
@@ -344,7 +418,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					timerComponent.onDisable(this@TrackerService)
 					timerComponent = NoTimer()
 					if (!quiesceCycleDispatcherForReplacement()) {
-						requestGracefulStop()
+						requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 						return@runAfter
 					}
 					createCycleDispatcher()
@@ -366,7 +440,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 							"TrackerService",
 							"Stopping start request because no configured capture source is available",
 						)
-						requestGracefulStop(startId)
+						requestGracefulStop(
+							startId,
+							TrackingStopCandidateReason.CAPTURE_UNAVAILABLE,
+						)
 						return@runAfter
 					}
 					val locationEnabled = trackingParams.locationEnabled
@@ -388,11 +465,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
 						return@runAfter
 					}
-					val descriptor = ActiveTrackingSessionDescriptor(
-						isUserInitiated = isUserInitiated,
-						isAmbient = isAmbient,
-						policyTier = initialTier,
-					)
+					val descriptor = provisionalDescriptor.copy(policyTier = initialTier)
 					activeSessionDescriptor = descriptor
 					if (descriptor != provisionalDescriptor) {
 						when (val result = activeTrackingSessionStore.save(descriptor)) {
@@ -424,6 +497,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 							scope = this@TrackerService,
 							timerReceiver = this@TrackerService,
 							timerAccessor = timerAccessor,
+							logicalTrackingId = descriptor.logicalTrackingId,
 						)
 					}
 
@@ -442,17 +516,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						timerComponent.onEnable(this@TrackerService, this@TrackerService)
 					} else {
 						Reporter.report("Missing permissions for ${timerComponent.javaClass}")
-						requestGracefulStop()
+						requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
 					}
 				}
 			} catch (e: TimeoutCancellationException) {
 				Reporter.report(IllegalStateException("Timed out waiting for prior tracking lifecycle work", e))
-				requestGracefulStop()
+				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
 				Reporter.report(IllegalStateException("Failed to initialize tracking service", e))
-				requestGracefulStop()
+				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
 	}
@@ -591,7 +665,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		if (stopService) {
 			Reporter.w("TrackerService", "No permitted foreground-service type available; stopping service")
 			TrackerNotificationManager.postStartFailedNotification(this)
-			requestGracefulStop()
+			requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
 		} else {
 			Reporter.w(
 				"TrackerService",
@@ -616,7 +690,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		// Power-save check (Android concern, kept in service)
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) {
-			requestGracefulStop()
+			requestGracefulStop(reason = TrackingStopCandidateReason.POWER_SAVER)
 		}
 	}
 
@@ -671,7 +745,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	override fun onError(errorData: TrackerTimerErrorData) {
 		when (errorData.severity) {
-			TrackerTimerErrorSeverity.STOP_SERVICE -> requestGracefulStop()
+			TrackerTimerErrorSeverity.STOP_SERVICE ->
+				requestGracefulStop(reason = TrackingStopCandidateReason.TIMER_FAILURE)
 			TrackerTimerErrorSeverity.REPORT -> Reporter.report(errorData.internalMessage)
 			TrackerTimerErrorSeverity.NOTIFY_USER -> orchestrator.notificationComponent.onError(
 				this,
@@ -681,22 +756,54 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	private fun requestGracefulStop(startId: Int? = null) {
+	override fun onLocationProviderAvailabilityChanged(available: Boolean, reason: String) {
+		orchestrator.onLocationProviderAvailabilityChanged(this, available, reason)
+	}
+
+	private fun requestGracefulStop(
+		startId: Int? = null,
+		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+	) {
 		if (gracefulStopRequested) return
 		gracefulStopRequested = true
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = null
+		// Initialization can still be suspended on preferences, foreground setup, or component
+		// construction.  Cancel it before persisting the candidate so it cannot later overwrite the
+		// terminal descriptor with the provisional ACTIVE record.
+		initializationJob?.cancel()
+		val stopCandidate = activeSessionDescriptor?.proposeStop(
+			reason = reason,
+			changedAtEpochMs = System.currentTimeMillis(),
+		)
+		activeSessionDescriptor = stopCandidate
 		launch {
-			when (val result = activeTrackingSessionStore.clear()) {
-				is ActiveTrackingSessionStoreResult.Success -> Unit
-				is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
+			// Keep the stop candidate durable until teardown completes.  An unexpected kill in this
+			// interval must not be interpreted as a user-session crash eligible for restart.
+			if (stopCandidate != null) {
+				when (val result = activeTrackingSessionStore.save(stopCandidate)) {
+					is ActiveTrackingSessionStoreResult.Success -> Unit
+					is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
+				}
 			}
-			activeSessionDescriptor = null
 			if (startId == null) {
 				stopSelf()
 			} else {
 				stopSelfResult(startId)
 			}
+		}
+	}
+
+	private suspend fun clearCompletedStopCandidate() {
+		val stopCandidate = activeSessionDescriptor
+			?.takeIf { it.lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE }
+			?: return
+		when (val result = activeTrackingSessionStore.clearIfCurrent(stopCandidate)) {
+			is ActiveTrackingSessionStoreResult.Success -> {
+				// Do not overwrite a newer service run's descriptor if it won the atomic comparison.
+				if (result.descriptor == null) activeSessionDescriptor = null
+			}
+			is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
 		}
 	}
 
@@ -773,6 +880,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				TRACKING_LIFECYCLE_BARRIER.runAfter(initializationRef) {
 					recoverIncompleteTeardown(precedingTeardown)
 					cleanupGate.recovery()
+					clearCompletedStopCandidate()
 					cleanupGate.cleanupComplete.set(true)
 					shutdownCompleted = true
 				}
@@ -914,6 +1022,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				failure,
 			)
 		}
+		HistoricalTrajectoryReconstructionWorker.schedule(context)
 	}
 
 	companion object {

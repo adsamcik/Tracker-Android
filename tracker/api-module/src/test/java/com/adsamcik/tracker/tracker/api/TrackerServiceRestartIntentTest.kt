@@ -22,6 +22,10 @@ class TrackerServiceRestartIntentTest {
 				isUserInitiated = true,
 				isAmbient = false,
 				policyTier = PolicyTier.PRECISION,
+				logicalTrackingId = "logical-session-42",
+				serviceRunId = "service-run-ignored-on-restart",
+				lifecycleRevision = 7L,
+				lifecycleChangedAtEpochMs = 1_234L,
 			),
 		)
 
@@ -29,5 +33,11 @@ class TrackerServiceRestartIntentTest {
 		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, false) shouldBe true
 		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_AMBIENT, true) shouldBe false
 		intent.getStringExtra(TrackerServiceContract.ARG_POLICY_TIER) shouldBe PolicyTier.PRECISION.name
+		intent.getStringExtra(TrackerServiceContract.ARG_LOGICAL_TRACKING_ID) shouldBe
+			"logical-session-42"
+		intent.getStringExtra(TrackerServiceContract.ARG_LIFECYCLE_STATE) shouldBe "ACTIVE"
+		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_REVISION, -1L) shouldBe 7L
+		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS, -1L) shouldBe
+			1_234L
 	}
 }

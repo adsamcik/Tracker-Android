@@ -144,7 +144,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	) {
 		val reading = cycle.pressure ?: return
 
-		val speedMps = collectionData.location?.speed ?: 0f
+		val speedMps = collectionData.estimatedSpeedMps ?: 0f
 		val elapsedTimeMs = cycle.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
 
 		// Track last known GPS position for proximity check

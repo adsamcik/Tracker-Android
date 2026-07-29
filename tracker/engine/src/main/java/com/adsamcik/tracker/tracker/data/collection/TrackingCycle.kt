@@ -15,6 +15,8 @@ internal data class TrackingCycle(
 	val elapsedRealtimeNanos: Long,
 	val activity: ActivityInfo? = null,
 	val activityFresh: Boolean = false,
+	val activitySourceElapsedRealtimeNanos: Long? = null,
+	val activitySourceSequence: Long? = null,
 	val location: LocationData? = null,
 	/** Lossless provider deliveries captured before trigger and pipeline rejection. */
 	val locationObservations: List<LocationProviderObservation> = emptyList(),
@@ -26,6 +28,10 @@ internal data class TrackingCycle(
 	val stepSensorValueStart: Int = 0,
 	val stepSensorValueEnd: Int = 0,
 	val stepSensorReset: Boolean = false,
+	val stepWindowStartElapsedRealtimeNanos: Long? = null,
+	val stepWindowEndElapsedRealtimeNanos: Long? = null,
+	val stepSourceFirstSequence: Long? = null,
+	val stepSourceLastSequence: Long? = null,
 	val pressure: PressureReading? = null,
 	val rawGpsAltitude: Double? = null,
 	/**

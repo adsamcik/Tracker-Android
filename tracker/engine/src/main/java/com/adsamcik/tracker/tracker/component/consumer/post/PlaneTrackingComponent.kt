@@ -91,7 +91,7 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 			return
 		}
 
-		val speedMps = collectionData.location?.speed ?: 0f
+		val speedMps = collectionData.estimatedSpeedMps ?: 0f
 
 		// Compute step rate from step delta and elapsed time (same derivation as ski's/sailing's).
 		val newSteps = cycle.stepDelta ?: 0

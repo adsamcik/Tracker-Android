@@ -89,6 +89,9 @@ internal class ActivityDataProducer(
 
 		if (isActivityConfidentEnough) {
 			builder.activity = snapshot.activity
+			builder.activitySourceElapsedRealtimeNanos =
+				snapshot.elapsedTimeMillis.takeIf { it >= 0L }?.times(Time.MILLISECONDS_IN_NANOSECONDS)
+			builder.activitySourceSequence = snapshot.generation
 			if (snapshot.generation > lastEmittedGeneration) {
 				builder.activityFresh = true
 				lastEmittedGeneration = snapshot.generation

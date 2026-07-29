@@ -4,7 +4,6 @@ internal fun shouldScheduleTrackerRestart(
 	descriptor: ActiveTrackingSessionDescriptor?,
 	gracefulStopRequested: Boolean,
 	restartAlreadyScheduled: Boolean,
-): Boolean = descriptor?.isUserInitiated == true &&
+): Boolean = descriptor?.isRestartEligible == true &&
 	!gracefulStopRequested &&
 	!restartAlreadyScheduled
-

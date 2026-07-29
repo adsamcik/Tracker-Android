@@ -60,12 +60,16 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 		}
 
 		override fun onLocationAvailability(availability: LocationAvailability) {
+			val localReceiver = receiver ?: return
+			localReceiver.onLocationProviderAvailabilityChanged(
+				available = availability.isLocationAvailable,
+				reason = "FUSED_LOCATION_AVAILABILITY",
+			)
 			if (!availability.isLocationAvailable) {
 				val errorData = TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.NOTIFY_USER,
 					R.string.notification_looking_for_gps,
 				)
-				val localReceiver = receiver ?: return
 				localReceiver.onError(errorData)
 			}
 		}
@@ -91,6 +95,10 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 			activeRequestPriority = configuredRequest.priority
 		} catch (e: SecurityException) {
 			Reporter.report(e)
+			receiver.onLocationProviderAvailabilityChanged(
+				available = false,
+				reason = "FUSED_LOCATION_PERMISSION_REVOKED",
+			)
 			receiver.onError(
 				TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.STOP_SERVICE,
@@ -125,7 +133,12 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 			activeRequestPriority = configuredRequest.priority
 		} catch (e: SecurityException) {
 			Reporter.report(e)
-			receiver?.onError(
+			val localReceiver = receiver
+			localReceiver?.onLocationProviderAvailabilityChanged(
+				available = false,
+				reason = "FUSED_LOCATION_PERMISSION_REVOKED_DURING_UPDATE",
+			)
+			localReceiver?.onError(
 				TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.STOP_SERVICE,
 					R.string.notification_looking_for_gps,
@@ -164,13 +177,19 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 	}
 
 	private fun selectPriority(context: Context): Int {
-		return if (
-			requestFidelity == LocationRequestFidelity.HIGH_ACCURACY &&
-			context.hasPreciseLocationPermission
-		) {
-			Priority.PRIORITY_HIGH_ACCURACY
-		} else {
-			Priority.PRIORITY_BALANCED_POWER_ACCURACY
+		return when (requestFidelity) {
+			LocationRequestFidelity.DISABLED,
+			LocationRequestFidelity.PASSIVE,
+			-> Priority.PRIORITY_PASSIVE
+			LocationRequestFidelity.LOW_POWER -> Priority.PRIORITY_LOW_POWER
+			LocationRequestFidelity.BALANCED -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
+			LocationRequestFidelity.HIGH_ACCURACY,
+			LocationRequestFidelity.PROBE,
+			-> if (context.hasPreciseLocationPermission) {
+				Priority.PRIORITY_HIGH_ACCURACY
+			} else {
+				Priority.PRIORITY_BALANCED_POWER_ACCURACY
+			}
 		}
 	}
 

@@ -36,6 +36,7 @@ import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import kotlinx.coroutines.CancellationException
@@ -80,7 +81,9 @@ object BackgroundTrackingApi {
 	private var activityWatcherJob: Job? = null
 	private var recognitionUpdatesJob: Job? = null
 	private var requestMutationJob: Job? = null
+	private var automaticStopGraceJob: Job? = null
 	private var requestMutationGeneration = 0L
+	private var automaticStopGeneration = 0L
 
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
@@ -90,6 +93,8 @@ object BackgroundTrackingApi {
 	// confirms recent walking. Only widens starts; never blocks one the full threshold would allow.
 	private const val STEP_CORROBORATED_CONFIDENCE = 50
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
+	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
+	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
 	private const val TAG = "BackgroundTrackingApi"
 	private var appContext: Context? = null
 	@Volatile
@@ -150,6 +155,7 @@ object BackgroundTrackingApi {
 
 	private fun handleActivityUpdate(context: Context, activity: RecognizedActivity) {
 		if (!context.hasActivityPermission) {
+			cancelAutomaticStopGrace()
 			// ACTIVITY_RECOGNITION was revoked while detection was armed. Tear the request down
 			// instead of acting on a now-defunct subscription; it re-arms when re-granted.
 			revalidatePermissions(context)
@@ -157,45 +163,97 @@ object BackgroundTrackingApi {
 			// Stop evaluation is unchanged: only reconsider continuation at the full confidence
 			// threshold so a borderline reading never tears down an active session.
 			if (activity.confidence >= REQUIRED_CONFIDENCE) {
-				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
-				if (!requireNotNull(sessionInfo).isInitiatedByUser &&
-					!canContinueBackgroundTracking(activity.type.groupedActivity)
+				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value ?: run {
+					cancelAutomaticStopGrace()
+					return
+				}
+				when (
+					resolveAutomaticTrackingContinuationAction(
+						isUserInitiated = sessionInfo.isInitiatedByUser,
+						canContinue = canContinueBackgroundTracking(activity.type.groupedActivity),
+					)
 				) {
-					TrackerServiceApi.stopService(context)
+					AutomaticTrackingContinuationAction.KEEP -> cancelAutomaticStopGrace()
+					AutomaticTrackingContinuationAction.SCHEDULE_STOP_GRACE ->
+						scheduleAutomaticStopGrace(context)
 				}
 			}
-		} else if (
-			isOnFootAutoStartCorroborated(
-				groupedActivity = activity.type.groupedActivity,
-				confidence = activity.confidence,
-				requiredConfidence = REQUIRED_CONFIDENCE,
-				corroboratedConfidence = STEP_CORROBORATED_CONFIDENCE,
-				hasRecentSteps = stepCorroborator.hasRecentSteps(),
-			) &&
-			canBackgroundTrack(context, activity.type.groupedActivity) &&
-			canTrackerServiceBeStarted(context)
-		) {
-			TrackerServiceApi.startService(context, isUserInitiated = false)
+		} else {
+			cancelAutomaticStopGrace()
+			if (
+				isOnFootAutoStartCorroborated(
+					groupedActivity = activity.type.groupedActivity,
+					confidence = activity.confidence,
+					requiredConfidence = REQUIRED_CONFIDENCE,
+					corroboratedConfidence = STEP_CORROBORATED_CONFIDENCE,
+					hasRecentSteps = stepCorroborator.hasRecentSteps(),
+				) &&
+				canBackgroundTrack(context, activity.type.groupedActivity) &&
+				canTrackerServiceBeStarted(context)
+			) {
+				TrackerServiceApi.startService(context, isUserInitiated = false)
+			}
 		}
 	}
 
 	private fun handleTransitionUpdate(context: Context, activity: ActivityTransitionData) {
 		if (!context.hasActivityPermission) {
+			cancelAutomaticStopGrace()
 			revalidatePermissions(context)
 		} else if (TrackerServiceApi.isActive(context)) {
-			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
-			if (!requireNotNull(sessionInfo).isInitiatedByUser &&
-				!canContinueBackgroundTracking(activity.activity.groupedActivity)
+			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value ?: run {
+				cancelAutomaticStopGrace()
+				return
+			}
+			when (
+				resolveAutomaticTrackingContinuationAction(
+					isUserInitiated = sessionInfo.isInitiatedByUser,
+					canContinue = canContinueBackgroundTracking(activity.activity.groupedActivity),
+				)
 			) {
-				TrackerServiceApi.stopService(context)
+				AutomaticTrackingContinuationAction.KEEP -> cancelAutomaticStopGrace()
+				AutomaticTrackingContinuationAction.SCHEDULE_STOP_GRACE ->
+					scheduleAutomaticStopGrace(context)
 			}
 		} else {
+			cancelAutomaticStopGrace()
 			if (canBackgroundTrack(context, activity.activity.groupedActivity) &&
 				canTrackerServiceBeStarted(context)
 			) {
 				TrackerServiceApi.startService(context, isUserInitiated = false)
 			}
 		}
+	}
+
+	/**
+	 * Stops only after a short contradiction window.  The eventual service stop persists an
+	 * [TrackingStopCandidateReason.AUTOMATIC_ACTIVITY_INCOMPATIBLE] descriptor before teardown;
+	 * a compatible follow-up cancels this job and leaves the logical session active.
+	 */
+	private fun scheduleAutomaticStopGrace(context: Context) {
+		if (automaticStopGraceJob?.isActive == true) return
+		val scope = preferenceScope ?: return
+		val generation = ++automaticStopGeneration
+		val appContext = context.applicationContext
+		automaticStopGraceJob = scope.launch {
+			delay(AUTOMATIC_STOP_GRACE_MILLIS)
+			if (generation != automaticStopGeneration) return@launch
+			automaticStopGraceJob = null
+			if (!TrackerServiceApi.isActive(appContext)) return@launch
+			val sessionInfo = TrackerServiceApi.sessionInfoFlow(appContext).value ?: return@launch
+			if (!sessionInfo.isInitiatedByUser) {
+				TrackerServiceApi.stopService(
+					appContext,
+					TrackingStopCandidateReason.AUTOMATIC_ACTIVITY_INCOMPATIBLE,
+				)
+			}
+		}
+	}
+
+	private fun cancelAutomaticStopGrace() {
+		automaticStopGeneration++
+		automaticStopGraceJob?.cancel()
+		automaticStopGraceJob = null
 	}
 
 	private fun canTrackerServiceBeStarted(context: Context): Boolean {
@@ -380,6 +438,7 @@ object BackgroundTrackingApi {
 	private fun disable(context: Context) {
 		assertTrue(isActive)
 		isActive = false
+		cancelAutomaticStopGrace()
 		val generation = ++requestMutationGeneration
 
 		val requestManager = activityRequestManager(context)
@@ -493,6 +552,9 @@ object BackgroundTrackingApi {
 
 	private fun handleTrackingActivityPreferenceChange(value: Int) {
 		val context = appContext ?: return
+		// A preference change changes the continuation predicate, so an old incompatible reading
+		// must never finish a grace timer under a different policy.
+		cancelAutomaticStopGrace()
 		when (resolveAutoTrackingPreferenceAction(value, isActive, context.hasActivityPermission)) {
 			AutoTrackingPreferenceAction.DISABLE -> disable(context)
 			AutoTrackingPreferenceAction.ENABLE -> enable(context)
@@ -561,6 +623,7 @@ object BackgroundTrackingApi {
 		activityWatcherJob = null
 		recognitionUpdatesJob?.cancel()
 		recognitionUpdatesJob = null
+		cancelAutomaticStopGrace()
 		val scope = preferenceScope
 		val finalMutation = requestMutationJob
 		if (scope != null) {
@@ -668,6 +731,18 @@ internal fun hasAnythingToTrack(
 
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }
+
+/** The automatic-tracking controller never tears down a user session from activity recognition. */
+internal enum class AutomaticTrackingContinuationAction { KEEP, SCHEDULE_STOP_GRACE }
+
+internal fun resolveAutomaticTrackingContinuationAction(
+	isUserInitiated: Boolean,
+	canContinue: Boolean,
+): AutomaticTrackingContinuationAction = if (isUserInitiated || canContinue) {
+	AutomaticTrackingContinuationAction.KEEP
+} else {
+	AutomaticTrackingContinuationAction.SCHEDULE_STOP_GRACE
+}
 
 /**
  * Pure logic: reconciles detection state with the current ACTIVITY_RECOGNITION permission.

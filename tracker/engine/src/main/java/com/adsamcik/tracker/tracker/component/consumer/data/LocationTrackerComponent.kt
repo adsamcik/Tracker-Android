@@ -38,6 +38,12 @@ internal class LocationTrackerComponent(
 	private var altitudeProcessor: AltitudeProcessor? = null
 	private var context: Context? = null
 	private var lastAcceptedLocation: Location? = null
+	/**
+	 * A plausible new-area fix that was rejected relative to [lastAcceptedLocation]. This is never
+	 * used as a distance/speed anchor on its own: a second, nearby fix must corroborate it before a
+	 * discontinuous re-acquisition is accepted.
+	 */
+	private var pendingReacquisitionCandidate: Location? = null
 	private var lastSmoothedSpeed: Float = 0f
 	private var settingsScope: CoroutineScope? = null
 	private var settingsJob: Job? = null
@@ -61,6 +67,7 @@ internal class LocationTrackerComponent(
 		}
 		altitudeProcessor = altitudeProcessorFactory()
 		lastAcceptedLocation = null
+		pendingReacquisitionCandidate = null
 		lastSmoothedSpeed = 0f
 	}
 
@@ -74,6 +81,7 @@ internal class LocationTrackerComponent(
 		this.context = null
 		lastRawGpsAltitudeM = null
 		lastAcceptedLocation = null
+		pendingReacquisitionCandidate = null
 		lastSmoothedSpeed = 0f
 	}
 
@@ -124,6 +132,20 @@ internal class LocationTrackerComponent(
 
 		val calculatedSpeed = (distance / deltaS).toFloat()
 		return calculatedSpeed > MAX_ABSOLUTE_SPEED_METERS_PER_SECOND
+	}
+
+	/**
+	 * Confirms that two consecutive rejected fixes describe the same new area. The original
+	 * accepted anchor remains untouched until this succeeds, so one stale/corrupt provider fix can
+	 * never silently rewrite the track baseline.
+	 */
+	private fun isConfirmedReacquisition(location: Location): Boolean {
+		val candidate = pendingReacquisitionCandidate ?: return false
+		val elapsedSeconds = elapsedSecondsBetween(candidate, location) ?: return false
+		if (elapsedSeconds > MAX_REACQUISITION_CONFIRMATION_GAP_SECONDS) return false
+
+		return location.distanceTo(candidate) <= MAX_REACQUISITION_CONFIRMATION_DISTANCE_METERS &&
+			!isTeleportJump(candidate, location)
 	}
 
 	private fun elapsedSecondsBetween(previousLocation: Location, location: Location): Double? {
@@ -193,24 +215,64 @@ internal class LocationTrackerComponent(
 		val locationResult = requireNotNull(cycle.location)
 
 		val location = locationResult.lastLocation
-		val previousLocation = lastAcceptedLocation ?: locationResult.previousLocation
+		val acceptedAnchor = lastAcceptedLocation
+		val previousLocation = acceptedAnchor ?: locationResult.previousLocation
 		if (!isLocationUsable(location)) return
 
 		if (previousLocation != null && isTeleportJump(previousLocation, location)) {
-			// Rebase to the teleported location so tracking can recover.
-			lastAcceptedLocation = Location(location)
-			lastRawGpsAltitudeM = null
+			if (acceptedAnchor != null && isConfirmedReacquisition(location)) {
+				// A confirmed discontinuity starts a new local anchor. It deliberately contributes no
+				// bridged distance or speed from the prior area, because that interval is unknown.
+				pendingReacquisitionCandidate = null
+				lastSmoothedSpeed = 0f
+				altitudeProcessor?.reset()
+				acceptLocation(
+					cycle = cycle,
+					collectionData = collectionData,
+					location = location,
+					previousLocation = null,
+					clockDomainId = locationResult.lastFixMetadata.clockDomainId,
+				)
+			} else {
+				// Never rebase an accepted anchor from a single rejected sample. Retain this only as
+				// a corroboration candidate for the next fresh fix.
+				pendingReacquisitionCandidate = Location(location)
+				lastRawGpsAltitudeM = null
+			}
 			return
 		}
 
+		// A normally accepted fix disproves any unconfirmed new-area candidate.
+		pendingReacquisitionCandidate = null
+		acceptLocation(
+			cycle = cycle,
+			collectionData = collectionData,
+			location = location,
+			previousLocation = previousLocation,
+			clockDomainId = locationResult.lastFixMetadata.clockDomainId,
+		)
+	}
+
+	private fun acceptLocation(
+		cycle: TrackingCycle,
+		collectionData: MutableCollectionData,
+		location: Location,
+		previousLocation: Location?,
+		clockDomainId: String?,
+	) {
+
 		previousLocation?.let {
 			val correctedSpeed = calculateSpeed(previousLocation, location)
-			location.speed = correctedSpeed
+			collectionData.estimatedSpeedMps = correctedSpeed
+		}
+		if (previousLocation == null) {
+			collectionData.estimatedSpeedMps = location.speed.takeIf { location.hasSpeed() }
 		}
 
 		// Distance from the previously *accepted* location. Measured here — not taken from the
 		// trigger's raw per-fix distance — so segments are bridged across cycles dropped by the
-		// pre-tracker accuracy gate or teleport guard, preventing systematic distance under-reporting.
+		// pre-tracker quality gate. Confirmed discontinuous re-acquisition deliberately passes null
+		// here and therefore contributes zero distance across its unknown gap.
 		val distanceFromPrevious = previousLocation?.let { location.distanceTo(it) } ?: 0f
 
 		// Capture raw GPS altitude before processing. android.location.Location.altitude is defined
@@ -239,7 +301,7 @@ internal class LocationTrackerComponent(
 				estimatorVersion = processed.estimatorVersion,
 				calibrationVersion = processed.calibrationVersion,
 				rawAltitudeDatum = processed.rawAltitudeDatum,
-				clockDomainId = locationResult.lastFixMetadata.clockDomainId,
+				clockDomainId = clockDomainId,
 			)
 		} else {
 			ProcessedAltitudeData(
@@ -252,7 +314,7 @@ internal class LocationTrackerComponent(
 				} else {
 					AltitudeDatum.UNKNOWN_LEGACY
 				},
-				clockDomainId = locationResult.lastFixMetadata.clockDomainId,
+				clockDomainId = clockDomainId,
 			)
 		}
 
@@ -278,6 +340,11 @@ internal class LocationTrackerComponent(
 		// When elapsed time between two fixes cannot be determined, use a tighter
 		// distance threshold to avoid silently accepting suspicious jumps.
 		private const val UNKNOWN_TIME_JUMP_DISTANCE_METERS = 1_000f
+
+		// A single rejected jump is not an anchor. A nearby, fresh follow-up confirms that the
+		// provider has genuinely re-acquired in a new area without manufacturing a cross-gap path.
+		private const val MAX_REACQUISITION_CONFIRMATION_DISTANCE_METERS = 1_000f
+		private const val MAX_REACQUISITION_CONFIRMATION_GAP_SECONDS = 120.0
 
 		/**
 		 * Key for raw GPS altitude (legacy, retained for reference).

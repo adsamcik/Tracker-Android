@@ -8,6 +8,7 @@ import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
+import com.adsamcik.tracker.stats.api.signal.ObservationStamp
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -72,6 +73,10 @@ object SignalAdapter {
 		longitude: Double? = null,
 		accuracy: Float? = null,
 		speed: Float? = null,
+		rawPlatformSpeed: Float? = null,
+		rawPlatformSpeedAccuracy: Float? = null,
+		bearingDeg: Float? = null,
+		bearingAccuracyDeg: Float? = null,
 		altitude: Float? = null,
 		rawGpsAltitude: Float? = null,
 		altitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
@@ -94,23 +99,43 @@ object SignalAdapter {
 		isMock: Boolean = false,
 		sourceEventId: String? = null,
 		clockDomainId: String? = null,
+		bootClockDomainId: String? = null,
 		locationDecision: LocationDecisionSignal? = null,
 		activityTypeCode: Int? = null,
 		activityConfidence: Int? = null,
 		activityFresh: Boolean = true,
+		activitySourceElapsedRealtimeNanos: Long? = null,
+		activitySourceSequence: Long? = null,
 		stepDelta: Int? = null,
 		totalStepsSinceBoot: Long? = null,
 		stepSensorValueStart: Int = 0,
 		stepSensorValueEnd: Int = 0,
 		stepSensorReset: Boolean = false,
+		stepWindowStartElapsedRealtimeNanos: Long? = null,
+		stepWindowEndElapsedRealtimeNanos: Long? = null,
+		stepSourceFirstSequence: Long? = null,
+		stepSourceLastSequence: Long? = null,
 		cellTowers: List<CellTowerReading>? = null,
+		cellObservedAtMs: Long? = null,
+		cellObservedElapsedRealtimeNanos: Long? = null,
+		cellSourceSequence: Long? = null,
 		wifiNetworks: List<WifiNetworkReading>? = null,
 		pressureHpa: Float? = null,
 		wifiTimestampMs: Long? = null,
+		wifiElapsedRealtimeNanos: Long? = null,
+		wifiSourceSequence: Long? = null,
 		wifiLatitude: Double? = null,
 		wifiLongitude: Double? = null,
 		wifiCoordinateProvenance: com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance = com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance.UNKNOWN,
 		pressureAltitudeM: Float? = null,
+		pressureSampleCount: Int = 1,
+		pressureMinHpa: Float? = null,
+		pressureMaxHpa: Float? = null,
+		pressureStandardDeviationHpa: Float = 0f,
+		pressureWindowStartElapsedRealtimeNanos: Long? = null,
+		pressureWindowEndElapsedRealtimeNanos: Long? = null,
+		pressureSourceFirstSequence: Long? = null,
+		pressureSourceLastSequence: Long? = null,
 		policyTier: PolicyTier? = null,
 		policyName: String? = null,
 		persistenceSignalId: String? = null,
@@ -123,6 +148,10 @@ object SignalAdapter {
 				),
 				horizontalAccuracyM = accuracy,
 				speed = speed?.let { SpeedMps.coerced(it) },
+				rawPlatformSpeedMps = rawPlatformSpeed,
+				rawPlatformSpeedAccuracyMps = rawPlatformSpeedAccuracy,
+				bearingDeg = bearingDeg,
+				bearingAccuracyDeg = bearingAccuracyDeg,
 				altitudeM = altitude,
 				rawGpsAltitudeM = rawGpsAltitude,
 				altitudeDatum = altitudeDatum,
@@ -153,6 +182,14 @@ object SignalAdapter {
 			ActivitySignal(
 				type = ActivityTypeMapping.fromPlayServicesCode(activityTypeCode),
 				confidence = ActivityConfidence.coerced(activityConfidence),
+				stamp = observationStamp(
+					cycleEpochMs = timestampMs,
+					cycleElapsedRealtimeNanos = elapsedRealtimeNanos,
+					sourceElapsedRealtimeNanos = activitySourceElapsedRealtimeNanos,
+					sourceSequence = activitySourceSequence,
+					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
+				),
 			)
 		} else {
 			null
@@ -165,13 +202,35 @@ object SignalAdapter {
 				sensorValueStart = stepSensorValueStart,
 				sensorValueEnd = stepSensorValueEnd,
 				sensorReset = stepSensorReset,
+				stamp = observationStamp(
+					cycleEpochMs = timestampMs,
+					cycleElapsedRealtimeNanos = elapsedRealtimeNanos,
+					sourceElapsedRealtimeNanos = stepWindowEndElapsedRealtimeNanos,
+					sourceFirstElapsedRealtimeNanos =
+						stepWindowStartElapsedRealtimeNanos,
+					sourceSequence = stepSourceLastSequence,
+					sourceFirstSequence = stepSourceFirstSequence,
+					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
+				),
 			)
 		} else {
 			null
 		}
 
 		val cellSignal = if (!cellTowers.isNullOrEmpty()) {
-			CellSignal(towers = cellTowers)
+			CellSignal(
+				towers = cellTowers,
+				stamp = observationStamp(
+					cycleEpochMs = timestampMs,
+					cycleElapsedRealtimeNanos = elapsedRealtimeNanos,
+					sourceEpochMs = cellObservedAtMs,
+					sourceElapsedRealtimeNanos = cellObservedElapsedRealtimeNanos,
+					sourceSequence = cellSourceSequence,
+					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
+				),
+			)
 		} else {
 			null
 		}
@@ -190,13 +249,42 @@ object SignalAdapter {
 				timestampMs = wifiTimestampMs?.let(::EpochMs),
 				coordinate = wifiCoordinate,
 				coordinateProvenance = wifiCoordinateProvenance,
+				stamp = observationStamp(
+					cycleEpochMs = timestampMs,
+					cycleElapsedRealtimeNanos = elapsedRealtimeNanos,
+					sourceEpochMs = wifiTimestampMs,
+					sourceElapsedRealtimeNanos = wifiElapsedRealtimeNanos,
+					sourceSequence = wifiSourceSequence,
+					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
+				),
 			)
 		} else {
 			null
 		}
 
 		val pressureSignal = if (pressureHpa != null && pressureAltitudeM != null) {
-			PressureSignal(pressureHpa = pressureHpa, altitudeM = pressureAltitudeM)
+			PressureSignal(
+				pressureHpa = pressureHpa,
+				altitudeM = pressureAltitudeM,
+				sampleCount = pressureSampleCount,
+				minPressureHpa = pressureMinHpa ?: pressureHpa,
+				maxPressureHpa = pressureMaxHpa ?: pressureHpa,
+				standardDeviationHpa = pressureStandardDeviationHpa,
+				windowStartElapsedRealtimeNanos = pressureWindowStartElapsedRealtimeNanos,
+				windowEndElapsedRealtimeNanos = pressureWindowEndElapsedRealtimeNanos,
+				stamp = observationStamp(
+					cycleEpochMs = timestampMs,
+					cycleElapsedRealtimeNanos = elapsedRealtimeNanos,
+					sourceElapsedRealtimeNanos = pressureWindowEndElapsedRealtimeNanos,
+					sourceFirstElapsedRealtimeNanos =
+						pressureWindowStartElapsedRealtimeNanos,
+					sourceSequence = pressureSourceLastSequence,
+					sourceFirstSequence = pressureSourceFirstSequence,
+					clockDomainId = clockDomainId,
+					bootClockDomainId = bootClockDomainId,
+				),
+			)
 		} else {
 			null
 		}
@@ -211,6 +299,7 @@ object SignalAdapter {
 			timestampMs = EpochMs(timestampMs),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			clockDomainId = clockDomainId,
+			bootClockDomainId = bootClockDomainId,
 			locationObservation = locationObservation,
 			location = locationSignal,
 			locationDecision = locationDecision,
@@ -222,6 +311,42 @@ object SignalAdapter {
 			pressure = pressureSignal,
 			policy = policySignal,
 			persistenceSignalId = persistenceSignalId,
+		)
+	}
+
+	private fun observationStamp(
+		cycleEpochMs: Long,
+		cycleElapsedRealtimeNanos: Long,
+		sourceEpochMs: Long? = null,
+		sourceElapsedRealtimeNanos: Long? = null,
+		sourceFirstElapsedRealtimeNanos: Long? = null,
+		sourceSequence: Long? = null,
+		sourceFirstSequence: Long? = null,
+		clockDomainId: String?,
+		bootClockDomainId: String?,
+	): ObservationStamp {
+		val ageMs = if (
+			cycleElapsedRealtimeNanos > 0L &&
+			sourceElapsedRealtimeNanos != null &&
+			sourceElapsedRealtimeNanos > 0L
+		) {
+			((cycleElapsedRealtimeNanos - sourceElapsedRealtimeNanos).coerceAtLeast(0L) /
+				1_000_000L)
+		} else {
+			null
+		}
+		return ObservationStamp(
+			sourceEpochMs = sourceEpochMs,
+			sourceElapsedRealtimeNanos = sourceElapsedRealtimeNanos,
+			sourceFirstElapsedRealtimeNanos = sourceFirstElapsedRealtimeNanos,
+			receivedEpochMs = cycleEpochMs,
+			receivedElapsedRealtimeNanos = cycleElapsedRealtimeNanos,
+			sourceSequence = sourceSequence,
+			sourceFirstSequence = sourceFirstSequence,
+			clockDomainId = clockDomainId,
+			bootClockDomainId = bootClockDomainId,
+			sourceAgeMs = ageMs,
+			timeUncertaintyMs = ageMs,
 		)
 	}
 }

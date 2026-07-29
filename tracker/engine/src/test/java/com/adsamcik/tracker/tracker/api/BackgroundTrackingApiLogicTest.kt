@@ -303,6 +303,30 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Nested
+	@DisplayName("automatic continuation grace")
+	inner class AutomaticContinuationGrace {
+		@Test
+		fun `incompatible automatic activity schedules grace instead of immediate teardown`() {
+			resolveAutomaticTrackingContinuationAction(
+				isUserInitiated = false,
+				canContinue = false,
+			) shouldBe AutomaticTrackingContinuationAction.SCHEDULE_STOP_GRACE
+		}
+
+		@Test
+		fun `compatible and user sessions cancel any pending automatic stop grace`() {
+			resolveAutomaticTrackingContinuationAction(
+				isUserInitiated = false,
+				canContinue = true,
+			) shouldBe AutomaticTrackingContinuationAction.KEEP
+			resolveAutomaticTrackingContinuationAction(
+				isUserInitiated = true,
+				canContinue = false,
+			) shouldBe AutomaticTrackingContinuationAction.KEEP
+		}
+	}
+
+	@Nested
 	@DisplayName("transition batch selection")
 	inner class TransitionBatchSelection {
 		@Test

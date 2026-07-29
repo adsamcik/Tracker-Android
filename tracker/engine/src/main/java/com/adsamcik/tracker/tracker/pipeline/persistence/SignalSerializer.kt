@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance
+import com.adsamcik.tracker.stats.api.signal.ObservationStamp
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -138,6 +139,11 @@ internal object SignalSerializer {
 			appendJsonEscaped(domainId)
 			append('"')
 		}
+		signal.bootClockDomainId?.takeIf(String::isNotBlank)?.let { bootDomainId ->
+			append(",\"bd\":\"")
+			appendJsonEscaped(bootDomainId)
+			append('"')
+		}
 
 		signal.locationObservation?.let { observation ->
 			append(",\"obs\":{\"disp\":\"")
@@ -158,6 +164,8 @@ internal object SignalSerializer {
 			observation.verticalAccuracyM?.let { append(",\"vAcc\":"); append(it) }
 			observation.speedMps?.let { append(",\"spd\":"); append(it) }
 			observation.speedAccuracyMps?.let { append(",\"sAcc\":"); append(it) }
+			observation.bearingDeg?.let { append(",\"bear\":"); append(it) }
+			observation.bearingAccuracyDeg?.let { append(",\"bAcc\":"); append(it) }
 			append(",\"prov\":\"")
 			appendJsonEscaped(observation.provider)
 			append('"')
@@ -214,6 +222,10 @@ internal object SignalSerializer {
 			append(",\"hAcc\":")
 			append(loc.horizontalAccuracyM)
 			loc.speed?.let { append(",\"spd\":"); append(it.raw) }
+			loc.rawPlatformSpeedMps?.let { append(",\"rawSpd\":"); append(it) }
+			loc.rawPlatformSpeedAccuracyMps?.let { append(",\"rawSAcc\":"); append(it) }
+			loc.bearingDeg?.let { append(",\"bear\":"); append(it) }
+			loc.bearingAccuracyDeg?.let { append(",\"bAcc\":"); append(it) }
 			loc.altitudeM?.let { append(",\"alt\":"); append(it) }
 			loc.rawGpsAltitudeM?.let { append(",\"rAlt\":"); append(it) }
 			append(",\"altDatum\":\"")
@@ -300,6 +312,10 @@ internal object SignalSerializer {
 			append("\"")
 			append(",\"c\":")
 			append(act.confidence.raw)
+			act.stamp?.let {
+				append(",\"st\":")
+				appendObservationStamp(it)
+			}
 			append('}')
 			append(",\"af\":")
 			append(signal.activityFresh)
@@ -316,6 +332,10 @@ internal object SignalSerializer {
 			append(s.sensorValueEnd)
 			append(",\"r\":")
 			append(s.sensorReset)
+			s.stamp?.let {
+				append(",\"st\":")
+				appendObservationStamp(it)
+			}
 			append('}')
 		}
 
@@ -338,6 +358,10 @@ internal object SignalSerializer {
 				append('}')
 			}
 			append(']')
+			c.stamp?.let {
+				append(",\"cst\":")
+				appendObservationStamp(it)
+			}
 		}
 
 		signal.wifi?.let { w ->
@@ -373,6 +397,10 @@ internal object SignalSerializer {
 				append(w.coordinateProvenance.stableCode())
 				append('"')
 			}
+			w.stamp?.let {
+				append(",\"wst\":")
+				appendObservationStamp(it)
+			}
 		}
 
 		signal.pressure?.let { p ->
@@ -380,6 +408,26 @@ internal object SignalSerializer {
 			append(p.pressureHpa)
 			append(",\"alt\":")
 			append(p.altitudeM)
+			append(",\"n\":")
+			append(p.sampleCount)
+			append(",\"min\":")
+			append(p.minPressureHpa)
+			append(",\"max\":")
+			append(p.maxPressureHpa)
+			append(",\"sd\":")
+			append(p.standardDeviationHpa)
+			p.windowStartElapsedRealtimeNanos?.let {
+				append(",\"ws\":")
+				append(it)
+			}
+			p.windowEndElapsedRealtimeNanos?.let {
+				append(",\"we\":")
+				append(it)
+			}
+			p.stamp?.let {
+				append(",\"st\":")
+				appendObservationStamp(it)
+			}
 			append('}')
 		}
 
@@ -493,13 +541,14 @@ internal object SignalSerializer {
 		timestampMs = EpochMs(getLong("ts")),
 		elapsedRealtimeNanos = optLong("ern", 0L),
 		clockDomainId = optString("cd", "").takeIf(String::isNotBlank),
+		bootClockDomainId = optString("bd", "").takeIf(String::isNotBlank),
 		locationObservation = optJSONObject("obs")?.toLocationObservationSignal(),
 		location = optJSONObject("loc")?.toLocationSignal(),
 			locationDecision = optJSONObject("dec")?.toLocationDecisionSignal(strictCodes),
 		activity = optJSONObject("act")?.toActivitySignal(strictCodes),
 		activityFresh = optBoolean("af", has("act")),
 		steps = optJSONObject("stp")?.toStepSignal(),
-		cells = optJSONArray("cel")?.toCellSignal(),
+		cells = optJSONArray("cel")?.toCellSignal(optJSONObject("cst")),
 		wifi = toWifiSignal(strictCodes),
 		pressure = optJSONObject("prs")?.toPressureSignal(),
 		policy = optJSONObject("pol")?.toPolicySignal(strictCodes),
@@ -514,6 +563,11 @@ internal object SignalSerializer {
 		),
 		horizontalAccuracyM = getDouble("hAcc").toFloat(),
 		speed = if (has("spd")) SpeedMps(getDouble("spd").toFloat()) else null,
+		rawPlatformSpeedMps = if (has("rawSpd")) getDouble("rawSpd").toFloat() else null,
+		rawPlatformSpeedAccuracyMps =
+			if (has("rawSAcc")) getDouble("rawSAcc").toFloat() else null,
+		bearingDeg = if (has("bear")) getDouble("bear").toFloat() else null,
+		bearingAccuracyDeg = if (has("bAcc")) getDouble("bAcc").toFloat() else null,
 		altitudeM = if (has("alt")) getDouble("alt").toFloat() else null,
 		rawGpsAltitudeM = if (has("rAlt")) getDouble("rAlt").toFloat() else null,
 		altitudeDatum = AltitudeDatum.fromStorageName(optString("altDatum", "")),
@@ -553,6 +607,8 @@ internal object SignalSerializer {
 		verticalAccuracyM = if (has("vAcc")) getDouble("vAcc").toFloat() else null,
 		speedMps = if (has("spd")) getDouble("spd").toFloat() else null,
 		speedAccuracyMps = if (has("sAcc")) getDouble("sAcc").toFloat() else null,
+		bearingDeg = if (has("bear")) getDouble("bear").toFloat() else null,
+		bearingAccuracyDeg = if (has("bAcc")) getDouble("bAcc").toFloat() else null,
 		provider = optString("prov", "unknown"),
 		receivedAtMs = optLong("recvAt", 0L),
 		receivedElapsedRealtimeNanos = optLong("recv", 0L),
@@ -592,6 +648,7 @@ internal object SignalSerializer {
 		return ActivitySignal(
 			type = type,
 			confidence = ActivityConfidence(getInt("c")),
+			stamp = optJSONObject("st")?.toObservationStamp(),
 		)
 	}
 
@@ -601,9 +658,10 @@ internal object SignalSerializer {
 		sensorValueStart = optInt("vs", 0),
 		sensorValueEnd = optInt("ve", 0),
 		sensorReset = optBoolean("r", false),
+		stamp = optJSONObject("st")?.toObservationStamp(),
 	)
 
-	private fun JSONArray.toCellSignal(): CellSignal {
+	private fun JSONArray.toCellSignal(stampObject: JSONObject?): CellSignal {
 		val towers = (0 until length()).map { i ->
 			val t = getJSONObject(i)
 			CellTowerReading(
@@ -615,7 +673,7 @@ internal object SignalSerializer {
 				areaCode = t.optInt("lac", 0),
 			)
 		}
-		return CellSignal(towers)
+		return CellSignal(towers, stampObject?.toObservationStamp())
 	}
 
 	private fun JSONObject.toWifiSignal(strictCodes: Boolean): WifiSignal? {
@@ -630,10 +688,13 @@ internal object SignalSerializer {
 				level = n.getInt("l"),
 			)
 		}
-		val provenance = when (val encodedProvenance = opt("wfp")) {
-			null, JSONObject.NULL -> ObservationCoordinateProvenance.UNKNOWN
-			is String -> encodedProvenance.toCoordinateProvenance(strictCodes)
-			is Number -> {
+		val encodedProvenance = opt("wfp")
+		val provenance = when {
+			encodedProvenance == null || encodedProvenance === JSONObject.NULL ->
+				ObservationCoordinateProvenance.UNKNOWN
+			encodedProvenance is String ->
+				encodedProvenance.toCoordinateProvenance(strictCodes)
+			encodedProvenance is Number -> {
 				if (!strictCodes) {
 					ObservationCoordinateProvenance.entries.getOrElse(encodedProvenance.toInt()) {
 						ObservationCoordinateProvenance.UNKNOWN
@@ -659,12 +720,42 @@ internal object SignalSerializer {
 			timestampMs = if (has("wft")) EpochMs(getLong("wft")) else null,
 			coordinate = coordinate,
 			coordinateProvenance = provenance,
+			stamp = optJSONObject("wst")?.toObservationStamp(),
 		)
 	}
 
 	private fun JSONObject.toPressureSignal() = PressureSignal(
 		pressureHpa = getDouble("hPa").toFloat(),
 		altitudeM = getDouble("alt").toFloat(),
+		sampleCount = optInt("n", 1).coerceAtLeast(1),
+		minPressureHpa = if (has("min")) getDouble("min").toFloat()
+		else getDouble("hPa").toFloat(),
+		maxPressureHpa = if (has("max")) getDouble("max").toFloat()
+		else getDouble("hPa").toFloat(),
+		standardDeviationHpa = if (has("sd")) getDouble("sd").toFloat() else 0f,
+		windowStartElapsedRealtimeNanos = if (has("ws")) getLong("ws") else null,
+		windowEndElapsedRealtimeNanos = if (has("we")) getLong("we") else null,
+		stamp = optJSONObject("st")?.toObservationStamp(),
+	)
+
+	private fun JSONObject.toObservationStamp(): ObservationStamp = ObservationStamp(
+		sourceEpochMs = if (has("se")) getLong("se") else null,
+		sourceElapsedRealtimeNanos = if (has("sn")) getLong("sn") else null,
+		sourceFirstElapsedRealtimeNanos = if (has("sfn")) getLong("sfn") else null,
+		receivedEpochMs = if (has("re")) getLong("re") else null,
+		receivedElapsedRealtimeNanos = if (has("rn")) getLong("rn") else null,
+		sourceSequence = if (has("sq")) getLong("sq") else null,
+		sourceFirstSequence = if (has("fsq")) getLong("fsq") else null,
+		clockDomainId = optString("cd", "").takeIf(String::isNotBlank),
+		bootClockDomainId = optString("bd", "").takeIf(String::isNotBlank),
+		callbackId = optString("cb", "").takeIf(String::isNotBlank),
+		batchId = optString("ba", "").takeIf(String::isNotBlank),
+		sourceAgeMs = if (has("age")) getLong("age") else null,
+		timeUncertaintyMs = if (has("tu")) getLong("tu") else null,
+		capabilityFlags = optJSONArray("caps")?.let { values ->
+			(0 until values.length()).map(values::getString).toSet()
+		}.orEmpty(),
+		permissionPrecision = optString("perm", "").takeIf(String::isNotBlank),
 	)
 
 	private fun JSONObject.toPolicySignal(strictCodes: Boolean): PolicySignal {
@@ -781,6 +872,52 @@ internal object SignalSerializer {
 	// endregion
 
 	// region String escaping
+	private fun StringBuilder.appendObservationStamp(stamp: ObservationStamp) {
+		append('{')
+		var needsComma = false
+		fun field(name: String, value: Long?) {
+			if (value == null) return
+			if (needsComma) append(',')
+			append('"').append(name).append("\":").append(value)
+			needsComma = true
+		}
+		fun textField(name: String, value: String?) {
+			if (value.isNullOrBlank()) return
+			if (needsComma) append(',')
+			append('"').append(name).append("\":\"")
+			appendJsonEscaped(value)
+			append('"')
+			needsComma = true
+		}
+		field("se", stamp.sourceEpochMs)
+		field("sn", stamp.sourceElapsedRealtimeNanos)
+		field("sfn", stamp.sourceFirstElapsedRealtimeNanos)
+		field("re", stamp.receivedEpochMs)
+		field("rn", stamp.receivedElapsedRealtimeNanos)
+		field("sq", stamp.sourceSequence)
+		field("fsq", stamp.sourceFirstSequence)
+		textField("cd", stamp.clockDomainId)
+		textField("bd", stamp.bootClockDomainId)
+		textField("cb", stamp.callbackId)
+		textField("ba", stamp.batchId)
+		field("age", stamp.sourceAgeMs)
+		field("tu", stamp.timeUncertaintyMs)
+		if (stamp.capabilityFlags.isNotEmpty()) {
+			if (needsComma) append(',')
+			append("\"caps\":[")
+			stamp.capabilityFlags.toList().sorted().forEachIndexed { index, flag ->
+				if (index > 0) append(',')
+				append('"')
+				appendJsonEscaped(flag)
+				append('"')
+			}
+			append(']')
+			needsComma = true
+		}
+		textField("perm", stamp.permissionPrecision)
+		append('}')
+	}
+
 	private fun StringBuilder.appendJsonEscaped(value: String) {
 		for (ch in value) {
 			when (ch) {

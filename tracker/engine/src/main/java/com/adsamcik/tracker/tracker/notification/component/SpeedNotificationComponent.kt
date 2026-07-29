@@ -25,8 +25,8 @@ internal class SpeedNotificationComponent : TrackerNotificationComponent() {
 			session: TrackerSession,
 			data: CollectionData
 	): String? {
-		val location = data.location ?: return null
-		val speed = location.speed ?: return null
+		data.location ?: return null
+		val speed = data.estimatedSpeedMps ?: return null
 		return context.getString(
 				R.string.speed_value,
 				context.resources.formatSpeed(context, speed.toDouble(), 1)

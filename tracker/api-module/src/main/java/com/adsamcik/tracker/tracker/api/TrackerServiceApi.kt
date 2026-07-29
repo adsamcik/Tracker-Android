@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -41,6 +42,12 @@ object TrackerServiceContract {
 	const val ARG_IS_USER_INITIATED = "userInitiated"
 	const val ARG_IS_AMBIENT = "isAmbient"
 	const val ARG_POLICY_TIER = "policyTier"
+	const val ARG_LOGICAL_TRACKING_ID = "logicalTrackingId"
+	const val ARG_LIFECYCLE_STATE = "logicalLifecycleState"
+	const val ARG_LIFECYCLE_REVISION = "logicalLifecycleRevision"
+	const val ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS = "logicalLifecycleChangedAtEpochMs"
+	const val ARG_STOP_CANDIDATE_REASON = "stopCandidateReason"
+	const val ARG_STOP_CANDIDATE_REQUESTED_AT_EPOCH_MS = "stopCandidateRequestedAtEpochMs"
 }
 
 /**
@@ -83,6 +90,7 @@ object TrackerServiceApi {
 		context: Context,
 		descriptor: ActiveTrackingSessionDescriptor,
 	): Boolean {
+		if (!descriptor.isRestartEligible) return false
 		return startForegroundServiceSafely(context, createRestartIntent(context, descriptor))
 	}
 
@@ -146,6 +154,18 @@ object TrackerServiceApi {
 		putExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, descriptor.isUserInitiated)
 		putExtra(TrackerServiceContract.ARG_IS_AMBIENT, descriptor.isAmbient)
 		putExtra(TrackerServiceContract.ARG_POLICY_TIER, descriptor.policyTier.name)
+		putExtra(TrackerServiceContract.ARG_LOGICAL_TRACKING_ID, descriptor.logicalTrackingId)
+		putExtra(TrackerServiceContract.ARG_LIFECYCLE_STATE, descriptor.lifecycleState.name)
+		putExtra(TrackerServiceContract.ARG_LIFECYCLE_REVISION, descriptor.lifecycleRevision)
+		descriptor.lifecycleChangedAtEpochMs?.let {
+			putExtra(TrackerServiceContract.ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS, it)
+		}
+		descriptor.stopCandidate?.let { candidate ->
+			putExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REASON, candidate.reason.name)
+			candidate.requestedAtEpochMs?.let {
+				putExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REQUESTED_AT_EPOCH_MS, it)
+			}
+		}
 	}
 
 	/**
@@ -194,10 +214,14 @@ object TrackerServiceApi {
 	/**
 	 * Stops tracker service.
 	 */
-	fun stopService(context: Context) {
+	fun stopService(
+		context: Context,
+		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+	) {
 		val stopIntent = Intent()
 			.setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME)
 			.setAction(TrackerServiceContract.ACTION_GRACEFUL_STOP)
+			.putExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REASON, reason.name)
 		if (isRunningInSystem(context) && startForegroundServiceSafely(context, stopIntent)) return
 
 		val appContext = context.applicationContext

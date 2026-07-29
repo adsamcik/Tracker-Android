@@ -51,6 +51,7 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     api(project(":tracker:api"))
+    implementation(project(":tracker:control"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
     implementation(project(":core:logging-api"))

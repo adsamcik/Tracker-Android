@@ -95,11 +95,23 @@ internal interface AdaptiveLocationCollectionTrigger : CollectionTriggerComponen
 
 /** Power/accuracy profiles used by adaptive location collection. */
 internal enum class LocationRequestFidelity {
+	/** No active request. The adapter should keep the ambient timer alive for non-location sources. */
+	DISABLED,
+
+	/** Listen only to locations requested by another client. */
+	PASSIVE,
+
+	/** Network/cell assisted request with a deliberately sparse cadence. */
+	LOW_POWER,
+
 	/** Network/Wi-Fi assisted fixes; does not deliberately activate precise GNSS. */
 	BALANCED,
 
 	/** Precise GNSS when fine-location permission is available. */
 	HIGH_ACCURACY,
+
+	/** Short high-accuracy request bounded by the control engine's probe deadline. */
+	PROBE,
 }
 
 /**

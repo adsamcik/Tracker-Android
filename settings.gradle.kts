@@ -44,7 +44,7 @@ plugins {
 }
 
 include(":app")
-include(":tracker:api", ":tracker:engine")
+include(":tracker:api", ":tracker:control", ":tracker:engine")
 project(":tracker:api").projectDir = file("tracker/api-module")
 include(":core:base", ":core:common", ":core:model", ":core:ui", ":core:logging", ":core:logging-api", ":core:network", ":core:testing")
 include(":data:preferences")
@@ -52,7 +52,6 @@ include(":stats:api", ":stats:engine", ":stats:data")
 include(":domain:points", ":domain:osm", ":domain:geocoder")
 include(":sensor:activity-api", ":sensor:activity")
 include(":feature:map:api", ":feature:map", ":feature:statistics:api", ":feature:statistics", ":feature:dashboard:api", ":feature:dashboard", ":feature:game:api", ":feature:game", ":feature:activity", ":feature:import-export", ":feature:tracker")
-
 
 
 

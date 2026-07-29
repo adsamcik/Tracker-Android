@@ -19,6 +19,13 @@ internal interface TrackerTimerReceiver {
 	 */
 	@MainThread
 	fun onError(errorData: TrackerTimerErrorData)
+
+	/**
+	 * Reports provider observability independently of user-facing error handling. The default
+	 * keeps non-location timers and lightweight test receivers source-compatible.
+	 */
+	@MainThread
+	fun onLocationProviderAvailabilityChanged(available: Boolean, reason: String) = Unit
 }
 
 internal data class TrackerTimerErrorData(
@@ -32,4 +39,3 @@ internal enum class TrackerTimerErrorSeverity {
 	NOTIFY_USER,
 	WARNING
 }
-

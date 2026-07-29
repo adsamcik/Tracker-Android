@@ -10,5 +10,14 @@ message ActiveTrackingSessionProto {
   bool user_initiated = 2;
   bool ambient = 3;
   string policy_tier = 4;
+  // Correlates Android service replacement without turning a derived Room session into the
+  // owner of tracking lifetime.
+  string logical_tracking_id = 5;
+  string service_run_id = 6;
+  string lifecycle_state = 7;
+  uint64 lifecycle_revision = 8;
+  // Zero represents an unknown/legacy timestamp rather than the Unix epoch.
+  int64 lifecycle_changed_at_epoch_ms = 9;
+  string stop_candidate_reason = 10;
+  int64 stop_candidate_requested_at_epoch_ms = 11;
 }
-

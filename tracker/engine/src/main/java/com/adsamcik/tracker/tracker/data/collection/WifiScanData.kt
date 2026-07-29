@@ -17,7 +17,8 @@ data class WifiScanData(
 		/**
 		 * Scan result data
 		 */
-		val data: Array<ScanResult>
+		val data: Array<ScanResult>,
+		val sourceSequence: Long? = null,
 ) {
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
@@ -27,6 +28,7 @@ data class WifiScanData(
 
 		if (timeMillis != other.timeMillis) return false
 		if (relativeTimeNanos != other.relativeTimeNanos) return false
+		if (sourceSequence != other.sourceSequence) return false
 		if (!data.contentEquals(other.data)) return false
 
 		return true
@@ -35,8 +37,8 @@ data class WifiScanData(
 	override fun hashCode(): Int {
 		var result = timeMillis.hashCode()
 		result = 31 * result + relativeTimeNanos.hashCode()
+		result = 31 * result + (sourceSequence?.hashCode() ?: 0)
 		result = 31 * result + data.contentHashCode()
 		return result
 	}
 }
-

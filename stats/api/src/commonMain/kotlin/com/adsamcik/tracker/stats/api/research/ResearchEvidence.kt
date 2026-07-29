@@ -4,13 +4,27 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
 
 /**
- * Stable, replay-only evidence contract shared by altitude and segmentation work.
+ * Stable, replay-only evidence contract shared by altitude, segmentation, and control work.
  *
  * These records are deliberately plain Kotlin values. They do not enable on-device capture,
  * persistence, upload, or analytics; callers must separately provide consent, encryption and a
  * bounded storage policy before any live recorder is wired to a product path.
  */
-const val RESEARCH_EVIDENCE_SCHEMA_VERSION: Int = 1
+/** The original, replay-only altitude/segmentation contract. */
+const val RESEARCH_EVIDENCE_SCHEMA_V1: Int = 1
+
+/**
+ * The current contract. V2 adds typed control, lifecycle, acquisition, estimator, and replay
+ * digest records while retaining V1 decoding for historical evidence.
+ */
+const val RESEARCH_EVIDENCE_SCHEMA_V2: Int = 2
+
+/** Latest version emitted by newly constructed envelopes. */
+const val RESEARCH_EVIDENCE_SCHEMA_VERSION: Int = RESEARCH_EVIDENCE_SCHEMA_V2
+
+/** Returns whether [version] can be decoded by this contract. */
+fun isResearchEvidenceSchemaSupported(version: Int): Boolean =
+	version in RESEARCH_EVIDENCE_SCHEMA_V1..RESEARCH_EVIDENCE_SCHEMA_VERSION
 
 /** Identifies one bounded trace and its optional run/session context. */
 data class ResearchTraceIdentity(
@@ -69,6 +83,16 @@ data class ResearchEvidenceCapabilities(
 	val canonicalSegmentationObservations: Boolean = false,
 	val segmentationReducerOutputs: Boolean = false,
 	val truthMarkers: Boolean = false,
+	/** Ordered control-reducer inputs and outputs, including correlation metadata. */
+	val controlTraceEvents: Boolean = false,
+	/** Logical tracking lifecycle boundaries, separate from physical service lifetime. */
+	val logicalTrackingLifecycle: Boolean = false,
+	/** Desired and actually applied platform acquisition requests. */
+	val acquisitionDecisions: Boolean = false,
+	/** Coordinate-free horizontal-estimator diagnostics and decisions. */
+	val horizontalEstimatorDecisions: Boolean = false,
+	/** Replay/control/estimator output digests, including legacy V1 replay hashes. */
+	val replayDigests: Boolean = false,
 )
 
 /** A contiguous sequence span lost before the recorder could preserve its contents. */
@@ -116,10 +140,19 @@ data class ResearchEvidenceEnvelope(
 ) {
 	init {
 		require(sequence >= 0L) { "Evidence sequence must be non-negative" }
-		require(schemaVersion > 0) { "Evidence schema version must be positive" }
+		require(isResearchEvidenceSchemaSupported(schemaVersion)) {
+			"Unsupported research evidence schema $schemaVersion"
+		}
 		require(algorithmVersions.keys.none(String::isBlank)) { "Algorithm version key must not be blank" }
 		require(algorithmVersions.values.none(String::isBlank)) { "Algorithm version must not be blank" }
 		require(lossRanges.areDisjoint()) { "Evidence loss ranges must not overlap" }
+		require(schemaVersion >= record.minimumResearchEvidenceSchemaVersion()) {
+			"${record::class.simpleName} requires research evidence schema " +
+				"${record.minimumResearchEvidenceSchemaVersion()}"
+		}
+		require(schemaVersion >= RESEARCH_EVIDENCE_SCHEMA_V2 || !capabilities.hasV2Capabilities()) {
+			"V2 evidence capabilities require research evidence schema $RESEARCH_EVIDENCE_SCHEMA_V2"
+		}
 	}
 }
 
@@ -360,11 +393,23 @@ data class ResearchGapRecord(
 	val endEpochMs: Long?,
 	val clockDomainId: String,
 	val reason: String? = null,
+	/** Stable logical owner when the gap belongs to a V2 control trace. */
+	val logicalTrackingId: String? = null,
+	/** Monotonic bounds are optional and are never compared across [clockDomainId] boundaries. */
+	val startElapsedNanos: Long? = null,
+	val endElapsedNanos: Long? = null,
 ) : ResearchEvidenceRecord {
 	init {
 		require(clockDomainId.isNotBlank()) { "Gap clock-domain id must not be blank" }
+		require(logicalTrackingId?.isNotBlank() != false) { "Logical tracking id must not be blank when present" }
 		require(endEpochMs == null || startEpochMs != null && endEpochMs >= startEpochMs) {
 			"Gap bounds must be complete and ordered"
+		}
+		require(startElapsedNanos == null || startElapsedNanos >= 0L) {
+			"Gap start elapsed time must be non-negative"
+		}
+		require(endElapsedNanos == null || startElapsedNanos != null && endElapsedNanos >= startElapsedNanos) {
+			"Gap elapsed bounds must be complete and ordered"
 		}
 	}
 }
@@ -442,6 +487,8 @@ data class CanonicalLocationEvidence(
 	val acquisitionMode: String? = null,
 	val requestPriority: String? = null,
 	val permissionPrecision: String? = null,
+	val bearingDeg: Float? = null,
+	val bearingAccuracyDeg: Float? = null,
 ) {
 	init {
 		require((latitudeE7 == null) == (longitudeE7 == null)) { "Canonical location coordinates are atomic" }
@@ -462,6 +509,15 @@ data class CanonicalLocationEvidence(
 		}
 		require(speedAccuracyMps == null || speedAccuracyMps.isFinite() && speedAccuracyMps >= 0f) {
 			"Canonical speed accuracy must be finite and non-negative"
+		}
+		require(bearingDeg == null || bearingDeg.isFinite()) {
+			"Canonical bearing must be finite"
+		}
+		require(
+			bearingAccuracyDeg == null ||
+				bearingAccuracyDeg.isFinite() && bearingAccuracyDeg >= 0f
+		) {
+			"Canonical bearing accuracy must be finite and non-negative"
 		}
 		require(batchIndex == null || batchIndex >= 0) { "Batch index must be non-negative" }
 		require(batchSize == null || batchSize > 0) { "Batch size must be positive" }
@@ -540,4 +596,20 @@ private fun List<ResearchLossRange>.areDisjoint(): Boolean {
 	if (size < 2) return true
 	val ordered = sortedWith(compareBy<ResearchLossRange> { it.firstSequence }.thenBy { it.lastSequence })
 	return ordered.zipWithNext().all { (left, right) -> left.lastSequence < right.firstSequence }
+}
+
+private fun ResearchEvidenceCapabilities.hasV2Capabilities(): Boolean =
+	controlTraceEvents || logicalTrackingLifecycle || acquisitionDecisions ||
+		horizontalEstimatorDecisions || replayDigests
+
+private fun ResearchEvidenceRecord.minimumResearchEvidenceSchemaVersion(): Int = when (this) {
+	is ResearchControlEventRecord,
+	is ResearchTrackingLifecycleRecord,
+	is ResearchAcquisitionRecord,
+	is ResearchHorizontalEstimatorRecord,
+	is ResearchControlDigestRecord -> RESEARCH_EVIDENCE_SCHEMA_V2
+	is ResearchGapRecord -> if (
+		logicalTrackingId != null || startElapsedNanos != null || endElapsedNanos != null
+	) RESEARCH_EVIDENCE_SCHEMA_V2 else RESEARCH_EVIDENCE_SCHEMA_V1
+	else -> RESEARCH_EVIDENCE_SCHEMA_V1
 }

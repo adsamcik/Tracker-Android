@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
+import com.adsamcik.tracker.stats.api.signal.ObservationStamp
 import com.adsamcik.tracker.stats.api.signal.PolicySignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -38,13 +39,58 @@ class SignalSerializerTest {
 
 	// region Test signal factories
 
+	private fun createObservationStamp() = ObservationStamp(
+		sourceEpochMs = 1_699_999_999_950L,
+		sourceElapsedRealtimeNanos = 123_450_000L,
+		sourceFirstElapsedRealtimeNanos = 123_400_000L,
+		receivedEpochMs = 1_700_000_000_000L,
+		receivedElapsedRealtimeNanos = 123_456_789L,
+		sourceSequence = 52L,
+		sourceFirstSequence = 50L,
+		clockDomainId = "session-clock",
+		bootClockDomainId = "boot-clock",
+		callbackId = "callback-1",
+		batchId = "batch-1",
+		sourceAgeMs = 50L,
+		timeUncertaintyMs = 10L,
+		capabilityFlags = setOf("source_elapsed", "sequence"),
+		permissionPrecision = "PRECISE",
+	)
+
 	private fun createFullSignal() = TrackingSignal(
 		timestampMs = EpochMs(1_700_000_000_000L),
 		elapsedRealtimeNanos = 123_456_789L,
+		clockDomainId = "session-clock",
+		bootClockDomainId = "boot-clock",
+		locationObservation = LocationObservationSignal(
+			rawFixTimeMs = 1_699_999_999_950L,
+			coordinate = CoordinateE7(lat = LatE7(488_566_000), lon = LonE7(23_522_000)),
+			horizontalAccuracyM = 5.0f,
+			altitudeM = 248.0f,
+			verticalAccuracyM = 3.0f,
+			speedMps = 2.4f,
+			speedAccuracyMps = 0.6f,
+			bearingDeg = 91.0f,
+			bearingAccuracyDeg = 4.0f,
+			provider = "gps",
+			receivedAtMs = 1_700_000_000_000L,
+			receivedElapsedRealtimeNanos = 123_456_789L,
+			acquisitionMode = "GNSS",
+			requestPriority = "HIGH_ACCURACY",
+			permissionPrecision = "PRECISE",
+			batchIndex = 1,
+			batchSize = 2,
+			callbackId = "callback-1",
+			sourceEventId = "event-1",
+		),
 		location = LocationSignal(
 			coordinate = CoordinateE7(lat = LatE7(488_566_000), lon = LonE7(23_522_000)),
 			horizontalAccuracyM = 5.0f,
 			speed = SpeedMps(2.5f),
+			rawPlatformSpeedMps = 2.4f,
+			rawPlatformSpeedAccuracyMps = 0.6f,
+			bearingDeg = 91.0f,
+			bearingAccuracyDeg = 4.0f,
 			altitudeM = 250.0f,
 			rawGpsAltitudeM = 248.0f,
 			altitudeDatum = AltitudeDatum.FUSED_ANDROID_MODEL_MSL,
@@ -61,6 +107,7 @@ class SignalSerializerTest {
 		activity = ActivitySignal(
 			type = DetectedActivityType.WALKING,
 			confidence = ActivityConfidence(85),
+			stamp = createObservationStamp(),
 		),
 		steps = StepSignal(
 			stepDelta = StepCount(42),
@@ -68,6 +115,7 @@ class SignalSerializerTest {
 			sensorValueStart = 9_958,
 			sensorValueEnd = 10_000,
 			sensorReset = false,
+			stamp = createObservationStamp(),
 		),
 		cells = CellSignal(
 			towers = listOf(
@@ -88,6 +136,7 @@ class SignalSerializerTest {
 					signalStrength = -95,
 				),
 			),
+			stamp = createObservationStamp(),
 		),
 		wifi = WifiSignal(
 			networks = listOf(
@@ -106,10 +155,18 @@ class SignalSerializerTest {
 					level = -72,
 				),
 			),
+			stamp = createObservationStamp(),
 		),
 		pressure = PressureSignal(
 			pressureHpa = 1013.25f,
 			altitudeM = 250.0f,
+			sampleCount = 4,
+			minPressureHpa = 1013.0f,
+			maxPressureHpa = 1013.5f,
+			standardDeviationHpa = 0.2f,
+			windowStartElapsedRealtimeNanos = 123_400_000L,
+			windowEndElapsedRealtimeNanos = 123_450_000L,
+			stamp = createObservationStamp(),
 		),
 		policy = PolicySignal(
 			tier = PolicyTier.ACTIVE,

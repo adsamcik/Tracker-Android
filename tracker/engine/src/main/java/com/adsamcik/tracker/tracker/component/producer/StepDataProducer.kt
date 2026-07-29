@@ -25,11 +25,15 @@ internal class StepDataProducer(
 		changeReceiver,
 		enabledFlow = trackingParamsRepository?.data?.map { it.stepsEnabled },
 ), SensorEventListener2 {
-	private val lockObject = Object()
+	private val lockObject = Any()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
 	private var stepValueAtCollectionStart: Int = -1
 	private var sensorResetDetected: Boolean = false
+	private var firstEventElapsedRealtimeNanos: Long? = null
+	private var lastEventElapsedRealtimeNanos: Long? = null
+	private var firstEventSequence: Long? = null
+	private var eventSequence: Long = 0L
 	private var sensorManager: SensorManager? = null
 	private var batchingEnabled = false
 	private var flushCompletion: CompletableDeferred<Unit>? = null
@@ -50,10 +54,17 @@ internal class StepDataProducer(
 				builder.stepSensorValueStart = stepValueAtCollectionStart
 				builder.stepSensorValueEnd = lastStepCount
 				builder.stepSensorReset = sensorResetDetected
+				builder.stepWindowStartElapsedRealtimeNanos = firstEventElapsedRealtimeNanos
+				builder.stepWindowEndElapsedRealtimeNanos = lastEventElapsedRealtimeNanos
+				builder.stepSourceFirstSequence = firstEventSequence
+				builder.stepSourceLastSequence = eventSequence
 				}
 				stepCountSinceLastCollection = 0
 				stepValueAtCollectionStart = lastStepCount
 				sensorResetDetected = false
+				firstEventElapsedRealtimeNanos = null
+				lastEventElapsedRealtimeNanos = null
+				firstEventSequence = null
 				false
 			}
 		}
@@ -75,6 +86,10 @@ internal class StepDataProducer(
 				stepCountSinceLastCollection = 0
 				stepValueAtCollectionStart = -1
 				sensorResetDetected = false
+				firstEventElapsedRealtimeNanos = null
+				lastEventElapsedRealtimeNanos = null
+				firstEventSequence = null
+				eventSequence = 0L
 			}
 		}
 		super.onDisable(context)
@@ -156,6 +171,12 @@ internal class StepDataProducer(
 			// stale lastStepCount under the lock while the sensor thread published a new
 			// value without memory barrier — corrupting delta math after an actual reset.
 			synchronized(lockObject) {
+				eventSequence++
+				if (firstEventSequence == null) firstEventSequence = eventSequence
+				if (firstEventElapsedRealtimeNanos == null) {
+					firstEventElapsedRealtimeNanos = event.timestamp
+				}
+				lastEventElapsedRealtimeNanos = event.timestamp
 				if (lastStepCount >= 0 && stepCount > 0) {
 					//In case sensor would overflow and reset to 0 at some point
 					if (lastStepCount > stepCount) {

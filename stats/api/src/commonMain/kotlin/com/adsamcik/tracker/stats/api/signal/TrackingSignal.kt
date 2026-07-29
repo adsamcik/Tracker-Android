@@ -23,6 +23,11 @@ data class TrackingSignal(
 	 * interpreted as one continuous elapsed-time span.
 	 */
 	val clockDomainId: String? = null,
+	/**
+	 * Device-boot clock domain. Unlike [clockDomainId], this remains stable across tracker-service
+	 * restarts during one boot and therefore permits conservative cross-session correlation.
+	 */
+	val bootClockDomainId: String? = null,
 	/** Provider observation before quality/consumer processing; persisted for replay and calibration. */
 	val locationObservation: LocationObservationSignal? = null,
 	val location: LocationSignal? = null,
@@ -49,6 +54,11 @@ data class LocationSignal(
 	val coordinate: CoordinateE7,
 	val horizontalAccuracyM: Float,
 	val speed: SpeedMps?,
+	/** Raw platform speed before the curated tracker derives or smooths velocity. */
+	val rawPlatformSpeedMps: Float? = null,
+	val rawPlatformSpeedAccuracyMps: Float? = null,
+	val bearingDeg: Float? = null,
+	val bearingAccuracyDeg: Float? = null,
 	/**
 	 * Datum-aware processed altitude. This is never populated with the raw Android ellipsoid
 	 * altitude as a fallback when MSL conversion fails.
@@ -103,6 +113,8 @@ data class LocationObservationSignal(
 	val verticalAccuracyM: Float? = null,
 	val speedMps: Float? = null,
 	val speedAccuracyMps: Float? = null,
+	val bearingDeg: Float? = null,
+	val bearingAccuracyDeg: Float? = null,
 	val provider: String = "unknown",
 	val receivedAtMs: Long = 0L,
 	val receivedElapsedRealtimeNanos: Long = 0L,
@@ -117,6 +129,44 @@ data class LocationObservationSignal(
 	val callbackId: String? = null,
 	val sourceEventId: String? = null,
 )
+
+/**
+ * Source-specific timing and provenance for one observation carried by a collection cycle.
+ *
+ * The outer [TrackingSignal] time is the collection-cycle envelope. This stamp records when the
+ * source produced the evidence and when the app received it, preventing cached or batched sensor
+ * values from being treated as simultaneous with that envelope.
+ */
+data class ObservationStamp(
+	val sourceEpochMs: Long? = null,
+	val sourceElapsedRealtimeNanos: Long? = null,
+	val sourceFirstElapsedRealtimeNanos: Long? = null,
+	val receivedEpochMs: Long? = null,
+	val receivedElapsedRealtimeNanos: Long? = null,
+	val sourceSequence: Long? = null,
+	val sourceFirstSequence: Long? = null,
+	val clockDomainId: String? = null,
+	val bootClockDomainId: String? = null,
+	val callbackId: String? = null,
+	val batchId: String? = null,
+	val sourceAgeMs: Long? = null,
+	val timeUncertaintyMs: Long? = null,
+	val capabilityFlags: Set<String> = emptySet(),
+	val permissionPrecision: String? = null,
+) {
+	init {
+		require(sourceSequence == null || sourceSequence >= 0L)
+		require(sourceFirstSequence == null || sourceFirstSequence >= 0L)
+		require(sourceFirstSequence == null || sourceSequence == null || sourceFirstSequence <= sourceSequence)
+		require(sourceAgeMs == null || sourceAgeMs >= 0L)
+		require(timeUncertaintyMs == null || timeUncertaintyMs >= 0L)
+		require(
+			sourceFirstElapsedRealtimeNanos == null ||
+				sourceElapsedRealtimeNanos == null ||
+				sourceFirstElapsedRealtimeNanos <= sourceElapsedRealtimeNanos
+		)
+	}
+}
 
 /**
  * An immutable terminal decision linking a provider observation to the curated location stream.
@@ -139,6 +189,7 @@ enum class LocationDecision {
 data class ActivitySignal(
 	val type: DetectedActivityType,
 	val confidence: ActivityConfidence,
+	val stamp: ObservationStamp? = null,
 )
 
 /** Step counter data for a single cycle. */
@@ -148,11 +199,13 @@ data class StepSignal(
 	val sensorValueStart: Int = 0,
 	val sensorValueEnd: Int = 0,
 	val sensorReset: Boolean = false,
+	val stamp: ObservationStamp? = null,
 )
 
 /** Cell tower scan data for a single cycle. */
 data class CellSignal(
 	val towers: List<CellTowerReading>,
+	val stamp: ObservationStamp? = null,
 )
 
 /** Individual cell tower reading (platform-independent). */
@@ -171,6 +224,7 @@ data class WifiSignal(
 	val timestampMs: EpochMs? = null,
 	val coordinate: CoordinateE7? = null,
 	val coordinateProvenance: ObservationCoordinateProvenance = ObservationCoordinateProvenance.UNKNOWN,
+	val stamp: ObservationStamp? = null,
 )
 
 enum class ObservationCoordinateProvenance {
@@ -192,6 +246,13 @@ data class WifiNetworkReading(
 data class PressureSignal(
 	val pressureHpa: Float,
 	val altitudeM: Float,
+	val sampleCount: Int = 1,
+	val minPressureHpa: Float = pressureHpa,
+	val maxPressureHpa: Float = pressureHpa,
+	val standardDeviationHpa: Float = 0f,
+	val windowStartElapsedRealtimeNanos: Long? = null,
+	val windowEndElapsedRealtimeNanos: Long? = null,
+	val stamp: ObservationStamp? = null,
 )
 
 /** Active tracking policy at the time of the cycle. */

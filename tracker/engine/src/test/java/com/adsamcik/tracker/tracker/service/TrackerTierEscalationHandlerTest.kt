@@ -7,6 +7,11 @@ import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.LocationRequestFidelity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.control.AcquisitionRequest
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyOutcome
+import com.adsamcik.tracker.tracker.control.ControlAcquisitionCommand
+import com.adsamcik.tracker.tracker.control.LocationAcquisitionMode
+import com.adsamcik.tracker.tracker.control.TrackingControlAcquisitionOutcomeSink
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import io.kotest.matchers.shouldBe
@@ -154,6 +159,107 @@ class TrackerTierEscalationHandlerTest {
 	}
 
 	@Test
+	fun `control acquisition path retains policy tier without touching platform request`() = runTest {
+		val gpsTrigger = RecordingTrigger(isLocationTrigger = true)
+		val controller = mockk<TrackerServiceController>(relaxed = true)
+		val handler = newHandler(controller = controller).apply {
+			currentTier = PolicyTier.AMBIENT
+			timerAccessor = RecordingTimerAccessor(gpsTrigger)
+		}
+
+		handler.onPolicyTierChangedWithoutAcquisition(
+			policy = TrackingPolicy.ACTIVE_ELEVATED,
+			scope = this,
+		)
+		advanceUntilIdle()
+
+		handler.currentTier shouldBe PolicyTier.PRECISION
+		verify(exactly = 1) { controller.updatePolicyTier(PolicyTier.PRECISION) }
+		gpsTrigger.fidelityUpdates shouldBe emptyList()
+		gpsTrigger.intervalUpdates shouldBe 0
+	}
+
+	@Test
+	fun `control acquisition reports applied no change and failed outcomes`() = runTest {
+		val outcomes = mutableListOf<com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyResult>()
+		val outcomeSink = TrackingControlAcquisitionOutcomeSink { outcomes += it }
+		val handler = newHandler(
+			controller = mockk(relaxed = true),
+			gpsTriggerFactory = { RecordingTrigger(isLocationTrigger = true) },
+		).apply {
+			timerAccessor = RecordingTimerAccessor(RecordingTrigger())
+		}
+		val context = mockk<Context>(relaxed = true)
+		val receiver = mockk<TrackerTimerReceiver>(relaxed = true)
+
+		handler.onControlAcquisitionRequest(
+			command = controlCommand("logical:1", sequence = 1L),
+			context = context,
+			timerReceiver = receiver,
+			scope = this,
+			outcomeSink = outcomeSink,
+		)
+		advanceUntilIdle()
+		handler.onControlAcquisitionRequest(
+			command = controlCommand("logical:2", sequence = 2L),
+			context = context,
+			timerReceiver = receiver,
+			scope = this,
+			outcomeSink = outcomeSink,
+		)
+		advanceUntilIdle()
+
+		val failedOutcomes = mutableListOf<com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyResult>()
+		val failingHandler = newHandler(
+			controller = mockk(relaxed = true),
+			gpsTriggerFactory = { RecordingTrigger(hasPermissions = false, isLocationTrigger = true) },
+		).apply {
+			timerAccessor = RecordingTimerAccessor(RecordingTrigger())
+		}
+		failingHandler.onControlAcquisitionRequest(
+			command = controlCommand("logical:3", sequence = 3L),
+			context = context,
+			timerReceiver = receiver,
+			scope = this,
+			outcomeSink = TrackingControlAcquisitionOutcomeSink { failedOutcomes += it },
+		)
+		advanceUntilIdle()
+
+		outcomes.map { it.outcome } shouldBe listOf(
+			ControlAcquisitionApplyOutcome.APPLIED,
+			ControlAcquisitionApplyOutcome.NO_CHANGE,
+		)
+		outcomes.map { it.command.requestId } shouldBe listOf("logical:1", "logical:2")
+		failedOutcomes.map { it.outcome } shouldBe listOf(ControlAcquisitionApplyOutcome.FAILED)
+	}
+
+	@Test
+	fun `committed control deescalation reports applied when FGS removal fails`() = runTest {
+		val outcomes = mutableListOf<com.adsamcik.tracker.tracker.control.ControlAcquisitionApplyResult>()
+		val ambientTrigger = RecordingTrigger()
+		val handler = newHandler(
+			controller = mockk(relaxed = true),
+			ambientTriggerFactory = { ambientTrigger },
+			foregroundServiceTypeUpdater = { _, _, _ -> false },
+		).apply {
+			timerAccessor = RecordingTimerAccessor(RecordingTrigger(isLocationTrigger = true))
+		}
+
+		handler.onControlAcquisitionRequest(
+			command = controlCommand("logical:disable", sequence = 4L, mode = LocationAcquisitionMode.DISABLED),
+			context = mockk(relaxed = true),
+			timerReceiver = mockk(relaxed = true),
+			scope = this,
+			outcomeSink = TrackingControlAcquisitionOutcomeSink { outcomes += it },
+		)
+		advanceUntilIdle()
+
+		outcomes.single().outcome shouldBe ControlAcquisitionApplyOutcome.APPLIED
+		outcomes.single().reason shouldBe "PLATFORM_REQUEST_APPLIED_FGS_TYPE_REMOVAL_FAILED"
+		ambientTrigger.enableCount shouldBe 1
+	}
+
+	@Test
 	fun `failed location declaration prevents GPS transition`() = runTest {
 		var gpsFactoryCalls = 0
 		val controller = mockk<TrackerServiceController>(relaxed = true)
@@ -278,6 +384,26 @@ class TrackerTierEscalationHandlerTest {
 	}
 
 	private companion object {
+		fun controlCommand(
+			requestId: String,
+			sequence: Long,
+			mode: LocationAcquisitionMode = LocationAcquisitionMode.BALANCED,
+		): ControlAcquisitionCommand =
+			ControlAcquisitionCommand(
+				requestId = requestId,
+				logicalTrackingId = "logical",
+				decisionLedgerSequence = sequence,
+				request = AcquisitionRequest(
+					mode = mode,
+					intervalMs = if (mode == LocationAcquisitionMode.DISABLED) 0L else 15_000L,
+					minDistanceMeters = if (mode == LocationAcquisitionMode.DISABLED) 0 else 10,
+					reason = "TEST",
+				),
+				decisionEpochMs = 1L,
+				decisionElapsedNanos = 1L,
+				clockDomainId = "clock-a",
+			)
+
 		fun trackingParams(
 			locationEnabled: Boolean,
 			activityEnabled: Boolean = false,

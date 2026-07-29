@@ -12,8 +12,8 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
@@ -90,12 +90,11 @@ internal class SessionTrackerComponent(
 				if (cycle.pressure != null) {
 					collectedPressureCount++
 				}
-				// Accumulate the bridged distance produced by LocationTrackerComponent
+				// Accumulate the distance produced by LocationTrackerComponent
 				// (collectionData.distanceFromPreviousM), which is measured from the last
-				// *accepted* location. This is non-null only when the point was accepted
-				// (collectionData.location set), so rejected teleport jumps and accuracy-gated
-				// cycles never inflate distance, while segments leading into a dropped cycle are
-				// bridged rather than silently lost.
+				// *accepted* location. Ordinary quality-gated cycles can be bridged, but a
+				// confirmed teleport re-acquisition explicitly contributes zero cross-gap
+				// distance so a session never invents a route through an unknown interval.
 				val locationAccepted = collectionData.location != null
 				val distance = if (locationAccepted) collectionData.distanceFromPreviousM else null
 				distance?.let {

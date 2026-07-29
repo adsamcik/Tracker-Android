@@ -211,7 +211,7 @@ class LocationTrackerComponentTest {
 
 		val result = collectionData.location
 		result.shouldNotBeNull()
-		result.hasAltitude() shouldBe false
+		result.altitude.shouldBeNull()
 		collectionData.rawGpsAltitudeM.shouldBeNull()
 		collectionData.processedAltitude?.conversionStatus shouldBe AltitudeConversionStatus.NOT_ATTEMPTED
 	}
@@ -445,7 +445,7 @@ class LocationTrackerComponentTest {
 	}
 
 	@Test
-	fun `rejected teleport rebases lastAcceptedLocation for recovery`() = runTest {
+	fun `rejected teleport does not rebase the last accepted location`() = runTest {
 		component.onEnable(RuntimeEnvironment.getApplication())
 		val baseNanos = 1_000_000_000_000L
 
@@ -465,18 +465,23 @@ class LocationTrackerComponentTest {
 		component.onDataUpdated(createCycleWithPrevious(tokyo, nyc), cd)
 		cd.location.shouldBeNull()
 
-		// Follow-up near Tokyo 5s later must be accepted (rebased baseline)
-		val nearTokyo = createAndroidLocation(
-			latitude = 35.6770, longitude = 139.6503,
-			time = 7000L,
-		).apply { elapsedRealtimeNanos = baseNanos + 6_000_000_000L }
+		// A subsequent normal point near the original anchor must still be accepted. If the rejected
+		// Tokyo sample had silently replaced the anchor, this would be rejected as another teleport.
+		val nearNyc = createAndroidLocation(
+			latitude = 40.7137, longitude = -74.0060,
+			time = 3000L,
+		).apply { elapsedRealtimeNanos = baseNanos + 2_000_000_000L }
 		val cd2 = MutableCollectionData()
-		component.onDataUpdated(createCycle(nearTokyo), cd2)
+		component.onDataUpdated(createCycle(nearNyc), cd2)
 		cd2.location.shouldNotBeNull()
+		val writtenDistance = requireNotNull(cd2.distanceFromPreviousM)
+		assert(abs(writtenDistance - nyc.distanceTo(nearNyc)) < 1f) {
+			"Expected distance to remain anchored in NYC, but got $writtenDistance"
+		}
 	}
 
 	@Test
-	fun `follow-up point after rejected teleport is accepted`() = runTest {
+	fun `two corroborating post-teleport fixes reacquire without bridging the unknown gap`() = runTest {
 		component.onEnable(RuntimeEnvironment.getApplication())
 		val baseNanos = 1_000_000_000_000L
 
@@ -497,9 +502,8 @@ class LocationTrackerComponentTest {
 			MutableCollectionData()
 		)
 
-		// Third fix: 100m from the Tokyo teleport point, 5 seconds later.
-		// This must be ACCEPTED — tracking should recover by using the
-		// teleported location as the new baseline.
+		// Third fix: 100m from the rejected Tokyo candidate, 5 seconds later. This corroborates a
+		// new-area re-acquisition, but must not create a synthetic NYC-to-Tokyo distance segment.
 		val nearTokyo = createAndroidLocation(
 			latitude = 35.6770, longitude = 139.6503,
 			time = 7000L,
@@ -507,6 +511,20 @@ class LocationTrackerComponentTest {
 		val cd = MutableCollectionData()
 		component.onDataUpdated(createCycle(nearTokyo), cd)
 		cd.location.shouldNotBeNull()
+		cd.distanceFromPreviousM shouldBe 0f
+
+		// Once confirmed, the new accepted anchor is used normally for the next local movement.
+		val afterReacquisition = createAndroidLocation(
+			latitude = 35.6779, longitude = 139.6503,
+			time = 12_000L,
+		).apply { elapsedRealtimeNanos = baseNanos + 11_000_000_000L }
+		val afterData = MutableCollectionData()
+		component.onDataUpdated(createCycle(afterReacquisition), afterData)
+		afterData.location.shouldNotBeNull()
+		val afterDistance = requireNotNull(afterData.distanceFromPreviousM)
+		assert(abs(afterDistance - nearTokyo.distanceTo(afterReacquisition)) < 1f) {
+			"Expected post-reacquisition distance to use the local anchor, but got $afterDistance"
+		}
 	}
 
 	@Test

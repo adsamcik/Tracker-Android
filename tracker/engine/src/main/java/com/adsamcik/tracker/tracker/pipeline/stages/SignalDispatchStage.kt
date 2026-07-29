@@ -8,6 +8,7 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.signal.LocationDecision
 import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
@@ -45,11 +46,7 @@ internal class SignalDispatchStage(
 			val sourceEventId = locationMetadata?.sourceEventId
 			// Keep the decision boundary identical to SignalAdapter's LocationSignal construction.
 			// A partial curated object is not an accepted persisted sample.
-			val locationAccepted = collectionData.location?.let { location ->
-				location.latitude != null &&
-					location.longitude != null &&
-					location.horizontalAccuracy != null
-			} == true
+			val locationAccepted = collectionData.location?.horizontalAccuracy != null
 
 			val cellTowers = cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }
@@ -81,7 +78,15 @@ internal class SignalDispatchStage(
 				latitude = collectionData.location?.latitude,
 				longitude = collectionData.location?.longitude,
 				accuracy = collectionData.location?.horizontalAccuracy,
-				speed = collectionData.location?.speed,
+				speed = collectionData.estimatedSpeedMps,
+				rawPlatformSpeed = rawLocation?.speed?.takeIf { rawLocation.hasSpeed() },
+				rawPlatformSpeedAccuracy = rawLocation?.speedAccuracyMetersPerSecond?.takeIf {
+					rawLocation.hasSpeedAccuracy()
+				},
+				bearingDeg = rawLocation?.bearing?.takeIf { rawLocation.hasBearing() },
+				bearingAccuracyDeg = rawLocation?.bearingAccuracyDegrees?.takeIf {
+					rawLocation.hasBearingAccuracy()
+				},
 				altitude = processedAltitude?.altitudeM,
 				rawGpsAltitude = collectionData.rawGpsAltitudeM,
 				altitudeDatum = processedAltitude?.datum
@@ -96,7 +101,9 @@ internal class SignalDispatchStage(
 				altitudeEstimatorVersion = processedAltitude?.estimatorVersion ?: 0,
 				altitudeCalibrationVersion = processedAltitude?.calibrationVersion ?: 0,
 				verticalAccuracy = collectionData.location?.verticalAccuracy,
-				speedAccuracy = collectionData.location?.speedAccuracy,
+				// The legacy curated speed is derived/EMA-smoothed and has no calibrated
+				// uncertainty yet. Provider uncertainty is carried separately above.
+				speedAccuracy = null,
 				distanceDelta = collectionData.distanceFromPreviousM,
 				provider = rawLocation?.provider ?: "unknown",
 				receivedElapsedRealtimeNanos = locationMetadata?.receivedElapsedRealtimeNanos ?: 0L,
@@ -107,7 +114,9 @@ internal class SignalDispatchStage(
 				batchSize = locationMetadata?.batchSize ?: 1,
 				isMock = rawLocation?.let(LocationCompat::isMock) ?: false,
 				sourceEventId = sourceEventId,
-				clockDomainId = locationMetadata?.clockDomainId,
+				clockDomainId = locationMetadata?.clockDomainId ?: TrackingClockDomain.currentId(),
+				bootClockDomainId = locationMetadata?.bootClockDomainId
+					?: TrackingClockDomain.currentBootId(),
 				locationDecision = sourceEventId?.let { eventId ->
 					LocationDecisionSignal(
 						sourceEventId = eventId,
@@ -123,15 +132,30 @@ internal class SignalDispatchStage(
 				activityConfidence = effectiveActivity?.confidence,
 				activityFresh = cycle.activityFresh ||
 					effectiveActivityChanged(cycle, effectiveActivity),
+				activitySourceElapsedRealtimeNanos =
+					cycle.activitySourceElapsedRealtimeNanos,
+				activitySourceSequence = cycle.activitySourceSequence,
 				stepDelta = cycle.stepDelta,
 				totalStepsSinceBoot = cycle.totalStepsSinceBoot,
 				stepSensorValueStart = cycle.stepSensorValueStart,
 				stepSensorValueEnd = cycle.stepSensorValueEnd,
 				stepSensorReset = cycle.stepSensorReset,
+				stepWindowStartElapsedRealtimeNanos =
+					cycle.stepWindowStartElapsedRealtimeNanos,
+				stepWindowEndElapsedRealtimeNanos =
+					cycle.stepWindowEndElapsedRealtimeNanos,
+				stepSourceFirstSequence = cycle.stepSourceFirstSequence,
+				stepSourceLastSequence = cycle.stepSourceLastSequence,
 				cellTowers = cellTowers,
+				cellObservedAtMs = cycle.cellScan?.observedAtEpochMs,
+				cellObservedElapsedRealtimeNanos =
+					cycle.cellScan?.observedAtElapsedRealtimeNanos,
+				cellSourceSequence = cycle.cellScan?.sourceSequence,
 				wifiNetworks = wifiNetworks,
 				pressureHpa = cycle.pressure?.pressureHpa,
 				wifiTimestampMs = collectionData.wifi?.time,
+				wifiElapsedRealtimeNanos = cycle.wifiScan?.relativeTimeNanos,
+				wifiSourceSequence = cycle.wifiScan?.sourceSequence,
 				wifiLatitude = collectionData.wifi?.location?.latitude,
 				wifiLongitude = collectionData.wifi?.location?.longitude,
 				wifiCoordinateProvenance = if (collectionData.wifi?.location != null) {
@@ -140,6 +164,17 @@ internal class SignalDispatchStage(
 					com.adsamcik.tracker.stats.api.signal.ObservationCoordinateProvenance.UNKNOWN
 				},
 				pressureAltitudeM = cycle.pressure?.altitudeM,
+				pressureSampleCount = cycle.pressure?.sampleCount ?: 1,
+				pressureMinHpa = cycle.pressure?.minPressureHpa,
+				pressureMaxHpa = cycle.pressure?.maxPressureHpa,
+				pressureStandardDeviationHpa =
+					cycle.pressure?.standardDeviationHpa ?: 0f,
+				pressureWindowStartElapsedRealtimeNanos =
+					cycle.pressure?.windowStartElapsedRealtimeNanos,
+				pressureWindowEndElapsedRealtimeNanos =
+					cycle.pressure?.windowEndElapsedRealtimeNanos,
+				pressureSourceFirstSequence = cycle.pressure?.sourceFirstSequence,
+				pressureSourceLastSequence = cycle.pressure?.sourceLastSequence,
 				policyTier = currentTierProvider(),
 				policyName = currentPolicyNameProvider(),
 				persistenceSignalId = cycle.persistenceSignalId,
