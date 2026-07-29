@@ -242,7 +242,7 @@ internal class KmlImport(
 			primaryActivity = session.sessionActivityId?.toInt(),
 			activityConfidence = null,
 			sampleCount = session.collections,
-			source = SegmentSource.USER_CREATED.toEntity(),
+			source = SegmentSource.USER_CREATED,
 			inferenceVersion = null,
 			createdAt = System.currentTimeMillis(),
 		)

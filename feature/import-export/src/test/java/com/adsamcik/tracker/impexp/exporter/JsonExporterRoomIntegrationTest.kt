@@ -12,7 +12,6 @@ import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
-import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -384,7 +383,7 @@ class JsonExporterRoomIntegrationTest {
 		primaryActivity = null,
 		activityConfidence = null,
 		sampleCount = sampleCount,
-		source = SegmentSource.USER_CREATED.toEntity(),
+		source = SegmentSource.USER_CREATED,
 		inferenceVersion = "test",
 		createdAt = endTimeMs,
 	)

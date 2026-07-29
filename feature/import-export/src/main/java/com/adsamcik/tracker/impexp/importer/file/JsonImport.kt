@@ -415,7 +415,7 @@ internal class JsonImport(
 			primaryActivity = null,
 			activityConfidence = null,
 			sampleCount = collections,
-			source = SegmentSource.USER_CREATED.toEntity(),
+			source = SegmentSource.USER_CREATED,
 			inferenceVersion = null,
 			createdAt = System.currentTimeMillis(),
 		)
