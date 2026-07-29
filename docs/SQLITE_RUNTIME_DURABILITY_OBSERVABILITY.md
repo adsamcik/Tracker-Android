@@ -23,13 +23,23 @@ same event. The event contains a database class label only; it never contains th
 
 ## Dependency status
 
-The version catalog remains pinned to `com.github.requery:sqlite-android:3.49.0`. As of this
-change, this is the newest reproducible release published by that coordinate. Requery's upstream
-repository has later, unreleased work, but no published fixed release suitable for a dependency
-catalog pin; an unversioned branch or snapshot would make builds non-reproducible and still does
-not provide the required SQLite 3.51.3 WAL-reset fix.
+Release builds now package the official SQLite Android binding at SQLite `3.53.3`, vendored at
+`core/sqlite-runtime/libs/sqlite-android-3530300.aar`. Its upstream AAR SHA3-256 is
+`d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93`; all four packaged ABIs
+(`arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`) contain source ID
+`2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62`.
+This source postdates the SQLite `3.51.3` WAL-reset fix. The Room integration is isolated in
+`:core:sqlite-runtime` so production Room databases use the fixed binding without exposing its
+`org.sqlite` API to feature modules.
 
-When the binding publishes a compatible SQLite 3.51.3-or-newer artifact, update the catalog and
-verify the emitted `sqlite_version` and `sqlite_source_id` on real devices. The runtime telemetry
-is intentionally retained after that upgrade because process-crash durability and sudden-power-loss
-durability remain separate measurements.
+The runtime telemetry is intentionally retained: it confirms the loaded version/source on real
+devices, while migration, concurrent-write/checkpoint, process-crash, and sudden-power-loss
+durability remain separate evidence requirements.
+
+## Release gate
+
+`verifyReleaseSqliteRuntime` gates every release artifact-producing Gradle task. It fails closed if
+the vendored AAR is absent, below `3.51.3`, has a different upstream SHA3-256, lacks any required
+ABI, or embeds a native library without the fixed source ID. That prevents a catalog/dependency
+resolution change from silently returning the affected runtime to a release package. Runtime
+telemetry and real-device durability testing remain mandatory evidence after packaging.

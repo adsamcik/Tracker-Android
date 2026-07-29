@@ -1,6 +1,8 @@
 import org.gradle.api.GradleException
 import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
+import java.util.zip.ZipFile
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
@@ -8,7 +10,6 @@ plugins {
 	alias(libs.plugins.android.application) apply false
 	alias(libs.plugins.android.library) apply false
 	alias(libs.plugins.android.kotlin.multiplatform.library) apply false
-	alias(libs.plugins.kotlin.android) apply false
 	alias(libs.plugins.kotlin.multiplatform) apply false
 	alias(libs.plugins.kotlin.parcelize) apply false
 	alias(libs.plugins.kotlin.serialization) apply false
@@ -26,7 +27,112 @@ val useOpenGlMapRenderer: Boolean = providers.gradleProperty("useOpenGlMapRender
 	.getOrElse(false)
 val maplibreOpenGlModule: String = libs.maplibre.android.opengl.get().toString()
 
+/**
+ * A release must never silently package the known WAL-reset-affected SQLite
+ * runtime.  Runtime telemetry remains necessary to attest the selected ABI on
+ * real hardware, but it cannot make an unsafe binary safe after it ships.
+ *
+ * Keep this version floor aligned with the first upstream SQLite release that
+ * contains the WAL-reset fix.  The official Android binding is vendored with
+ * its upstream SHA3-256 and every supported ABI's SQLite source ID is checked
+ * before a release package can be created.
+ */
+val requiredReleaseSqliteVersion = "3.51.3"
+val bundledSqliteRuntimeVersion = "3.53.3"
+val bundledSqliteRuntimeSourceId =
+	"2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62"
+val bundledSqliteRuntimeSha3 =
+	"d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93"
+val bundledSqliteRuntimeAar =
+	rootProject.layout.projectDirectory.file("core/sqlite-runtime/libs/sqlite-android-3530300.aar").asFile
+val bundledSqliteRuntimeAbis = listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+
+fun parseNumericVersion(raw: String): List<Int> = raw
+	.substringBefore('-')
+	.split('.')
+	.map { component ->
+		component.toIntOrNull()
+			?: throw GradleException("SQLite runtime version is not numeric: $raw")
+	}
+
+fun isVersionAtLeast(actual: String, minimum: String): Boolean {
+	val actualParts = parseNumericVersion(actual)
+	val minimumParts = parseNumericVersion(minimum)
+	val size = maxOf(actualParts.size, minimumParts.size)
+	for (index in 0 until size) {
+		val comparison = actualParts.getOrElse(index) { 0 }.compareTo(minimumParts.getOrElse(index) { 0 })
+		if (comparison != 0) return comparison > 0
+	}
+	return true
+}
+
+fun sha3_256(bytes: ByteArray): String = MessageDigest.getInstance("SHA3-256")
+	.digest(bytes)
+	.joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
+
+fun containsAscii(bytes: ByteArray, value: String): Boolean =
+	bytes.toString(Charsets.ISO_8859_1).contains(value)
+
+val verifyReleaseSqliteRuntime = tasks.register("verifyReleaseSqliteRuntime") {
+	group = "verification"
+	description = "Verifies the vendored SQLite runtime contains the WAL-reset fix for every packaged ABI."
+	inputs.file(bundledSqliteRuntimeAar)
+	inputs.property("bundledSqliteRuntimeVersion", bundledSqliteRuntimeVersion)
+	inputs.property("bundledSqliteRuntimeSourceId", bundledSqliteRuntimeSourceId)
+	inputs.property("requiredSqliteVersion", requiredReleaseSqliteVersion)
+
+	doLast {
+		if (!bundledSqliteRuntimeAar.isFile) {
+			throw GradleException(
+				"Release packaging is blocked: fixed SQLite runtime AAR is missing at " +
+					bundledSqliteRuntimeAar.relativeTo(rootProject.projectDir),
+			)
+		}
+		if (!isVersionAtLeast(bundledSqliteRuntimeVersion, requiredReleaseSqliteVersion)) {
+			throw GradleException(
+				"Release packaging is blocked: vendored SQLite $bundledSqliteRuntimeVersion is below " +
+					"the required $requiredReleaseSqliteVersion WAL-reset-fix floor.",
+			)
+		}
+		if (sha3_256(bundledSqliteRuntimeAar.readBytes()) != bundledSqliteRuntimeSha3) {
+			throw GradleException(
+				"Release packaging is blocked: vendored SQLite AAR SHA3-256 does not match the " +
+					"verified official artifact.",
+			)
+		}
+		ZipFile(bundledSqliteRuntimeAar).use { archive ->
+			bundledSqliteRuntimeAbis.forEach { abi ->
+				val entryName = "jni/$abi/libsqliteX.so"
+				val entry = archive.getEntry(entryName)
+					?: throw GradleException(
+						"Release packaging is blocked: vendored SQLite AAR is missing ABI $abi.",
+					)
+				val sourceMatches = archive.getInputStream(entry).use { input ->
+					containsAscii(input.readBytes(), bundledSqliteRuntimeSourceId)
+				}
+				if (!sourceMatches) {
+					throw GradleException(
+						"Release packaging is blocked: SQLite ABI $abi does not contain the expected " +
+							"fixed source ID $bundledSqliteRuntimeSourceId.",
+					)
+				}
+			}
+		}
+	}
+}
+
 subprojects {
+	// Gate every artifact-producing release task, including flavor variants.  This
+	// deliberately leaves debug/dev builds usable for development while making a
+	// known-unsafe native runtime impossible to package as a release artifact.
+	tasks.matching { task ->
+		val name = task.name.lowercase(Locale.ROOT)
+		(name.startsWith("assemble") || name.startsWith("bundle") || name.startsWith("package")) &&
+			name.contains("release")
+	}.configureEach {
+		dependsOn(rootProject.tasks.named("verifyReleaseSqliteRuntime"))
+	}
+
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {
 			options.compilerArgs.addAll(listOf("-Xlint:unchecked", "-Xlint:deprecation"))
