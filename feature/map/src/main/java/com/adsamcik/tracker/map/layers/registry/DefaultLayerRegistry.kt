@@ -44,10 +44,8 @@ import com.adsamcik.tracker.map.viz.catalog.wifiSignalHeatmap
 import com.adsamcik.tracker.map.viz.CELL_RADIO_COLORS
 import com.adsamcik.tracker.map.viz.RadioVisualGroup
 import com.adsamcik.tracker.map.viz.WIFI_RADIO_COLORS
-import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
-import com.adsamcik.tracker.stats.api.roadmatch.RoadObservation
 import com.adsamcik.tracker.map.shared.MapLayerData
 import com.adsamcik.tracker.map.shared.MapLayerInfo
 import com.adsamcik.tracker.map.shared.MapLegend
@@ -104,20 +102,7 @@ class DefaultLayerRegistry(
         const val LOCATION_PATH_MAX_PRE_POINTS = 30_000
         const val LOCATION_PATH_MAX_MATERIALIZED_POINTS = LOCATION_PATH_MAX_PRE_POINTS * 2
         const val DEFAULT_LOCATION_RANGE_MS = 30L * 24 * 60 * 60 * 1_000
-        const val VEHICLE_CHUNK_SIZE = 2_000
-        const val VEHICLE_MAX_PRE_SAMPLES = 30_000
-        const val VEHICLE_MAX_MATERIALIZED_SAMPLES = VEHICLE_MAX_PRE_SAMPLES * 2
         const val E7 = 10_000_000.0
-
-        /** Conversion factor from km/h to m/s for matched road speed limits. */
-        const val VEHICLE_MPS_PER_KMH = 1000f / 3600f
-
-        /**
-         * Emission sigma (GPS noise) handed to the road matcher. The driving
-         * fallback when a sample has no recorded horizontal accuracy. The matcher
-         * clamps this and per-sample values into its valid range.
-         */
-        const val VEHICLE_DEFAULT_ACCURACY_M = 8f
     }
 
     /**
@@ -412,95 +397,13 @@ class DefaultLayerRegistry(
                     LayerEntry(
                         build = { ctx ->
                             val dao = AppDatabase.database(ctx).locationSampleDao()
-                            val drivingActivityIds = SessionActivityIds.DRIVING.toList()
-                            val roadMatcher = ctx.roadMatcher()
+                            val provider = VehicleComplianceProvider(
+                                dao = dao,
+                                roadMatcher = ctx.roadMatcher(),
+                                dispatchers = dispatchers,
+                            )
                             VehicleComplianceLayer(
-                                edgeProvider = { range ->
-                                    withContext(dispatchers.io) {
-                                        val now = System.currentTimeMillis()
-                                        val fromMs = if (!range.isEmpty()) {
-                                            range.first
-                                        } else {
-                                            now - DEFAULT_LOCATION_RANGE_MS
-                                        }
-                                        val toMs = if (!range.isEmpty()) range.last else now
-                                        var afterTimeMs: Long? = null
-                                        var afterId: Long? = null
-                                        val initialRows = collectBoundedChunks(
-                                            chunkSize = VEHICLE_CHUNK_SIZE,
-                                            maxMaterializedRows = VEHICLE_MAX_MATERIALIZED_SAMPLES - 1,
-                                        ) { limit ->
-                                            val chunk = dao.getDrivingChunkBetweenOrdered(
-                                                fromMs = fromMs,
-                                                toMs = toMs,
-                                                drivingActivities = drivingActivityIds,
-                                                afterTimeMs = afterTimeMs,
-                                                afterId = afterId,
-                                                limit = limit,
-                                            )
-                                            chunk.lastOrNull()?.let { lastRow ->
-                                                afterTimeMs = lastRow.timeMs
-                                                afterId = lastRow.id
-                                            }
-                                            chunk
-                                        }
-                                        val lastRow = dao.getLatestDrivingBetween(
-                                            fromMs = fromMs,
-                                            toMs = toMs,
-                                            drivingActivities = drivingActivityIds,
-                                        )
-                                        val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
-                                            initialRows + lastRow
-                                        } else {
-                                            initialRows
-                                        }
-                                        if (rows.isEmpty()) {
-                                            emptyList()
-                                        } else {
-                                            // Decimate to keep the matcher's work bounded, then map-match
-                                            // the drive onto the OSM road graph. Each MatchedEdge already
-                                            // follows the real road; we only classify it by speed-vs-limit.
-                                            val sampled = downSampleEvenly(rows, VEHICLE_MAX_PRE_SAMPLES)
-                                            val observations = sampled.map { row ->
-                                                RoadObservation(
-                                                    latE7 = row.latE7,
-                                                    lonE7 = row.lonE7,
-                                                    accuracyM = row.hAccM ?: VEHICLE_DEFAULT_ACCURACY_M,
-                                                    timeMs = row.timeMs,
-                                                )
-                                            }
-                                            val edges = roadMatcher.match(observations)
-                                            val result = ArrayList<VehicleComplianceLayer.ComplianceEdge>(
-                                                edges.size,
-                                            )
-                                            var prevToIndex = -1
-                                            for (edge in edges) {
-                                                // Classify the span by the speed recorded at the fix it
-                                                // leads into (the more recent reading), matching the
-                                                // original per-sample colouring and avoiding blended
-                                                // "sliver" buckets at every speed transition.
-                                                val speed = sampled[edge.toIndex].speedMps
-                                                val limitMps = edge.maxspeedKmh * VEHICLE_MPS_PER_KMH
-                                                val ratio = if (limitMps <= 0f) {
-                                                    Float.NaN
-                                                } else {
-                                                    speed / limitMps
-                                                }
-                                                result.add(
-                                                    VehicleComplianceLayer.ComplianceEdge(
-                                                        ratio = ratio,
-                                                        path = edge.path.map { p ->
-                                                            LatLngModel(p.latE7 / 1e7, p.lonE7 / 1e7)
-                                                        },
-                                                        gapBefore = edge.fromIndex != prevToIndex,
-                                                    ),
-                                                )
-                                                prevToIndex = edge.toIndex
-                                            }
-                                            result
-                                        }
-                                    }
-                                },
+                                resultProvider = provider::load,
                                 perf = PerformanceManager(),
                             )
                         },

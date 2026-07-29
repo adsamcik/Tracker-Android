@@ -102,13 +102,18 @@ class VehicleComplianceLayerTest {
 		}
 
 		@Test
-		fun `NaN defaults to AT_LIMIT`() {
-			ComplianceBucket.forRatio(Float.NaN) shouldBe ComplianceBucket.AT_LIMIT
+		fun `NaN is unavailable rather than at limit`() {
+			ComplianceBucket.forRatio(Float.NaN).shouldBeNull()
 		}
 
 		@Test
-		fun `negative ratio is WAY_UNDER`() {
-			ComplianceBucket.forRatio(-0.1f) shouldBe ComplianceBucket.WAY_UNDER
+		fun `negative ratio is unavailable`() {
+			ComplianceBucket.forRatio(-0.1f).shouldBeNull()
+		}
+
+		@Test
+		fun `infinite ratio is unavailable`() {
+			ComplianceBucket.forRatio(Float.POSITIVE_INFINITY).shouldBeNull()
 		}
 	}
 

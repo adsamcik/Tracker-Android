@@ -84,6 +84,7 @@ dependencies {
     testImplementation(libs.activity.compose)
     testImplementation(kotlin("reflect"))
     testImplementation(project(":core:testing"))
+    testImplementation(project(":domain:osm"))
 
     androidTestImplementation(libs.mockito.android)
     androidTestImplementation(libs.mockito.kotlin)

@@ -9,6 +9,7 @@ import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.shared.CoordinateBounds
+import com.adsamcik.tracker.stats.api.roadmatch.RoadLimitProvenance
 
 /**
  * Map layer that colours the roads a vehicle actually drove on by how the
@@ -29,10 +30,20 @@ import com.adsamcik.tracker.map.shared.CoordinateBounds
  * single colour per Line config.
  */
 open class VehicleComplianceLayer(
-	private val edgeProvider: suspend (LongRange) -> List<ComplianceEdge>,
+	private val resultProvider: suspend (LongRange) -> ProviderResult,
 	private val perf: PerformanceManager = PerformanceManager(),
 ) : BaseMapLayer<VehicleComplianceLayer.Input, VehicleComplianceLayer.Prepared>(perf),
 	SupportsDateRange {
+
+	/**
+	 * Compatibility constructor for callers that have no unavailable-result
+	 * diagnostics to preserve. Production uses [ProviderResult] directly.
+	 */
+	constructor(
+		edgeProvider: suspend (LongRange) -> List<ComplianceEdge>,
+		perf: PerformanceManager = PerformanceManager(),
+		@Suppress("UNUSED_PARAMETER") legacyConstructorMarker: Unit = Unit,
+	) : this(resultProvider = { ProviderResult(edgeProvider(it)) }, perf = perf)
 
 	/**
 	 * One road-matched span ready for classification.
@@ -48,10 +59,49 @@ open class VehicleComplianceLayer(
 		val gapBefore: Boolean,
 	)
 
-	data class Input(val edges: List<ComplianceEdge>)
+	/** Why an observed span was intentionally withheld from a normal bucket. */
+	enum class SuppressionReason {
+		NO_MATCH,
+		NO_PATH,
+		GAP,
+		AMBIGUOUS_MATCH,
+		INVALID_EDGE_INDEX,
+		INVALID_PATH,
+		INVALID_SPEED,
+		INVALID_LIMIT,
+		UNKNOWN_LIMIT,
+		HEURISTIC_LIMIT,
+		UNSUPPORTED_LIMIT,
+	}
+
+	/**
+	 * Bounded metadata for an unavailable/suppressed result. It intentionally
+	 * contains only local graph and observation references, never raw GPS data.
+	 */
+	data class SuppressionDiagnostic(
+		val reason: SuppressionReason,
+		val importId: Long? = null,
+		val osmWayId: Long? = null,
+		val fromObservationIndex: Int? = null,
+		val toObservationIndex: Int? = null,
+		val limitKmh: Int? = null,
+		val limitProvenance: RoadLimitProvenance? = null,
+	)
+
+	/** Result from the production provider, including deliberately withheld spans. */
+	data class ProviderResult(
+		val edges: List<ComplianceEdge>,
+		val diagnostics: List<SuppressionDiagnostic> = emptyList(),
+	)
+
+	data class Input(
+		val edges: List<ComplianceEdge>,
+		val diagnostics: List<SuppressionDiagnostic> = emptyList(),
+	)
 	data class Prepared(
 		val perBucket: List<BucketGeoJson>,
 		val bounds: CoordinateBounds?,
+		val diagnostics: List<SuppressionDiagnostic> = emptyList(),
 	)
 
 	data class BucketGeoJson(
@@ -62,11 +112,11 @@ open class VehicleComplianceLayer(
 	override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
 	override suspend fun loadData(context: Context, bounds: Bounds?): Input {
-		return Input(edgeProvider(dateRange))
+		return resultProvider(dateRange).let { Input(it.edges, it.diagnostics) }
 	}
 
 	override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
-		if (input.edges.isEmpty()) return Prepared(emptyList(), null)
+		if (input.edges.isEmpty()) return Prepared(emptyList(), null, input.diagnostics)
 
 		// Stitch contiguous same-bucket edges into continuous strokes. A new
 		// stroke begins when the bucket changes or an unmatched stretch was
@@ -85,8 +135,20 @@ open class VehicleComplianceLayer(
 		}
 
 		for (edge in input.edges) {
-			if (edge.path.size < 2) continue
+			if (edge.path.size < 2) {
+				flush()
+				currentBucket = null
+				currentRun = null
+				continue
+			}
 			val bucket = ComplianceBucket.forRatio(edge.ratio)
+			if (bucket == null) {
+				// An invalid value must not bridge two otherwise contiguous normal runs.
+				flush()
+				currentBucket = null
+				currentRun = null
+				continue
+			}
 			val startsNewRun = bucket != currentBucket || edge.gapBefore || currentRun == null
 			if (startsNewRun) {
 				flush()
@@ -114,11 +176,12 @@ open class VehicleComplianceLayer(
 			}
 		}
 
-		val bounds = input.edges.asSequence()
-			.flatMap { it.path.asSequence() }
+		val bounds = runsByBucket.values.asSequence()
+			.flatMap { it.asSequence() }
+			.flatMap { it.asSequence() }
 			.toList()
 			.coordinateBoundsOrNull()
-		return Prepared(perBucket, bounds)
+		return Prepared(perBucket, bounds, input.diagnostics)
 	}
 
 	override fun produceConfig(processed: Prepared): MapLibreLayerConfig? {
@@ -165,7 +228,8 @@ open class VehicleComplianceLayer(
  * Speed-vs-baseline compliance buckets used by [VehicleComplianceLayer].
  *
  * Ratio = sample speed / baseline speed limit. Buckets are inclusive of the lower
- * bound and exclusive of the upper bound; [forRatio] guarantees a total mapping.
+ * bound and exclusive of the upper bound. Invalid values deliberately have no
+ * bucket: an unavailable limit must not look like ordinary compliance.
  */
 enum class ComplianceBucket(
 	val colorArgb: Int,
@@ -179,9 +243,9 @@ enum class ComplianceBucket(
 	SPEEDING(HeatmapColorRamps.VehicleCompliance[4].second, 1.3f, Float.POSITIVE_INFINITY);
 
 	companion object {
-		fun forRatio(ratio: Float): ComplianceBucket {
-			if (ratio.isNaN()) return AT_LIMIT
-			return entries.first { ratio >= it.minRatioInclusive && ratio < it.maxRatioExclusive }
+		fun forRatio(ratio: Float): ComplianceBucket? {
+			if (!ratio.isFinite() || ratio < 0f) return null
+			return entries.firstOrNull { ratio >= it.minRatioInclusive && ratio < it.maxRatioExclusive }
 		}
 	}
 }

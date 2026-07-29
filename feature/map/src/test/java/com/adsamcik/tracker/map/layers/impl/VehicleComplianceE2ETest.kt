@@ -5,19 +5,18 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
-import com.adsamcik.tracker.map.presentation.udf.LatLngModel
-import com.adsamcik.tracker.map.layers.registry.collectBoundedChunks
-import com.adsamcik.tracker.map.layers.registry.downSampleEvenly
+import com.adsamcik.tracker.map.layers.registry.VehicleComplianceProvider
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.SessionActivityIds
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.roadmatch.MatchedEdge
+import com.adsamcik.tracker.stats.api.roadmatch.RoadLimitProvenance
+import com.adsamcik.tracker.stats.api.roadmatch.RoadMatchStatus
 import com.adsamcik.tracker.stats.api.roadmatch.RoadMatcher
 import com.adsamcik.tracker.stats.api.roadmatch.RoadObservation
 import com.adsamcik.tracker.stats.api.roadmatch.RoadPoint
@@ -39,19 +38,16 @@ import org.robolectric.annotation.Config
  * End-to-end test that exercises the full Vehicle Compliance pipeline:
  *
  *  1. Real Room samples + driving session segments seeded into [AppDatabase].
- *  2. A locally-mirrored copy of the production `edgeProvider` lambda from
- *     `DefaultLayerRegistry` that streams the `getDrivingChunkBetweenOrdered`
- *     projection, builds [RoadObservation]s, runs them through a (here, fake)
- *     [RoadMatcher], and classifies each [MatchedEdge] into a
- *     [VehicleComplianceLayer.ComplianceEdge].
+ *  2. The extracted production [VehicleComplianceProvider], which streams the
+ *     `getDrivingChunkBetweenOrdered` projection, builds [RoadObservation]s,
+ *     runs them through a (here, fake) [RoadMatcher], and returns typed
+ *     unavailable/suppression diagnostics alongside drawable edges.
  *  3. The real [VehicleComplianceLayer] running `loadData → processData →
  *     produceConfig` end-to-end.
  *
  * The road matching itself is faked with a deterministic [RoadMatcher] (see
  * [buildLayer]); real HMM/Viterbi matching is covered by `OsmHmmMapMatcherTest`
- * in `:domain:osm`. Production code is intentionally NOT modified — the inline
- * mirror of the provider lambda is small enough that the duplication cost is
- * lower than the engineering cost of exposing it.
+ * in `:domain:osm`.
  *
  * The five compliance buckets are pinned to the production thresholds
  * defined in [ComplianceBucket] (WAY_UNDER < 0.5, SLOW [0.5, 0.9),
@@ -181,7 +177,7 @@ class VehicleComplianceE2ETest {
 	}
 
 	@Test
-	fun `limit of zero yields NaN ratio mapped to AT_LIMIT`() = runTest {
+	fun `zero explicit limit is withheld with an invalid-limit diagnostic`() = runTest {
 		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
 		insertSample(timeMs = 1_000L, speedMps = 20f)
 		insertSample(timeMs = 2_000L, speedMps = 20f)
@@ -189,8 +185,90 @@ class VehicleComplianceE2ETest {
 		val layer = buildLayer(fixedLimitMps = 0.0)
 		val prepared = runPipeline(layer)
 
-		// `ratio = NaN` because limitMps <= 0.0; ComplianceBucket.forRatio(NaN) -> AT_LIMIT.
-		prepared.perBucket.single().bucket shouldBe ComplianceBucket.AT_LIMIT
+		prepared.perBucket.shouldBeEmpty()
+		prepared.diagnostics.map { it.reason } shouldBe listOf(
+			VehicleComplianceLayer.SuppressionReason.INVALID_LIMIT,
+		)
+		prepared.diagnostics.single().limitProvenance shouldBe RoadLimitProvenance.EXPLICIT_OSM_TAG
+		prepared.diagnostics.single().importId shouldBe 7L
+		prepared.diagnostics.single().osmWayId shouldBe 11L
+	}
+
+	@Test
+	fun `heuristic and unknown limits are withheld instead of colored`() = runTest {
+		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
+		insertSample(timeMs = 1_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+		insertSample(timeMs = 2_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+
+		val heuristic = runPipeline(
+			buildLayer(
+				fixedLimitMps = BASELINE_50_KMH_MPS,
+				limitProvenance = RoadLimitProvenance.ROAD_CLASS_HEURISTIC,
+			),
+		)
+		heuristic.perBucket.shouldBeEmpty()
+		heuristic.diagnostics.map { it.reason }.toSet() shouldBe setOf(
+			VehicleComplianceLayer.SuppressionReason.HEURISTIC_LIMIT,
+		)
+
+		val unknown = runPipeline(
+			buildLayer(
+				fixedLimitMps = BASELINE_50_KMH_MPS,
+				limitProvenance = RoadLimitProvenance.UNKNOWN,
+			),
+		)
+		unknown.perBucket.shouldBeEmpty()
+		unknown.diagnostics.map { it.reason }.toSet() shouldBe setOf(
+			VehicleComplianceLayer.SuppressionReason.UNKNOWN_LIMIT,
+		)
+	}
+
+	@Test
+	fun `ambiguous and no-path matcher outputs are withheld with typed reasons`() = runTest {
+		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
+		insertSample(timeMs = 1_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+		insertSample(timeMs = 2_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+
+		val ambiguous = runPipeline(
+			buildLayer(
+				fixedLimitMps = BASELINE_50_KMH_MPS,
+				matchStatus = RoadMatchStatus.AMBIGUOUS,
+			),
+		)
+		ambiguous.perBucket.shouldBeEmpty()
+		ambiguous.diagnostics.map { it.reason }.toSet() shouldBe setOf(
+			VehicleComplianceLayer.SuppressionReason.AMBIGUOUS_MATCH,
+		)
+
+		val noPath = runPipeline(
+			buildLayer(
+				fixedLimitMps = BASELINE_50_KMH_MPS,
+				matchStatus = RoadMatchStatus.NO_PATH,
+			),
+		)
+		noPath.perBucket.shouldBeEmpty()
+		noPath.diagnostics.map { it.reason }.toSet() shouldBe setOf(
+			VehicleComplianceLayer.SuppressionReason.NO_PATH,
+		)
+	}
+
+	@Test
+	fun `no match is unavailable rather than a normal bucket`() = runTest {
+		seedDrivingSegment(startMs = 0L, endMs = 10_000L)
+		insertSample(timeMs = 1_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+		insertSample(timeMs = 2_000L, speedMps = BASELINE_50_KMH_MPS.toFloat())
+
+		val prepared = runPipeline(
+			buildLayer(
+				fixedLimitMps = BASELINE_50_KMH_MPS,
+				emitEdges = false,
+			),
+		)
+
+		prepared.perBucket.shouldBeEmpty()
+		prepared.diagnostics.map { it.reason } shouldBe listOf(
+			VehicleComplianceLayer.SuppressionReason.NO_MATCH,
+		)
 	}
 
 	// endregion
@@ -295,98 +373,19 @@ class VehicleComplianceE2ETest {
 
 	// --- helpers ----------------------------------------------------------------
 
-	/**
-	 * Production edge-provider algorithm mirrored from `DefaultLayerRegistry`'s
-	 * `vehicle_compliance` factory. Pinned here so any future divergence between
-	 * this test and production surfaces as a contract failure during the next
-	 * test-suite run. The OSM road matching is replaced by a deterministic fake
-	 * [RoadMatcher] (see [buildLayer]); real matching is covered by
-	 * `OsmHmmMapMatcherTest` in `:domain:osm`.
-	 */
-	private fun buildEdgeProvider(
-		roadMatcher: RoadMatcher,
-	): suspend (LongRange) -> List<VehicleComplianceLayer.ComplianceEdge> {
-		val dao = database.locationSampleDao()
-		val drivingActivityIds = SessionActivityIds.DRIVING.toList()
-		return { range ->
-			val now = System.currentTimeMillis()
-			val fromMs = if (!range.isEmpty()) range.first else now - DEFAULT_LOCATION_RANGE_MS
-			val toMs = if (!range.isEmpty()) range.last else now
-
-			var afterTimeMs: Long? = null
-			var afterId: Long? = null
-			val initialRows = collectBoundedChunks(
-				chunkSize = VEHICLE_CHUNK_SIZE,
-				maxMaterializedRows = VEHICLE_MAX_MATERIALIZED_SAMPLES - 1,
-			) { limit ->
-				val chunk = dao.getDrivingChunkBetweenOrdered(
-					fromMs = fromMs,
-					toMs = toMs,
-					drivingActivities = drivingActivityIds,
-					afterTimeMs = afterTimeMs,
-					afterId = afterId,
-					limit = limit,
-				)
-				chunk.lastOrNull()?.let { lastRow ->
-					afterTimeMs = lastRow.timeMs
-					afterId = lastRow.id
-				}
-				chunk
-			}
-			val lastRow = dao.getLatestDrivingBetween(
-				fromMs = fromMs,
-				toMs = toMs,
-				drivingActivities = drivingActivityIds,
-			)
-			val rows = if (lastRow != null && initialRows.lastOrNull()?.id != lastRow.id) {
-				initialRows + lastRow
-			} else {
-				initialRows
-			}
-
-			if (rows.isEmpty()) {
-				emptyList()
-			} else {
-				val sampled = downSampleEvenly(rows, VEHICLE_MAX_PRE_SAMPLES)
-				val observations = sampled.map { row ->
-					RoadObservation(
-						row.latE7,
-						row.lonE7,
-						row.hAccM ?: DEFAULT_ACCURACY_M,
-						row.timeMs,
-					)
-				}
-				val edges = roadMatcher.match(observations)
-				val result = ArrayList<VehicleComplianceLayer.ComplianceEdge>(edges.size)
-				var prevToIndex = -1
-				for (edge in edges) {
-					val speed = sampled[edge.toIndex].speedMps
-					val limitMps = edge.maxspeedKmh * MPS_PER_KMH
-					val ratio = if (limitMps <= 0f) Float.NaN else speed / limitMps
-					result.add(
-						VehicleComplianceLayer.ComplianceEdge(
-							ratio = ratio,
-							path = edge.path.map { LatLngModel(it.latE7 / 1e7, it.lonE7 / 1e7) },
-							gapBefore = edge.fromIndex != prevToIndex,
-						),
-					)
-					prevToIndex = edge.toIndex
-				}
-				result
-			}
-		}
-	}
-
 	private fun buildLayer(
 		fixedLimitMps: Double,
 		onObservations: (List<RoadObservation>) -> Unit = {},
+		limitProvenance: RoadLimitProvenance = RoadLimitProvenance.EXPLICIT_OSM_TAG,
+		matchStatus: RoadMatchStatus = RoadMatchStatus.MATCHED,
+		emitEdges: Boolean = true,
 	): TestableLayer {
 		val limitKmh = Math.round(fixedLimitMps * 3.6).toInt()
 		// Deterministic matcher: one edge per consecutive observation pair, snapping
 		// to the observation coordinates unchanged and using a fixed road limit.
 		val matcher = RoadMatcher { observations ->
 			onObservations(observations)
-			if (observations.size < 2) {
+			if (observations.size < 2 || !emitEdges) {
 				emptyList()
 			} else {
 				(1 until observations.size).map { i ->
@@ -398,11 +397,20 @@ class VehicleComplianceE2ETest {
 							RoadPoint(observations[i].latE7, observations[i].lonE7),
 						),
 						maxspeedKmh = limitKmh,
+						limitProvenance = limitProvenance,
+						matchStatus = matchStatus,
+						importId = 7L,
+						osmWayId = 11L,
 					)
 				}
 			}
 		}
-		return TestableLayer(buildEdgeProvider(matcher))
+		val provider = VehicleComplianceProvider(
+			dao = database.locationSampleDao(),
+			roadMatcher = matcher,
+			dispatchers = DefaultDispatchersProvider,
+		)
+		return TestableLayer(provider::load)
 	}
 
 	private suspend fun runPipeline(layer: TestableLayer): VehicleComplianceLayer.Prepared {
@@ -453,7 +461,7 @@ class VehicleComplianceE2ETest {
 				primaryActivity = primaryActivity,
 				activityConfidence = 90,
 				sampleCount = 10,
-				source = SegmentSource.USER_CREATED.toEntity(),
+				source = SegmentSource.USER_CREATED,
 				inferenceVersion = "test",
 				createdAt = startMs,
 			),
@@ -462,8 +470,8 @@ class VehicleComplianceE2ETest {
 
 	/** Re-exposes the protected lifecycle methods for tests. */
 	private class TestableLayer(
-		edgeProvider: suspend (LongRange) -> List<ComplianceEdge>,
-	) : VehicleComplianceLayer(edgeProvider, PerformanceManager()) {
+		resultProvider: suspend (LongRange) -> ProviderResult,
+	) : VehicleComplianceLayer(resultProvider, PerformanceManager()) {
 		suspend fun testLoadData(): Input = loadData(context = mockk<Context>(relaxed = true), bounds = null)
 		fun testProcessData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared =
 			processData(input, budgets)
@@ -471,14 +479,7 @@ class VehicleComplianceE2ETest {
 	}
 
 	private companion object {
-		// Mirrors DefaultLayerRegistry private constants — see KDoc on
-		// buildEdgeProvider() for the contract rationale.
-		const val DEFAULT_LOCATION_RANGE_MS: Long = 30L * 24 * 60 * 60 * 1_000
-		const val VEHICLE_CHUNK_SIZE: Int = 2_000
-		const val VEHICLE_MAX_PRE_SAMPLES: Int = 30_000
-		const val VEHICLE_MAX_MATERIALIZED_SAMPLES: Int = VEHICLE_MAX_PRE_SAMPLES * 2
 		const val BASELINE_50_KMH_MPS: Double = 50.0 / 3.6
-		const val MPS_PER_KMH: Float = 1000f / 3600f
 		const val DEFAULT_ACCURACY_M: Float = 8f
 	}
 }
