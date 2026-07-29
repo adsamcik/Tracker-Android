@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 40,
-    "identityHash": "23ae5e29dcbb719557a24b26984e87b2",
+    "identityHash": "023750c05e8bb3986d5c62a98d5bf0b8",
     "entities": [
       {
         "tableName": "activity",
@@ -76,7 +76,7 @@
       },
       {
         "tableName": "location_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL, `source_signal_id` TEXT, `source_event_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0, `alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_source` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_conversion_status` TEXT NOT NULL DEFAULT 'unknown_legacy', `raw_gps_alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_model_version` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `raw_gps_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL DEFAULT 0, `delivery_age_ms` INTEGER, `acquisition_mode` TEXT NOT NULL DEFAULT 'UNKNOWN', `request_priority` TEXT NOT NULL DEFAULT 'UNKNOWN', `permission_precision` TEXT NOT NULL DEFAULT 'UNKNOWN', `batch_index` INTEGER NOT NULL DEFAULT 0, `batch_size` INTEGER NOT NULL DEFAULT 1, `is_mock` INTEGER NOT NULL DEFAULT 0, `estimator_version` INTEGER NOT NULL DEFAULT 1, `calibration_version` INTEGER NOT NULL DEFAULT 0, `legacy_lat` REAL, `legacy_lon` REAL, `legacy_alt_m` REAL, `source_signal_id` TEXT, `source_event_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0, `alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_source` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_conversion_status` TEXT NOT NULL DEFAULT 'unknown_legacy', `raw_gps_alt_datum` TEXT NOT NULL DEFAULT 'unknown_legacy', `alt_model_version` INTEGER NOT NULL DEFAULT 0, `raw_platform_speed_mps` REAL, `raw_platform_speed_accuracy_mps` REAL, `bearing_deg` REAL, `bearing_accuracy_deg` REAL, `boot_clock_domain_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -308,6 +308,31 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "rawPlatformSpeedMps",
+            "columnName": "raw_platform_speed_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rawPlatformSpeedAccuracyMps",
+            "columnName": "raw_platform_speed_accuracy_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bearingDeg",
+            "columnName": "bearing_deg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bearingAccuracyDeg",
+            "columnName": "bearing_accuracy_deg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -377,7 +402,7 @@
       },
       {
         "tableName": "location_observation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fix_time_ms` INTEGER NOT NULL, `fix_elapsed_realtime_nanos` INTEGER NOT NULL, `received_at_ms` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL, `delivery_age_ms` INTEGER, `lat_e7` INTEGER, `lon_e7` INTEGER, `raw_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `acquisition_mode` TEXT NOT NULL, `request_priority` TEXT NOT NULL, `permission_precision` TEXT NOT NULL, `batch_index` INTEGER NOT NULL, `batch_size` INTEGER NOT NULL, `is_mock` INTEGER NOT NULL, `ingress_disposition` TEXT NOT NULL, `estimator_version` INTEGER NOT NULL, `calibration_version` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `source_event_id` TEXT, `callback_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fix_time_ms` INTEGER NOT NULL, `fix_elapsed_realtime_nanos` INTEGER NOT NULL, `received_at_ms` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL, `delivery_age_ms` INTEGER, `lat_e7` INTEGER, `lon_e7` INTEGER, `raw_alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `acquisition_mode` TEXT NOT NULL, `request_priority` TEXT NOT NULL, `permission_precision` TEXT NOT NULL, `batch_index` INTEGER NOT NULL, `batch_size` INTEGER NOT NULL, `is_mock` INTEGER NOT NULL, `ingress_disposition` TEXT NOT NULL, `estimator_version` INTEGER NOT NULL, `calibration_version` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `source_event_id` TEXT, `callback_id` TEXT, `clock_domain_id` TEXT, `source_revision` INTEGER NOT NULL DEFAULT 0, `bearing_deg` REAL, `bearing_accuracy_deg` REAL, `boot_clock_domain_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -541,6 +566,21 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "bearingDeg",
+            "columnName": "bearing_deg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bearingAccuracyDeg",
+            "columnName": "bearing_accuracy_deg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -702,7 +742,7 @@
       },
       {
         "tableName": "step_interval",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `step_count` INTEGER NOT NULL, `sensor_value_start` INTEGER NOT NULL, `sensor_value_end` INTEGER NOT NULL, `sensor_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `step_count` INTEGER NOT NULL, `sensor_value_start` INTEGER NOT NULL, `sensor_value_end` INTEGER NOT NULL, `sensor_reset` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `source_time_ms` INTEGER, `source_elapsed_realtime_nanos` INTEGER, `source_first_elapsed_realtime_nanos` INTEGER, `received_time_ms` INTEGER, `received_elapsed_realtime_nanos` INTEGER, `source_sequence` INTEGER, `source_first_sequence` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `source_age_ms` INTEGER, `time_uncertainty_ms` INTEGER, `capability_flags` TEXT, `permission_precision` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -756,6 +796,71 @@
             "fieldPath": "sourceSignalId",
             "columnName": "source_signal_id",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceTimeMs",
+            "columnName": "source_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceElapsedRealtimeNanos",
+            "columnName": "source_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstElapsedRealtimeNanos",
+            "columnName": "source_first_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedTimeMs",
+            "columnName": "received_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstSequence",
+            "columnName": "source_first_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceAgeMs",
+            "columnName": "source_age_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.timeUncertaintyMs",
+            "columnName": "time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.capabilityFlags",
+            "columnName": "capability_flags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.permissionPrecision",
+            "columnName": "permission_precision",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -788,7 +893,7 @@
       },
       {
         "tableName": "activity_snapshot",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `activity_type` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `is_transition` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `activity_type` INTEGER NOT NULL, `confidence` INTEGER NOT NULL, `is_transition` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `source_time_ms` INTEGER, `source_elapsed_realtime_nanos` INTEGER, `source_first_elapsed_realtime_nanos` INTEGER, `received_time_ms` INTEGER, `received_elapsed_realtime_nanos` INTEGER, `source_sequence` INTEGER, `source_first_sequence` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `source_age_ms` INTEGER, `time_uncertainty_ms` INTEGER, `capability_flags` TEXT, `permission_precision` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -830,6 +935,71 @@
             "fieldPath": "sourceSignalId",
             "columnName": "source_signal_id",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceTimeMs",
+            "columnName": "source_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceElapsedRealtimeNanos",
+            "columnName": "source_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstElapsedRealtimeNanos",
+            "columnName": "source_first_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedTimeMs",
+            "columnName": "received_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstSequence",
+            "columnName": "source_first_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceAgeMs",
+            "columnName": "source_age_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.timeUncertaintyMs",
+            "columnName": "time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.capabilityFlags",
+            "columnName": "capability_flags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.permissionPrecision",
+            "columnName": "permission_precision",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -861,7 +1031,7 @@
       },
       {
         "tableName": "cell_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_alt_m` REAL, `legacy_mcc` TEXT, `legacy_mnc` TEXT, `legacy_source_id` INTEGER, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_alt_m` REAL, `legacy_mcc` TEXT, `legacy_mnc` TEXT, `legacy_source_id` INTEGER, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER, `source_time_ms` INTEGER, `source_elapsed_realtime_nanos` INTEGER, `source_first_elapsed_realtime_nanos` INTEGER, `received_time_ms` INTEGER, `received_elapsed_realtime_nanos` INTEGER, `source_sequence` INTEGER, `source_first_sequence` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `source_age_ms` INTEGER, `time_uncertainty_ms` INTEGER, `capability_flags` TEXT, `permission_precision` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -972,6 +1142,71 @@
             "fieldPath": "sourceItemIndex",
             "columnName": "source_item_index",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceTimeMs",
+            "columnName": "source_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceElapsedRealtimeNanos",
+            "columnName": "source_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstElapsedRealtimeNanos",
+            "columnName": "source_first_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedTimeMs",
+            "columnName": "received_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstSequence",
+            "columnName": "source_first_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceAgeMs",
+            "columnName": "source_age_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.timeUncertaintyMs",
+            "columnName": "time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.capabilityFlags",
+            "columnName": "capability_flags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.permissionPrecision",
+            "columnName": "permission_precision",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1023,7 +1258,7 @@
       },
       {
         "tableName": "wifi_observation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_first_seen_ms` INTEGER, `legacy_alt_m` REAL, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `legacy_first_seen_ms` INTEGER, `legacy_alt_m` REAL, `legacy_lat` REAL, `legacy_lon` REAL, `source_signal_id` TEXT, `source_item_index` INTEGER, `source_time_ms` INTEGER, `source_elapsed_realtime_nanos` INTEGER, `source_first_elapsed_realtime_nanos` INTEGER, `received_time_ms` INTEGER, `received_elapsed_realtime_nanos` INTEGER, `source_sequence` INTEGER, `source_first_sequence` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `source_age_ms` INTEGER, `time_uncertainty_ms` INTEGER, `capability_flags` TEXT, `permission_precision` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -1118,6 +1353,71 @@
             "fieldPath": "sourceItemIndex",
             "columnName": "source_item_index",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceTimeMs",
+            "columnName": "source_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceElapsedRealtimeNanos",
+            "columnName": "source_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstElapsedRealtimeNanos",
+            "columnName": "source_first_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedTimeMs",
+            "columnName": "received_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstSequence",
+            "columnName": "source_first_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceAgeMs",
+            "columnName": "source_age_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.timeUncertaintyMs",
+            "columnName": "time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.capabilityFlags",
+            "columnName": "capability_flags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.permissionPrecision",
+            "columnName": "permission_precision",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -2108,6 +2408,639 @@
         ]
       },
       {
+        "tableName": "trajectory_reconstruction_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`run_id` TEXT NOT NULL, `source_start_ms` INTEGER NOT NULL, `source_end_ms` INTEGER NOT NULL, `source_clock_domain_id` TEXT, `source_boot_clock_domain_id` TEXT, `source_start_elapsed_realtime_nanos` INTEGER, `source_end_elapsed_realtime_nanos` INTEGER, `source_revision` INTEGER NOT NULL, `algorithm_version` TEXT NOT NULL, `configuration_version` TEXT NOT NULL, `permission_branch` TEXT NOT NULL, `status` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, `completed_at_ms` INTEGER, `supersedes_run_id` TEXT, `failure_reason` TEXT, PRIMARY KEY(`run_id`))",
+        "fields": [
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceStartMs",
+            "columnName": "source_start_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEndMs",
+            "columnName": "source_end_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceClockDomainId",
+            "columnName": "source_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceBootClockDomainId",
+            "columnName": "source_boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceStartElapsedRealtimeNanos",
+            "columnName": "source_start_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceEndElapsedRealtimeNanos",
+            "columnName": "source_end_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "algorithmVersion",
+            "columnName": "algorithm_version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "configurationVersion",
+            "columnName": "configuration_version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "permissionBranch",
+            "columnName": "permission_branch",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtMs",
+            "columnName": "completed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "supersedesRunId",
+            "columnName": "supersedes_run_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "failureReason",
+            "columnName": "failure_reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "run_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_reconstruction_run_range",
+            "unique": false,
+            "columnNames": [
+              "source_start_ms",
+              "source_end_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_reconstruction_run_range` ON `${TABLE_NAME}` (`source_start_ms`, `source_end_ms`)"
+          },
+          {
+            "name": "idx_reconstruction_run_clock_range",
+            "unique": false,
+            "columnNames": [
+              "source_clock_domain_id",
+              "source_start_elapsed_realtime_nanos",
+              "source_end_elapsed_realtime_nanos"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_reconstruction_run_clock_range` ON `${TABLE_NAME}` (`source_clock_domain_id`, `source_start_elapsed_realtime_nanos`, `source_end_elapsed_realtime_nanos`)"
+          },
+          {
+            "name": "idx_reconstruction_run_status",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "created_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_reconstruction_run_status` ON `${TABLE_NAME}` (`status`, `created_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "trajectory_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `run_id` TEXT NOT NULL, `state_index` INTEGER NOT NULL, `estimate_kind` TEXT NOT NULL, `source_event_id` TEXT, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `lat_e7` INTEGER NOT NULL, `lon_e7` INTEGER NOT NULL, `velocity_east_mps` REAL NOT NULL, `velocity_north_mps` REAL NOT NULL, `covariance_ee_m2` REAL NOT NULL, `covariance_en_m2` REAL NOT NULL, `covariance_nn_m2` REAL NOT NULL, `stationary_probability` REAL NOT NULL, `observation_weight` REAL NOT NULL, `observation_health` TEXT NOT NULL, FOREIGN KEY(`run_id`) REFERENCES `trajectory_reconstruction_run`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateIndex",
+            "columnName": "state_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimateKind",
+            "columnName": "estimate_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "timeMs",
+            "columnName": "time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latE7",
+            "columnName": "lat_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lonE7",
+            "columnName": "lon_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "velocityEastMps",
+            "columnName": "velocity_east_mps",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "velocityNorthMps",
+            "columnName": "velocity_north_mps",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceEastEastM2",
+            "columnName": "covariance_ee_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceEastNorthM2",
+            "columnName": "covariance_en_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceNorthNorthM2",
+            "columnName": "covariance_nn_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationaryProbability",
+            "columnName": "stationary_probability",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observationWeight",
+            "columnName": "observation_weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observationHealth",
+            "columnName": "observation_health",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_trajectory_state_order",
+            "unique": true,
+            "columnNames": [
+              "run_id",
+              "estimate_kind",
+              "state_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_trajectory_state_order` ON `${TABLE_NAME}` (`run_id`, `estimate_kind`, `state_index`)"
+          },
+          {
+            "name": "idx_trajectory_state_time",
+            "unique": false,
+            "columnNames": [
+              "run_id",
+              "time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_state_time` ON `${TABLE_NAME}` (`run_id`, `time_ms`)"
+          },
+          {
+            "name": "idx_trajectory_state_source_event",
+            "unique": false,
+            "columnNames": [
+              "source_event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_state_source_event` ON `${TABLE_NAME}` (`source_event_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trajectory_reconstruction_run",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_id"
+            ],
+            "referencedColumns": [
+              "run_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "trajectory_source_link",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`run_id` TEXT NOT NULL, `state_index` INTEGER NOT NULL, `observation_id` INTEGER NOT NULL, `source_event_id` TEXT, `source_signal_id` TEXT, `step_interval_id` INTEGER, `activity_snapshot_id` INTEGER, `weight` REAL NOT NULL, `health` TEXT NOT NULL, `reason_codes` TEXT, PRIMARY KEY(`run_id`, `state_index`, `observation_id`), FOREIGN KEY(`run_id`) REFERENCES `trajectory_reconstruction_run`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateIndex",
+            "columnName": "state_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observationId",
+            "columnName": "observation_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceSignalId",
+            "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stepIntervalId",
+            "columnName": "step_interval_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "activitySnapshotId",
+            "columnName": "activity_snapshot_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "health",
+            "columnName": "health",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasonCodes",
+            "columnName": "reason_codes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "run_id",
+            "state_index",
+            "observation_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_trajectory_source_state",
+            "unique": false,
+            "columnNames": [
+              "run_id",
+              "state_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_source_state` ON `${TABLE_NAME}` (`run_id`, `state_index`)"
+          },
+          {
+            "name": "idx_trajectory_source_observation",
+            "unique": false,
+            "columnNames": [
+              "observation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_source_observation` ON `${TABLE_NAME}` (`observation_id`)"
+          },
+          {
+            "name": "idx_trajectory_source_step",
+            "unique": false,
+            "columnNames": [
+              "step_interval_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_source_step` ON `${TABLE_NAME}` (`step_interval_id`)"
+          },
+          {
+            "name": "idx_trajectory_source_activity",
+            "unique": false,
+            "columnNames": [
+              "activity_snapshot_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trajectory_source_activity` ON `${TABLE_NAME}` (`activity_snapshot_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trajectory_reconstruction_run",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_id"
+            ],
+            "referencedColumns": [
+              "run_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "route_hypothesis",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `run_id` TEXT NOT NULL, `rank` INTEGER NOT NULL, `probability` REAL NOT NULL, `map_version` TEXT, `travel_mode` TEXT NOT NULL, `encoded_geometry` BLOB, `unmatched_spans` TEXT, FOREIGN KEY(`run_id`) REFERENCES `trajectory_reconstruction_run`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rank",
+            "columnName": "rank",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "probability",
+            "columnName": "probability",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mapVersion",
+            "columnName": "map_version",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "travelMode",
+            "columnName": "travel_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encodedGeometry",
+            "columnName": "encoded_geometry",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "unmatchedSpans",
+            "columnName": "unmatched_spans",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_route_hypothesis_rank",
+            "unique": true,
+            "columnNames": [
+              "run_id",
+              "rank"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_route_hypothesis_rank` ON `${TABLE_NAME}` (`run_id`, `rank`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trajectory_reconstruction_run",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_id"
+            ],
+            "referencedColumns": [
+              "run_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "visit_interval",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `run_id` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `start_elapsed_realtime_nanos` INTEGER, `end_elapsed_realtime_nanos` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `arrival_uncertainty_ms` INTEGER NOT NULL, `departure_uncertainty_ms` INTEGER NOT NULL, `centroid_lat_e7` INTEGER NOT NULL, `centroid_lon_e7` INTEGER NOT NULL, `covariance_ee_m2` REAL NOT NULL, `covariance_en_m2` REAL NOT NULL, `covariance_nn_m2` REAL NOT NULL, `probability` REAL NOT NULL, FOREIGN KEY(`run_id`) REFERENCES `trajectory_reconstruction_run`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startElapsedRealtimeNanos",
+            "columnName": "start_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "endElapsedRealtimeNanos",
+            "columnName": "end_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "arrivalUncertaintyMs",
+            "columnName": "arrival_uncertainty_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "departureUncertaintyMs",
+            "columnName": "departure_uncertainty_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centroidLatE7",
+            "columnName": "centroid_lat_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centroidLonE7",
+            "columnName": "centroid_lon_e7",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceEastEastM2",
+            "columnName": "covariance_ee_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceEastNorthM2",
+            "columnName": "covariance_en_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "covarianceNorthNorthM2",
+            "columnName": "covariance_nn_m2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "probability",
+            "columnName": "probability",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_visit_interval_run_time",
+            "unique": false,
+            "columnNames": [
+              "run_id",
+              "start_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_visit_interval_run_time` ON `${TABLE_NAME}` (`run_id`, `start_time_ms`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trajectory_reconstruction_run",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_id"
+            ],
+            "referencedColumns": [
+              "run_id"
+            ]
+          }
+        ]
+      },
+      {
         "tableName": "exploration_cell",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `cell_token` TEXT NOT NULL, `level` INTEGER NOT NULL, `quality` INTEGER NOT NULL, `first_discovered_at` INTEGER NOT NULL, `last_visited_at` INTEGER NOT NULL, `visit_count` INTEGER NOT NULL DEFAULT 1, `season_bitmask` INTEGER NOT NULL DEFAULT 0, `center_lat_e7` INTEGER NOT NULL, `center_lon_e7` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
         "fields": [
@@ -2903,7 +3836,7 @@
       },
       {
         "tableName": "pressure_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `pressure_hpa` REAL NOT NULL, `altitude_m` REAL NOT NULL, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `pressure_hpa` REAL NOT NULL, `altitude_m` REAL NOT NULL, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL, `source_signal_id` TEXT, `sample_count` INTEGER NOT NULL DEFAULT 1, `min_pressure_hpa` REAL, `max_pressure_hpa` REAL, `pressure_stddev_hpa` REAL, `window_start_elapsed_realtime_nanos` INTEGER, `window_end_elapsed_realtime_nanos` INTEGER, `source_time_ms` INTEGER, `source_elapsed_realtime_nanos` INTEGER, `source_first_elapsed_realtime_nanos` INTEGER, `received_time_ms` INTEGER, `received_elapsed_realtime_nanos` INTEGER, `source_sequence` INTEGER, `source_first_sequence` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `source_age_ms` INTEGER, `time_uncertainty_ms` INTEGER, `capability_flags` TEXT, `permission_precision` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -2949,6 +3882,103 @@
           {
             "fieldPath": "sourceSignalId",
             "columnName": "source_signal_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sampleCount",
+            "columnName": "sample_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "minPressureHpa",
+            "columnName": "min_pressure_hpa",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "maxPressureHpa",
+            "columnName": "max_pressure_hpa",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "standardDeviationHpa",
+            "columnName": "pressure_stddev_hpa",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "windowStartElapsedRealtimeNanos",
+            "columnName": "window_start_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "windowEndElapsedRealtimeNanos",
+            "columnName": "window_end_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceTimeMs",
+            "columnName": "source_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceElapsedRealtimeNanos",
+            "columnName": "source_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstElapsedRealtimeNanos",
+            "columnName": "source_first_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedTimeMs",
+            "columnName": "received_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.sourceFirstSequence",
+            "columnName": "source_first_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.sourceAgeMs",
+            "columnName": "source_age_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.timeUncertaintyMs",
+            "columnName": "time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observationStamp.capabilityFlags",
+            "columnName": "capability_flags",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observationStamp.permissionPrecision",
+            "columnName": "permission_precision",
             "affinity": "TEXT"
           }
         ],
@@ -3480,7 +4510,7 @@
       },
       {
         "tableName": "osm_import",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `display_name` TEXT NOT NULL, `file_uri` TEXT NOT NULL, `imported_at` INTEGER NOT NULL, `way_count` INTEGER NOT NULL, `node_count` INTEGER NOT NULL, `min_lat_e7` INTEGER NOT NULL, `max_lat_e7` INTEGER NOT NULL, `min_lon_e7` INTEGER NOT NULL, `max_lon_e7` INTEGER NOT NULL, `way_bbox_encoding_version` INTEGER NOT NULL DEFAULT 0, `status` TEXT NOT NULL DEFAULT 'READY', `cell_index_built` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `display_name` TEXT NOT NULL, `file_uri` TEXT NOT NULL, `imported_at` INTEGER NOT NULL, `way_count` INTEGER NOT NULL, `node_count` INTEGER NOT NULL, `min_lat_e7` INTEGER NOT NULL, `max_lat_e7` INTEGER NOT NULL, `min_lon_e7` INTEGER NOT NULL, `max_lon_e7` INTEGER NOT NULL, `way_bbox_encoding_version` INTEGER NOT NULL DEFAULT 0, `status` TEXT NOT NULL DEFAULT 'READY', `cell_index_built` INTEGER NOT NULL DEFAULT 0, `published_revision` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -3562,6 +4592,13 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "publishedRevision",
+            "columnName": "published_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -3573,11 +4610,17 @@
       },
       {
         "tableName": "osm_way",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `import_id` INTEGER NOT NULL, `name` TEXT, `road_class` TEXT NOT NULL, `maxspeed_kmh` INTEGER NOT NULL, `maxspeed_explicit` INTEGER NOT NULL, `is_oneway` INTEGER NOT NULL, `geom_polyline_e7` BLOB NOT NULL, `bbox_min_lat_e7` INTEGER NOT NULL, `bbox_max_lat_e7` INTEGER NOT NULL, `bbox_min_lon_e7` INTEGER NOT NULL, `bbox_max_lon_e7` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`import_id`) REFERENCES `osm_import`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`osm_way_id` INTEGER NOT NULL, `way_instance_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `import_id` INTEGER NOT NULL, `osm_version` INTEGER, `name` TEXT, `road_class` TEXT NOT NULL, `maxspeed_kmh` INTEGER NOT NULL, `maxspeed_explicit` INTEGER NOT NULL, `is_oneway` INTEGER NOT NULL, `geom_polyline_e7` BLOB NOT NULL, `bbox_min_lat_e7` INTEGER NOT NULL, `bbox_max_lat_e7` INTEGER NOT NULL, `bbox_min_lon_e7` INTEGER NOT NULL, `bbox_max_lon_e7` INTEGER NOT NULL, FOREIGN KEY(`import_id`) REFERENCES `osm_import`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
-            "columnName": "id",
+            "columnName": "osm_way_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wayInstanceId",
+            "columnName": "way_instance_id",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -3586,6 +4629,11 @@
             "columnName": "import_id",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "osmVersion",
+            "columnName": "osm_version",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "name",
@@ -3648,9 +4696,9 @@
           }
         ],
         "primaryKey": {
-          "autoGenerate": false,
+          "autoGenerate": true,
           "columnNames": [
-            "id"
+            "way_instance_id"
           ]
         },
         "indices": [
@@ -3662,6 +4710,25 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_osm_way_import` ON `${TABLE_NAME}` (`import_id`)"
+          },
+          {
+            "name": "idx_osm_way_import_osm_id",
+            "unique": true,
+            "columnNames": [
+              "import_id",
+              "osm_way_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_osm_way_import_osm_id` ON `${TABLE_NAME}` (`import_id`, `osm_way_id`)"
+          },
+          {
+            "name": "idx_osm_way_osm_id",
+            "unique": false,
+            "columnNames": [
+              "osm_way_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_osm_way_osm_id` ON `${TABLE_NAME}` (`osm_way_id`)"
           }
         ],
         "foreignKeys": [
@@ -3680,7 +4747,7 @@
       },
       {
         "tableName": "osm_way_cell",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`cell_key` INTEGER NOT NULL, `way_id` INTEGER NOT NULL, PRIMARY KEY(`cell_key`, `way_id`), FOREIGN KEY(`way_id`) REFERENCES `osm_way`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`cell_key` INTEGER NOT NULL, `way_id` INTEGER NOT NULL, PRIMARY KEY(`cell_key`, `way_id`), FOREIGN KEY(`way_id`) REFERENCES `osm_way`(`way_instance_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "cellKey",
@@ -3731,7 +4798,7 @@
               "way_id"
             ],
             "referencedColumns": [
-              "id"
+              "way_instance_id"
             ]
           }
         ]
@@ -3739,7 +4806,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '23ae5e29dcbb719557a24b26984e87b2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '023750c05e8bb3986d5c62a98d5bf0b8')"
     ]
   }
 }

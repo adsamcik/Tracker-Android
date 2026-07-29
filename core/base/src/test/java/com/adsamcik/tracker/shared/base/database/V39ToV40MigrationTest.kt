@@ -98,9 +98,13 @@ class V39ToV40MigrationTest {
 		MIGRATION_39_40.migrate(db)
 
 		columnExists("osm_import", "way_bbox_encoding_version") shouldBe true
-		db.query("SELECT way_bbox_encoding_version FROM osm_import WHERE id = 1").use { cursor ->
+		columnExists("osm_import", "published_revision") shouldBe true
+		db.query(
+			"SELECT way_bbox_encoding_version, published_revision FROM osm_import WHERE id = 1",
+		).use { cursor ->
 			cursor.moveToFirst() shouldBe true
 			cursor.getInt(0) shouldBe 0
+			cursor.getLong(1) shouldBe 0L
 		}
 	}
 

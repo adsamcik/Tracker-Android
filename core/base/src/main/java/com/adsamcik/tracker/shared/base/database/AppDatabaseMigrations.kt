@@ -1561,8 +1561,10 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
  *
  *  - `osm_import` — one row per user-imported `.osm.pbf` file. Acts as the
  *    "is the OSM source active?" signal for `DefaultSpeedLimitSource`.
- *  - `osm_way` — one row per driveable OSM way; inline-encoded geometry,
- *    explicit `maxspeed_kmh`, road class, and bbox.
+ *  - `osm_way` — one immutable, import-scoped instance per driveable OSM
+ *    way; inline-encoded geometry, explicit `maxspeed_kmh`, road class, and
+ *    bbox. The local surrogate key is distinct from the upstream OSM id so
+ *    overlapping retained regions cannot replace one another.
  *  - `osm_way_cell` — coarse-grid spatial index linking each way to every
  *    grid cell its bbox overlaps. Cell key is
  *    `(latE7 / 800_000) << 24 | (lonE7 / 800_000) & 0xFFFFFF`.
@@ -1595,8 +1597,10 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS osm_way (
-					id INTEGER PRIMARY KEY NOT NULL,
+					way_instance_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					osm_way_id INTEGER NOT NULL,
 					import_id INTEGER NOT NULL,
+					osm_version INTEGER,
 					name TEXT,
 					road_class TEXT NOT NULL,
 					maxspeed_kmh INTEGER NOT NULL,
@@ -1612,6 +1616,11 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 				""".trimIndent(),
 			)
 			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_import ON osm_way(import_id)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_osm_way_import_osm_id " +
+					"ON osm_way(import_id, osm_way_id)",
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_osm_id ON osm_way(osm_way_id)")
 
 			execSQL(
 				"""
@@ -1619,7 +1628,7 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 					cell_key INTEGER NOT NULL,
 					way_id INTEGER NOT NULL,
 					PRIMARY KEY(cell_key, way_id),
-					FOREIGN KEY(way_id) REFERENCES osm_way(id) ON UPDATE NO ACTION ON DELETE CASCADE
+					FOREIGN KEY(way_id) REFERENCES osm_way(way_instance_id) ON UPDATE NO ACTION ON DELETE CASCADE
 				)
 				""".trimIndent(),
 			)
@@ -2241,6 +2250,223 @@ val MIGRATION_39_40: Migration = object : Migration(39, 40) {
 				"alt_model_version",
 				"INTEGER NOT NULL DEFAULT 0",
 			)
+			listOf(
+				"raw_platform_speed_mps" to "REAL",
+				"raw_platform_speed_accuracy_mps" to "REAL",
+				"bearing_deg" to "REAL",
+				"bearing_accuracy_deg" to "REAL",
+				"boot_clock_domain_id" to "TEXT",
+			).forEach { (column, type) ->
+				addColumnIfMissing(this, "location_sample", column, type)
+			}
+			if (tableExists(this, "location_observation")) {
+				listOf(
+					"bearing_deg" to "REAL",
+					"bearing_accuracy_deg" to "REAL",
+					"boot_clock_domain_id" to "TEXT",
+				).forEach { (column, type) ->
+					addColumnIfMissing(this, "location_observation", column, type)
+				}
+			}
+			val observationStampColumns = listOf(
+				"source_time_ms" to "INTEGER",
+				"source_elapsed_realtime_nanos" to "INTEGER",
+				"source_first_elapsed_realtime_nanos" to "INTEGER",
+				"received_time_ms" to "INTEGER",
+				"received_elapsed_realtime_nanos" to "INTEGER",
+				"source_sequence" to "INTEGER",
+				"source_first_sequence" to "INTEGER",
+				"clock_domain_id" to "TEXT",
+				"boot_clock_domain_id" to "TEXT",
+				"source_age_ms" to "INTEGER",
+				"time_uncertainty_ms" to "INTEGER",
+				"capability_flags" to "TEXT",
+				"permission_precision" to "TEXT",
+			)
+			listOf(
+				"activity_snapshot",
+				"step_interval",
+				"cell_sample",
+				"wifi_observation",
+				"pressure_sample",
+			).forEach { table ->
+				if (tableExists(this, table)) {
+					observationStampColumns.forEach { (column, type) ->
+						addColumnIfMissing(this, table, column, type)
+					}
+				}
+			}
+			if (tableExists(this, "pressure_sample")) {
+				listOf(
+					"sample_count" to "INTEGER NOT NULL DEFAULT 1",
+					"min_pressure_hpa" to "REAL",
+					"max_pressure_hpa" to "REAL",
+					"pressure_stddev_hpa" to "REAL",
+					"window_start_elapsed_realtime_nanos" to "INTEGER",
+					"window_end_elapsed_realtime_nanos" to "INTEGER",
+				).forEach { (column, type) ->
+					addColumnIfMissing(this, "pressure_sample", column, type)
+				}
+			}
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS trajectory_reconstruction_run (
+					run_id TEXT NOT NULL,
+					source_start_ms INTEGER NOT NULL,
+					source_end_ms INTEGER NOT NULL,
+					source_clock_domain_id TEXT,
+					source_boot_clock_domain_id TEXT,
+					source_start_elapsed_realtime_nanos INTEGER,
+					source_end_elapsed_realtime_nanos INTEGER,
+					source_revision INTEGER NOT NULL,
+					algorithm_version TEXT NOT NULL,
+					configuration_version TEXT NOT NULL,
+					permission_branch TEXT NOT NULL,
+					status TEXT NOT NULL,
+					created_at_ms INTEGER NOT NULL,
+					completed_at_ms INTEGER,
+					supersedes_run_id TEXT,
+					failure_reason TEXT,
+					PRIMARY KEY(run_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_reconstruction_run_range " +
+					"ON trajectory_reconstruction_run(source_start_ms, source_end_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_reconstruction_run_clock_range " +
+					"ON trajectory_reconstruction_run(" +
+					"source_clock_domain_id, source_start_elapsed_realtime_nanos, " +
+					"source_end_elapsed_realtime_nanos)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_reconstruction_run_status " +
+					"ON trajectory_reconstruction_run(status, created_at_ms)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS trajectory_state (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					run_id TEXT NOT NULL,
+					state_index INTEGER NOT NULL,
+					estimate_kind TEXT NOT NULL,
+					source_event_id TEXT,
+					time_ms INTEGER NOT NULL,
+					elapsed_realtime_nanos INTEGER,
+					clock_domain_id TEXT,
+					boot_clock_domain_id TEXT,
+					lat_e7 INTEGER NOT NULL,
+					lon_e7 INTEGER NOT NULL,
+					velocity_east_mps REAL NOT NULL,
+					velocity_north_mps REAL NOT NULL,
+					covariance_ee_m2 REAL NOT NULL,
+					covariance_en_m2 REAL NOT NULL,
+					covariance_nn_m2 REAL NOT NULL,
+					stationary_probability REAL NOT NULL,
+					observation_weight REAL NOT NULL,
+					observation_health TEXT NOT NULL,
+					FOREIGN KEY(run_id) REFERENCES trajectory_reconstruction_run(run_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_trajectory_state_order " +
+					"ON trajectory_state(run_id, estimate_kind, state_index)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_state_time " +
+					"ON trajectory_state(run_id, time_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_state_source_event " +
+					"ON trajectory_state(source_event_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS trajectory_source_link (
+					run_id TEXT NOT NULL,
+					state_index INTEGER NOT NULL,
+					observation_id INTEGER NOT NULL,
+					source_event_id TEXT,
+					source_signal_id TEXT,
+					step_interval_id INTEGER,
+					activity_snapshot_id INTEGER,
+					weight REAL NOT NULL,
+					health TEXT NOT NULL,
+					reason_codes TEXT,
+					PRIMARY KEY(run_id, state_index, observation_id),
+					FOREIGN KEY(run_id) REFERENCES trajectory_reconstruction_run(run_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_source_state " +
+					"ON trajectory_source_link(run_id, state_index)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_source_observation " +
+					"ON trajectory_source_link(observation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_source_step " +
+					"ON trajectory_source_link(step_interval_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_trajectory_source_activity " +
+					"ON trajectory_source_link(activity_snapshot_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS route_hypothesis (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					run_id TEXT NOT NULL,
+					rank INTEGER NOT NULL,
+					probability REAL NOT NULL,
+					map_version TEXT,
+					travel_mode TEXT NOT NULL,
+					encoded_geometry BLOB,
+					unmatched_spans TEXT,
+					FOREIGN KEY(run_id) REFERENCES trajectory_reconstruction_run(run_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_route_hypothesis_rank " +
+					"ON route_hypothesis(run_id, rank)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS visit_interval (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					run_id TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					start_elapsed_realtime_nanos INTEGER,
+					end_elapsed_realtime_nanos INTEGER,
+					clock_domain_id TEXT,
+					boot_clock_domain_id TEXT,
+					arrival_uncertainty_ms INTEGER NOT NULL,
+					departure_uncertainty_ms INTEGER NOT NULL,
+					centroid_lat_e7 INTEGER NOT NULL,
+					centroid_lon_e7 INTEGER NOT NULL,
+					covariance_ee_m2 REAL NOT NULL,
+					covariance_en_m2 REAL NOT NULL,
+					covariance_nn_m2 REAL NOT NULL,
+					probability REAL NOT NULL,
+					FOREIGN KEY(run_id) REFERENCES trajectory_reconstruction_run(run_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_visit_interval_run_time " +
+					"ON visit_interval(run_id, start_time_ms)",
+			)
 			// OSM schemas are unreleased. Mark pre-directed development rows as
 			// legacy so startup can delete/re-import them rather than reinterpret
 			// ordinary longitude extrema as circular directed bounds.
@@ -2251,7 +2477,64 @@ val MIGRATION_39_40: Migration = object : Migration(39, 40) {
 					"way_bbox_encoding_version",
 					"INTEGER NOT NULL DEFAULT 0",
 				)
+				addColumnIfMissing(
+					this,
+					"osm_import",
+					"published_revision",
+					"INTEGER NOT NULL DEFAULT 0",
+				)
 			}
+			// All OSM schemas are unreleased. Reset only the graph tables so a
+			// development database cannot carry the former global-primary-key
+			// layout into schema 40. Retained import headers are deliberately
+			// marked legacy by the bbox default above and startup asks for a
+			// re-import rather than guessing their old graph semantics.
+			if (tableExists(this, "osm_way_cell")) {
+				execSQL("DROP TABLE osm_way_cell")
+			}
+			if (tableExists(this, "osm_way")) {
+				execSQL("DROP TABLE osm_way")
+			}
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS osm_way (
+					way_instance_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					osm_way_id INTEGER NOT NULL,
+					import_id INTEGER NOT NULL,
+					osm_version INTEGER,
+					name TEXT,
+					road_class TEXT NOT NULL,
+					maxspeed_kmh INTEGER NOT NULL,
+					maxspeed_explicit INTEGER NOT NULL,
+					is_oneway INTEGER NOT NULL,
+					geom_polyline_e7 BLOB NOT NULL,
+					bbox_min_lat_e7 INTEGER NOT NULL,
+					bbox_max_lat_e7 INTEGER NOT NULL,
+					bbox_min_lon_e7 INTEGER NOT NULL,
+					bbox_max_lon_e7 INTEGER NOT NULL,
+					FOREIGN KEY(import_id) REFERENCES osm_import(id) ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_import ON osm_way(import_id)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_osm_way_import_osm_id " +
+					"ON osm_way(import_id, osm_way_id)",
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_osm_id ON osm_way(osm_way_id)")
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS osm_way_cell (
+					cell_key INTEGER NOT NULL,
+					way_id INTEGER NOT NULL,
+					PRIMARY KEY(cell_key, way_id),
+					FOREIGN KEY(way_id) REFERENCES osm_way(way_instance_id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_cell ON osm_way_cell(cell_key)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_way ON osm_way_cell(way_id)")
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS import_job_receipt (

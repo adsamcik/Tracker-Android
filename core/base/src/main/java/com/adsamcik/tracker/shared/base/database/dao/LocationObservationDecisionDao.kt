@@ -21,6 +21,15 @@ interface LocationObservationDecisionDao {
 	)
 	suspend fun getBySourceEventId(sourceEventId: String): LocationObservationDecision?
 
+	@Query(
+		"""
+		SELECT * FROM location_observation_decision
+		WHERE decided_at_ms >= :fromMs AND decided_at_ms <= :toMs
+		ORDER BY decided_at_ms ASC, id ASC
+		""",
+	)
+	suspend fun getBetween(fromMs: Long, toMs: Long): List<LocationObservationDecision>
+
 	@Query("DELETE FROM location_observation_decision WHERE decided_at_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 

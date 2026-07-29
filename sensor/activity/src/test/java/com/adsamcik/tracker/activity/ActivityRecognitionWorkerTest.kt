@@ -16,7 +16,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState

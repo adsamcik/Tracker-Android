@@ -209,6 +209,22 @@ data class LocationSample(
 
 	@ColumnInfo(name = "alt_model_version", defaultValue = "0")
 	val altitudeModelVersion: Int = 0,
+
+	/** Unmodified Android provider motion evidence, distinct from the curated [speedMps]. */
+	@ColumnInfo(name = "raw_platform_speed_mps")
+	val rawPlatformSpeedMps: Float? = null,
+
+	@ColumnInfo(name = "raw_platform_speed_accuracy_mps")
+	val rawPlatformSpeedAccuracyMps: Float? = null,
+
+	@ColumnInfo(name = "bearing_deg")
+	val bearingDeg: Float? = null,
+
+	@ColumnInfo(name = "bearing_accuracy_deg")
+	val bearingAccuracyDeg: Float? = null,
+
+	@ColumnInfo(name = "boot_clock_domain_id")
+	val bootClockDomainId: String? = null,
 )
 
 /**

@@ -11,7 +11,6 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.stats.api.AchievementCategory
@@ -20,6 +19,7 @@ import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.geo.CountryBoundaryLookup
+import com.adsamcik.tracker.shared.model.SegmentSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId

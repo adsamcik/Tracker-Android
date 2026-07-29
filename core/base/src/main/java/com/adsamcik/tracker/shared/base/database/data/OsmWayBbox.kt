@@ -15,7 +15,8 @@ import androidx.room.ColumnInfo
  * endpoints.
  */
 data class OsmWayBbox(
-	@ColumnInfo(name = "id") val id: Long,
+	/** Local `osm_way.way_instance_id`, used as the cell-table foreign key. */
+	@ColumnInfo(name = "way_instance_id") val wayInstanceId: Long,
 	@ColumnInfo(name = "bbox_min_lat_e7") val bboxMinLatE7: Int,
 	@ColumnInfo(name = "bbox_max_lat_e7") val bboxMaxLatE7: Int,
 	/** Directed circular-longitude start; the legacy column name is retained. */

@@ -4,11 +4,11 @@ import androidx.room.TypeConverter
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.AltitudeSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 
 /**
  * Type converters for sessionless tracking enums.

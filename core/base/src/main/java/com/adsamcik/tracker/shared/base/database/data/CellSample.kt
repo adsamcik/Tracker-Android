@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Embedded
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -121,6 +122,9 @@ data class CellSample(
 	/** Zero-based item position within the source cell scan. */
 	@ColumnInfo(name = "source_item_index")
 	val sourceItemIndex: Int? = null,
+
+	@Embedded
+	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
 )
 
 /**

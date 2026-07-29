@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Embedded
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -55,4 +56,25 @@ data class PressureSample(
     /** Stable pending-signal identity used to make replay idempotent. */
     @ColumnInfo(name = "source_signal_id")
     val sourceSignalId: String? = null,
+
+    @ColumnInfo(name = "sample_count", defaultValue = "1")
+    val sampleCount: Int = 1,
+
+    @ColumnInfo(name = "min_pressure_hpa")
+    val minPressureHpa: Float? = null,
+
+    @ColumnInfo(name = "max_pressure_hpa")
+    val maxPressureHpa: Float? = null,
+
+    @ColumnInfo(name = "pressure_stddev_hpa")
+    val standardDeviationHpa: Float? = null,
+
+    @ColumnInfo(name = "window_start_elapsed_realtime_nanos")
+    val windowStartElapsedRealtimeNanos: Long? = null,
+
+    @ColumnInfo(name = "window_end_elapsed_realtime_nanos")
+    val windowEndElapsedRealtimeNanos: Long? = null,
+
+    @Embedded
+    val observationStamp: ObservationStampColumns = ObservationStampColumns(),
 )

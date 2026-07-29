@@ -6,8 +6,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
- * Spatial grid index linking an [OsmWayEntity] to every coarse grid cell its
- * bounding box overlaps.
+ * Spatial grid index linking one import-scoped [OsmWayEntity] instance to
+ * every coarse grid cell its bounding box overlaps.
  *
  * Cell keys are computed by [com.adsamcik.tracker.osm.io.OsmGridIndex] as
  * `(latE7 / CELL_E7) << 24 | (lonE7 / CELL_E7) & 0xFFFFFF`. The current cell
@@ -26,7 +26,7 @@ import androidx.room.Index
 	foreignKeys = [
 		ForeignKey(
 			entity = OsmWayEntity::class,
-			parentColumns = ["id"],
+			parentColumns = ["way_instance_id"],
 			childColumns = ["way_id"],
 			onDelete = ForeignKey.CASCADE,
 		),
@@ -38,5 +38,6 @@ import androidx.room.Index
 )
 data class OsmWayCellEntity(
 	@ColumnInfo(name = "cell_key") val cellKey: Long,
+	/** Local [OsmWayEntity.wayInstanceId], retained under the legacy column name. */
 	@ColumnInfo(name = "way_id") val wayId: Long,
 )

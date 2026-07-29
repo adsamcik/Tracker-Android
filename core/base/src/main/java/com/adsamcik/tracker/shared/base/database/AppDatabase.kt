@@ -35,6 +35,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
+import com.adsamcik.tracker.shared.base.database.dao.TrajectoryReconstructionDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
@@ -61,6 +62,11 @@ import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.shared.base.database.data.TripLegEntity
+import com.adsamcik.tracker.shared.base.database.data.TrajectoryReconstructionRunEntity
+import com.adsamcik.tracker.shared.base.database.data.TrajectorySourceLinkEntity
+import com.adsamcik.tracker.shared.base.database.data.TrajectoryStateEntity
+import com.adsamcik.tracker.shared.base.database.data.RouteHypothesisEntity
+import com.adsamcik.tracker.shared.base.database.data.VisitIntervalEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
@@ -131,6 +137,12 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 			FrequentPlaceEntity::class,
 			InferredTripEntity::class,
 			TripLegEntity::class,
+			// Versioned, immutable historical reconstruction products
+			TrajectoryReconstructionRunEntity::class,
+			TrajectoryStateEntity::class,
+			TrajectorySourceLinkEntity::class,
+			RouteHypothesisEntity::class,
+			VisitIntervalEntity::class,
 			// Exploration and achievement entities (Phase 3c)
 			ExplorationCellEntity::class,
 			ExplorationStreakEntity::class,
@@ -264,6 +276,8 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to trip legs.
 	 */
 	abstract fun tripLegDao(): TripLegDao
+
+	abstract fun trajectoryReconstructionDao(): TrajectoryReconstructionDao
 
 	// Exploration DAOs (Phase 4)
 
@@ -512,6 +526,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.liveStatsDao().deleteAll()
 
 			// Trip inference tables (FK-aware order: children first)
+			database.trajectoryReconstructionDao().deleteAll()
 			database.tripLegDao().deleteAll()
 			database.inferredTripDao().deleteAll()
 			database.frequentPlaceDao().deleteAll()

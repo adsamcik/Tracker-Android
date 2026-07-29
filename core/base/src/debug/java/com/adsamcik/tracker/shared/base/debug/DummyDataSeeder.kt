@@ -6,8 +6,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

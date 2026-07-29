@@ -4,7 +4,6 @@ import com.adsamcik.tracker.shared.base.data.Location as EntityLocation
 import com.adsamcik.tracker.shared.base.database.data.LocationSample as EntityLocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState as EntityMotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality as EntitySampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource as EntitySegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment as EntitySkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType as EntitySkiSegmentType
 import com.adsamcik.tracker.shared.base.database.data.Trip as EntityTrip
@@ -13,7 +12,6 @@ import com.adsamcik.tracker.shared.model.Location as ModelLocation
 import com.adsamcik.tracker.shared.model.LocationSample as ModelLocationSample
 import com.adsamcik.tracker.shared.model.MotionState as ModelMotionState
 import com.adsamcik.tracker.shared.model.SampleQuality as ModelSampleQuality
-import com.adsamcik.tracker.shared.model.SegmentSource as ModelSegmentSource
 import com.adsamcik.tracker.shared.model.SkiRunSegment as ModelSkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType as ModelSkiSegmentType
 import com.adsamcik.tracker.shared.model.Trip as ModelTrip
@@ -50,7 +48,7 @@ steps = steps,
 primaryActivity = primaryActivity,
 activityConfidence = activityConfidence,
 sampleCount = sampleCount,
-source = source.toModel(),
+source = source,
 createdAt = createdAt,
 hasDistanceAnomaly = hasDistanceAnomaly,
 )
@@ -64,7 +62,7 @@ steps = steps,
 primaryActivity = primaryActivity,
 activityConfidence = activityConfidence,
 sampleCount = sampleCount,
-source = source.toEntity(),
+source = source,
 createdAt = createdAt,
 hasDistanceAnomaly = hasDistanceAnomaly,
 )
@@ -119,7 +117,12 @@ altitudeDatum = altitudeDatum,
 altitudeSource = altitudeSource,
 altitudeConversionStatus = altitudeConversionStatus,
 rawGpsAltitudeDatum = rawGpsAltitudeDatum,
-altitudeModelVersion = altitudeModelVersion,
+	altitudeModelVersion = altitudeModelVersion,
+	rawPlatformSpeedMps = rawPlatformSpeedMps,
+	rawPlatformSpeedAccuracyMps = rawPlatformSpeedAccuracyMps,
+	bearingDeg = bearingDeg,
+	bearingAccuracyDeg = bearingAccuracyDeg,
+	bootClockDomainId = bootClockDomainId,
 )
 
 fun ModelLocationSample.toEntity(): EntityLocationSample = EntityLocationSample(
@@ -158,7 +161,12 @@ altitudeDatum = altitudeDatum,
 altitudeSource = altitudeSource,
 altitudeConversionStatus = altitudeConversionStatus,
 rawGpsAltitudeDatum = rawGpsAltitudeDatum,
-altitudeModelVersion = altitudeModelVersion,
+	altitudeModelVersion = altitudeModelVersion,
+	rawPlatformSpeedMps = rawPlatformSpeedMps,
+	rawPlatformSpeedAccuracyMps = rawPlatformSpeedAccuracyMps,
+	bearingDeg = bearingDeg,
+	bearingAccuracyDeg = bearingAccuracyDeg,
+	bootClockDomainId = bootClockDomainId,
 )
 
 fun EntitySkiRunSegment.toModel(): ModelSkiRunSegment = ModelSkiRunSegment(
@@ -191,8 +199,6 @@ liftType = liftType,
 createdAt = createdAt,
 )
 
-fun EntitySegmentSource.toModel(): ModelSegmentSource = ModelSegmentSource.valueOf(name)
-fun ModelSegmentSource.toEntity(): EntitySegmentSource = EntitySegmentSource.valueOf(name)
 private fun EntitySampleQuality.toModel(): ModelSampleQuality = ModelSampleQuality.valueOf(name)
 private fun ModelSampleQuality.toEntity(): EntitySampleQuality = EntitySampleQuality.valueOf(name)
 private fun EntityMotionState.toModel(): ModelMotionState = ModelMotionState.valueOf(name)

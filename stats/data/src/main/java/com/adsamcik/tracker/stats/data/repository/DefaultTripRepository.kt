@@ -84,8 +84,8 @@ class DefaultTripRepository @Inject constructor(
 			1 -> TransportMode.CYCLE
 			0 -> TransportMode.DRIVE
 			else -> when (source) {
-				com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_HIGH_CONFIDENCE,
-				com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_MEDIUM_CONFIDENCE ->
+				com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_HIGH_CONFIDENCE,
+				com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_MEDIUM_CONFIDENCE ->
 					TransportMode.TRANSIT
 				else -> TransportMode.UNKNOWN
 			}

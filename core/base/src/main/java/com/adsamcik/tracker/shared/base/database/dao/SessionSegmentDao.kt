@@ -5,8 +5,8 @@ import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SessionSegmentStats
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import kotlinx.coroutines.flow.Flow
+import com.adsamcik.tracker.shared.model.SegmentSource
 
 /**
  * Maps the detailed native activity ids shipped in database v10 to the activity ids stored by

@@ -49,6 +49,12 @@ val altitudeConversionStatus: AltitudeConversionStatus = AltitudeConversionStatu
 val rawGpsAltitudeDatum: AltitudeDatum = AltitudeDatum.UNKNOWN_LEGACY,
 /** Version of the model/geoid contract used for [altitudeM]. */
 val altitudeModelVersion: Int = 0,
+/** Unmodified provider speed and course evidence, separate from the curated estimate. */
+val rawPlatformSpeedMps: Float? = null,
+val rawPlatformSpeedAccuracyMps: Float? = null,
+val bearingDeg: Float? = null,
+val bearingAccuracyDeg: Float? = null,
+val bootClockDomainId: String? = null,
 )
 
 /**

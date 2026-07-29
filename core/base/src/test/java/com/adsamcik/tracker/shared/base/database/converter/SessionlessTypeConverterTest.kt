@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.base.database.converter
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
 import com.adsamcik.tracker.shared.model.AltitudeDatum

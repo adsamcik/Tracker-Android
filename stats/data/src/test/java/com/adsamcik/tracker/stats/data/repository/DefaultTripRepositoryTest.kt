@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.error.StatsError

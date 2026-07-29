@@ -11,7 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHelperFactory
 import io.kotest.matchers.collections.shouldContainAll
@@ -791,6 +791,11 @@ class Release2024_1MigrationTest {
 			"osm_import",
 			"osm_way",
 			"osm_way_cell",
+			"trajectory_reconstruction_run",
+			"trajectory_state",
+			"trajectory_source_link",
+			"route_hypothesis",
+			"visit_interval",
 			"import_job_receipt",
 			"import_entry_receipt",
 		)

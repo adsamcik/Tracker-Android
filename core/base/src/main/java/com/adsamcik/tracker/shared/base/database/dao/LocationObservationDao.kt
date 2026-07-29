@@ -28,6 +28,21 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	)
 	suspend fun getBetween(fromMs: Long, toMs: Long): List<LocationObservation>
 
+	@Query(
+		"""
+		SELECT * FROM location_observation
+		WHERE clock_domain_id = :clockDomainId
+		  AND fix_elapsed_realtime_nanos >= :fromElapsedRealtimeNanos
+		  AND fix_elapsed_realtime_nanos <= :toElapsedRealtimeNanos
+		ORDER BY fix_elapsed_realtime_nanos ASC, batch_index ASC, id ASC
+		""",
+	)
+	suspend fun getInClockDomain(
+		clockDomainId: String,
+		fromElapsedRealtimeNanos: Long,
+		toElapsedRealtimeNanos: Long,
+	): List<LocationObservation>
+
 	/**
 	 * Provider fixes explicitly accepted by the curated pipeline.
 	 *

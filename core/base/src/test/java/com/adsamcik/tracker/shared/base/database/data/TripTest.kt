@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.DisplayName

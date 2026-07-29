@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Embedded
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -69,4 +70,7 @@ data class StepInterval(
 	/** Stable pending-signal identity used to make replay idempotent. */
 	@ColumnInfo(name = "source_signal_id")
 	val sourceSignalId: String? = null,
+
+	@Embedded
+	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
 )

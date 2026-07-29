@@ -78,6 +78,14 @@ data class OsmImportEntity(
 	 */
 	@ColumnInfo(name = "cell_index_built", defaultValue = "0")
 	val cellIndexBuilt: Int = 0,
+
+	/**
+	 * Monotonic local publication order used only when two READY copies omit
+	 * (or tie on) [OsmWayEntity.osmVersion]. It is assigned by the publication
+	 * statement, never inferred from wall-clock time.
+	 */
+	@ColumnInfo(name = "published_revision", defaultValue = "0")
+	val publishedRevision: Long = 0,
 ) {
 	companion object {
 		/** Legacy numeric extrema cannot safely be read as directed intervals. */

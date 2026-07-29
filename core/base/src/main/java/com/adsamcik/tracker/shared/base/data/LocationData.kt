@@ -99,6 +99,8 @@ data class LocationFixMetadata(
 	val sourceEventId: String? = null,
 	/** Conservative session-scoped monotonic-clock domain for this provider delivery. */
 	val clockDomainId: String? = null,
+	/** Stable device-boot domain for elapsed-realtime correlation across service sessions. */
+	val bootClockDomainId: String? = null,
 	/** Wall-clock time when the callback containing this fix reached the app. */
 	val receivedAtMs: Long = 0L,
 	/** Monotonic time when the callback containing this fix reached the app. */

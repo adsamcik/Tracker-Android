@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.base.database.aggregator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import java.time.LocalDate
 import java.time.ZoneId

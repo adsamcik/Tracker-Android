@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.model.SegmentSource
+
 /**
  * Read-only projection over [SessionSegment] for UI consumption.
  * Not a Room entity — projected via [com.adsamcik.tracker.shared.base.database.dao.TripDao] queries.

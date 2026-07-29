@@ -48,6 +48,13 @@ interface CollectionData : Parcelable {
 	 */
 	val processedAltitude: ProcessedAltitudeData?
 		get() = null
+
+	/**
+	 * Curated velocity estimate used by legacy live consumers. This is kept separate from
+	 * [location], whose speed remains the unmodified platform observation.
+	 */
+	val estimatedSpeedMps: Float?
+		get() = location?.speed
 }
 
 /**
@@ -121,9 +128,9 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	 * as determined by the location filtering component (e.g. [LocationTrackerComponent]).
 	 *
 	 * Unlike the raw per-fix distance baked into [LocationData] by the collection trigger, this value
-	 * bridges across cycles that were rejected by the pre-tracker accuracy gate or the teleport guard,
-	 * so the accumulated session distance matches the persisted track and does not silently lose
-	 * segments leading into a rejected point.
+	 * bridges ordinary pre-tracker quality rejections from the last accepted anchor. A confirmed
+	 * teleport re-acquisition is different: it starts a new anchor with zero cross-gap distance, so
+	 * the accumulated session never fabricates a route through an explicitly unknown interval.
 	 *
 	 * `null` when no location was accepted for this cycle.
 	 */
@@ -143,6 +150,10 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	override var processedAltitude: ProcessedAltitudeData?
 		get() = tryGet(PROCESSED_ALTITUDE)
 		set(value) = set(PROCESSED_ALTITUDE, value)
+
+	override var estimatedSpeedMps: Float?
+		get() = if (bundle.containsKey(ESTIMATED_SPEED)) bundle.getFloat(ESTIMATED_SPEED) else null
+		set(value) = set(ESTIMATED_SPEED, value)
 
 
 	/**
@@ -256,5 +267,6 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		private const val DISTANCE = "Distance"
 		private const val RAW_GPS_ALTITUDE = "RawGpsAltitude"
 		private const val PROCESSED_ALTITUDE = "ProcessedAltitude"
+		private const val ESTIMATED_SPEED = "EstimatedSpeedMps"
 	}
 }

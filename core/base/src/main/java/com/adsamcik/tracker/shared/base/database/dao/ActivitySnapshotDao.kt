@@ -20,6 +20,23 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	@Query("SELECT * FROM activity_snapshot WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot>
 
+	@Query(
+		"""
+		SELECT * FROM activity_snapshot
+		WHERE clock_domain_id = :clockDomainId
+		  AND COALESCE(source_elapsed_realtime_nanos, received_elapsed_realtime_nanos) >=
+			  :fromElapsedRealtimeNanos
+		  AND COALESCE(source_elapsed_realtime_nanos, received_elapsed_realtime_nanos) <=
+			  :toElapsedRealtimeNanos
+		ORDER BY COALESCE(source_elapsed_realtime_nanos, received_elapsed_realtime_nanos) ASC, id ASC
+		""",
+	)
+	suspend fun getAllInClockDomain(
+		clockDomainId: String,
+		fromElapsedRealtimeNanos: Long,
+		toElapsedRealtimeNanos: Long,
+	): List<ActivitySnapshot>
+
 	@Query("SELECT * FROM activity_snapshot WHERE time_ms < :timeMs ORDER BY time_ms DESC LIMIT 1")
 	suspend fun getLatestBefore(timeMs: Long): ActivitySnapshot?
 

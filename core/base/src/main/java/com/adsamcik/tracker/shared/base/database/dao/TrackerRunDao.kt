@@ -63,6 +63,16 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	@Query("SELECT * FROM tracker_run WHERE end_time_ms IS NULL ORDER BY start_time_ms DESC LIMIT 1")
 	suspend fun getActiveRun(): TrackerRun?
 
+	@Query(
+		"""
+		SELECT * FROM tracker_run
+		WHERE end_time_ms IS NOT NULL
+		ORDER BY end_time_ms DESC, id DESC
+		LIMIT 1
+		""",
+	)
+	suspend fun getLatestCompletedRun(): TrackerRun?
+
 	/**
 	 * Close every run left open by an earlier process before a replacement run starts.
 	 *

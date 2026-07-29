@@ -96,4 +96,10 @@ data class LocationObservation(
 	val clockDomainId: String? = null,
 	@ColumnInfo(name = "source_revision", defaultValue = "0")
 	val sourceRevision: Long = 0L,
+	@ColumnInfo(name = "bearing_deg")
+	val bearingDeg: Float? = null,
+	@ColumnInfo(name = "bearing_accuracy_deg")
+	val bearingAccuracyDeg: Float? = null,
+	@ColumnInfo(name = "boot_clock_domain_id")
+	val bootClockDomainId: String? = null,
 )

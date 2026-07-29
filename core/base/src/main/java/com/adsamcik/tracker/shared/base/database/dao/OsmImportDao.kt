@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface OsmImportDao {
-	@Insert(onConflict = OnConflictStrategy.REPLACE)
+	/** A generation header is immutable once created; replacement is never safe. */
+	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insert(osmImport: OsmImportEntity): Long
 
 	@Query("SELECT * FROM osm_import ORDER BY imported_at DESC")
@@ -66,6 +67,20 @@ interface OsmImportDao {
 	)
 	suspend fun markAllCellIndexBuilt()
 
+	/**
+	 * Globally withdraws the current cell index before a rebuild. Candidate
+	 * queries require `cell_index_built = 1`, so no reader can observe partial
+	 * rows written by a restarted rebuild.
+	 *
+	 * A future import/reindex coordinator must hold its database-backed graph
+	 * authority while calling this and the corresponding rebuild/publish steps.
+	 */
+	@Query(
+		"UPDATE osm_import SET cell_index_built = 0 " +
+			"WHERE status = 'READY' AND way_bbox_encoding_version = 1",
+	)
+	suspend fun markAllCellIndexUnbuilt()
+
 	@Query("SELECT COUNT(*) FROM osm_import")
 	fun observeCount(): Flow<Int>
 
@@ -78,12 +93,21 @@ interface OsmImportDao {
 	/**
 	 * Atomically publishes a successfully completed import. The header row is
 	 * inserted as BUILDING so child [OsmWayEntity] rows can FK to it; this one
-	 * statement writes the final metadata and changes visibility to READY.
+	 * statement writes the final metadata and changes visibility to READY. It
+	 * also assigns a deterministic local publication revision and exposes the
+	 * completed cell index at the same visibility boundary.
+	 *
+	 * This is the legacy-compatible publication primitive. The future safe
+	 * intake coordinator must invoke it only after it has atomically persisted
+	 * every way/cell batch under its generation authority.
 	 */
 	@Query(
 		"UPDATE osm_import SET way_count = :wayCount, node_count = :nodeCount, " +
 			"min_lat_e7 = :diagnosticMinLatitudeE7, max_lat_e7 = :diagnosticMaxLatitudeE7, " +
-			"min_lon_e7 = :diagnosticMinLongitudeE7, max_lon_e7 = :diagnosticMaxLongitudeE7, status = 'READY' " +
+			"min_lon_e7 = :diagnosticMinLongitudeE7, max_lon_e7 = :diagnosticMaxLongitudeE7, " +
+			"cell_index_built = 1, " +
+			"published_revision = (SELECT COALESCE(MAX(published_revision), 0) + 1 " +
+			"FROM osm_import WHERE status = 'READY'), status = 'READY' " +
 			"WHERE id = :importId AND status = 'BUILDING'",
 	)
 	suspend fun markReady(

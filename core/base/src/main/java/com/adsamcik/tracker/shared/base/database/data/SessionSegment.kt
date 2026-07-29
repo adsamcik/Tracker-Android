@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.adsamcik.tracker.shared.model.SegmentSource
 
 /**
  * Session segment derived from raw timeline data via inference.
@@ -116,19 +117,3 @@ data class SessionSegment(
 	@ColumnInfo(name = "legacy_activity_id")
 	val legacyActivityId: Long? = null
 )
-
-/**
- * Segment source classification.
- */
-enum class SegmentSource {
-	/** User explicitly created/started a session */
-	USER_CREATED,
-	/** Inferred with high confidence (>80%) */
-	INFERRED_HIGH_CONFIDENCE,
-	/** Inferred with medium confidence (50-80%) */
-	INFERRED_MEDIUM_CONFIDENCE,
-	/** Inferred with low confidence (<50%) */
-	INFERRED_LOW_CONFIDENCE,
-	/** Migrated from legacy tracker_session table */
-	LEGACY_MIGRATION
-}

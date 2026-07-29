@@ -7,7 +7,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * A driveable OSM way (segment of road) parsed from an [OsmImportEntity].
+ * A driveable OSM way instance parsed from one immutable [OsmImportEntity]
+ * generation.
+ *
+ * The upstream OSM way id is not a database primary key. The same OSM element
+ * can appear in more than one retained region, and each import must retain its
+ * own immutable copy until publication precedence selects an effective copy.
+ * [wayInstanceId] is the local physical key; `(import_id, osm_way_id)` is the
+ * logical identity. Cell rows reference [wayInstanceId], never the upstream
+ * OSM id.
  *
  * Geometry is stored inline as a packed delta-encoded polyline so we never need
  * to keep a separate node table. The wire format is:
@@ -44,13 +52,42 @@ import androidx.room.PrimaryKey
 			onDelete = ForeignKey.CASCADE,
 		),
 	],
-	indices = [Index(value = ["import_id"], name = "idx_osm_way_import")],
+	indices = [
+		Index(value = ["import_id"], name = "idx_osm_way_import"),
+		Index(
+			value = ["import_id", "osm_way_id"],
+			unique = true,
+			name = "idx_osm_way_import_osm_id",
+		),
+		Index(value = ["osm_way_id"], name = "idx_osm_way_osm_id"),
+	],
 )
 data class OsmWayEntity(
-	/** OSM way id, used as primary key so re-imports replace cleanly. */
-	@PrimaryKey val id: Long,
+	/**
+	 * Upstream OSM way id. It remains named [id] for source compatibility with
+	 * existing read-only matcher and test consumers; it is persisted as
+	 * `osm_way_id` and is deliberately not the physical key.
+	 */
+	@ColumnInfo(name = "osm_way_id") val id: Long,
+
+	/**
+	 * Surrogate key for this import-scoped copy of [id]. New safe-intake code
+	 * must pass `0` (or use [asNewImportScopedInstance]) and retain the id
+	 * returned by [com.adsamcik.tracker.shared.base.database.dao.OsmWayDao.insertAll]
+	 * when creating [OsmWayCellEntity] rows.
+	 *
+	 * The default mirrors [id] only so the centrally disabled legacy importer
+	 * remains source-compatible while it is characterized. Its `ABORT` insert
+	 * policy means an overlapping legacy import fails instead of replacing a
+	 * READY region. It must not be used by the future multi-region coordinator.
+	 */
+	@PrimaryKey(autoGenerate = true)
+	@ColumnInfo(name = "way_instance_id") val wayInstanceId: Long = id,
 
 	@ColumnInfo(name = "import_id") val importId: Long,
+
+	/** Optional upstream element revision used for READY-overlap precedence. */
+	@ColumnInfo(name = "osm_version") val osmVersion: Int? = null,
 
 	/** OSM `name=*` tag, or null. */
 	val name: String?,
@@ -80,12 +117,22 @@ data class OsmWayEntity(
 	/** Canonical directed longitude-interval eastward end (legacy column name retained). */
 	@ColumnInfo(name = "bbox_max_lon_e7") val bboxMaxLonE7: Int,
 ) {
+	/**
+	 * Converts a parsed legacy-shaped row into a new import-scoped instance.
+	 * The future safe intake coordinator must call this before inserting each
+	 * way and use the returned surrogate ids for its cell rows in the same
+	 * database transaction.
+	 */
+	fun asNewImportScopedInstance(): OsmWayEntity = copy(wayInstanceId = 0L)
+
 	// Custom equals/hashCode because Kotlin's generated ones don't handle ByteArray sanely.
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (other !is OsmWayEntity) return false
 		if (id != other.id) return false
+		if (wayInstanceId != other.wayInstanceId) return false
 		if (importId != other.importId) return false
+		if (osmVersion != other.osmVersion) return false
 		if (name != other.name) return false
 		if (roadClass != other.roadClass) return false
 		if (maxspeedKmh != other.maxspeedKmh) return false
@@ -101,7 +148,9 @@ data class OsmWayEntity(
 
 	override fun hashCode(): Int {
 		var result = id.hashCode()
+		result = 31 * result + wayInstanceId.hashCode()
 		result = 31 * result + importId.hashCode()
+		result = 31 * result + (osmVersion ?: 0)
 		result = 31 * result + (name?.hashCode() ?: 0)
 		result = 31 * result + roadClass.hashCode()
 		result = 31 * result + maxspeedKmh

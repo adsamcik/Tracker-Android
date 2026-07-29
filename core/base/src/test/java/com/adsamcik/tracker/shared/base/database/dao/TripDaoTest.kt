@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import kotlinx.coroutines.runBlocking
 import org.junit.After
