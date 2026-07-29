@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.value.DistanceM
@@ -52,7 +52,7 @@ class SessionStatsUiFormatterTest {
 		every { 77L.formatReadable() } returns "77"
 		every { 4L.formatReadable() } returns "4"
 		every { 5L.formatReadable() } returns "5"
-		mockkStatic("com.adsamcik.tracker.shared.utils.extension.StringExtensionsKt")
+		mockkStatic("com.adsamcik.tracker.shared.preferences.extension.MeasurementFormattingKt")
 		every { resources.formatDistance(1234.5f, 1, LengthSystem.Metric) } returns "1.2 km"
 		every { resources.formatDistance(456.7f, 1, LengthSystem.Metric) } returns "456.7 m"
 		every { resources.formatDistance(890.1f, 1, LengthSystem.Metric) } returns "890.1 m"

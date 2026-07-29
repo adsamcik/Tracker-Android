@@ -16,6 +16,7 @@ dependencies {
     compileOnly(libs.ksp.gradlePlugin)
     compileOnly(libs.hilt.gradlePlugin)
     compileOnly(libs.compose.compiler.gradlePlugin)
+    implementation(libs.protobuf.gradlePlugin)
 }
 
 gradlePlugin {
@@ -43,6 +44,23 @@ gradlePlugin {
         register("androidTest") {
             id = "tracker.android.test"
             implementationClass = "com.adsamcik.tracker.buildlogic.AndroidTestConventionPlugin"
+        }
+        register("androidInstrumentedTest") {
+            id = "tracker.android.instrumented-test"
+            implementationClass = "com.adsamcik.tracker.buildlogic.AndroidInstrumentedTestConventionPlugin"
+        }
+        register("androidProtobuf") {
+            id = "tracker.android.protobuf"
+            implementationClass = "com.adsamcik.tracker.buildlogic.AndroidProtobufConventionPlugin"
+        }
+        register("kotlinMultiplatformAndroidJvm") {
+            id = "tracker.kotlin.multiplatform.android-jvm"
+            implementationClass =
+                "com.adsamcik.tracker.buildlogic.KotlinMultiplatformAndroidJvmConventionPlugin"
+        }
+        register("rootVerification") {
+            id = "tracker.root.verification"
+            implementationClass = "com.adsamcik.tracker.buildlogic.RootVerificationConventionPlugin"
         }
     }
 }

@@ -1,22 +1,16 @@
 plugins {
-	alias(libs.plugins.kotlin.multiplatform)
-	alias(libs.plugins.android.kotlin.multiplatform.library)
+	id("tracker.kotlin.multiplatform.android-jvm")
 }
 
 kotlin {
 	android {
 		namespace = "com.adsamcik.tracker.stats.engine"
-		compileSdk = Android.COMPILE_VERSION
-		minSdk = Android.MIN_VERSION
 
 		// The ski/GPS detection classes (src/androidMain) use JVM APIs (java.util.Arrays) and are
 		// consumed by Android modules; their unit tests live in src/androidHostTest. The AGP KMP
 		// plugin disables host tests by default, so opt in to keep those tests running.
 		withHostTest {}
 	}
-	jvm()
-
-	jvmToolchain(Android.JAVA_VERSION)
 
 	sourceSets {
 		commonMain.dependencies {
@@ -35,8 +29,4 @@ kotlin {
 			implementation(libs.kotest.assertions.core)
 		}
 	}
-}
-
-tasks.withType<Test>().configureEach {
-	useJUnitPlatform()
 }

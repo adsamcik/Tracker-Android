@@ -11,11 +11,11 @@ import com.adsamcik.tracker.game.session.GameFinalizationReconciler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
-import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
+import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +35,7 @@ class GameModuleInitializer @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val consumer: GameDomainEventConsumer,
 	private val explorationConsumer: ExplorationDomainEventConsumer,
-	private val trackerSessionChannel: TrackerSessionChannel,
+	private val trackerStateReader: TrackerStateReader,
 	private val domainEventRepository: DomainEventRepository,
 	private val progressionRepository: PlayerProgressionRepository,
 	private val achievementScheduler: AchievementEvaluationScheduler,
@@ -66,7 +66,7 @@ class GameModuleInitializer @Inject constructor(
 	private fun initializeGoals() {
 		GoalTracker.initialize(
 			context = context,
-			sessionChannel = trackerSessionChannel,
+			trackerStateReader = trackerStateReader,
 			progressionRepository = progressionRepository,
 			achievementScheduler = achievementScheduler,
 			settingsRepository = goalsSettingsRepository,

@@ -5,16 +5,8 @@ plugins {
 
 android {
     namespace = "com.adsamcik.tracker.feature.game.api"
-
-    buildTypes {
-        create("dev") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("debug", "release")
-        }
-    }
 }
 
 dependencies {
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.navigation.compose)
 }

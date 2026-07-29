@@ -1,9 +1,8 @@
 plugins {
     id("tracker.android.library")
-    id("tracker.android.room")
     id("tracker.android.hilt")
     id("tracker.android.test")
-    alias(libs.plugins.protobuf)
+    id("tracker.android.protobuf")
 }
 
 android {
@@ -26,12 +25,10 @@ android {
 dependencies {
     api(project(":stats:api"))
     implementation(project(":core:base"))
-    implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":domain:osm"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.paging.runtime)
@@ -51,6 +48,8 @@ dependencies {
 
     // DI annotations
     implementation(libs.javax.inject)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
 
     testImplementation(libs.androidx.work.testing)
     testImplementation(project(":core:testing"))
@@ -59,5 +58,3 @@ dependencies {
     // R1 round-6 regression seam. Test-only edge; no production coupling.
     testImplementation(project(":stats:engine"))
 }
-
-configureProtobuf()

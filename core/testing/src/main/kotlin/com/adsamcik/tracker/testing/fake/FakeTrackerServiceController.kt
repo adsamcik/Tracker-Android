@@ -1,11 +1,10 @@
 package com.adsamcik.tracker.testing.fake
 
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.tracker.controller.LivePlaneState
@@ -52,8 +51,8 @@ class FakeTrackerServiceController : TrackerServiceController {
     private val _sessionFlow = MutableStateFlow<TrackerSessionSnapshot?>(null)
     override val sessionFlow: StateFlow<TrackerSessionSnapshot?> get() = _sessionFlow
 
-    private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
-    override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
+    private val _collectionDataFlow = MutableStateFlow<TrackerCollectionSnapshot?>(null)
+    override val collectionDataFlow: StateFlow<TrackerCollectionSnapshot?> get() = _collectionDataFlow
 
     private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _pathPointsFlow
@@ -96,14 +95,14 @@ class FakeTrackerServiceController : TrackerServiceController {
         _sessionInfoFlow.value = info
     }
 
-    override fun updateSession(session: TrackerSession?) {
+    override fun updateSession(session: TrackerSessionSnapshot?) {
         if (session == null && _sessionFlow.value != null) {
             _lastSessionFlow.value = _sessionFlow.value
         }
-        _sessionFlow.value = session?.toSnapshot()
+        _sessionFlow.value = session
     }
 
-    override fun updateCollectionData(data: CollectionData?) {
+    override fun updateCollectionData(data: TrackerCollectionSnapshot?) {
         _collectionDataFlow.value = data
     }
 
@@ -130,19 +129,6 @@ class FakeTrackerServiceController : TrackerServiceController {
     override fun updatePlaneState(state: LivePlaneState?) {
         _planeStateFlow.value = state
     }
-
-    private fun TrackerSession.toSnapshot() = TrackerSessionSnapshot(
-        id = id,
-        start = start,
-        end = end,
-        isUserInitiated = isUserInitiated,
-        collections = collections,
-        distanceInM = distanceInM,
-        distanceOnFootInM = distanceOnFootInM,
-        distanceInVehicleInM = distanceInVehicleInM,
-        steps = steps,
-        sessionActivityId = sessionActivityId,
-    )
 
     /**
      * Simulates a persistence error for testing.

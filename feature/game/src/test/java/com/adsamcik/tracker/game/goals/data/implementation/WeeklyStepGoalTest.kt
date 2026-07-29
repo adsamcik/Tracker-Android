@@ -2,7 +2,7 @@ package com.adsamcik.tracker.game.goals.data.implementation
 
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.BaseGoal
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.BeforeEach
@@ -42,7 +42,7 @@ class WeeklyStepGoalTest {
 		)
 	}
 
-	private fun createSession(id: Long = 1L, steps: Int = 100) = TrackerSession(
+	private fun createSession(id: Long = 1L, steps: Int = 100) = TrackerSessionSnapshot(
 		id = id,
 		start = 1000L,
 		end = 2000L,

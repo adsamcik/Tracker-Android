@@ -3,7 +3,7 @@ package com.adsamcik.tracker.points
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineScope

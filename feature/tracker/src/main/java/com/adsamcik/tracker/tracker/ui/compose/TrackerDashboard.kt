@@ -83,7 +83,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
@@ -94,6 +93,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -106,7 +106,7 @@ internal data class TrackerDashboardUiState(
     val isTracking: Boolean = false,
     val isLocked: Boolean = false,
     val sessionData: TrackerSessionSnapshot? = null,
-    val collectionData: CollectionData? = null,
+    val collectionData: TrackerCollectionSnapshot? = null,
     val hasLocationPermission: Boolean = false,
     val pathPoints: List<Location>? = null,
     val policyTier: PolicyTier = PolicyTier.OFF,
@@ -386,7 +386,7 @@ private fun rememberWallClockMillis(isTracking: Boolean): Long {
 @Composable
 private fun TrackingContent(
     sessionData: TrackerSessionSnapshot?,
-    collectionData: CollectionData?,
+    collectionData: TrackerCollectionSnapshot?,
     isTracking: Boolean,
     isLocked: Boolean,
     wallClockNowMillis: Long,

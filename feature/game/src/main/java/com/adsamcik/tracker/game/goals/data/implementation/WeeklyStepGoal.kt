@@ -6,10 +6,10 @@ import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.StepGoal
 import com.adsamcik.tracker.game.preferences.GamePreferenceKeys
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,7 +34,7 @@ class WeeklyStepGoal(
 	private var currentDate: LocalDate = Time.now.toLocalDate()
 	private var dailyRawSteps: Map<LocalDate, Int> = emptyMap()
 
-	override fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean) {
+	override fun onSessionUpdatedInternal(session: TrackerSessionSnapshot, isNewSession: Boolean) {
 		rollDateForwardIfNeeded()
 		val updated = dailyRawSteps.toMutableMap()
 		updated[currentDate] = (

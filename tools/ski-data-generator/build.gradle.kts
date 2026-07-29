@@ -1,15 +1,11 @@
 plugins {
-	kotlin("jvm")
+	id("org.jetbrains.kotlin.jvm")
 	application
 }
 
-repositories {
-	mavenCentral()
-}
-
 dependencies {
-	implementation("org.xerial:sqlite-jdbc:3.45.1.0")
-	implementation("com.google.code.gson:gson:2.10.1")
+	implementation(libs.sqlite.jdbc)
+	implementation(libs.gson)
 }
 
 application {

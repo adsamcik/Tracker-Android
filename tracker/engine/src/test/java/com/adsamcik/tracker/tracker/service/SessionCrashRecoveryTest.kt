@@ -24,7 +24,6 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
-import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.floats.plusOrMinus
@@ -132,7 +131,6 @@ class SessionCrashRecoveryTest {
 		val domainEvents = RecordingDomainEventRepository()
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = setOf(NoOpProcessor()),
 			domainEventRepository = domainEvents,
 			dispatchers = dispatchersProvider,
@@ -250,7 +248,6 @@ class SessionCrashRecoveryTest {
 		val controller = DefaultTrackerServiceController()
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = setOf(NoOpProcessor()),
 			domainEventRepository = RecordingDomainEventRepository(),
 			dispatchers = dispatchersProvider,

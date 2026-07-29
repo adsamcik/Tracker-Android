@@ -60,7 +60,6 @@
     <string name="notification_stop_til_recharge">Stop till recharge</string>
     <string name="notification_tracker_active_ticker">Tracker is active</string>
     <string name="notification_tracking_active">Tracking</string>
-    <string name="permissions_tracker_timer_message">%1$s timer needs more permissions to start tracking.</string>
     <string name="settings_activity_enabled_title">Activity</string>
     <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>

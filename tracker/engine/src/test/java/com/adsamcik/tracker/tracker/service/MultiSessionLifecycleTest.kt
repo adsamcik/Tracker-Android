@@ -28,7 +28,6 @@ import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
-import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -158,7 +157,6 @@ class MultiSessionLifecycleTest {
 
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = setOf(noopProcessor),
 			domainEventRepository = domainEvents,
 			dispatchers = dispatchersProvider,
@@ -210,7 +208,6 @@ class MultiSessionLifecycleTest {
 		val processor = SessionEndProcessor(database, sessionEndMs)
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = setOf(processor),
 			domainEventRepository = domainEvents,
 			dispatchers = dispatchersProvider,

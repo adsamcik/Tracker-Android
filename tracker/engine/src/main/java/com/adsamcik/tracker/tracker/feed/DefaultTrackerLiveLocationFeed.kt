@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.feed
 
-import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -25,11 +24,11 @@ import javax.inject.Singleton
  * the only thing other modules (`:game`, dashboard widgets, etc.) need to see.
  *
  * Locations are filtered for null in two places:
- *  1. The CollectionData wrapper may be null between sessions.
- *  2. CollectionData.location is itself nullable until the first fix arrives.
+ *  1. The collection snapshot may be null between sessions.
+ *  2. The snapshot location is itself nullable until the first fix arrives.
  *
  * distinctUntilChanged() guards against accidental duplicate emissions when a
- * downstream CollectionData update arrives that did not change the location
+ * downstream collection update arrives that did not change the location
  * (for example, a refreshed activity sample with the same GPS fix attached).
  */
 @Singleton
@@ -47,6 +46,5 @@ class DefaultTrackerLiveLocationFeed @Inject constructor(
 		.filterNotNull()
 		.map { it.location }
 		.filterNotNull()
-		.map { it.toModel() }
 		.distinctUntilChanged()
 }

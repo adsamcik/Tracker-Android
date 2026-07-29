@@ -16,7 +16,11 @@ class TrackerApiBoundaryTest {
 	}
 
 	private val apiModuleDir: File
-		get() = projectRoot.resolve("tracker/api-module")
+		get() = projectRoot.resolve("tracker/api-module").also { directory ->
+			check(directory.isDirectory) {
+				"Expected :tracker:api module directory at ${directory.absolutePath}"
+			}
+		}
 
 	@Test
 	fun `tracker api sources do not import stats engine`() {
@@ -37,12 +41,107 @@ class TrackerApiBoundaryTest {
 	}
 
 	@Test
+	fun `tracker api sources do not import core base implementation packages`() {
+		val forbiddenImport = Regex(
+			"""^\s*import\s+com\.adsamcik\.tracker\.shared\.base\.(?:data|database|mapper)(?:\.|$)"""
+		)
+		val violations = apiModuleDir.resolve("src/main").walkTopDown()
+			.filter { it.isFile && it.extension == "kt" }
+			.flatMap { file ->
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (forbiddenImport.containsMatchIn(line)) {
+						"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}
+			.toList()
+
+		violations.shouldBeEmpty()
+	}
+
+	@Test
 	fun `tracker api Gradle file does not export stats engine`() {
 		val gradleFile = apiModuleDir.resolve("build.gradle.kts")
 		val exportedStatsEngine = Regex("""\bapi\s*\(\s*project\(":stats:engine"\)\s*\)""")
 			.containsMatchIn(gradleFile.readText())
 
 		assertFalse(exportedStatsEngine, "tracker/api-module must not export :stats:engine")
+	}
+
+	@Test
+	fun `tracker api contracts do not expose the Room backed session entity`() {
+		val violations = apiModuleDir.resolve("src/main").walkTopDown()
+			.filter { it.isFile && it.extension == "kt" }
+			.flatMap { file ->
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (
+						Regex(
+							"""com\.adsamcik\.tracker\.shared\.base\.data\.TrackerSession\b"""
+						).containsMatchIn(line)
+					) {
+						"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}
+			.toList()
+
+		violations.shouldBeEmpty()
+	}
+
+	@Test
+	fun `tracker api contracts do not expose legacy collection data`() {
+		val violations = apiModuleDir.resolve("src/main").walkTopDown()
+			.filter { it.isFile && it.extension == "kt" }
+			.flatMap { file ->
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (
+						Regex(
+							"""com\.adsamcik\.tracker\.shared\.base\.data\.CollectionData\b"""
+						).containsMatchIn(line)
+					) {
+						"${file.relativeTo(projectRoot)}:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}
+			.toList()
+
+		violations.shouldBeEmpty()
+	}
+
+	@Test
+	fun `tracker api does not depend on core base`() {
+		val gradleSource = apiModuleDir.resolve("build.gradle.kts").readText()
+		val dependsOnCoreBase = Regex(
+			"""\b(?:api|implementation)\s*\(\s*project\(":core:base"\)\s*\)"""
+		).containsMatchIn(gradleSource)
+
+		assertFalse(dependsOnCoreBase, "tracker/api-module must not depend on :core:base")
+	}
+
+	@Test
+	fun `notification settings boundary is context free and hides runtime components`() {
+		val contractFile = apiModuleDir.resolve(
+			"src/main/java/com/adsamcik/tracker/tracker/notification/" +
+				"TrackerNotificationSettingsRepository.kt"
+		)
+		check(contractFile.isFile) {
+			"Expected notification settings contract at ${contractFile.absolutePath}"
+		}
+		val source = contractFile.readText()
+		val forbiddenTypes = listOf(
+			"android.content.Context",
+			"PreferenceDatabase",
+			"NotificationPreference",
+			"TrackerNotificationComponent",
+		)
+
+		forbiddenTypes.filter(source::contains).shouldBeEmpty()
 	}
 
 	@Test
@@ -90,6 +189,7 @@ class TrackerApiBoundaryTest {
 
 		stateFlowProperties["sessionFlow"] shouldBe "TrackerSessionSnapshot?"
 		stateFlowProperties["lastSessionFlow"] shouldBe "TrackerSessionSnapshot?"
+		stateFlowProperties["collectionDataFlow"] shouldBe "TrackerCollectionSnapshot?"
 		stateFlowProperties
 			.filterValues { type -> type.removeSuffix("?").substringAfterLast('.') == "TrackerSession" }
 			.keys

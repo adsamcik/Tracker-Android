@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.app.startup
 
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider

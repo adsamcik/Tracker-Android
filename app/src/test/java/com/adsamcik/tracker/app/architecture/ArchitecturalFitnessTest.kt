@@ -14,9 +14,9 @@ import java.io.File
  * - No direct Dispatchers usage (use DispatchersProvider) — both the
  *   member-import form and the whole-object-import + qualified-use form
  *   are banned outside the provider/DI files
- * - Only `:network` may construct OkHttpClient (every other consumer must
+ * - Only `:core:network` may construct OkHttpClient (every other consumer must
  *   route through `NetworkGateway` / `OkHttpBackedGateway.okHttpCallFactory()`)
- * - stats-api must remain Android-free (pure Kotlin)
+ * - `:stats:api` must remain Android-free (pure Kotlin)
  * - No android.location.Location in test sources (use fakes)
  * - No compositionLocalOf<Any> (overly broad type)
  */
@@ -133,14 +133,14 @@ class ArchitecturalFitnessTest {
 
 	@Nested
 	inner class `OkHttp construction ban` {
-		// R1 round-7 P4: `:network` exposes okhttp3 as `api` so consumers can
+		// R1 round-7 P4: `:core:network` exposes okhttp3 as `api` so consumers can
 		// request a raw `Call.Factory` from `OkHttpBackedGateway.okHttpCallFactory()`
 		// for libraries like MapLibre that need a real `OkHttpClient`. Constructing
 		// a fresh `OkHttpClient` anywhere ELSE bypasses the gateway's interceptor
 		// chain (kill switch, allowlist, rate limit, HTTPS guard, anonymous UA)
 		// and silently re-introduces an unaudited egress path — defeating the
 		// whole purpose of routing every network consumer through `NetworkGateway`.
-		// Only `:network` itself may construct `OkHttpClient`.
+		// Only `:core:network` itself may construct `OkHttpClient`.
 		@Test
 		fun `only the network module constructs OkHttpClient`() {
 			val violations = findPatternMatching(
@@ -152,14 +152,14 @@ class ArchitecturalFitnessTest {
 				excludeDirs = STANDARD_EXCLUDES + listOf(
 					"src/test",
 					"src/androidTest",
-					"network/src/main",
+					"core/network/src/main",
 				),
 				excludeFiles = listOf("ArchitecturalFitnessTest.kt"),
 				skipComments = true,
 			)
 			if (violations.isNotEmpty()) {
 				error(
-					"OkHttpClient construction outside :network is forbidden. Inject " +
+					"OkHttpClient construction outside :core:network is forbidden. Inject " +
 						"`NetworkGateway` for suspend-based requests, or call " +
 						"`OkHttpBackedGateway.okHttpCallFactory()` for libraries that " +
 						"need a raw `okhttp3.Call.Factory`. Violations:\n" +
@@ -170,17 +170,121 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
-	inner class `stats-api purity` {
+	inner class `stats api purity` {
 		@Test
-		fun `stats-api commonMain has zero Android imports`() {
-			val statsApiDir = projectRoot.resolve("stats-api/src/commonMain")
-			if (!statsApiDir.exists()) return // Module not present
+		fun `stats api commonMain has zero Android imports`() {
+			val statsApiDir = projectRoot.resolve("stats/api/src/commonMain")
+			check(statsApiDir.isDirectory) {
+				"Expected :stats:api commonMain source directory at ${statsApiDir.absolutePath}"
+			}
 
 			val violations = findImportsMatching(
 				sourceDir = statsApiDir,
 				pattern = Regex("^import\\s+(android\\.|androidx\\.)"),
 				excludeDirs = STANDARD_EXCLUDES,
 			)
+			violations.shouldBeEmpty()
+		}
+	}
+
+	@Nested
+	inner class `Module dependency direction` {
+		@Test
+		fun `core network does not depend on the database module`() {
+			val buildFile = projectRoot.resolve("core/network/build.gradle.kts")
+			check(buildFile.isFile) {
+				"Expected :core:network build file at ${buildFile.absolutePath}"
+			}
+
+			val violations = PROJECT_DEPENDENCY_PATTERN.findAll(buildFile.readText())
+				.map { match -> match.groupValues[1] }
+				.filter { dependency -> dependency == ":core:base" }
+				.toList()
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `feature modules do not add implementation to implementation edges`() {
+			val featureDir = projectRoot.resolve("feature")
+			check(featureDir.isDirectory) {
+				"Expected feature module directory at ${featureDir.absolutePath}"
+			}
+
+			val violations = featureDir.walkTopDown()
+				.onEnter { directory ->
+					!directory.isInExcludedDirectory(STANDARD_EXCLUDES)
+				}
+				.filter { file ->
+					file.isFile &&
+						file.name == "build.gradle.kts" &&
+						file.parentFile?.name != "api"
+				}
+				.flatMap { buildFile ->
+					val moduleDirectory = checkNotNull(buildFile.parentFile)
+					val owner = ":" + moduleDirectory
+						.relativeTo(projectRoot)
+						.invariantSeparatorsPath
+						.replace('/', ':')
+					PROJECT_DEPENDENCY_PATTERN.findAll(buildFile.readText())
+						.map { match -> owner to match.groupValues[1] }
+				}
+				.filter { (_, dependency) ->
+					dependency.startsWith(":feature:") && !dependency.endsWith(":api")
+				}
+				.filterNot { edge -> edge in LEGACY_FEATURE_IMPLEMENTATION_EDGES }
+				.map { (owner, dependency) -> "$owner -> $dependency" }
+				.toList()
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `feature modules depend on contracts rather than engine implementations`() {
+			val featureDir = projectRoot.resolve("feature")
+			check(featureDir.isDirectory) {
+				"Expected feature module directory at ${featureDir.absolutePath}"
+			}
+
+			val violations = featureDir.walkTopDown()
+				.onEnter { directory ->
+					!directory.isInExcludedDirectory(STANDARD_EXCLUDES)
+				}
+				.filter { file -> file.isFile && file.name == "build.gradle.kts" }
+				.flatMap { buildFile ->
+					val moduleDirectory = checkNotNull(buildFile.parentFile)
+					val owner = ":" + moduleDirectory
+						.relativeTo(projectRoot)
+						.invariantSeparatorsPath
+						.replace('/', ':')
+					PROJECT_DEPENDENCY_PATTERN.findAll(buildFile.readText())
+						.map { match -> owner to match.groupValues[1] }
+				}
+				.filter { (_, dependency) -> dependency.endsWith(":engine") }
+				.map { (owner, dependency) -> "$owner -> $dependency" }
+				.toList()
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracker notification feature does not own preference persistence`() {
+			val notificationSourceDir = projectRoot.resolve(
+				"feature/tracker/src/main/java/com/adsamcik/tracker/feature/tracker/notification"
+			)
+			check(notificationSourceDir.isDirectory) {
+				"Expected tracker notification feature sources at " +
+					notificationSourceDir.absolutePath
+			}
+
+			val violations = findImportsMatching(
+				sourceDir = notificationSourceDir,
+				pattern = Regex(
+					"""^\s*import\s+com\.adsamcik\.tracker\.shared\.base\.database(?:\.|$)"""
+				),
+				excludeDirs = STANDARD_EXCLUDES,
+			)
+
 			violations.shouldBeEmpty()
 		}
 	}
@@ -230,19 +334,16 @@ class ArchitecturalFitnessTest {
 	): List<String> {
 		if (!sourceDir.exists()) return emptyList()
 
-		// Normalize path separators for cross-platform matching
-		fun String.normalizedPath() = replace('\\', '/')
-
 		return sourceDir.walkTopDown()
-			.filter { it.isFile && it.extension == "kt" }
-			.filter { file ->
-				val normalized = file.absolutePath.normalizedPath()
-				excludeDirs.none { dir -> "/$dir/" in normalized }
+			.onEnter { directory ->
+				!directory.isInExcludedDirectory(excludeDirs)
 			}
+			.filter { it.isFile && it.extension == "kt" }
+			.filterNot { file -> file.isInExcludedDirectory(excludeDirs) }
 			.filter { file -> excludeFiles.none { name -> file.name == name } }
 			.filter { file ->
 				if (onlyInDirs.isEmpty()) return@filter true
-				val normalized = file.absolutePath.normalizedPath()
+				val normalized = file.absolutePath.replace('\\', '/')
 				onlyInDirs.any { dir -> "/$dir/" in normalized }
 			}
 			.flatMap { file ->
@@ -267,14 +368,12 @@ class ArchitecturalFitnessTest {
 	): List<String> {
 		if (!sourceDir.exists()) return emptyList()
 
-		fun String.normalizedPath() = replace('\\', '/')
-
 		return sourceDir.walkTopDown()
-			.filter { it.isFile && it.extension == "kt" }
-			.filter { file ->
-				val normalized = file.absolutePath.normalizedPath()
-				excludeDirs.none { dir -> "/$dir/" in normalized }
+			.onEnter { directory ->
+				!directory.isInExcludedDirectory(excludeDirs)
 			}
+			.filter { it.isFile && it.extension == "kt" }
+			.filterNot { file -> file.isInExcludedDirectory(excludeDirs) }
 			.filter { file -> excludeFiles.none { name -> file.name == name } }
 			.flatMap { file ->
 				file.readLines()
@@ -285,6 +384,13 @@ class ArchitecturalFitnessTest {
 					}
 			}
 			.toList()
+	}
+
+	private fun File.isInExcludedDirectory(excludeDirs: List<String>): Boolean {
+		val normalizedPath = absolutePath.replace('\\', '/')
+		return excludeDirs.any { excluded ->
+			normalizedPath.endsWith("/$excluded") || "/$excluded/" in normalizedPath
+		}
 	}
 
 	/**
@@ -324,6 +430,17 @@ class ArchitecturalFitnessTest {
 			"""(?<![A-Za-z0-9_])Dispatchers\.(IO|Main|Default)\b"""
 		)
 
+		private val PROJECT_DEPENDENCY_PATTERN = Regex(
+			"""project\(\s*"(:[^"]+)"\s*\)"""
+		)
+
+		// Existing feature-implementation edges that need contract extraction.
+		// New implementation edges must not join this list.
+		private val LEGACY_FEATURE_IMPLEMENTATION_EDGES = setOf(
+			":feature:statistics" to ":feature:map",
+			":feature:statistics" to ":feature:import-export",
+		)
+
 		// Files that LEGITIMATELY reference Dispatchers.* directly because they
 		// ARE the project's dispatcher provider / DI plumbing. The file
 		// `DispatchersProvider.kt` hosts both the `DispatchersProvider` interface
@@ -346,12 +463,6 @@ class ArchitecturalFitnessTest {
 			// steer through the test scheduler instead of relying on real I/O
 			// pool threads.
 			"app/src/main/java/com/adsamcik/tracker/app/settings/osm/OsmImportSettingsViewModel.kt:",
-			// `withContext(Dispatchers.IO)` in DefaultNetworkGateway.request — being
-			// migrated to constructor-injected `@IoDispatcher CoroutineDispatcher` as
-			// part of the R1 round-7 finding `r1r7-defaultgateway-hardcoded-io`. The
-			// fix lives in a sibling work item; this entry will become dead allowlist
-			// noise once the dispatcher is injected, at which point it must be removed.
-			"network/src/main/java/com/adsamcik/tracker/network/DefaultNetworkGateway.kt:",
 		)
 
 		private val LEGACY_TEST_LOCATION_IMPORT_ALLOWLIST = listOf(

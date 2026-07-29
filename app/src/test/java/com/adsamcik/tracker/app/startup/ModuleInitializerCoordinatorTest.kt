@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.app.startup
 
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import javax.inject.Provider

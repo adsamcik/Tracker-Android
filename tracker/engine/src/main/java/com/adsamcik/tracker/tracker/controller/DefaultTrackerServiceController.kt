@@ -1,12 +1,10 @@
 package com.adsamcik.tracker.tracker.controller
 
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.collections.immutable.PersistentList
@@ -39,8 +37,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _sessionFlow = MutableStateFlow<TrackerSessionSnapshot?>(null)
     override val sessionFlow: StateFlow<TrackerSessionSnapshot?> get() = _sessionFlow
     
-    private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
-    override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
+    private val _collectionDataFlow = MutableStateFlow<TrackerCollectionSnapshot?>(null)
+    override val collectionDataFlow: StateFlow<TrackerCollectionSnapshot?> get() = _collectionDataFlow
 
     private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val pathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _pathPointsFlow
@@ -77,7 +75,7 @@ class DefaultTrackerServiceController : TrackerServiceController {
         _sessionInfoFlow.value = info
     }
     
-    override fun updateSession(session: TrackerSession?) {
+    override fun updateSession(session: TrackerSessionSnapshot?) {
         if (session == null) {
             // Service stopping, retain last session data
             val currentSession = _sessionFlow.value
@@ -87,13 +85,13 @@ class DefaultTrackerServiceController : TrackerServiceController {
             }
             _pathPointsFlow.value = null
         }
-        _sessionFlow.value = session?.toSnapshot()
+        _sessionFlow.value = session
     }
     
-    override fun updateCollectionData(data: CollectionData?) {
+    override fun updateCollectionData(data: TrackerCollectionSnapshot?) {
         _collectionDataFlow.value = data
         val currentSession = _sessionFlow.value
-        val location = data?.location?.toModel() ?: return
+        val location = data?.location ?: return
         if (currentSession == null) return
 
         // Atomic read-modify-write via StateFlow.update so concurrent collection cycles
@@ -145,17 +143,4 @@ class DefaultTrackerServiceController : TrackerServiceController {
     override fun updatePlaneState(state: LivePlaneState?) {
         _planeStateFlow.value = state
     }
-
-    private fun TrackerSession.toSnapshot() = TrackerSessionSnapshot(
-        id = id,
-        start = start,
-        end = end,
-        isUserInitiated = isUserInitiated,
-        collections = collections,
-        distanceInM = distanceInM,
-        distanceOnFootInM = distanceOnFootInM,
-        distanceInVehicleInM = distanceInVehicleInM,
-        steps = steps,
-        sessionActivityId = sessionActivityId,
-    )
 }

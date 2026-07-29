@@ -23,14 +23,13 @@ android {
 
 dependencies {
     api(project(":stats:api"))
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
 	implementation(project(":core:model"))
-    implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging-api"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.documentfile)

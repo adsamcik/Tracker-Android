@@ -1,9 +1,8 @@
 plugins {
     id("tracker.android.library")
-    id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.protobuf")
     alias(libs.plugins.kotlin.parcelize)
-    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -22,7 +21,6 @@ dependencies {
     implementation(project(":core:base"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -42,5 +40,3 @@ dependencies {
     // UI components used by preference sliders
     implementation(libs.component.slider)
 }
-
-configureProtobuf()

@@ -58,7 +58,6 @@
     <string name="notification_stop_til_recharge">Zastavit do nabití</string>
     <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
     <string name="notification_tracking_active">Záznam dat je aktivní</string>
-    <string name="permissions_tracker_timer_message">%1$s časovač potřebuje více oprávnění pro svoji funkci.</string>
     <string name="settings_activity_enabled_title">Aktivita</string>
     <string name="settings_auto_tracking_category">Automatický sběr dat</string>
     <string name="settings_auto_tracking_transition_summary">Přechody mohou snížit využití baterie při zapnutém automatickém zaznamenávání, ale mohou být méně reaktivní vůči změnám.</string>

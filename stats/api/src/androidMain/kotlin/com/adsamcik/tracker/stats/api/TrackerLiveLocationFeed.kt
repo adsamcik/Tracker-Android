@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Read-only adapter that exposes the foreground tracker's existing location
  * stream to other features (mini-games, dashboards, live previews) without
- * forcing them to depend on `:tracker` directly or open a second
+ * forcing them to depend on `:tracker:engine` directly or open a second
  * FusedLocationProviderClient subscription.
  *
  * Why this interface exists:
@@ -19,9 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
  *    live tile, debug overlay) would open its own FusedLocationProviderClient
  *    request. Running two concurrent location subscriptions doubles the radio
  *    cost and produces duplicate framework wake-ups for no extra information.
- *  - Implementations live in `:tracker` so the cross-cutting interface here
+ *  - Implementations live in `:tracker:engine` so the cross-cutting interface here
  *    stays free of tracker internals and module boundaries are preserved
- *    (`:game` does not, and must not, depend on `:tracker`).
+ *    (`:feature:game` does not, and must not, depend on `:tracker:engine`).
  *
  * Consumers should:
  *  1. Observe [isActiveFlow] (or snapshot [isActive]) to decide whether to
@@ -56,7 +56,7 @@ interface TrackerLiveLocationFeed {
 
 	/**
 	 * Hot flow of [Location] fixes captured by the running tracker, adapted
-	 * from the underlying `CollectionData` StateFlow.
+	 * from the underlying tracker collection-snapshot StateFlow.
 	 *
 	 * Emission semantics:
 	 *  - **Replay of the latest fix.** A new collector receives the most
@@ -65,8 +65,8 @@ interface TrackerLiveLocationFeed {
 	 *    There is no per-subscriber `drop(1)` or freshness gate here. If a
 	 *    consumer must not consume a stale fix, it is responsible for its
 	 *    own gating.
-	 *  - **Null-filtering.** Null `CollectionData` snapshots (between
-	 *    sessions) and null `CollectionData.location` values (sessions that
+	 *  - **Null-filtering.** Null collection snapshots (between sessions)
+	 *    and null snapshot location values (sessions that
 	 *    have not yet produced a fix) are dropped.
 	 *  - **Distinct-until-changed by Location equality.** Repeated identical
 	 *    `Location` values are suppressed, including immediately after a

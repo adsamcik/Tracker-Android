@@ -18,7 +18,6 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:ui"))
 
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

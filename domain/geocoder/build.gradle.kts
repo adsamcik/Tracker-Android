@@ -30,7 +30,6 @@ dependencies {
     implementation(project(":core:logging-api"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
 

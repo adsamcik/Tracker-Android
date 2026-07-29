@@ -2,10 +2,10 @@ package com.adsamcik.tracker.tracker.insights
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -112,7 +112,7 @@ class SessionInsightsGeneratorTest {
         endMs: Long = startMs + 45 * 60_000L,
         distanceInM: Float = 1_500f,
         steps: Int = 1_000,
-    ) = TrackerSession(
+    ) = TrackerSessionSnapshot(
         id = 1L,
         start = startMs,
         end = endMs,

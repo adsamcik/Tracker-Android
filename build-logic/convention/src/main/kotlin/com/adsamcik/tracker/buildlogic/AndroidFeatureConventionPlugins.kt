@@ -51,12 +51,16 @@ class AndroidRoomConventionPlugin : Plugin<Project> {
 
         pluginManager.withPlugin("com.android.library") {
             extensions.configure<LibraryExtension> {
-                sourceSets.maybeCreate("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+                sourceSets.maybeCreate("androidTest").assets.directories.add(
+                    layout.projectDirectory.dir("schemas").asFile.absolutePath,
+                )
             }
         }
         pluginManager.withPlugin("com.android.application") {
             extensions.configure<ApplicationExtension> {
-                sourceSets.maybeCreate("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+                sourceSets.maybeCreate("androidTest").assets.directories.add(
+                    layout.projectDirectory.dir("schemas").asFile.absolutePath,
+                )
             }
         }
 
@@ -68,10 +72,7 @@ class AndroidRoomConventionPlugin : Plugin<Project> {
 
         addLibrary("implementation", "androidx-room-runtime")
         addLibrary("implementation", "androidx-room-ktx")
-        addLibrary("implementation", "androidx-room-paging")
-        addLibrary("implementation", "sqlite-android")
         addLibrary("ksp", "androidx-room-compiler")
-        addLibrary("androidTestImplementation", "androidx-room-testing")
     }
 }
 
@@ -87,12 +88,15 @@ class AndroidTestConventionPlugin : Plugin<Project> {
         addLibrary("testImplementation", "kotlin-test")
         addLibrary("testImplementation", "mockk")
         addLibrary("testImplementation", "kotlinx-coroutines-test")
-        addLibrary("testImplementation", "turbine")
         addLibrary("testImplementation", "robolectric")
         addLibrary("testImplementation", "androidx-test-core")
         addLibrary("testImplementation", "arch-core-testing")
         addLibrary("testImplementation", "kotest-assertions-core")
+    }
+}
 
+class AndroidInstrumentedTestConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) = with(target) {
         addLibrary("androidTestImplementation", "junit4")
         addLibrary("androidTestImplementation", "androidx-test-runner")
         addLibrary("androidTestImplementation", "uiautomator")

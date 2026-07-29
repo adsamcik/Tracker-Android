@@ -6,9 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
-import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
-import io.requery.android.database.sqlite.SQLiteDatabase
-import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
+import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
 /**
  * Base class for Database Object.
@@ -28,12 +26,7 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 
 	private fun createInstance(context: Context): T {
 		val databaseFile = context.getDatabasePath(databaseName)
-		val configuration = SQLiteDatabaseConfiguration(
-				databaseFile.path,
-				SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
-		)
-		val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
-		val delegateFactory = RequerySQLiteOpenHelperFactory(listOf(options))
+		val delegateFactory = SQLiteXSupportSQLiteOpenHelperFactory()
 		val instance = Room.databaseBuilder(
 				context.applicationContext,
 				type,

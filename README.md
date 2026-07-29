@@ -30,7 +30,7 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 ### Prerequisites
 
 - Android Studio (latest stable)
-- JDK 17
+- JDK 21 for Gradle (application bytecode targets Java 17)
 - Android SDK 37 (compile and target)
 
 ### Build & Test
@@ -52,7 +52,7 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 
 ### Tech Stack
 
-- Kotlin 2.4.0 with Coroutines & Flow
+- Kotlin 2.4.10 with Coroutines & Flow
 - Jetpack Compose (Material 3)
 - Room database
 - Hilt + KSP and AppGraph for DI

@@ -76,8 +76,9 @@ class TraceboxTrialScreenTest {
             isAvailable = false,
         )
 
+        scrollTo("Available only in the Android 8.0+ Tracebox trial build.")
         composeTestRule.onNodeWithText(
-            "Available only in the Android 11+ Tracebox trial build.",
+            "Available only in the Android 8.0+ Tracebox trial build.",
         ).assertIsDisplayed().assertIsNotEnabled()
     }
 

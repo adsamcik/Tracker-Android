@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.detail.StatisticDisplayType

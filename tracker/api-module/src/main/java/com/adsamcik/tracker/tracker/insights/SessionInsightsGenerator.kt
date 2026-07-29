@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.insights
 
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 interface SessionInsightsGenerator {
-	suspend fun generate(session: TrackerSession): List<SessionInsight>
+	suspend fun generate(session: TrackerSessionSnapshot): List<SessionInsight>
 }

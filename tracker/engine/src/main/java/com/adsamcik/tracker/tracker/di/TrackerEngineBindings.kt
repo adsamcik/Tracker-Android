@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.di
 
 import com.adsamcik.tracker.tracker.insights.DefaultSessionInsightsGenerator
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
+import com.adsamcik.tracker.tracker.notification.DefaultTrackerNotificationSettingsRepository
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepository
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import dagger.Binds
@@ -21,4 +23,9 @@ abstract class TrackerEngineBindings {
 	abstract fun bindSessionInsightsGenerator(
 		impl: DefaultSessionInsightsGenerator,
 	): SessionInsightsGenerator
+
+	@Binds
+	abstract fun bindTrackerNotificationSettingsRepository(
+		impl: DefaultTrackerNotificationSettingsRepository,
+	): TrackerNotificationSettingsRepository
 }

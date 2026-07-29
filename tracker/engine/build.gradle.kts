@@ -1,10 +1,9 @@
 plugins {
     id("tracker.android.library")
-    id("tracker.android.room")
     id("tracker.android.hilt")
     id("tracker.android.test")
+    id("tracker.android.protobuf")
     alias(libs.plugins.kotlin.parcelize)
-    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -52,18 +51,17 @@ tasks.withType<Test>().configureEach {
 dependencies {
     api(project(":tracker:api"))
     implementation(project(":tracker:control"))
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
     implementation(project(":core:logging-api"))
     implementation(project(":sensor:activity-api"))
-    implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))
     implementation(project(":stats:api"))
     implementation(project(":stats:engine"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.androidx.appcompat)
@@ -82,13 +80,12 @@ dependencies {
     implementation(libs.androidx.datastore.core)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.protobuf.java)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
-    androidTestImplementation(libs.androidx.work.testing)
 
     testImplementation(libs.androidx.work.testing)
-    androidTestImplementation(project(":core:testing"))
+    testImplementation(libs.turbine)
 }
-
-configureProtobuf()

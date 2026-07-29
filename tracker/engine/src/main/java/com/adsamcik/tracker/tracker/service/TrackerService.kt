@@ -41,7 +41,6 @@ import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
-import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.receiver.TrackerRestartReceiver
@@ -95,9 +94,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@Inject
 	lateinit var lockManager: LockManager
-
-	@Inject
-	lateinit var trackerListenerManager: TrackerListenerManager
 
 	@Inject
 	lateinit var signalProcessors: Set<@JvmSuppressWildcards SignalProcessor>
@@ -170,7 +166,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = trackerListenerManager,
 			signalProcessors = signalProcessors,
 			domainEventRepository = domainEventRepository,
 			dispatchers = dispatchers,

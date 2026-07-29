@@ -154,7 +154,7 @@ import org.maplibre.compose.map.OrnamentOptions
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.map.ui.controls.mapChromeFrostedColor
 import com.adsamcik.tracker.map.ui.controls.mapChromeGlassBorder
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow

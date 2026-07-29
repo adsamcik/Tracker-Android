@@ -173,7 +173,7 @@ class JsonExporterRoomIntegrationTest {
 		payload.contains("\"timeMs\":${outOfRangeSample.timeMs}") shouldBe false
 
 		val record = JSONArray(payload).getJSONObject(0)
-		record.getInt("schemaVersion") shouldBe 2
+		record.getInt("schemaVersion") shouldBe 3
 		val exportedLocations = record.getJSONArray("locations")
 		exportedLocations.length() shouldBe inRangeSamples.size
 		inRangeSamples.forEachIndexed { index, expected ->

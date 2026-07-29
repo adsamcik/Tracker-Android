@@ -13,10 +13,10 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -40,7 +40,7 @@ import kotlinx.coroutines.withContext
 class DefaultGameRepository @Inject constructor(
 	private val application: Application,
 	@ApplicationScope private val scope: CoroutineScope,
-	private val sessionChannel: TrackerSessionChannel,
+	private val trackerStateReader: TrackerStateReader,
 	private val dispatchers: DispatchersProvider,
 	private val database: AppDatabase,
 	private val progressionRepository: PlayerProgressionRepository,
@@ -64,7 +64,7 @@ class DefaultGameRepository @Inject constructor(
 	init {
 		GoalTracker.initialize(
 			context = application,
-			sessionChannel = sessionChannel,
+			trackerStateReader = trackerStateReader,
 			progressionRepository = progressionRepository,
 			achievementScheduler = achievementScheduler,
 			settingsRepository = goalsSettingsRepository,

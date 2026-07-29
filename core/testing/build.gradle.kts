@@ -34,7 +34,6 @@ dependencies {
     implementation(project(":stats:api"))
 
     // Kotlin & Coroutines
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.test)
 

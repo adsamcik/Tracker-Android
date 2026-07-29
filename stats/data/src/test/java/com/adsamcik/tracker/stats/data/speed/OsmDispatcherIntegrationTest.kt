@@ -239,7 +239,7 @@ class OsmDispatcherIntegrationTest {
 		// return the baseline without throwing — OsmSpeedLimitSource returns
 		// null on an empty candidate list, and DefaultSpeedLimitSource falls
 		// through to the fixed source.
-		seedOsmImport()
+		seedOsmImport(cellIndexBuilt = 0)
 		seedDriveableWayWithoutCells(
 			wayId = 1L,
 			maxspeedKmh = 90,
@@ -278,6 +278,13 @@ class OsmDispatcherIntegrationTest {
 				latsE7 = intArrayOf(PRAGUE_LAT_E7, PRAGUE_LAT_E7),
 				lonsE7 = intArrayOf(PRAGUE_LON_E7, PRAGUE_LON_E7 + 1_000),
 			)
+			// Construct the cached dispatcher after the ready import is fully seeded.
+			dispatcher = DefaultSpeedLimitSource(
+				fixed = FixedSpeedLimitSource(trackingParams, dispatcherScope),
+				osm = osmSource,
+				osmImportDao = database.osmImportDao(),
+				appScope = dispatcherScope,
+			)
 
 			// First call: 90 km/h via OSM.
 			val first = dispatcher.limitMpsAt(
@@ -290,7 +297,7 @@ class OsmDispatcherIntegrationTest {
 
 			// User deletes the imported region.
 			database.osmImportDao().delete(importId)
-			// The dispatcher's snapshot is now stale until Room's observeCount
+			// The dispatcher's snapshot is now stale until Room's observeReadyCount
 			// Flow propagates the deletion. Wait for the upstream Flow to emit 0
 			// before the next call — the snapshot is observable-driven, not
 			// query-driven, so we must let the InvalidationTracker observer pump
@@ -298,7 +305,7 @@ class OsmDispatcherIntegrationTest {
 			// invalidation executor runs on real threads in Robolectric and a
 			// virtual-time test scheduler would deadlock against it.
 			withTimeout(2_000) {
-				database.osmImportDao().observeCount().first { it == 0 }
+				database.osmImportDao().observeReadyCount().first { it == 0 }
 			}
 
 			val second = dispatcher.limitMpsAt(
@@ -331,6 +338,7 @@ class OsmDispatcherIntegrationTest {
 	/** Insert an `osm_import` header row. Returns the auto-generated rowid. */
 	private suspend fun seedOsmImport(
 		displayName: String = "test-region.osm.pbf",
+		cellIndexBuilt: Int = 1,
 	): Long {
 		// Bounding box covers ~1 deg around Prague — plenty of headroom so any
 		// of the test queries fall inside its declared bbox.
@@ -347,6 +355,7 @@ class OsmDispatcherIntegrationTest {
 				diagnosticMinLongitudeE7 = PRAGUE_LON_E7 - 5_000_000,
 				diagnosticMaxLongitudeE7 = PRAGUE_LON_E7 + 5_000_000,
 				wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
+				cellIndexBuilt = cellIndexBuilt,
 			),
 		)
 	}

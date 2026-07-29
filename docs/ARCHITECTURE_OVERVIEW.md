@@ -1,6 +1,6 @@
 # Tracker Android architecture overview
 
-> **Last verified:** 2026-07-19
+> **Last verified:** 2026-07-29
 
 Tracker is a local-first Android application. Location, activity, Wi-Fi, cell, and
 step data are collected and persisted on-device. The application has no backend,
@@ -8,9 +8,9 @@ remote sync, analytics, or telemetry.
 
 ## Module graph
 
-The project currently includes **31 application Gradle modules**. The authoritative
-include list is `settings.gradle.kts`; dependency versions are managed in
-`gradle/libs.versions.toml`.
+The project currently includes **33 application Gradle modules**, plus the
+`:tools:ski-data-generator` tooling module. The authoritative include list is
+`settings.gradle.kts`; dependency versions are managed in `gradle/libs.versions.toml`.
 
 ```text
 :app
@@ -21,13 +21,14 @@ include list is `settings.gradle.kts`; dependency versions are managed in
 ├── :feature:game (+ :feature:game:api)
 ├── :feature:activity
 ├── :feature:import-export
-├── :tracker:engine ── :tracker:api
+├── :tracker:engine ── :tracker:api, :tracker:control
 ├── :sensor:activity ── :sensor:activity-api
 ├── :stats:data ── :stats:engine ── :stats:api
 ├── :domain:points, :domain:osm, :domain:geocoder
 ├── :data:preferences
 └── :core:base, :core:model, :core:common, :core:ui,
-    :core:logging, :core:logging-api, :core:network, :core:testing
+    :core:logging, :core:logging-api, :core:network,
+    :core:sqlite-runtime, :core:testing
 ```
 
 API modules contain contracts and route types. Feature implementations should
@@ -40,17 +41,19 @@ layout.
 | `:app` | Application entry point, root navigation, Hilt composition root, settings, onboarding |
 | `:core:base` | Room database, DAOs, entities, converters, and entity/model mappers |
 | `:core:model` | Room-free domain models shared by higher layers |
-| `:core:common` | Shared concurrency, time, I/O, notifications, services, and foundation types |
-| `:core:ui` | Shared Compose UI, formatters, and `AppTheme` |
+| `:core:common` | Shared concurrency, time, startup, result, WorkManager data, I/O, notifications, services, and foundation types |
+| `:core:ui` | Dependency-free shared Compose UI and `AppTheme` |
 | `:core:logging` / `:core:logging-api` | Logging implementation and logger-facing contracts |
 | `:core:network` | Network helpers used behind the network abstraction |
+| `:core:sqlite-runtime` | Bundled SQLiteX runtime and AndroidX `SupportSQLite` adapter |
 | `:core:testing` | Test fakes and test utilities |
-| `:data:preferences` | Typed preferences, settings repositories, and retention |
+| `:data:preferences` | Typed preferences, settings repositories, retention, and unit-aware measurement formatting |
 | `:stats:api` / `:stats:engine` / `:stats:data` | Statistics contracts, algorithms, and persistence adapters |
 | `:domain:points` / `:domain:osm` / `:domain:geocoder` | Points, OSM, and place lookup domain services |
-| `:tracker:api` / `:tracker:engine` | Tracking contracts and the foreground-service pipeline |
+| `:tracker:api` / `:tracker:engine` | Immutable tracking and notification-settings contracts; Android foreground-service and notification runtime |
+| `:tracker:control` | Android-free tracking decision model and reducer, currently evaluated from the engine |
 | `:sensor:activity-api` / `:sensor:activity` | Activity-recognition contracts and Play Services implementation |
-| `:feature:tracker` | Tracking screen and controls |
+| `:feature:tracker` | Tracking screen, controls, and notification customization UI |
 | `:feature:dashboard` | Dashboard, live statistics, and widgets |
 | `:feature:statistics` | Session list, trip details, and analytics |
 | `:feature:map` | MapLibre map, route, and heatmap presentation |
@@ -80,8 +83,23 @@ pre/data/post tracking components
 ```
 
 `:tracker:engine` owns `TrackerService` and the component pipeline. It collects
-sensor data, applies tracking policy, persists records, and emits signals. Stats
-processing and feature-specific consumers are separate from the tracking service.
+sensor data, applies tracking policy, persists records, and emits signals.
+`:tracker:control` is the pure decision boundary; Android acquisition and service
+effects remain in `:tracker:engine`. Stats processing and feature-specific
+consumers are separate from the tracking service.
+
+The engine maps its Room-backed session and mutable collection state to immutable
+`:tracker:api` snapshots before publishing them. The collection snapshot is
+feature-oriented and privacy-minimized: Wi-Fi access points expose SSID and signal
+level, but not BSSID. Tracker contracts therefore do not expose `:core:base`.
+Game goals consume the same `TrackerStateReader.sessionFlow` snapshot stream; the
+former shared-UI session channel and reflective listener broadcasts no longer
+exist.
+
+Notification customization follows the same boundary. `:tracker:api` exposes an
+immutable ordered settings catalog and repository port. `:tracker:engine` maps that
+contract to its runtime notification components and the legacy Room preference
+table; `:feature:tracker` never sees either implementation type.
 
 ## UI and navigation
 
@@ -108,9 +126,27 @@ remain in `:app`. Shared Compose dependencies and theming live in `:core:ui`.
 
 The main Room database is `AppDatabase` in
 `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt`.
-Its current schema version is **38**. Other local databases include the debug,
+Its current schema version is **40**. Other local databases include the debug,
 preferences, logging, and points databases; their versions are independent.
 Schema changes require a Room migration and a migration test.
+
+## Dependency direction
+
+The intended dependency direction for ongoing boundary work is:
+
+```text
+feature UI → feature/domain contracts → repositories/ports → data adapters
+tracker engine → tracker contracts + pure tracker control
+app → all implementations (composition root)
+```
+
+Contract modules must not expose Room entities or Android implementation types.
+Feature implementations should not depend on another feature implementation or an
+`:*:engine` module, and
+`:core:ui` is a presentation leaf with no project-module dependencies and no
+manifest permissions. Runtime startup, worker, permission, tracker-state, and
+persistence responsibilities belong to their respective foundation, API, or
+feature owners.
 
 ## Build and test references
 

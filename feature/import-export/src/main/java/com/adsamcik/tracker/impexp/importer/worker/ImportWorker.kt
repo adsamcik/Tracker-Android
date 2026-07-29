@@ -28,8 +28,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
-import com.adsamcik.tracker.shared.utils.extension.runWithReport
-import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
+import com.adsamcik.tracker.shared.base.result.runWithReport
+import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
 import java.io.IOException
 import java.util.Locale
 import dagger.assisted.Assisted

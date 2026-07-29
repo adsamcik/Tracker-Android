@@ -47,7 +47,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
-        tools:replace="android:allowBackup,android:dataExtractionRules,android:fullBackupContent"
+        tools:replace="android:allowBackup"
         tools:targetApi="q">
         <meta-data
             android:name="android.max_aspect"

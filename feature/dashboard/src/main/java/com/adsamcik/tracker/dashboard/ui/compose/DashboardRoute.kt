@@ -102,7 +102,7 @@ fun DashboardRoute(
 	val isLocked by lockManager.isLockedFlow.collectAsState()
 	val policyTier by trackerState.policyTierFlow.collectAsState()
 	val sessionData by trackerState.sessionFlow.collectAsState()
-	val collectionData by trackerState.collectionDataFlow.collectAsState()
+	val collectionSnapshot by trackerState.collectionDataFlow.collectAsState()
 	val pathPoints by trackerState.pathPointsFlow.collectAsState()
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
@@ -229,7 +229,7 @@ fun DashboardRoute(
 		hasLocationPermission = locationPermissionSatisfied,
 		policyTier = policyTier,
 		sessionData = displaySession,
-		collectionData = collectionData,
+		collectionSnapshot = collectionSnapshot,
 		pathPoints = relevantPathPoints,
 		todaySummary = unifiedTodaySummary,
 		pointsToday = pointsToday,

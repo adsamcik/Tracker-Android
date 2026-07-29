@@ -1,8 +1,9 @@
 # SQLite runtime durability observability
 
-`ObjectBaseDatabase` enables Room WAL mode, but a dependency declaration alone is not proof of
-the SQLite binary or durability settings actually active on a device. Every file-backed database
-opened through that base class now emits one best-effort `event=sqlite_runtime` diagnostic.
+`ObjectBaseDatabase` enables Room WAL mode and opens its file-backed databases through
+`SQLiteXSupportSQLiteOpenHelperFactory`, but build-time dependency checks are not proof of the
+SQLite binary or durability settings actually active on a device. Every file-backed database
+opened through that base class emits one best-effort `event=sqlite_runtime` diagnostic.
 
 The event records the runtime `sqlite_version()` and `sqlite_source_id()`, plus the effective
 `journal_mode`, `synchronous`, and `wal_autocheckpoint` PRAGMAs. It also records main-database and
@@ -29,8 +30,9 @@ Release builds now package the official SQLite Android binding at SQLite `3.53.3
 (`arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`) contain source ID
 `2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62`.
 This source postdates the SQLite `3.51.3` WAL-reset fix. The Room integration is isolated in
-`:core:sqlite-runtime` so production Room databases use the fixed binding without exposing its
-`org.sqlite` API to feature modules.
+`:core:sqlite-runtime`; `:core:base` and `:core:logging` select its
+`SQLiteXSupportSQLiteOpenHelperFactory`, so the app, points, and logging databases use the fixed
+binding without exposing its `org.sqlite` API to feature modules.
 
 The runtime telemetry is intentionally retained: it confirms the loaded version/source on real
 devices, while migration, concurrent-write/checkpoint, process-crash, and sudden-power-loss
@@ -38,8 +40,12 @@ durability remain separate evidence requirements.
 
 ## Release gate
 
-`verifyReleaseSqliteRuntime` gates every release artifact-producing Gradle task. It fails closed if
-the vendored AAR is absent, below `3.51.3`, has a different upstream SHA3-256, lacks any required
-ABI, or embeds a native library without the fixed source ID. That prevents a catalog/dependency
-resolution change from silently returning the affected runtime to a release package. Runtime
-telemetry and real-device durability testing remain mandatory evidence after packaging.
+`verifyReleaseSqliteRuntime` validates the vendored AAR and the standard app release classpaths.
+Every release variant's assemble, bundle, and package tasks also depend on that variant's linkage
+check, so optional/private flavors are verified when they are actually built without forcing their
+credentials during the standard aggregate check. The gate fails closed if the AAR is absent, below
+`3.51.3`, has a different upstream SHA3-256, lacks any required ABI, embeds a native library without
+the fixed source ID, or the selected release classpath does not resolve those verified native
+libraries. That prevents project wiring or dependency resolution changes from silently returning a
+release package to another SQLite runtime. Runtime telemetry and real-device durability testing
+remain mandatory evidence after packaging.

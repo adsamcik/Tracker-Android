@@ -16,7 +16,6 @@ internal object TrackerAndroidConfig {
     const val COMPILE_SDK = 37
     const val TARGET_SDK = 37
     const val MIN_SDK = 26
-    const val BUILD_TOOLS = "37.0.0"
     const val JAVA_VERSION = 17
 }
 
@@ -46,7 +45,6 @@ internal fun Project.configureJUnitPlatform() {
 
 internal fun LibraryExtension.configureTrackerLibrary() {
     compileSdk = TrackerAndroidConfig.COMPILE_SDK
-    buildToolsVersion = TrackerAndroidConfig.BUILD_TOOLS
 
     defaultConfig {
         minSdk = TrackerAndroidConfig.MIN_SDK
@@ -56,17 +54,6 @@ internal fun LibraryExtension.configureTrackerLibrary() {
     compileOptions {
         sourceCompatibility = org.gradle.api.JavaVersion.VERSION_17
         targetCompatibility = org.gradle.api.JavaVersion.VERSION_17
-    }
-
-    buildTypes {
-        getByName("debug") {
-        }
-        maybeCreate("release_nominify").apply {
-            isMinifyEnabled = false
-        }
-        getByName("release") {
-            isMinifyEnabled = false
-        }
     }
 
     lint {
@@ -81,7 +68,6 @@ internal fun LibraryExtension.configureTrackerLibrary() {
 
 internal fun ApplicationExtension.configureTrackerApplication() {
     compileSdk = TrackerAndroidConfig.COMPILE_SDK
-    buildToolsVersion = TrackerAndroidConfig.BUILD_TOOLS
 
     defaultConfig {
         minSdk = TrackerAndroidConfig.MIN_SDK
@@ -94,16 +80,7 @@ internal fun ApplicationExtension.configureTrackerApplication() {
         targetCompatibility = org.gradle.api.JavaVersion.VERSION_17
     }
 
-    buildTypes {
-        getByName("debug") {
-        }
-        maybeCreate("release_nominify").apply {
-            isMinifyEnabled = false
-        }
-        getByName("release") {
-            isMinifyEnabled = false
-        }
-    }
+    buildTypes.maybeCreate("release_nominify")
 
     lint {
         checkReleaseBuilds = true

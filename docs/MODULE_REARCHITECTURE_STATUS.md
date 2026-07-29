@@ -1,11 +1,12 @@
 # Module Rearchitecture — Status & Roadmap
 
 > Branch: `dev/v10`
-> Last updated: 2026-07-19
+> Last updated: 2026-07-29
 
 This document records the module rearchitecture currently present on `dev/v10`.
-The Gradle project contains 31 application modules (including API contract modules); the
-`build-logic` included build is separate from that count.
+The Gradle project contains 33 application modules (including API contract modules), plus
+the `:tools:ski-data-generator` tooling module. The `build-logic` included build is
+separate from that count.
 
 ## Module layout
 
@@ -17,14 +18,16 @@ The Gradle project contains 31 application modules (including API contract modul
 :core:ui                     shared Compose UI + AppTheme (was sutils)
 :core:logging / :core:logging-api  logging impl / contracts (were logger / logging-api)
 :core:network                network helpers (was network)
+:core:sqlite-runtime         bundled SQLiteX runtime + AndroidX SupportSQLite adapter
 :core:testing                test fakes + utilities (was testing-common)
 :data:preferences            preferences / settings / retention (was spreferences)
 :stats:api                   stats contracts — depends on :core:model, NOT the DB (was stats-api)
 :stats:engine /:stats:data   algorithms / data layer (were stats-engine / stats-data)
 :domain:points /:domain:osm  points calc / OSM lookup (were points / osm)
 :tracker:api                 tracking contracts (TrackerServiceController, LockManager, BackgroundTrackingApi, …; directory `tracker/api-module`)
+:tracker:control             pure Kotlin tracking evidence, state, and decision reducer
 :tracker:engine              tracking impl (service, pipeline, producers/consumers — no UI)
-:feature:tracker             tracking Compose UI (TrackerRoute)
+:feature:tracker             tracking Compose UI and notification customization
 :sensor:activity-api         activity-recognition contracts (ActivityRequestManager interface, request/transition types)
 :sensor:activity             activity recognition impl (Google Play Services)
 :feature:activity            activity-type management Compose UI
@@ -63,6 +66,9 @@ are maintained in the root `README.md` and `.github/context/DEVELOPMENT.md`.
   `BackgroundTrackingApi`, session/insight types) / `:tracker:engine` (service, pipeline, producers —
   no UI) / `:feature:tracker` (Compose UI). `:feature:map` and `:feature:dashboard` now depend on
   `:tracker:api` only.
+- **Phase 7 — pure tracking control seam.** Added `:tracker:control`, an Android-free evidence ledger
+  and decision reducer. The engine can evaluate it while Android service/acquisition effects remain
+  in `:tracker:engine`; production authority should move only after shadow comparison is proven.
 
 ## Follow-ups — also delivered
 
@@ -80,7 +86,71 @@ closed: `TrackerServiceController` exposes the Room-free `shared.model.Location`
 `SessionSegment`, its DAO/type converter, and all construction paths use the single
 `shared.model.SegmentSource` enum while retaining the existing enum-name database representation.
 
+### Tracker API live-state contracts (COMPLETE FOR CURRENT BOUNDARY)
+
+`TrackerServiceController` and `SessionInsightsGenerator` exchange immutable,
+API-owned session and collection snapshots. Room-backed sessions and the mutable
+legacy collection payload are mapped inside `:tracker:engine`; the public live-state
+snapshot exposes only feature-facing primitives and omits Wi-Fi BSSIDs. As a result,
+`:tracker:api` no longer exports or depends on `:core:base`.
+
+### Tracker notification settings boundary (COMPLETE)
+
+The notification customization catalog now crosses an immutable,
+context-free `TrackerNotificationSettingsRepository` contract in `:tracker:api`.
+`:tracker:engine` owns the runtime notification components, stable persisted IDs,
+Room adapter, ordering normalization, and Hilt binding. `:feature:tracker` owns only
+the editor UI and ViewModel, no longer accesses Room or depends on
+`:tracker:engine`. The existing app-owned notification-management destination is
+also registered in the settings graph, so the customization row now opens the
+editor instead of invoking a no-op callback.
+
+### Shared UI ownership boundary (COMPLETE)
+
+`:core:ui` now contains reusable Compose presentation code only and has no
+project-module dependencies. Generic startup, exception-result, and WorkManager
+data helpers moved to `:core:common`; measurement-aware distance and speed
+formatting moved beside its unit/settings owner in `:data:preferences`.
+
+The duplicate Room-backed `TrackerSessionChannel` was removed. Game goals now
+observe the immutable `TrackerStateReader.sessionFlow` contract from
+`:tracker:api`, and their update APIs accept `TrackerSessionSnapshot`. The
+unused reflective tracker-listener broadcast route and its signature permission
+were deleted rather than relocated. The unused Activity Result permission facade
+and timer-permission entry point were also removed; active permission flows remain
+owned by their screens.
+
+As a result, `:tracker:engine`, `:stats:data`, `:domain:points`, `:domain:osm`,
+and `:sensor:activity` no longer depend on `:core:ui`.
+
 ## Guardrails
 - `CoreCommonBoundaryTest` (`:core:common`) fails if `:core:common` imports Room, the database
   package, base data models, or other base-resident packages.
+- `ArchitecturalFitnessTest` (`:app`) enforces project-wide source boundaries, including the
+  Android-free `:stats:api` contract. Boundary paths must point at current module locations and
+  missing source roots fail closed rather than silently skipping checks.
+- `TrackerApiBoundaryTest` rejects dependencies on `:core:base` and imports from its data,
+  database, and mapper packages, keeping tracker contracts implementation-free. It also keeps
+  the notification settings boundary context-free and hides engine runtime components.
+- `CoreUiBoundaryTest` requires a permission-free, project-dependency-free
+  `:core:ui` and rejects tracker state, WorkManager, permission orchestration,
+  logging, base, and preferences ownership from returning.
+- `GameTrackerStateBoundaryTest` keeps game goals on `TrackerStateReader` and
+  immutable `TrackerSessionSnapshot` rather than the removed legacy channel or
+  Room-backed session entity.
+- Module dependency fitness rules prevent `:core:network` from regaining a database dependency
+  and reject new feature implementation-to-implementation edges. Feature modules may not depend
+  on any `:*:engine` implementation module, and tracker notification UI may not regain direct
+  preference-database access.
 - Root `checkRoomSchemaDrift` task continues to guard Room schema changes after the directory moves.
+
+## Next boundary pass
+
+The next work is intentionally incremental rather than another path-only module migration:
+
+1. Introduce feature-facing repositories/ports so ViewModels no longer inject `AppDatabase` or
+   DAOs directly.
+2. Replace the two allowlisted feature implementation edges with small contracts for statistics
+   map preview and import/export coordination, then delete their fitness-test allowlist.
+3. Move the active Compose permission-request presentation out of database-owning
+   `:core:base` without recreating a process-wide permission manager.

@@ -9,14 +9,11 @@ android {
 }
 
 dependencies {
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(project(":core:logging-api"))
-    // :sbase exposes DispatchersProvider so DefaultNetworkGateway can swap
-    // dispatchers in tests via TestDispatchersProvider instead of hardcoding
-    // Dispatchers.IO. Also satisfies the fitness rule that bans whole-object
-    // Dispatchers imports outside :sbase.
-    implementation(project(":core:base"))
+    // Dispatcher and application-scope contracts are foundation concerns;
+    // the network adapter must not inherit the Room/database module.
+    implementation(project(":core:common"))
     // OkHttp is `api` because [OkHttpBackedGateway.okHttpCallFactory] returns
     // `okhttp3.Call.Factory`; that type must be visible to consumers like
     // `:map` (for `HttpRequestUtil.setOkHttpClient`) and any future module that

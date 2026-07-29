@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="permission_rationale_understood">Understood</string>
-    <string name="permission_rationale_denied">Keep denied</string>
-    <string name="permission_rationale_title">Permission required</string>
-    <string name="permission_rationale_dialog_intro">Tracker needs the following to keep working as you expect. Permission data stays on this device — nothing is sent to a server.</string>
-    <string name="permission_rationale_activity">Activity recognition helps Tracker detect what you\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.</string>
-    <string name="permission_rationale_location">Location access is needed to record your route and show it on the map. Location data stays on this device — nothing is sent to a server.</string>
-    <string name="permission_rationale_phone_state">Phone state is needed only to identify which cellular carrier each cell tower reading belongs to when you opt in to Cell Towers tracking. No phone numbers, IMEI, or call data are read. Stays on this device — nothing is sent to a server.</string>
-    <string name="permission_rationale_background_location">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time".</string>
     <string name="percentage_format">%s%%</string>
     <string name="action_navigate_back">Navigate back</string>
 </resources>

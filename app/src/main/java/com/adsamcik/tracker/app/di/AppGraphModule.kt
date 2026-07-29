@@ -18,7 +18,6 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.stats.api.TrackerLiveLocationFeed
 import com.adsamcik.tracker.tracker.controller.DefaultLockManager
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
@@ -76,12 +75,6 @@ object AppGraphModule {
         watcherController: ActivityWatcherServiceController,
     ): LockManager {
         return DefaultLockManager(controller, watcherController)
-    }
-
-    @Provides
-    @Singleton
-    fun provideTrackerSessionChannel(): TrackerSessionChannel {
-        return TrackerSessionChannel()
     }
 
     @Provides

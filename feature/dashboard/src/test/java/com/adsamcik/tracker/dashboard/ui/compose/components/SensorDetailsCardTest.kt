@@ -24,7 +24,7 @@ class SensorDetailsCardTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				SensorDetailsCard(
-					collectionData = null,
+					collectionSnapshot = null,
 					isTracking = false,
 				)
 			}
@@ -34,17 +34,17 @@ class SensorDetailsCardTest {
 	}
 
 	@Test
-	fun withNullCollectionData_rendersNothing() {
+	fun withNullCollectionSnapshot_rendersNothing() {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				SensorDetailsCard(
-					collectionData = null,
+					collectionSnapshot = null,
 					isTracking = true,
 				)
 			}
 		}
 
-		// Early return when collectionData is null
+		// Early return when collectionSnapshot is null
 		composeRule.onAllNodesWithText("Sensor Details").assertCountEquals(0)
 	}
 
@@ -54,7 +54,7 @@ class SensorDetailsCardTest {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				SensorDetailsCard(
-					collectionData = null,
+					collectionSnapshot = null,
 					isTracking = false,
 					isDebugBuild = false,
 				)

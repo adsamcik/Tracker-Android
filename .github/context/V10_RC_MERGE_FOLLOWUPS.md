@@ -6,7 +6,7 @@ After integrating `feature/v10-rc-fixes` and `feature/qc-finalization` into loca
 
 - **Release-gate suite** — the v10 RC validation command from the handover has not been re-run against the merged tree:
   ```powershell
-  ./gradlew :app:lintRelease :app:checkReleaseLintReport :app:assembleRelease assembleRelease_nominify checkRoomSchemaDrift --no-daemon --console=plain
+  ./gradlew :app:lintRelease :app:assembleRelease :app:assembleRelease_nominify checkRoomSchemaDrift --no-daemon --console=plain
   ```
   Confirmed green so far: `:statistics:testDebugUnitTest` + `:app:assembleDebug` (1m 21s, 0 failures after the test fix in `883efc9cf`).
 

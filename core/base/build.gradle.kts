@@ -3,6 +3,7 @@ plugins {
     id("tracker.android.compose")
     id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.instrumented-test")
     alias(libs.plugins.kotlin.parcelize)
 }
 
@@ -39,9 +40,9 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     implementation(project(":core:logging-api"))
+    implementation(project(":core:sqlite-runtime"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -65,6 +66,8 @@ dependencies {
 
     // DB (api to expose RoomDatabase supertype to consumers of sbase)
     api(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.paging)
+    androidTestImplementation(libs.androidx.room.testing)
 
     // Paging
     implementation(libs.androidx.paging.runtime)

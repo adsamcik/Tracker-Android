@@ -32,7 +32,7 @@ class TrackingStatsGridTest {
 						distanceInM = 1500f,
 						collections = 10,
 					),
-					collectionData = null,
+					collectionSnapshot = null,
 				)
 			}
 		}
@@ -56,7 +56,7 @@ class TrackingStatsGridTest {
 						steps = 2500,
 						collections = 10,
 					),
-					collectionData = null,
+					collectionSnapshot = null,
 				)
 			}
 		}
@@ -65,7 +65,7 @@ class TrackingStatsGridTest {
 	}
 
 	@Test
-	fun withNullCollectionData_rendersWithoutCrash() {
+	fun withNullCollectionSnapshot_rendersWithoutCrash() {
 		val now = System.currentTimeMillis()
 
 		composeRule.setContent {
@@ -77,12 +77,12 @@ class TrackingStatsGridTest {
 						end = now,
 						distanceInM = 0f,
 					),
-					collectionData = null,
+					collectionSnapshot = null,
 				)
 			}
 		}
 
-		// Should render without crash even with null collectionData
+		// Should render without crash even with null collectionSnapshot
 		composeRule.onNodeWithText("Distance", substring = true).assertIsDisplayed()
 	}
 
@@ -100,7 +100,7 @@ class TrackingStatsGridTest {
 						distanceInM = 100f,
 						steps = 0,
 					),
-					collectionData = null,
+					collectionSnapshot = null,
 				)
 			}
 		}

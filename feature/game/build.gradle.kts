@@ -2,21 +2,13 @@ plugins {
     id("tracker.android.library")
     id("tracker.android.compose")
     id("tracker.android.hilt")
-    id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.protobuf")
     alias(libs.plugins.kotlin.parcelize)
-    alias(libs.plugins.protobuf)
 }
 
 android {
     namespace = "com.adsamcik.tracker.game"
-
-    buildTypes {
-        create("dev") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("debug", "release")
-        }
-    }
 
     lint {
         baseline = file("lint-baseline.xml")
@@ -27,6 +19,8 @@ dependencies {
     // Removed :app dependency as part of converting to a library module
     implementation(project(":feature:game:api"))
     implementation(project(":feature:dashboard:api"))
+    implementation(project(":tracker:api"))
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
@@ -38,7 +32,6 @@ dependencies {
     implementation(project(":stats:data"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -61,16 +54,13 @@ dependencies {
     // DataStore proto settings (full protobuf runtime)
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
 
-    // UI Tests
-    androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
-    // Needed for ComponentActivity.setContent in androidTest
-    androidTestImplementation(libs.activity.compose)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
-    androidTestImplementation(libs.androidx.work.testing)
 
     // UI utils
     implementation(libs.component.slider)
@@ -79,10 +69,9 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.activity.compose)
+    testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
 
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.work)
 }
-
-configureProtobuf()

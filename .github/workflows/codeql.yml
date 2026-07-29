@@ -33,11 +33,11 @@ jobs:
         uses: actions/checkout@v4
 
       # JDK is required for CodeQL Java/Kotlin analysis and Gradle
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         if: matrix.language == 'java-kotlin'
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       # Optional but helps with Gradle performance and wrapper verification
@@ -45,7 +45,7 @@ jobs:
         if: matrix.language == 'java-kotlin'
         uses: gradle/actions/setup-gradle@v4
 
-      # Android SDK for Gradle builds (compileSdk 37, build-tools 37.0.0-rc2)
+      # Android SDK for Gradle builds (compileSdk 37; build tools selected by AGP)
       - name: Setup Android SDK
         if: matrix.language == 'java-kotlin'
         uses: android-actions/setup-android@v3

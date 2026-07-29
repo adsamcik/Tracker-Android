@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.module
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Process
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager

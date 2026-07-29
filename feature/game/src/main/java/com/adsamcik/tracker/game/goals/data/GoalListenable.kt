@@ -2,7 +2,7 @@ package com.adsamcik.tracker.game.goals.data
 
 import android.content.Context
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,7 +72,7 @@ data class GoalListenable(val goal: Goal) {
 	/**
 	 * Called when latest session data changes.
 	 */
-	fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean {
+	fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean {
 		return notifyIfValueChanged<Boolean> {
 			goal.onSessionUpdated(session, isNewSession)
 		}

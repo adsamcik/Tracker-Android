@@ -15,14 +15,12 @@ android {
 
 dependencies {
     implementation(project(":tracker:api"))
-    implementation(project(":tracker:engine"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":stats:api"))
 
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

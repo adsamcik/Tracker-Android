@@ -39,16 +39,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.style.compose.ActivityColors
 import com.adsamcik.tracker.tracker.R as TrackerR
+import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /**
@@ -61,7 +62,7 @@ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 @Composable
 internal fun TrackingStatsGrid(
 	sessionData: TrackerSessionSnapshot,
-	collectionData: CollectionData?,
+	collectionSnapshot: TrackerCollectionSnapshot?,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
@@ -87,11 +88,11 @@ internal fun TrackingStatsGrid(
 	}
 	val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
 
-	val altitude = collectionData?.androidModelMslAltitudeM
-	val accuracy = collectionData?.location?.horizontalAccuracy
-	val currentActivity = collectionData?.activity
-	val wifiCount = collectionData?.wifi?.inRange?.size
-	val cellCount = collectionData?.cell?.totalCount
+	val altitude = collectionSnapshot?.androidModelMslAltitudeM
+	val accuracy = collectionSnapshot?.location?.horizontalAccuracy
+	val currentActivity = collectionSnapshot?.activity
+	val wifiCount = collectionSnapshot?.wifi?.inRange?.size
+	val cellCount = collectionSnapshot?.cell?.totalCount
 
 	Column(
 		modifier = modifier.fillMaxWidth(),
@@ -129,14 +130,17 @@ internal fun TrackingStatsGrid(
 			horizontalArrangement = Arrangement.SpaceBetween,
 		) {
 			val activityText = if (currentActivity != null) {
-				currentActivity.getGroupedActivityName(context)
+				ActivityInfo.getGroupedActivityName(
+					context,
+					currentActivity.group.toLegacyGroupedActivity(),
+				)
 			} else {
 				"–"
 			}
 			val activityColor = if (currentActivity != null) {
-				when (currentActivity.groupedActivity) {
-					GroupedActivity.ON_FOOT -> ActivityColors.Adaptive.Walk
-					GroupedActivity.IN_VEHICLE -> ActivityColors.Adaptive.Ride
+				when (currentActivity.group) {
+					TrackerActivityGroup.ON_FOOT -> ActivityColors.Adaptive.Walk
+					TrackerActivityGroup.IN_VEHICLE -> ActivityColors.Adaptive.Ride
 					else -> MaterialTheme.colorScheme.onSurface
 				}
 			} else {
@@ -182,6 +186,13 @@ internal fun TrackingStatsGrid(
 			}
 		}
 	}
+}
+
+private fun TrackerActivityGroup.toLegacyGroupedActivity(): GroupedActivity = when (this) {
+	TrackerActivityGroup.STILL -> GroupedActivity.STILL
+	TrackerActivityGroup.ON_FOOT -> GroupedActivity.ON_FOOT
+	TrackerActivityGroup.IN_VEHICLE -> GroupedActivity.IN_VEHICLE
+	TrackerActivityGroup.UNKNOWN -> GroupedActivity.UNKNOWN
 }
 
 /**

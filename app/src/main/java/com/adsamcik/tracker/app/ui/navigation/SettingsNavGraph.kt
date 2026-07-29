@@ -32,6 +32,9 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
             onNavigateToAbout = {
                 navController.navigate(About) { launchSingleTop = true }
             },
+            onNavigateToNotificationManagement = {
+                navController.navigate(NotificationManagement) { launchSingleTop = true }
+            },
         )
     }
 
@@ -49,10 +52,16 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
 
     composable<ActivitySettings> {
         val viewModel: com.adsamcik.tracker.activity.ui.SessionActivityViewModel =
-            androidx.hilt.navigation.compose.hiltViewModel()
+            androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
         com.adsamcik.tracker.activity.ui.SessionActivityRoute(
             viewModel = viewModel,
             onNavigateBack = { navController.popBackStack() },
+        )
+    }
+
+    composable<NotificationManagement> {
+        com.adsamcik.tracker.feature.tracker.notification.NotificationManagementRoute(
+            onBack = { navController.popBackStack() },
         )
     }
 }

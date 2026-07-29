@@ -13,14 +13,14 @@ Reference for building, testing, and debugging Tracker Android.
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Android Studio | Latest stable | Ladybug or newer |
-| JDK | 17 | Toolchain auto-provisioned via Foojay (`jvmToolchain(17)`) |
-| Kotlin | 2.4.0 | Via version catalog (K2 compiler) |
-| KSP | 2.3.8 | No KAPT for new code |
-| AGP | 9.3.0-rc02 | Android Gradle Plugin |
+| JDK | 21 | Pinned Gradle daemon; application bytecode targets Java 17 |
+| Kotlin | 2.4.10 | Via version catalog (K2 compiler) |
+| KSP | 2.3.10 | No KAPT for new code |
+| AGP | 9.3.1 | Android Gradle Plugin |
 | Compile SDK | 37 (API 37) | Target SDK also 37 |
 | Min SDK | 26 | Android 8.0 Oreo |
-| Build Tools | 36.0.0 | Via version catalog |
-| Gradle | 9.5.1 | Wrapper included |
+| Build Tools | AGP-managed | No project-level pin |
+| Gradle | 9.6.1 | Wrapper included |
 
 ## Setup
 
@@ -65,7 +65,7 @@ device and release builds so they keep the default (hardware) Vulkan renderer.
 | Task | Command |
 |------|---------|
 | Lint | `./gradlew.bat lint` |
-| Release lint gate | `./gradlew.bat :app:lintRelease :app:checkReleaseLintReport` (fails on unbaselined fatal/error app issues) |
+| Release lint gate | `./gradlew.bat :app:lintRelease` (fails on unbaselined fatal/error app issues) |
 | Room schema drift | `./gradlew.bat checkRoomSchemaDrift` |
 | Detekt | Configured via `detekt.yml` (maxIssues: 10) |
 | Dep updates | `./gradlew.bat dependencyUpdates -Drevision=release` |
@@ -158,6 +158,7 @@ Tracker-Android/
 | Hilt injection error | Add `@AndroidEntryPoint` to Activity/Service |
 | Terminal truncated | Pipe to `Tee-Object -FilePath output.log` |
 | Gradle sync slow | `./gradlew.bat --stop` then resync |
+| Windows incremental compiler file locks | Put `kotlin.incremental=false` and/or `ksp.incremental=false` in the user-level Gradle properties file; do not disable incremental compilation for Linux CI |
 | Map not rendering | Check MapLibre layer registry and tile source |
 
 ## Key Config Files
@@ -167,7 +168,8 @@ Tracker-Android/
 | File | Purpose |
 |------|---------|
 | `gradle/libs.versions.toml` | **All** dependency versions |
-| `build.gradle.kts` (root) | Root plugins, allprojects |
+| `build.gradle.kts` (root) | Root plugins and repository-wide policy |
+| `build-logic/convention` | Shared Android, KMP, code-generation, test, and verification conventions |
 | `settings.gradle.kts` | Module includes |
 | `app/build.gradle.kts` | App config, Hilt, Compose |
 | `detekt.yml` | Static analysis rules |

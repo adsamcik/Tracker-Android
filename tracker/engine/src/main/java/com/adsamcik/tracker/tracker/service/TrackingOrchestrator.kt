@@ -43,7 +43,7 @@ import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
 import com.adsamcik.tracker.tracker.data.collection.hasPersistableProducerPayload
-import com.adsamcik.tracker.tracker.module.TrackerListenerManager
+import com.adsamcik.tracker.tracker.data.session.toSnapshot
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
@@ -53,7 +53,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
-import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
@@ -82,7 +82,6 @@ import kotlinx.coroutines.sync.withLock
  */
 internal class TrackingOrchestrator(
 	private val controller: TrackerServiceController,
-	private val trackerListenerManager: TrackerListenerManager,
 	private val signalProcessors: Set<SignalProcessor>,
 	private val domainEventRepository: DomainEventRepository,
 	private val dispatchers: DispatchersProvider,
@@ -365,7 +364,7 @@ internal class TrackingOrchestrator(
 		controller.updatePersistenceErrorFlow(componentSet.errorCollector.errors)
 
 		// Emit initial session via controller
-		controller.updateSession(session)
+		controller.updateSession(session.toSnapshot())
 
 		// Initialize the stats ProcessorPipeline
 		val pipeline = ProcessorPipeline(
@@ -572,9 +571,9 @@ internal class TrackingOrchestrator(
 
 		for (component in preComponentList) {
 			if (!component.requirementsMet(triggerCycle)) continue
-			val accepted = tryWithResultAndReport({ true }) {
+			val accepted = runWithResultAndReport {
 				component.onNewData(triggerCycle)
-			}
+			}.getOrElse { true }
 			if (!accepted) {
 				checkpointCuratedLocationRejection(triggerCycle, "PRETRACKER_REJECTED")
 				trackingControlShadow.onCuratedLocationDecision(
@@ -643,19 +642,6 @@ internal class TrackingOrchestrator(
 			}
 		}
 
-		// Notify listeners only when the pipeline completed (not skipped)
-		if (result.completedSuccessfully) {
-			val session = cycleContext.session
-			if (session != null) {
-				try {
-					trackerListenerManager.send(context, session, cycleContext.collectionData)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					Reporter.report(IllegalStateException("Failed to notify tracking listeners", e))
-				}
-			}
-		}
 	}
 
 	private fun createTrackingPipeline(scope: CoroutineScope): TrackingPipeline {
@@ -740,7 +726,7 @@ internal class TrackingOrchestrator(
 			sessionComponent?.let { component ->
 				try {
 					component.onDisable(context)
-					controller.updateSession(component.session)
+					controller.updateSession(component.session.toSnapshot())
 					sessionComponent = null
 				} catch (e: CancellationException) {
 					throw e

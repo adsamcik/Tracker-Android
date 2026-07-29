@@ -50,12 +50,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import kotlinx.coroutines.delay
 
 internal sealed class TrackingComponent(val key: String) {
@@ -312,7 +311,7 @@ internal fun ComponentMetricText(
 
 internal fun buildLocationMetrics(
     context: Context,
-    collectionData: CollectionData?,
+    collectionData: TrackerCollectionSnapshot?,
     settings: TrackerSettingsState,
     useDecimalDegrees: Boolean,
     onToggleFormat: () -> Unit
@@ -372,7 +371,10 @@ internal fun buildLocationMetrics(
     return ComponentMetrics(primary = primary, secondary = secondary, status = status)
 }
 
-internal fun buildActivityMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+internal fun buildActivityMetrics(
+    context: Context,
+    collectionData: TrackerCollectionSnapshot?,
+): ComponentMetrics? {
     val activity = collectionData?.activity ?: return null
     val activityName = activity.getGroupedActivityName(context)
     val primary = ComponentMetric(
@@ -391,7 +393,10 @@ internal fun buildActivityMetrics(context: Context, collectionData: CollectionDa
     return ComponentMetrics(primary = primary, secondary = secondary, status = status)
 }
 
-internal fun buildWifiMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+internal fun buildWifiMetrics(
+    context: Context,
+    collectionData: TrackerCollectionSnapshot?,
+): ComponentMetrics? {
     val wifi = collectionData?.wifi ?: return null
     val count = wifi.inRange.size
     val wifiCountText = context.resources.getQuantityString(R.plurals.tracker_wifi_networks_value, count, count)
@@ -415,7 +420,10 @@ internal fun buildWifiMetrics(context: Context, collectionData: CollectionData?)
     return ComponentMetrics(primary = primary, secondary = secondary, status = status)
 }
 
-internal fun buildCellMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+internal fun buildCellMetrics(
+    context: Context,
+    collectionData: TrackerCollectionSnapshot?,
+): ComponentMetrics? {
     val cell = collectionData?.cell ?: return null
     val cellCountText = context.getString(R.string.cell_count_value, cell.totalCount)
     val primary = ComponentMetric(

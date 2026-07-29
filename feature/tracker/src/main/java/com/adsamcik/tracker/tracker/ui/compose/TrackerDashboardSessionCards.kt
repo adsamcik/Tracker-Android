@@ -52,7 +52,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot

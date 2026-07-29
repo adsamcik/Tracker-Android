@@ -22,7 +22,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.shared.utils.extension.runWithResultAndReport
+import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState

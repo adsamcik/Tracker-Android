@@ -40,11 +40,12 @@ dependencies {
     api(project(":stats:api"))
 
     api(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.androidx.core.ktx)
 }
 
-val verifyActivityApiDependencies by tasks.registering(VerifyActivityApiDependencies::class) {
+val verifyActivityApiDependencies = tasks.register<VerifyActivityApiDependencies>(
+    "verifyActivityApiDependencies",
+) {
     group = "verification"
     description = "Rejects implementation and Google Play Services leakage into activity-api."
     componentIds.set(

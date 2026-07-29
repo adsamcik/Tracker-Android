@@ -3,8 +3,10 @@ package com.adsamcik.tracker.tracker.notification
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.shared.base.database.PreferenceDatabase
+import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.tracker.notification.component.ActivityNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.AltitudeNotificationComponent
+import com.adsamcik.tracker.tracker.notification.component.BatteryNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.CellCountNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.CellCurrentNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.CollectionCountNotificationComponent
@@ -20,10 +22,9 @@ import com.adsamcik.tracker.tracker.notification.component.SkiNotificationCompon
 import com.adsamcik.tracker.tracker.notification.component.SpeedNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.StartTimeNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.WiFiCountNotificationComponent
-import com.adsamcik.tracker.tracker.notification.component.BatteryNotificationComponent
 
-object TrackerNotificationProvider {
-	val internalActiveList = listOf(
+internal object TrackerNotificationProvider {
+	private val components = listOf(
 			ActivityNotificationComponent(),
 			AltitudeNotificationComponent(),
 			CellCountNotificationComponent(),
@@ -44,28 +45,32 @@ object TrackerNotificationProvider {
 			BatteryNotificationComponent()
 	)
 
-	val activeComponentList: List<BaseTrackerNotificationComponent> get() = internalActiveList
+	@Synchronized
+	fun configuredComponents(): List<TrackerNotificationComponent> =
+		components.sortedBy { it.preference.order }
 
 	@WorkerThread
 	suspend fun updatePreferences(context: Context) {
 		val dao = PreferenceDatabase.database(context).getNotificationDao()
-		val preferences = dao.getAll()
+		applyPreferences(dao.getAll())
+	}
 
-		internalActiveList.forEach { component ->
-			val preference = preferences.find { it.id == component.id }
-			if (preference == null) {
-				component.preference = component.defaultPreference
-			} else {
-				component.preference = preference
-			}
+	/**
+	 * Applies persisted rows to the canonical engine catalog.
+	 *
+	 * Unknown rows are ignored and missing rows use the component defaults. Sorting is stable,
+	 * so the declaration order above remains the first-run order while all legacy defaults are 0.
+	 */
+	@Synchronized
+	fun applyPreferences(preferences: List<NotificationPreference>) {
+		val preferencesById = preferences.associateBy(NotificationPreference::id)
+		components.forEach { component ->
+			component.preference = preferencesById[component.id] ?: component.defaultPreference
 		}
 
-		internalActiveList.sortedBy { it.preference.order }
-				.forEachIndexed { index, trackerNotificationComponent ->
-					trackerNotificationComponent.preference =
-							trackerNotificationComponent.preference.copy(
-									order = index
-							)
-				}
+		components.sortedBy { it.preference.order }
+			.forEachIndexed { index, component ->
+				component.preference = component.preference.copy(order = index)
+			}
 	}
 }

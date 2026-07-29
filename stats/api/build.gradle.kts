@@ -1,17 +1,12 @@
 plugins {
-	alias(libs.plugins.kotlin.multiplatform)
-	alias(libs.plugins.android.kotlin.multiplatform.library)
+	id("tracker.kotlin.multiplatform.android-jvm")
 }
 
 kotlin {
 	android {
 		namespace = "com.adsamcik.tracker.stats.api"
-		compileSdk = Android.COMPILE_VERSION
-		minSdk = Android.MIN_VERSION
+		withHostTest {}
 	}
-	jvm()
-
-	jvmToolchain(Android.JAVA_VERSION)
 
 	sourceSets {
 		commonMain.dependencies {
@@ -34,8 +29,4 @@ kotlin {
 			// JVM-specific implementations
 		}
 	}
-}
-
-tasks.withType<Test>().configureEach {
-	useJUnitPlatform()
 }

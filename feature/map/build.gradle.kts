@@ -3,19 +3,12 @@ plugins {
     id("tracker.android.compose")
     id("tracker.android.hilt")
     id("tracker.android.test")
+    id("tracker.android.instrumented-test")
     alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
     namespace = "com.adsamcik.tracker.map"
-
-    buildTypes {
-        // Provide a dev variant to match :app's dev buildType
-        create("dev") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("debug", "release")
-        }
-    }
 
     lint {
         baseline = file("lint-baseline.xml")
@@ -47,7 +40,6 @@ dependencies {
     implementation(project(":core:network"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -83,6 +75,7 @@ dependencies {
     testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.activity.compose)
     testImplementation(kotlin("reflect"))
+    testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
     testImplementation(project(":domain:osm"))
 

@@ -668,7 +668,6 @@ Progressive permission disclosure aligned with Apple-style UX:
 | **PrecisionUpgradeReceiver** | `ACTION_SESSION_FINAL` | Increment session count and trigger precision upgrade prompt if threshold reached |
 | **TrackerTimeUnlockReceiver** | Alarm fires | Unlocks time-based tracking lock |
 | **TrackerNotificationReceiver** | Notification actions | Handles stop tracking from notification |
-| **TrackerListenerRegistrationReceiver** | App state changes | Manages tracking session listeners registration |
 | **PointsSessionReceiver** | Session completion | Triggers points calculation |
 | **ChallengeSessionReceiver** | Session completion | Updates challenge progress |
 | **ActivityReceiver** | Activity recognition updates | Processes detected activity changes |

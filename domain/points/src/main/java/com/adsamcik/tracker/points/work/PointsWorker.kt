@@ -20,7 +20,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.getAllBetweenChunked
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.base.mapper.toModel
-import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
+import com.adsamcik.tracker.shared.base.work.getPositiveLongReportNull
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import dagger.assisted.Assisted

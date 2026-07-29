@@ -31,7 +31,6 @@ import com.adsamcik.tracker.tracker.controller.LivePlaneState
 import com.adsamcik.tracker.tracker.controller.LiveSailingState
 import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
-import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -87,7 +86,6 @@ class TrackingOrchestratorIntegrationTest {
 		var fallbackEnqueueCount = 0
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = setOf(stopProcessor),
 			domainEventRepository = domainEvents,
 			dispatchers = testDispatcherProvider,
@@ -155,7 +153,6 @@ class TrackingOrchestratorIntegrationTest {
 		val controller = DefaultTrackerServiceController()
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = emptySet(),
 			domainEventRepository = RecordingDomainEventRepository(),
 			dispatchers = testDispatcherProvider,
@@ -212,7 +209,6 @@ class TrackingOrchestratorIntegrationTest {
 		val controller = DefaultTrackerServiceController()
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			trackerListenerManager = mockk<TrackerListenerManager>(relaxed = true),
 			signalProcessors = emptySet(),
 			domainEventRepository = RecordingDomainEventRepository(),
 			dispatchers = testDispatcherProvider,

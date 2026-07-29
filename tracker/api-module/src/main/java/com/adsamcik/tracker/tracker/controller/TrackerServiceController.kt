@@ -1,11 +1,10 @@
 package com.adsamcik.tracker.tracker.controller
 
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.flow.SharedFlow
@@ -53,7 +52,7 @@ interface TrackerStateReader {
      * Contains live tracking data: location, activity, wifi, cell.
      * Null when no session is active or no data collected yet.
      */
-    val collectionDataFlow: StateFlow<CollectionData?>
+    val collectionDataFlow: StateFlow<TrackerCollectionSnapshot?>
 
     /**
      * Accumulated path points for the current/last session.
@@ -139,13 +138,13 @@ interface TrackerServiceController : TrackerStateReader {
      * Internal: Update session data.
      * Called by TrackerService on each data collection.
      */
-    fun updateSession(session: TrackerSession?)
+    fun updateSession(session: TrackerSessionSnapshot?)
     
     /**
      * Internal: Update collection data.
      * Called by TrackerService on each data collection.
      */
-    fun updateCollectionData(data: CollectionData?)
+    fun updateCollectionData(data: TrackerCollectionSnapshot?)
     
     /**
      * Internal: Update persistence error flow.

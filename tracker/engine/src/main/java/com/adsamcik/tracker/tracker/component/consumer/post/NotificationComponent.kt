@@ -67,13 +67,10 @@ internal class NotificationComponent :
 	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
 		val preferenceUpdate = async(DefaultDispatchersProvider.default) {
 			TrackerNotificationProvider.updatePreferences(context)
-			contentComponentList.addAll(TrackerNotificationProvider.internalActiveList
-					                            .filter { it.preference.isInContent }
-					                            .sortedBy { it.preference.order })
+			val configuredComponents = TrackerNotificationProvider.configuredComponents()
+			contentComponentList.addAll(configuredComponents.filter { it.preference.isInContent })
 
-			titleComponentList.addAll(TrackerNotificationProvider.internalActiveList
-					                          .filter { it.preference.isInTitle }
-					                          .sortedBy { it.preference.order })
+			titleComponentList.addAll(configuredComponents.filter { it.preference.isInTitle })
 		}
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,

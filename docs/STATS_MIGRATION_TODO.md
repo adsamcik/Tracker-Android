@@ -126,7 +126,7 @@ After all consumers are migrated:
 
 - ✅ Remove `PrecisionUpgradeReceiver` (ACTION_SESSION_FINAL) — migrate to domain events
 - ✅ Remove `ACTION_SESSION_FINAL` / `ACTION_SESSION_ENDED` broadcast sends from `TrackerService`
-- ✅ Remove `ACTION_TRACKER_UPDATE` broadcasts — replaced by `TrackerSessionChannel` (SharedFlow)
+- ✅ Remove `ACTION_TRACKER_UPDATE` broadcasts — consumers observe `TrackerStateReader.sessionFlow`
 - ✅ Clean up `AndroidManifest.xml` entries for removed receivers
 
 ---

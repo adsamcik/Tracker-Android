@@ -24,8 +24,8 @@ import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 

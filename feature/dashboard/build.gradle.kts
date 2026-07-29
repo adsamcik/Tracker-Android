@@ -7,13 +7,6 @@ plugins {
 
 android {
     namespace = "com.adsamcik.tracker.dashboard"
-
-    buildTypes {
-        create("dev") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("debug", "release")
-        }
-    }
 }
 
 dependencies {
@@ -30,10 +23,8 @@ dependencies {
     implementation(project(":tracker:api"))
     implementation(project(":stats:api"))
     implementation(project(":stats:data"))
-    implementation(project(":domain:points"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

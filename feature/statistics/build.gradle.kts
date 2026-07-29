@@ -2,20 +2,13 @@ plugins {
     id("tracker.android.library")
     id("tracker.android.compose")
     id("tracker.android.hilt")
-    id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.instrumented-test")
     alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
     namespace = "com.adsamcik.tracker.statistics"
-
-    buildTypes {
-        create("dev") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("debug", "release")
-        }
-    }
 
     lint {
         baseline = file("lint-baseline.xml")
@@ -42,7 +35,6 @@ dependencies {
     implementation(libs.suncalc)
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -70,6 +62,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.ui.tooling.preview)
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.turbine)
     debugImplementation(libs.compose.ui.test.manifest)
 
     // Instrumented Tests

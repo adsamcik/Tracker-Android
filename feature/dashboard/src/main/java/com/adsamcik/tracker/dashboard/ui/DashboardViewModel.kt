@@ -14,7 +14,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
@@ -173,26 +172,13 @@ class DashboardViewModel @Inject constructor(
 
 		viewModelScope.launch {
 			_sessionInsights.value = runCatching {
-				sessionInsightsGenerator.generate(session.toTrackerSession())
+				sessionInsightsGenerator.generate(session)
 			}.getOrElse {
 				Reporter.report(it)
 				emptyList()
 			}
 		}
 	}
-
-	private fun TrackerSessionSnapshot.toTrackerSession() = TrackerSession(
-		id = id,
-		start = start,
-		end = end,
-		isUserInitiated = isUserInitiated,
-		collections = collections,
-		distanceInM = distanceInM,
-		distanceOnFootInM = distanceOnFootInM,
-		distanceInVehicleInM = distanceInVehicleInM,
-		steps = steps,
-		sessionActivityId = sessionActivityId,
-	)
 
 	private suspend fun loadExplorationData(db: AppDatabase) {
 		val cellDao = db.explorationCellDao()

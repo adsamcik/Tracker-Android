@@ -33,6 +33,9 @@ documentfile = "1.1.0"
 datastore = "1.2.1"
 protobuf = "4.35.1"
 protobufPlugin = "0.10.0"
+sqliteJdbc = "3.45.1.0"
+sqliteAndroidx = "2.6.2"
+gson = "2.10.1"
 glance = "1.1.1"
 haze = "1.7.2"
 startupRuntime = "1.2.0"
@@ -60,10 +63,6 @@ arrow = "2.2.3"
 # JSON / DB
 moshi = "1.15.2"
 room = "2.8.4"
-# sqlite-android 3.49.0 is the newest reproducible requery/JitPack release. Upstream's
-# post-3.49 work is not published as a fixed release, so do not substitute master/SNAPSHOT here.
-# Runtime telemetry records the loaded engine's source ID until a >= 3.51.3 release is available.
-sqliteAndroid = "3.49.0"
 
 # Third party
 componentsRecycler = "1.0.0"
@@ -99,7 +98,6 @@ mockitoKotlin = "6.3.0"
 mockk = "1.14.11"
 turbine = "1.2.1"
 androidxTestCore = "1.7.0"
-kotlinxCoroutinesTest = "1.11.0"
 androidxTestRules = "1.7.0"
 kotest = "6.2.2"
 
@@ -110,6 +108,7 @@ kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-pl
 ksp-gradlePlugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 hilt-gradlePlugin = { group = "com.google.dagger", name = "hilt-android-gradle-plugin", version.ref = "hilt" }
 compose-compiler-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }
+protobuf-gradlePlugin = { group = "com.google.protobuf", name = "protobuf-gradle-plugin", version.ref = "protobufPlugin" }
 
 # Arrow
 arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrow" }
@@ -144,11 +143,10 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 # Kotest assertions (modern expressive assertions)
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 # Kotlin
-kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
-kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 # UI Effects
 haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
@@ -199,7 +197,9 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
-sqlite-android = { group = "com.github.requery", name = "sqlite-android", version.ref = "sqliteAndroid" }
+androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "sqliteAndroidx" }
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqliteJdbc" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 # Recycler & UI utils
 components-recycler = { group = "com.github.adsamcik", name = "Recycler", version.ref = "componentsRecycler" }
@@ -280,4 +280,3 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "com.github.ben-manes.versions", version.ref = "benmanes" }
-protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

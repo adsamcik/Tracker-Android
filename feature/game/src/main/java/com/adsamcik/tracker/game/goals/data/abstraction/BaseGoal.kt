@@ -11,7 +11,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -99,12 +99,15 @@ abstract class BaseGoal(
 		isEnabled = false
 	}
 
-	override fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean {
+	override fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean {
 		onSessionUpdatedInternal(session, isNewSession)
 		return evaluateGoalReached()
 	}
 
-	protected abstract fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean)
+	protected abstract fun onSessionUpdatedInternal(
+		session: TrackerSessionSnapshot,
+		isNewSession: Boolean,
+	)
 
 	protected fun evaluateGoalReached(): Boolean {
 		if (!isReported && value >= target) {

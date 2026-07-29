@@ -1,15 +1,12 @@
 import org.gradle.api.GradleException
 import java.util.Properties
-import javax.xml.XMLConstants
-import javax.xml.parsers.DocumentBuilderFactory
-import org.w3c.dom.Element
 
 plugins {
     id("tracker.android.application")
     id("tracker.android.compose")
     id("tracker.android.hilt")
-    id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.instrumented-test")
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.oss.licenses)
@@ -80,7 +77,10 @@ android {
         applicationId = "com.adsamcik.tracker"
         versionCode = 400
         versionName = "10.0.0"
-        resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
+    }
+
+    androidResources {
+        localeFilters += listOf("en", "cs-rCZ")
     }
 
     flavorDimensions += "diagnostics"
@@ -155,6 +155,7 @@ android {
 
         getByName("release_nominify") {
             initWith(release)
+            matchingFallbacks += listOf("release")
             isMinifyEnabled = false
             isShrinkResources = false
         }
@@ -171,9 +172,17 @@ android {
         checkReleaseBuilds = true
         abortOnError = true
         baseline = file("lint-baseline.xml")
+        // localeFilters replaces deprecated resourceConfigurations for packaging, but lint does
+        // not use it to scope MissingTranslation. Keep the existing translation policy explicit.
+        disable += "MissingTranslation"
     }
 
-    sourceSets.getByName("main").res.srcDir("$buildDir/generated/third_party_licenses_fallback/res")
+    sourceSets.getByName("main").res.directories.add(
+        layout.buildDirectory.dir("generated/third_party_licenses_fallback/res")
+            .get()
+            .asFile
+            .absolutePath,
+    )
 
     // dynamicFeatures removed; modules are now statically linked libraries
     namespace = "com.adsamcik.tracker"
@@ -182,64 +191,11 @@ android {
         includeInBundle = true
     }
 }
-val releaseLintReport = layout.buildDirectory.file("reports/lint-results-release.xml")
-
-tasks.register("checkReleaseLintReport") {
-	group = "verification"
-	description = "Fails when app release lint reports unbaselined fatal/error issues."
-	dependsOn("lintReportRelease")
-	mustRunAfter("lintRelease")
-	inputs.file(releaseLintReport)
-
-	doLast {
-		val report = releaseLintReport.get().asFile
-		if (!report.isFile) {
-			throw GradleException("Release lint report was not generated: ${report.absolutePath}")
-		}
-
-		val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply {
-			setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-			isExpandEntityReferences = false
-		}
-		val document = documentBuilderFactory.newDocumentBuilder().parse(report)
-		val issues = document.getElementsByTagName("issue")
-		val blockingIssues = buildList {
-			for (index in 0 until issues.length) {
-				val issue = issues.item(index) as? Element ?: continue
-				val severity = issue.getAttribute("severity")
-				if (severity != "Fatal" && severity != "Error") continue
-
-				val id = issue.getAttribute("id")
-				val message = issue.getAttribute("message")
-				val locations = issue.getElementsByTagName("location")
-				val location = if (locations.length > 0) {
-					val element = locations.item(0) as Element
-					val file = element.getAttribute("file")
-					val line = element.getAttribute("line")
-					if (line.isBlank()) file else "$file:$line"
-				} else {
-					"no location"
-				}
-				add("[$severity][$id] $message ($location)")
-			}
-		}
-
-		if (blockingIssues.isNotEmpty()) {
-			val visibleIssues = blockingIssues.take(20).joinToString(separator = "\n")
-			val remaining = blockingIssues.size - 20
-			val suffix = if (remaining > 0) "\n... and $remaining more" else ""
-			throw GradleException(
-				"App release lint reported ${blockingIssues.size} unbaselined fatal/error issue(s):\n" +
-					visibleIssues +
-					suffix
-			)
-		}
-	}
-}
 
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:logging-api"))
     implementation(project(":core:network"))
@@ -265,7 +221,6 @@ dependencies {
     implementation(project(":domain:osm"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -290,6 +245,10 @@ dependencies {
 
     // App Startup
     implementation(libs.androidx.startup.runtime)
+
+    // Room APIs used directly by application workers and debug database setup.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
 
     // Privacy-bounded alpha diagnostics trial. It is isolated to an API-30+
     // flavor so Tracker's standard API-26 support contract remains unchanged.
@@ -337,15 +296,12 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(project(":stats:api"))
     testImplementation(project(":stats:engine"))
+    testImplementation(libs.turbine)
     androidTestImplementation(project(":core:testing"))
     testImplementation(project(":core:testing"))
 }
-// Configure JUnit 5 for unit tests
-tasks.withType<Test>().configureEach {
-	useJUnitPlatform()
-}
 
-val syncReleaseLicenseFallback by tasks.registering(Sync::class) {
+val syncReleaseLicenseFallback = tasks.register<Sync>("syncReleaseLicenseFallback") {
 	dependsOn(tasks.named("releaseOssLicensesTask"))
 	from(layout.buildDirectory.dir("generated/third_party_licenses/release/res/raw")) {
 		include("third_party_license_metadata", "third_party_licenses")
@@ -355,35 +311,19 @@ val syncReleaseLicenseFallback by tasks.registering(Sync::class) {
 	into(layout.buildDirectory.dir("generated/third_party_licenses_fallback/res/raw"))
 }
 
-tasks.configureEach {
-	if (
-		name in setOf(
-			"mapDebugSourceSetPaths",
-			"generateDebugResources",
-			"mergeDebugResources",
-			"processDebugNavigationResources",
-			"packageDebugResources",
-			"mapDevSourceSetPaths",
-			"generateDevResources",
-			"mergeDevResources",
-			"processDevNavigationResources",
-			"packageDevResources"
-		)
-	) {
-		dependsOn(syncReleaseLicenseFallback)
-	}
-}
+val licenseFallbackConsumers = setOf(
+	"mapDebugSourceSetPaths",
+	"generateDebugResources",
+	"mergeDebugResources",
+	"processDebugNavigationResources",
+	"packageDebugResources",
+	"mapDevSourceSetPaths",
+	"generateDevResources",
+	"mergeDevResources",
+	"processDevNavigationResources",
+	"packageDevResources",
+)
 
-// Fix for KSP running before R class generation. Flavored variants use names such as
-// kspStandardDebugKotlin and kspTraceboxTrialDebugKotlin, so derive the matching resource task
-// rather than assuming the app has one unflavored debug/release variant.
-afterEvaluate {
-	tasks.matching { task ->
-		task.name.startsWith("ksp") && task.name.endsWith("Kotlin")
-	}.configureEach {
-		val variantName = name.removePrefix("ksp").removeSuffix("Kotlin")
-		tasks.findByName("process${variantName}Resources")?.let { resourceTask ->
-			dependsOn(resourceTask)
-		}
-	}
+tasks.matching { it.name in licenseFallbackConsumers }.configureEach {
+	dependsOn(syncReleaseLicenseFallback)
 }

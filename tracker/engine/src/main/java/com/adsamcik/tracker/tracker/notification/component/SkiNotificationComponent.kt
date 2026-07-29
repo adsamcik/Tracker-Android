@@ -5,8 +5,8 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponentEntryPoint
 import com.adsamcik.tracker.tracker.controller.LiveSkiPhase

@@ -16,7 +16,7 @@ APPLICATION LAYER: app
   AppGraph.kt | MainActivityCompose | MainRoot | Routes.kt
 
 FEATURE MODULES:
-  feature/tracker       - Tracking Compose UI
+  feature/tracker       - Tracking Compose UI and notification customization
   feature/map           - MapLibre Compose, heatmap layers
   feature/statistics    - Sessions/Trips, summary/detail, ViewModels
   feature/dashboard     - Tracker dashboard, live stats, milestones, widgets
@@ -25,10 +25,12 @@ FEATURE MODULES:
   feature/import-export - GPX/KML/JSON/SQLite import/export
 
 SHARED LIBRARIES:
-  core/base (Room DB v34) | core/ui (AppTheme) | data/preferences
+  core/base (Room DB v40) | core/ui (AppTheme) | data/preferences
+  core/sqlite-runtime (SQLiteX SupportSQLite adapter)
 
 DOMAIN/ANALYTICS:
   stats/api (contracts) | stats/engine (algorithms) | stats/data
+  tracker/control (pure tracking decision reducer)
 
 SUPPORTING:
   core/logging | core/logging-api | domain/points | core/testing
@@ -84,15 +86,17 @@ TrackerService (Foreground Service + WakeLock)
 
 <!-- context-init:managed -->
 
-| StateFlow | Type | Purpose |
-|-----------|------|---------|
-| `isServiceRunningFlow` | `Boolean` | Service lifecycle |
-| `sessionFlow` | `TrackerSessionInfo` | Distance, steps, collections, timestamps |
-| `collectionDataFlow` | `CollectionDataEcho` | Live location, activity, wifi, cell |
-| `policyTierFlow` | `PolicyTier` | Current tier (OFF/AMBIENT/ACTIVE/PRECISION) |
-| `policyStateFlow` | `PolicyState` | Escalation engine internals |
-| `persistenceErrorFlow` | `PersistenceResult` | DB error notifications |
-| `lastSessionFlow` | `TrackerSessionInfo?` | Retained after stop |
+| Stream | Type | Purpose |
+|--------|------|---------|
+| `isServiceRunningFlow` | `StateFlow<Boolean>` | Service lifecycle |
+| `sessionInfoFlow` | `StateFlow<TrackerSessionInfo?>` | Session start and initiation metadata |
+| `sessionFlow` | `StateFlow<TrackerSessionSnapshot?>` | Distance, steps, collections, timestamps |
+| `collectionDataFlow` | `StateFlow<TrackerCollectionSnapshot?>` | Privacy-minimized live location, activity, Wi-Fi, and cell state |
+| `pathPointsFlow` | `StateFlow<Pair<Long, List<Location>>?>` | Current session route preview |
+| `policyTierFlow` | `StateFlow<PolicyTier>` | Current tier (OFF/AMBIENT/ACTIVE/PRECISION) |
+| `policyStateFlow` | `StateFlow<PolicyState?>` | Escalation engine internals |
+| `persistenceErrorFlow` | `SharedFlow<PersistenceError>?` | DB error notifications |
+| `lastSessionFlow` | `StateFlow<TrackerSessionSnapshot?>` | Retained after stop |
 
 ### Lock Management (LockManager)
 
@@ -120,8 +124,8 @@ TrackerService (Foreground Service + WakeLock)
 
 <!-- context-init:managed -->
 
-- **Version:** 26
-- **26 Entities:** SessionActivity, NetworkOperator, LocationSample, StepInterval, ActivitySnapshot, CellSample, WifiObservation, TrackerRun, SessionSegment, DailySummaryEntity, LiveStatsEntity, FrequentPlaceEntity, InferredTripEntity, TripLegEntity, ExplorationCellEntity, ExplorationStreakEntity, AchievementProgressEntity, PersonalRecordEntity, RouteCacheEntity, ExportLogEntity, StorageSizeSnapshotEntity, DomainEventEntity, DomainEventCursorEntity, PressureSample, SkiRunSegment, PendingSignalEntity
+- **Version:** 40
+- **46 entities:** the authoritative list is the `entities` array on `AppDatabase`
 - **Type Converters:** CellType, DetectedActivity, GeoFeatureProperties, Sessionless
 - **Key DAOs:** LocationSampleDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, FrequentPlaceDao, ExplorationCellDao, SkiRunSegmentDao, PressureSampleDao, DomainEventDao
 
@@ -138,6 +142,7 @@ NavHost (MainRoot)
 |- Map -> MapRoute -> MapScreen (MapLibre)
 |- Game -> GameRoute -> challenges & goals
 |- Settings -> SettingsRoute
+|  |- NotificationManagement -> notification field order/title/content settings
 |- Debug -> DebugRoute
 ```
 

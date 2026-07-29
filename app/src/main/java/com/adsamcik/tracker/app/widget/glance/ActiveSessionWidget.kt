@@ -31,10 +31,11 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.EntryPointAccessors
 
@@ -53,7 +54,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
         val isRunning: Boolean
         val session: TrackerSessionSnapshot?
         val policyTier: PolicyTier
-        val collectionData: CollectionData?
+        val collectionSnapshot: TrackerCollectionSnapshot?
         val pathPoints: List<Location>
 
         try {
@@ -65,7 +66,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
             isRunning = controller.isServiceRunning
             session = controller.sessionFlow.value
             policyTier = controller.policyTierFlow.value
-            collectionData = controller.collectionDataFlow.value
+            collectionSnapshot = controller.collectionDataFlow.value
             pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
         } catch (_: Exception) {
             // Hilt not initialized - show idle state.
@@ -83,7 +84,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
             return
         }
 
-        val snapshot = buildSnapshot(context, collectionData, pathPoints)
+        val snapshot = buildSnapshot(context, collectionSnapshot, pathPoints)
         provideContent {
             GlanceTheme {
                 ActiveSessionContent(
@@ -314,17 +315,28 @@ private fun formatPolicyTier(tier: PolicyTier, context: Context): String {
 
 private fun buildSnapshot(
     context: Context,
-    collectionData: CollectionData?,
+    collectionSnapshot: TrackerCollectionSnapshot?,
     pathPoints: List<Location>,
 ): ActiveSessionSnapshot {
-    val activity = collectionData?.activity?.activity
+    val activity = collectionSnapshot?.activity?.type?.toLegacyDetectedActivity()
     return ActiveSessionSnapshot(
-        speedText = WidgetFormatters.formatSpeed(context, collectionData?.location?.speed),
+        speedText = WidgetFormatters.formatSpeed(context, collectionSnapshot?.location?.speed),
         activityIcon = activity.activityIcon(),
         activityLabel = activity?.let { context.getString(it.nameRes) }
             ?: context.getString(R.string.widget_activity_unknown),
         pathPreview = WidgetFormatters.formatPathPreview(pathPoints),
     )
+}
+
+private fun TrackerActivityType.toLegacyDetectedActivity(): DetectedActivity = when (this) {
+    TrackerActivityType.STILL -> DetectedActivity.STILL
+    TrackerActivityType.RUNNING -> DetectedActivity.RUNNING
+    TrackerActivityType.ON_FOOT -> DetectedActivity.ON_FOOT
+    TrackerActivityType.ON_BICYCLE -> DetectedActivity.ON_BICYCLE
+    TrackerActivityType.IN_VEHICLE -> DetectedActivity.IN_VEHICLE
+    TrackerActivityType.TILTING -> DetectedActivity.TILTING
+    TrackerActivityType.UNKNOWN -> DetectedActivity.UNKNOWN
+    TrackerActivityType.WALKING -> DetectedActivity.WALKING
 }
 
 private fun DetectedActivity?.activityIcon(): String = when (this) {

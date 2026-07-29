@@ -11,16 +11,15 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
-    implementation(project(":core:ui"))
     implementation(project(":core:logging"))
 
     // Stats architecture
     implementation(project(":stats:api"))
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -33,7 +32,6 @@ dependencies {
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
-    androidTestImplementation(libs.androidx.work.testing)
 
     // Hilt worker bridge
     implementation(libs.hilt.work)

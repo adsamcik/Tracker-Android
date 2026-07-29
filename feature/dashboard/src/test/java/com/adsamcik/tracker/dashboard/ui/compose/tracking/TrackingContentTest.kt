@@ -31,7 +31,7 @@ class TrackingContentTest {
 					state = DashboardUiState(
 						isTracking = true,
 						sessionData = null,
-						collectionData = null,
+						collectionSnapshot = null,
 						pathPoints = null,
 					),
 					onMapClick = {},
@@ -62,7 +62,7 @@ class TrackingContentTest {
 					state = DashboardUiState(
 						isTracking = true,
 						sessionData = session,
-						collectionData = null,
+						collectionSnapshot = null,
 						pathPoints = null,
 					),
 					onMapClick = {},
@@ -81,7 +81,7 @@ class TrackingContentTest {
 					state = DashboardUiState(
 						isTracking = true,
 						sessionData = null,
-						collectionData = null,
+						collectionSnapshot = null,
 						pathPoints = null,
 					),
 					onMapClick = {},
@@ -109,7 +109,7 @@ class TrackingContentTest {
 							start = now - 60_000L,
 							end = now,
 						),
-						collectionData = null,
+						collectionSnapshot = null,
 						pathPoints = null,
 					),
 					onMapClick = { clicked = true },

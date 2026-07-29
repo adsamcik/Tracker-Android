@@ -7,7 +7,7 @@ ski lift geometry and metadata for offline spatial queries.
 
 1. Download `lifts.geojson` from <https://openskimap.org> (About → Download)
 2. Place in `tools/ski-data-generator/input/lifts.geojson`
-3. Run: `./gradlew :tools:ski-data-generator:run`
+3. From the repository root, run: `./gradlew :tools:ski-data-generator:run`
 4. Output: `tools/ski-data-generator/output/ski_infrastructure.db`
 
 ### Custom input path

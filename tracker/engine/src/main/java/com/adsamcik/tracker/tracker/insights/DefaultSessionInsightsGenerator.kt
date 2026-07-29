@@ -2,10 +2,10 @@ package com.adsamcik.tracker.tracker.insights
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -22,7 +22,9 @@ class DefaultSessionInsightsGenerator @Inject constructor(
     private val dispatchers: DispatchersProvider,
 ) : SessionInsightsGenerator {
 
-    override suspend fun generate(session: TrackerSession): List<SessionInsight> = withContext(dispatchers.default) {
+    override suspend fun generate(
+        session: TrackerSessionSnapshot,
+    ): List<SessionInsight> = withContext(dispatchers.default) {
         val insights = mutableListOf<SessionInsight>()
         insights.addAchievementInsight(session)
         insights.addFunFactInsight(session)
@@ -31,7 +33,9 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         insights.take(MAX_INSIGHTS)
     }
 
-    private suspend fun MutableList<SessionInsight>.addAchievementInsight(session: TrackerSession) {
+    private suspend fun MutableList<SessionInsight>.addAchievementInsight(
+        session: TrackerSessionSnapshot,
+    ) {
         when {
             session.steps >= BIG_STEP_SESSION_THRESHOLD -> add(
                 SessionInsight(
@@ -55,7 +59,7 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         }
     }
 
-    private fun MutableList<SessionInsight>.addFunFactInsight(session: TrackerSession) {
+    private fun MutableList<SessionInsight>.addFunFactInsight(session: TrackerSessionSnapshot) {
         val durationMinutes = ((session.end - session.start).coerceAtLeast(0L) / 60_000L).toInt()
         if (durationMinutes <= 0) return
         add(
@@ -68,7 +72,9 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         )
     }
 
-    private suspend fun MutableList<SessionInsight>.addExplorationInsight(session: TrackerSession) {
+    private suspend fun MutableList<SessionInsight>.addExplorationInsight(
+        session: TrackerSessionSnapshot,
+    ) {
         val newCells = withContext(dispatchers.io) {
             explorationCellDaoProvider.get().countDiscoveredSince(session.start, EXPLORATION_LEVEL)
         }
@@ -83,7 +89,9 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         )
     }
 
-    private suspend fun MutableList<SessionInsight>.addComparisonInsight(session: TrackerSession) {
+    private suspend fun MutableList<SessionInsight>.addComparisonInsight(
+        session: TrackerSessionSnapshot,
+    ) {
         val sessionDay = Instant.ofEpochMilli(session.end)
             .atZone(ZoneId.systemDefault())
             .toLocalDate()

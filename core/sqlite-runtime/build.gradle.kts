@@ -12,10 +12,8 @@ android {
 
 dependencies {
 	// The SupportSQLite contracts exposed by this module's public factory.
-	api("androidx.sqlite:sqlite:2.6.2")
+	api(libs.androidx.sqlite)
 
 	// Official SQLite Android binding containing org.sqlite classes and libsqliteX.so.
-	api(files("libs/sqlite-android-3530300.aar"))
-
-	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(files("libs/sqlite-android-3530300.aar"))
 }

@@ -42,10 +42,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.tracker.data.collection.TrackerActivityGroup
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 
 /**
  * Three-level progressive disclosure card for sensor details.
@@ -55,18 +57,18 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
  * - Level 1 (Enthusiast): Location accuracy, activity confidence, WiFi count, cell count
  * - Level 2 (Power User): Provider details, satellites, cell types, raw coordinates (debug only)
  *
- * @param collectionData Current collection data snapshot
+ * @param collectionSnapshot Current collection data snapshot
  * @param isTracking Whether tracking is currently active
  * @param isDebugBuild Whether the current build is a debug build (controls raw coordinate display)
  */
 @Composable
 internal fun SensorDetailsCard(
-	collectionData: CollectionData?,
+	collectionSnapshot: TrackerCollectionSnapshot?,
 	isTracking: Boolean,
 	isDebugBuild: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
-	if (!isTracking || collectionData == null) return
+	if (!isTracking || collectionSnapshot == null) return
 
 	// 0 = collapsed, 1 = enthusiast, 2 = power user
 	var disclosureLevel by rememberSaveable { mutableIntStateOf(0) }
@@ -126,7 +128,7 @@ internal fun SensorDetailsCard(
 					verticalArrangement = Arrangement.spacedBy(8.dp),
 				) {
 					// Location accuracy
-					val accuracy = collectionData.location?.horizontalAccuracy
+					val accuracy = collectionSnapshot.location?.horizontalAccuracy
 					if (accuracy != null) {
 						val accuracyText = "±${
 							context.resources.formatDistance(
@@ -141,9 +143,12 @@ internal fun SensorDetailsCard(
 					}
 
 					// Activity confidence
-					val activity = collectionData.activity
+					val activity = collectionSnapshot.activity
 					if (activity != null) {
-						val activityName = activity.getGroupedActivityName(context)
+						val activityName = ActivityInfo.getGroupedActivityName(
+							context,
+							activity.group.toLegacyGroupedActivity(),
+						)
 						SensorDetailRow(
 							icon = Icons.AutoMirrored.Filled.DirectionsWalk,
 							label = stringResource(R.string.dashboard_sensor_activity),
@@ -152,7 +157,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// WiFi count
-					val wifiCount = collectionData.wifi?.inRange?.size
+					val wifiCount = collectionSnapshot.wifi?.inRange?.size
 					if (wifiCount != null && wifiCount > 0) {
 						SensorDetailRow(
 							icon = Icons.Default.Wifi,
@@ -162,7 +167,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Cell count
-					val cellCount = collectionData.cell?.totalCount
+					val cellCount = collectionSnapshot.cell?.totalCount
 					if (cellCount != null && cellCount > 0) {
 						SensorDetailRow(
 							icon = Icons.Default.CellTower,
@@ -193,7 +198,7 @@ internal fun SensorDetailsCard(
 					Spacer(Modifier.height(4.dp))
 
 					// Altitude
-					val altitude = collectionData.androidModelMslAltitudeM
+					val altitude = collectionSnapshot.androidModelMslAltitudeM
 					if (altitude != null) {
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
@@ -205,7 +210,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Speed
-					val speed = collectionData.location?.speed
+					val speed = collectionSnapshot.location?.speed
 					if (speed != null) {
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
@@ -215,7 +220,7 @@ internal fun SensorDetailsCard(
 					}
 
 					// Cell type breakdown
-					val cells = collectionData.cell?.registeredCells
+					val cells = collectionSnapshot.cell?.registeredCells
 					if (!cells.isNullOrEmpty()) {
 						val typeBreakdown = cells.groupBy { it.type.name }
 							.entries.joinToString { "${it.key}: ${it.value.size}" }
@@ -228,7 +233,7 @@ internal fun SensorDetailsCard(
 
 					// Raw coordinates — debug only, privacy protected
 					if (isDebugBuild) {
-						val location = collectionData.location
+						val location = collectionSnapshot.location
 						if (location != null) {
 							SensorDetailRow(
 								icon = Icons.Default.MyLocation,
@@ -245,6 +250,13 @@ location.longitude,
 			}
 		}
 	}
+}
+
+private fun TrackerActivityGroup.toLegacyGroupedActivity(): GroupedActivity = when (this) {
+	TrackerActivityGroup.STILL -> GroupedActivity.STILL
+	TrackerActivityGroup.ON_FOOT -> GroupedActivity.ON_FOOT
+	TrackerActivityGroup.IN_VEHICLE -> GroupedActivity.IN_VEHICLE
+	TrackerActivityGroup.UNKNOWN -> GroupedActivity.UNKNOWN
 }
 
 /**

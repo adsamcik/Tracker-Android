@@ -27,7 +27,7 @@ class CoreCommonBoundaryTest {
 
 	@Test
 	fun `core common contains no forbidden imports`() {
-		val mainDir = resolveExistingFile("src/main", "core/common/src/main")
+		val mainDir = resolveExistingDirectory("src/main", "core/common/src/main")
 		val violations = mutableListOf<String>()
 
 		mainDir.walkTopDown()
@@ -52,11 +52,14 @@ class CoreCommonBoundaryTest {
 		)
 	}
 
-	private fun resolveExistingFile(vararg candidates: String): File {
+	private fun resolveExistingDirectory(vararg candidates: String): File {
 		return candidates
 			.asSequence()
 			.map(::File)
-			.firstOrNull(File::exists)
-			?: File(candidates.last())
+			.firstOrNull(File::isDirectory)
+			?: error(
+				"core:common source directory not found; checked: " +
+					candidates.joinToString(),
+			)
 	}
 }

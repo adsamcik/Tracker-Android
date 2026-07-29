@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import com.adsamcik.tracker.shared.base.result.runWithReport
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.StageResult
@@ -22,7 +22,7 @@ internal class PolicyUpdateStage(
 
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		trackingPolicyManager?.let { policyMgr ->
-			tryWithReport {
+			runWithReport {
 				policyFeeder.feed(
 					policyMgr,
 					cycleContext.collectionData,

@@ -8,5 +8,4 @@ android {
 }
 
 dependencies {
-    implementation(libs.kotlin.stdlib.jdk8)
 }

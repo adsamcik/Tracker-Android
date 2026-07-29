@@ -22,14 +22,15 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -71,7 +72,7 @@ internal object GoalTracker : CoroutineScope {
 	@AnyThread
 	fun initialize(
 		context: Context,
-		sessionChannel: TrackerSessionChannel,
+		trackerStateReader: TrackerStateReader,
 		progressionRepository: PlayerProgressionRepository,
 		achievementScheduler: AchievementEvaluationScheduler,
 		settingsRepository: GoalsSettingsRepository,
@@ -109,7 +110,8 @@ internal object GoalTracker : CoroutineScope {
 				}
 				.launchIn(this)
 
-			sessionChannel.sessions
+			trackerStateReader.sessionFlow
+				.filterNotNull()
 				.onEach(::update)
 				.launchIn(this)
 
@@ -200,7 +202,7 @@ internal object GoalTracker : CoroutineScope {
 		Logger.log(LogData(message = "New day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 
-	internal suspend fun update(session: TrackerSession) {
+	internal suspend fun update(session: TrackerSessionSnapshot) {
 		mutex.withLock {
 			val isNewSession = mLastSessionId != session.id
 			mLastSessionId = session.id

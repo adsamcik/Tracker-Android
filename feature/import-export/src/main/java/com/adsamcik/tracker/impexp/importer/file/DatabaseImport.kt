@@ -9,7 +9,7 @@ import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import io.requery.android.database.sqlite.SQLiteDatabase
+import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLite
 import java.io.File
 
 /**
@@ -30,14 +30,10 @@ internal class DatabaseImport : FileImport {
 		stream: FileImportStream,
 	): ImportResult {
 		val databaseTmpFile = createImportTempFile(context)
-		var fromDatabase: SQLiteDatabase? = null
+		var fromDatabase: SupportSQLiteDatabase? = null
 		return try {
 			databaseTmpFile.outputStream().use(stream::copyTo)
-			fromDatabase = SQLiteDatabase.openDatabase(
-				databaseTmpFile.path,
-				null,
-				SQLiteDatabase.OPEN_READONLY,
-			)
+			fromDatabase = SQLiteXSupportSQLite.openReadOnly(databaseTmpFile.path)
 			importCopiedDatabase(fromDatabase, database)
 		} finally {
 			fromDatabase?.close()

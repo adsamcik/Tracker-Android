@@ -18,11 +18,10 @@ android {
 }
 
 dependencies {
-    api(project(":core:base"))
+    implementation(project(":core:common"))
     api(project(":core:model"))
     api(project(":stats:api"))
 
-    implementation(libs.kotlin.stdlib.jdk8)
     api(libs.kotlinx.coroutines.core)
     implementation(libs.androidx.core.ktx)
 }

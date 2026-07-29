@@ -4,7 +4,7 @@ import android.app.Notification
 import android.content.Context
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -89,7 +89,7 @@ class GoalListenableTest {
 
 		@Test
 		fun `onSessionUpdated delegates to goal`() {
-			val session = TrackerSession(
+			val session = TrackerSessionSnapshot(
 				id = 1L,
 				start = 1000L,
 				end = 2000L,
@@ -111,7 +111,7 @@ class GoalListenableTest {
 
 		@Test
 		fun `returns true when goal reports completion`() {
-			val session = TrackerSession(
+			val session = TrackerSessionSnapshot(
 				id = 2L,
 				start = 1000L,
 				end = 2000L,
@@ -132,7 +132,7 @@ class GoalListenableTest {
 
 		@Test
 		fun `value flow updates when goal value changes during session update`() {
-			val session = TrackerSession(
+			val session = TrackerSessionSnapshot(
 				id = 3L,
 				start = 1000L,
 				end = 2000L,

@@ -2,10 +2,10 @@ plugins {
     id("tracker.android.library")
     id("tracker.android.compose")
     id("tracker.android.hilt")
-    id("tracker.android.room")
     id("tracker.android.test")
+    id("tracker.android.instrumented-test")
+    id("tracker.android.protobuf")
     alias(libs.plugins.kotlin.parcelize)
-    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -17,17 +17,22 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))
+    implementation(project(":core:sqlite-runtime"))
     // V2 control-trace export is compiled only in the debug source set. It remains absent from
     // release artifacts and from the user-facing format registry.
     debugImplementation(project(":stats:api"))
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.room.paging)
 
     // Compose
     androidTestImplementation(platform(libs.compose.bom))
@@ -44,7 +49,6 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     // Core
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -63,5 +67,3 @@ dependencies {
 
     implementation(libs.hilt.work)
 }
-
-configureProtobuf()

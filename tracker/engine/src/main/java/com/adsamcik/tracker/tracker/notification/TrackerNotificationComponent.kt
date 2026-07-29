@@ -5,31 +5,25 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 
-interface BaseTrackerNotificationComponent {
+internal abstract class TrackerNotificationComponent {
 	/**
-	 * Id used to get proper preference
+	 * Stable ID used by the legacy Room preference table.
 	 */
 	val id: String
+		get() = defaultPreference.id
 
-	/**
-	 * Title resource
-	 */
-	val titleRes: Int
+	abstract val titleRes: Int
+
+	abstract val defaultPreference: NotificationPreference
+
+	var preference: NotificationPreference = NotificationPreference.EMPTY
 
 	/**
 	 * Generates notification text
 	 */
-	fun generateText(
+	abstract fun generateText(
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
 	): String?
-}
-
-abstract class TrackerNotificationComponent : BaseTrackerNotificationComponent {
-	override val id: String
-		get() = defaultPreference.id
-
-	abstract val defaultPreference: NotificationPreference
-	var preference: NotificationPreference = NotificationPreference.EMPTY
 }

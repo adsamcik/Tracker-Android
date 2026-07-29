@@ -1,20 +1,18 @@
 package com.adsamcik.tracker.tracker.controller
 
 import app.cash.turbine.test
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.collections.immutable.PersistentList
@@ -170,8 +168,8 @@ class DefaultTrackerServiceControllerTest {
 		}
 
 		@Test
-		fun `publishes an immutable session snapshot`() {
-			val session = TrackerSession(
+		fun `publishes the immutable session contract`() {
+			val session = TrackerSessionSnapshot(
 				id = 7L,
 				start = 100L,
 				distanceInM = 12f,
@@ -179,13 +177,7 @@ class DefaultTrackerServiceControllerTest {
 			)
 			controller.updateSession(session)
 
-			session.distanceInM = 99f
-			session.collections = 10
-
-			controller.sessionFlow.value.shouldNotBeNull().apply {
-				distanceInM shouldBe 12f
-				collections shouldBe 3
-			}
+			controller.sessionFlow.value shouldBe session
 		}
 
 		@Test
@@ -250,8 +242,7 @@ class DefaultTrackerServiceControllerTest {
 
 		@Test
 		fun `sets collection data`() {
-			val data = mockk<CollectionData>(relaxed = true)
-			every { data.location } returns null
+			val data = TrackerCollectionSnapshot()
 			controller.updateCollectionData(data)
 
 			controller.collectionDataFlow.value shouldBe data
@@ -259,8 +250,7 @@ class DefaultTrackerServiceControllerTest {
 
 		@Test
 		fun `clears collection data with null`() {
-			val data = mockk<CollectionData>(relaxed = true)
-			every { data.location } returns null
+			val data = TrackerCollectionSnapshot()
 			controller.updateCollectionData(data)
 			controller.updateCollectionData(null)
 
@@ -281,7 +271,7 @@ class DefaultTrackerServiceControllerTest {
 			pathPoints.shouldNotBeNull()
 			pathPoints.first shouldBe 10L
 			pathPoints.second.size shouldBe 1
-			pathPoints.second[0] shouldBe location.toModel()
+			pathPoints.second[0] shouldBe location
 		}
 
 		@Test
@@ -375,8 +365,7 @@ class DefaultTrackerServiceControllerTest {
 			val session = createSession(id = 1L)
 			controller.updateSession(session)
 
-			val data = mockk<CollectionData>(relaxed = true)
-			every { data.location } returns null
+			val data = TrackerCollectionSnapshot()
 			controller.updateCollectionData(data)
 
 			controller.pathPointsFlow.value.shouldBeNull()
@@ -546,11 +535,7 @@ class DefaultTrackerServiceControllerTest {
 
 	// --- Helpers ---
 
-	private fun createSession(id: Long = 1L): TrackerSession {
-		val session = mockk<TrackerSession>(relaxed = true)
-		every { session.id } returns id
-		return session
-	}
+	private fun createSession(id: Long = 1L) = TrackerSessionSnapshot(id = id)
 
 	private fun createLocation(latitude: Double, longitude: Double): Location {
 		return Location(
@@ -565,16 +550,13 @@ class DefaultTrackerServiceControllerTest {
 		)
 	}
 
-	private fun createCollectionDataWithLocation(location: Location): CollectionData {
-		val data = mockk<CollectionData>(relaxed = true)
-		every { data.location } returns location
-		return data
-	}
+	private fun createCollectionDataWithLocation(location: Location): TrackerCollectionSnapshot =
+		TrackerCollectionSnapshot(location = location)
 
 	private fun createCollectionDataWithLocation(
 		latitude: Double,
 		longitude: Double
-	): CollectionData {
+	): TrackerCollectionSnapshot {
 		return createCollectionDataWithLocation(createLocation(latitude, longitude))
 	}
 

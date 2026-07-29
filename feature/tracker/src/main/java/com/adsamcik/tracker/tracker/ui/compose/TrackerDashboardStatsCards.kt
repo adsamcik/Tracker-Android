@@ -57,22 +57,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 @Composable
 internal fun StatusAndQuickStatsCard(
     isTracking: Boolean,
     sessionData: TrackerSessionSnapshot?,
-    collectionData: CollectionData?,
+    collectionData: TrackerCollectionSnapshot?,
     wallClockNowMillis: Long,
     onMapClick: () -> Unit,
     pathPoints: List<Location>? = null,

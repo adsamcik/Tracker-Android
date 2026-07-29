@@ -52,8 +52,8 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R as TrackerR
 
@@ -92,7 +92,7 @@ internal fun TrackingContent(
 				if (state.sessionData != null) {
 					TrackingStatsGrid(
 						sessionData = state.sessionData,
-						collectionData = state.collectionData,
+						collectionSnapshot = state.collectionSnapshot,
 					)
 				}
 			}
@@ -139,7 +139,7 @@ internal fun TrackingContent(
 
 			item(key = "sensor_details") {
 				SensorDetailsCard(
-					collectionData = state.collectionData,
+					collectionSnapshot = state.collectionSnapshot,
 					isTracking = state.isTracking,
 				)
 			}
@@ -169,8 +169,8 @@ private fun MapHeroCard(
 	val settings = TrackerSettingsQuick.snapshot(context)
 
 	val sessionData = state.sessionData
-	val collectionData = state.collectionData
-	val currentSpeed = collectionData?.location?.speed
+	val collectionSnapshot = state.collectionSnapshot
+	val currentSpeed = collectionSnapshot?.location?.speed
 
 	val sessionEnd = when {
 		sessionData != null && sessionData.end > sessionData.start -> sessionData.end
@@ -204,7 +204,7 @@ private fun MapHeroCard(
 			} else {
 				// Placeholder while path is being recorded.
 				// Distinguish between "no GPS fix yet" and "GPS acquired but < 2 path points".
-				val hasGpsFix = collectionData?.location != null
+				val hasGpsFix = collectionSnapshot?.location != null
 				val placeholderText = if (hasGpsFix) {
 					stringResource(R.string.dashboard_tracking_recording_route)
 				} else {

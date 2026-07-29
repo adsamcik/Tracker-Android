@@ -3,7 +3,7 @@ package com.adsamcik.tracker.game.goals.data.abstraction
 import android.content.Context
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 abstract class StepGoal(
 	persistence: GoalPersistence,
@@ -18,12 +18,12 @@ abstract class StepGoal(
 		target = initialTarget.coerceAtLeast(1)
 	}
 
-	override fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean) {
+	override fun onSessionUpdatedInternal(session: TrackerSessionSnapshot, isNewSession: Boolean) {
 		val diff = sessionStepDelta(session, isNewSession)
 		if (diff > 0) value += diff
 	}
 
-	protected fun sessionStepDelta(session: TrackerSession, isNewSession: Boolean): Int {
+	protected fun sessionStepDelta(session: TrackerSessionSnapshot, isNewSession: Boolean): Int {
 		val previous = lastSessionStepValue
 		val diff = if (isNewSession) session.steps else session.steps - previous
 		lastSessionStepValue = session.steps

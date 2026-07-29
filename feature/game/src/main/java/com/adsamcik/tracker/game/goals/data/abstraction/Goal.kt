@@ -2,7 +2,7 @@ package com.adsamcik.tracker.game.goals.data.abstraction
 
 import android.app.Notification
 import android.content.Context
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import java.time.ZonedDateTime
 
 /**
@@ -59,7 +59,7 @@ interface Goal {
 	 * Called when latest session data changes.
 	 * Returns true if goal is reached.
 	 */
-	fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean
+	fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean
 
 	/**
 	 * Called when a cumulative (absolute) step value is available.

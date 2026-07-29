@@ -7,10 +7,6 @@ plugins {
 android {
     namespace = "com.adsamcik.tracker.activity.impl"
 
-    sourceSets {
-        this.maybeCreate("androidTest").assets.srcDir("$projectDir/schemas")
-    }
-
     lint {
         baseline = file("lint-baseline.xml")
     }
@@ -22,15 +18,14 @@ android {
 
 dependencies {
     api(project(":sensor:activity-api"))
+    implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
-    implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))
     implementation(project(":stats:api"))
     implementation(project(":stats:engine"))
 
-    implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.core.ktx)
@@ -42,7 +37,7 @@ dependencies {
     implementation(libs.hilt.work)
 
     testImplementation(libs.androidx.work.testing)
+    testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
 
-    androidTestImplementation(libs.androidx.work.testing)
 }
