@@ -1,34 +1,57 @@
-# Research evidence schema v1
+# Research evidence schema v2
 
-`stats:api` owns the common, typed V10 research-evidence contract. Schema version `1` is a
-deterministic in-memory/replay boundary only: it does not authorize local capture, a plaintext file
-or database, upload, analytics, or a collection UI.
+`stats:api` owns the common, typed research-evidence contract. Version 2 remains an opt-in
+research/replay boundary: it does not authorize ordinary telemetry, upload, a plaintext file,
+database capture, or a collection UI. Any live capture must be explicitly consented, bounded and
+encrypted by the caller.
+
+Version 1 remains supported for historical altitude and segmentation evidence. New envelopes use
+version 2 when they contain any control, logical-lifecycle, acquisition, horizontal-estimator or
+replay-digest record. `ResearchEvidenceCodec` round-trips both versions and rejects unsupported
+versions rather than silently degrading a V2 record.
 
 Every `ResearchEvidenceEnvelope` carries a trace/run/session identity, a trace-scoped monotonic
 sequence, declared clock domain, privacy class, algorithm versions, capability declaration,
 lifecycle boundary, loss ranges, and one typed record. A final envelope may additionally carry a
 `ResearchTerminalIntegrityRecord`. Its envelope count, first/last sequence, loss-range count and
-saturated lost-event count make accounting explicit; an absent terminal record never means that an
-historical export was complete.
+saturated lost-event count make accounting explicit; an absent terminal record never means that a
+trace is complete.
 
-Loss ranges are inclusive trace-sequence intervals. They must be disjoint, and a recorder requires
-every skipped envelope sequence to be covered by contiguous declared loss. Raw pressure source
-sequences are deliberately separate from aggregate and location source-sequence namespaces.
+Loss ranges are inclusive trace-sequence intervals. They must be disjoint, and a bounded recorder
+must declare every skipped envelope sequence. Raw pressure source sequences remain separate from
+aggregate, location, and control sequence namespaces.
 
-The schema includes typed pressure descriptor/raw-event/aggregate records, altitude
-conversion/calibration/filter records, lifecycle/gap/loss/truth/manual-correction records, a
-lossless canonical segmentation observation, and versioned reducer output. Canonical location,
-step, activity, decision, lifecycle, and capability fields preserve absence rather than turning it
-into negative evidence. The named `LegacyV1SegmentationProjection` is the sole intentionally lossy
-adapter.
+## V2 control evidence
 
-`ResearchEvidenceCodec` maps every domain record to its corresponding
-`ResearchEvidenceWireRecord` and back. It sorts algorithm-version keys when encoding and rejects
-unknown schema versions. The common test suite verifies domain/wire round trips, declared
-capabilities, loss accounting, terminal counts, and this document path constant. Any future
-encrypted transport must retain that mapping and add a versioned serialization format; it must not
-silently reinterpret absent capabilities or terminal integrity.
+V2 adds these Android-free record types:
 
-The debug authenticated research-trace exporter remains a separate historical v3 manifest. It
-declares the capabilities it actually has and marks ordinary historical exports incomplete; it is
-not a writer for this schema-v1 contract.
+- `ResearchControlEventRecord` for an ordered reducer input or named transition with correlation
+  metadata;
+- `ResearchTrackingLifecycleRecord` for a logical tracking run, independent of Android service
+  restarts. A stopped user run must declare `USER_REQUEST` as its cause;
+- `ResearchAcquisitionRecord` for both desired and actually applied provider request shapes;
+- `ResearchHorizontalEstimatorRecord` for coordinate-free local-ENU estimator diagnostics;
+- V2-owned fields on `ResearchGapRecord` so a logical run and monotonic bounds can own an explicit
+  unknown interval;
+- `ResearchControlDigestRecord` for replay output and retained V1-regression hashes.
+
+Control timestamps are only comparable within the envelope's declared `ResearchClockDomain`.
+Clock-domain changes and gaps must be represented as boundaries; no replay is allowed to manufacture
+distance, stationary time, or a direct route across them. A generic event's payload is a small
+string map and must never be treated as an unbounded raw-coordinate transport.
+
+`ResearchControlTraceReplay` deterministically validates ordered V2 envelopes, lifecycle
+transitions, user-run stop authority, gaps and digest material without selecting live Android
+policy. It is a verifier, not a production controller.
+
+## Capture and export boundary
+
+The tracker-engine `ResearchControlTraceRecorder` is an opt-in bounded in-memory adapter from the
+shadow control engine to V2 envelopes. It is not wired by default, writes nowhere, records buffer
+overflow as a loss range, and intentionally emits no terminal-complete claim. A debug caller that
+exports its snapshot must use an authenticated encryption stream (for example the existing
+debug-only `EncryptedResearchTraceExporter`) and preserve the V2 envelope sequence/loss metadata.
+
+The older debug authenticated research-trace exporter remains a historical v3 NDJSON manifest. It
+declares the capabilities it actually has and marks ordinary database exports incomplete; it is not
+a substitute for a live V2 control capture.

@@ -101,7 +101,7 @@ class ResearchTracePayloadExporterTest {
 		records.last().getString("recordType") shouldBe "end"
 
 		val manifest = records.first()
-		manifest.getInt("schemaVersion") shouldBe 3
+		manifest.getInt("schemaVersion") shouldBe 4
 		manifest.getLong("rangeStartMs") shouldBe rangeStart
 		manifest.getLong("rangeEndInclusiveMs") shouldBe rangeEnd
 		manifest.getJSONObject("session").getString("traceId") shouldBe "trace-prague-01"

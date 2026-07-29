@@ -9,7 +9,15 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
+import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.BufferedWriter
@@ -170,6 +178,67 @@ class ResearchTracePayloadExporter(
 				afterId = advanceCursor(afterId, page.last().id)
 			}
 
+			database.locationObservationDecisionDao()
+				.getBetween(fromMs, toMsInclusive)
+				.forEach {
+					writer.writeRecord(locationDecisionRecord(it))
+					counts.locationDecision++
+				}
+			database.trackerStateEventDao()
+				.getBetween(fromMs, toMsExclusive)
+				.forEach {
+					writer.writeRecord(trackerStateRecord(it))
+					counts.trackerState++
+				}
+			database.pressureSampleDao().getAllBetween(fromMs, toMsInclusive).forEach {
+				writer.writeRecord(pressureRecord(it))
+				counts.pressure++
+			}
+			database.stepIntervalDao().getAllBetween(fromMs, toMsInclusive).forEach {
+				writer.writeRecord(stepRecord(it))
+				counts.step++
+			}
+			database.activitySnapshotDao().getAllBetween(fromMs, toMsInclusive).forEach {
+				writer.writeRecord(activityRecord(it))
+				counts.activity++
+			}
+			var afterTimeMs: Long? = null
+			var afterItemId: Long? = null
+			while (true) {
+				val page = database.cellSampleDao().getChunkBetweenOrdered(
+					fromMs,
+					toMsInclusive,
+					afterTimeMs,
+					afterItemId,
+					pageSize,
+				)
+				if (page.isEmpty()) break
+				page.forEach {
+					writer.writeRecord(cellRecord(it))
+					counts.cell++
+				}
+				afterTimeMs = page.last().timeMs
+				afterItemId = page.last().id
+			}
+			afterTimeMs = null
+			afterItemId = null
+			while (true) {
+				val page = database.wifiObservationDao().getChunkBetweenOrdered(
+					fromMs,
+					toMsInclusive,
+					afterTimeMs,
+					afterItemId,
+					pageSize,
+				)
+				if (page.isEmpty()) break
+				page.forEach {
+					writer.writeRecord(wifiRecord(it))
+					counts.wifi++
+				}
+				afterTimeMs = page.last().timeMs
+				afterItemId = page.last().id
+			}
+
 			acceptedLocations.forEach { sample ->
 				if (sample.timeMs in fromMs..toMsInclusive) {
 					writer.writeRecord(acceptedLocationRecord(sample))
@@ -197,10 +266,10 @@ class ResearchTracePayloadExporter(
 		put("monotonicClockUnit", "elapsed_realtime_nanoseconds")
 		put("nonFiniteNumberEncoding", "string")
 		put("evidenceCapabilities", JSONObject().apply {
-			// Schema v3 deliberately declares the historical export's limits. These facts are
+			// Schema v4 deliberately declares the historical export's limits. These facts are
 			// not inferred from missing rows, and this exporter must not claim replay completeness.
 			put("rawPressureEvents", false)
-			put("pressureAggregateWindows", false)
+			put("pressureAggregateWindows", true)
 			put("altitudeConversionOutcomes", false)
 			put("altitudeEstimatorDecisions", false)
 			put("canonicalSegmentationObservations", false)
@@ -248,6 +317,8 @@ class ResearchTracePayloadExporter(
 		putFinite("verticalAccuracyM", value.vAccM)
 		putFinite("speedMps", value.speedMps)
 		putFinite("speedAccuracyMps", value.speedAccuracyMps)
+		putFinite("bearingDeg", value.bearingDeg)
+		putFinite("bearingAccuracyDeg", value.bearingAccuracyDeg)
 		put("provider", value.provider)
 		put("acquisitionMode", value.acquisitionMode)
 		put("requestPriority", value.requestPriority)
@@ -259,6 +330,12 @@ class ResearchTracePayloadExporter(
 		put("estimatorVersion", value.estimatorVersion)
 		put("calibrationVersion", value.calibrationVersion)
 		put("createdAtMs", value.createdAt)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putNullable("sourceEventId", value.sourceEventId)
+		putNullable("callbackId", value.callbackId)
+		putNullable("clockDomainId", value.clockDomainId)
+		putNullable("bootClockDomainId", value.bootClockDomainId)
+		put("sourceRevision", value.sourceRevision)
 	}
 
 	private fun trackerRunRecord(value: TrackerRun): JSONObject = JSONObject().apply {
@@ -270,6 +347,111 @@ class ResearchTracePayloadExporter(
 		putNullable("policyParams", value.policyParams)
 		put("userInitiated", value.userInitiated)
 		put("createdAtMs", value.createdAt)
+	}
+
+	private fun locationDecisionRecord(value: LocationObservationDecision): JSONObject =
+		JSONObject().apply {
+			put(RECORD_TYPE, "location_observation_decision")
+			put("id", value.id)
+			put("sourceEventId", value.observationSourceEventId)
+			put("decision", value.decision)
+			putNullable("reason", value.reason)
+			put("decisionVersion", value.decisionVersion)
+			putNullable("acceptedSampleSourceSignalId", value.acceptedSampleSourceSignalId)
+			put("sourceSignalId", value.sourceSignalId)
+			putNullable("clockDomainId", value.clockDomainId)
+			put("decidedAtMs", value.decidedAtMs)
+			put("sourceRevision", value.sourceRevision)
+		}
+
+	private fun trackerStateRecord(value: TrackerStateEvent): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "tracker_state_event")
+		put("id", value.id)
+		put("clockDomainId", value.clockDomainId)
+		put("elapsedRealtimeNanos", value.elapsedRealtimeNanos)
+		put("wallTimeMs", value.wallTimeMs)
+		put("state", value.state)
+		put("policy", value.policy)
+		putNullable("reason", value.reason)
+		putNullable("activeLeaseExpiresElapsedNanos", value.activeLeaseExpiresElapsedNanos)
+		put("createdAtMs", value.createdAtMs)
+		put("sourceRevision", value.sourceRevision)
+	}
+
+	private fun pressureRecord(value: PressureSample): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "pressure_aggregate")
+		put("id", value.id)
+		put("timeMs", value.timeMs)
+		put("elapsedRealtimeNanos", value.elapsedRealtimeNanos)
+		putFinite("pressureHpa", value.pressureHpa)
+		putFinite("altitudeM", value.altitudeM)
+		put("sampleCount", value.sampleCount)
+		putFinite("minPressureHpa", value.minPressureHpa)
+		putFinite("maxPressureHpa", value.maxPressureHpa)
+		putFinite("standardDeviationHpa", value.standardDeviationHpa)
+		putNullable("windowStartElapsedRealtimeNanos", value.windowStartElapsedRealtimeNanos)
+		putNullable("windowEndElapsedRealtimeNanos", value.windowEndElapsedRealtimeNanos)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putStamp(value.observationStamp)
+	}
+
+	private fun stepRecord(value: StepInterval): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "step_interval")
+		put("id", value.id)
+		put("startTimeMs", value.startTimeMs)
+		put("endTimeMs", value.endTimeMs)
+		put("stepCount", value.stepCount)
+		put("sensorValueStart", value.sensorValueStart)
+		put("sensorValueEnd", value.sensorValueEnd)
+		put("sensorReset", value.sensorReset)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putStamp(value.observationStamp)
+	}
+
+	private fun activityRecord(value: ActivitySnapshot): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "activity_snapshot")
+		put("id", value.id)
+		put("timeMs", value.timeMs)
+		put("activityType", value.activityType)
+		put("confidence", value.confidence)
+		put("isTransition", value.isTransition)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putStamp(value.observationStamp)
+	}
+
+	private fun cellRecord(value: CellSample): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "cell_sample")
+		put("id", value.id)
+		put("timeMs", value.timeMs)
+		put("cellId", value.cellId)
+		put("lac", value.lac)
+		put("mcc", value.mcc)
+		put("mnc", value.mnc)
+		put("networkType", value.networkType)
+		put("signalStrength", value.signalStrength)
+		putNullable("latE7", value.latE7)
+		putNullable("lonE7", value.lonE7)
+		put("coordinateProvenance", value.provenance.name)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putNullable("sourceItemIndex", value.sourceItemIndex)
+		putStamp(value.observationStamp)
+	}
+
+	private fun wifiRecord(value: WifiObservation): JSONObject = JSONObject().apply {
+		put(RECORD_TYPE, "wifi_observation")
+		put("id", value.id)
+		put("timeMs", value.timeMs)
+		put("bssid", value.bssid)
+		put("ssid", value.ssid)
+		put("capabilities", value.capabilities)
+		put("frequency", value.frequency)
+		put("level", value.level)
+		putNullable("latE7", value.latE7)
+		putNullable("lonE7", value.lonE7)
+		put("coordinateProvenance", value.provenance.name)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putNullable("sourceItemIndex", value.sourceItemIndex)
+		putStamp(value.observationStamp)
 	}
 
 	private fun acceptedLocationRecord(value: LocationSample): JSONObject = JSONObject().apply {
@@ -285,6 +467,10 @@ class ResearchTracePayloadExporter(
 		putFinite("verticalAccuracyM", value.vAccM)
 		putFinite("speedMps", value.speedMps)
 		putFinite("speedAccuracyMps", value.speedAccuracyMps)
+		putFinite("rawPlatformSpeedMps", value.rawPlatformSpeedMps)
+		putFinite("rawPlatformSpeedAccuracyMps", value.rawPlatformSpeedAccuracyMps)
+		putFinite("bearingDeg", value.bearingDeg)
+		putFinite("bearingAccuracyDeg", value.bearingAccuracyDeg)
 		put("provider", value.provider)
 		put("quality", value.quality.name)
 		putNullable("motionState", value.motionState?.name)
@@ -309,6 +495,11 @@ class ResearchTracePayloadExporter(
 		put("altitudeConversionStatus", value.altitudeConversionStatus.storageName)
 		put("rawGpsAltitudeDatum", value.rawGpsAltitudeDatum.storageName)
 		put("altitudeModelVersion", value.altitudeModelVersion)
+		putNullable("sourceSignalId", value.sourceSignalId)
+		putNullable("sourceEventId", value.sourceEventId)
+		putNullable("clockDomainId", value.clockDomainId)
+		putNullable("bootClockDomainId", value.bootClockDomainId)
+		put("sourceRevision", value.sourceRevision)
 	}
 
 	private fun endRecord(counts: RecordCounts): JSONObject = JSONObject().apply {
@@ -317,8 +508,15 @@ class ResearchTracePayloadExporter(
 		put("counts", JSONObject().apply {
 			put("traceMarker", counts.marker)
 			put("locationObservation", counts.locationObservation)
+			put("locationDecision", counts.locationDecision)
 			put("trackerRun", counts.trackerRun)
+			put("trackerState", counts.trackerState)
 			put("acceptedLocationSample", counts.acceptedLocationSample)
+			put("pressureAggregate", counts.pressure)
+			put("stepInterval", counts.step)
+			put("activitySnapshot", counts.activity)
+			put("cellSample", counts.cell)
+			put("wifiObservation", counts.wifi)
 		})
 	}
 
@@ -343,6 +541,27 @@ class ResearchTracePayloadExporter(
 		put(key, finiteJsonValue(value))
 	}
 
+	private fun JSONObject.putStamp(stamp: ObservationStampColumns) {
+		put("observationStamp", JSONObject().apply {
+			putNullable("sourceTimeMs", stamp.sourceTimeMs)
+			putNullable("sourceElapsedRealtimeNanos", stamp.sourceElapsedRealtimeNanos)
+			putNullable(
+				"sourceFirstElapsedRealtimeNanos",
+				stamp.sourceFirstElapsedRealtimeNanos,
+			)
+			putNullable("receivedTimeMs", stamp.receivedTimeMs)
+			putNullable("receivedElapsedRealtimeNanos", stamp.receivedElapsedRealtimeNanos)
+			putNullable("sourceSequence", stamp.sourceSequence)
+			putNullable("sourceFirstSequence", stamp.sourceFirstSequence)
+			putNullable("clockDomainId", stamp.clockDomainId)
+			putNullable("bootClockDomainId", stamp.bootClockDomainId)
+			putNullable("sourceAgeMs", stamp.sourceAgeMs)
+			putNullable("timeUncertaintyMs", stamp.timeUncertaintyMs)
+			putNullable("capabilityFlags", stamp.capabilityFlags)
+			putNullable("permissionPrecision", stamp.permissionPrecision)
+		})
+	}
+
 	private fun finiteJsonValue(value: Double?): Any = when {
 		value == null -> JSONObject.NULL
 		value.isFinite() -> value
@@ -364,14 +583,21 @@ class ResearchTracePayloadExporter(
 	private data class RecordCounts(
 		val marker: Long,
 		var locationObservation: Long = 0,
+		var locationDecision: Long = 0,
 		var trackerRun: Long = 0,
+		var trackerState: Long = 0,
 		var acceptedLocationSample: Long = 0,
+		var pressure: Long = 0,
+		var step: Long = 0,
+		var activity: Long = 0,
+		var cell: Long = 0,
+		var wifi: Long = 0,
 	)
 
 	private companion object {
 		const val RECORD_TYPE = "recordType"
 		const val FORMAT = "tracker-research-trace-ndjson"
-		const val SCHEMA_VERSION = 3
+		const val SCHEMA_VERSION = 4
 		const val DEFAULT_PAGE_SIZE = 1_000
 	}
 }

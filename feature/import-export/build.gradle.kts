@@ -22,6 +22,9 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
     implementation(project(":core:logging"))
+    // V2 control-trace export is compiled only in the debug source set. It remains absent from
+    // release artifacts and from the user-facing format registry.
+    debugImplementation(project(":stats:api"))
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
