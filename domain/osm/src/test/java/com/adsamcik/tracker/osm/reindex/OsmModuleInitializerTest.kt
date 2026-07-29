@@ -126,13 +126,19 @@ class OsmModuleInitializerTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val scope = CoroutineScope(SupervisorJob() + dispatcher)
 		val reindexer = mockk<OsmWayCellReindexer>()
-		coEvery { reindexer.reindexIfNeeded() } returns 0
+		val reindexStarted = CompletableDeferred<Unit>()
+		coEvery { reindexer.reindexIfNeeded() } coAnswers {
+			reindexStarted.complete(Unit)
+			0
+		}
 		val legacyId = seedImport(
 			displayName = "legacy-bbox.osm.pbf",
 			status = OsmImportEntity.STATUS_READY,
 			wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_LEGACY_ORDERED,
 		)
 		seedWayAndCell(303, legacyId, 43)
+		database.osmImportDao().getLatest()!!.wayBboxEncodingVersion shouldBe
+			OsmImportEntity.WAY_BBOX_ENCODING_LEGACY_ORDERED
 
 		OsmModuleInitializer(
 			appScope = scope,
@@ -141,6 +147,7 @@ class OsmModuleInitializerTest {
 			reindexer = reindexer,
 		).initialize()
 		advanceUntilIdle()
+		reindexStarted.await()
 
 		database.osmImportDao().count() shouldBe 0
 		database.osmWayDao().count() shouldBe 0
@@ -173,7 +180,7 @@ class OsmModuleInitializerTest {
 		)
 
 	private suspend fun seedWayAndCell(wayId: Long, importId: Long, cellKey: Long) {
-		database.osmWayDao().insertAll(
+		val wayInstanceId = database.osmWayDao().insertNewImportScopedInstances(
 			listOf(
 				OsmWayEntity(
 					id = wayId,
@@ -188,11 +195,11 @@ class OsmModuleInitializerTest {
 					bboxMaxLatE7 = 500_001_000,
 					bboxMinLonE7 = 144_000_000,
 					bboxMaxLonE7 = 144_001_000,
-				),
+				).asNewImportScopedInstance(),
 			),
-		)
+		).single()
 		database.osmWayCellDao().insertAll(
-			listOf(OsmWayCellEntity(cellKey = cellKey, wayId = wayId)),
+			listOf(OsmWayCellEntity(cellKey = cellKey, wayId = wayInstanceId)),
 		)
 	}
 
@@ -207,7 +214,7 @@ class OsmModuleInitializerTest {
 
 	private fun wayIds(): List<Long> =
 		database.openHelper.readableDatabase.query(
-			"SELECT id FROM osm_way ORDER BY id",
+			"SELECT osm_way_id FROM osm_way ORDER BY osm_way_id",
 		).use { cursor ->
 			buildList {
 				while (cursor.moveToNext()) add(cursor.getLong(0))

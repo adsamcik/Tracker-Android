@@ -180,7 +180,10 @@ class OsmWayCellReindexerTest {
 		}
 	}
 
-	private suspend fun seedImport(cellIndexBuilt: Int = 0): Long {
+	private suspend fun seedImport(
+		cellIndexBuilt: Int = 0,
+		wayBboxEncodingVersion: Int = OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
+	): Long {
 		return database.osmImportDao().insert(
 			OsmImportEntity(
 				displayName = "Prague.osm.pbf",
@@ -188,13 +191,35 @@ class OsmWayCellReindexerTest {
 				importedAt = 1_700_000_000_000L,
 				wayCount = 2,
 				nodeCount = 8,
-				minLatE7 = 500_000_000,
-				maxLatE7 = 500_700_000,
-				minLonE7 = 144_000_000,
-				maxLonE7 = 144_800_000,
+				diagnosticMinLatitudeE7 = 500_000_000,
+				diagnosticMaxLatitudeE7 = 500_700_000,
+				diagnosticMinLongitudeE7 = 144_000_000,
+				diagnosticMaxLongitudeE7 = 144_800_000,
+				wayBboxEncodingVersion = wayBboxEncodingVersion,
 				cellIndexBuilt = cellIndexBuilt,
 			),
 		)
+	}
+
+	@Test
+	fun `legacy ordered bbox rows are excluded from reindex and spatial DAO reads`() {
+		runBlocking {
+			val importId = seedImport(
+				wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_LEGACY_ORDERED,
+			)
+			seedWay(
+				id = 300L,
+				importId = importId,
+				bbox = Bbox(500_000_000, 500_100_000, 144_000_000, 144_100_000),
+			)
+			val key = OsmGridIndex.cellKey(500_000_000, 144_000_000)
+			database.osmWayCellDao().insertAll(listOf(OsmWayCellEntity(cellKey = key, wayId = 300L)))
+
+			reindexer.reindexIfNeeded() shouldBe 0
+			database.osmWayCellDao().findWayIdsInCells(listOf(key)) shouldBe emptyList()
+			database.osmWayDao().findById(300L) shouldBe null
+			database.osmWayDao().findByIds(listOf(300L)) shouldBe emptyList()
+		}
 	}
 
 	private data class Bbox(

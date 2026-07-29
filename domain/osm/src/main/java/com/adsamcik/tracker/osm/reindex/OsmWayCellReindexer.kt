@@ -28,19 +28,25 @@ import javax.inject.Singleton
  * Triggering rule: if any published import with the current directed-bbox
  * producer version has `cell_index_built = 0`, the cell index is stale or
  * incomplete (the migration ran, or a previous reindex was interrupted by a
- * crash). The reindexer clears `osm_way_cell`, rebuilds from scratch, and
- * marks eligible imports as built only after successful completion.
+ * crash). The reindexer first withdraws the index for every eligible READY
+ * import, clears `osm_way_cell`, rebuilds from scratch, and marks imports as
+ * built only after successful completion. Candidate DAOs require
+ * `cell_index_built = 1`, so no reader can observe a partial rebuild.
+ *
  * This guarantees crash-safety: if the process dies mid-batch, imports remain
- * flagged 0 and the heuristic re-triggers on next launch.
+ * flagged 0 and the next launch rebuilds from an empty index. A future safe
+ * import coordinator must hold graph mutation authority around this flow so it
+ * cannot race publication or deletion; release PBF intake is currently gated
+ * off, so no such writer is reachable today.
  *
  * Pagination uses keyset (seek) strategy via [OsmWayDao.pageBboxesAfter] for
  * O(n) total cost, avoiding the O(n²) row scans of OFFSET-based pagination.
  *
  * Concurrency: this is `suspend` and dispatches its IO on
  * [DispatchersProvider.io]; callers should also wrap the call in a
- * background coroutine. It is safe to call multiple times concurrently —
- * the [OsmWayCellDao] insert uses `OnConflictStrategy.IGNORE` and the
- * batched paging is purely idempotent.
+ * background coroutine. It deliberately uses `ABORT` cell inserts instead
+ * of silently merging conflicts. The future coordinator is responsible for
+ * serializing graph mutation; callers must not run concurrent rebuilds.
  */
 @Singleton
 class OsmWayCellReindexer @Inject constructor(
@@ -74,6 +80,11 @@ class OsmWayCellReindexer @Inject constructor(
 			var totalCellRows = 0
 			var totalWays = 0
 			try {
+				// Withdraw every currently visible index before clearing it. The
+				// candidate DAOs join this marker, so readers fall back/abstain
+				// rather than consuming the partial rows below.
+				osmImportDao.markAllCellIndexUnbuilt()
+				osmWayCellDao.deleteAll()
 				while (true) {
 					val page = osmWayDao.pageBboxesAfter(
 						afterId = afterId,
@@ -86,7 +97,7 @@ class OsmWayCellReindexer @Inject constructor(
 						osmWayCellDao.insertAll(cells)
 						totalCellRows += cells.size
 					}
-					afterId = page.last().id
+					afterId = page.last().wayInstanceId
 					if (page.size < pageSize) break
 				}
 				// Mark eligible imports as having a complete cell index only after
@@ -130,10 +141,10 @@ class OsmWayCellReindexer @Inject constructor(
 		)
 	) {
 		is OsmCellCoverage.Available -> coverage.cellKeys.map { key ->
-			OsmWayCellEntity(cellKey = key, wayId = bbox.id)
+			OsmWayCellEntity(cellKey = key, wayId = bbox.wayInstanceId)
 		}
 		is OsmCellCoverage.TooLarge -> throw IllegalStateException(
-			"Cannot reindex way ${bbox.id}: ${coverage.requestedCellCount} cells exceeds " +
+			"Cannot reindex way instance ${bbox.wayInstanceId}: ${coverage.requestedCellCount} cells exceeds " +
 				coverage.maximumCellCount,
 		)
 	}

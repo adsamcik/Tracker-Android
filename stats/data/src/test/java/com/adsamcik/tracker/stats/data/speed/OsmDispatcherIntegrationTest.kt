@@ -342,10 +342,11 @@ class OsmDispatcherIntegrationTest {
 				importedAt = 1_700_000_000_000L,
 				wayCount = 0L,
 				nodeCount = 0L,
-				minLatE7 = PRAGUE_LAT_E7 - 5_000_000,
-				maxLatE7 = PRAGUE_LAT_E7 + 5_000_000,
-				minLonE7 = PRAGUE_LON_E7 - 5_000_000,
-				maxLonE7 = PRAGUE_LON_E7 + 5_000_000,
+				diagnosticMinLatitudeE7 = PRAGUE_LAT_E7 - 5_000_000,
+				diagnosticMaxLatitudeE7 = PRAGUE_LAT_E7 + 5_000_000,
+				diagnosticMinLongitudeE7 = PRAGUE_LON_E7 - 5_000_000,
+				diagnosticMaxLongitudeE7 = PRAGUE_LON_E7 + 5_000_000,
+				wayBboxEncodingVersion = OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
 			),
 		)
 	}

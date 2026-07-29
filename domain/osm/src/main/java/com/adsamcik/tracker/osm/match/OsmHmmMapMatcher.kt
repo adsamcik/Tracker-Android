@@ -86,7 +86,7 @@ class OsmHmmMapMatcher @Inject constructor(
 	private suspend fun loadCandidateWays(observations: List<RoadObservation>): List<DecodedWay> {
 		val cellKeys = LinkedHashSet<Long>()
 		for (obs in observations) {
-			for (cell in candidateCellsFor(obs).orEmpty()) {
+			for (cell in candidateCellsFor(obs) ?: LongArray(0)) {
 				cellKeys.add(cell)
 			}
 		}
@@ -148,7 +148,7 @@ class OsmHmmMapMatcher @Inject constructor(
 		cellToWayIdx: Map<Long, MutableList<Int>>,
 	): List<RoadCandidate> {
 		val wayIndices = LinkedHashSet<Int>()
-		for (cell in candidateCellsFor(obs).orEmpty()) {
+		for (cell in candidateCellsFor(obs) ?: LongArray(0)) {
 			cellToWayIdx[cell]?.let { wayIndices.addAll(it) }
 		}
 		if (wayIndices.isEmpty()) return emptyList()
