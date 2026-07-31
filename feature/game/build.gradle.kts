@@ -24,7 +24,6 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
     implementation(project(":domain:points"))
 
     // Stats architecture

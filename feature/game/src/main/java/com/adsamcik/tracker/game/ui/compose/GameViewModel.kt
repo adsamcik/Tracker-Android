@@ -3,7 +3,8 @@ package com.adsamcik.tracker.game.ui.compose
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.game.leaderboard.GhostLeaderboardProvider
+import com.adsamcik.tracker.game.data.MiniGameScoreRepository
+import com.adsamcik.tracker.game.leaderboard.LeaderboardProvider
 import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
 import com.adsamcik.tracker.game.leaderboard.LeaderboardState
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
@@ -13,8 +14,6 @@ import com.adsamcik.tracker.game.minigame.ZenWalkConfiguration
 import com.adsamcik.tracker.game.minigame.FuseRunConfiguration
 import com.adsamcik.tracker.game.minigame.SwitchbackConfiguration
 import com.adsamcik.tracker.game.repository.GameRepository
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,7 +25,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -70,9 +68,8 @@ internal sealed interface LeaderboardUiState {
 internal class GameViewModel @Inject constructor(
 	private val gameRepository: GameRepository,
 	private val miniGameRegistry: MiniGameRegistry,
-	private val scoreDao: MiniGameScoreDao,
-	private val leaderboardProvider: GhostLeaderboardProvider,
-	private val dispatchers: DispatchersProvider,
+	private val scoreRepository: MiniGameScoreRepository,
+	private val leaderboardProvider: LeaderboardProvider,
 ) : ViewModel() {
 
 	private val selectedMetric = MutableStateFlow(DEFAULT_METRIC)
@@ -86,12 +83,12 @@ internal class GameViewModel @Inject constructor(
 		} else {
 			combine(
 				games.map { game ->
-					scoreDao.getScoresByGame(game.id)
-						.map { rows -> game.id to rows.maxOfOrNull { it.score } }
+					scoreRepository.observePersonalBest(game.id)
+						.map { personalBest -> game.id to personalBest }
 				},
 			) { pairs ->
 				pairs.mapNotNull { (id, best) -> best?.let { id to it } }.toMap()
-			}.flowOn(dispatchers.io)
+			}
 		}
 	}
 
@@ -100,8 +97,8 @@ internal class GameViewModel @Inject constructor(
 			.flatMapLatest { metric ->
 				flow {
 					emit(LeaderboardUiState.Loading)
-					// GhostLeaderboardProvider is entirely local (DailySummary
-					// aggregation) and performs its own DAO work on io — no network.
+					// The provider is entirely local and performs persistence work
+					// behind the feature-facing port — no network.
 					emit(
 						runCatching { leaderboardProvider.getLeaderboard(metric) }
 							.fold(

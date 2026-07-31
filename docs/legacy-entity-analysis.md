@@ -52,8 +52,8 @@ AppDatabase contains 7 "legacy session-based" entities that coexist with 9 newer
 | **Replacement** | **None — NOT a session-based entity** |
 | **Status** | ✅ Active and correctly purposed — no deprecation needed |
 | **Nature** | Reference-data entity storing activity type definitions (Walking, Running, Cycling, etc.) |
-| **Active Writers** | `ActivityModuleInitializer` (seeding native types), `SessionActivityActivityCompose` (UI CRUD) |
-| **Active Readers** | `GpxImport` (find by type), `SessionActivity.getAll()` (static helper used across UI) |
+| **Active Writers** | `ActivityModuleInitializer` seeds native types; `RoomSessionActivityRepository` owns activity-management CRUD; GPX/KML importers create missing imported labels |
+| **Active Readers** | `RoomSessionActivityRepository` maps rows to `SessionActivityItem` for feature UI; GPX/KML importers perform lookups; `RoomImportExportDataRepository` resolves localized share metadata. `SessionActivity.getAll()` remains an unused legacy helper, not a UI dependency |
 | **Notes** | `ActivitySnapshot` does NOT replace this entity. `ActivitySnapshot` records raw activity transitions (timestamped events), while `SessionActivity` defines reusable activity type labels with icons. `TrackerSession` has a FK to this table. Despite the "Session" prefix, this is a standalone reference table. |
 
 ### 5. NetworkOperator (`network_operator`)

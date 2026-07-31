@@ -17,7 +17,7 @@ class WorkManagerAchievementEvaluationScheduler @Inject constructor(
 ) : AchievementEvaluationScheduler {
 	override fun scheduleEvaluation() {
 		val workRequest = OneTimeWorkRequestBuilder<AchievementWorker>()
-			.addTag(AchievementWorker.TAG)
+			.addTag(AchievementWorker.WORK_TAG)
 			.setConstraints(
 				Constraints.Builder()
 					.setRequiresBatteryNotLow(true)

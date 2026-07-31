@@ -2,18 +2,14 @@ package com.adsamcik.tracker.game.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.game.data.ExplorationProgressRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
-import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
-import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.api.metric.MetricKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -22,15 +18,13 @@ import javax.inject.Inject
 /**
  * ViewModel for exploration and achievement UI state.
  *
- * Inputs: ExplorationCellDao, ExplorationStreakDao, AchievementProgressDao
+ * Input: [ExplorationProgressRepository]
  * Outputs: StateFlow<ExplorationState>, StateFlow<AchievementSummaryState>
  * Failure modes: Empty state shown when no data exists
  */
 @HiltViewModel
 class ExplorationViewModel @Inject constructor(
-	private val explorationCellDao: ExplorationCellDao,
-	private val explorationStreakDao: ExplorationStreakDao,
-	private val achievementProgressDao: AchievementProgressDao,
+	private val progressRepository: ExplorationProgressRepository,
 	private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
@@ -75,20 +69,25 @@ class ExplorationViewModel @Inject constructor(
 		val threshold: Double,
 	)
 
-	val explorationState: StateFlow<ExplorationState?> = combine(
-		explorationCellDao.countAtLevelFlow(EXPLORATION_LEVEL),
-		streakFlow(),
-	) { totalCells, streakData ->
-		ExplorationState(
-			totalCells = totalCells,
-			dailyStreak = streakData.currentStreak,
-			bestStreak = streakData.bestStreak,
-			seasonsBitmask = streakData.seasonsBitmask,
-			recentDiscoveries = streakData.recentCells,
-		)
-	}
+	val explorationState: StateFlow<ExplorationState?> = progressRepository.exploration
+		.map { progress ->
+			ExplorationState(
+				totalCells = progress.totalCells,
+				dailyStreak = progress.dailyStreak,
+				bestStreak = progress.bestStreak,
+				seasonsBitmask = progress.seasonsBitmask,
+				recentDiscoveries = progress.recentDiscoveries.map {
+					RecentCell(
+						token = it.token,
+						quality = it.quality,
+						discoveredAt = it.discoveredAt,
+					)
+				},
+			)
+		}
 		.map { it as ExplorationState? }
 		.catch { emit(null) }
+		.flowOn(dispatchers.io)
 		.stateIn(
 			scope = viewModelScope,
 			started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
@@ -96,16 +95,16 @@ class ExplorationViewModel @Inject constructor(
 		)
 
 	val achievementState: StateFlow<AchievementSummaryState?> =
-		achievementProgressDao.getAllFlow()
+		progressRepository.achievements
 			.map { progressRows ->
-				val progressByMetric = progressRows.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row } }.toMap()
+				val progressByMetric = progressRows.associateBy { it.metric }
 				val unlocked = AchievementCatalog.definitions.filter { definition -> (progressByMetric[definition.metric]?.lastTierIndex ?: -1) >= definition.tierIndex }
 				val recentUnlocks = progressRows.asSequence()
 					.filter { it.lastTierIndex >= 0 }
 					.sortedByDescending { it.updatedAt }
 					.mapNotNull { row ->
-						val metric = MetricKey.fromStorageKey(row.metricKey) ?: return@mapNotNull null
-						val definition = AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex) ?: return@mapNotNull null
+						val definition = AchievementCatalog.byMetric(row.metric).getOrNull(row.lastTierIndex)
+							?: return@mapNotNull null
 						AchievementListItem(definition.id, definition.nameRes, definition.tier, row.updatedAt)
 					}
 					.take(3)
@@ -145,43 +144,7 @@ class ExplorationViewModel @Inject constructor(
 			.flowOn(dispatchers.io)
 			.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
-	/** Intermediate data holder for streak + season + recent cell loading. */
-	private data class StreakData(
-		val currentStreak: Int = 0,
-		val bestStreak: Int = 0,
-		val seasonsBitmask: Int = 0,
-		val recentCells: List<RecentCell> = emptyList(),
-	)
-
-	/**
-	 * Reactive flow that re-emits when the streak row changes.
-	 * Season + recent cell data is loaded alongside each streak update.
-	 */
-	private fun streakFlow() = combine(
-		explorationStreakDao.getByTypeFlow(STREAK_TYPE_DAILY),
-		explorationCellDao.getDistinctSeasonBitmasksFlow(EXPLORATION_LEVEL),
-		explorationCellDao.getRecentAtLevelFlow(EXPLORATION_LEVEL, RECENT_LIMIT),
-	) { streak, seasonBitmasks, recentEntities ->
-		val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
-		StreakData(
-			currentStreak = streak?.currentCount ?: 0,
-			bestStreak = streak?.bestCount ?: 0,
-			seasonsBitmask = combinedBitmask,
-			recentCells = recentEntities.map { entity ->
-				RecentCell(
-					token = entity.cellToken,
-					quality = entity.quality,
-					discoveredAt = entity.firstDiscoveredAt,
-				)
-			},
-		)
-	}.flowOn(dispatchers.io)
-
 	companion object {
-		/** S2 cell level used for exploration (approx 0.8 km^2 per cell). */
-		private const val EXPLORATION_LEVEL = 14
-		private const val RECENT_LIMIT = 5
 		private const val STATE_STOP_TIMEOUT_MS = 5_000L
-		private const val STREAK_TYPE_DAILY = "DAILY_DISCOVERY"
 	}
 }

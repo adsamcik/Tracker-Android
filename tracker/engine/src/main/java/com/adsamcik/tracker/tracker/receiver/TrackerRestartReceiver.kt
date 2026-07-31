@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
@@ -22,16 +21,13 @@ class TrackerRestartReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		if (intent.action != ACTION_RESTART_TRACKER) return
 		if (startupGuard.isAutoRecoverySuppressed(context)) {
-			Reporter.log("Tracker restart suppressed after package force-stop")
 			return
 		}
 
 		val descriptor = intent.toDescriptor() ?: return
 		if (!descriptor.isRestartEligible) return
 
-		if (!TrackerServiceApi.restartService(context, descriptor)) {
-			Reporter.w("TrackerRestartReceiver", "Foreground-service restart was blocked by Android")
-		}
+		TrackerServiceApi.restartService(context, descriptor)
 	}
 
 	private fun Intent.toDescriptor(): ActiveTrackingSessionDescriptor? {

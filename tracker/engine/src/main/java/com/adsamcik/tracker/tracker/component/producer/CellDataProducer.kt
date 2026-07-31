@@ -13,7 +13,6 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
@@ -244,7 +243,6 @@ internal class CellDataProducer(
 				}
 			}
 			else -> {
-				Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
 				null
 			}
 		}

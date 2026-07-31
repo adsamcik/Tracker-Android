@@ -34,7 +34,6 @@ class DatabaseBackupArchiveTest {
 			"main_database" to "main content".toByteArray(),
 			"preference_database" to "preferences".toByteArray(),
 			"points_database" to "points".toByteArray(),
-			"debug_database" to "logs".toByteArray(),
 		)
 		databases.forEach { (name, content) -> File(directory, name).writeBytes(content) }
 
@@ -50,7 +49,6 @@ class DatabaseBackupArchiveTest {
 			"databases/main_database",
 			"databases/preference_database",
 			"databases/points_database",
-			"databases/debug_database",
 			"manifest.json",
 		)
 		databases.forEach { (name, content) ->

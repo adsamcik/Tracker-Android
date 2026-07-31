@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -143,7 +142,6 @@ internal class TrackerTierEscalationHandler(
 					throw e
 				} catch (e: Exception) {
 					triggerTransition.rollback(context)
-					Reporter.report(e)
 					return@withLock
 				}
 
@@ -200,7 +198,6 @@ internal class TrackerTierEscalationHandler(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					Reporter.report(e)
 					return@withLock
 				}
 				currentTier = newTier
@@ -283,7 +280,6 @@ internal class TrackerTierEscalationHandler(
 						// The trigger transition has already committed, so rolling back here would leave
 						// neither timer reliably enabled. Record the actual applied request with an
 						// explicit degraded FGS outcome instead of claiming the platform request failed.
-						Reporter.report("Foreground-service type removal failed after control de-escalation")
 						appliedControlRequest = request
 						completeControlRequest(
 							command = command,
@@ -305,7 +301,6 @@ internal class TrackerTierEscalationHandler(
 					throw e
 				} catch (e: Exception) {
 					transition.rollback(context)
-					Reporter.report(e)
 					completeControlRequest(
 						command = command,
 						outcome = ControlAcquisitionApplyOutcome.FAILED,
@@ -350,7 +345,6 @@ internal class TrackerTierEscalationHandler(
 			)
 		} catch (e: Exception) {
 			// Research instrumentation must never change whether the physical request succeeds.
-			Reporter.report(e)
 		}
 	}
 
@@ -398,7 +392,6 @@ internal class TrackerTierEscalationHandler(
 					},
 				)
 			} else {
-				Reporter.report("Missing permissions for GPS timer during escalation")
 				TriggerTransition.Failed
 			}
 		} finally {
@@ -418,7 +411,6 @@ internal class TrackerTierEscalationHandler(
 			ambientTimer.onEnable(context, timerReceiver)
 			TriggerTransition.Ready(oldTimer, ambientTimer)
 		} else {
-			Reporter.report("Missing permissions for ambient timer during de-escalation")
 			TriggerTransition.Failed
 		}
 	}

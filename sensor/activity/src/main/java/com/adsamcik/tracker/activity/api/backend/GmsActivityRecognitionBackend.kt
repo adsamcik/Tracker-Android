@@ -4,11 +4,10 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityTransitionData
-import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
-import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -90,22 +89,12 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	override suspend fun startUpdates(config: RecognitionConfig): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
-				val message = "activity recognition unavailable: Google Play Services unavailable"
-				logActivity(LogData(message = message, source = ACTIVITY_LOG_SOURCE))
-				com.adsamcik.tracker.logger.Reporter.report(Throwable(message))
+				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
 				return@withLock false
 			}
 
 			val client = ActivityRecognition.getClient(context)
 			val intent = getActivityDetectionPendingIntent()
-
-			logActivity(
-				LogData(
-					message = "requested activity",
-					data = "delay ${config.intervalSeconds} s and transitions ${config.requestedTransitions}",
-					source = ACTIVITY_LOG_SOURCE,
-				),
-			)
 
 			val recognitionTask = if (config.intervalSeconds > 0) {
 				requestActivityRecognition(client, intent, config.intervalSeconds)
@@ -130,7 +119,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				com.adsamcik.tracker.logger.Reporter.report(e)
+				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
 				}
@@ -146,7 +135,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			com.adsamcik.tracker.logger.Reporter.report(e)
+			TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
 			throw e
 		}
 	}
@@ -188,9 +177,6 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			removeAllSubscriptions(client, intent)
 		} catch (rollbackFailure: Exception) {
 			originalFailure.addSuppressed(rollbackFailure)
-			com.adsamcik.tracker.logger.Reporter.report(
-				IllegalStateException("Failed to roll back partial activity subscription", rollbackFailure),
-			)
 		}
 	}
 
@@ -203,7 +189,6 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		enqueue(
 			activityUpdateQueue,
 			ActivityUpdate(activity, elapsedTimeMillis, ActivityUpdateSource.RECOGNITION),
-			"activity",
 		)
 	}
 
@@ -217,25 +202,18 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		enqueue(
 			activityUpdateQueue,
 			ActivityUpdate(activity, elapsedTimeMillis, ActivityUpdateSource.TRANSITION),
-			"transition activity",
 		)
 	}
 
 	// Called by ActivityReceiver for each transition event
 	internal fun onTransitionResult(updates: List<TransitionUpdate>) {
 		if (updates.isNotEmpty()) {
-			enqueue(transitionUpdateQueue, updates.toList(), "transition batch")
+			enqueue(transitionUpdateQueue, updates.toList())
 		}
 	}
 
-	private fun <T> enqueue(queue: Channel<T>, value: T, updateType: String) {
-		val result = queue.trySend(value)
-		if (result.isFailure) {
-			com.adsamcik.tracker.logger.Reporter.report(
-				result.exceptionOrNull()
-					?: IllegalStateException("Unable to enqueue $updateType update"),
-			)
-		}
+	private fun <T> enqueue(queue: Channel<T>, value: T) {
+		queue.trySend(value)
 	}
 
 	private fun requestActivityRecognition(
@@ -246,18 +224,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		return client.requestActivityUpdates(
 			delayInS * Time.SECOND_IN_MILLISECONDS,
 			intent,
-		).apply {
-			addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
-			addOnSuccessListener {
-				logActivity(
-					LogData(
-						message = "started activity updates",
-						data = "delay $delayInS s",
-						source = ACTIVITY_LOG_SOURCE,
-					),
-				)
-			}
-		}
+		)
 	}
 
 	private fun requestActivityTransition(
@@ -267,18 +234,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	): Task<Void> {
 		val transitions = buildTransitions(requestedTransitions)
 		val request = ActivityTransitionRequest(transitions)
-		return client.requestActivityTransitionUpdates(request, intent).apply {
-			addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
-			addOnSuccessListener {
-				logActivity(
-					LogData(
-						message = "started transition updates",
-						data = requestedTransitions.toString(),
-						source = ACTIVITY_LOG_SOURCE,
-					),
-				)
-			}
-		}
+		return client.requestActivityTransitionUpdates(request, intent)
 	}
 
 	private fun buildTransitions(

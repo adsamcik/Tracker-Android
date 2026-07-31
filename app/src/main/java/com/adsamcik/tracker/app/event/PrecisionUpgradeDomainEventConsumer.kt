@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.app.event
 
 import android.content.Context
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -61,25 +59,12 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 	}
 
 	private suspend fun onSessionEnded() {
-		Logger.log(
-			LogData(
-				message = "Session finalized, checking precision upgrade eligibility",
-				source = LOG_SOURCE,
-			),
-		)
-
 		val prefs = preferences
 
 		// Check if user already dismissed the prompt
 		val dismissedKey = context.getString(PrefR.string.settings_precision_upgrade_dismissed_key)
 		val wasDismissed = prefs.fetchBoolean(dismissedKey, false)
 		if (wasDismissed) {
-			Logger.log(
-				LogData(
-					message = "Precision upgrade prompt previously dismissed",
-					source = LOG_SOURCE,
-				),
-			)
 			return
 		}
 
@@ -88,12 +73,6 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 			?: context.getString(PrefR.string.settings_location_precision_default)
 
 		if (precisionMode != "APPROXIMATE") {
-			Logger.log(
-				LogData(
-					message = "User already in PRECISE mode, skipping upgrade prompt",
-					source = LOG_SOURCE,
-				),
-			)
 			return
 		}
 
@@ -106,20 +85,7 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 			setInt(PrefR.string.settings_approximate_session_count_key, newCount)
 		}
 
-		Logger.log(
-			LogData(
-				message = "Incremented approximate session count to $newCount",
-				source = LOG_SOURCE,
-			),
-		)
-
 		if (newCount >= UPGRADE_PROMPT_THRESHOLD) {
-			Logger.log(
-				LogData(
-					message = "Reached threshold ($UPGRADE_PROMPT_THRESHOLD sessions), setting upgrade prompt flag",
-					source = LOG_SOURCE,
-				),
-			)
 			prefs.edit {
 				setBoolean(PrefR.string.settings_should_show_precision_upgrade_key, true)
 			}
@@ -128,7 +94,6 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 
 	companion object {
 		const val CONSUMER_ID = "precision-upgrade"
-		private const val LOG_SOURCE = "PrecisionUpgrade"
 		private const val UPGRADE_PROMPT_THRESHOLD = 2
 	}
 }

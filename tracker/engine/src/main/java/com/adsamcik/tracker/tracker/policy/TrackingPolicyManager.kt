@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.policy
 
 import android.content.Context
-import com.adsamcik.tracker.tracker.engine.BuildConfig
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -135,9 +134,6 @@ class TrackingPolicyManager(
 	 * Stop the policy manager and close the current tracker run.
 	 */
 	suspend fun stop() = stateMutex.withLock {
-		if (BuildConfig.DEBUG) {
-			android.util.Log.d("TrackerQA", "TrackingPolicyManager.stop(): currentRunId=$currentRunId")
-		}
 		engineObservationJob?.cancel()
 		engineObservationJob = null
 		escalationEngine?.stop()
@@ -156,9 +152,6 @@ class TrackingPolicyManager(
 			reason = "SESSION_STOP",
 			active = false,
 		)
-		if (BuildConfig.DEBUG) {
-			android.util.Log.d("TrackerQA", "TrackingPolicyManager.stop(): endRun called for runId=$runId")
-		}
 		currentRunId = null
 	}
 
@@ -340,12 +333,6 @@ class TrackingPolicyManager(
 		)
 		lastTransitionTime = timeMs
 
-		if (BuildConfig.DEBUG) {
-			android.util.Log.d(
-				"TrackingPolicy",
-				"Engine transition: $oldPolicy -> $newPolicy (reason: $reasonName)"
-			)
-		}
 	}
 
 	private suspend fun transitionTo(newPolicy: TrackingPolicy, reason: PolicyTransitionReason, timeMs: Long) {
@@ -375,12 +362,6 @@ class TrackingPolicyManager(
 		)
 		lastTransitionTime = timeMs
 
-		if (BuildConfig.DEBUG) {
-			android.util.Log.d(
-				"TrackingPolicy",
-				"Transition: $oldPolicy -> $newPolicy (reason: $reason)"
-			)
-		}
 	}
 
 	private suspend fun checkCooldown(currentTimeMs: Long) {

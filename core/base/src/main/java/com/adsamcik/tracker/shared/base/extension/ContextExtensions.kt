@@ -20,7 +20,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.telephony.TelephonyManager
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -28,9 +27,6 @@ import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.PackageInfoCompat
-
-
-
 
 /**
  * Starts new activity
@@ -134,18 +130,12 @@ inline fun <reified T : Service> Context.startForegroundServiceSafely(
 	return try {
 		ContextCompat.startForegroundService(this, intent)
 		true
-	} catch (exception: SecurityException) {
-		Log.w("ForegroundServiceStart", "Foreground service start blocked by security policy", exception)
+	} catch (_: SecurityException) {
 		false
 	} catch (exception: RuntimeException) {
 		val isForegroundStartRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
 			exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
 		if (isForegroundStartRestricted) {
-			Log.w(
-				"ForegroundServiceStart",
-				"Skipped foreground service start from background-restricted context",
-				exception,
-			)
 			false
 		} else {
 			throw exception

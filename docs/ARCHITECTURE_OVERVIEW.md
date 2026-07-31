@@ -1,6 +1,6 @@
 # Tracker Android architecture overview
 
-> **Last verified:** 2026-07-29
+> **Last verified:** 2026-07-31
 
 Tracker is a local-first Android application. Location, activity, Wi-Fi, cell, and
 step data are collected and persisted on-device. The application has no backend,
@@ -8,7 +8,7 @@ remote sync, analytics, or telemetry.
 
 ## Module graph
 
-The project currently includes **33 application Gradle modules**, plus the
+The project currently includes **32 application Gradle modules**, plus the
 `:tools:ski-data-generator` tooling module. The authoritative include list is
 `settings.gradle.kts`; dependency versions are managed in `gradle/libs.versions.toml`.
 
@@ -27,7 +27,7 @@ The project currently includes **33 application Gradle modules**, plus the
 ├── :domain:points, :domain:osm, :domain:geocoder
 ├── :data:preferences
 └── :core:base, :core:model, :core:common, :core:ui,
-    :core:logging, :core:logging-api, :core:network,
+    :core:diagnostics, :core:network,
     :core:sqlite-runtime, :core:testing
 ```
 
@@ -42,8 +42,8 @@ layout.
 | `:core:base` | Room database, DAOs, entities, converters, and entity/model mappers |
 | `:core:model` | Room-free domain models shared by higher layers |
 | `:core:common` | Shared concurrency, time, startup, result, WorkManager data, I/O, notifications, services, and foundation types |
-| `:core:ui` | Dependency-free shared Compose UI and `AppTheme` |
-| `:core:logging` / `:core:logging-api` | Logging implementation and logger-facing contracts |
+| `:core:ui` | Dependency-free shared Compose UI, `AppTheme`, and screen-local permission presentation |
+| `:core:diagnostics` | Payload-free diagnostic contracts and Tracebox boundary |
 | `:core:network` | Network helpers used behind the network abstraction |
 | `:core:sqlite-runtime` | Bundled SQLiteX runtime and AndroidX `SupportSQLite` adapter |
 | `:core:testing` | Test fakes and test utilities |
@@ -63,8 +63,8 @@ layout.
 
 Historical names still occur in package names and migration fixtures. The Gradle
 module paths above are the current paths: for example `sbase` → `core/base`,
-`sutils` → `core/ui`, `logger` → `core/logging`, `spreferences` →
-`data/preferences`, `stats-*` → `stats/*`, `points` → `domain/points`,
+`sutils` → `core/ui`, `spreferences` → `data/preferences`,
+`stats-*` → `stats/*`, `points` → `domain/points`,
 `osm` → `domain/osm`, `impexp` → `feature/import-export`, and the former flat
 feature modules → `feature/*`.
 
@@ -101,6 +101,20 @@ immutable ordered settings catalog and repository port. `:tracker:engine` maps t
 contract to its runtime notification components and the legacy Room preference
 table; `:feature:tracker` never sees either implementation type.
 
+Feature presentation follows feature-owned data ports. ViewModels consume
+repositories for activity management (including built-in activity localization),
+dashboard history and layout, game progress, scores, and leaderboard reads,
+tracker recent trips, and import/export metadata/streaming. App-owned OSM settings
+consume entity-free `OsmImportSummary` values through `OsmImportController`.
+Room adapters remain behind those boundaries, so ViewModels do not inject DAOs or
+persistence entities and Compose/UI code does not open `AppDatabase`.
+
+App diagnostics follow the same rule. `:core:diagnostics` is the single,
+payload-free boundary for fixed diagnostic codes. Tracebox is the sole active
+diagnostic and crash backend. Tracker has no diagnostic Room storage,
+migration-only adapter, compatibility reporting facade, or parallel crash
+pipeline.
+
 ## UI and navigation
 
 The app uses a Compose-first, single-activity entry point:
@@ -120,14 +134,22 @@ MainActivityCompose
 ```
 
 The feature `:api` modules own cross-feature route contracts. App-internal routes
-remain in `:app`. Shared Compose dependencies and theming live in `:core:ui`.
+remain in `:app`. Shared Compose dependencies, theming, and composition-local
+permission rationale/Activity Result presentation live in `:core:ui`;
+`:core:base` and `:core:common` contain no Compose code or dependencies.
+
+Statistics embeds a map preview through the `:feature:map:api`
+`RoutePreviewRenderer` contract, supplied by `:app`, and exports GPX through a
+context-free `:feature:statistics:api` port implemented by
+`:feature:import-export`, whose adapter owns the Android `Context`. No feature
+implementation depends on another feature implementation.
 
 ## Persistence
 
 The main Room database is `AppDatabase` in
 `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt`.
-Its current schema version is **40**. Other local databases include the debug,
-preferences, logging, and points databases; their versions are independent.
+Its current schema version is **40**. Other local databases include the
+preferences and points databases; their versions are independent.
 Schema changes require a Room migration and a migration test.
 
 ## Dependency direction
@@ -144,9 +166,9 @@ Contract modules must not expose Room entities or Android implementation types.
 Feature implementations should not depend on another feature implementation or an
 `:*:engine` module, and
 `:core:ui` is a presentation leaf with no project-module dependencies and no
-manifest permissions. Runtime startup, worker, permission, tracker-state, and
-persistence responsibilities belong to their respective foundation, API, or
-feature owners.
+manifest permissions. Runtime startup, workers, process-wide permission state,
+tracker state, and persistence responsibilities belong to their respective
+foundation, API, or feature owners.
 
 ## Build and test references
 

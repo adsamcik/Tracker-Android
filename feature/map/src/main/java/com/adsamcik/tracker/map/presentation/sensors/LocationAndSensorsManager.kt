@@ -6,7 +6,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.sensorManager
@@ -109,12 +108,10 @@ class LocationAndSensorsManager(
             return@callbackFlow
         }
         
-        awaitClose { 
-            try {
+        awaitClose {
+            runCatching {
                 sm.unregisterListener(listener)
-            } catch (e: Exception) {
-                Reporter.report(e)
-            }
+            }.getOrNull()
         }
     }
 

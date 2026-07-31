@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.osm.reindex
 
-import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.osm.io.OsmCellCoverage
 import com.adsamcik.tracker.osm.io.OsmGridIndex
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -75,10 +76,8 @@ class OsmWayCellReindexer @Inject constructor(
 	suspend fun reindex(pageSize: Int = DEFAULT_PAGE_SIZE): Int =
 		withContext(dispatchers.io) {
 			require(pageSize > 0) { "pageSize must be > 0 (was $pageSize)" }
-			val startMs = System.currentTimeMillis()
 			var afterId = 0L
 			var totalCellRows = 0
-			var totalWays = 0
 			try {
 				// Withdraw every currently visible index before clearing it. The
 				// candidate DAOs join this marker, so readers fall back/abstain
@@ -91,7 +90,6 @@ class OsmWayCellReindexer @Inject constructor(
 						limit = pageSize,
 					)
 					if (page.isEmpty()) break
-					totalWays += page.size
 					val cells = page.flatMap(::cellRowsFor)
 					if (cells.isNotEmpty()) {
 						osmWayCellDao.insertAll(cells)
@@ -105,21 +103,11 @@ class OsmWayCellReindexer @Inject constructor(
 				// cell_index_built = 0 and the heuristic re-triggers.
 				osmImportDao.markAllCellIndexBuilt()
 
-				val durationMs = System.currentTimeMillis() - startMs
-				ReporterFacade.log(
-					"OsmWayCellReindex complete: $totalWays ways → $totalCellRows cells in ${durationMs}ms",
-				)
 				totalCellRows
 			} catch (cancellation: kotlinx.coroutines.CancellationException) {
 				throw cancellation
 			} catch (t: Throwable) {
-				val durationMs = System.currentTimeMillis() - startMs
-				ReporterFacade.report(
-					RuntimeException(
-						"OsmWayCellReindex failed after $totalWays ways, $totalCellRows cells, ${durationMs}ms",
-						t,
-					),
-				)
+				TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
 				throw t
 			}
 		}

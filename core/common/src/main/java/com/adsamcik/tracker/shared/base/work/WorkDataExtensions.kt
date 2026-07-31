@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.work
 
 import androidx.work.Data
-import com.adsamcik.tracker.logging.api.ReporterFacade
 
 /**
  * Returns the stored long, or null when [key] is absent.
@@ -11,31 +10,13 @@ fun Data.tryGetLong(key: String): Long? {
 }
 
 /**
- * Tries to get positive long from data.
- * Returns null and reports it if the value is not found or negative.
+ * Returns a stored non-negative long, or null when the key is absent or the value is negative.
  */
-fun Data.getPositiveLongReportNull(key: String): Long? {
+fun Data.getNonNegativeLongOrNull(key: String): Long? {
 	val value = getLong(key, -1)
 	return if (value < 0) {
-		if (keyValueMap.contains(key)) {
-			ReporterFacade.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
-		} else {
-			ReporterFacade.report(IllegalArgumentException("Argument $key was not specified"))
-		}
 		null
 	} else {
 		value
 	}
-}
-
-/**
- * Tries to get long from data.
- * Returns null if it is not found and reports it.
- */
-fun Data.getLongReportNull(key: String): Long? {
-	val value = tryGetLong(key)
-	if (value == null) {
-		ReporterFacade.report(IllegalArgumentException("Argument $key was not specified"))
-	}
-	return value
 }

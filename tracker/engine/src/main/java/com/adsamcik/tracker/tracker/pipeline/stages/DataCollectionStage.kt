@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import com.adsamcik.tracker.shared.base.result.runWithReport
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
@@ -14,12 +14,10 @@ import com.adsamcik.tracker.tracker.pipeline.StageResult
 internal class DataCollectionStage(
 	private val dataComponents: List<DataTrackerComponent>,
 ) : PipelineStage {
-	override val name: String = "DataCollection"
-
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		for (component in dataComponents) {
 			if (!component.requirementsMet(cycleContext.cycle)) continue
-			runWithReport {
+			runCatchingCancellable {
 				component.onDataUpdated(cycleContext.cycle, cycleContext.collectionData)
 			}
 		}

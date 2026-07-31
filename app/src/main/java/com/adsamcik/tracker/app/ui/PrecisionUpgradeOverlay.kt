@@ -11,8 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 

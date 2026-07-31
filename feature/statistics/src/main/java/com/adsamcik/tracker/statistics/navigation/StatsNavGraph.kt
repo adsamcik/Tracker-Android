@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.map.api.navigation.MapTripContext
+import com.adsamcik.tracker.feature.map.api.preview.RoutePreviewRenderer
 import com.adsamcik.tracker.feature.statistics.api.navigation.History
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSummary
@@ -21,6 +22,7 @@ fun NavGraphBuilder.statsGraph(
     navController: NavHostController,
     getTripDetailFallbackRoute: () -> Any,
     onSetTripDetailFallback: (Any) -> Unit,
+    routePreviewRenderer: RoutePreviewRenderer,
 ) {
     composable<Stats> {
         com.adsamcik.tracker.statistics.fragment.StatsRoute(
@@ -104,6 +106,7 @@ fun NavGraphBuilder.statsGraph(
         val route = backStackEntry.toRoute<TripDetail>()
         com.adsamcik.tracker.statistics.ui.TripDetailRoute(
             tripId = route.tripId,
+            routePreviewRenderer = routePreviewRenderer,
             onBack = {
                 if (!navController.popBackStack()) {
                     // Keep the start destination on the stack so hardware BACK still pops
@@ -123,7 +126,6 @@ fun NavGraphBuilder.statsGraph(
         )
     }
 }
-
 
 
 

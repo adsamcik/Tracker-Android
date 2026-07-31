@@ -37,7 +37,6 @@ import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
 import com.adsamcik.tracker.stats.api.value.StepCount
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
@@ -77,7 +76,6 @@ class ShadowValidationTest {
 	private lateinit var activityDao: ActivitySnapshotDao
 	private lateinit var pendingSignalDao: PendingSignalDao
 	private lateinit var durableBuffer: DurableSignalBuffer
-	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
 	private val stagedSignals = mutableListOf<TrackingSignal>()
 	private var nextCheckpointId = 1L
@@ -99,7 +97,6 @@ class ShadowValidationTest {
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
 		durableBuffer = mockk(relaxed = true)
-		errorCollector = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
 		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
@@ -145,7 +142,6 @@ class ShadowValidationTest {
 			pendingSignalDao = pendingSignalDao,
 			durableBuffer = durableBuffer,
 			transactor = transactor,
-			errorCollector = errorCollector,
 		)
 	}
 

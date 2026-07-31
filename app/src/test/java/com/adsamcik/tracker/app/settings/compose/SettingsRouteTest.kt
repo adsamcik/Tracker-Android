@@ -63,7 +63,7 @@ class SettingsRouteTest {
                                 SettingsScreen.Data -> "Data"
                                 SettingsScreen.Map -> "Map"
                                 SettingsScreen.Game -> "Game"
-                                SettingsScreen.TraceboxTrial -> "Tracebox alpha trial"
+                                SettingsScreen.Diagnostics -> "Crash diagnostics"
                                 SettingsScreen.Debug -> "Debug"
                                 else -> "Settings"
                             }
@@ -91,15 +91,15 @@ class SettingsRouteTest {
                                 onClick = { currentScreen = SettingsScreen.Game },
                             ) { Text("Go to Game") }
                             androidx.compose.material3.TextButton(
-                                onClick = { currentScreen = SettingsScreen.TraceboxTrial },
-                            ) { Text("Go to Tracebox trial") }
+                                onClick = { currentScreen = SettingsScreen.Diagnostics },
+                            ) { Text("Go to crash diagnostics") }
                         }
                     }
                     SettingsScreen.Tracking -> Text("Tracking Settings Content")
                     SettingsScreen.Data -> Text("Data Settings Content")
                     SettingsScreen.Map -> Text("Map Settings Content")
                     SettingsScreen.Game -> Text("Game Settings Content")
-                    SettingsScreen.TraceboxTrial -> Text("Tracebox Trial Content")
+                    SettingsScreen.Diagnostics -> Text("Crash Diagnostics Content")
                     SettingsScreen.Debug -> Text("Debug Settings Content")
                     else -> Text("Unknown screen")
                 }
@@ -176,18 +176,18 @@ class SettingsRouteTest {
     }
 
     @Test
-    fun traceboxTrialScreenSurvivesSavedStateRestoration() {
+    fun diagnosticsScreenSurvivesSavedStateRestoration() {
         val restorationTester = StateRestorationTester(composeTestRule)
         restorationTester.setContent {
             AppTheme { SettingsRouteTestLayout() }
         }
 
-        composeTestRule.onNodeWithText("Go to Tracebox trial").performClick()
-        composeTestRule.onNodeWithText("Tracebox Trial Content").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Go to crash diagnostics").performClick()
+        composeTestRule.onNodeWithText("Crash Diagnostics Content").assertIsDisplayed()
 
         restorationTester.emulateSavedInstanceStateRestore()
 
-        composeTestRule.onNodeWithText("Tracebox Trial Content").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Crash Diagnostics Content").assertIsDisplayed()
     }
 
     @Test
@@ -200,7 +200,7 @@ class SettingsRouteTest {
             SettingsScreen.Export,
             SettingsScreen.Map,
             SettingsScreen.Game,
-            SettingsScreen.TraceboxTrial,
+            SettingsScreen.Diagnostics,
             SettingsScreen.Statistics,
             SettingsScreen.Debug,
         )

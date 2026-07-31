@@ -31,7 +31,6 @@ class SignalDispatchStageTest {
 		val processor = CapturingProcessor()
 		val processorPipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 		)
 		var currentTier = PolicyTier.AMBIENT
 		val stage = SignalDispatchStage(
@@ -53,7 +52,6 @@ class SignalDispatchStageTest {
 		val processor = CapturingProcessor()
 		val processorPipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 		)
 		val stage = SignalDispatchStage(
 			processorPipelineProvider = { processorPipeline },
@@ -99,7 +97,6 @@ class SignalDispatchStageTest {
 		val processor = CapturingProcessor()
 		val processorPipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 		)
 		val stage = SignalDispatchStage(
 			processorPipelineProvider = { processorPipeline },
@@ -150,7 +147,6 @@ class SignalDispatchStageTest {
 		var eventPersistenceHealthy = false
 		val processorPipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 			onDomainEvents = {
 				if (!eventPersistenceHealthy) error("event persistence failed")
 			},

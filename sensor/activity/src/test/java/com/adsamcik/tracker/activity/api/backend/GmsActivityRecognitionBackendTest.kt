@@ -3,18 +3,13 @@ package com.adsamcik.tracker.activity.api.backend
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
-import com.adsamcik.tracker.logger.Logger
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockkObject
-import io.mockk.runs
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,10 +47,6 @@ class GmsActivityRecognitionBackendTest {
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		backend = GmsActivityRecognitionBackend(context, appScope)
 		mockkObject(Assist)
-		mockkObject(Logger)
-		mockkObject(Reporter)
-		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
-		every { Reporter.report(any<Throwable>()) } just runs
 	}
 
 	@After
@@ -95,11 +86,6 @@ class GmsActivityRecognitionBackendTest {
 		val result = backend.startUpdates(RecognitionConfig(intervalSeconds = 10))
 
 		result shouldBe false
-		verify {
-			Reporter.report(match<Throwable> {
-				it.message?.contains("Google Play Services unavailable") == true
-			})
-		}
 	}
 	// endregion
 

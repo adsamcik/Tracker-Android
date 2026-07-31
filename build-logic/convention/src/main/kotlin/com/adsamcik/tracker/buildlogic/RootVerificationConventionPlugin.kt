@@ -263,7 +263,7 @@ class RootVerificationConventionPlugin : Plugin<Project> {
             val verifyReleaseRuntime = tasks.register("verifyReleaseSqliteRuntime") {
                 group = "verification"
                 description =
-                    "Verifies the vendored SQLite binary and standard app release runtime classpaths."
+                    "Verifies the vendored SQLite binary and all app release runtime classpaths."
                 dependsOn(verifyVendoredRuntime)
             }
 
@@ -309,9 +309,7 @@ class RootVerificationConventionPlugin : Plugin<Project> {
                             expectedAbis.set(BUNDLED_SQLITE_RUNTIME_ABIS)
                         }
 
-                        // A variant's public artifact tasks verify their own
-                        // classpath. Private/optional flavors therefore resolve
-                        // only when somebody actually builds them.
+                        // A variant's public artifact tasks verify their own classpath.
                         subproject.tasks.matching { task ->
                             task.name == "assemble$variantSegment" ||
                                 task.name == "bundle$variantSegment" ||
@@ -320,13 +318,8 @@ class RootVerificationConventionPlugin : Plugin<Project> {
                             dependsOn(linkageTask)
                         }
 
-                        val isStandardRelease =
-                            variant.productFlavors.isEmpty() ||
-                                variant.productFlavors.any { (_, flavor) -> flavor == "standard" }
-                        if (isStandardRelease) {
-                            verifyReleaseRuntime.configure {
-                                dependsOn(linkageTask)
-                            }
+                        verifyReleaseRuntime.configure {
+                            dependsOn(linkageTask)
                         }
                     }
                 }

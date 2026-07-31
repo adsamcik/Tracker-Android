@@ -23,13 +23,11 @@ import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
-import com.adsamcik.tracker.shared.base.result.runWithReport
-import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import java.io.IOException
 import java.util.Locale
 import dagger.assisted.Assisted
@@ -100,11 +98,9 @@ class ImportWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
-            Reporter.report(e)
             showErrorNotification(e.message ?: "Import failed due to an I/O error.")
             Result.retry()
         } catch (e: Exception) {
-            Reporter.report(e)
             showErrorNotification(e.message ?: "Import failed.")
             Result.failure()
         }
@@ -139,18 +135,18 @@ class ImportWorker @AssistedInject constructor(
 
     @AnyThread
     private fun showNotification(text: String, inProgress: Boolean) {
-        runWithReport {
+        runCatchingCancellable {
             val notification = createNotification(text, inProgress)
             notificationManager.notify(NOTIFICATION_ID, notification)
-        }
+        }.getOrNull()
     }
 
     @AnyThread
     private fun showErrorNotification(text: String) {
-        runWithReport {
+        runCatchingCancellable {
             val notification = createNotification(text, false)
             notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
-        }
+        }.getOrNull()
     }
 
     @WorkerThread
@@ -204,7 +200,7 @@ class ImportWorker @AssistedInject constructor(
             true
         )
 
-        return runWithResultAndReport {
+        return runCatchingCancellable {
             try {
                 import.import(context, database, stream)
             } catch (e: SQLiteCantOpenDatabaseException) {

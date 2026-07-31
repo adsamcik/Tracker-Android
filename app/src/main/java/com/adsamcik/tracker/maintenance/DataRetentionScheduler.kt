@@ -2,7 +2,6 @@ package com.adsamcik.tracker.maintenance
 
 import android.content.Context
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,8 +45,8 @@ class DataRetentionScheduler @Inject constructor(
         try {
             if (enabled) RetentionPipelineWorker.ensureScheduled(context)
             else RetentionPipelineWorker.cancel(context)
-        } catch (e: IllegalStateException) {
-            Reporter.report(e)
+        } catch (_: IllegalStateException) {
+            return
         }
     }
 }

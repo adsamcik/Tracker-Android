@@ -2,7 +2,6 @@ package com.adsamcik.tracker.impexp.exporter.automation
 
 import android.content.Context
 import androidx.work.Constraints
-import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -82,8 +81,7 @@ class ExportAutomationController(
             .coerceAtMost(repeatDuration)
 
         val data = workDataOf(
-            ExportPlanWorker.KEY_PLAN_ID to plan.id.value,
-            ExportPlanWorker.KEY_TRIGGER_REASON to TriggerReason.SCHEDULED.name
+            ExportPlanWorker.KEY_PLAN_ID to plan.id.value
         )
 
         val request = PeriodicWorkRequestBuilder<ExportPlanWorker>(repeatDuration)
@@ -101,12 +99,12 @@ class ExportAutomationController(
     }
 
     /** Trigger all after-session plans immediately. */
-    fun triggerAfterSessionPlans(trigger: AfterSessionTrigger = AfterSessionTrigger.Generic) {
+    fun triggerAfterSessionPlans() {
         val plans = latestPlans
         if (plans.isEmpty()) return
         scope.launch(dispatchers.io) {
             plans.filter { it.enabled && it.cadence is ExportCadence.AfterSession }
-                .forEach { plan -> enqueueOneTime(plan, TriggerReason.AFTER_SESSION, trigger.tag()) }
+                .forEach(::enqueueOneTime)
         }
     }
 
@@ -118,16 +116,8 @@ class ExportAutomationController(
         synchronizeIntervalPlans(latestPlans)
     }
 
-    private fun enqueueOneTime(
-        plan: ExportBackupPlan,
-        reason: TriggerReason,
-        metadata: String?
-    ) {
-        val inputData = Data.Builder()
-            .putLong(ExportPlanWorker.KEY_PLAN_ID, plan.id.value)
-            .putString(ExportPlanWorker.KEY_TRIGGER_REASON, reason.name)
-            .apply { metadata?.let { putString(ExportPlanWorker.KEY_TRIGGER_METADATA, it) } }
-            .build()
+    private fun enqueueOneTime(plan: ExportBackupPlan) {
+        val inputData = workDataOf(ExportPlanWorker.KEY_PLAN_ID to plan.id.value)
         val request = OneTimeWorkRequestBuilder<ExportPlanWorker>()
             .setConstraints(schedulingConstraints)
             .setInputData(inputData)
@@ -140,18 +130,6 @@ class ExportAutomationController(
             ExistingWorkPolicy.APPEND_OR_REPLACE,
             request,
         )
-    }
-
-    private fun AfterSessionTrigger.tag(): String? = when (this) {
-        AfterSessionTrigger.Generic -> null
-        is AfterSessionTrigger.Session -> "session:${sessionId ?: -1}"
-    }
-
-    enum class TriggerReason { SCHEDULED, AFTER_SESSION }
-
-    sealed interface AfterSessionTrigger {
-        data object Generic : AfterSessionTrigger
-        data class Session(val sessionId: Long?, val startedAtMillis: Long, val endedAtMillis: Long) : AfterSessionTrigger
     }
 
     companion object {

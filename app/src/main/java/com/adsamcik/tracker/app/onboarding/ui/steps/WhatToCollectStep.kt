@@ -520,8 +520,8 @@ private fun DataSourceCard(
     description: String,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    available: Boolean = true,
     modifier: Modifier = Modifier,
+    available: Boolean = true,
 ) {
     val reducedMotion = LocalReducedMotion.current
     val colorSpec: AnimationSpec<Color> = if (reducedMotion) snap() else tweenStandard()

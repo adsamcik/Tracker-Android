@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import android.util.Log
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
@@ -24,13 +25,17 @@ internal class PostProcessingStage(
 	private val sailingTrackingComponent: SailingTrackingComponent?,
 	private val planeTrackingComponent: PlaneTrackingComponent?,
 ) : PipelineStage {
-	private companion object {
-		const val TAG = "PostProcessingStage"
-	}
-
-	override val name: String = "PostProcessing"
-
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
+		suspend fun runIsolated(block: suspend () -> Unit) {
+			try {
+				block()
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_PIPELINE_STAGE_FAILED)
+			}
+		}
+
 		val session = requireNotNull(cycleContext.session) {
 			"Session must be set by SessionUpdateStage before PostProcessingStage"
 		}
@@ -38,55 +43,35 @@ internal class PostProcessingStage(
 		val collectionData = cycleContext.collectionData
 
 		if (notificationComponent.requirementsMet(cycle)) {
-			try {
+			runIsolated {
 				notificationComponent.onNewData(context, session, collectionData, cycle)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				Log.w(TAG, "Notification post-processing failed", e)
 			}
 		}
 		skiSegmentWriter?.let { writer ->
 			if (writer.requirementsMet(cycle)) {
-				try {
+				runIsolated {
 					writer.onNewData(context, session, collectionData, cycle)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					Log.w(TAG, "Ski segment writer post-processing failed", e)
 				}
 			}
 		}
 		skiTrackingComponent?.let { ski ->
 			if (ski.requirementsMet(cycle)) {
-				try {
+				runIsolated {
 					ski.onNewData(context, session, collectionData, cycle)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					Log.w(TAG, "Ski tracking post-processing failed", e)
 				}
 			}
 		}
 		sailingTrackingComponent?.let { sailing ->
 			if (sailing.requirementsMet(cycle)) {
-				try {
+				runIsolated {
 					sailing.onNewData(context, session, collectionData, cycle)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					Log.w(TAG, "Sailing tracking post-processing failed", e)
 				}
 			}
 		}
 		planeTrackingComponent?.let { plane ->
 			if (plane.requirementsMet(cycle)) {
-				try {
+				runIsolated {
 					plane.onNewData(context, session, collectionData, cycle)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					Log.w(TAG, "Plane tracking post-processing failed", e)
 				}
 			}
 		}
@@ -94,4 +79,3 @@ internal class PostProcessingStage(
 		return StageResult.Continue
 	}
 }
-

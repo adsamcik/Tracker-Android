@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import com.adsamcik.tracker.shared.base.result.runWithReport
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.StageResult
@@ -18,18 +17,14 @@ internal class PolicyUpdateStage(
 	private val trackingPolicyManager: TrackingPolicyManager?,
 	private val scope: CoroutineScope,
 ) : PipelineStage {
-	override val name: String = "PolicyUpdate"
-
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		trackingPolicyManager?.let { policyMgr ->
-			runWithReport {
-				policyFeeder.feed(
-					policyMgr,
-					cycleContext.collectionData,
-					cycleContext.cycle,
-					scope,
-				)
-			}
+			policyFeeder.feed(
+				policyMgr,
+				cycleContext.collectionData,
+				cycleContext.cycle,
+				scope,
+			)
 		}
 		return StageResult.Continue
 	}

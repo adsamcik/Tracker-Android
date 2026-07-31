@@ -50,7 +50,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.feature.map.api.preview.RoutePreviewRenderer
+import com.adsamcik.tracker.feature.map.api.preview.RoutePoint
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -88,6 +89,7 @@ private const val METERS_PER_MILE = 1609.344
 fun TripDetailRoute(
 	tripId: Long,
 	onBack: () -> Unit,
+	routePreviewRenderer: RoutePreviewRenderer,
 	onViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
@@ -188,6 +190,7 @@ fun TripDetailRoute(
 						trip = s.trip,
 						insights = insights,
 						skiSegments = skiSegments,
+						routePreviewRenderer = routePreviewRenderer,
 					)
 				}
 
@@ -239,7 +242,8 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 private fun TripOverview(
 	trip: TripSummary,
 	insights: TripDetailInsights,
-	skiSegments: List<com.adsamcik.tracker.shared.model.SkiRunSegment> = emptyList()
+	skiSegments: List<com.adsamcik.tracker.shared.model.SkiRunSegment> = emptyList(),
+	routePreviewRenderer: RoutePreviewRenderer,
 ) {
 	val context = LocalContext.current
 	val resources = context.resources
@@ -358,6 +362,7 @@ private fun TripOverview(
 			points = insights.routePoints,
 			sourceLabel = insights.sourceLabel,
 			hasDistance = trip.distance.raw > 0f,
+			routePreviewRenderer = routePreviewRenderer,
 		)
 		TripFactsCard(
 			activityType = insights.activityType,
@@ -405,9 +410,10 @@ private fun MetricRow(
 
 @Composable
 private fun RoutePreviewCard(
-	points: List<LatLngModel>,
+	points: List<RoutePoint>,
 	sourceLabel: String,
 	hasDistance: Boolean,
+	routePreviewRenderer: RoutePreviewRenderer,
 ) {
 	val validPoints = remember(points) {
 		points.filter { it.lat.isFinite() && it.lng.isFinite() }
@@ -444,7 +450,7 @@ private fun RoutePreviewCard(
 					color = MaterialTheme.colorScheme.onSurfaceVariant
 				)
 			} else {
-				TripRouteMapPreview(
+				routePreviewRenderer.Content(
 					points = validPoints,
 					modifier = Modifier
 						.fillMaxWidth()

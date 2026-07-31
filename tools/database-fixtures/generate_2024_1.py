@@ -20,17 +20,9 @@ SCHEMAS = {
         "sbase/schemas/com.adsamcik.tracker.shared.base.database.AppDatabase/10.json",
         "seed_main",
     ),
-    "debug_database_sbase.db": (
-        "sbase/schemas/com.adsamcik.tracker.shared.base.database.DebugDatabase/1.json",
-        "seed_debug",
-    ),
     "preference_database.db": (
         "sbase/schemas/com.adsamcik.tracker.shared.base.database.PreferenceDatabase/1.json",
         "seed_preferences",
-    ),
-    "debug_database_logger.db": (
-        "logger/schemas/com.adsamcik.tracker.logger.LogDatabase/1.json",
-        "seed_logs",
     ),
     "points_database.db": (
         "points/schemas/com.adsamcik.tracker.points.database.PointsDatabase/1.json",
@@ -217,18 +209,6 @@ def seed_main(db: sqlite3.Connection) -> None:
     )
 
 
-def seed_debug(db: sqlite3.Connection) -> None:
-    db.executemany(
-        "INSERT INTO debug_activity(id, time, action, activity, confidence) VALUES (?, ?, ?, ?, ?)",
-        [
-            (1, 1_700_000_000_000, "tracker_started", 0, 80),
-            (2, 1_700_000_001_000, "tracker_stopped", 3, 100),
-            (3, 1_700_000_002_000, None, 4, 0),
-            (4, 9_223_372_036_854_000_000, "boundary", 8, 101),
-        ],
-    )
-
-
 def seed_preferences(db: sqlite3.Connection) -> None:
     db.executemany(
         "INSERT INTO generic(id, value) VALUES (?, ?)",
@@ -244,17 +224,6 @@ def seed_preferences(db: sqlite3.Connection) -> None:
             ("distance", 0, 1, 1),
             ("steps", 1, 0, 1),
             ("duration", 2, 1, 0),
-        ],
-    )
-
-
-def seed_logs(db: sqlite3.Connection) -> None:
-    db.executemany(
-        "INSERT INTO log_data(id, timeStamp, message, data, source) VALUES (?, ?, ?, ?, ?)",
-        [
-            (1, 1_700_000_000_000, "Started", "{}", "Tracker"),
-            (2, 1_700_000_001_000, "Unicode Síť-测试", '{"value":null}', "Activity"),
-            (3, 9_223_372_036_854_000_000, "", "x" * 4096, "Boundary"),
         ],
     )
 
@@ -335,17 +304,6 @@ def main() -> None:
             / "baseline"
             / "2024.1"
             / "main_database.db"
-        ),
-        OUTPUT / "debug_database_logger.db": (
-            ROOT
-            / "core"
-            / "logging"
-            / "src"
-            / "test"
-            / "resources"
-            / "baseline"
-            / "2024.1"
-            / "debug_database_logger.db"
         ),
         OUTPUT / "points_database.db": (
             ROOT

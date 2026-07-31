@@ -16,6 +16,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * Feature-facing port for locally generated leaderboard presentation.
+ */
+interface LeaderboardProvider {
+	suspend fun getLeaderboard(
+		metric: LeaderboardMetric,
+		now: Instant = Instant.now(),
+		zone: ZoneId = ZoneId.systemDefault(),
+	): LeaderboardState
+}
+
+/**
  * Provides ghost leaderboard data by aggregating DailySummary rows into ISO weeks.
  *
  * All computation is local-only. No network calls, no new tables.
@@ -25,7 +36,7 @@ import javax.inject.Singleton
 class GhostLeaderboardProvider @Inject constructor(
 	private val dailySummaryDao: DailySummaryDao,
 	private val dispatchers: DispatchersProvider,
-) {
+) : LeaderboardProvider {
 	/**
 	 * Compute the [LeaderboardState] for [metric] at the given [now] instant.
 	 *
@@ -33,10 +44,10 @@ class GhostLeaderboardProvider @Inject constructor(
 	 * @param now The reference instant (default: current device time)
 	 * @param zone The timezone used for week boundary calculations
 	 */
-	suspend fun getLeaderboard(
+	override suspend fun getLeaderboard(
 		metric: LeaderboardMetric,
-		now: Instant = Instant.now(),
-		zone: ZoneId = ZoneId.systemDefault(),
+		now: Instant,
+		zone: ZoneId,
 	): LeaderboardState = withContext(dispatchers.io) {
 		val zonedNow = now.atZone(zone)
 		val today = zonedNow.toLocalDate()

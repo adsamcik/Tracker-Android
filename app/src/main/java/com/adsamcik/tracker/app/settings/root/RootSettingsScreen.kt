@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -82,7 +83,6 @@ fun RootSettingsScreen(
     RootSettingsContent(
         state = state,
         showDebug = showDebug,
-        showTraceboxTrial = com.adsamcik.tracker.BuildConfig.TRACEBOX_TRIAL_AVAILABLE,
         developerModeEnabled = developerModeEnabled,
         onNavigate = onNavigate,
         onNavigateToActivities = onNavigateToActivities,
@@ -97,7 +97,6 @@ fun RootSettingsScreen(
 internal fun RootSettingsContent(
     state: TrackerSettingsState,
     showDebug: Boolean,
-    showTraceboxTrial: Boolean,
     developerModeEnabled: Boolean,
     onNavigate: (SettingsScreen) -> Unit,
     onNavigateToActivities: () -> Unit,
@@ -244,14 +243,12 @@ internal fun RootSettingsContent(
                     icon = Icons.Default.PrivacyTip,
                     onClick = { showPrivacyPolicy = true }
                 )
-                if (showTraceboxTrial) {
-                    SettingsItem(
-                        title = stringResource(R.string.settings_tracebox_title),
-                        subtitle = stringResource(R.string.settings_tracebox_root_summary),
-                        icon = Icons.Default.Info,
-                        onClick = { onNavigate(SettingsScreen.TraceboxTrial) }
-                    )
-                }
+                SettingsItem(
+                    title = stringResource(R.string.settings_tracebox_title),
+                    subtitle = stringResource(R.string.settings_tracebox_root_summary),
+                    icon = Icons.Default.BugReport,
+                    onClick = { onNavigate(SettingsScreen.Diagnostics) }
+                )
             }
         }
 
@@ -321,7 +318,11 @@ internal fun RootSettingsContent(
                     )
                     if (!com.adsamcik.tracker.BuildConfig.DEBUG && tapCount > 0 && tapCount < 7) {
                         Text(
-                            stringResource(R.string.settings_developer_mode_tap_countdown, 7 - tapCount),
+                            pluralStringResource(
+                                R.plurals.settings_developer_mode_tap_countdown,
+                                7 - tapCount,
+                                7 - tapCount,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -348,7 +349,6 @@ private fun RootSettingsScreenPreview() {
                 speedFormat = SpeedFormat.Hour,
             ),
             showDebug = true,
-            showTraceboxTrial = true,
             developerModeEnabled = true,
             onNavigate = {},
             onNavigateToActivities = {},

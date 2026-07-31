@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.stats.data.worker
 
 import android.content.Context
-import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -90,7 +89,6 @@ class AchievementWorker @AssistedInject constructor(
 
 			val snapshot = metricsProvider.collect()
 			if (snapshot.asMap().isEmpty()) {
-				Log.w(TAG, "Dirty achievement evaluation produced an empty metric snapshot; retrying")
 				return@run
 			}
 
@@ -177,6 +175,6 @@ class AchievementWorker @AssistedInject constructor(
 
 	companion object {
 		const val UNIQUE_WORK_NAME = "AchievementEvaluation"
-		const val TAG = "Achievement"
+		const val WORK_TAG = "Achievement"
 	}
 }

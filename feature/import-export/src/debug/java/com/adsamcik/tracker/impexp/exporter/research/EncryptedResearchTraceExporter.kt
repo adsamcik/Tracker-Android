@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.ByteArrayOutputStream
@@ -66,7 +65,6 @@ class EncryptedResearchTraceExporter(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
-			Reporter.report(exception)
 			ExportResult.Error(
 				LocalizedString(
 					R.string.export_error_with_reason,

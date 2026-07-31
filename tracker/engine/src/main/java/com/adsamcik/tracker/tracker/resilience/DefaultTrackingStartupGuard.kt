@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.resilience
 
 import android.app.ActivityManager
 import android.os.Build
-import com.adsamcik.tracker.logger.Reporter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,7 +34,6 @@ class DefaultTrackingStartupGuard @Inject constructor() : TrackingStartupGuard {
 				.firstOrNull()
 				?.wasForceStopped() == true
 		} catch (exception: RuntimeException) {
-			Reporter.report(exception)
 			false
 		}
 	}

@@ -1,6 +1,5 @@
 plugins {
     id("tracker.android.library")
-    id("tracker.android.compose")
     id("tracker.android.test")
     alias(libs.plugins.kotlin.parcelize)
 }
@@ -27,8 +26,7 @@ android {
 }
 
 dependencies {
-    // Logging contracts (the only intra-project dependency core:common needs)
-    implementation(project(":core:logging-api"))
+    // Fixed-code diagnostics (the only intra-project dependency core:common needs)
 
     // Core
     implementation(libs.kotlinx.coroutines.android)
@@ -43,9 +41,6 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.google.play.services.base)
     implementation(libs.google.play.services.location)
-
-    // Compose runtime for CompositionLocal DI support (graph/di packages)
-    implementation(libs.activity.compose)
 
     // Paging
     implementation(libs.androidx.paging.runtime)

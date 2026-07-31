@@ -35,7 +35,7 @@ import com.adsamcik.tracker.app.settings.debug.DebugSettingsScreen
 import com.adsamcik.tracker.app.settings.game.GameSettingsScreen
 import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
-import com.adsamcik.tracker.app.settings.tracebox.TraceboxTrialScreen
+import com.adsamcik.tracker.app.settings.tracebox.TraceboxDiagnosticsScreen
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 
@@ -45,7 +45,6 @@ import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 @Composable
 fun SettingsRoute(
     onNavigateBack: () -> Unit = {},
-    onNavigateToDebug: () -> Unit = {},
     onNavigateToActivities: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onNavigateToNotificationManagement: () -> Unit = {},
@@ -113,12 +112,12 @@ fun SettingsRoute(
                     SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
                     SettingsScreen.Map -> MapSettingsScreen()
                     SettingsScreen.Game -> GameSettingsScreen()
-                    SettingsScreen.TraceboxTrial -> TraceboxTrialScreen()
+                    SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen()
                     SettingsScreen.Statistics -> {
                         // Statistics sub-screen removed — navigate back to root as defensive fallback.
                         LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
                     }
-                    SettingsScreen.Debug -> DebugSettingsScreen(onNavigateToDebug)
+                    SettingsScreen.Debug -> DebugSettingsScreen()
                 }
             }
         }
@@ -148,7 +147,7 @@ sealed class SettingsScreen {
     data object Game : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.module_game_title)
     }
-    data object TraceboxTrial : SettingsScreen() {
+    data object Diagnostics : SettingsScreen() {
         @Composable override fun title() = stringResource(R.string.settings_tracebox_title)
     }
     data object Statistics : SettingsScreen() {
@@ -165,7 +164,7 @@ sealed class SettingsScreen {
         Export -> "export"
         Map -> "map"
         Game -> "game"
-        TraceboxTrial -> "tracebox_trial"
+        Diagnostics -> "diagnostics"
         Statistics -> "statistics"
         Debug -> "debug"
     }
@@ -178,7 +177,7 @@ sealed class SettingsScreen {
             "export" -> Export
             "map" -> Map
             "game" -> Game
-            "tracebox_trial" -> TraceboxTrial
+            "diagnostics" -> Diagnostics
             "statistics" -> Statistics
             "debug" -> Debug
             else -> null

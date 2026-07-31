@@ -6,6 +6,7 @@ import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -74,8 +75,6 @@ abstract class BaseMapLayer<I, P>(
      * @param bounds Optional viewport bounds for spatial filtering. Null loads all data.
      */
     fun enable(context: Context, quality: Float, bounds: Bounds? = null, zoom: Float = 10f): Job {
-        val startTime = System.currentTimeMillis()
-
         synchronized(this@BaseMapLayer) {
             if (enabled) {
                 disable()
@@ -86,42 +85,25 @@ abstract class BaseMapLayer<I, P>(
         }
 
         val job = layerScope.launch {
-            try {
+            runCatchingCancellable {
                 beforeEnable(context)
 
-                val loadStartTime = System.currentTimeMillis()
                 val input = loadData(context, bounds)
-                val loadDuration = System.currentTimeMillis() - loadStartTime
 
-                val processStartTime = System.currentTimeMillis()
                 val budgets = performanceManager.budgets(quality, zoom)
                 val processed = processData(input, budgets)
-                val processDuration = System.currentTimeMillis() - processStartTime
 
                 if (enabled) {
-                    val renderStartTime = System.currentTimeMillis()
                     val config = produceConfig(processed)
                     lastConfig = config
-                    val renderDuration = System.currentTimeMillis() - renderStartTime
 
                     withContext(dispatchers.main) {
                         if (enabled) {
                             afterEnable()
-                            val totalDuration = System.currentTimeMillis() - startTime
-                            onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
                         }
                     }
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // Structured concurrency: cancellation MUST propagate up. Catching
-                // Throwable below would otherwise eat it, leaving supervisors thinking
-                // the layer completed normally when in fact it was cancelled.
-                throw e
-            } catch (e: Exception) {
-                // Recoverable rendering/loading failure. OOM and other Errors are
-                // intentionally NOT caught here — they should crash and report.
-                onPipelineError(e)
-            }
+            }.getOrNull()
         }
         synchronized(this@BaseMapLayer) {
             runningTask = job
@@ -139,7 +121,6 @@ abstract class BaseMapLayer<I, P>(
         zoom: Float = this.zoom,
     ): LayerReloadResult =
         withContext(dispatchers.default) {
-            val startTime = System.currentTimeMillis()
             // Capture this call's generation BEFORE any work; the latest call wins
             // even if it finishes first. See [reloadGeneration] field docs for why
             // structured cancellation alone is insufficient here.
@@ -153,18 +134,12 @@ abstract class BaseMapLayer<I, P>(
             }
 
             try {
-                val loadStartTime = System.currentTimeMillis()
                 val input = loadData(context, bounds)
-                val loadDuration = System.currentTimeMillis() - loadStartTime
 
-                val processStartTime = System.currentTimeMillis()
                 val budgets = performanceManager.budgets(currentQuality, zoom)
                 val processed = processData(input, budgets)
-                val processDuration = System.currentTimeMillis() - processStartTime
 
-                val renderStartTime = System.currentTimeMillis()
                 val config = produceConfig(processed)
-                val renderDuration = System.currentTimeMillis() - renderStartTime
 
                 synchronized(this@BaseMapLayer) {
                     // Only publish if this call is still the latest in-flight reload.
@@ -174,13 +149,10 @@ abstract class BaseMapLayer<I, P>(
                         lastConfig = config
                     }
                 }
-                val totalDuration = System.currentTimeMillis() - startTime
-                onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
                 config?.let(LayerReloadResult::Success) ?: LayerReloadResult.Empty
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                onPipelineError(e)
                 LayerReloadResult.Failure(e)
             }
         }
@@ -223,17 +195,4 @@ abstract class BaseMapLayer<I, P>(
 
     /** Hook: when disabling; cleanup resources. */
     protected open fun onDisable() {}
-
-    /** Hook: background error reporting for the pipeline. */
-    protected open fun onPipelineError(error: Throwable) { /* no-op by default */ }
-
-    /** Hook: performance metrics reporting. All durations in milliseconds. */
-    protected open fun onPerformanceMetrics(
-        loadDuration: Long,
-        processDuration: Long,
-        renderDuration: Long,
-        totalDuration: Long
-    ) {
-        // no-op by default; subclasses can override for monitoring
-    }
 }

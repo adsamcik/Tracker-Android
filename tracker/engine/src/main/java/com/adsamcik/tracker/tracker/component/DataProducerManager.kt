@@ -8,13 +8,13 @@ import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import java.util.concurrent.CopyOnWriteArrayList
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -113,7 +113,6 @@ internal class DataProducerManager(
 					e.addSuppressed(cleanupFailure)
 				}
 				component.canBeEnabled = previousCanBeEnabled
-				Log.e(TAG, "Failed to enable ${component::class.simpleName}", e)
 			}
 		} else if (component.isEnabled) {
 			component.canBeEnabled = false
@@ -124,7 +123,6 @@ internal class DataProducerManager(
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.e(TAG, "Failed to disable ${component::class.simpleName}", e)
 				scheduleDisableRetry(component)
 			}
 		} else {
@@ -196,7 +194,6 @@ internal class DataProducerManager(
 							} catch (e: CancellationException) {
 								throw e
 							} catch (e: Exception) {
-								Log.e(TAG, "Retry failed to disable ${component::class.simpleName}", e)
 								false
 							}
 						}
@@ -258,12 +255,8 @@ internal class DataProducerManager(
 		withContext(coroutineContext) {
 			activeProducerList.map { producer ->
 				async {
-					try {
+					runCatchingCancellable {
 						producer.onDataRequest(builder)
-					} catch (e: CancellationException) {
-						throw e
-					} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-						Log.e(TAG, "Producer ${producer::class.simpleName} failed: ${e.message}", e)
 					}
 				}
 			}.awaitAll()
@@ -272,7 +265,6 @@ internal class DataProducerManager(
 	}
 
 	companion object {
-		private const val TAG = "DataProducerManager"
 		private const val PRODUCER_CLEANUP_RETRY_DELAY_MILLIS = 1_000L
 		private const val PRODUCER_CLEANUP_MAX_RETRY_DELAY_MILLIS = 30_000L
 	}

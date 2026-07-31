@@ -132,17 +132,5 @@
     <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
     <string name="settings_color_update_single_title">Static color</string>
 
-    <!-- Contextual Permission Request Strings (Apple-style rationale-first pattern) -->
-    <string name="permission_location_rationale_title">Location access</string>
-    <string name="permission_location_rationale_message">Tracker needs location access to record your route and show it on the map. Location data stays on this device — nothing is sent to a server.</string>
-    <string name="permission_activity_rationale_title">Activity recognition</string>
-    <string name="permission_activity_rationale_message">Tracker uses activity recognition to detect what you\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.</string>
-    <string name="permission_background_location_rationale_title">Background location</string>
-    <string name="permission_background_location_rationale_message">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time"; "While using the app" keeps Tracker working when its screen is open only.</string>
-    <string name="permission_allow">Allow</string>
-    <string name="permission_deny">Not Now</string>
-    <string name="permission_denied_tracking_disabled">Location permission required to start tracking</string>
-    <string name="permission_denied_settings_action">Open Settings</string>
-
     <string name="wifi">Wi-Fi</string>
 </resources>

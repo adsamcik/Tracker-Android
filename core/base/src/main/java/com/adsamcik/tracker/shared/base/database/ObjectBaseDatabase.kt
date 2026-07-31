@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
@@ -25,7 +24,6 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 	): SupportSQLiteOpenHelper.Factory = delegate
 
 	private fun createInstance(context: Context): T {
-		val databaseFile = context.getDatabasePath(databaseName)
 		val delegateFactory = SQLiteXSupportSQLiteOpenHelperFactory()
 		val instance = Room.databaseBuilder(
 				context.applicationContext,
@@ -35,15 +33,6 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 				.openHelperFactory(openHelperFactory(context.applicationContext, delegateFactory))
 				// Enable WAL for improved concurrent read/write performance and reduced writer stalls
 				.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-				.addCallback(object : RoomDatabase.Callback() {
-					override fun onOpen(db: SupportSQLiteDatabase) {
-						SQLiteRuntimeTelemetry.recordOnOpen(
-							database = db,
-							databaseType = type.simpleName,
-							databaseFile = databaseFile,
-						)
-					}
-				})
 				.apply { setupDatabase(this) }
 				.build()
 		this.instance = instance

@@ -7,12 +7,10 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
-import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -55,14 +53,6 @@ abstract class BaseGoal(
 			field = value
 			val nowRounded = getGoalTime(Time.now)
 			isReported = nowRounded == value
-			if (getGoalTime(Time.now) < nowRounded) {
-				Reporter.report(
-						"""Goal ${javaClass.name} with key $persistedGoalReachedKey has future time 
-						   set as goal. Current time: ${nowRounded}, 
-						   Goal time: ${value},
-						   Now time ${Time.today.toEpochMillis()}"""
-				)
-			}
 			if (isEnabled) {
 				launch { persistence.persist(persistedGoalReachedKey, value) }
 			}

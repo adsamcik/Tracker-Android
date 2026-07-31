@@ -3,7 +3,6 @@ package com.adsamcik.tracker.map.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.geocoder.ReverseGeocoder
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.cameraToBounds
@@ -302,7 +301,6 @@ class MapStore @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 mapDataObserverReady.completeExceptionally(e)
-                Reporter.report(e)
             }
         }
 
@@ -555,7 +553,6 @@ class MapStore @Inject constructor(
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Reporter.report(e)
                 null
             }
             _state.update {
@@ -587,7 +584,6 @@ class MapStore @Inject constructor(
                 reverseGeocoder.reverseGeocode(lat, lng)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Reporter.report(e)
                 null
             }
             _state.update {
@@ -615,7 +611,6 @@ class MapStore @Inject constructor(
                 reverseGeocoder.searchPlaces(query, limit = 1).firstOrNull()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Reporter.report(e)
                 null
             }
             if (best == null) {
@@ -1017,10 +1012,8 @@ class MapStore @Inject constructor(
         cameraRefreshJob?.cancel()
         reactiveRefreshJob?.cancel()
         overlayUpdateJob?.cancel()
-        try {
+        runCatching {
             layerManager?.destroy()
-        } catch (e: Exception) {
-            Reporter.report(e)
-        }
+        }.getOrNull()
     }
 }

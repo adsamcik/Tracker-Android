@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 // Contract:
 // Inputs: Proto DataStore backing file storing ExportPlansProto
 // Outputs: Flow of domain plans plus atomic create/update/delete operations
-// Failure: Data corruption falls back to default value (empty list) and logs via default JVM logger.
+// Failure: Data corruption falls back to the default value (empty list).
 
 private object ExportPlansSerializer : Serializer<ExportPlansProto> {
     override val defaultValue: ExportPlansProto = ExportPlansProto.getDefaultInstance()

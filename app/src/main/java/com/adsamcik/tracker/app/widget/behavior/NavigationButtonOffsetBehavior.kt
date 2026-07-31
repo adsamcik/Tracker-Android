@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import kotlin.math.roundToInt
 
+private fun View.isSnackbarLayout(): Boolean =
+	findViewById<View>(com.google.android.material.R.id.snackbar_text) != null
+
 /**
  * Custom behavior that allows specific view to be modified instead of direct child of coordinator layout
  */
@@ -28,7 +31,7 @@ class NavigationButtonOffsetBehavior(private val targetView: View) : Coordinator
 			child: ConstraintLayout,
 			dependency: View
 	): Boolean {
-		return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
+		return dependency.isSnackbarLayout()
 	}
 
 	override fun onDependentViewChanged(
@@ -37,7 +40,7 @@ class NavigationButtonOffsetBehavior(private val targetView: View) : Coordinator
 			dependency: View
 	): Boolean {
 		var changed = false
-		if (dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout) {
+		if (dependency.isSnackbarLayout()) {
 			if (last == Float.MIN_VALUE) {
 				ignore = false
 				last = targetView.translationY
@@ -102,7 +105,7 @@ class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : Coo
 			child: ConstraintLayout,
 			dependency: View
 	): Boolean {
-		return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
+		return dependency.isSnackbarLayout()
 	}
 
 	init {
@@ -122,7 +125,7 @@ class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : Coo
 			dependency: View
 	): Boolean {
 		var changed = false
-		if (dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout) {
+		if (dependency.isSnackbarLayout()) {
 			val current = guideline.guidelineEnd
 			if (last == Int.MIN_VALUE) {
 				reset(current)

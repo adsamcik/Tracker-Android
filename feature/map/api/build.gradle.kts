@@ -1,5 +1,6 @@
 plugins {
     id("tracker.android.library")
+    id("tracker.android.compose")
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -9,4 +10,6 @@ android {
 
 dependencies {
     implementation(libs.navigation.compose)
+    api(libs.compose.runtime)
+    api(libs.compose.ui)
 }

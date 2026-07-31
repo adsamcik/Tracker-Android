@@ -47,17 +47,6 @@
 
     <issue
         id="GradleDependency"
-        message="A newer version of com.google.gms.google-services than 4.4.3 is available: 4.4.4"
-        errorLine1="googleServices = &quot;4.4.3&quot;"
-        errorLine2="                 ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="16"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
         message="A newer version of com.google.android.gms.oss-licenses-plugin than 0.10.7 is available: 0.10.10"
         errorLine1="ossLicenses = &quot;0.10.7&quot;"
         errorLine2="              ~~~~~~~~">

@@ -19,7 +19,6 @@ class TrackerServiceApiTest {
 			controller.updateSessionInfo(null)
 			controller.updateSession(null)
 			controller.updateCollectionData(null)
-			controller.updatePersistenceErrorFlow(null)
 			controller.updatePolicyState(null)
 			controller.updatePolicyTier(any())
 			controller.updateSkiState(null)

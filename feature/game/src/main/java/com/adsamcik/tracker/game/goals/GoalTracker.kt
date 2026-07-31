@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game.goals
 
 import android.content.Context
 import androidx.annotation.AnyThread
-import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.GoalsSettingsGoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
@@ -12,8 +11,6 @@ import com.adsamcik.tracker.game.goals.settings.GoalsSettingsDefaults
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
@@ -115,12 +112,6 @@ internal object GoalTracker : CoroutineScope {
 				.onEach(::update)
 				.launchIn(this)
 
-			Logger.log(
-				LogData(
-					message = "Goal settings and session listeners registered",
-					source = GOALS_LOG_SOURCE,
-				),
-			)
 		}
 	}
 
@@ -156,12 +147,6 @@ internal object GoalTracker : CoroutineScope {
 	}
 
 	private suspend fun onGoalReached(goal: Goal) {
-		Logger.log(
-			LogData(
-				message = "Reached goal of ${goal.target} steps at ${Time.now}",
-				source = GOALS_LOG_SOURCE,
-			),
-		)
 		dispatchGoalCompletion(
 			notificationsEnabled = notificationsEnabled,
 			notify = { showNotification(goal) },
@@ -199,7 +184,6 @@ internal object GoalTracker : CoroutineScope {
 			mLastSessionId = -1
 			goalList.forEach { it.onNewDay(context, Time.now) }
 		}
-		Logger.log(LogData(message = "New day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 
 	internal suspend fun update(session: TrackerSessionSnapshot) {

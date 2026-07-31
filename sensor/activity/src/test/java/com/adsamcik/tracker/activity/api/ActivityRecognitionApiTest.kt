@@ -7,13 +7,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
-import com.adsamcik.tracker.logger.Logger
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,18 +24,10 @@ class ActivityRecognitionApiTest {
 
     @Before
     fun setup() {
-        mockkObject(Logger)
-        every { Logger.logWithStringPreference(any(), any(), any()) } returns Unit
-
         val config = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.DEBUG)
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(mockContext, config)
-    }
-
-    @After
-    fun teardown() {
-        unmockkAll()
     }
 
     // -----------------------------------------------------------------------

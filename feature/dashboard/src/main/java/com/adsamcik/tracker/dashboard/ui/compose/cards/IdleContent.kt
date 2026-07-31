@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -27,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.unit.Dp
-import android.util.Log
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.data.DashboardWidget
@@ -297,21 +295,10 @@ private fun resolveStringResource(name: String): String {
 	return if (resId != 0) {
 		stringResource(resId)
 	} else {
-		// Reached only when AchievementCatalog.byId(...) returns null for the
-		// stored achievement id — meaning the catalog changed since the row
-		// was persisted. Log so we can detect catalog drift, and show a
-		// humanized label so the user never sees a raw resource key.
-		LaunchedEffect(name) {
-			Log.w(
-				TAG_IDLE_CONTENT,
-				"achievement id not in catalog; missing string resource '$name'; humanized fallback in use",
-			)
-		}
+		// A catalog entry can disappear after an app update; keep the UI readable.
 		humanizeResourceKey(name)
 	}
 }
-
-private const val TAG_IDLE_CONTENT = "IdleContent"
 
 @VisibleForTesting
 internal fun humanizeResourceKey(name: String): String {
@@ -327,4 +314,3 @@ internal fun humanizeResourceKey(name: String): String {
 			token.replaceFirstChar { ch -> if (ch.isLowerCase()) ch.titlecase() else ch.toString() }
 		}
 }
-

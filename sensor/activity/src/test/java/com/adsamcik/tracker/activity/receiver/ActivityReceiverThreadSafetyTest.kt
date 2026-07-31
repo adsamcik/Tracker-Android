@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -13,11 +12,9 @@ import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
-import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
@@ -44,10 +41,7 @@ class ActivityReceiverThreadSafetyTest {
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
-		mockkObject(Logger)
 		mockkObject(Time)
-
-		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)

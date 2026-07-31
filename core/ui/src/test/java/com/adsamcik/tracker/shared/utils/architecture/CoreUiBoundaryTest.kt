@@ -8,9 +8,10 @@ import kotlin.test.assertTrue
 /**
  * Keeps :core:ui a presentation-only module.
  *
- * Runtime contracts, tracker state, permission orchestration, workers, and
- * persistence-aware formatting all have dedicated owners and must not drift
- * back into the shared Compose module.
+ * Runtime contracts, tracker state, process-wide permission orchestration,
+ * workers, and persistence-aware formatting all have dedicated owners and
+ * must not drift back into the shared Compose module. Screen-local permission
+ * rationale and Activity Result presentation are reusable UI and may live here.
  */
 class CoreUiBoundaryTest {
 	private val moduleDir = resolveModuleDirectory()
@@ -21,6 +22,11 @@ class CoreUiBoundaryTest {
 	@Test
 	fun `production sources contain presentation code only`() {
 		val forbiddenImports = listOf(
+			"android.app.Service",
+			"android.content.BroadcastReceiver",
+			"androidx.datastore.",
+			"androidx.lifecycle.ProcessLifecycleOwner",
+			"androidx.room.",
 			"androidx.work.",
 			"com.adsamcik.tracker.logging.",
 			"com.adsamcik.tracker.shared.base.",
@@ -31,8 +37,6 @@ class CoreUiBoundaryTest {
 			"ModuleInitializer",
 			"PermissionData",
 			"PermissionManager",
-			"PermissionRequest",
-			"PermissionResult",
 			"TrackerSessionChannel",
 			"TrackerUpdateReceiver",
 		)
@@ -90,6 +94,8 @@ class CoreUiBoundaryTest {
 		val buildText = gradleFile.readText()
 		val forbiddenDependencies = listOf(
 			"project(",
+			"libs.androidx.datastore.",
+			"libs.androidx.room.",
 			"libs.androidx.work.",
 			"libs.google.play.services.",
 			"libs.google.material",
@@ -104,11 +110,14 @@ class CoreUiBoundaryTest {
 	}
 
 	@Test
-	fun `module manifest declares no permissions`() {
-		assertFalse(
-			manifestFile.readText().contains("<uses-permission"),
-			":core:ui must not contribute application permissions",
-		)
+	fun `module manifest declares no runtime infrastructure`() {
+		val manifestText = manifestFile.readText()
+		listOf("<uses-permission", "<service", "<receiver", "<provider").forEach { tag ->
+			assertFalse(
+				manifestText.contains(tag),
+				":core:ui must not contribute runtime infrastructure: $tag",
+			)
+		}
 	}
 
 	private fun resolveModuleDirectory(): File {

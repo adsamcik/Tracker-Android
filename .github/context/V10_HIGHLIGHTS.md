@@ -57,10 +57,14 @@ For the **remaining work** on this branch:
 - **Smart goal notifications**, session insights cards, calendar, charts, LeakCanary, fitness tests.
 
 ## 6. Privacy & Safety Hardening
-- Centralized **PII redaction** in Logger; `Reporter` / `ReporterFacade` route errors through the structured logger.
+- Hard-migrated diagnostics to fixed, payload-free codes through
+  `:core:diagnostics`; Tracebox is the sole crash and diagnostic backend.
 - Removed all remote URLs, Firebase scaffolding, analytics terminology.
 - **Sealed `*Result` types** replace cross-module exceptions (no throwing across module boundaries).
-- Most production `runBlocking` calls eliminated; remaining sites (`PagedLocationSequence`, `CrashHandler`, `DebugCrashLogExporter`, `TrackerSettingsAccess`, `LegacyPreferenceStore`) are explicit and isolated to lifecycle/IO entry points. `CopyOnWriteArrayList` / mutexes for thread safety; SQL injection fix in `SafeQueryBuilder`; KML coordinate validation.
+- Most production `runBlocking` calls eliminated; remaining non-diagnostic sites
+  are explicit and isolated to lifecycle/IO entry points. `CopyOnWriteArrayList`
+  / mutexes provide thread safety; `SafeQueryBuilder` fixes SQL injection risk;
+  KML import validates coordinates.
 
 ## 7. Testing Explosion
 - Hundreds of new unit tests across all modules. The `:app` module alone has **~25 Compose UI test files (~168 `@Test` methods)** exercising real composables; sbase, game, statistics, activity, tracker, stats-*, map, sutils, dashboard all gained substantial coverage.
@@ -73,7 +77,9 @@ For the **remaining work** on this branch:
 - **AGP 9.1.0**, **Gradle 9.3.1**, **Kotlin 2.2.20**, **JDK 17** toolchain via Foojay auto-provisioning, **KSP-only** (no KAPT). compileSdk/targetSdk 36, minSdk 26.
 - All versions live in `gradle/libs.versions.toml`; Jetifier disabled.
 - Removed `macrobenchmark` module; lint baselines for all modules.
-- `:smap` retired (a stub `smap/` directory remains with only `build.gradle.kts` + `.gitignore` and is not in `settings.gradle.kts`); `:logger` decoupled from `:sbase` via the `:logging-api` module; `:dashboard` extracted as its own module. Current module count: **18**.
+- Diagnostics were hard-migrated to the payload-free `:core:diagnostics`
+  boundary and Tracebox backend; `:dashboard` was extracted as its own module.
+  Current application Gradle module count: **32**, plus the tooling module.
 - Photo geotagger and QC testing utilities under `tools/`; comprehensive architecture docs (`docs/ARCHITECTURE_OVERVIEW.md`, `docs/STATS_PIPELINE_ARCHITECTURE.md`).
 
 ---

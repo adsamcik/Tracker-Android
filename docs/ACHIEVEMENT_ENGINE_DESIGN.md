@@ -26,7 +26,7 @@
 | `DomainEvent.AchievementProgress` | `stats-api` | ✅ Emitted on progress change |
 | `GameDomainEventConsumer` | `game` | ✅ Consumes unlock/progress events, fires notifications |
 | `AchievementCard` | `game/ui` | ✅ Compose card showing tier counts + next closest |
-| `ExplorationViewModel.AchievementSummaryState` | `game/viewmodel` | ✅ Aggregates tier counts from DAO |
+| `ExplorationViewModel.AchievementSummaryState` | `feature/game/viewmodel` | ✅ Aggregates entity-free achievement snapshots from `ExplorationProgressRepository` |
 
 ### What's missing or incomplete
 
@@ -462,7 +462,10 @@ class IncrementalMetricsCache {
 
 ### 7.1 GameScreen — Achievement Summary Card
 
-**Already integrated.** `ExplorationViewModel` exposes `AchievementSummaryState` consumed by `AchievementCard`.
+**Already integrated.** `ExplorationViewModel` maps
+`ExplorationProgressRepository.achievements` into `AchievementSummaryState`,
+consumed by `AchievementCard`; the ViewModel does not read
+`AchievementProgressDao` directly.
 
 **Enhancement:** Add celebration overlay:
 

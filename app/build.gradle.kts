@@ -80,23 +80,7 @@ android {
     }
 
     androidResources {
-        localeFilters += listOf("en", "cs-rCZ")
-    }
-
-    flavorDimensions += "diagnostics"
-    productFlavors {
-        create("standard") {
-            dimension = "diagnostics"
-            buildConfigField("boolean", "TRACEBOX_TRIAL_AVAILABLE", "false")
-        }
-        create("traceboxTrial") {
-            dimension = "diagnostics"
-            // Tracebox supports API 23; retain Tracker's established API-26 app baseline.
-            minSdk = 26
-            applicationIdSuffix = ".traceboxtrial"
-            versionNameSuffix = "-tracebox-trial"
-            buildConfigField("boolean", "TRACEBOX_TRIAL_AVAILABLE", "true")
-        }
+        localeFilters += "en"
     }
 
     compileOptions {
@@ -157,6 +141,7 @@ android {
             initWith(release)
             matchingFallbacks += listOf("release")
             isMinifyEnabled = false
+            //noinspection NotShrinkingResources
             isShrinkResources = false
         }
     }
@@ -171,18 +156,10 @@ android {
     lint {
         checkReleaseBuilds = true
         abortOnError = true
-        baseline = file("lint-baseline.xml")
-        // localeFilters replaces deprecated resourceConfigurations for packaging, but lint does
-        // not use it to scope MissingTranslation. Keep the existing translation policy explicit.
-        disable += "MissingTranslation"
+        // Version selection is centralized in the stable-release-aware root dependencyUpdates
+        // task. Android lint cannot express that policy and otherwise recommends major upgrades.
+        disable += setOf("GradleDependency", "NewerVersionAvailable")
     }
-
-    sourceSets.getByName("main").res.directories.add(
-        layout.buildDirectory.dir("generated/third_party_licenses_fallback/res")
-            .get()
-            .asFile
-            .absolutePath,
-    )
 
     // dynamicFeatures removed; modules are now statically linked libraries
     namespace = "com.adsamcik.tracker"
@@ -197,7 +174,7 @@ dependencies {
 
     implementation(project(":core:common"))
     implementation(project(":core:base"))
-    implementation(project(":core:logging-api"))
+    implementation(project(":core:diagnostics"))
     implementation(project(":core:network"))
     implementation(project(":tracker:engine"))
     implementation(project(":feature:tracker"))
@@ -207,7 +184,6 @@ dependencies {
     implementation(project(":domain:points"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
     implementation(project(":feature:import-export"))
     implementation(project(":feature:statistics:api"))
     implementation(project(":feature:statistics"))
@@ -250,9 +226,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
 
-    // Privacy-bounded alpha diagnostics trial. It is isolated to an API-30+
-    // flavor so Tracker's standard API-26 support contract remains unchanged.
-    add("traceboxTrialImplementation", libs.tracebox)
+    // Tracebox is Tracker's sole production crash and diagnostic recorder.
+    implementation(libs.tracebox)
 
     // Compose
     androidTestImplementation(platform(libs.compose.bom))
@@ -299,31 +274,4 @@ dependencies {
     testImplementation(libs.turbine)
     androidTestImplementation(project(":core:testing"))
     testImplementation(project(":core:testing"))
-}
-
-val syncReleaseLicenseFallback = tasks.register<Sync>("syncReleaseLicenseFallback") {
-	dependsOn(tasks.named("releaseOssLicensesTask"))
-	from(layout.buildDirectory.dir("generated/third_party_licenses/release/res/raw")) {
-		include("third_party_license_metadata", "third_party_licenses")
-		rename("third_party_license_metadata", "third_party_license_metadata_release_fallback")
-		rename("third_party_licenses", "third_party_licenses_release_fallback")
-	}
-	into(layout.buildDirectory.dir("generated/third_party_licenses_fallback/res/raw"))
-}
-
-val licenseFallbackConsumers = setOf(
-	"mapDebugSourceSetPaths",
-	"generateDebugResources",
-	"mergeDebugResources",
-	"processDebugNavigationResources",
-	"packageDebugResources",
-	"mapDevSourceSetPaths",
-	"generateDevResources",
-	"mergeDevResources",
-	"processDevNavigationResources",
-	"packageDevResources",
-)
-
-tasks.matching { it.name in licenseFallbackConsumers }.configureEach {
-	dependsOn(syncReleaseLicenseFallback)
 }

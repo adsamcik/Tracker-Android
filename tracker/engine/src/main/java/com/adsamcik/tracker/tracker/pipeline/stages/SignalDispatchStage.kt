@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
 import android.content.Context
-import android.util.Log
 import androidx.core.location.LocationCompat
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -14,7 +13,6 @@ import com.adsamcik.tracker.tracker.pipeline.PipelineStage
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
 import com.adsamcik.tracker.tracker.pipeline.StageResult
-import kotlinx.coroutines.CancellationException
 
 /**
  * Builds a [com.adsamcik.tracker.stats.api.signal.TrackingSignal] from cycle and
@@ -27,17 +25,11 @@ internal class SignalDispatchStage(
 ) : PipelineStage {
 	private var lastEffectiveActivity: ActivityInfo? = null
 
-	private companion object {
-		const val TAG = "SignalDispatchStage"
-	}
-
-	override val name: String = "SignalDispatch"
-
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		val pipeline = processorPipelineProvider() ?: return StageResult.Continue
 		val effectiveActivity = cycleContext.collectionData.activity
 
-		val signal = try {
+		val signal = run {
 			val cycle = cycleContext.cycle
 			val collectionData = cycleContext.collectionData
 			val processedAltitude = collectionData.processedAltitude
@@ -180,11 +172,6 @@ internal class SignalDispatchStage(
 				persistenceSignalId = cycle.persistenceSignalId,
 			)
 			signal
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			Log.w(TAG, "Failed to build tracking signal; skipping dispatch", e)
-			return StageResult.Continue
 		}
 
 		cycleContext.signal = signal
@@ -199,7 +186,7 @@ internal class SignalDispatchStage(
 			// pending-signal admission record. A storage failure remains staged for
 			// retry; a lifecycle rejection is a terminal, intentionally unforwarded
 			// discard.
-			StageResult.Skip("durable signal admission failed")
+			StageResult.Skip
 		}
 	}
 

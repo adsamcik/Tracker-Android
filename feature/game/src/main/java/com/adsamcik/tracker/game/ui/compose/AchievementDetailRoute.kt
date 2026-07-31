@@ -40,12 +40,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
+import com.adsamcik.tracker.game.data.ExplorationProgressRepository
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.api.metric.MetricKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,12 +53,11 @@ import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class AchievementDetailViewModel @Inject constructor(
-	progressDao: AchievementProgressDao,
+	progressRepository: ExplorationProgressRepository,
 ) : ViewModel() {
-	val rows = progressDao.getAllFlow().map { progressRows ->
+	val rows = progressRepository.achievements.map { progressRows ->
 		val progressByMetric = progressRows
-			.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row } }
-			.toMap()
+			.associateBy { it.metric }
 		AchievementCatalog.definitions.map { definition ->
 			val progress = progressByMetric[definition.metric]
 			AchievementDetailRow(

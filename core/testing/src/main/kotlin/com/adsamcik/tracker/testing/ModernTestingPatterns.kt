@@ -121,9 +121,10 @@ package com.adsamcik.tracker.testing
  * @Test
  * fun `test file operations`() {
  *     FakeFileResolver.withTempDir { resolver ->
- *         val exporter = CrashExporter(resolver)
- *         exporter.export(data)
- *         resolver.resolveInternal("crashes").exists() shouldBe true
+ *         val output = resolver.resolveInternal("exports/result.json")
+ *         output.parentFile.mkdirs()
+ *         output.writeText("{}")
+ *         output.exists() shouldBe true
  *     }
  * }
  * ```

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
 import com.adsamcik.tracker.points.database.PointsAwardedDao
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import io.kotest.matchers.shouldBe
@@ -122,7 +123,105 @@ class CollectedDataDeletionServiceTest {
 		}
 	}
 
+	@Test
+	fun `new deletion attempt preserves an existing durable marker`() = runTest {
+		val originalMarker = "already-pending"
+		markerFile.writeText(originalMarker)
+		val service = createService { _, _, _, _ ->
+			throw SQLiteException("interrupted again")
+		}
+
+		runCatching { service.deleteAll() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<SQLiteException>()
+
+		markerFile.exists() shouldBe true
+		markerFile.readText() shouldBe originalMarker
+		File(markerFile.parentFile, "${markerFile.name}.tmp").exists() shouldBe false
+	}
+
+	@Test
+	fun `complete deletion orders Tracker data before Tracebox diagnostics`() = runTest {
+		val operations = mutableListOf<String>()
+		coEvery { exportPlanStore.resetAllWatermarks() } coAnswers {
+			operations += "watermarks"
+			ExportPlansProto.getDefaultInstance()
+		}
+		val service = createService(
+			traceboxDataDeletion = {
+				operations += "tracebox"
+				true
+			},
+		) { _, _, _, _ ->
+			operations += "tracker"
+		}
+
+		service.deleteAll()
+
+		operations shouldBe listOf("tracker", "watermarks", "tracebox")
+		markerFile.exists() shouldBe false
+	}
+
+	@Test
+	fun `pending Tracebox deletion retains marker and retries the full transaction`() =
+		runTest {
+			val operations = mutableListOf<String>()
+			var traceboxComplete = false
+			val service = createService(
+				traceboxDataDeletion = {
+					operations += "tracebox"
+					traceboxComplete
+				},
+			) { _, _, _, _ ->
+				operations += "tracker"
+			}
+
+			runCatching { service.deleteAll() }
+				.exceptionOrNull()
+				.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+			operations shouldBe listOf("tracker", "tracebox")
+			markerFile.exists() shouldBe true
+
+			traceboxComplete = true
+			service.reconcilePendingDeletion()
+
+			operations shouldBe listOf(
+				"tracker",
+				"tracebox",
+				"tracker",
+				"tracebox",
+			)
+			markerFile.exists() shouldBe false
+		}
+
+	@Test
+	fun `Tracebox exception retains marker and is retried`() = runTest {
+		var deletionAttempts = 0
+		var shouldFail = true
+		val service = createService(
+			traceboxDataDeletion = {
+				deletionAttempts += 1
+				if (shouldFail) error("Tracebox unavailable")
+				true
+			},
+		) { _, _, _, _ -> }
+
+		runCatching { service.deleteAll() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+
+		deletionAttempts shouldBe 1
+		markerFile.exists() shouldBe true
+
+		shouldFail = false
+		service.reconcilePendingDeletion()
+
+		deletionAttempts shouldBe 2
+		markerFile.exists() shouldBe false
+	}
+
 	private fun createService(
+		traceboxDataDeletion: suspend () -> Boolean = { true },
 		appDatabaseDeletion: suspend (android.content.Context, Long, Long?, Long) -> Unit,
 	) = DefaultCollectedDataDeletionService(
 		context = context,
@@ -130,6 +229,7 @@ class CollectedDataDeletionServiceTest {
 		exportPlanStore = exportPlanStore,
 		writerQuiescer = writerQuiescer,
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
+		traceboxDataDeletion = traceboxDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletion,
 		markerFile = markerFile,
 		directorySync = {},

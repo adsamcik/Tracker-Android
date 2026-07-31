@@ -158,7 +158,6 @@
     <string name="trip_detail_route_map">Route map</string>
     <string name="trip_detail_view_on_map" translatable="false">View on map</string>
     <string name="trip_route_preview_loading" translatable="false">Loading route map…</string>
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <string name="trip_detail_no_location_data">No location data</string>
     <string name="trip_detail_route_unavailable_legacy">Route map not available for legacy sessions</string>
     <string name="trip_detail_route_no_gps_points">Distance recorded but no GPS route available</string>

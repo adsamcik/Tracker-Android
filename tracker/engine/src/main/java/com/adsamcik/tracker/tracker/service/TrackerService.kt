@@ -7,7 +7,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.PowerManager
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -19,7 +20,6 @@ import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.service.CoreService
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -105,9 +105,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	lateinit var trackingParamsRepository: TrackingParamsRepository
 
 	@Inject
-	lateinit var trackerSettingsRepository: TrackerSettingsRepository
-
-	@Inject
 	lateinit var appDatabase: AppDatabase
 
 	@Inject
@@ -171,7 +168,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			dispatchers = dispatchers,
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
-			trackerSettingsRepository = trackerSettingsRepository,
 			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
 				ensureForegroundStarted(
 					requiresLocation = requiresLocation,
@@ -219,15 +215,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val isWatchdogRestart = intent?.hasExtra(ARG_POLICY_TIER) == true
 		val watchdogDescriptor = intent?.takeIf { isWatchdogRestart }?.toRestartDescriptor()
 		if (isWatchdogRestart && watchdogDescriptor?.isRestartEligible != true) {
-			Reporter.w(
-				"TrackerService",
-				"Ignoring restart intent without an active, user-initiated logical session",
-			)
 			requestGracefulStop(startId)
 			return START_NOT_STICKY
 		}
 		if (isWatchdogRestart && sessionInfo != null && !gracefulStopRequested) {
-			Reporter.log("Ignoring watchdog restart because this service instance is already active")
 			return if (sessionInfo?.isInitiatedByUser == true) {
 				START_REDELIVER_INTENT
 			} else {
@@ -242,21 +233,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						val descriptor = result.descriptor
 						?.takeIf { it.isRestartEligible }
 						?: run {
-							Reporter.w(
-								"TrackerService",
-								"Restarted with null intent and no durable user session; stopping service",
-							)
 							requestGracefulStop(startId)
 							return@launch
 						}
-						Reporter.w(
-							"TrackerService",
-							"Restarted with null intent; recovering durable user session",
-						)
 						beginSession(descriptor, startId)
 					}
 					is ActiveTrackingSessionStoreResult.Failure -> {
-						Reporter.report(result.cause)
+						TrackerDiagnostics.record(
+							TrackerDiagnosticCode.TRACKING_SESSION_RECOVERY_FAILED,
+						)
 						requestGracefulStop(startId)
 					}
 				}
@@ -406,10 +391,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					waitTimeoutMillis = PREVIOUS_TEARDOWN_WAIT_TIMEOUT_MILLIS,
 				) {
 					recoverIncompleteTeardown(previousServiceTeardown)
-					when (val result = activeTrackingSessionStore.save(provisionalDescriptor)) {
-						is ActiveTrackingSessionStoreResult.Success -> Unit
-						is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
-					}
+					saveActiveSession(provisionalDescriptor)
 					timerComponent.onDisable(this@TrackerService)
 					timerComponent = NoTimer()
 					if (!quiesceCycleDispatcherForReplacement()) {
@@ -431,10 +413,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						cellAvailable = hasCellScanPermission,
 						barometerAvailable = hasPressureSensor,
 					)) {
-						Reporter.w(
-							"TrackerService",
-							"Stopping start request because no configured capture source is available",
-						)
 						requestGracefulStop(
 							startId,
 							TrackingStopCandidateReason.CAPTURE_UNAVAILABLE,
@@ -463,10 +441,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					val descriptor = provisionalDescriptor.copy(policyTier = initialTier)
 					activeSessionDescriptor = descriptor
 					if (descriptor != provisionalDescriptor) {
-						when (val result = activeTrackingSessionStore.save(descriptor)) {
-							is ActiveTrackingSessionStoreResult.Success -> Unit
-							is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
-						}
+						saveActiveSession(descriptor)
 					}
 					controller.updatePolicyTier(initialTier)
 					observeDescriptorTierChanges(descriptor)
@@ -510,17 +485,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
 						timerComponent.onEnable(this@TrackerService, this@TrackerService)
 					} else {
-						Reporter.report("Missing permissions for ${timerComponent.javaClass}")
+						TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_START_FAILED)
 						requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
 					}
 				}
 			} catch (e: TimeoutCancellationException) {
-				Reporter.report(IllegalStateException("Timed out waiting for prior tracking lifecycle work", e))
+				TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_START_FAILED)
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Reporter.report(IllegalStateException("Failed to initialize tracking service", e))
+				TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_START_FAILED)
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
@@ -538,10 +513,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					if (tier == PolicyTier.OFF) return@collect
 					val updated = initialDescriptor.copy(policyTier = tier)
 					activeSessionDescriptor = updated
-					when (val result = activeTrackingSessionStore.save(updated)) {
-						is ActiveTrackingSessionStoreResult.Success -> Unit
-						is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
-					}
+					saveActiveSession(updated)
 				}
 		}
 	}
@@ -640,16 +612,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 		true
 	} catch (exception: SecurityException) {
-		Reporter.w("TrackerService", "startForeground rejected for FGS type=$type: ${exception.message}")
 		false
 	} catch (@Suppress("TooGenericExceptionCaught") exception: RuntimeException) {
 		val isForegroundStartRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
 			exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
 		if (isForegroundStartRestricted) {
-			Reporter.w(
-				"TrackerService",
-				"Foreground start not allowed from background: ${exception.message}",
-			)
 			false
 		} else {
 			throw exception
@@ -658,14 +625,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun onForegroundStartFailed(stopService: Boolean) {
 		if (stopService) {
-			Reporter.w("TrackerService", "No permitted foreground-service type available; stopping service")
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_START_FAILED)
 			TrackerNotificationManager.postStartFailedNotification(this)
 			requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
-		} else {
-			Reporter.w(
-				"TrackerService",
-				"Location foreground declaration unavailable; keeping the current non-GPS session",
-			)
 		}
 	}
 
@@ -675,10 +637,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
 			orchestrator.onCycleUpdate(this@TrackerService, cycle)
-		} catch (e: CancellationException) {
-			throw e
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Reporter.report(e)
 		} finally {
 			if (wakeLock.isHeld) wakeLock.release()
 		}
@@ -696,7 +654,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			scope = dispatcherScope,
 			dispatcher = dispatchers.default,
 			capacity = TRACKING_CYCLE_QUEUE_CAPACITY,
-			onFailure = Reporter::report,
 			processCycle = ::processCycleUpdate,
 		)
 	}
@@ -712,11 +669,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Reporter.report(IllegalStateException("Failed to drain tracking cycles before restart", e))
 			false
-		}
-		if (!drained) {
-			Reporter.log("Tracker cycle drain timed out before session restart")
 		}
 
 		val cancelled = try {
@@ -727,13 +680,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Reporter.report(IllegalStateException("Failed to cancel tracking cycles before restart", e))
 			false
 		}
 		cycleDispatcherScope?.cancel()
 		cycleDispatcherScope = null
-		if (!cancelled) {
-			Reporter.report("Tracking cycle cancellation timed out before session restart")
+		if (!drained || !cancelled) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED)
 		}
 		return cancelled
 	}
@@ -742,12 +694,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		when (errorData.severity) {
 			TrackerTimerErrorSeverity.STOP_SERVICE ->
 				requestGracefulStop(reason = TrackingStopCandidateReason.TIMER_FAILURE)
-			TrackerTimerErrorSeverity.REPORT -> Reporter.report(errorData.internalMessage)
 			TrackerTimerErrorSeverity.NOTIFY_USER -> orchestrator.notificationComponent.onError(
 				this,
 				errorData.messageRes
 			)
-			TrackerTimerErrorSeverity.WARNING -> Reporter.log(errorData.internalMessage)
 		}
 	}
 
@@ -776,10 +726,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			// Keep the stop candidate durable until teardown completes.  An unexpected kill in this
 			// interval must not be interpreted as a user-session crash eligible for restart.
 			if (stopCandidate != null) {
-				when (val result = activeTrackingSessionStore.save(stopCandidate)) {
-					is ActiveTrackingSessionStoreResult.Success -> Unit
-					is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
-				}
+				saveActiveSession(stopCandidate)
 			}
 			if (startId == null) {
 				stopSelf()
@@ -793,12 +740,20 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val stopCandidate = activeSessionDescriptor
 			?.takeIf { it.lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE }
 			?: return
-		when (val result = activeTrackingSessionStore.clearIfCurrent(stopCandidate)) {
-			is ActiveTrackingSessionStoreResult.Success -> {
-				// Do not overwrite a newer service run's descriptor if it won the atomic comparison.
-				if (result.descriptor == null) activeSessionDescriptor = null
-			}
-			is ActiveTrackingSessionStoreResult.Failure -> Reporter.report(result.cause)
+		val result = activeTrackingSessionStore.clearIfCurrent(stopCandidate)
+		if (result is ActiveTrackingSessionStoreResult.Failure) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED)
+			return
+		}
+		// Do not overwrite a newer service run's descriptor if it won the atomic comparison.
+		if ((result as ActiveTrackingSessionStoreResult.Success).descriptor == null) {
+			activeSessionDescriptor = null
+		}
+	}
+
+	private suspend fun saveActiveSession(descriptor: ActiveTrackingSessionDescriptor) {
+		if (activeTrackingSessionStore.save(descriptor) is ActiveTrackingSessionStoreResult.Failure) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED)
 		}
 	}
 
@@ -843,11 +798,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = null
 		val context: Context = this
-		try {
-			timerRef.onDisable(context)
-		} catch (e: Exception) {
-			Reporter.report(IllegalStateException("Failed to disable collection trigger during shutdown", e))
-		}
+		disableTimerBestEffort(timerRef, context)
 
 		super.onDestroy()
 		stopForeground(STOP_FOREGROUND_REMOVE)
@@ -936,11 +887,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private suspend fun performTeardown(context: Context) {
 		try {
-			timerComponent.onDisable(context)
-		} catch (e: Exception) {
-			Reporter.report(
-				IllegalStateException("Failed to disable late collection trigger during shutdown", e)
-			)
+			disableTimerBestEffort(timerComponent, context)
 		} finally {
 			timerComponent = NoTimer()
 		}
@@ -966,41 +913,28 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			cycleDispatcherScope?.cancel()
 			cycleDispatcherScope = null
 		}
-		shutdownSequence.drainFailure?.let { failure ->
-			Reporter.report(IllegalStateException("Failed to drain tracking cycles during shutdown", failure))
-		}
-		shutdownSequence.shutdownFailure?.let { failure ->
-			Reporter.report(IllegalStateException("Failed to finalize tracking shutdown", failure))
-		}
 		var finalCycleCancellationFailure = shutdownSequence.cycleCancellationFailure
-		finalCycleCancellationFailure?.let { failure ->
-			Reporter.report(IllegalStateException("Failed to cancel tracking cycles during shutdown", failure))
-			if (::cycleDispatcher.isInitialized) {
-				try {
-					retryTrackingShutdown(
-						maxAttempts = FINAL_CYCLE_CANCEL_MAX_ATTEMPTS,
-						retryDelayMillis = FINAL_CYCLE_CANCEL_RETRY_DELAY_MILLIS,
-						attemptTimeoutMillis = CYCLE_CANCEL_TIMEOUT_MILLIS,
-					) {
-						cycleDispatcher.cancelAndJoin()
-					}
-					finalCycleCancellationFailure = null
-				} catch (e: Exception) {
-					finalCycleCancellationFailure = e
-					Reporter.report(
-						IllegalStateException("Failed final tracking-cycle cancellation", e)
-					)
+		if (finalCycleCancellationFailure != null && ::cycleDispatcher.isInitialized) {
+			try {
+				retryTrackingShutdown(
+					maxAttempts = FINAL_CYCLE_CANCEL_MAX_ATTEMPTS,
+					retryDelayMillis = FINAL_CYCLE_CANCEL_RETRY_DELAY_MILLIS,
+					attemptTimeoutMillis = CYCLE_CANCEL_TIMEOUT_MILLIS,
+				) {
+					cycleDispatcher.cancelAndJoin()
 				}
+				finalCycleCancellationFailure = null
+			} catch (e: Exception) {
+				finalCycleCancellationFailure = e
 			}
 		}
-		if (!shutdownSequence.drained) {
-			Reporter.log("Tracker cycle drain timed out; cancelled queued cycles before teardown")
-		}
 		if (
+			!shutdownSequence.drained ||
+			shutdownSequence.drainFailure != null ||
 			finalCycleCancellationFailure != null ||
 			shutdownSequence.shutdownResult == null
 		) {
-			Reporter.log("Tracker shutdown cleanup failed; enqueueing daily summary fallback")
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED)
 			orchestrator.enqueueDailySummaryFallback(context)
 			retryTrackingShutdown(
 				maxAttempts = FINAL_TEARDOWN_MAX_ATTEMPTS,
@@ -1018,6 +952,14 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			)
 		}
 		HistoricalTrajectoryReconstructionWorker.schedule(context)
+	}
+
+	private fun disableTimerBestEffort(timer: CollectionTriggerComponent, context: Context) {
+		try {
+			timer.onDisable(context)
+		} catch (_: Exception) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED)
+		}
 	}
 
 	companion object {

@@ -27,8 +27,6 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
-import com.adsamcik.tracker.tracker.data.PersistenceError
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.coVerify
@@ -231,7 +229,6 @@ class PersistenceRecoveryCrossSessionTest {
 			val pressureDao = mockk<PressureSampleDao>(relaxed = true)
 			val stepDao = mockk<StepIntervalDao>(relaxed = true)
 			val activityDao = mockk<ActivitySnapshotDao>(relaxed = true)
-			val errorCollector = mockk<PersistenceErrorCollector>(relaxed = true)
 
 			val processor = PersistenceProcessor(
 				locationSampleDao = locationDao,
@@ -245,7 +242,6 @@ class PersistenceRecoveryCrossSessionTest {
 				pendingSignalClaimDao = claimDao,
 				durableBuffer = durableBuffer,
 				transactor = passthroughTransactor,
-				errorCollector = errorCollector,
 			)
 
 			// --- New process: PersistenceProcessor starts under a *different*
@@ -264,6 +260,5 @@ class PersistenceRecoveryCrossSessionTest {
 
 			// The exact WAL rows (session A's) were acknowledged — none orphaned.
 			fakeDao.store.shouldBeEmpty()
-			coVerify(exactly = 0) { errorCollector.reportError(any<PersistenceError>()) }
 		}
 }

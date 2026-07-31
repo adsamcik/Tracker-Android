@@ -10,7 +10,6 @@ import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import com.adsamcik.tracker.game.repository.DefaultGameRepository
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.service.CoreService
@@ -122,20 +121,12 @@ internal class GameSessionService : CoreService() {
 			ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
 		)
 		null
-	} catch (exception: SecurityException) {
-		Reporter.w(
-			"GameSessionService",
-			"Location foreground start rejected: ${exception.message}",
-		)
+	} catch (_: SecurityException) {
 		GameSessionFailureReason.PERMISSION_REQUIRED
 	} catch (@Suppress("TooGenericExceptionCaught") exception: RuntimeException) {
 		val isForegroundStartRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
 			exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
 		if (!isForegroundStartRestricted) throw exception
-		Reporter.w(
-			"GameSessionService",
-			"Foreground start not allowed from background: ${exception.message}",
-		)
 		GameSessionFailureReason.INTERNAL_ERROR
 	}
 

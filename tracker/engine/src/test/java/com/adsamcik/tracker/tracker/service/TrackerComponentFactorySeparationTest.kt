@@ -5,10 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
@@ -16,7 +14,6 @@ import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -77,16 +74,13 @@ class TrackerComponentFactorySeparationTest {
 		val factory = TrackerComponentFactory(
 			appDatabase = database,
 			trackingParamsRepository = fakeParams(state),
-			trackerSettingsRepository = mockk<TrackerSettingsRepository>(relaxed = true),
 			dispatchers = testDispatcherProvider,
 			enableNotifications = false,
 		)
 		return factory.create(
 			context = context,
 			isSessionUserInitiated = true,
-			tier = PolicyTier.PRECISION,
 			notificationComponent = NotificationComponent(),
-			trackingPolicyManager = null,
 			escalationEngine = DefaultPolicyEscalationEngine(),
 			controller = DefaultTrackerServiceController(),
 			scope = scope,
@@ -113,7 +107,6 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.any { it is CellTrackerComponent } shouldBe true
 		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
-		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
@@ -136,7 +129,6 @@ class TrackerComponentFactorySeparationTest {
 		// Critical: with location disabled there must be NO location pre-tracker, otherwise every
 		// non-location cycle would be rejected for lack of a GPS fix.
 		set.dataComponents shouldHaveSize 4
-		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
@@ -157,7 +149,6 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.count { it is CellTrackerComponent } shouldBe 1
 		set.dataComponents.any { it is LocationTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
-		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
@@ -178,7 +169,6 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.count { it is ActivityTrackerComponent } shouldBe 1
 		set.dataComponents.any { it is LocationTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
-		set.preComponents.shouldBeEmpty()
 	}
 
 	@Test
@@ -201,6 +191,5 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.any { it is CellTrackerComponent } shouldBe true
 		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
-		set.preComponents.shouldBeEmpty()
 	}
 }

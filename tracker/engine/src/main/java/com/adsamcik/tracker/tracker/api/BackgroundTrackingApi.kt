@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
 import android.content.Context
-import android.util.Log
 import androidx.annotation.MainThread
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
@@ -13,17 +12,16 @@ import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
-import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.logger.assertFalse
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
@@ -95,7 +93,6 @@ object BackgroundTrackingApi {
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
-	private const val TAG = "BackgroundTrackingApi"
 	private var appContext: Context? = null
 	@Volatile
 	private var entryPoint: BackgroundTrackingApiEntryPoint? = null
@@ -349,7 +346,6 @@ object BackgroundTrackingApi {
 	}
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
-		assertTrue(isActive)
 		val generation = ++requestMutationGeneration
 
 		val requestData = if (useTransitionApi) {
@@ -409,12 +405,6 @@ object BackgroundTrackingApi {
 								exception.addSuppressed(cleanupFailure)
 								cleanupFailureAttached = true
 							}
-							Reporter.report(
-								IllegalStateException(
-									"Failed to remove background activity recognition request",
-									cleanupFailure,
-								),
-							)
 						},
 					) {
 						requestManager.removeActivityRequest(context, this::class)
@@ -430,13 +420,11 @@ object BackgroundTrackingApi {
 		getEntryPoint(context).activityWatcherController()
 
 	private fun enable(context: Context) {
-		assertFalse(isActive)
 		isActive = true
 		reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
 	}
 
 	private fun disable(context: Context) {
-		assertTrue(isActive)
 		isActive = false
 		cancelAutomaticStopGrace()
 		val generation = ++requestMutationGeneration
@@ -452,14 +440,6 @@ object BackgroundTrackingApi {
 			stepCorroborator.stop(context)
 			val removed = reconcileActivityRequestRemoval(
 				shouldContinue = { generation == requestMutationGeneration && !isActive },
-				onFailure = { failure ->
-					Reporter.report(
-						IllegalStateException(
-							"Failed to disable background activity recognition",
-							failure,
-						),
-					)
-				},
 			) {
 				requestManager.removeActivityRequest(context, this::class)
 			}
@@ -476,8 +456,8 @@ object BackgroundTrackingApi {
 				block()
 			} catch (e: CancellationException) {
 				throw e
-			} catch (e: Exception) {
-				Reporter.report(IllegalStateException("Failed to update activity recognition request", e))
+			} catch (_: Exception) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
 			}
 		}
 	}
@@ -514,8 +494,8 @@ object BackgroundTrackingApi {
 				}
 				paramsInitialized = true
 			}
-			.catch { throwable ->
-				Log.e(TAG, "Tracking params flow collection failed", throwable)
+			.catch {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -524,8 +504,8 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_key,
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
-			.catch { throwable ->
-				Log.e(TAG, "Disabled recharge flow collection failed", throwable)
+			.catch {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -534,8 +514,8 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
 		).onEach { activityFreqSeconds = it }
-			.catch { throwable ->
-				Log.e(TAG, "Activity frequency flow collection failed", throwable)
+			.catch {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -544,8 +524,8 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
-			.catch { throwable ->
-				Log.e(TAG, "Activity watcher flow collection failed", throwable)
+			.catch {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 	}
@@ -652,7 +632,7 @@ internal suspend fun reconcileActivityRequestRemoval(
 	maxRetryDelayMillis: Long = 5_000L,
 	maxAttempts: Int = 6,
 	shouldContinue: () -> Boolean,
-	onFailure: (Exception) -> Unit,
+	onFailure: (Exception) -> Unit = {},
 	remove: suspend () -> Unit,
 ): Boolean {
 	require(initialRetryDelayMillis >= 0L)

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import app.cash.turbine.test
+import com.adsamcik.tracker.game.data.MiniGameScore
+import com.adsamcik.tracker.game.data.MiniGameScoreRepository
 import com.adsamcik.tracker.game.leaderboard.GhostLeaderboardProvider
 import com.adsamcik.tracker.game.leaderboard.LeaderboardMetric
 import com.adsamcik.tracker.game.minigame.MiniGame
@@ -13,8 +15,6 @@ import com.adsamcik.tracker.game.repository.PlayerProfileUi
 import com.adsamcik.tracker.game.repository.StepsSummaryData
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -63,7 +63,7 @@ class GameViewModelTest {
 	fun hubStateGatesUnlocksAndMapsPersonalBestUnits() = runTest(testDispatcher) {
 		// Player at level 6: Outrun and Territory unlocked; later games locked.
 		val repository = FakeGameRepository(level = 6)
-		val scoreDao = FakeScoreDao(
+		val scoreRepository = FakeScoreRepository(
 			listOf(
 				scoreRow("outrun", 40.0),
 				scoreRow("outrun", 87.0),
@@ -73,9 +73,8 @@ class GameViewModelTest {
 		val vm = GameViewModel(
 			gameRepository = repository,
 			miniGameRegistry = registry(),
-			scoreDao = scoreDao,
+			scoreRepository = scoreRepository,
 			leaderboardProvider = leaderboardProvider,
-			dispatchers = dispatchers,
 		)
 
 		vm.hubState.test {
@@ -108,9 +107,8 @@ class GameViewModelTest {
 		val vm = GameViewModel(
 			gameRepository = FakeGameRepository(level = 9),
 			miniGameRegistry = registry(),
-			scoreDao = FakeScoreDao(emptyList()),
+			scoreRepository = FakeScoreRepository(emptyList()),
 			leaderboardProvider = leaderboardProvider,
-			dispatchers = dispatchers,
 		)
 
 		vm.hubState.test {
@@ -144,7 +142,7 @@ class GameViewModelTest {
 		return item
 	}
 
-	private fun scoreRow(gameId: String, score: Double) = MiniGameScoreEntity(
+	private fun scoreRow(gameId: String, score: Double) = MiniGameScore(
 		gameId = gameId,
 		score = score,
 		xpAwarded = 10,
@@ -200,34 +198,13 @@ private class FakeGameRepository(level: Int) : GameRepository {
 	override suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long) = Unit
 }
 
-private class FakeScoreDao(initial: List<MiniGameScoreEntity>) : MiniGameScoreDao {
+private class FakeScoreRepository(initial: List<MiniGameScore>) : MiniGameScoreRepository {
 	private val all = MutableStateFlow(initial)
 
-	override fun getScoresByGame(gameId: String): Flow<List<MiniGameScoreEntity>> =
-		MutableStateFlow(all.value.filter { it.gameId == gameId }).asStateFlow()
+	override fun observePersonalBest(gameId: String): Flow<Double?> =
+		MutableStateFlow(
+			all.value.filter { it.gameId == gameId }.maxOfOrNull { it.score },
+		).asStateFlow()
 
-	override fun getHighScore(gameId: String): Double? =
-		all.value.filter { it.gameId == gameId }.maxOfOrNull { it.score }
-
-	override suspend fun getPersonalBest(gameId: String): Double? = getHighScore(gameId)
-
-	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = all.asStateFlow()
-
-	override suspend fun getRecentForReconciliation(limit: Int): List<MiniGameScoreEntity> =
-		all.value.sortedByDescending { it.playedAt }.take(limit)
-
-	override suspend fun countTotal(): Long = all.value.size.toLong()
-	override fun deleteAll() { all.value = emptyList() }
-	override suspend fun insert(obj: MiniGameScoreEntity): Long {
-		all.value = all.value + obj
-		return all.value.size.toLong()
-	}
-	override suspend fun insert(obj: Collection<MiniGameScoreEntity>): List<Long> {
-		all.value = all.value + obj
-		return obj.mapIndexed { i, _ -> (all.value.size - obj.size + i + 1).toLong() }
-	}
-	override suspend fun update(obj: MiniGameScoreEntity) = Unit
-	override suspend fun update(obj: Collection<MiniGameScoreEntity>) = Unit
-	override suspend fun delete(obj: MiniGameScoreEntity) = Unit
-	override suspend fun delete(obj: Collection<MiniGameScoreEntity>) = Unit
+	override fun observeRecent(limit: Int): Flow<List<MiniGameScore>> = all.asStateFlow()
 }

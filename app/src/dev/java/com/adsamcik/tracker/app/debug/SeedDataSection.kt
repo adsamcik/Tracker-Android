@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
@@ -73,10 +74,10 @@ fun SeedDataSection() {
 
     ConfirmDialog(
         visible = showConfirmation,
-        title = ctx.getString(R.string.settings_debug_seed_data_confirm_title),
-        message = ctx.getString(R.string.settings_debug_seed_data_confirm_message),
-        confirmLabel = ctx.getString(BaseR.string.generic_yes),
-        dismissLabel = ctx.getString(BaseR.string.generic_no),
+        title = stringResource(R.string.settings_debug_seed_data_confirm_title),
+        message = stringResource(R.string.settings_debug_seed_data_confirm_message),
+        confirmLabel = stringResource(BaseR.string.generic_yes),
+        dismissLabel = stringResource(BaseR.string.generic_no),
         onConfirm = ::startSeeding,
         onDismiss = { showConfirmation = false },
     )

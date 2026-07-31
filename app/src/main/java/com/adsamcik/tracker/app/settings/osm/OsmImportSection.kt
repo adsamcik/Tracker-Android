@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,7 +40,7 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.osm.imp.OsmImportFailureCode
 import com.adsamcik.tracker.osm.imp.OsmImportState
-import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
+import com.adsamcik.tracker.osm.imp.OsmImportSummary
 import java.text.DateFormat
 import java.util.Date
 
@@ -66,7 +67,7 @@ private fun OsmImportSectionContent() {
 		if (uri != null) viewModel.importFromUri(uri)
 	}
 
-	var pendingRemoval by remember { mutableStateOf<OsmImportEntity?>(null) }
+	var pendingRemoval by remember { mutableStateOf<OsmImportSummary?>(null) }
 
 	Column {
 		SectionHeader(stringResource(R.string.settings_osm_import_section))
@@ -78,10 +79,17 @@ private fun OsmImportSectionContent() {
 			val isRunning = uiState.runtimeState is OsmImportState.Running
 			SettingsItem(
 				title = stringResource(R.string.settings_osm_import_action_title),
-				subtitle = if (subtitleArgs.isEmpty()) {
-					stringResource(subtitleRes)
-				} else {
-					stringResource(subtitleRes, *subtitleArgs.toTypedArray())
+				subtitle = when (val state = uiState.runtimeState) {
+					is OsmImportState.Success -> pluralStringResource(
+						subtitleRes,
+						state.wayCount.asQuantity(),
+						*subtitleArgs.toTypedArray(),
+					)
+					else -> if (subtitleArgs.isEmpty()) {
+						stringResource(subtitleRes)
+					} else {
+						stringResource(subtitleRes, *subtitleArgs.toTypedArray())
+					}
 				},
 				icon = Icons.Default.Map,
 				onClick = {
@@ -186,7 +194,7 @@ internal fun OfflinePbfImportUnavailableNotice() {
 
 @Composable
 private fun ImportedRegionRow(
-	entry: OsmImportEntity,
+	entry: OsmImportSummary,
 	onDelete: () -> Unit,
 ) {
 	val date = remember(entry.importedAt) {
@@ -212,8 +220,9 @@ private fun ImportedRegionRow(
 				overflow = TextOverflow.Ellipsis,
 			)
 			Text(
-				text = stringResource(
-					R.string.settings_osm_import_entry_subtitle,
+				text = pluralStringResource(
+					R.plurals.settings_osm_import_entry_subtitle,
+					entry.wayCount.asQuantity(),
 					entry.wayCount,
 					date,
 				),
@@ -243,7 +252,7 @@ private fun importActionSubtitle(state: OsmImportState): Pair<Int, List<Any>> {
 		is OsmImportState.Failed ->
 			importFailureSubtitle(state.failureCode) to emptyList()
 		is OsmImportState.Success ->
-			R.string.settings_osm_import_action_success to
+			R.plurals.settings_osm_import_action_success to
 				listOf<Any>(state.wayCount, state.nodeCount)
 		OsmImportState.Unavailable ->
 			R.string.settings_osm_import_action_unavailable to emptyList()
@@ -251,6 +260,8 @@ private fun importActionSubtitle(state: OsmImportState): Pair<Int, List<Any>> {
 			R.string.settings_osm_import_action_summary to emptyList()
 	}
 }
+
+private fun Long.asQuantity(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 /** Maps internal failure codes to redacted, localized user text. */
 private fun importFailureSubtitle(failureCode: OsmImportFailureCode): Int =

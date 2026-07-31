@@ -61,10 +61,6 @@ jobs:
           chmod +x gradlew
           # Provide placeholder local.properties with required MAPS_API_KEY
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-          # Provide google-services config expected by the app module
-          if [ -f "google-services.json.example" ]; then
-            cp -f google-services.json.example app/google-services.json || true
-          fi
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL

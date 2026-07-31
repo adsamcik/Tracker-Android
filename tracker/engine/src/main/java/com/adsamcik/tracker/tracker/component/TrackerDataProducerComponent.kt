@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
@@ -52,7 +51,6 @@ internal abstract class TrackerDataProducerComponent(
 
 	@CallSuper
 	open suspend fun onEnable(context: Context) {
-		assertTrue(canBeEnabled)
 		isEnabled = true
 	}
 

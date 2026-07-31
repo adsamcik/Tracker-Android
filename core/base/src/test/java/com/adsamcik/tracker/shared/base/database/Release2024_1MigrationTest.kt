@@ -14,7 +14,6 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHelperFactory
-import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import java.io.File
@@ -490,25 +489,6 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
-	fun `debug database migration adds its index and preserves every row`() {
-		val db = openFixture(
-			assetName = "debug_database_sbase.db",
-			targetVersion = 2,
-		) { database, oldVersion, newVersion ->
-			oldVersion shouldBe 1
-			newVersion shouldBe 2
-			DebugDatabase.MIGRATION_1_2.migrate(database)
-		}
-
-		count(db, "debug_activity") shouldBe 4
-		indexNames(db, "debug_activity") shouldContainAll listOf("index_debug_activity_time")
-		db.query("SELECT action FROM debug_activity WHERE id = 3").use { cursor ->
-			cursor.moveToFirst() shouldBe true
-			cursor.isNull(0) shouldBe true
-		}
-	}
-
-	@Test
 	fun `unchanged preference database opens through current Room without migration`() {
 		val name = copyFixture("preference_database.db")
 		val database = Room.databaseBuilder(context, PreferenceDatabase::class.java, name)
@@ -693,14 +673,6 @@ class Release2024_1MigrationTest {
 			cursor.getInt(0)
 		}
 
-	private fun indexNames(db: SupportSQLiteDatabase, table: String): Set<String> =
-		db.query("PRAGMA index_list('$table')").use { cursor ->
-			buildSet {
-				val nameIndex = cursor.getColumnIndexOrThrow("name")
-				while (cursor.moveToNext()) add(cursor.getString(nameIndex))
-			}
-		}
-
 	private fun android.database.Cursor.nullableDouble(index: Int): Double? =
 		if (isNull(index)) null else getDouble(index)
 
@@ -808,22 +780,10 @@ class Release2024_1MigrationTest {
 				legacyDroppedTables.toList() + listOf("activity", "network_operator"),
 			),
 			Fixture(
-				"debug_database_sbase.db",
-				1,
-				"3413cc2a29d2275b27a7c2331a5caece",
-				listOf("debug_activity"),
-			),
-			Fixture(
 				"preference_database.db",
 				1,
 				"0608179a3962e9cd5340a093ba0378d5",
 				listOf("generic", "notification"),
-			),
-			Fixture(
-				"debug_database_logger.db",
-				1,
-				"31f6daf838801d8e7a9fa006060fa58a",
-				listOf("log_data"),
 			),
 			Fixture(
 				"points_database.db",

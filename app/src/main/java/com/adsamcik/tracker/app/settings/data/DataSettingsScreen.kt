@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -51,6 +52,7 @@ import java.util.Locale
 @Composable
 fun DataSettingsScreen() {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val dataVm: DataSettingsViewModel = hiltViewModel()
     val debugVm: DebugSettingsViewModel = hiltViewModel()
 
@@ -83,7 +85,7 @@ fun DataSettingsScreen() {
                     com.adsamcik.tracker.app.settings.MigrationBackupExportResult.CleanupRequired ->
                         R.string.settings_migration_backup_export_cleanup_required
                 }
-                Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(message), Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -27,9 +27,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -128,6 +128,7 @@ fun TrackerRoute(
     val sessionData by controller.sessionFlow.collectAsStateWithLifecycle()
     val collectionData by controller.collectionDataFlow.collectAsStateWithLifecycle()
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
+    val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
     val locationPermissionSatisfied = !trackingParams.locationEnabled || hasLocationPermission
     
@@ -172,7 +173,7 @@ fun TrackerRoute(
     
     // Show snackbar if permission denied (non-blocking, allows retry)
     if (permissionDenied) {
-        val message = context.getString(com.adsamcik.tracker.shared.base.R.string.permission_denied_tracking_disabled)
+        val message = context.getString(com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_disabled)
         PermissionDeniedSnackbar(
             snackbarHostState = snackbarHostState,
             message = message
@@ -194,6 +195,7 @@ fun TrackerRoute(
             policyTier = policyTier,
             precisionModePreset = precisionModePreset,
             trackingParams = trackingParams,
+            recentTrips = recentTrips,
         ),
         dailyPointsProvider = viewModel.dailyPointsProvider,
         dailySummaryProvider = viewModel.dailySummaryProvider,

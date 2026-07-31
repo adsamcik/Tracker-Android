@@ -60,6 +60,6 @@ Validate the complete new-user experience from cold start through first dashboar
 - [ ] Progress indicator shows correct step count (hidden on step 1, shown on steps 2-3)
 - [ ] Back navigation works on steps 2-3 but NOT on step 1
 - [ ] Completion persists across app restart
-- [ ] No crashes (check crash logs after each transition)
+- [ ] No crashes (check Tracebox Diagnostics for a new crash record after each transition)
 - [ ] Touch targets ≥ 48dp on all buttons
 - [ ] Text is readable, no truncation at default and large font sizes

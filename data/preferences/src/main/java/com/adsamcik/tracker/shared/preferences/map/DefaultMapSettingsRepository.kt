@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.preferences.map
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -20,8 +19,7 @@ private object MapSettingsSerializer : Serializer<MapSettingsProto> {
 
     override suspend fun readFrom(input: InputStream): MapSettingsProto = try {
         MapSettingsProto.parseFrom(input)
-    } catch (e: Exception) {
-        Log.w("MapSettings", "Corruption while reading map settings proto – using defaults", e)
+    } catch (_: Exception) {
         defaultValue
     }
 

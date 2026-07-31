@@ -3,13 +3,10 @@ package com.adsamcik.tracker.tracker.service
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
@@ -20,13 +17,8 @@ import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingCompone
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
-import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.toLiveState
-import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
-import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
-import com.adsamcik.tracker.logger.Reporter
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -35,18 +27,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Result of component construction, containing the 3 component lists,
- * session component, persistence error collector, and ski/sailing/plane state wiring.
+ * Result of component construction and optional ski/sailing/plane state wiring.
  */
 internal data class ComponentSet(
-	val preComponents: List<PreTrackerComponent>,
 	val dataComponents: List<DataTrackerComponent>,
 	val skiTrackingComponent: SkiTrackingComponent?,
 	val skiSegmentWriter: SkiSegmentWriter?,
 	val sailingTrackingComponent: SailingTrackingComponent?,
 	val planeTrackingComponent: PlaneTrackingComponent?,
 	val sessionComponent: SessionTrackerComponent,
-	val errorCollector: DefaultPersistenceErrorCollector,
 )
 
 /**
@@ -58,7 +47,6 @@ internal data class ComponentSet(
 internal class TrackerComponentFactory(
 	private val appDatabase: AppDatabase,
 	private val trackingParamsRepository: TrackingParamsRepository,
-	private val trackerSettingsRepository: TrackerSettingsRepository,
 	private val dispatchers: DispatchersProvider,
 	private val enableNotifications: Boolean = true,
 ) {
@@ -79,19 +67,15 @@ internal class TrackerComponentFactory(
 	 * @param controller         service controller for forwarding ski state.
 	 * @param scope              coroutine scope for ski state collection.
 	 */
-	@Suppress("UNUSED_PARAMETER")
 	suspend fun create(
 		context: Context,
 		isSessionUserInitiated: Boolean,
-		tier: PolicyTier,
 		notificationComponent: NotificationComponent,
-		trackingPolicyManager: TrackingPolicyManager?,
 		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 	): ComponentSet {
 		var sessionComponent: SessionTrackerComponent? = null
-		var preComponents: List<PreTrackerComponent> = emptyList()
 		var dataComponents: List<DataTrackerComponent> = emptyList()
 		var notificationEnabled = false
 		var skiTracking: SkiTrackingComponent? = null
@@ -109,16 +93,10 @@ internal class TrackerComponentFactory(
 				onEnable(context)
 			}
 
-			// Single snapshot of the user's per-source toggles. Component/pre-component existence is
-			// derived purely from these toggles, so any combination of sources can be tracked
-			// independently of the battery tier.
-			val params = trackingParamsRepository.data.first()
-
 			// Location quality is validated by LocationTrackerComponent only. A bad/missing GPS fix
 			// must never reject Wi-Fi, cell, activity, step, or pressure data acquired in the same
 			// cycle.
-			preComponents = emptyList()
-			dataComponents = buildDataComponents(context, params)
+			dataComponents = buildDataComponents(context)
 
 			if (enableNotifications) {
 				notificationComponent.onEnable(context)
@@ -151,87 +129,34 @@ internal class TrackerComponentFactory(
 			)
 
 			return ComponentSet(
-				preComponents = preComponents,
 				dataComponents = dataComponents,
 				skiTrackingComponent = skiTracking,
 				skiSegmentWriter = skiWriter,
 				sailingTrackingComponent = sailingTracking,
 				planeTrackingComponent = planeTracking,
 				sessionComponent = requireNotNull(sessionComponent),
-				errorCollector = DefaultPersistenceErrorCollector(),
 			)
 		} catch (failure: Exception) {
 			withContext(NonCancellable) {
 				stateCollectorJobs.forEach(Job::cancel)
-				rollback("plane component") { planeTracking?.onDisable(context) }
-				rollback("sailing component") { sailingTracking?.onDisable(context) }
-				rollback("ski component") { skiTracking?.onDisable(context) }
-				rollback("ski writer") { skiWriter?.onDisable(context) }
+				rollback { planeTracking?.onDisable(context) }
+				rollback { sailingTracking?.onDisable(context) }
+				rollback { skiTracking?.onDisable(context) }
+				rollback { skiWriter?.onDisable(context) }
 				if (notificationEnabled) {
-					rollback("notification component") { notificationComponent.onDisable(context) }
+					rollback { notificationComponent.onDisable(context) }
 				}
 				dataComponents.asReversed().forEach { component ->
-					rollback("data component") { component.onDisable(context) }
+					rollback { component.onDisable(context) }
 				}
-				preComponents.asReversed().forEach { component ->
-					rollback("pre component") { component.onDisable(context) }
-				}
-				rollback("session component") { sessionComponent?.onDisable(context) }
+				rollback { sessionComponent?.onDisable(context) }
 			}
 			throw failure
 		}
 	}
 
-	private suspend fun rollback(label: String, block: suspend () -> Unit) {
-		try {
-			block()
-		} catch (cleanupFailure: Exception) {
-			Reporter.report(IllegalStateException("Failed to roll back $label", cleanupFailure))
-		}
-	}
-
-	/**
-	 * Build pre-validation components for the session.
-	 *
-	 * The location pre-tracker gates the whole cycle on a usable GPS fix when the policy demands
-	 * location. It must therefore only be installed when the user actually enabled location —
-	 * otherwise a Wi-Fi/cell/activity-only session would have every cycle rejected for lack of a
-	 * fix. When location is disabled this returns an empty list so non-location cycles always pass.
-	 */
-	private suspend fun buildPreComponents(
-		context: Context,
-		trackingPolicyManager: TrackingPolicyManager?,
-		controller: TrackerServiceController,
-		params: TrackingParamsState,
-	): List<PreTrackerComponent> {
-		if (!params.locationEnabled) return emptyList()
-
-		val components = mutableListOf<PreTrackerComponent>().apply {
-			trackingPolicyManager?.let { policyMgr ->
-				add(PolicyAwareLocationPreTrackerComponent(
-					policyFlow = policyMgr.currentPolicy,
-					effectiveTierFlow = controller.policyTierFlow,
-					trackingParamsRepository = trackingParamsRepository,
-				))
-			} ?: run {
-				add(LocationPreTrackerComponent(trackingParamsRepository = trackingParamsRepository))
-			}
-		}
-		val enabled = mutableListOf<PreTrackerComponent>()
-		try {
-			for (component in components) {
-				component.onEnable(context)
-				enabled += component
-			}
-		} catch (failure: Exception) {
-			withContext(NonCancellable) {
-				enabled.asReversed().forEach { component ->
-					rollback("pre component") { component.onDisable(context) }
-				}
-			}
-			throw failure
-		}
-		return components
+	private suspend fun rollback(block: suspend () -> Unit) {
+		runCatchingCancellable { block() }.getOrNull()
 	}
 
 	/**
@@ -241,10 +166,8 @@ internal class TrackerComponentFactory(
 	 * the battery tier. Components also self-skip when their data is absent (see
 	 * `TrackerComponentRequirement`), so a built-but-starved component is harmless.
 	 */
-	@Suppress("UNUSED_PARAMETER")
 	private suspend fun buildDataComponents(
 		context: Context,
-		params: TrackingParamsState,
 	): List<DataTrackerComponent> {
 		val components = listOf(
 			ActivityTrackerComponent(),
@@ -261,7 +184,7 @@ internal class TrackerComponentFactory(
 		} catch (failure: Exception) {
 			withContext(NonCancellable) {
 				enabled.asReversed().forEach { component ->
-					rollback("data component") { component.onDisable(context) }
+					rollback { component.onDisable(context) }
 				}
 			}
 			throw failure
@@ -295,8 +218,8 @@ internal class TrackerComponentFactory(
 			return skiComponent to segmentWriter
 		} catch (failure: Exception) {
 			withContext(NonCancellable) {
-				rollback("ski component") { skiComponent.onDisable(context) }
-				rollback("ski writer") { segmentWriter.onDisable(context) }
+				rollback { skiComponent.onDisable(context) }
+				rollback { segmentWriter.onDisable(context) }
 			}
 			throw failure
 		}
@@ -325,7 +248,7 @@ internal class TrackerComponentFactory(
 			return sailingComponent
 		} catch (failure: Exception) {
 			withContext(NonCancellable) {
-				rollback("sailing component") { sailingComponent.onDisable(context) }
+				rollback { sailingComponent.onDisable(context) }
 			}
 			throw failure
 		}
@@ -354,7 +277,7 @@ internal class TrackerComponentFactory(
 			return planeComponent
 		} catch (failure: Exception) {
 			withContext(NonCancellable) {
-				rollback("plane component") { planeComponent.onDisable(context) }
+				rollback { planeComponent.onDisable(context) }
 			}
 			throw failure
 		}

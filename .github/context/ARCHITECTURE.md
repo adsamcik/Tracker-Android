@@ -12,8 +12,8 @@ Comprehensive architecture reference for Tracker Android.
 
 ```
 APPLICATION LAYER: app
-  Entry point, Hilt DI, Navigation, Settings, Onboarding
-  AppGraph.kt | MainActivityCompose | MainRoot | Routes.kt
+  Entry point, Hilt composition, Navigation, Settings, Onboarding
+  Application | app/di modules | MainActivityCompose | MainRoot | Routes
 
 FEATURE MODULES:
   feature/tracker       - Tracking Compose UI and notification customization
@@ -25,16 +25,28 @@ FEATURE MODULES:
   feature/import-export - GPX/KML/JSON/SQLite import/export
 
 SHARED LIBRARIES:
-  core/base (Room DB v40) | core/ui (AppTheme) | data/preferences
-  core/sqlite-runtime (SQLiteX SupportSQLite adapter)
+  core/base (Room DB v40, no Compose) | core/ui (AppTheme + screen-local permission UI)
+  data/preferences | core/sqlite-runtime
 
 DOMAIN/ANALYTICS:
   stats/api (contracts) | stats/engine (algorithms) | stats/data
   tracker/control (pure tracking decision reducer)
+  domain/points | domain/osm | domain/geocoder
 
 SUPPORTING:
-  core/logging | core/logging-api | domain/points | core/testing
+  core/diagnostics | core/testing
+
+BOUNDARIES:
+  Feature ViewModels -> feature repositories/ports -> Room adapters
+  App OSM settings -> OsmImportController -> OSM DAO/worker
+  App diagnostics -> core/diagnostics (payload-free) -> Tracebox
+  feature/statistics -> feature/map/api RoutePreviewRenderer
+  feature/statistics -> feature/statistics/api TripGpxExporter <- feature/import-export adapter
 ```
+
+`:core:diagnostics` is the payload-free application boundary for fixed diagnostic
+codes. Tracebox is the sole crash and diagnostic backend; Tracker has no
+diagnostic Room storage or parallel crash pipeline.
 
 ## Module Details
 
@@ -44,7 +56,7 @@ SUPPORTING:
 | Component | File | Purpose |
 |-----------|------|---------|
 | Application | `app/.../Application.kt` | `@HiltAndroidApp`, WorkManager config |
-| AppGraph | `app/.../AppGraph.kt` | Composition root: DispatchersProvider, Clock, DB, repos |
+| App composition | `app/.../di/` | `AppGraphModule`, `InfrastructureModule`, `RepositoryModule`, and `StartupModule` compose runtime implementations |
 | MainActivityCompose | `app/.../activity/MainActivityCompose.kt` | `@AndroidEntryPoint`, CompositionLocalProvider |
 | MainRoot | `app/.../ui/MainRoot.kt` | NavHost, floating bottom bar, Haze effect |
 | Routes | `app/.../ui/navigation/Routes.kt` | `@Serializable` route definitions |
@@ -168,10 +180,16 @@ User taps Start -> TrackerServiceController.startTracking()
 
 ### Import/Export Flow
 ```
-User selects format (GPX/KML/JSON/SQLite)
-  -> Exporter interface -> streaming writer (O(1) memory)
-  -> Query sessions/locations from Room DB (windowed)
-  -> Write to file -> user picks save location
+General import/export screen
+  -> ImportExportViewModel
+  -> ImportExportDataRepository -> Room adapter
+  -> Exporter/importer -> streaming file I/O
+
+Statistics GPX share
+  -> GpxShareHelper
+  -> feature/statistics/api TripGpxExporter
+  -> feature/import-export ImportExportTripGpxExporter
+  -> streaming GpxExporter -> system share sheet
 ```
 
 <!-- context-init:user-content-below -->

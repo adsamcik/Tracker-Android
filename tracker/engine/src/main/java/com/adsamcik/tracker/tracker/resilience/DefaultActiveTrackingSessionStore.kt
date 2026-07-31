@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -22,7 +21,6 @@ private object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessio
 	override suspend fun readFrom(input: InputStream): ActiveTrackingSessionProto = try {
 		ActiveTrackingSessionProto.parseFrom(input)
 	} catch (exception: Exception) {
-		Log.w(TAG, "Unable to read active tracking session; using empty state", exception)
 		defaultValue
 	}
 
@@ -33,7 +31,6 @@ private object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessio
 		t.writeTo(output)
 	}
 
-	private const val TAG = "ActiveTrackingSession"
 }
 
 private val Context.activeTrackingSessionDataStore: DataStore<ActiveTrackingSessionProto> by dataStore(

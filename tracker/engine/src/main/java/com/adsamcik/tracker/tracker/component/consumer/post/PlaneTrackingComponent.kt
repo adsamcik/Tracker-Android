@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
@@ -103,18 +102,14 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 		}
 		lastCollectionTimeMs = timeMs
 
-		try {
-			val state = detector.onSample(
-				timeMs = timeMs,
-				altitudeM = reading.altitudeM,
-				speedMps = speedMps,
-				stepRatePerMin = stepRatePerMin,
-			)
-			if (state != null) {
-				_planeState.value = state
-			}
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			ReporterFacade.report(e)
+		val state = detector.onSample(
+			timeMs = timeMs,
+			altitudeM = reading.altitudeM,
+			speedMps = speedMps,
+			stepRatePerMin = stepRatePerMin,
+		)
+		if (state != null) {
+			_planeState.value = state
 		}
 	}
 

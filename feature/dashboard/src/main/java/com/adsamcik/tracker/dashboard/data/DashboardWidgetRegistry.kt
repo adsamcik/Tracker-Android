@@ -28,11 +28,7 @@ data class ResolvedWidget(
  *   (e.g., LatestAchievement uses an empty state, LastSession only if session data exists)
  */
 @Singleton
-class DashboardWidgetRegistry @Inject constructor(
-	private val layoutRepository: DashboardLayoutRepository,
-) {
-
-	val layout = layoutRepository.layout
+class DashboardWidgetRegistry @Inject constructor() {
 
 	/**
 	 * Resolve the visible, ordered list of widgets for the idle dashboard.

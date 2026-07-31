@@ -18,13 +18,10 @@ import java.io.File
  * @Test
  * fun `test file operations`() {
  *     val fakeResolver = FakeFileResolver(tempDir)
- *     val exporter = CrashExporter(fakeResolver)
- *
- *     exporter.export(crashData)
- *
- *     // Verify file was created
- *     val crashFile = fakeResolver.resolveInternal("crashes/crash.log")
- *     crashFile.exists() shouldBe true
+ *     val output = fakeResolver.resolveInternal("exports/result.json")
+ *     output.parentFile.mkdirs()
+ *     output.writeText("{}")
+ *     output.exists() shouldBe true
  * }
  * ```
  *
@@ -33,9 +30,8 @@ import java.io.File
  * @Test
  * fun `test with auto temp dir`() {
  *     FakeFileResolver.withTempDir { resolver ->
- *         val exporter = CrashExporter(resolver)
- *         exporter.export(crashData)
- *         resolver.resolveInternal("crashes").exists() shouldBe true
+ *         resolver.resolveCache("result.tmp").writeText("temporary")
+ *         resolver.resolveCache("result.tmp").exists() shouldBe true
  *     }
  *     // tempDir automatically cleaned up
  * }

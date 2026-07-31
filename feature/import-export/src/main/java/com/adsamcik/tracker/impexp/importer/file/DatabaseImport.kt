@@ -7,7 +7,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteStatement
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLite
 import java.io.File
@@ -126,13 +125,11 @@ internal class DatabaseImport : FileImport {
 			DatabaseImportResult.Success(result)
 		} catch (planning: DatabaseImportPlanningException) {
 			DatabaseImportResult.Failure(planning.failure)
-		} catch (constraint: SQLiteConstraintException) {
-			Reporter.report(Exception("Constraint issue while importing database", constraint))
+		} catch (_: SQLiteConstraintException) {
 			DatabaseImportResult.Failure(
 				DatabaseImportFailure.ConstraintViolation("database import"),
 			)
 		} catch (exception: Exception) {
-			Reporter.report(Exception("Database import failed", exception))
 			DatabaseImportResult.Failure(
 				DatabaseImportFailure.Unexpected(exception.javaClass.simpleName),
 			)
@@ -426,10 +423,7 @@ internal class DatabaseImport : FileImport {
 			DatabaseImportResult.Success(
 				ImportResult(successCount = success, skippedCount = skipped),
 			)
-		} catch (constraint: SQLiteConstraintException) {
-			Reporter.report(
-				Exception("Constraint issue while importing table ${table.tableName}", constraint),
-			)
+		} catch (_: SQLiteConstraintException) {
 			DatabaseImportResult.Failure(
 				DatabaseImportFailure.ConstraintViolation(table.tableName),
 			)

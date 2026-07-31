@@ -25,6 +25,7 @@ android {
 dependencies {
     api(project(":stats:api"))
     implementation(project(":core:base"))
+    implementation(project(":core:diagnostics"))
     implementation(project(":data:preferences"))
     implementation(project(":domain:osm"))
 

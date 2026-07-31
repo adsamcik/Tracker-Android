@@ -22,7 +22,7 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:model"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
+    implementation(project(":core:diagnostics"))
     implementation(project(":stats:api"))
     implementation(project(":stats:engine"))
 

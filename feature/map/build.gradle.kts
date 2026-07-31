@@ -36,7 +36,6 @@ dependencies {
     implementation(project(":data:preferences"))
     implementation(project(":stats:api"))
     implementation(project(":domain:geocoder"))
-    implementation(project(":core:logging"))
     implementation(project(":core:network"))
 
     // Core

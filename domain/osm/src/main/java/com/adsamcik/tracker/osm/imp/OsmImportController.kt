@@ -86,8 +86,23 @@ class OsmImportController @Inject constructor(
 		return flow.map { infos -> mapToState(infos) }
 	}
 
-	/** Cold flow of currently imported regions (one row per `.osm.pbf` file). */
-	fun observeImports() = osmImportDao.observeReady()
+	/** Cold flow of currently imported regions (one item per published `.osm.pbf` file). */
+	fun observeImports(): Flow<List<OsmImportSummary>> =
+		osmImportDao.observeReady().map { imports ->
+			imports.map { import ->
+				OsmImportSummary(
+					id = import.id,
+					displayName = import.displayName,
+					importedAt = import.importedAt,
+					wayCount = import.wayCount,
+				)
+			}
+		}
+
+	/** Removes a published import and its import-owned graph rows. */
+	suspend fun removeImport(importId: Long) {
+		osmImportDao.delete(importId)
+	}
 
 	private fun mapToState(infos: List<WorkInfo>): OsmImportState {
 		val info = infos.firstOrNull() ?: return OsmImportState.Idle
@@ -142,4 +157,12 @@ data class OsmImportRequest(
 	val displayName: String,
 	/** Legacy source metadata used only by explicitly gated characterization. */
 	val fileSizeBytes: Long,
+)
+
+/** Entity-free imported-region summary exposed to settings presentation. */
+data class OsmImportSummary(
+	val id: Long,
+	val displayName: String,
+	val importedAt: Long,
+	val wayCount: Long,
 )

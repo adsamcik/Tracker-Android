@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.ui.navigation
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 interface AppRoute
@@ -24,6 +25,7 @@ data class Settings(
 data object About : AppRoute
 
 @Serializable
+@Keep
 enum class SettingsOrigin {
     DASHBOARD,
     STATS,
@@ -32,6 +34,7 @@ enum class SettingsOrigin {
 }
 
 @Serializable
+@Keep
 enum class SettingsSection {
     ROOT,
     DATA,
@@ -42,6 +45,5 @@ data object ActivitySettings : AppRoute
 
 @Serializable
 data object NotificationManagement : AppRoute
-
 
 

@@ -5,14 +5,11 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
-import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
-import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -46,13 +43,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
 		val hasActivityTransitionResult = ActivityTransitionResult.hasResult(intent)
-
-		logActivity(
-			LogData(
-				message = "Received activity update with activity:$hasActivityResult and activity transition:$hasActivityTransitionResult",
-				source = ACTIVITY_LOG_SOURCE,
-			),
-		)
 
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -89,14 +79,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		Companion.lastActivity = detectedActivity
 		backend.onActivityResult(detectedActivity, elapsedTimeMillis)
 
-		logActivity(
-			LogData(
-				message = "new activity",
-				data = detectedActivity,
-				source = ACTIVITY_LOG_SOURCE,
-			),
-		)
-
 	}
 
 	/**
@@ -114,36 +96,16 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		Companion.lastActivity = detectedActivity
 		backend.onTransitionActivityResult(detectedActivity, transition.elapsedRealTimeNanos)
 
-		logActivity(
-			LogData(
-				message = "new activity from transition",
-				data = detectedActivity,
-				source = ACTIVITY_LOG_SOURCE,
-			),
-		)
 	}
 
 	private fun onActivityTransitionResult(
 		result: ActivityTransitionResult,
 		backend: GmsActivityRecognitionBackend,
 	) {
-		result.transitionEvents.forEach {
-			logActivity(
-				LogData(
-					message = "new transition",
-					data = it,
-					source = ACTIVITY_LOG_SOURCE,
-				),
-			)
-		}
-
 		val transitionUpdates = result.transitionEvents.mapNotNull { event ->
 			val transitionType = ActivityTransitionType.entries
 				.firstOrNull { it.value == event.transitionType }
 			if (transitionType == null) {
-				com.adsamcik.tracker.logger.Reporter.report(
-					IllegalArgumentException("Unknown activity transition type ${event.transitionType}"),
-				)
 				return@mapNotNull null
 			}
 			TransitionUpdate(

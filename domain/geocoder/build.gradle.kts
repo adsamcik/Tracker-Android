@@ -27,8 +27,6 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:common"))
 	implementation(project(":core:model"))
-    implementation(project(":core:logging-api"))
-
     // Core
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)

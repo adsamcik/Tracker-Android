@@ -32,7 +32,7 @@ Validate tab navigation, back stack, adaptive layout, accessibility standards, a
 #### Step 3: Rapid Tab Switching
 - Rapidly tap between tabs 10 times (Dashboard → Stats → Map → Game → Dashboard → ...)
 - Verify: No crashes, no ANR, no visual glitches
-- Check crash logs after rapid switching
+- Check Tracebox Diagnostics for a new crash record after rapid switching
 - Take final screenshot
 
 #### Step 4: Double-Tap Tab

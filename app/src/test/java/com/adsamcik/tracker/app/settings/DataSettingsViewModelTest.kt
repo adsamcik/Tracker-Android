@@ -3,7 +3,6 @@ package com.adsamcik.tracker.app.settings
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import com.adsamcik.tracker.R
 import app.cash.turbine.test
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
@@ -18,9 +17,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.Runs
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.mockk.coVerify
 import java.io.ByteArrayOutputStream
@@ -58,8 +55,6 @@ class DataSettingsViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        mockkStatic(Log::class)
-        every { Log.e(any(), any(), any()) } returns 0
         configFlow.value = RetentionConfigState()
         backupFlow.value = null
 
@@ -84,7 +79,6 @@ class DataSettingsViewModelTest {
 
     @AfterEach
     fun tearDown() {
-        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
@@ -412,7 +406,20 @@ class DataSettingsViewModelTest {
             result shouldBe DataDeletionResult.Failure
             coVerify(exactly = 1) { deletionService.deleteAll() }
         }
-    }
+
+        @Test
+        fun `reports failure when deletion encounters an ordinary filesystem error`() =
+            runTest(testDispatcher) {
+                coEvery { deletionService.deleteAll() } throws IOException("fsync failed")
+                var result: DataDeletionResult? = null
+                val vm = createViewModel()
+
+                vm.deleteAllCollectedData { result = it }
+
+                result shouldBe DataDeletionResult.Failure
+                coVerify(exactly = 1) { deletionService.deleteAll() }
+            }
+	}
 
     private fun migrationBackup() = DatabaseMigrationBackup(
         file = File("main_database-v10-pre-v35.db"),

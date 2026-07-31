@@ -2,7 +2,6 @@ package com.adsamcik.tracker.points.event
 
 import android.content.Context
 import androidx.work.WorkManager
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
@@ -40,9 +39,6 @@ class PointsDomainEventConsumerTest {
 	private fun stubWorkManager() {
 		mockkObject(WorkManager)
 		every { WorkManager.getInstance(context) } returns mockk(relaxed = true)
-
-		mockkObject(Logger)
-		every { Logger.log(any()) } returns Unit
 	}
 
 	@Nested

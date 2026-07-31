@@ -10,7 +10,6 @@ android {
 
 dependencies {
     implementation(libs.kotlinx.coroutines.android)
-    implementation(project(":core:logging-api"))
     // Dispatcher and application-scope contracts are foundation concerns;
     // the network adapter must not inherit the Room/database module.
     implementation(project(":core:common"))

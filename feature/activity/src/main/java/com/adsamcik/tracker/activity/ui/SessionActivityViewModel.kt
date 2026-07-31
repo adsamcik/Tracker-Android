@@ -1,30 +1,25 @@
 package com.adsamcik.tracker.activity.ui
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
-import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
+import com.adsamcik.tracker.activity.data.CreateSessionActivityCommand
+import com.adsamcik.tracker.activity.data.SessionActivityRepository
+import com.adsamcik.tracker.activity.data.SessionActivityItem
+import com.adsamcik.tracker.activity.data.UpdateSessionActivityCommand
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class SessionActivityUiState(
-	val items: List<SessionActivity> = emptyList(),
+	val items: List<SessionActivityItem> = emptyList(),
 )
 
 @HiltViewModel
 class SessionActivityViewModel @Inject constructor(
-	@ApplicationContext private val context: Context,
-	private val activityDao: ActivityDao,
-	private val dispatchers: DispatchersProvider,
+	private val activityRepository: SessionActivityRepository,
 ) : ViewModel() {
 
 	private val _uiState = MutableStateFlow(SessionActivityUiState())
@@ -37,41 +32,38 @@ class SessionActivityViewModel @Inject constructor(
 	}
 
 	private suspend fun refresh() {
-		_uiState.value = withContext(dispatchers.io) {
-			SessionActivityUiState(
-				items = activityDao.getAllUser() +
-					NativeSessionActivity.entries.map { it.getSessionActivity(context) }
-			)
-		}
+		_uiState.value = SessionActivityUiState(
+			items = activityRepository.getActivities(),
+		)
 	}
 
-	fun deleteActivity(activity: SessionActivity) {
+	fun deleteActivity(activity: SessionActivityItem) {
 		viewModelScope.launch {
-			withContext(dispatchers.io) {
-				activityDao.delete(activity.id)
-			}
+			activityRepository.delete(activity.id)
 			refresh()
 		}
 	}
 
 	fun insertActivity(name: String) {
 		viewModelScope.launch {
-			withContext(dispatchers.io) {
-				activityDao.insert(
-					SessionActivity(
-						name = name.trim(),
-					)
+			activityRepository.create(
+				CreateSessionActivityCommand(
+					name = name.trim(),
 				)
-			}
+			)
 			refresh()
 		}
 	}
 
-	fun updateActivity(activity: SessionActivity) {
+	fun updateActivity(activity: SessionActivityItem) {
 		viewModelScope.launch {
-			withContext(dispatchers.io) {
-				activityDao.update(activity)
-			}
+			activityRepository.update(
+				UpdateSessionActivityCommand(
+					id = activity.id,
+					name = activity.name,
+					iconName = activity.iconName,
+				),
+			)
 			refresh()
 		}
 	}

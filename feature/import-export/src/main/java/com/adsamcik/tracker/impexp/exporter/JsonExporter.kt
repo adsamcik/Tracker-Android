@@ -3,7 +3,6 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -69,7 +68,6 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Reporter.report(e)
 			ExportResult.Error(
 				LocalizedString(
 					R.string.export_error_with_reason,
@@ -101,7 +99,6 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		}
 		progress.toResult()
 	} catch (e: Exception) {
-		Reporter.report(e)
 		ExportResult.Error(LocalizedString(R.string.export_error_with_reason, e.message ?: "Failed to write JSON export"))
 	}
 

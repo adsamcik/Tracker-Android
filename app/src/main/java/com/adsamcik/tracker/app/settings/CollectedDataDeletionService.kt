@@ -28,6 +28,7 @@ import com.adsamcik.tracker.osm.imp.OsmImportWorker
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ExecutionException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -77,7 +78,7 @@ class DefaultCollectedDataWriterQuiescer(
 				"points",
 			)
 			awaitCancellation(
-				workManager.cancelAllWorkByTag(AchievementWorker.TAG),
+				workManager.cancelAllWorkByTag(AchievementWorker.WORK_TAG),
 				"achievement",
 			)
 			awaitCancellation(
@@ -187,6 +188,7 @@ class DefaultCollectedDataDeletionService(
 	private val exportPlanStore: ExportPlanStore,
 	private val writerQuiescer: CollectedDataWriterQuiescer,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
+	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
 		{ context, epoch, retainedFromMs, updatedAtMs ->
 			AppDatabase.deleteAllCollectedData(
@@ -232,9 +234,29 @@ class DefaultCollectedDataDeletionService(
 				updatedAtMs = lifecycleUpdatedAtMs,
 			)
 			exportPlanStore.resetAllWatermarks()
+			deleteDiagnostics()
 			clearDeletionMarker()
 		} finally {
 			writerQuiescer.resume()
+		}
+	}
+
+	/** Completes Tracebox deletion inside the same durable, retryable deletion transaction. */
+	private suspend fun deleteDiagnostics() {
+		val traceboxComplete = try {
+			traceboxDataDeletion()
+		} catch (error: CancellationException) {
+			throw error
+		} catch (error: Exception) {
+			throw DatabaseMigrationBackupException(
+				"Tracebox diagnostic data deletion remains pending",
+				error,
+			)
+		}
+		if (!traceboxComplete) {
+			throw DatabaseMigrationBackupException(
+				"Tracebox diagnostic data deletion remains pending",
+			)
 		}
 	}
 
@@ -269,18 +291,18 @@ class DefaultCollectedDataDeletionService(
 		if (!parent.isDirectory && !parent.mkdirs()) {
 			throw DatabaseMigrationBackupException("Could not prepare collected-data deletion")
 		}
+		// The marker represents an idempotent "full deletion remains pending" obligation.
+		// Preserving an existing durable marker avoids a process-death window where deleting it
+		// before replacement could incorrectly make startup reconciliation believe the transaction
+		// completed.
+		if (markerFile.exists()) return
 		val temporary = File(parent, "${markerFile.name}.tmp")
 		try {
 			FileOutputStream(temporary).use { output ->
 				output.write("pending".encodeToByteArray())
 				output.fd.sync()
 			}
-			if (markerFile.exists() && !markerFile.delete()) {
-				throw DatabaseMigrationBackupException(
-					"Could not replace collected-data deletion marker",
-				)
-			}
-			if (!temporary.renameTo(markerFile)) {
+			if (!temporary.renameTo(markerFile) && !markerFile.exists()) {
 				throw DatabaseMigrationBackupException(
 					"Could not persist collected-data deletion marker",
 				)

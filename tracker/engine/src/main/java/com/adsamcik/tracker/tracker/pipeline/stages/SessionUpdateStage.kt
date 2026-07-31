@@ -19,8 +19,6 @@ internal class SessionUpdateStage(
 	private val sessionComponent: SessionTrackerComponent,
 	private val controller: TrackerServiceController,
 ) : PipelineStage {
-	override val name: String = "SessionUpdate"
-
 	override suspend fun process(context: Context, cycleContext: CycleContext): StageResult {
 		sessionComponent.onDataUpdated(cycleContext.cycle, cycleContext.collectionData)
 		val session = sessionComponent.session

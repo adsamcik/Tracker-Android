@@ -244,7 +244,6 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		// Keep the detailed 2024.1 activity id intact. MIGRATION_12_13 stores it in
 		// session_segment.legacy_activity_id before the legacy table is removed.
-		android.util.Log.i("AppDatabase", "Migration 10->11: Preserved legacy activity ids")
 	}
 }
 
@@ -635,8 +634,6 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 				)
 			}
 
-			// Log successful migration (visible in logcat during migration)
-			android.util.Log.i("AppDatabase", "Migration 12→13: Migrated $sampleCount location samples successfully")
 		}
 	}
 }
@@ -678,7 +675,6 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
 				)
 			""".trimIndent())
 
-			android.util.Log.i("AppDatabase", "Migration 13→14: Created daily_summary and live_stats tables")
 		}
 	}
 }
@@ -746,7 +742,6 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_leg_trip_seq ON trip_leg(trip_id, sequence_index)")
 
-			android.util.Log.i("AppDatabase", "Migration 14→15: Created frequent_place, inferred_trip, and trip_leg tables")
 		}
 	}
 }
@@ -813,7 +808,6 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_record_metric ON personal_record(metric)")
 
-			android.util.Log.i("AppDatabase", "Migration 15→16: Created exploration_cell, exploration_streak, achievement_progress, and personal_record tables")
 		}
 	}
 }
@@ -930,7 +924,6 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
 				)
 			""".trimIndent())
 
-			android.util.Log.i("AppDatabase", "Migration 16->17: Created route_cache, export_log, storage_size_snapshot, domain_event, and domain_event_cursor tables")
 		}
 	}
 }
@@ -972,7 +965,6 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
 			execSQL("CREATE INDEX IF NOT EXISTS idx_ski_run_segment_session ON ski_run_segment(session_id)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_ski_run_segment_start_time ON ski_run_segment(start_time_ms)")
 
-			android.util.Log.i("AppDatabase", "Migration 17->18: Created pressure_sample and ski_run_segment tables")
 		}
 	}
 }
@@ -995,10 +987,6 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
 			SET raw_gps_alt_m = alt_m
 			WHERE provider = 'legacy' AND raw_gps_alt_m IS NULL
 			""".trimIndent()
-		)
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 18->19: Added raw_gps_alt_m to location_sample and lift_type to ski_run_segment"
 		)
 	}
 }
@@ -1053,7 +1041,6 @@ private fun tableExists(db: SupportSQLiteDatabase, table: String): Boolean =
 val MIGRATION_19_20: Migration = object : Migration(19, 20) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("ALTER TABLE session_segment ADD COLUMN has_distance_anomaly INTEGER NOT NULL DEFAULT 0")
-		android.util.Log.i("AppDatabase", "Migration 19->20: Added has_distance_anomaly column to session_segment")
 	}
 }
 
@@ -1294,10 +1281,6 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 		db.execSQL("DROP TABLE IF EXISTS wifi_data")
 		db.execSQL("DROP TABLE IF EXISTS cell_location")
 		db.execSQL("DROP TABLE IF EXISTS location_wifi_count")
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 20->21: Backfilled legacy wifi/cell data, then dropped legacy tables"
-		)
 	}
 }
 
@@ -1312,10 +1295,6 @@ val MIGRATION_21_22: Migration = object : Migration(21, 22) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		// No-op: SQLite INTEGER already supports 64-bit values.
 		// Room maps both Kotlin Int and Long to "INTEGER NOT NULL".
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 21->22: cell_sample.cell_id widened to Long (no-op, SQLite INTEGER is 64-bit)"
-		)
 	}
 }
 
@@ -1332,10 +1311,6 @@ val MIGRATION_22_23: Migration = object : Migration(22, 23) {
 			execSQL("CREATE INDEX IF NOT EXISTS index_exploration_cell_level_first_discovered_at ON exploration_cell(level, first_discovered_at)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_updated_at ON achievement_progress(updated_at)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_unlocked_at ON achievement_progress(unlocked_at)")
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 22->23: Added missing query indices for cache, export, place, exploration, and achievement tables"
-			)
 		}
 	}
 }
@@ -1390,10 +1365,6 @@ val MIGRATION_23_24: Migration = object : Migration(23, 24) {
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_achievement_id ON achievement_progress(achievement_id)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_updated_at ON achievement_progress(updated_at)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_unlocked_at ON achievement_progress(unlocked_at)")
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 23->24: Rebuilt achievement_progress with nullable tier and notified_at"
-			)
 		}
 	}
 }
@@ -1416,10 +1387,6 @@ val MIGRATION_24_25: Migration = object : Migration(24, 25) {
 				CREATE INDEX IF NOT EXISTS idx_pending_signal_session_time
 				ON pending_signal (session_id, created_at)
 				""".trimIndent(),
-			)
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 24->25: Created pending_signal WAL table",
 			)
 		}
 	}
@@ -1452,10 +1419,6 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			// timestamp_ms index, O(rows) per fetch.
 			execSQL("DROP INDEX IF EXISTS index_domain_event_timestamp_ms")
 			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_timestamp_ms_id ON domain_event(timestamp_ms, id)")
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 25->26: Added analytics and export query indices",
-			)
 		}
 	}
 }
@@ -1517,10 +1480,6 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 				)
 				""".trimIndent(),
 			)
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 26->27: Created game progression and minigame tables",
-			)
 		}
 	}
 }
@@ -1548,7 +1507,6 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 				""".trimIndent(),
 			)
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_metric_key ON achievement_progress(metric_key)")
-			android.util.Log.i("AppDatabase", "Migration 27->28: Dropped challenge tables and rebuilt achievement_progress")
 		}
 	}
 }
@@ -1635,10 +1593,6 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_cell ON osm_way_cell(cell_key)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_osm_way_cell_way ON osm_way_cell(way_id)")
 
-			android.util.Log.i(
-				"AppDatabase",
-				"Migration 28->29: Created OSM road graph tables (osm_import, osm_way, osm_way_cell)",
-			)
 		}
 	}
 }
@@ -1661,10 +1615,6 @@ val MIGRATION_29_30: Migration = object : Migration(29, 30) {
 			"CREATE INDEX IF NOT EXISTS idx_location_sample_time_id " +
 				"ON location_sample(time_ms, id)",
 		)
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 29->30: Added composite (time_ms, id) index on location_sample",
-		)
 	}
 }
 
@@ -1686,10 +1636,6 @@ val MIGRATION_30_31: Migration = object : Migration(30, 31) {
 		db.execSQL(
 			"CREATE INDEX IF NOT EXISTS idx_minigame_score_played_at " +
 				"ON minigame_score(played_at)",
-		)
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 30->31: Added idx_minigame_score_played_at on minigame_score",
 		)
 	}
 }
@@ -1730,10 +1676,6 @@ val MIGRATION_30_31: Migration = object : Migration(30, 31) {
 val MIGRATION_31_32: Migration = object : Migration(31, 32) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("DELETE FROM osm_way_cell")
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 31->32: Cleared osm_way_cell; background reindexer will rebuild it under the 0.01° OsmGridIndex grid",
-		)
 	}
 }
 
@@ -1752,10 +1694,6 @@ val MIGRATION_32_33: Migration = object : Migration(32, 33) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL(
 			"ALTER TABLE osm_import ADD COLUMN cell_index_built INTEGER NOT NULL DEFAULT 0",
-		)
-		android.util.Log.i(
-			"AppDatabase",
-			"Migration 32->33: Added cell_index_built column to osm_import",
 		)
 	}
 }

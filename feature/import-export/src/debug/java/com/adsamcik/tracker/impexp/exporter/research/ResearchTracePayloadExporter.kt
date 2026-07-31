@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -118,7 +117,6 @@ class ResearchTracePayloadExporter(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
-			Reporter.report(exception)
 			ExportResult.Error(
 				LocalizedString(
 					R.string.export_error_with_reason,

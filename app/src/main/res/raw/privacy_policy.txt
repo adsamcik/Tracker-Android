@@ -17,7 +17,7 @@ Data created by the app stays on your device. This can include:
 * location history, routes, and trip/session records
 * activity recognition and step-related data
 * app settings and local app data
-* local crash logs that remain on-device unless you choose to export them
+* local Tracebox crash, ANR, and fixed structural diagnostics that remain on-device unless you review, approve, and export a diagnostic package
 
 ## Network Use
 

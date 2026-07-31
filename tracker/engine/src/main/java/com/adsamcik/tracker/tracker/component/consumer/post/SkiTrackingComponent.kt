@@ -1,12 +1,10 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.stats.api.ski.SkiLift
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiDetector
@@ -113,24 +111,19 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 				SkiTrackingComponentEntryPoint::class.java,
 			).skiInfrastructureManager()
 			if (mgr.isAvailable()) mgr else null
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
 			null
 		}
 	}
 
 	override suspend fun onDisable(context: Context) {
-		runCatching { detector.finish() }
-			.onFailure(ReporterFacade::report)
+		runCatching { detector.finish() }.getOrNull()
 		detector.setListener(null)
 		escalationEngine?.clearMinimumTier()
 		_skiState.value = null
 		lastCollectionElapsedTimeMs = null
 		// M7 fix: close infrastructure manager to release resources
-		try {
-			(infrastructureManager as? java.io.Closeable)?.close()
-		} catch (e: Exception) {
-			Reporter.report(e)
-		}
+		runCatching { (infrastructureManager as? java.io.Closeable)?.close() }.getOrNull()
 		infrastructureManager = null
 		proximityChecked = false
 		nearbyLifts = emptyList()
@@ -169,19 +162,15 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 			lastCollectionElapsedTimeMs = elapsedTimeMs
 		}
 
-		try {
-			val state = detector.onSample(
-				elapsedTimeMs = elapsedTimeMs,
-				epochTimeMs = cycle.timestampMs,
-				altitudeM = reading.altitudeM,
-				speedMps = speedMps,
-				stepRatePerMin = stepRatePerMin
-			)
-			if (state != null) {
-				_skiState.value = state
-			}
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			ReporterFacade.report(e)
+		val state = detector.onSample(
+			elapsedTimeMs = elapsedTimeMs,
+			epochTimeMs = cycle.timestampMs,
+			altitudeM = reading.altitudeM,
+			speedMps = speedMps,
+			stepRatePerMin = stepRatePerMin
+		)
+		if (state != null) {
+			_skiState.value = state
 		}
 	}
 
@@ -195,7 +184,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		val listeners = synchronized(listenerLock) { secondaryListeners }
 		listeners.forEach { listener ->
 			runCatching { listener.onStateChanged(previousState, newState) }
-				.onFailure(ReporterFacade::report)
 		}
 
 		val engine = escalationEngine ?: return
@@ -238,14 +226,10 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		val mgr = infrastructureManager ?: return
 		if (lastLat == 0.0 && lastLon == 0.0) return
 
-		try {
-			val radiusDeg = PROXIMITY_RADIUS_M / METERS_PER_DEGREE
-			nearbyLifts = mgr.findLiftsNearby(lastLat, lastLon, radiusDeg)
-			if (nearbyLifts.isNotEmpty()) {
-				detector.setNearResort(true)
-			}
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			ReporterFacade.report(e)
+		val radiusDeg = PROXIMITY_RADIUS_M / METERS_PER_DEGREE
+		nearbyLifts = mgr.findLiftsNearby(lastLat, lastLon, radiusDeg)
+		if (nearbyLifts.isNotEmpty()) {
+			detector.setNearResort(true)
 		}
 	}
 

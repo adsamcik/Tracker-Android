@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.worker
 
 import android.content.Context
-import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -42,10 +41,8 @@ class HistoricalTrajectoryReconstructionWorker @AssistedInject constructor(
 			}
 			Result.success()
 		} catch (exception: IllegalStateException) {
-			Log.i(TAG, "Historical reconstruction source changed; retrying", exception)
 			Result.retry()
 		} catch (exception: Exception) {
-			Log.w(TAG, "Historical reconstruction failed", exception)
 			Result.retry()
 		}
 	}

@@ -7,10 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
-import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
+import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
@@ -58,7 +57,7 @@ internal sealed interface ExportDocumentResult {
 @HiltViewModel
 class ImportExportViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val appDatabase: AppDatabase,
+    private val dataRepository: ImportExportDataRepository,
     private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
@@ -68,7 +67,7 @@ class ImportExportViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val hasTrips = withContext(dispatchers.io) {
-                appDatabase.tripDao().countAllTrips() > 0L
+                dataRepository.hasTrips()
             }
             _uiState.update { it.copy(showNoDataDialog = !hasTrips) }
         }
@@ -166,29 +165,18 @@ class ImportExportViewModel @Inject constructor(
                 val fromMs = targetRange.start.toEpochMillis()
                 val toMs = targetRange.endInclusive.toEpochMillis()
 
-                val tripDao = appDatabase.tripDao()
-                if (tripDao.countTripsBetween(fromMs, toMs) == 0L) return@withContext fallback
+                val trip = dataRepository.loadTripShareSnapshot(fromMs, toMs)
+                    ?: return@withContext fallback
 
-                val trips = tripDao.getBetween(fromMs, toMs)
-                val primaryTrip = trips.firstOrNull() ?: return@withContext fallback
-
-                val totalDistance = trips.sumOf { it.distanceM.toDouble() }.toFloat()
-                val totalDuration = trips.sumOf { it.durationMs }
-                val totalSteps = trips.sumOf { it.steps ?: 0 }
-
-                val activity = primaryTrip.primaryActivity?.toLong()?.let { id ->
-                    appDatabase.activityDao().getLocalized(appContext, id)
-                }
-
-                val tripName = activity?.name?.takeIf { it.isNotBlank() } ?: fallbackName
-                val emoji = mapActivityToEmoji(activity?.name, activity?.id)
+                val tripName = trip.activityName?.takeIf { it.isNotBlank() } ?: fallbackName
+                val emoji = mapActivityToEmoji(trip.activityName, trip.activityId)
                 val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
-                    Instant.ofEpochMilli(primaryTrip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
+                    Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
                 )
                 val lengthSystem = TrackerSettingsQuick.lengthSystem(appContext)
                 val distance = appContext.resources.formatDistance(
-                    totalDistance,
-                    digits = if (totalDistance >= 1000f) 1 else 2,
+                    trip.totalDistanceM,
+                    digits = if (trip.totalDistanceM >= 1000f) 1 else 2,
                     unit = lengthSystem
                 )
 
@@ -197,8 +185,8 @@ class ImportExportViewModel @Inject constructor(
                     formattedDate = date,
                     activityEmoji = emoji,
                     formattedDistance = distance,
-                    formattedDuration = totalDuration.formatAsDuration(appContext),
-                    formattedSteps = totalSteps.formatReadable()
+                    formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
+                    formattedSteps = trip.totalSteps.formatReadable()
                 )
             }
             onResult(summary)
@@ -231,19 +219,17 @@ class ImportExportViewModel @Inject constructor(
         range: ClosedRange<ZonedDateTime>?,
     ): ExportResult = withContext(dispatchers.io) {
         if (exporter.canSelectDateRange && range != null) {
-            val locationSampleDao = appDatabase.locationSampleDao()
             val fromMs = range.start.toEpochMillis()
             val toMs = range.endInclusive.toEpochMillis()
 
-            val totalCount = locationSampleDao.countBetween(fromMs, toMs)
+            val totalCount = dataRepository.countLocationSamples(fromMs, toMs)
             if (totalCount == 0) {
                 return@withContext ExportResult.Error(
                     LocalizedString(R.string.export_error_no_locations_in_interval)
                 )
             }
 
-            val locationSequence = pagedLocationSequence(
-                locationSampleDao = locationSampleDao,
+            val locationSequence = dataRepository.pagedLocationSamples(
                 fromMs = fromMs,
                 toMs = toMs,
                 pageSize = EXPORT_PAGE_SIZE,

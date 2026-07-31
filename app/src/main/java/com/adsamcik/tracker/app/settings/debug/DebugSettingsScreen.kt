@@ -1,14 +1,10 @@
 package com.adsamcik.tracker.app.settings.debug
 
-import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Science
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -16,16 +12,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.settings.DebugSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 
 @Composable
-fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
+fun DebugSettingsScreen() {
     val context = LocalContext.current
-    val debugVm: DebugSettingsViewModel = hiltViewModel()
+    val developerModeDisabledMessage =
+        stringResource(R.string.settings_debug_developer_mode_disabled_toast)
     val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
         .observeDeveloperMode(context)
         .collectAsStateWithLifecycle(initialValue = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
@@ -45,39 +40,12 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
                         com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, false)
                         android.widget.Toast.makeText(
                             context,
-                            context.getString(R.string.settings_debug_developer_mode_disabled_toast),
+                            developerModeDisabledMessage,
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }
                 )
             }
-        }
-
-        // Debug tools
-        item {
-            SectionHeader(stringResource(R.string.settings_debug_tools_section))
-        }
-
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_debug_crash_manager_title),
-                subtitle = stringResource(R.string.settings_debug_crash_manager_subtitle),
-                icon = Icons.Default.BugReport,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.app.activity.debug.CrashManagerActivity::class.java))
-                }
-            )
-        }
-
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_debug_log_viewer_title),
-                subtitle = stringResource(R.string.settings_debug_log_viewer_subtitle),
-                icon = Icons.Default.Description,
-                onClick = {
-                    onNavigateToDebug()
-                }
-            )
         }
 
         // Developer tools (only show in debug/dev builds)

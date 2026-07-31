@@ -1,6 +1,5 @@
 plugins {
     id("tracker.android.library")
-    id("tracker.android.compose")
     id("tracker.android.room")
     id("tracker.android.test")
     id("tracker.android.instrumented-test")
@@ -39,7 +38,6 @@ ksp {
 dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
-    implementation(project(":core:logging-api"))
     implementation(project(":core:sqlite-runtime"))
 
     // Core
@@ -60,10 +58,6 @@ dependencies {
     implementation(libs.moshi)
     ksp(libs.moshi.kotlin.codegen)
 
-    // Compose runtime for CompositionLocal DI support
-    implementation(libs.accompanist.permissions)
-    implementation(libs.activity.compose)
-
     // DB (api to expose RoomDatabase supertype to consumers of sbase)
     api(libs.androidx.room.runtime)
     implementation(libs.androidx.room.paging)
@@ -79,6 +73,4 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     androidTestImplementation(libs.androidx.work.testing)
 
-    testImplementation(libs.compose.ui.test.junit4)
-    debugImplementation(libs.compose.ui.test.manifest)
 }

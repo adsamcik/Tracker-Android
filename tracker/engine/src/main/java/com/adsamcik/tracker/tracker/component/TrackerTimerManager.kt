@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionTrigger
@@ -49,7 +48,6 @@ object TrackerTimerManager {
 	): CollectionTriggerComponent {
 		val definition = timerDefinitions.find { it.key == key }
 		return if (definition == null) {
-			Reporter.report("Timer with key $key was not found.")
 			defaultDefinition.factory(dispatcher)
 		} else {
 			definition.factory(dispatcher)

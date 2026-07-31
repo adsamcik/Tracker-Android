@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.work.Data
 import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.logger.Logger
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -25,12 +23,9 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.runs
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -57,8 +52,6 @@ class ActivityRecognitionWorkerTest {
 	@Before
 	fun setUp() {
 		mockkObject(AppDatabase.Companion)
-		mockkObject(Reporter)
-		mockkObject(Logger)
 
 		every { AppDatabase.database(any()) } returns database
 		every { database.tripDao() } returns tripDao
@@ -66,9 +59,6 @@ class ActivityRecognitionWorkerTest {
 		every { database.activitySnapshotDao() } returns activitySnapshotDao
 		every { database.pressureSampleDao() } returns pressureSampleDao
 		every { database.sessionSegmentDao() } returns segmentDao
-		every { Reporter.report(any<Throwable>()) } just runs
-		every { Reporter.log(any<String>()) } just runs
-		every { Logger.logWithStringPreference(any(), any(), any()) } just runs
 		coEvery { activitySnapshotDao.getLatestBefore(any()) } returns null
 		coEvery { activitySnapshotDao.getAllBetween(any(), any()) } returns emptyList()
 		coEvery { pressureSampleDao.getAllBetween(any(), any()) } returns emptyList()
@@ -195,7 +185,6 @@ class ActivityRecognitionWorkerTest {
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.failure()
-			verify { Reporter.report(any<Throwable>()) }
 		} }
 
 	@Test

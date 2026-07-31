@@ -14,8 +14,6 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
-    implementation(project(":core:logging"))
-
     // Stats architecture
     implementation(project(":stats:api"))
 

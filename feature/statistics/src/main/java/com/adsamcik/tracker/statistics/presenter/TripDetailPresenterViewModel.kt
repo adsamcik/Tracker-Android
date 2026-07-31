@@ -4,8 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
-import com.adsamcik.tracker.map.graphics.PolylineOptimizer
-import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.feature.map.api.preview.RoutePoint
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -148,7 +147,7 @@ data class TripDetailInsights(
 	val elevationGainM: Double? = null,
 	val elevationLossM: Double? = null,
 	val maxAltitudeM: Double? = null,
-	val routePoints: List<LatLngModel> = emptyList(),
+	val routePoints: List<RoutePoint> = emptyList(),
 )
 
 private data class SampleInsights(
@@ -157,7 +156,7 @@ private data class SampleInsights(
 	val elevationGainM: Double = 0.0,
 	val elevationLossM: Double = 0.0,
 	val maxAltitudeM: Double? = null,
-	val routePoints: List<LatLngModel> = emptyList(),
+	val routePoints: List<RoutePoint> = emptyList(),
 )
 
 private suspend fun loadSampleInsights(
@@ -166,7 +165,7 @@ private suspend fun loadSampleInsights(
 	toMs: Long,
 ): SampleInsights {
 	val providerCounts = linkedMapOf<String, Int>()
-	val routePoints = ArrayList<LatLngModel>(ROUTE_PREVIEW_MAX_POINTS)
+	val routePoints = ArrayList<RoutePoint>(ROUTE_PREVIEW_MAX_POINTS)
 	var maxSpeed: Double? = null
 	var elevationGain = 0.0
 	var elevationLoss = 0.0
@@ -217,7 +216,7 @@ private suspend fun loadSampleInsights(
 			val lat = sample.latE7
 			val lon = sample.lonE7
 			if (lat != null && lon != null) {
-				routePoints.add(LatLngModel(lat / E7_DIVISOR, lon / E7_DIVISOR))
+				routePoints.add(RoutePoint(lat / E7_DIVISOR, lon / E7_DIVISOR))
 			}
 		}
 
@@ -286,7 +285,7 @@ private fun buildInsights(
 		samples.mapNotNull { sample ->
 			val lat = sample.latE7 ?: return@mapNotNull null
 			val lon = sample.lonE7 ?: return@mapNotNull null
-			LatLngModel(lat / E7_DIVISOR, lon / E7_DIVISOR)
+			RoutePoint(lat / E7_DIVISOR, lon / E7_DIVISOR)
 		}
 	)
 
@@ -323,15 +322,14 @@ private fun buildInsights(
 	)
 }
 
-internal fun simplifyRoutePoints(points: List<LatLngModel>): List<LatLngModel> =
+internal fun simplifyRoutePoints(points: List<RoutePoint>): List<RoutePoint> =
 	if (points.size <= ROUTE_PREVIEW_MAX_POINTS) {
 		points
 	} else {
-		PolylineOptimizer.optimize(
+		RoutePreviewSimplifier.simplify(
 			points = points,
 			toleranceMeters = ROUTE_PREVIEW_TOLERANCE_METERS,
 			maxPoints = ROUTE_PREVIEW_MAX_POINTS,
-			evenSpacing = false,
 		)
 	}
 

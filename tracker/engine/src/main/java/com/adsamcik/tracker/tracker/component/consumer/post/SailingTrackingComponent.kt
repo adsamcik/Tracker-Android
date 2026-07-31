@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
@@ -113,19 +112,15 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 		val distanceDeltaM = (session.distanceInM - lastSessionDistanceM).coerceAtLeast(0f)
 		lastSessionDistanceM = session.distanceInM
 
-		try {
-			val state = detector.onSample(
-				timeMs = elapsedTimeMs,
-				speedMps = speedMps,
-				distanceDeltaM = distanceDeltaM,
-				stepRatePerMin = stepRatePerMin,
-				motionContextAvailable = motionContextAvailable,
-				hasStrongVehicleOrBicycleSignature = hasStrongVehicleOrBicycleSignature,
-			)
-			_sailingState.value = state
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			ReporterFacade.report(e)
-		}
+		val state = detector.onSample(
+			timeMs = elapsedTimeMs,
+			speedMps = speedMps,
+			distanceDeltaM = distanceDeltaM,
+			stepRatePerMin = stepRatePerMin,
+			motionContextAvailable = motionContextAvailable,
+			hasStrongVehicleOrBicycleSignature = hasStrongVehicleOrBicycleSignature,
+		)
+		_sailingState.value = state
 	}
 
 	/**

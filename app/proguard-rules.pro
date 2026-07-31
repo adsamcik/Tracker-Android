@@ -46,15 +46,10 @@
 # entry points; `allowobfuscation` keeps it free to rename them.
 -keep,allowshrinking,allowobfuscation @dagger.hilt.EntryPoint interface com.adsamcik.tracker.** { *; }
 
-# Keep stack traces useful for on-device crash logging (no Crashlytics — privacy rule).
+# Keep stack traces useful for local Tracebox diagnostics (no remote crash reporter).
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
 -keep public class * extends java.lang.Exception
-
--assumenosideeffects class android.util.Log {
-    public static *** d(...);
-}
-
 
 # JSR 305 annotations are for embedding nullability information.
 -dontwarn javax.annotation.**

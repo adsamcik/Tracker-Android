@@ -12,7 +12,6 @@ import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.toSegmentPrimaryActivityId
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
@@ -22,7 +21,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
@@ -55,11 +54,11 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val sessionId = inputData.getLong(ARG_SESSION_ID, -1)
 		if (sessionId < 0) {
-			return@coroutineScope fail("Session id was either not set or was invalid.")
+			return@coroutineScope Result.failure()
 		}
 
 		val trip = database.tripDao().getById(sessionId)
-			?: return@coroutineScope fail("Trip with id $sessionId not found.", false)
+			?: return@coroutineScope Result.failure()
 
 		val segments = database.sessionSegmentDao().getUnrecognizedWithin(trip.startTimeMs, trip.endTimeMs)
 
@@ -192,7 +191,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val deferredResults = recognizers.map {
 			async {
-				val result = runWithResultAndReport {
+				val result = runCatchingCancellable {
 					it.resolve(session, locationCollection)
 				}.getOrElse {
 					ActivityRecognitionResult(null, 0)
@@ -248,17 +247,6 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		return@coroutineScope Result.success()
 	}
-
-	private fun fail(message: String, report: Boolean = true): Result {
-		if (report) {
-			Reporter.report(Throwable(message))
-		} else {
-			Reporter.log(message)
-		}
-
-		return Result.failure()
-	}
-
 
 	/**
 	 * Converts a [LocationSample] to an [ActivityLocation] for recognizer compatibility.

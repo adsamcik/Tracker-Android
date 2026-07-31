@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
@@ -42,8 +41,6 @@ class ActivityWatcherServiceController @Inject constructor(
 	private val trackerStateReader: TrackerStateReader,
 	private val lockManagerProvider: Provider<LockManager>,
 ) : ActivityWatcherController {
-	private val tag = "ActivityWatcherService"
-
 	@Volatile
 	internal var serviceInstance: ActivityWatcherService? = null
 
@@ -105,10 +102,9 @@ class ActivityWatcherServiceController @Inject constructor(
 			if (watcherPreference && !trackerLocked && !trackerRunning) {
 				if (serviceInstance == null) {
 					if (!canStartForegroundService()) {
-						Log.i(tag, "Skipping ActivityWatcherService start: app not in foreground")
 						return
 					}
-					context.startForegroundServiceSafely<ActivityWatcherService> { }
+					context.startForegroundServiceSafely<ActivityWatcherService>()
 				}
 				return
 			}

@@ -54,10 +54,9 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:model"))
-    implementation(project(":core:logging-api"))
+    implementation(project(":core:diagnostics"))
     implementation(project(":sensor:activity-api"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
     implementation(project(":stats:api"))
     implementation(project(":stats:engine"))
 

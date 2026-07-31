@@ -13,7 +13,6 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
@@ -52,12 +51,10 @@ object DataImporter {
 			)
 			true
 		}.getOrElse {
-			Reporter.w(IMPORT_LOG_SOURCE, "Unable to persist import read permission; continuing with available grant")
 			false
 		}
 	}
 
-	private const val IMPORT_LOG_SOURCE = "import"
 	const val UNIQUE_WORK_NAME = "data-import"
 }
 

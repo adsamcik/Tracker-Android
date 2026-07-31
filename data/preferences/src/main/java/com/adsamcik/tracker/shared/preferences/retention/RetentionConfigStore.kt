@@ -5,7 +5,6 @@ import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
-import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
@@ -49,8 +48,6 @@ class RetentionConfigStore(
     val config: Flow<RetentionConfigState> = flow {
         val migrated = runCatching {
             ensureDataSettingsMigrated()
-        }.onFailure {
-            Log.e("RetentionConfigStore", "Failed to migrate legacy data settings", it)
         }.getOrNull()
         if (migrated != null) emit(migrated.toDomain())
         emitAll(dataStore.data.map { it.toDomain() })
@@ -126,8 +123,6 @@ class RetentionConfigStore(
                         remove("autoCleanupOldData")
                         remove("dataRetentionYears")
                     }
-                }.onFailure {
-                    Log.w("RetentionConfigStore", "Failed to clear migrated legacy data settings", it)
                 }
             }
             migrated

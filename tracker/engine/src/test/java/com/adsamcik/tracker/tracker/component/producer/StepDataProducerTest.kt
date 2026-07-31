@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorManager
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.shouldBe
@@ -13,8 +12,6 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -276,16 +273,12 @@ class StepDataProducerTest {
 
 	@Test
 	fun `does not set data when step count is negative`() {
-		mockkObject(Reporter)
-		every { Reporter.report(any<String>()) } returns Unit
-
 		setStepCountSinceLastCollection(-1)
 
 		val builder = createBuilder()
 		producer.onDataRequest(builder)
 
 		builder.stepDelta shouldBe null
-		unmockkObject(Reporter)
 	}
 
 

@@ -3,8 +3,8 @@ package com.adsamcik.tracker.statistics.export
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
-import com.adsamcik.tracker.impexp.exporter.ExportResult
-import com.adsamcik.tracker.impexp.exporter.GpxExporter
+import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExportResult
+import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import kotlinx.coroutines.withContext
@@ -12,7 +12,7 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * Shared helper that exports a trip's location data to GPX via [GpxExporter]
+ * Shared helper that exports a trip's location data through [TripGpxExporter]
  * and launches the system share sheet.
  *
  * Used by both the statistics list and trip detail screens so that GPX generation
@@ -20,6 +20,7 @@ import javax.inject.Inject
  */
 class GpxShareHelper @Inject constructor(
 	private val locationSampleRepository: LocationSampleRepository,
+	private val tripGpxExporter: TripGpxExporter,
 	private val dispatchersProvider: DispatchersProvider,
 ) {
 	/**
@@ -30,22 +31,20 @@ class GpxShareHelper @Inject constructor(
 	 * @param tripId Used to name the exported file
 	 * @param startTimeMs Trip start time in epoch millis
 	 * @param endTimeMs Trip end time in epoch millis
-	 * @return [ExportResult] indicating success or failure
+	 * @return [TripGpxExportResult] indicating success or failure
 	 */
 	suspend fun exportAndShare(
 		context: Context,
 		tripId: Long,
 		startTimeMs: Long,
 		endTimeMs: Long,
-	): ExportResult = withContext(dispatchersProvider.io) {
-		val exporter = GpxExporter()
+	): TripGpxExportResult = withContext(dispatchersProvider.io) {
 		val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
 		val file = File(shareableDir, "trip_$tripId.gpx")
 		var exportedPointCount = 0
 
 		val result = file.outputStream().use { outputStream ->
-			exporter.export(
-				context = context,
+			tripGpxExporter.export(
 				outputStream = outputStream,
 				dateRange = startTimeMs..endTimeMs,
 			) { emit ->
@@ -77,10 +76,10 @@ class GpxShareHelper @Inject constructor(
 
 		if (exportedPointCount == 0) {
 			file.delete()
-			return@withContext ExportResult.Success
+			return@withContext TripGpxExportResult.Success
 		}
 
-		if (result is ExportResult.Success) {
+		if (result is TripGpxExportResult.Success) {
 			val uri = FileProvider.getUriForFile(
 				context,
 				"${context.packageName}.fileprovider",

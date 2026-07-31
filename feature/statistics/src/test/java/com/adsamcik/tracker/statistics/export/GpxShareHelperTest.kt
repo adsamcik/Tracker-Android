@@ -2,7 +2,8 @@ package com.adsamcik.tracker.statistics.export
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
-import com.adsamcik.tracker.impexp.exporter.ExportResult
+import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExportResult
+import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
@@ -18,6 +19,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import java.io.OutputStream
 
 /**
  * Tests for [GpxShareHelper] DAO wiring and control flow.
@@ -32,7 +34,21 @@ class GpxShareHelperTest {
 		override val main: CoroutineDispatcher get() = testDispatcher
 		override val unconfined: CoroutineDispatcher get() = testDispatcher
 	}
-	private val helper = GpxShareHelper(locationSampleRepository, dispatchersProvider)
+	private val tripGpxExporter = object : TripGpxExporter {
+		override suspend fun export(
+			outputStream: OutputStream,
+			dateRange: LongRange,
+			streamLocations: suspend ((LocationSample) -> Unit) -> Unit,
+		): TripGpxExportResult {
+			streamLocations { }
+			return TripGpxExportResult.Success
+		}
+	}
+	private val helper = GpxShareHelper(
+		locationSampleRepository,
+		tripGpxExporter,
+		dispatchersProvider,
+	)
 
 	private fun mockExportContext(): Context {
 		val appInfo = ApplicationInfo().apply {
@@ -81,7 +97,7 @@ class GpxShareHelperTest {
 			endTimeMs = 5000L,
 		)
 
-		result.shouldBeInstanceOf<ExportResult.Success>()
+		result.shouldBeInstanceOf<TripGpxExportResult.Success>()
 		coVerify(exactly = 1) {
 			locationSampleRepository.getOrderedChunkBetween(1000L, 5000L, null, null, 500)
 		}
@@ -131,7 +147,7 @@ class GpxShareHelperTest {
 			endTimeMs = 3000L,
 		)
 
-		result shouldBe ExportResult.Success
+		result shouldBe TripGpxExportResult.Success
 		coVerify(exactly = 1) {
 			locationSampleRepository.getOrderedChunkBetween(1000L, 3000L, null, null, 500)
 		}
@@ -152,7 +168,7 @@ class GpxShareHelperTest {
 		val result1 = helper.exportAndShare(mockExportContext(), 1L, 0L, 100L)
 		val result2 = helper.exportAndShare(mockExportContext(), 1L, 0L, 100L)
 
-		result1 shouldBe ExportResult.Success
-		result2 shouldBe ExportResult.Success
+		result1 shouldBe TripGpxExportResult.Success
+		result2 shouldBe TripGpxExportResult.Success
 	}
 }

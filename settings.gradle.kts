@@ -10,8 +10,8 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
 	repositories {
-		// Tracebox is trialled from Maven Local before its alpha is distributed through
-		// GitHub Packages. Restrict this repository to its group so local artifacts
+		// Tracebox release candidates are consumed from Maven Local before publication.
+		// Restrict this repository to its group so local artifacts
 		// cannot affect the rest of Tracker's dependency graph.
 		mavenLocal {
 			content {
@@ -51,8 +51,7 @@ include(
 	":core:common",
 	":core:model",
 	":core:ui",
-	":core:logging",
-	":core:logging-api",
+	":core:diagnostics",
 	":core:network",
 	":core:sqlite-runtime",
 	":core:testing",

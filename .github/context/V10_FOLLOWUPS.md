@@ -143,11 +143,12 @@ direct file:symbol to inspect.
   a later item fails; `getOrThrow()` aborts on first throw, so the
   `failedCount` branch is unreachable.
 
-- **`SessionSegmentDao.getAllBetween` midnight off-by-one.**
-  `sbase/src/main/java/.../shared/base/database/dao/SessionSegmentDao.kt`
-  + `dashboard/src/main/java/.../dashboard/ui/DashboardViewModel.kt:210`
-  — segments straddling midnight are excluded from both days in
-  non-UTC zones.
+- **RESOLVED — cross-midnight session-segment lookup.**
+  `DailySummaryAggregator` now uses `SessionSegmentDao.getOverlapping(...)`,
+  which includes boundary-straddling segments for proration.
+  `getAllBetween(...)` is explicitly documented as strict containment, and
+  `DashboardViewModel` no longer reads `SessionSegmentDao`; it consumes
+  `DashboardHistoryRepository`. Its only remaining non-test use is debug seeding.
 
 - **`RetentionConfigStore.toProto()` resets a legacy migration flag.**
   `spreferences/src/main/java/.../shared/preferences/retention/RetentionConfigStore.kt`
@@ -183,10 +184,8 @@ direct file:symbol to inspect.
   guard against `!isFinite()` (validation confirmed); imports do not,
   so "Null Island" data can be persisted.
 
-- **`logger/.../LogDatabase.kt:31` calls `fallbackToDestructiveMigration()`
-  in the `main` source set.** This violates the north star
-  (never-destructive in production). Move it behind a `debug`-only
-  builder or remove.
+- **Resolved: the legacy diagnostic Room storage was removed.**
+  Diagnostics are not part of Room migration or consolidation.
 
 - **FK gaps.** Validation flagged missing foreign keys on
   `route_cache.session_id/segment_id`, `ski_run_segment.session_id`,
@@ -194,18 +193,11 @@ direct file:symbol to inspect.
   and add `@ForeignKey` declarations where appropriate (will need a
   new migration).
 
-- **`Reporter` is not non-throwing.** `logger/src/main/java/.../logger/Reporter.kt`
-  and `logging-api/src/main/java/.../logging/api/ReporterFacade.kt`
-  have no `try/catch`. The `V10_HIGHLIGHTS.md` claim was downgraded
-  during the doc-drift sweep; if a non-throwing wrapper is actually
-  wanted, add one and route all `ErrorReporter` calls through it.
-
-- **~28 production files bypass `PiiRedactor` via raw `android.util.Log.*`.**
-  Validation listed the file set; sweep all `android.util.Log` imports
-  in production code and route through the structured logger. Also
-  broaden `PiiRedactor` itself — it currently only handles ≥5-decimal
-  coordinates and misses BSSID/SSID/IMEI/IP/email/4-decimal coordinate
-  forms.
+- **Resolved: diagnostics are hard-migrated to Tracebox.**
+  `:core:diagnostics` is the payload-free boundary: routine verbose/debug/info
+  calls are discarded, and meaningful warnings and errors emit fixed codes.
+  Tracebox is the sole crash and diagnostic backend. The former Room storage,
+  migration adapters, reporting shims, and parallel crash path were deleted.
 
 - **Theme regression.** Validation flagged that `AppTheme` regressed
   to a bare `MaterialTheme` (no `MaterialExpressiveTheme`). The
@@ -238,13 +230,11 @@ V10_HIGHLIGHTS now lists them explicitly; if the goal is true zero,
 target them in this order:
 
 1. `impexp/.../exporter/PagedLocationSequence.kt`
-2. `logger/.../CrashHandler.kt`
-3. `logger/.../DebugCrashLogExporter.kt`
-4. `spreferences/.../settings/TrackerSettingsAccess.kt`
-5. `spreferences/.../store/LegacyPreferenceStore.kt`
+2. `spreferences/.../settings/TrackerSettingsAccess.kt`
+3. `spreferences/.../store/LegacyPreferenceStore.kt`
 
-CrashHandler is unavoidable (process is about to die); the others
-have non-blocking alternatives.
+These non-diagnostic sites have non-blocking alternatives. Diagnostics no
+longer depend on an application-level blocking bridge.
 
 ---
 

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.app.settings
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.R
@@ -10,6 +9,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 data class MigrationBackupUiInfo(
     val fileName: String,
@@ -70,17 +71,14 @@ class DataSettingsViewModel @Inject constructor(
     val uiState: StateFlow<DataSettingsUiState> = combine(
         retentionConfigStore.config
             .catch {
-                Log.e("DataSettingsViewModel", "Failed to load data settings", it)
                 emit(RetentionConfigState())
             },
         exportPlanStore.plans
             .catch {
-                Log.e("DataSettingsViewModel", "Failed to load export plans", it)
                 emit(emptyList())
             },
         preferences.observeBoolean(smartGoalNotificationsKey, true)
             .catch {
-                Log.e("DataSettingsViewModel", "Failed to load smart goal notifications", it)
                 emit(true)
             },
         backupRepository.backups
@@ -96,7 +94,6 @@ class DataSettingsViewModel @Inject constructor(
             }
             .flowOn(dispatchers.io)
             .catch {
-                Log.e("DataSettingsViewModel", "Failed to load migration backup", it)
                 emit(null)
             },
     ) { config, plans, smartGoalNotificationsEnabled, backup ->
@@ -111,20 +108,18 @@ class DataSettingsViewModel @Inject constructor(
 
     fun setAutoCleanupEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 retentionConfigStore.update {
                     copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
                 }
-            }.onFailure {
-                Log.e("DataSettingsViewModel", "Failed to update auto-cleanup", it)
-            }
+            }.getOrNull()
         }
     }
 
     fun setDataRetentionYears(years: Int) {
         if (years < 0) return
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val retentionDays = if (years == 0) 0 else years * DAYS_PER_YEAR
                 retentionConfigStore.update {
                     copy(
@@ -137,41 +132,33 @@ class DataSettingsViewModel @Inject constructor(
                         legacySessionRetentionDays = retentionDays,
                     )
                 }
-            }.onFailure {
-                Log.e("DataSettingsViewModel", "Failed to update retention years", it)
-            }
+            }.getOrNull()
         }
     }
 
     fun setIncrementalBackupsEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 exportPlanStore.setAllIncrementalEnabled(enabled)
-            }.onFailure {
-                Log.e("DataSettingsViewModel", "Failed to update incremental backups", it)
-            }
+            }.getOrNull()
         }
     }
 
     fun setSmartGoalNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 preferences.edit {
                     setBoolean(smartGoalNotificationsKey, enabled)
                 }
-            }.onFailure {
-                Log.e("DataSettingsViewModel", "Failed to update smart goal notifications", it)
-            }
+            }.getOrNull()
         }
     }
 
     fun resetExportWatermarks() {
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 exportPlanStore.resetAllWatermarks()
-            }.onFailure {
-                Log.e("DataSettingsViewModel", "Failed to reset export watermarks", it)
-            }
+            }.getOrNull()
         }
     }
 
@@ -183,25 +170,20 @@ class DataSettingsViewModel @Inject constructor(
             val result = withContext(dispatchers.io) {
                 val output = try {
                     appContext.contentResolver.openOutputStream(destination, "rwt")
-                } catch (error: IOException) {
-                    Log.e("DataSettingsViewModel", "Could not open migration backup destination", error)
+                } catch (_: IOException) {
                     null
-                } catch (error: SecurityException) {
-                    Log.e("DataSettingsViewModel", "Migration backup destination was denied", error)
+                } catch (_: SecurityException) {
                     null
                 } ?: return@withContext MigrationBackupExportResult.Failure
 
                 try {
                     output.use(backupRepository::exportLatest)
                     MigrationBackupExportResult.Success
-                } catch (error: DatabaseMigrationBackupException) {
-                    Log.e("DataSettingsViewModel", "Migration backup export failed", error)
+                } catch (_: DatabaseMigrationBackupException) {
                     cleanupFailedExport(destination)
-                } catch (error: IOException) {
-                    Log.e("DataSettingsViewModel", "Could not write migration backup", error)
+                } catch (_: IOException) {
                     cleanupFailedExport(destination)
-                } catch (error: SecurityException) {
-                    Log.e("DataSettingsViewModel", "Migration backup destination denied writing", error)
+                } catch (_: SecurityException) {
                     cleanupFailedExport(destination)
                 }
             }
@@ -215,11 +197,11 @@ class DataSettingsViewModel @Inject constructor(
                 try {
                     deletionService.deleteAll()
                     DataDeletionResult.Success
-                } catch (error: DatabaseMigrationBackupException) {
-                    Log.e("DataSettingsViewModel", "Could not delete migration backup", error)
-                    DataDeletionResult.Failure
-                } catch (error: android.database.sqlite.SQLiteException) {
-                    Log.e("DataSettingsViewModel", "Could not delete collected database data", error)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // A durable pending marker makes every ordinary storage/runtime failure
+                    // retryable. Always return a UI result instead of losing the callback.
                     DataDeletionResult.Failure
                 }
             }
@@ -228,34 +210,29 @@ class DataSettingsViewModel @Inject constructor(
     }
 
     private fun cleanupFailedExport(destination: Uri): MigrationBackupExportResult {
-        try {
-            if (appContext.contentResolver.delete(destination, null, null) > 0) {
-                return MigrationBackupExportResult.Failure
-            }
-        } catch (error: SecurityException) {
-            Log.w("DataSettingsViewModel", "Could not remove failed backup export", error)
-        } catch (error: IllegalArgumentException) {
-            Log.w("DataSettingsViewModel", "Backup provider rejected failed-export cleanup", error)
-        } catch (error: UnsupportedOperationException) {
-            Log.w("DataSettingsViewModel", "Backup provider does not support document deletion", error)
+        val deleted = try {
+            appContext.contentResolver.delete(destination, null, null) > 0
+        } catch (_: SecurityException) {
+            false
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: UnsupportedOperationException) {
+            false
         }
+        if (deleted) return MigrationBackupExportResult.Failure
 
         return try {
             val output = appContext.contentResolver.openOutputStream(destination, "rwt")
                 ?: return MigrationBackupExportResult.CleanupRequired
             output.use { it.flush() }
             MigrationBackupExportResult.Failure
-        } catch (error: IOException) {
-            Log.e("DataSettingsViewModel", "Could not truncate failed backup export", error)
+        } catch (_: IOException) {
             MigrationBackupExportResult.CleanupRequired
-        } catch (error: SecurityException) {
-            Log.e("DataSettingsViewModel", "Could not access failed backup export for cleanup", error)
+        } catch (_: SecurityException) {
             MigrationBackupExportResult.CleanupRequired
-        } catch (error: IllegalArgumentException) {
-            Log.e("DataSettingsViewModel", "Backup provider rejected failed-export truncation", error)
+        } catch (_: IllegalArgumentException) {
             MigrationBackupExportResult.CleanupRequired
-        } catch (error: UnsupportedOperationException) {
-            Log.e("DataSettingsViewModel", "Backup provider cannot truncate failed export", error)
+        } catch (_: UnsupportedOperationException) {
             MigrationBackupExportResult.CleanupRequired
         }
     }

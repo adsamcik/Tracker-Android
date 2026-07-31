@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
 import android.text.format.DateUtils
-import android.util.Log
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -50,18 +49,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
-import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.tracker.R
-import kotlinx.coroutines.withContext
 
 /**
  * Today's Progress Card
@@ -90,8 +86,7 @@ internal fun TodayProgressCard(
         isLoading = true
         try {
             todaySummary = dailySummaryProvider.fetchTodaySummary()
-        } catch (e: Exception) {
-            Log.e("TodayProgressCard", "Failed to fetch today summary", e)
+        } catch (_: Exception) {
             todaySummary = null
         }
         isLoading = false
@@ -273,25 +268,11 @@ internal fun GoalProgressRing(
  */
 @Composable
 internal fun RecentTripsCard(
+    trips: List<Trip>,
     settings: TrackerSettingsState,
     onTripClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val db = remember { AppDatabase.database(context) }
-    var trips by remember { mutableStateOf<List<Trip>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        try {
-            trips = withContext(defaultDispatchers.io) {
-                db.tripDao().getRecentTrips(3).map { it.toModel() }
-            }
-        } catch (e: Exception) {
-            Log.e("RecentTripsCard", "Failed to fetch recent trips", e)
-            trips = emptyList()
-        }
-    }
-
     if (trips.isEmpty()) return
 
     Card(

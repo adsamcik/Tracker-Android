@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import android.util.Log
 
 /**
  * Helpers for guiding the user to exclude the app from battery optimization /
@@ -21,7 +20,6 @@ import android.util.Log
  */
 object BatteryOptimizationHelper {
 
-	private const val TAG = "BatteryOptimization"
 	private const val SAMSUNG = "samsung"
 
 	// Samsung Device Care battery screen (best-effort; component may change across One UI versions).
@@ -87,11 +85,9 @@ object BatteryOptimizationHelper {
 	private fun tryStart(context: Context, intent: Intent): Boolean = try {
 		context.startActivity(intent)
 		true
-	} catch (e: android.content.ActivityNotFoundException) {
-		Log.w(TAG, "No activity to handle ${intent.action ?: intent.component}", e)
+	} catch (_: android.content.ActivityNotFoundException) {
 		false
-	} catch (e: SecurityException) {
-		Log.w(TAG, "Not allowed to launch ${intent.action ?: intent.component}", e)
+	} catch (_: SecurityException) {
 		false
 	}
 }

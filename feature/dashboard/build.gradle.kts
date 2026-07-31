@@ -19,7 +19,6 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
     implementation(project(":tracker:api"))
     implementation(project(":stats:api"))
     implementation(project(":stats:data"))

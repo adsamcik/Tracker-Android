@@ -71,10 +71,6 @@ class FusedLocationCollectionTriggerTest {
 			com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(any<Context>())
 		} returns mockClient
 
-		// Mock Reporter to prevent uninitialized errors in tests
-		mockkObject(com.adsamcik.tracker.logger.Reporter)
-		every { com.adsamcik.tracker.logger.Reporter.report(any<Throwable>()) } just runs
-		every { com.adsamcik.tracker.logger.Reporter.report(any<String>()) } just runs
 	}
 
 	@After

@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -11,7 +10,6 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
@@ -64,9 +62,6 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _planeStateFlow = MutableStateFlow<LivePlaneState?>(null)
     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
-    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
-    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
-    
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
     }
@@ -120,10 +115,6 @@ class DefaultTrackerServiceController : TrackerServiceController {
         }
     }
     
-    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
-        _persistenceErrorFlow = errorFlow
-    }
-
     override fun updatePolicyTier(tier: PolicyTier) {
         _policyTierFlow.value = tier
     }

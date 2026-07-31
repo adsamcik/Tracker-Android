@@ -93,8 +93,16 @@ class GoalNotificationWorker @AssistedInject constructor(
             else -> appContext.getString(R.string.goal_notification_title_progress)
         }
         val body = when (threshold) {
-            THRESHOLD_90 -> appContext.getString(R.string.goal_notification_body_90, remaining)
-            else -> appContext.getString(R.string.goal_notification_body_75, remaining)
+            THRESHOLD_90 -> appContext.resources.getQuantityString(
+                R.plurals.goal_notification_body_90,
+                remaining,
+                remaining,
+            )
+            else -> appContext.resources.getQuantityString(
+                R.plurals.goal_notification_body_75,
+                remaining,
+                remaining,
+            )
         }
 
         val launchIntent = appContext.packageManager

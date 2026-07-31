@@ -6,9 +6,6 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
-import com.adsamcik.tracker.points.POINTS_LOG_SOURCE
 import com.adsamcik.tracker.points.work.PointsWorker
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -85,12 +82,6 @@ class PointsDomainEventConsumer @Inject constructor(
 			workRequest,
 		)
 
-		Logger.log(
-			LogData(
-				message = "SessionEnded event → scheduled points work for session $sessionId",
-				source = POINTS_LOG_SOURCE,
-			),
-		)
 	}
 
 	companion object {

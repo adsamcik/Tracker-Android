@@ -3,7 +3,6 @@ package com.adsamcik.tracker.testing.fake
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -11,9 +10,7 @@ import com.adsamcik.tracker.tracker.controller.LivePlaneState
 import com.adsamcik.tracker.tracker.controller.LiveSailingState
 import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -78,15 +75,6 @@ class FakeTrackerServiceController : TrackerServiceController {
     private val _planeStateFlow = MutableStateFlow<LivePlaneState?>(null)
     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
-    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
-    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
-
-    /**
-     * Mutable flow for emitting test persistence errors.
-     * Call emitPersistenceError() to simulate database failures.
-     */
-    val testPersistenceErrors = MutableSharedFlow<PersistenceError>(replay = 5)
-
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
     }
@@ -104,10 +92,6 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     override fun updateCollectionData(data: TrackerCollectionSnapshot?) {
         _collectionDataFlow.value = data
-    }
-
-    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
-        _persistenceErrorFlow = errorFlow
     }
 
     override fun updatePolicyTier(tier: PolicyTier) {
@@ -130,19 +114,4 @@ class FakeTrackerServiceController : TrackerServiceController {
         _planeStateFlow.value = state
     }
 
-    /**
-     * Simulates a persistence error for testing.
-     * Requires enablePersistenceErrors() to be called first.
-     */
-    suspend fun emitPersistenceError(error: PersistenceError) {
-        testPersistenceErrors.emit(error)
-    }
-
-    /**
-     * Enables persistence error simulation for tests.
-     * Call this before checking persistenceErrorFlow in tests.
-     */
-    fun enablePersistenceErrors() {
-        _persistenceErrorFlow = testPersistenceErrors
-    }
 }

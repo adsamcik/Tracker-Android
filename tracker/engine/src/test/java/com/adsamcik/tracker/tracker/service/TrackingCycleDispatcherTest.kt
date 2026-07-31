@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.location.Location
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.collections.shouldContainExactly
@@ -33,7 +35,6 @@ class TrackingCycleDispatcherTest {
 			scope = this,
 			dispatcher = dispatcher,
 			capacity = 2,
-			onFailure = { throw AssertionError("Unexpected processing failure", it) },
 			processCycle = { cycle ->
 				processed += cycle
 				if (isFirstCycle) {
@@ -66,26 +67,30 @@ class TrackingCycleDispatcherTest {
 	fun `reports processing failures without terminating the worker`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val expectedFailure = IllegalStateException("cycle failed")
-		val failures = mutableListOf<Throwable>()
+		val diagnostics = mutableListOf<TrackerDiagnosticCode>()
 		val processedTimes = mutableListOf<Long>()
+		TrackerDiagnostics.install(diagnostics::add)
 		val subject = TrackingCycleDispatcher(
 			scope = this,
 			dispatcher = dispatcher,
 			capacity = 2,
-			onFailure = failures::add,
 			processCycle = { cycle ->
 				if (cycle.timestampMs == 1L) throw expectedFailure
 				processedTimes += cycle.timestampMs
 			},
 		)
 
-		subject.enqueue(cycleWithFixes(1L))
-		subject.enqueue(cycleWithFixes(2L))
-		advanceUntilIdle()
+		try {
+			subject.enqueue(cycleWithFixes(1L))
+			subject.enqueue(cycleWithFixes(2L))
+			advanceUntilIdle()
 
-		failures shouldContainExactly listOf(expectedFailure)
-		processedTimes shouldContainExactly listOf(2L)
-		subject.cancel()
+			diagnostics shouldContainExactly listOf(TrackerDiagnosticCode.TRACKING_CYCLE_FAILED)
+			processedTimes shouldContainExactly listOf(2L)
+		} finally {
+			subject.cancel()
+			TrackerDiagnostics.clear()
+		}
 	}
 
 	@Test
@@ -96,7 +101,6 @@ class TrackingCycleDispatcherTest {
 			scope = this,
 			dispatcher = dispatcher,
 			capacity = 1,
-			onFailure = { throw AssertionError("Unexpected processing failure", it) },
 			processCycle = {
 				processingStarted.complete(Unit)
 				awaitCancellation()

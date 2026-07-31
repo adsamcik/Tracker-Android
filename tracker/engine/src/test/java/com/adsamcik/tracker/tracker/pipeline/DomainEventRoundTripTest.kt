@@ -16,10 +16,7 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -109,7 +106,6 @@ class DomainEventRoundTripTest {
 		)
 		val pipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 			onDomainEvents = { events -> collectedEvents.addAll(events) },
 		)
 
@@ -150,7 +146,6 @@ class DomainEventRoundTripTest {
 		)
 		val pipeline = ProcessorPipeline(
 			processors = setOf(endProcessor1, endProcessor2),
-			scope = this,
 			onDomainEvents = { events -> collectedEvents.addAll(events) },
 		)
 
@@ -182,10 +177,8 @@ class DomainEventRoundTripTest {
 			),
 			sessionId = 99L,
 		)
-		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val pipeline = ProcessorPipeline(
 			processors = setOf(startProcessor, endProcessor),
-			scope = CoroutineScope(dispatcher + SupervisorJob()),
 			onDomainEvents = { events -> collectedEvents.addAll(events) },
 		)
 

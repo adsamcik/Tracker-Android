@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.preferences.onboarding
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
@@ -46,8 +45,7 @@ private object OnboardingStateSerializer : Serializer<OnboardingStateProto> {
 
     override suspend fun readFrom(input: InputStream): OnboardingStateProto = try {
         OnboardingStateProto.parseFrom(input)
-    } catch (e: Exception) {
-        Log.w("OnboardingState", "Corruption while reading onboarding proto – using defaults", e)
+    } catch (_: Exception) {
         defaultValue
     }
 
@@ -137,9 +135,7 @@ class DefaultOnboardingRepository(
 
     override suspend fun ensureInitialized() {
         withContext(io) {
-            android.util.Log.d("Startup", "ensureInitialized: Starting migration check")
             context.onboardingDataStore.data.first()
-            android.util.Log.d("Startup", "ensureInitialized: Migration check done")
         }
     }
 }

@@ -68,7 +68,6 @@ class ShutdownOrderingTest {
 
 		val pipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 			onDomainEvents = { events ->
 				// This callback fires when SessionEnded is delivered.
 				// At this point, the session should already be finalized.
@@ -129,7 +128,6 @@ class ShutdownOrderingTest {
 
 		val pipeline = ProcessorPipeline(
 			processors = setOf(processor),
-			scope = this,
 			onDomainEvents = { events ->
 				if (events.any { it is DomainEvent.SessionEnded }) {
 					sessionWasFinalizedWhenEventEmitted = sessionFinalized.get()

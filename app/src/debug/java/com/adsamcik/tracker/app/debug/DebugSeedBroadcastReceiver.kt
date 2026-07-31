@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -48,9 +47,8 @@ class DebugSeedBroadcastReceiver : BroadcastReceiver() {
                     ACTION_RESET_ONBOARDING -> entryPoint.testDataSeeder().resetOnboarding()
                     ACTION_RESET_ALL_DATA -> entryPoint.testDataSeeder().resetAllData()
                 }
-                Log.d(TAG, "Handled debug action $action")
-            } catch (error: Exception) {
-                Log.e(TAG, "Debug action failed: $action", error)
+            } catch (_: Exception) {
+                return@launch
             } finally {
                 pendingResult.finish()
             }
@@ -93,7 +91,6 @@ class DebugSeedBroadcastReceiver : BroadcastReceiver() {
         private const val DEFAULT_COUNT = 5
         private const val DEFAULT_DISTANCE_KM = 5.0
         private const val DEFAULT_PROFILE = "walk"
-        private const val TAG = "DebugSeedReceiver"
         private val DEBUG_ACTIONS = setOf(
             ACTION_SEED_SESSIONS,
             ACTION_RESET_ONBOARDING,

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.preferences.map
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -17,8 +16,7 @@ private object OnlineMapTilesSerializer : Serializer<OnlineMapTilesProto> {
 
 	override suspend fun readFrom(input: InputStream): OnlineMapTilesProto = try {
 		OnlineMapTilesProto.parseFrom(input)
-	} catch (e: Exception) {
-		Log.w("OnlineMapTiles", "Corruption while reading online tiles proto – using defaults", e)
+	} catch (_: Exception) {
 		defaultValue
 	}
 

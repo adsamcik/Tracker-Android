@@ -7,8 +7,6 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -136,7 +134,6 @@ class SessionCrashRecoveryTest {
 			dispatchers = dispatchersProvider,
 			appDatabase = database,
 			trackingParamsRepository = newTrackingParamsRepo(),
-			trackerSettingsRepository = FakeTrackerSettingsRepository(),
 			dailySummaryFallbackEnqueuer = { /* no-op */ },
 			enableNotifications = false,
 		)
@@ -253,7 +250,6 @@ class SessionCrashRecoveryTest {
 			dispatchers = dispatchersProvider,
 			appDatabase = database,
 			trackingParamsRepository = newTrackingParamsRepo(),
-			trackerSettingsRepository = FakeTrackerSettingsRepository(),
 			dailySummaryFallbackEnqueuer = { /* no-op */ },
 			enableNotifications = false,
 		)
@@ -392,13 +388,6 @@ class SessionCrashRecoveryTest {
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
 		}
-	}
-
-	private class FakeTrackerSettingsRepository : TrackerSettingsRepository {
-		override val data: Flow<TrackerSettingsState> = MutableStateFlow(TrackerSettingsState.DEFAULT)
-		override suspend fun setAutoUnitSwitch(enabled: Boolean) = Unit
-		override suspend fun setLengthSystem(system: com.adsamcik.tracker.shared.preferences.type.LengthSystem) = Unit
-		override suspend fun setSpeedFormat(format: com.adsamcik.tracker.shared.preferences.type.SpeedFormat) = Unit
 	}
 
 	private class NoOpTimerAccessor : TrackerTierEscalationHandler.TimerAccessor {

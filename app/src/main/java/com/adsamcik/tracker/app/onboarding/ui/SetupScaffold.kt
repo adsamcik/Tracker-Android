@@ -34,11 +34,11 @@ import com.adsamcik.tracker.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScaffold(
+    bottomBar: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
     title: String? = null,
     progress: Float? = null,
     onBack: (() -> Unit)? = null,
-    bottomBar: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(

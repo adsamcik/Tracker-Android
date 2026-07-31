@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -99,17 +98,11 @@ object TrackerServiceApi {
 			ContextCompat.startForegroundService(context, intent)
 			true
 		} catch (exception: SecurityException) {
-			Log.w("ForegroundServiceStart", "Foreground service start blocked by security policy", exception)
 			false
 		} catch (exception: RuntimeException) {
 			val isForegroundStartRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
 				exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
 			if (isForegroundStartRestricted) {
-				Log.w(
-					"ForegroundServiceStart",
-					"Skipped foreground service start from background-restricted context",
-					exception,
-				)
 				false
 			} else {
 				throw exception
@@ -187,7 +180,6 @@ object TrackerServiceApi {
 		controller.updateSessionInfo(null)
 		controller.updateSession(null)
 		controller.updateCollectionData(null)
-		controller.updatePersistenceErrorFlow(null)
 		controller.updatePolicyState(null)
 		controller.updatePolicyTier(PolicyTier.OFF)
 		controller.updateSkiState(null)

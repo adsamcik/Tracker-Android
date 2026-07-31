@@ -1,25 +1,22 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
-import android.util.Log
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
-import com.adsamcik.tracker.tracker.engine.BuildConfig
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
@@ -37,8 +34,6 @@ import com.adsamcik.tracker.tracker.control.TrackingControlAcquisitionOutcomeSin
 import com.adsamcik.tracker.tracker.control.TrackingControlOutputSink
 import com.adsamcik.tracker.tracker.control.TrackingControlShadow
 import com.adsamcik.tracker.tracker.control.TrackingDecisionFeatureFlags
-import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
@@ -53,7 +48,6 @@ import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
-import com.adsamcik.tracker.shared.base.result.runWithResultAndReport
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
@@ -87,7 +81,6 @@ internal class TrackingOrchestrator(
 	private val dispatchers: DispatchersProvider,
 	private val appDatabase: AppDatabase,
 	private val trackingParamsRepository: TrackingParamsRepository,
-	trackerSettingsRepository: TrackerSettingsRepository,
 	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
 	private val enableNotifications: Boolean = true,
 	private val foregroundServiceTypeUpdater: (Boolean, Boolean, Boolean) -> Boolean =
@@ -110,10 +103,6 @@ internal class TrackingOrchestrator(
 		(trackingControlOutputSink as? TrackingControlAcquisitionOutcomeSink)
 			?: NoOpTrackingControlAcquisitionOutcomeSink,
 ) {
-	private companion object {
-		const val TAG = "TrackingOrchestrator"
-	}
-
 	private val componentMutex = Mutex()
 
 	private var dataProducerManager: DataProducerManager? = null
@@ -122,7 +111,6 @@ internal class TrackingOrchestrator(
 	private var trackingPipeline: TrackingPipeline? = null
 	private var pendingFinalCycle: TrackingCycle? = null
 	private var sessionComponent: SessionTrackerComponent? = null
-	private var persistenceErrorCollector: PersistenceErrorCollector? = null
 	private var sessionJob: Job? = null
 	private var controlTimerReceiver: TrackerTimerReceiver? = null
 	private var controlSessionScope: CoroutineScope? = null
@@ -130,7 +118,6 @@ internal class TrackingOrchestrator(
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
 
-	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	private var skiTrackingComponent: SkiTrackingComponent? = null
 	private var skiSegmentWriter: SkiSegmentWriter? = null
 	private var sailingTrackingComponent: SailingTrackingComponent? = null
@@ -147,7 +134,6 @@ internal class TrackingOrchestrator(
 		TrackerComponentFactory(
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
-			trackerSettingsRepository = trackerSettingsRepository,
 			dispatchers = dispatchers,
 			enableNotifications = enableNotifications,
 		)
@@ -327,22 +313,16 @@ internal class TrackingOrchestrator(
 		policyFeeder.reset()
 
 		// Build components via factory
-		// Clear previous collector's scope before replacing
-		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
-
 		val componentSet = componentFactory.create(
 			context = context,
 			isSessionUserInitiated = isSessionUserInitiated,
-			tier = initialTier,
 			notificationComponent = notificationComponent,
-			trackingPolicyManager = trackingPolicyManager,
 			escalationEngine = escalationEngine,
 			controller = controller,
 			scope = sessionScope,
 		)
 
 		sessionComponent = componentSet.sessionComponent
-		preComponentList.addAll(componentSet.preComponents)
 		dataComponentList.addAll(componentSet.dataComponents)
 		skiTrackingComponent = componentSet.skiTrackingComponent
 		skiSegmentWriter = componentSet.skiSegmentWriter
@@ -360,16 +340,12 @@ internal class TrackingOrchestrator(
 		)
 		applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
 
-		persistenceErrorCollector = componentSet.errorCollector
-		controller.updatePersistenceErrorFlow(componentSet.errorCollector.errors)
-
 		// Emit initial session via controller
 		controller.updateSession(session.toSnapshot())
 
 		// Initialize the stats ProcessorPipeline
 		val pipeline = ProcessorPipeline(
 			processors = signalProcessors,
-			scope = sessionScope,
 			onDomainEvents = { events -> domainEventRepository.persist(events) },
 			requireDurableAdmission = true,
 		)
@@ -456,7 +432,6 @@ internal class TrackingOrchestrator(
 			dailySummaryFallbackEnqueuer(context)
 			true
 		} catch (e: Exception) {
-			Log.w(TAG, "Failed to enqueue one-shot daily summary worker", e)
 			false
 		}
 	}
@@ -503,7 +478,6 @@ internal class TrackingOrchestrator(
 		controller.updateSessionInfo(null)
 		controller.updateSession(null)
 		controller.updateCollectionData(null)
-		controller.updatePersistenceErrorFlow(null)
 		controller.updatePolicyState(null)
 		controller.updatePolicyTier(PolicyTier.OFF)
 		controller.updateSkiState(null)
@@ -511,9 +485,6 @@ internal class TrackingOrchestrator(
 		controller.updatePlaneState(null)
 		controlTimerReceiver = null
 		controlSessionScope = null
-		// Ensure error collector scope is always cancelled
-		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
-		persistenceErrorCollector = null
 	}
 
 	fun markServiceStopped() {
@@ -528,7 +499,6 @@ internal class TrackingOrchestrator(
 			processorPipeline != null ||
 			trackingPipeline != null ||
 			sessionComponent != null ||
-			preComponentList.isNotEmpty() ||
 			dataComponentList.isNotEmpty() ||
 			skiTrackingComponent != null ||
 			skiSegmentWriter != null ||
@@ -544,8 +514,8 @@ internal class TrackingOrchestrator(
 		context: Context,
 		triggerCycle: TrackingCycle,
 	) {
-		// Capture the immutable provider observation before pre-validation or data components can
-		// reject or correct the location used by the curated tracking stream.
+		// Capture the immutable provider observation before data components can correct the
+		// location used by the curated tracking stream.
 		if (triggerCycle.locationObservations.isNotEmpty()) {
 			val observationSignals = triggerCycle.locationObservations.map { observation ->
 				observation.toLocationObservationSignal(
@@ -556,7 +526,7 @@ internal class TrackingOrchestrator(
 			// Rejected-only callbacks never enter ProcessorPipeline, so they would otherwise remain
 			// only in volatile staging. Checkpoint every provider delivery before any rejection path.
 			if (processorPipeline?.checkpointDurableSignals(observationSignals) != true) {
-				Reporter.report("Unable to durably checkpoint raw location observations")
+				TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_CHECKPOINT_FAILED)
 				// Do not admit an accepted location when its reconstructable raw source has not reached
 				// the WAL. The durability processor retains staged evidence for a later checkpoint; this
 				// curated cycle intentionally remains unresolved rather than becoming source-less.
@@ -568,22 +538,6 @@ internal class TrackingOrchestrator(
 		}
 		if (triggerCycle.isLocationObservationOnly()) return
 		trackingPolicyManager?.heartbeatIfDue()
-
-		for (component in preComponentList) {
-			if (!component.requirementsMet(triggerCycle)) continue
-			val accepted = runWithResultAndReport {
-				component.onNewData(triggerCycle)
-			}.getOrElse { true }
-			if (!accepted) {
-				checkpointCuratedLocationRejection(triggerCycle, "PRETRACKER_REJECTED")
-				trackingControlShadow.onCuratedLocationDecision(
-					cycle = triggerCycle,
-					accepted = false,
-					reason = "PRETRACKER_REJECTED",
-				)
-				return
-			}
-		}
 
 		trackingControlShadow.onCuratedLocationDecision(triggerCycle, accepted = true)
 		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
@@ -604,44 +558,15 @@ internal class TrackingOrchestrator(
 		executeCycle(context, cycle)
 	}
 
-	private suspend fun checkpointCuratedLocationRejection(
-		cycle: TrackingCycle,
-		reason: String,
-	) {
-		val metadata = cycle.location?.lastFixMetadata ?: return
-		val sourceEventId = metadata.sourceEventId ?: return
-		val signal = com.adsamcik.tracker.stats.api.signal.TrackingSignal(
-			timestampMs = EpochMs(cycle.timestampMs.coerceAtLeast(0L)),
-			elapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
-			clockDomainId = metadata.clockDomainId,
-			locationDecision = com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal(
-				sourceEventId = sourceEventId,
-				decision = com.adsamcik.tracker.stats.api.signal.LocationDecision.REJECTED,
-				reason = reason,
-			),
-			persistenceSignalId = "location-decision:$sourceEventId:$reason",
-		)
-		if (processorPipeline?.checkpointDurableSignals(listOf(signal)) != true) {
-			Reporter.report("Unable to durably checkpoint curated location rejection")
-		}
-	}
-
 	private suspend fun executeCycle(context: Context, cycle: TrackingCycle) {
 		val cycleContext = CycleContext(
 			cycle = cycle,
 			collectionData = MutableCollectionData(cycle.timestampMs),
 		)
 
-		val result = requireNotNull(trackingPipeline) {
+		requireNotNull(trackingPipeline) {
 			"Tracking pipeline must be initialized before processing cycles"
 		}.execute(context, cycleContext)
-
-		if (BuildConfig.DEBUG) {
-			result.metrics.forEach { m ->
-				Log.d("TrackingPipeline", "${m.stageName}: ${m.durationMs}ms -> ${m.result}")
-			}
-		}
-
 	}
 
 	private fun createTrackingPipeline(scope: CoroutineScope): TrackingPipeline {
@@ -663,7 +588,6 @@ internal class TrackingOrchestrator(
 				),
 				PolicyUpdateStage(policyFeeder, trackingPolicyManager, scope),
 			),
-			collectMetrics = BuildConfig.DEBUG,
 		)
 	}
 
@@ -671,7 +595,6 @@ internal class TrackingOrchestrator(
 		var shutdownFailure: IllegalStateException? = null
 		fun recordCriticalFailure(message: String, exception: Exception) {
 			val failure = IllegalStateException(message, exception)
-			Reporter.report(failure)
 			if (shutdownFailure == null) shutdownFailure = failure
 		}
 
@@ -769,19 +692,6 @@ internal class TrackingOrchestrator(
 		} catch (e: Exception) {
 			recordCriticalFailure("Failed to stop tracking policy manager during shutdown", e)
 		}
-		preComponentList.toList().forEach { component ->
-			try {
-				component.onDisable(context)
-				preComponentList.remove(component)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				recordCriticalFailure(
-					"Failed to disable pre-component ${component::class.simpleName}",
-					e,
-				)
-			}
-		}
 		dataComponentList.toList().forEach { component ->
 			try {
 				component.onDisable(context)
@@ -860,7 +770,6 @@ internal class TrackingOrchestrator(
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Log.w(TAG, "Failed to materialize daily summary on shutdown", e)
 				false
 			}
 		} else {

@@ -3,7 +3,6 @@ package com.adsamcik.tracker.game.event
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer.Companion.CONSUMER_ID
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
@@ -44,8 +43,6 @@ class ExplorationDomainEventConsumerTest {
 
 		mockkObject(AppDatabase.Companion)
 		every { AppDatabase.database(any()) } returns database
-		mockkObject(Logger)
-		every { Logger.log(any()) } returns Unit
 
 		consumer = ExplorationDomainEventConsumer(
 			domainEventRepository = repository,

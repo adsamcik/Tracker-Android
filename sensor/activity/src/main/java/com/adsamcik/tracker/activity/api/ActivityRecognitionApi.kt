@@ -6,10 +6,7 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.Operation
 import androidx.work.WorkManager
-import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
-import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.logger.LogData
 
 /**
  * Activity recognition API class, providing access to special activity recognition functions.
@@ -20,7 +17,6 @@ object ActivityRecognitionApi {
      * and processes them with O(3) queries instead of O(N*3).
      */
     fun rerunRecognitionForAll(context: Context) {
-        logActivity(LogData(message = "requesting recognition rerun", source = ACTIVITY_LOG_SOURCE))
         val data = Data.Builder()
             .putBoolean(ActivityRecognitionWorker.ARG_BATCH_MODE, true)
             .build()

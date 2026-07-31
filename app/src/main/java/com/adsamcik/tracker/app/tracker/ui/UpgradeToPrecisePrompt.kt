@@ -45,8 +45,8 @@ import com.adsamcik.tracker.app.common.ui.BatteryImpactIndicator
 fun UpgradeToPrecisePrompt(
     onDismiss: () -> Unit,
     onUpgrade: () -> Unit,
+    modifier: Modifier = Modifier,
     reason: UpgradeReason = UpgradeReason.GENERAL,
-    modifier: Modifier = Modifier
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 
 /**
  * Debug-only ContentProvider that runs at app process start (before Application.onCreate)
@@ -40,9 +39,8 @@ class DebugInitProvider : ContentProvider() {
             } else {
                 ctx.registerReceiver(receiver, filter)
             }
-            Log.i(TAG, "Debug seed receiver registered dynamically.")
-        } catch (error: Exception) {
-            Log.e(TAG, "Failed to register debug seed receiver", error)
+        } catch (_: Exception) {
+            return true
         }
         return true
     }
@@ -58,8 +56,4 @@ class DebugInitProvider : ContentProvider() {
 
     override fun update(uri: Uri, values: ContentValues?, selection: String?,
                         selectionArgs: Array<out String>?): Int = 0
-
-    private companion object {
-        const val TAG = "DebugInitProvider"
-    }
 }

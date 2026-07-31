@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.osm.io
 
-import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.osm.OsmRoadClass
 import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
 import com.adsamcik.tracker.shared.model.geo.CircularLongitudeInterval
@@ -80,17 +81,6 @@ class OsmPbfStreamingParser(
 		if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
 			throw OsmParseException.FileTooLarge(fileSizeBytes, MAX_FILE_SIZE_BYTES)
 		}
-
-		// Log the chosen legacy cap for characterization diagnostics. Goes through the
-		// :logging-api facade so this stays a no-op when no delegate is wired
-		// (e.g. unit tests, instrumentation harnesses).
-		ReporterFacade.log(
-			"OsmPbfStreamingParser: maxReferencedNodes=$maxReferencedNodes " +
-				"(heap=${maxMemoryBytes / BYTES_PER_MEGABYTE} MB, " +
-				"budget=$HEAP_BUDGET_NUMERATOR/$HEAP_BUDGET_DENOMINATOR, " +
-				"perRef=${PEAK_BYTES_PER_NODE_REF}B, " +
-				"floor=$MIN_REFERENCED_NODES_FLOOR, ceiling=$MAX_REFERENCED_NODES_CEILING)",
-		)
 
 		val cancellation = CancellationCheck()
 
@@ -190,12 +180,7 @@ class OsmPbfStreamingParser(
 			rejectionCounts.invalidLongitudeCoverageWays > 0L ||
 			rejectionCounts.excessiveCellCoverageWays > 0L
 		) {
-			ReporterFacade.log(
-				"OsmPbfStreamingParser: rejectedInvalidCoordinateNodes=${rejectionCounts.invalidCoordinateNodes}, " +
-					"rejectedMissingNodeWays=${rejectionCounts.missingNodeWays}, " +
-					"rejectedInvalidLongitudeCoverageWays=${rejectionCounts.invalidLongitudeCoverageWays}, " +
-					"rejectedExcessiveCellCoverageWays=${rejectionCounts.excessiveCellCoverageWays}",
-			)
+			TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_WARNING)
 		}
 
 		return if (emittedWays == 0L) {

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.map
 
 import android.content.Context
 import android.os.StrictMode
-import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -45,8 +44,6 @@ import org.maplibre.android.module.http.HttpRequestUtil
  * has no effect.
  */
 object MapLibreInitializer {
-
-    private const val TAG = "MapLibreInit"
 
     private val _isReady = MutableStateFlow(false)
 
@@ -121,15 +118,15 @@ object MapLibreInitializer {
             // replaced (R3 round 7 finding: mapinit-factory-record-order).
             registeredCallFactory = callFactory
             if (pendingCallFactory === callFactory) pendingCallFactory = null
-        } catch (e: LinkageError) {
+        } catch (_: LinkageError) {
             // Same JVM-without-native-lib path as initialize(); on Robolectric
             // unit tests both UnsatisfiedLinkError and NoClassDefFoundError can
             // surface when MapLibre's native HTTP impl class can't link. The
             // production path always has the native lib loaded -- silent skip
             // is the right behavior in tests.
-            Log.w(TAG, "setOkHttpClient failed (native lib missing in unit test?)", e)
-        } catch (e: Exception) {
-            Log.w(TAG, "setOkHttpClient failed", e)
+            return
+        } catch (_: Exception) {
+            return
         }
     }
 
@@ -171,13 +168,11 @@ object MapLibreInitializer {
                         applyCallFactoryLocked(pending)
                     }
                     true
-                } catch (e: UnsatisfiedLinkError) {
-                    Log.w(TAG, "Native library not loaded; map will init on render", e)
+                } catch (_: UnsatisfiedLinkError) {
                     false
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "Pre-initialization failed; map will init on render", e)
+                } catch (_: Exception) {
                     false
                 }
             }
@@ -195,4 +190,3 @@ object MapLibreInitializer {
         }
     }
 }
-

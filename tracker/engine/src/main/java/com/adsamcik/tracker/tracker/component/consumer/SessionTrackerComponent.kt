@@ -2,7 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.logger.assertMoreOrEqual
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
@@ -112,7 +113,9 @@ internal class SessionTrackerComponent(
 				end = Time.nowMillis
 
 				cycle.stepDelta?.let { newSteps ->
-					assertMoreOrEqual(newSteps, 0)
+					if (newSteps < 0) {
+						TrackerDiagnostics.record(TrackerDiagnosticCode.STEP_COUNTER_REGRESSION)
+					}
 					steps += newSteps
 				}
 
@@ -138,8 +141,7 @@ internal class SessionTrackerComponent(
 			when (groupedActivity) {
 				GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
 				GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
-				else -> {
-				}
+				else -> Unit
 			}
 		}
 	}

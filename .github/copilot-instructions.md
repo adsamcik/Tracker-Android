@@ -22,7 +22,7 @@ Rule of thumb: depend on `*:api` contract modules, never on another feature's im
 | `:core:model` | Pure (Room-free) domain models (`Location`, `Trip`, `LocationSample`, `SkiRunSegment`, …) consumed by `:stats:api` |
 | `:core:common` | Foundation leaf: concurrency (`DispatchersProvider`), time, constants, exceptions, DI/graph, io, logging, notification, service. No Room/DB. |
 | `:core:ui` | Shared Compose UI, formatters, `AppTheme` (was `sutils`) |
-| `:core:logging` / `:core:logging-api` | Logging impl / logger-facing contracts (`ReporterFacade`, `ErrorReporter`) (were `logger`/`logging-api`) |
+| `:core:diagnostics` | Payload-free fixed diagnostic-code boundary; Tracebox is the sole crash and diagnostic backend |
 | `:core:network` | Network helpers (was `network`) |
 | `:core:testing` | Test fakes, utilities (was `testing-common`) |
 | `:data:preferences` | Typed preferences, settings repos, retention (was `spreferences`) |

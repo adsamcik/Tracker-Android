@@ -8,7 +8,6 @@ import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
@@ -16,6 +15,7 @@ import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -210,7 +210,7 @@ class SetupViewModel @Inject constructor(
      */
     fun completeSetup(onDone: () -> Unit) {
         viewModelScope.launch {
-            try {
+            runCatchingCancellable {
                 val s = _state.value
                 withContext(dispatchers.io) {
                     applyPreferences(s)
@@ -218,9 +218,7 @@ class SetupViewModel @Inject constructor(
                 }
                 dataRetentionScheduler.initialize()
                 onDone()
-            } catch (e: Exception) {
-                Reporter.report(e)
-            }
+            }.getOrNull()
         }
     }
 

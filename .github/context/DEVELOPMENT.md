@@ -28,9 +28,8 @@ Reference for building, testing, and debugging Tracker Android.
 
 1. Clone: `git clone https://github.com/adsamcik/Tracker-Android.git`
 2. Create `local.properties` with `sdk.dir=<path-to-sdk>`
-3. Copy `google-services.json.example` to `app/google-services.json`
-4. (Optional) Copy `keys.xml.example` to `app/src/main/res/values/keys.xml`
-5. Build: `./gradlew.bat :app:assembleDebug`
+3. (Optional) Copy `keys.xml.example` to `app/src/main/res/values/keys.xml`
+4. Build: `./gradlew.bat :app:assembleDebug`
 
 ## Common Commands
 
@@ -117,8 +116,7 @@ Tracker-Android/
   core/base/           Shared database & entities
   core/ui/             Shared utilities & AppTheme
   data/preferences/    Typed preferences
-  core/logging/        Logging implementation
-  core/logging-api/    Logger-facing contracts
+  core/diagnostics/    Payload-free Tracebox diagnostic boundary
   domain/points/       Points system
   stats/api/            Stats API contracts
   stats/engine/        Stats processing algorithms
@@ -127,6 +125,9 @@ Tracker-Android/
   gradle/libs.versions.toml  Version catalog
   detekt.yml        Code quality config
 ```
+
+Application diagnostics emit fixed, payload-free codes through
+`:core:diagnostics`. Tracebox is the sole crash and diagnostic backend.
 
 ## Testing Framework
 
@@ -151,7 +152,6 @@ Tracker-Android/
 
 | Problem | Solution |
 |---------|----------|
-| `google-services.json` missing | Copy `google-services.json.example` to `app/` |
 | Build fails on KAPT | Ensure KSP; check for `kapt()` in build.gradle.kts |
 | Robolectric NoClassDefFound | Add `@Config(sdk = [34])` |
 | Room migration fails | Check AppDatabase version, add migration + test |

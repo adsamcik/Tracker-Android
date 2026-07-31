@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.component.trigger
 import android.Manifest
 import android.content.Context
 import android.os.Looper
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
@@ -93,8 +92,7 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 				Looper.getMainLooper(),
 			)
 			activeRequestPriority = configuredRequest.priority
-		} catch (e: SecurityException) {
-			Reporter.report(e)
+		} catch (_: SecurityException) {
 			receiver.onLocationProviderAvailabilityChanged(
 				available = false,
 				reason = "FUSED_LOCATION_PERMISSION_REVOKED",
@@ -103,7 +101,6 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 				TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.STOP_SERVICE,
 					R.string.notification_looking_for_gps,
-					"Location permission revoked: ${e.message}",
 				),
 			)
 		}
@@ -131,8 +128,7 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 				Looper.getMainLooper(),
 			)
 			activeRequestPriority = configuredRequest.priority
-		} catch (e: SecurityException) {
-			Reporter.report(e)
+		} catch (_: SecurityException) {
 			val localReceiver = receiver
 			localReceiver?.onLocationProviderAvailabilityChanged(
 				available = false,
@@ -142,7 +138,6 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(),
 				TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.STOP_SERVICE,
 					R.string.notification_looking_for_gps,
-					"Location permission revoked during interval update: ${e.message}",
 				),
 			)
 		}

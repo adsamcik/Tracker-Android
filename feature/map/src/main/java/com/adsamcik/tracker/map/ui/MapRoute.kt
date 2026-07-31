@@ -27,8 +27,8 @@ import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
 import com.adsamcik.tracker.map.ui.compose.MapShareSheet
 import com.adsamcik.tracker.map.ui.controls.MapChromeHost
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import kotlinx.coroutines.launch
 
 /**

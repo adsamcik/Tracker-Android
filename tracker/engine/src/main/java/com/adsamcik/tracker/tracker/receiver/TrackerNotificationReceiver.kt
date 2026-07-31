@@ -4,7 +4,6 @@ package com.adsamcik.tracker.tracker.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -34,7 +33,7 @@ internal class TrackerNotificationReceiver : BroadcastReceiver() {
 					lockManager.lockTimeLock(context, Time.MINUTE_IN_MILLISECONDS * minutes)
 				}
 			}
-			else -> Reporter.report("Unknown value $value")
+			else -> Unit
 		}
 	}
 

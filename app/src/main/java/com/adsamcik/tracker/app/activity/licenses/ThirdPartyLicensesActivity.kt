@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.license.LicenseObject
 import com.adsamcik.tracker.license.ResourceLicenseObject
+import com.adsamcik.tracker.license.TraceboxThirdPartyNotice
 import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
 import org.json.JSONObject
 import java.io.InputStreamReader
@@ -227,7 +228,7 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
     }
 
     private fun inferLicenseNameFromUrl(url: String): String? {
-        val lower = url.lowercase(Locale.getDefault())
+        val lower = url.lowercase(Locale.ROOT)
         return when {
             "apache-2.0" in lower || "apache2" in lower -> "Apache License 2.0"
             "mit" in lower -> "MIT License"
@@ -244,32 +245,30 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
     }
 
     private fun loadLicenseUiState(): LicenseUiState {
+        val traceboxNotice = runCatching {
+            TraceboxThirdPartyNotice.load(resources)
+        }.getOrElse {
+            return LicenseUiState.Message(getString(R.string.settings_licenses_unavailable))
+        }
         val bundledLicenses = loadBundledLicenses(
             metadataRawRes = R.raw.third_party_license_metadata,
             licenseTextRawRes = R.raw.third_party_licenses
         )
         if (bundledLicenses != null) {
-            return LicenseUiState.Ready(bundledLicenses)
+            return LicenseUiState.Ready(withTraceboxNotice(bundledLicenses, traceboxNotice))
         }
 
-        val fallbackMetadataRes = resolveRawResourceId("third_party_license_metadata_release_fallback")
-        val fallbackLicenseTextRes = resolveRawResourceId("third_party_licenses_release_fallback")
-        if (fallbackMetadataRes != null && fallbackLicenseTextRes != null) {
-            val fallbackLicenses = loadBundledLicenses(
-                metadataRawRes = fallbackMetadataRes,
-                licenseTextRawRes = fallbackLicenseTextRes
-            )
-            if (fallbackLicenses != null) {
-                return LicenseUiState.Ready(fallbackLicenses)
-            }
-        }
-
-        return if (isVariantPlaceholder(R.raw.third_party_licenses)) {
-            LicenseUiState.Message(getString(R.string.settings_licenses_variant_unavailable))
-        } else {
-            LicenseUiState.Message(getString(R.string.settings_licenses_unavailable))
-        }
+        // Debug/source variants may intentionally omit the generated Maven license catalog, but
+        // the notices for Tracebox's embedded native binary remain mandatory and always visible.
+        return LicenseUiState.Ready(listOf(traceboxNotice))
     }
+
+    private fun withTraceboxNotice(
+        licenses: List<LicenseObject>,
+        traceboxNotice: LicenseObject
+    ): List<LicenseObject> = (licenses + traceboxNotice)
+        .distinctBy { it.name }
+        .sortedBy { it.name.lowercase(Locale.ROOT) }
 
     private fun loadBundledLicenses(
         @RawRes metadataRawRes: Int,
@@ -289,7 +288,7 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
             }
 
             parsedLicenses
-                .sortedBy { it.name.lowercase(Locale.getDefault()) }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
                 .takeIf { it.isNotEmpty() }
         }.getOrNull()
     }
@@ -337,16 +336,8 @@ class ThirdPartyLicensesActivity : ComposeDetailActivity() {
             .toList()
     }
 
-    private fun isVariantPlaceholder(@RawRes licenseTextRawRes: Int): Boolean {
-        return runCatching { isVariantPlaceholder(readRawResourceText(licenseTextRawRes).trim()) }.getOrDefault(false)
-    }
-
     private fun isVariantPlaceholder(licenseText: String): Boolean {
         return licenseText.startsWith(PLACEHOLDER_LICENSE_PREFIX, ignoreCase = true)
-    }
-
-    private fun resolveRawResourceId(name: String): Int? {
-        return resources.getIdentifier(name, "raw", packageName).takeIf { it != 0 }
     }
 
     private fun readRawResourceText(rawRes: Int): String {

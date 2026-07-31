@@ -18,20 +18,15 @@ both the v10 backup and migrated database. The safety copy is kept in Android's
 no-backup storage for up to 30 days and can be explicitly exported from Data
 Settings.
 
-The module-specific logger and points tests open copies of their release fixtures
-through current Room implementations. The release contained two alternative
-schemas that both used the production filename `debug_database`; the `_sbase`
-and `_logger` fixture suffixes distinguish those source variants only. Retired
-Challenge progress remains intact as an immutable legacy archive, while the
-Stats database is a rebuildable cache. Their session references are verified
-against preserved AppDatabase IDs.
+The module-specific points test opens a copy of its release fixture through the
+current Room implementation. Retired Challenge progress remains intact as an
+immutable legacy archive, while the Stats database is a rebuildable cache.
+Their session references are verified against preserved AppDatabase IDs.
 
 | File | Release schema | Room identity hash |
 |---|---:|---|
 | `main_database.db` | 10 | `0450ddcfb62c0bb907dbd58ebb962e11` |
-| `debug_database_sbase.db` | 1 | `3413cc2a29d2275b27a7c2331a5caece` |
 | `preference_database.db` | 1 | `0608179a3962e9cd5340a093ba0378d5` |
-| `debug_database_logger.db` | 1 | `31f6daf838801d8e7a9fa006060fa58a` |
 | `points_database.db` | 1 | `67361523b8053dd6727d713508ad45ab` |
 | `stats_database.db` | 1 | `9bcc267288495935f80c47544aaf0bbf` |
 | `challenge_database.db` | 1 | `a00ec9e9199c6d7d4cf080768b809b93` |

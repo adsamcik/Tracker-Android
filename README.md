@@ -21,6 +21,7 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Features are split into modular Statistics, Game, Map, Dashboard, Activity, and Import/Export components
 - Export data to GPX, KML, JSON and Sqlite
 - Import data from GPX and batch import from zip
+- Record local crash, ANR, and fixed-code diagnostics with Tracebox; nothing is uploaded automatically
 - Supported languages: English, Czech
 - Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
 - Does not upload your tracked data anywhere. Android system backup is controlled by the operating system and can be disabled separately.
@@ -32,6 +33,15 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Android Studio (latest stable)
 - JDK 21 for Gradle (application bytecode targets Java 17)
 - Android SDK 37 (compile and target)
+- Tracebox `0.1.0-personal.2c968863` published to Maven Local:
+
+```bash
+cd ../Tracebox
+./gradlew.bat publishToMavenLocal -PtraceboxVersion=0.1.0-personal.2c968863
+```
+
+Tracebox is built into every Tracker variant and is the sole crash and diagnostics recorder; there
+is no migration flavor or legacy logger fallback.
 
 ### Build & Test
 

@@ -10,7 +10,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
@@ -50,7 +49,6 @@ class ActivityWatcherService : CoreService() {
 		activityInfo = activityRequestManager.lastActivity.toLegacyActivityInfo()
 
 		if (!startForegroundCompat(updateNotification())) {
-			Reporter.w(TAG, "Unable to start in foreground; stopping")
 			stopSelf()
 			return
 		}
@@ -84,7 +82,7 @@ class ActivityWatcherService : CoreService() {
 	}
 
 	private fun startForegroundCompat(notification: Notification): Boolean =
-		startForegroundTolerant(sdkInt = Build.VERSION.SDK_INT, tag = TAG) {
+		startForegroundTolerant(sdkInt = Build.VERSION.SDK_INT) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
 				// SPECIAL_USE foreground service type is available from Android 14.
 				startForeground(
@@ -138,7 +136,6 @@ class ActivityWatcherService : CoreService() {
 
 	companion object {
 		private const val NOTIFICATION_ID = -568465
-		private const val TAG = "ActivityWatcherService"
 	}
 }
 
@@ -155,17 +152,14 @@ class ActivityWatcherService : CoreService() {
  */
 internal inline fun startForegroundTolerant(
 	sdkInt: Int,
-	tag: String,
 	start: () -> Unit,
 ): Boolean = try {
 	start()
 	true
-} catch (exception: SecurityException) {
-	Reporter.w(tag, "Foreground start rejected: ${exception.message}")
+} catch (_: SecurityException) {
 	false
 } catch (@Suppress("TooGenericExceptionCaught") exception: RuntimeException) {
 	if (!isForegroundServiceStartRestriction(sdkInt, exception::class.java.name)) throw exception
-	Reporter.w(tag, "Foreground start not allowed from background: ${exception.message}")
 	false
 }
 

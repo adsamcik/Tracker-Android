@@ -40,7 +40,7 @@ internal object TrackerSettingsAccess {
             val repo = DefaultTrackerSettingsRepository(
                 context.applicationContext,
                 dispatchers.io
-            ) { msg -> /* no-op default; app layer may provide structured logger by constructing repo directly */ }
+            )
             // Use sensible defaults as initial value; actual settings arrive asynchronously.
             // SharingStarted.Eagerly ensures flow starts collecting immediately.
             val created = repo.data.stateIn(

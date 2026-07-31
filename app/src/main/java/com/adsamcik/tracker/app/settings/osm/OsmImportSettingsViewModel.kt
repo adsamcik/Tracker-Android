@@ -4,16 +4,17 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.osm.imp.OsmImportController
 import com.adsamcik.tracker.osm.imp.OsmImportRequest
 import com.adsamcik.tracker.osm.imp.OsmImportState
-import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
+import com.adsamcik.tracker.osm.imp.OsmImportSummary
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -30,7 +31,7 @@ import javax.inject.Inject
  * @property runtimeState live state of the most recent import job.
  */
 data class OsmImportUiState(
-	val imports: List<OsmImportEntity> = emptyList(),
+	val imports: List<OsmImportSummary> = emptyList(),
 	val runtimeState: OsmImportState = OsmImportState.Idle,
 )
 
@@ -47,18 +48,18 @@ data class OsmImportUiState(
 class OsmImportSettingsViewModel @Inject constructor(
 	@ApplicationContext private val appContext: Context,
 	private val controller: OsmImportController,
-	private val osmImportDao: com.adsamcik.tracker.shared.base.database.dao.OsmImportDao,
+	private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
 	val uiState: StateFlow<OsmImportUiState> = combine(
 		controller.observeImports()
 			.catch {
-				Log.e(TAG, "Failed to observe osm imports", it)
+				recordImportFailure()
 				emit(emptyList())
 			},
 		controller.observeImportState()
 			.catch {
-				Log.e(TAG, "Failed to observe import state", it)
+				recordImportFailure()
 				emit(OsmImportState.Idle)
 			},
 	) { imports, runtime ->
@@ -71,11 +72,11 @@ class OsmImportSettingsViewModel @Inject constructor(
 	 */
 	fun importFromUri(uri: Uri) {
 		viewModelScope.launch {
-			val (displayName, size) = withContext(Dispatchers.IO) {
+			val (displayName, size) = withContext(dispatchers.io) {
 				queryFileMeta(uri)
 			}
 			if (size <= 0L) {
-				Log.w(TAG, "Refusing OSM import because file metadata is unavailable")
+				recordInvalidImport()
 				return@launch
 			}
 			controller.enqueue(
@@ -94,10 +95,10 @@ class OsmImportSettingsViewModel @Inject constructor(
 	}
 
 	/** Deletes a previously imported region. CASCADE removes the ways. */
-	fun removeImport(import: OsmImportEntity) {
-		viewModelScope.launch(Dispatchers.IO) {
-			runCatching { osmImportDao.delete(import.id) }
-				.onFailure { Log.e(TAG, "Failed to delete osm import ${import.id}", it) }
+	fun removeImport(import: OsmImportSummary) {
+		viewModelScope.launch(dispatchers.io) {
+			runCatching { controller.removeImport(import.id) }
+				.onFailure { recordImportFailure() }
 		}
 	}
 
@@ -124,7 +125,11 @@ class OsmImportSettingsViewModel @Inject constructor(
 		return if (idx >= 0 && !isNull(idx)) getLong(idx) else null
 	}
 
-	private companion object {
-		const val TAG = "OsmImportSettingsVm"
+	private fun recordImportFailure() {
+		TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
+	}
+
+	private fun recordInvalidImport() {
+		TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_WARNING)
 	}
 }

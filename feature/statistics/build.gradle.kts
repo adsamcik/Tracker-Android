@@ -23,10 +23,6 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:ui"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging"))
-    implementation(project(":feature:import-export"))
-    implementation(project(":feature:map"))
-
     // Stats architecture
     implementation(project(":stats:api"))
 
@@ -70,11 +66,6 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
-
-    implementation(libs.simplify)
-
-    // MapLibre Compose for trip route visualization
-    implementation(libs.maplibre.compose)
 
     implementation(libs.hilt.navigation.compose)
 }

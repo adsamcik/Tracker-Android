@@ -25,7 +25,6 @@ internal fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
                     }
                 }
             },
-            onNavigateToDebug = { navController.navigate(Debug) },
             onNavigateToActivities = {
                 navController.navigate(ActivitySettings) { launchSingleTop = true }
             },

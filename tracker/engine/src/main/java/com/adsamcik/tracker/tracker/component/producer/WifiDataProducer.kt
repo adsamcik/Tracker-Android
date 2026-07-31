@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.wifiManager
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -21,8 +22,6 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.notification.WifiPermissionHintNotifier
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
-import com.adsamcik.tracker.logger.Reporter
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -47,7 +46,7 @@ internal class WifiDataProducer(
     private var receiver: WifiReceiver = WifiReceiver()
     private lateinit var appContext: Context
     private var scope = CoroutineScope(
-        SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
+        SupervisorJob() + dispatchers.io
     )
 
     private var scanTime: Long = -1L
@@ -69,7 +68,9 @@ internal class WifiDataProducer(
         if (!this::appContext.isInitialized) return
 
         if (!hasWifiScanPermission()) {
-            scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
+            scope.launch {
+                runCatchingCancellable { WifiPermissionHintNotifier.maybeNotify(appContext) }
+            }
             return
         }
 
@@ -160,7 +161,9 @@ internal class WifiDataProducer(
     @Synchronized
     private fun requestScan() {
         if (!hasWifiScanPermission()) {
-            scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
+            scope.launch {
+                runCatchingCancellable { WifiPermissionHintNotifier.maybeNotify(appContext) }
+            }
             return
         }
         val now = SystemClock.elapsedRealtime()
@@ -191,7 +194,7 @@ internal class WifiDataProducer(
     override suspend fun onEnable(context: Context) {
         // Recreate scope on each enable (previous scope cancelled in onDisable)
         scope = CoroutineScope(
-            SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
+            SupervisorJob() + dispatchers.io
         )
         appContext = context.applicationContext
         wifiManager = context.wifiManager
@@ -243,8 +246,7 @@ internal class WifiDataProducer(
 
         return try {
             wifiManager.scanResults.toTypedArray()
-        } catch (exception: SecurityException) {
-            Reporter.report(exception)
+        } catch (_: SecurityException) {
             null
         }
     }

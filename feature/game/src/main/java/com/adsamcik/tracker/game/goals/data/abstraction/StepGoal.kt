@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game.goals.data.abstraction
 
 import android.content.Context
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 abstract class StepGoal(
@@ -27,11 +26,6 @@ abstract class StepGoal(
 		val previous = lastSessionStepValue
 		val diff = if (isNewSession) session.steps else session.steps - previous
 		lastSessionStepValue = session.steps
-		if (diff < 0) {
-			Reporter.report(
-				"Step difference is negative. Session steps: ${session.steps}; previous steps: $previous",
-			)
-		}
 		return diff.coerceAtLeast(0)
 	}
 

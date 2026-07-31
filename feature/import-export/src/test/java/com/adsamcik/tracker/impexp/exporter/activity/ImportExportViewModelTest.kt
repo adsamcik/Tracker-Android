@@ -2,15 +2,18 @@ package com.adsamcik.tracker.impexp.exporter.activity
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.exporter.ExportResult
+import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -55,9 +58,26 @@ class ImportExportViewModelTest {
         viewModel.uiState.value.exportCompletionState shouldBe ExportCompletionState.Succeeded
     }
 
-    private fun newViewModel() = ImportExportViewModel(
+    @Test
+    fun `initial state reports that no exportable trips exist`() = runTest(dispatcher) {
+        val repository = mockk<ImportExportDataRepository>()
+        coEvery { repository.hasTrips() } returns false
+
+        val viewModel = newViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.uiState.value.showNoDataDialog shouldBe true
+    }
+
+    private fun newViewModel() = newViewModel(
+        dataRepository = mockk(relaxed = true),
+    )
+
+    private fun newViewModel(
+        dataRepository: ImportExportDataRepository,
+    ) = ImportExportViewModel(
         appContext = mockk<Context>(relaxed = true),
-        appDatabase = mockk<AppDatabase>(relaxed = true),
+        dataRepository = dataRepository,
         dispatchers = object : DispatchersProvider {
             override val io: CoroutineDispatcher = dispatcher
             override val default: CoroutineDispatcher = dispatcher

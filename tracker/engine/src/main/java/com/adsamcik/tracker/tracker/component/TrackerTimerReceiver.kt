@@ -29,13 +29,11 @@ internal interface TrackerTimerReceiver {
 }
 
 internal data class TrackerTimerErrorData(
-		val severity: TrackerTimerErrorSeverity, @StringRes val messageRes: Int,
-		val internalMessage: String = String()
+	val severity: TrackerTimerErrorSeverity,
+	@StringRes val messageRes: Int,
 )
 
 internal enum class TrackerTimerErrorSeverity {
 	STOP_SERVICE,
-	REPORT,
 	NOTIFY_USER,
-	WARNING
 }

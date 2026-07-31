@@ -7,8 +7,6 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -99,7 +97,6 @@ class TrackingOrchestratorIntegrationTest {
 					skiDetectionEnabled = false,
 				),
 			),
-			trackerSettingsRepository = FakeTrackerSettingsRepository(),
 			dailySummaryFallbackEnqueuer = { fallbackEnqueueCount++ },
 			enableNotifications = false,
 		)
@@ -166,7 +163,6 @@ class TrackingOrchestratorIntegrationTest {
 					skiDetectionEnabled = false,
 				),
 			),
-			trackerSettingsRepository = FakeTrackerSettingsRepository(),
 			dailySummaryFallbackEnqueuer = {},
 			enableNotifications = false,
 		)
@@ -214,7 +210,6 @@ class TrackingOrchestratorIntegrationTest {
 			dispatchers = testDispatcherProvider,
 			appDatabase = database,
 			trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
-			trackerSettingsRepository = FakeTrackerSettingsRepository(),
 			dailySummaryFallbackEnqueuer = {},
 			enableNotifications = false,
 		)
@@ -359,13 +354,6 @@ class TrackingOrchestratorIntegrationTest {
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
 		}
-	}
-
-	private class FakeTrackerSettingsRepository : TrackerSettingsRepository {
-		override val data: Flow<TrackerSettingsState> = MutableStateFlow(TrackerSettingsState.DEFAULT)
-		override suspend fun setAutoUnitSwitch(enabled: Boolean) = Unit
-		override suspend fun setLengthSystem(system: com.adsamcik.tracker.shared.preferences.type.LengthSystem) = Unit
-		override suspend fun setSpeedFormat(format: com.adsamcik.tracker.shared.preferences.type.SpeedFormat) = Unit
 	}
 
 	private class NoOpTimerAccessor : TrackerTierEscalationHandler.TimerAccessor {

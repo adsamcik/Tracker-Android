@@ -6,7 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.activity.data.SessionActivityItem
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -23,10 +23,10 @@ class SessionActivityScreenComposeTest {
 	val composeRule = createComposeRule()
 
 	private fun setScreen(
-		items: List<SessionActivity> = emptyList(),
+		items: List<SessionActivityItem> = emptyList(),
 		onAddActivity: () -> Unit = {},
-		onEditActivity: (SessionActivity) -> Unit = {},
-		onDeleteActivity: (SessionActivity) -> Unit = {},
+		onEditActivity: (SessionActivityItem) -> Unit = {},
+		onDeleteActivity: (SessionActivityItem) -> Unit = {},
 	) {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
@@ -45,8 +45,8 @@ class SessionActivityScreenComposeTest {
 	@Test
 	fun `displays activity items`() {
 		val activities = listOf(
-			SessionActivity(id = 1, name = "Walking"),
-			SessionActivity(id = 2, name = "Running"),
+			SessionActivityItem(id = 1, name = "Walking"),
+			SessionActivityItem(id = 2, name = "Running"),
 		)
 
 		setScreen(items = activities)
@@ -73,8 +73,8 @@ class SessionActivityScreenComposeTest {
 
 	@Test
 	fun `tapping activity item calls onEditActivity`() {
-		var editedActivity: SessionActivity? = null
-		val activity = SessionActivity(id = 1, name = "Cycling")
+		var editedActivity: SessionActivityItem? = null
+		val activity = SessionActivityItem(id = 1, name = "Cycling")
 
 		setScreen(
 			items = listOf(activity),

@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import app.cash.turbine.test
+import com.adsamcik.tracker.game.data.MiniGameScore
+import com.adsamcik.tracker.game.data.MiniGameScoreRepository
 import com.adsamcik.tracker.game.minigame.MiniGame
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.minigame.MiniGameSession
 import com.adsamcik.tracker.game.minigame.MiniGameState
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
@@ -32,14 +32,14 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MiniGameScoresViewModelTest {
 
-	private lateinit var dao: ScriptedScoreDao
+	private lateinit var scoreRepository: ScriptedScoreRepository
 	private lateinit var dispatcher: TestDispatcher
 
 	@Before
 	fun setUp() {
 		dispatcher = StandardTestDispatcher()
 		Dispatchers.setMain(dispatcher)
-		dao = ScriptedScoreDao()
+		scoreRepository = ScriptedScoreRepository()
 	}
 
 	@After
@@ -49,7 +49,7 @@ class MiniGameScoresViewModelTest {
 
 	@Test
 	fun emptyDaoYieldsEmptyList() = runTest(dispatcher) {
-		val vm = MiniGameScoresViewModel(dao, registryWith("outrun"))
+		val vm = MiniGameScoresViewModel(scoreRepository, registryWith("outrun"))
 		vm.groups.test {
 			val first = awaitItem()
 			if (first == null) {
@@ -63,7 +63,7 @@ class MiniGameScoresViewModelTest {
 
 	@Test
 	fun groupsRowsByGameIdAndOrdersByScoreDesc() = runTest(dispatcher) {
-		dao.emit(
+		scoreRepository.emit(
 			listOf(
 				row("outrun", 50.0, 1L),
 				row("outrun", 120.0, 2L),
@@ -71,7 +71,7 @@ class MiniGameScoresViewModelTest {
 				row("outrun", 80.0, 4L),
 			),
 		)
-		val vm = MiniGameScoresViewModel(dao, registryWith("outrun", "territory"))
+		val vm = MiniGameScoresViewModel(scoreRepository, registryWith("outrun", "territory"))
 
 		vm.groups.test {
 			val groups = awaitNonNull(this)
@@ -91,8 +91,8 @@ class MiniGameScoresViewModelTest {
 
 	@Test
 	fun unknownGameIdSurfacesWithNullNameRes() = runTest(dispatcher) {
-		dao.emit(listOf(row("ghost-game", 10.0, 1L)))
-		val vm = MiniGameScoresViewModel(dao, registryWith())
+		scoreRepository.emit(listOf(row("ghost-game", 10.0, 1L)))
+		val vm = MiniGameScoresViewModel(scoreRepository, registryWith())
 
 		vm.groups.test {
 			val groups = awaitNonNull(this)
@@ -104,7 +104,7 @@ class MiniGameScoresViewModelTest {
 		}
 	}
 
-	private fun row(gameId: String, score: Double, time: Long) = MiniGameScoreEntity(
+	private fun row(gameId: String, score: Double, time: Long) = MiniGameScore(
 		gameId = gameId,
 		score = score,
 		xpAwarded = 10,
@@ -150,37 +150,15 @@ class MiniGameScoresViewModelTest {
 	}
 }
 
-private class ScriptedScoreDao : MiniGameScoreDao {
-	private val recent = MutableStateFlow<List<MiniGameScoreEntity>>(emptyList())
+private class ScriptedScoreRepository : MiniGameScoreRepository {
+	private val recent = MutableStateFlow<List<MiniGameScore>>(emptyList())
 
-	fun emit(rows: List<MiniGameScoreEntity>) { recent.value = rows }
+	fun emit(rows: List<MiniGameScore>) { recent.value = rows }
 
-	override fun getScoresByGame(gameId: String): Flow<List<MiniGameScoreEntity>> =
-		MutableStateFlow(recent.value.filter { it.gameId == gameId }).asStateFlow()
+	override fun observePersonalBest(gameId: String): Flow<Double?> =
+		MutableStateFlow(
+			recent.value.filter { it.gameId == gameId }.maxOfOrNull { it.score },
+		).asStateFlow()
 
-	override fun getHighScore(gameId: String): Double? =
-		recent.value.filter { it.gameId == gameId }.maxOfOrNull { it.score }
-
-	override suspend fun getPersonalBest(gameId: String): Double? = getHighScore(gameId)
-
-	override fun getRecent(limit: Int): Flow<List<MiniGameScoreEntity>> = recent.asStateFlow()
-
-	override suspend fun getRecentForReconciliation(limit: Int): List<MiniGameScoreEntity> =
-		recent.value.sortedByDescending { it.playedAt }.take(limit)
-
-	override suspend fun countTotal(): Long = recent.value.size.toLong()
-
-	override fun deleteAll() { recent.value = emptyList() }
-	override suspend fun insert(obj: MiniGameScoreEntity): Long {
-		recent.value = recent.value + obj
-		return recent.value.size.toLong()
-	}
-	override suspend fun insert(obj: Collection<MiniGameScoreEntity>): List<Long> {
-		recent.value = recent.value + obj
-		return obj.mapIndexed { i, _ -> (recent.value.size - obj.size + i + 1).toLong() }
-	}
-	override suspend fun update(obj: MiniGameScoreEntity) = Unit
-	override suspend fun update(obj: Collection<MiniGameScoreEntity>) = Unit
-	override suspend fun delete(obj: MiniGameScoreEntity) = Unit
-	override suspend fun delete(obj: Collection<MiniGameScoreEntity>) = Unit
+	override fun observeRecent(limit: Int): Flow<List<MiniGameScore>> = recent.asStateFlow()
 }

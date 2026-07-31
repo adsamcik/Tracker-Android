@@ -11,24 +11,16 @@ import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
-import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.mockkStatic
-import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,25 +47,12 @@ class ActivityRequestManagerTest {
 
     @Before
     fun setup() {
-        mockkStatic("com.adsamcik.tracker.activity.ActivityLogKt")
-        every { com.adsamcik.tracker.activity.logActivity(any()) } just Runs
-
-        mockkObject(Reporter)
-        every { Reporter.report(any<Throwable>()) } just Runs
-        every { Reporter.report(any<String>()) } just Runs
-        every { Reporter.log(any()) } just Runs
-
         // hasActivityPermission is inline and checks Build.VERSION.SDK_INT < Q.
         // With @Config(sdk = [28]) the check passes automatically (no runtime
         // permission existed before Android Q), so startUpdates is reached.
         backend = mockk(relaxed = true)
         coEvery { backend.startUpdates(any()) } returns true
         manager = DefaultActivityRequestManager(backend)
-    }
-
-    @After
-    fun teardown() {
-        unmockkAll()
     }
 
     // Marker classes used as request keys
@@ -215,7 +194,7 @@ class ActivityRequestManagerTest {
         }
 
         @Test
-        fun `removing non-existent request reports error once empty configuration is known`() = runTest {
+        fun `removing non-existent request is a no-op once empty configuration is known`() = runTest {
             val request = ActivityRequestData(
                 key = TestClassA::class,
                 changeData = changeRequest(),
@@ -225,7 +204,7 @@ class ActivityRequestManagerTest {
 
             manager.removeActivityRequest(context, TestClassC::class)
 
-            verify { Reporter.report(match<String> { it.contains("not subscribed") }) }
+            coVerify(exactly = 1) { backend.stopUpdates() }
         }
 
         @Test

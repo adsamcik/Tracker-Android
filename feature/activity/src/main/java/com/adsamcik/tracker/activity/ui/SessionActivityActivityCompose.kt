@@ -60,7 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.activity.data.SessionActivityItem
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -96,7 +96,7 @@ fun SessionActivityRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val pendingDeleteIds = remember { mutableStateListOf<Long>() }
     var showAddDialog by remember { mutableStateOf(false) }
-    var editingActivity by remember { mutableStateOf<SessionActivity?>(null) }
+    var editingActivity by remember { mutableStateOf<SessionActivityItem?>(null) }
     val items = uiState.items.filterNot { pendingDeleteIds.contains(it.id) }
 
     SessionActivityScreen(
@@ -152,12 +152,12 @@ fun SessionActivityRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SessionActivityScreen(
-    items: List<SessionActivity>,
+    items: List<SessionActivityItem>,
     snackbarHostState: SnackbarHostState,
     onNavigateBack: (() -> Unit)? = null,
     onAddActivity: () -> Unit,
-    onEditActivity: (SessionActivity) -> Unit,
-    onDeleteActivity: (SessionActivity) -> Unit
+    onEditActivity: (SessionActivityItem) -> Unit,
+    onDeleteActivity: (SessionActivityItem) -> Unit
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -213,7 +213,7 @@ internal fun SessionActivityScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToDeleteActivityItem(
-    activity: SessionActivity,
+    activity: SessionActivityItem,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -264,7 +264,7 @@ private fun SwipeDeleteBackground() {
 
 @Composable
 private fun ActivityItem(
-    activity: SessionActivity,
+    activity: SessionActivityItem,
     onEdit: (() -> Unit)?
 ) {
     GlassCard(
@@ -306,7 +306,7 @@ private fun ActivityItem(
 
 @Composable
 private fun ActivityEditDialog(
-    activity: SessionActivity?,
+    activity: SessionActivityItem?,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {

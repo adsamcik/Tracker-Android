@@ -88,7 +88,6 @@ package com.adsamcik.tracker.testing
  * | FusedLocationCollectionTriggerTest | tracker | FusedLocationProvider | No - testing real trigger |
  * | AndroidLocationCollectionTriggerTest | tracker | LocationManager | No - testing real trigger |
  * | HandlerCollectionTriggerTest | tracker | Handler/Looper | No - Android threading |
- * | PolicyAwareLocationPreTrackerComponentTest | tracker | Context | Maybe |
  * | TrackerServiceTimerUpdateIntegrationTest | tracker | Service integration | No |
  * | DataRetentionWorkerTest | app | WorkManager Worker | No |
  *

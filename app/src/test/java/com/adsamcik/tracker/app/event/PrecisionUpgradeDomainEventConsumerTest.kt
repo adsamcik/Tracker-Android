@@ -3,7 +3,6 @@ package com.adsamcik.tracker.app.event
 import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -18,7 +17,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
-import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -69,9 +67,6 @@ class PrecisionUpgradeDomainEventConsumerTest {
 			PrefR.string.settings_location_precision_key,
 			"locationPrecisionMode",
 		)
-
-		mockkObject(Logger)
-		io.mockk.every { Logger.log(any()) } returns Unit
 
 		FakePreferencesHelper.data[PrefR.string.settings_location_precision_key] = "APPROXIMATE"
 		FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = "APPROXIMATE"

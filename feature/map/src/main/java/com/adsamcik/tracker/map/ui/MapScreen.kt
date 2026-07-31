@@ -3,8 +3,6 @@ package com.adsamcik.tracker.map.ui
 import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapLibreInitializer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -85,6 +83,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.PlaceCalloutModel
 import com.adsamcik.tracker.map.presentation.udf.SpeedProbeModel
 import com.adsamcik.tracker.map.shared.MapStyleProvider
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapPreferenceKeys
@@ -159,7 +158,6 @@ import com.adsamcik.tracker.map.ui.controls.mapChromeFrostedColor
 import com.adsamcik.tracker.map.ui.controls.mapChromeGlassBorder
 import com.adsamcik.tracker.map.ui.controls.rememberMapLocationPermissionFlow
 
-private const val MAP_LOAD_TAG = "MapScreen"
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -263,9 +261,7 @@ fun MapScreen(
             defaultBasemapPath = basemapManager.ensureDefaultBasemap()
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Reporter.w(MAP_LOAD_TAG, "Failed to prepare default basemap: ${e.message}")
-            Reporter.report(e)
+        } catch (_: Exception) {
             defaultBasemapPath = null
             basemapLoadError = context.getString(com.adsamcik.tracker.map.R.string.map_basemap_unavailable)
         }
@@ -445,7 +441,7 @@ fun MapScreen(
     LaunchedEffect(selectedTripBounds, isMapLoading) {
         val bounds = selectedTripBounds ?: return@LaunchedEffect
         if (isMapLoading) return@LaunchedEffect
-        try {
+        runCatchingCancellable {
             cameraState.animateTo(
                 boundingBox = BoundingBox(
                     west = bounds.left,
@@ -456,11 +452,7 @@ fun MapScreen(
                 padding = PaddingValues(48.dp),
                 duration = 500.milliseconds,
             )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Reporter.report(e)
-        }
+        }.getOrNull()
     }
 
     val gestureOptions = remember(overlayMode) {
@@ -537,8 +529,7 @@ fun MapScreen(
             true
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Reporter.report(e)
+        } catch (_: Exception) {
             false
         }
         onShareCaptureFinished(success)
@@ -569,6 +560,7 @@ fun MapScreen(
                     },
                 baseStyle = resolvedBaseStyle,
                 cameraState = cameraState,
+                logger = null,
                 options = MapOptions(
                     gestureOptions = gestureOptions,
                     ornamentOptions = OrnamentOptions(
@@ -615,12 +607,8 @@ fun MapScreen(
                         ClickResult.Consume
                     }
                 },
-                onMapLoadFailed = { reason ->
+                onMapLoadFailed = {
                     isMapLoading = false
-                    Log.e(
-                        MAP_LOAD_TAG,
-                        "MapLibre failed to load basemap: ${reason ?: "unknown reason"}",
-                    )
                 },
             ) {
                 // Declarative data layers -- reactive via Compose recomposition
@@ -903,7 +891,7 @@ fun MapScreen(
 
     LaunchedEffect(locationManager, hasLocationPermission, overlayMode, isMapVisible) {
         if (!isMapVisible || !hasLocationPermission || overlayMode) return@LaunchedEffect
-        try {
+        runCatchingCancellable {
             locationManager.locationUpdates(highAccuracy = true).collectLatest { (lat, lng, accuracy) ->
                 store.dispatch(
                     MapEvent.SetUserLocation(
@@ -912,24 +900,16 @@ fun MapScreen(
                     )
                 )
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Reporter.report(e)
-        }
+        }.getOrNull()
     }
 
     LaunchedEffect(locationManager, overlayMode, isMapVisible) {
         if (!isMapVisible || overlayMode) return@LaunchedEffect
-        try {
+        runCatchingCancellable {
             locationManager.bearingUpdates().collectLatest { bearing ->
                 store.dispatch(MapEvent.SetBearing(bearing))
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Reporter.report(e)
-        }
+        }.getOrNull()
     }
 
     // Observe gesture-initiated camera moves to cancel follow
@@ -981,7 +961,7 @@ fun MapScreen(
         store.effects.collectLatest { effect ->
             when (effect) {
                 is MapEffect.CenterCamera -> {
-                    try {
+                    runCatchingCancellable {
                         val bounds = BoundingBox(
                             west = effect.bounds.left,
                             south = effect.bounds.bottom,
@@ -993,14 +973,10 @@ fun MapScreen(
                             padding = PaddingValues(32.dp),
                             duration = 500.milliseconds,
                         )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
+                    }.getOrNull()
                 }
                 is MapEffect.CenterOnUser -> {
-                    try {
+                    runCatchingCancellable {
                         // Preserve the current zoom when the effect carries none (continuous
                         // follow); otherwise snap to the requested comfortable zoom.
                         val targetZoom = effect.zoom ?: cameraState.position.zoom
@@ -1011,28 +987,20 @@ fun MapScreen(
                             ),
                             duration = 500.milliseconds,
                         )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
+                    }.getOrNull()
                 }
                 is MapEffect.SetCameraBearing -> {
-                    try {
+                    runCatchingCancellable {
                         cameraState.animateTo(
                             finalPosition = cameraState.position.copy(
                                 bearing = effect.bearing.toDouble()
                             ),
                             duration = 500.milliseconds,
                         )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
+                    }.getOrNull()
                 }
                 is MapEffect.ZoomBy -> {
-                    try {
+                    runCatchingCancellable {
                         val current = cameraState.position.zoom
                         val target = (current + effect.delta)
                             .coerceIn(MIN_BUTTON_ZOOM.toDouble(), MAX_BUTTON_ZOOM.toDouble())
@@ -1042,22 +1010,14 @@ fun MapScreen(
                                 duration = 300.milliseconds,
                             )
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
+                    }.getOrNull()
                 }
                 is MapEffect.ShowSearchFormatHint -> {
-                    try {
+                    runCatchingCancellable {
                         snackbarHostState.showSnackbar(
                             context.getString(com.adsamcik.tracker.map.R.string.map_search_invalid_format)
                         )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Reporter.report(e)
-                    }
+                    }.getOrNull()
                 }
             }
         }

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -8,7 +10,6 @@ import com.adsamcik.tracker.shared.base.data.ProcessedAltitudeData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
-import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType
@@ -20,6 +21,7 @@ import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -167,8 +169,10 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		scope?.launch(dispatchers.io) {
 			try {
 				database.skiRunSegmentDao().insert(segment.toEntity())
-			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-				ReporterFacade.report(e)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
 			}
 		}
 	}
@@ -179,8 +183,10 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		kotlinx.coroutines.withContext(dispatchers.io) {
 			try {
 				database.skiRunSegmentDao().insert(segment.toEntity())
-			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-				ReporterFacade.report(e)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
 			}
 		}
 	}

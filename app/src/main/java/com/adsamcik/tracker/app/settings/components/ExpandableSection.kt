@@ -43,9 +43,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSnap
 @Composable
 fun ExpandableSection(
     title: String,
-    initiallyExpanded: Boolean = false,
     modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
+    initiallyExpanded: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
     val rotationAngle by animateFloatAsState(

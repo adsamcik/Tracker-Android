@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.presenter
 
 import androidx.lifecycle.SavedStateHandle
 import arrow.core.right
-import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.feature.map.api.preview.RoutePoint
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
 import com.adsamcik.tracker.shared.model.AltitudeDatum
@@ -109,9 +109,9 @@ class TripDetailPresenterViewModelTest {
 		advanceUntilIdle()
 
 		val expectedRoutePoints = listOf(
-			LatLngModel(50.0, 14.0),
-			LatLngModel(50.01, 14.01),
-			LatLngModel(50.02, 14.02),
+			RoutePoint(50.0, 14.0),
+			RoutePoint(50.01, 14.01),
+			RoutePoint(50.02, 14.02),
 		)
 		viewModel.insights.value.routePoints shouldBe expectedRoutePoints
 		coVerify(exactly = 1) {

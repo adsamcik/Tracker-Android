@@ -3,16 +3,12 @@ package com.adsamcik.tracker.game.goals
 import android.content.Context
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.CompletableDeferred
@@ -230,48 +226,36 @@ class GoalTrackerTest {
 
 		@Test
 		fun `onNewDay resets session tracking so next update is new`() = runTest {
-			mockkObject(Logger)
-			every { Logger.log(any<LogData>()) } just Runs
-			try {
-				contextField.set(GoalTracker, mockk<Context>(relaxed = true))
-				goalList.add(listenable1)
+			contextField.set(GoalTracker, mockk<Context>(relaxed = true))
+			goalList.add(listenable1)
 
-				GoalTracker.update(createSession(id = 5L, steps = 100))
-				GoalTracker.update(createSession(id = 5L, steps = 200))
+			GoalTracker.update(createSession(id = 5L, steps = 100))
+			GoalTracker.update(createSession(id = 5L, steps = 200))
 
-				GoalTracker.onNewDay()
+			GoalTracker.onNewDay()
 
-				// Same session id should be treated as new after reset
-				GoalTracker.update(createSession(id = 5L, steps = 50))
+			// Same session id should be treated as new after reset
+			GoalTracker.update(createSession(id = 5L, steps = 50))
 
-				verifyOrder {
-					mockGoal1.onSessionUpdated(match { it.steps == 100 }, eq(true))
-					mockGoal1.onSessionUpdated(match { it.steps == 200 }, eq(false))
-					mockGoal1.onSessionUpdated(match { it.steps == 50 }, eq(true))
-				}
-			} finally {
-				unmockkObject(Logger)
+			verifyOrder {
+				mockGoal1.onSessionUpdated(match { it.steps == 100 }, eq(true))
+				mockGoal1.onSessionUpdated(match { it.steps == 200 }, eq(false))
+				mockGoal1.onSessionUpdated(match { it.steps == 50 }, eq(true))
 			}
 		}
 
 		@Test
 		fun `onNewDay allows different session to also be new`() = runTest {
-			mockkObject(Logger)
-			every { Logger.log(any<LogData>()) } just Runs
-			try {
-				contextField.set(GoalTracker, mockk<Context>(relaxed = true))
-				goalList.add(listenable1)
+			contextField.set(GoalTracker, mockk<Context>(relaxed = true))
+			goalList.add(listenable1)
 
-				GoalTracker.update(createSession(id = 1L))
+			GoalTracker.update(createSession(id = 1L))
 
-				GoalTracker.onNewDay()
+			GoalTracker.onNewDay()
 
-				GoalTracker.update(createSession(id = 2L))
+			GoalTracker.update(createSession(id = 2L))
 
-				verify(exactly = 2) { mockGoal1.onSessionUpdated(any(), eq(true)) }
-			} finally {
-				unmockkObject(Logger)
-			}
+			verify(exactly = 2) { mockGoal1.onSessionUpdated(any(), eq(true)) }
 		}
 	}
 

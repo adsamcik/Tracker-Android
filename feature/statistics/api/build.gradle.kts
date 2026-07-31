@@ -8,5 +8,6 @@ android {
 }
 
 dependencies {
+    api(project(":core:model"))
     implementation(libs.navigation.compose)
 }

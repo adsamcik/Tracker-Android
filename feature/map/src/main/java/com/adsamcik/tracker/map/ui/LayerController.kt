@@ -1,9 +1,7 @@
 package com.adsamcik.tracker.map.ui
 
 import android.content.Context
-import android.util.Log
 import com.adsamcik.tracker.map.data.Bounds
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.base.LayerReloadResult
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
@@ -50,8 +48,6 @@ class LayerController {
     private val refreshGeneration = AtomicLong(0L)
 
     companion object {
-        private const val TAG = "LayerController"
-
         /**
          * Per-layer byte budget for the viewport refresh cache. A single dense (~80k point)
          * heatmap is ~12 MB UTF-16; 16 MB lets one large payload plus a small recent neighbour
@@ -99,7 +95,6 @@ class LayerController {
             synchronized(stateLock) {
                 if (myGeneration != refreshGeneration.get()) return
                 if (currentLayers.isNotEmpty()) {
-                    Log.d(TAG, "Clearing current layers: ${currentLayerDescriptors.map { it.id }}")
                     clearCurrentLayers()
                 }
                 clearState()
@@ -115,10 +110,8 @@ class LayerController {
 
                 try {
                     descriptors.forEach { descriptor ->
-                        Log.d(TAG, "Setting layer: ${descriptor.id}")
                         val entry = descriptor.recipe.factory.create() as? LayerEntry
                             ?: run {
-                                Log.e(TAG, "Factory for ${descriptor.id} did not produce a LayerEntry")
                                 return@forEach
                             }
                         val builtLayer = entry.build(context)
@@ -160,9 +153,7 @@ class LayerController {
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting layers: ${descriptors.joinToString { it.id }}", e)
-            Reporter.report(e)
+        } catch (_: Exception) {
             synchronized(stateLock) {
                 if (myGeneration == refreshGeneration.get()) {
                     clearState()
@@ -220,8 +211,6 @@ class LayerController {
                         }
                         LayerReloadResult.Empty -> null
                         is LayerReloadResult.Failure -> {
-                            Log.e(TAG, "Error refreshing layer ${descriptor.id}", result.cause)
-                            Reporter.report(result.cause)
                             return LayerRefreshResult.Failure(result.cause)
                         }
                     }
@@ -240,8 +229,6 @@ class LayerController {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error refreshing layers in place: ${descriptors.joinToString { it.id }}", e)
-            Reporter.report(e)
             return LayerRefreshResult.Failure(e)
         }
     }
@@ -256,9 +243,7 @@ class LayerController {
                 clearCurrentLayers()
                 clearState()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error clearing layer", e)
-            Reporter.report(e)
+        } catch (_: Exception) {
             synchronized(stateLock) {
                 clearState()
             }
@@ -280,7 +265,6 @@ class LayerController {
      * Handle low memory situations by clearing cache.
      */
     fun onLowMemory() {
-        Log.d(TAG, "Handling low memory - clearing layer cache")
         synchronized(stateLock) {
             layerConfigCache.clear()
         }
@@ -291,13 +275,12 @@ class LayerController {
      */
     fun destroy() {
         refreshGeneration.incrementAndGet()
-        Log.d(TAG, "Destroying LayerController")
         try {
             synchronized(stateLock) {
                 clearCurrentLayers()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during cleanup", e)
+        } catch (_: Exception) {
+            return
         } finally {
             synchronized(stateLock) {
                 clearState()

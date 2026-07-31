@@ -64,11 +64,8 @@ class PreferenceKeysTest {
 				PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED,
 				PreferenceKeys.BAROMETER_ENABLED,
 				PreferenceKeys.CELL_ENABLED,
-				PreferenceKeys.ERROR_REPORTING,
 				PreferenceKeys.LENGTH_SYSTEM,
 				PreferenceKeys.LOCATION_ENABLED,
-				PreferenceKeys.LOG_ACTIVITY,
-				PreferenceKeys.LOG_GAMES,
 				PreferenceKeys.NOTIFICATION_STYLED,
 				PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED,
 				PreferenceKeys.SPEED_FORMAT,
@@ -109,11 +106,6 @@ class PreferenceKeysTest {
 		}
 
 		@Test
-		fun `ERROR_REPORTING_DEFAULT is false`() {
-			PreferenceKeys.ERROR_REPORTING_DEFAULT shouldBe false
-		}
-
-		@Test
 		fun `LENGTH_SYSTEM_DEFAULT is Metric`() {
 			PreferenceKeys.LENGTH_SYSTEM_DEFAULT shouldBe "Metric"
 		}
@@ -121,16 +113,6 @@ class PreferenceKeysTest {
 		@Test
 		fun `LOCATION_ENABLED_DEFAULT is true`() {
 			PreferenceKeys.LOCATION_ENABLED_DEFAULT shouldBe true
-		}
-
-		@Test
-		fun `LOG_ACTIVITY_DEFAULT is false`() {
-			PreferenceKeys.LOG_ACTIVITY_DEFAULT shouldBe false
-		}
-
-		@Test
-		fun `LOG_GAMES_DEFAULT is false`() {
-			PreferenceKeys.LOG_GAMES_DEFAULT shouldBe false
 		}
 
 		@Test

@@ -29,6 +29,16 @@ private val Context.dashboardLayoutDataStore by preferencesDataStore(
 )
 
 /**
+ * Feature-facing persistence port for dashboard layout customization.
+ */
+interface DashboardLayoutStore {
+	val layout: Flow<DashboardLayout>
+	suspend fun reorder(widgetIds: List<String>)
+	suspend fun toggleVisibility(widgetId: String)
+	suspend fun resetToDefault()
+}
+
+/**
  * Repository for persisting the user's dashboard widget layout.
  *
  * Stores widget order and visibility in DataStore preferences,
@@ -37,7 +47,7 @@ private val Context.dashboardLayoutDataStore by preferencesDataStore(
 @Singleton
 class DashboardLayoutRepository @Inject constructor(
 	@ApplicationContext private val context: Context,
-) {
+) : DashboardLayoutStore {
 
 	private val orderKey = stringPreferencesKey("widget_order")
 	private val hiddenKey = stringSetPreferencesKey("hidden_widgets")
@@ -46,7 +56,7 @@ class DashboardLayoutRepository @Inject constructor(
 	 * Flow of the current dashboard layout.
 	 * Emits the default layout if the user hasn't customized.
 	 */
-	val layout: Flow<DashboardLayout> =
+	override val layout: Flow<DashboardLayout> =
 		context.dashboardLayoutDataStore.data.map { prefs ->
 			val storedOrder = prefs[orderKey]
 			val storedHidden = prefs[hiddenKey]
@@ -66,7 +76,7 @@ class DashboardLayoutRepository @Inject constructor(
 	 * Persist a new widget order.
 	 * @param widgetIds Ordered list of all widget IDs.
 	 */
-	suspend fun reorder(widgetIds: List<String>) {
+	override suspend fun reorder(widgetIds: List<String>) {
 		context.dashboardLayoutDataStore.edit { prefs ->
 			prefs[orderKey] = serializeOrder(normalizeWidgetOrder(widgetIds))
 		}
@@ -76,7 +86,7 @@ class DashboardLayoutRepository @Inject constructor(
 	 * Toggle the visibility of a widget.
 	 * If currently hidden, it becomes visible; if visible, it becomes hidden.
 	 */
-	suspend fun toggleVisibility(widgetId: String) {
+	override suspend fun toggleVisibility(widgetId: String) {
 		context.dashboardLayoutDataStore.edit { prefs ->
 			val current = prefs[hiddenKey]?.toMutableSet() ?: mutableSetOf()
 			if (widgetId in current) {
@@ -91,7 +101,7 @@ class DashboardLayoutRepository @Inject constructor(
 	/**
 	 * Reset both order and visibility to defaults.
 	 */
-	suspend fun resetToDefault() {
+	override suspend fun resetToDefault() {
 		context.dashboardLayoutDataStore.edit { prefs ->
 			prefs.remove(orderKey)
 			prefs.remove(hiddenKey)

@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
  * Architecture fitness check for the :core:common foundation module.
  *
  * :core:common must remain a leaf of the dependency graph: it may depend only on
- * external libraries and :core:logging-api. It must NOT depend on the database,
+ * external libraries and :core:diagnostics. It must NOT depend on the database,
  * Room, the Room @Entity data models, or other base-resident packages — otherwise
  * the god-module coupling that this module was extracted to break would be
  * reintroduced.

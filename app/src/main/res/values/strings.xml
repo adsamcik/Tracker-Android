@@ -1,75 +1,28 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Tracker</string>
-
-    <string name="dev_notification_dummy">Hello World!</string>
-
-    <string name="did_you_know">Did you know</string>
-
-    <string name="error_failed_to_open_license">Failed to open license.</string>
-
-    <string name="first_run_error_reporting_description">Crash reports are stored locally on your device and can be reviewed or exported by you if needed. For more information see the <a href="%1$s">privacy policy</a>.</string>
 
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
-    <string-array name="lorem_ipsum_facts">
-        <item>Lorem ipsum is derived from over 2000 year old text</item>
-        <item>Lorem ipsum is used since the 1500s</item>
-        <item>Lorem ipsum is not latin but gibberish</item>
-        <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
-        <item>One morning, when Gregor Samsa woke from troubled dreams…</item>
-        <item>Far far away, behind the word mountains…</item>
-        <item>But I must explain to you how all this mistaken idea…</item>
-        <item>Sed ut perspiciatis unde omnis iste natus error…</item>
-        <item>Bacon ipsum dolor amet swine filet mignon boudin turducken.</item>
-        <item>ToDo write some more messages that none will see.</item>
-    </string-array>
-
-    <string name="module_download_progress">Downloaded %1$s / %2$s</string>
-    <string name="module_error">Failed to install modules %1$s (error code %2$d)</string>
     <string name="module_game_title">Game</string>
-    <string name="module_installing">Installing module %s</string>
+
     <string name="module_map_title">Map</string>
     <string name="module_statistics_title">Statistics</string>
-    <string name="module_success">Installation completed successfully</string>
 
     <string name="main_nav_tracker">Home</string>
-    <string name="main_nav_stats">Statistics</string>
-    <string name="main_nav_map">Map</string>
-    <string name="main_nav_game">Game</string>
-    <string name="main_nav_map_expand">Open map</string>
-    <string name="main_nav_map_collapse">Close map</string>
-    <string name="main_nav_map_state_expanded">Map expanded</string>
-    <string name="main_nav_map_state_collapsed">Map collapsed</string>
 
-    <string name="open_source_licenses">Open source licenses</string>
-
-    <string name="settings_activity_status_key" translatable="false">activityStatus</string>
-    <string name="settings_activity_status_title">Status information</string>
-    <string name="settings_app_version_key" translatable="false">appVersion</string>
-    <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
     <string name="settings_clear_preferences_title">Clear preferences</string>
     <string name="settings_clear_preferences_message">This will reset all app preferences (feature toggles, UI settings). Your tracking data won\'t be affected. Continue?</string>
-    <string name="settings_color_default_key" translatable="false">defaultColors</string>
-    <string name="settings_color_default_title">Default colors</string>
+
     <string name="settings_data_title">Data</string>
-    <string name="settings_debug_enabled_default" translatable="false">false</string>
-    <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
-    <string name="settings_debug_key" translatable="false">debugSection</string>
+
     <string name="settings_debug_group_title">Debug</string>
     <string name="settings_debug_title">Developer options</string>
-    <string name="settings_debug_tools_section">Debug Tools</string>
-    <string name="settings_debug_crash_manager_title">Crash Manager</string>
-    <string name="settings_debug_crash_manager_subtitle">View and manage crash reports</string>
-    <string name="settings_debug_log_viewer_title">Log Viewer</string>
-    <string name="settings_debug_log_viewer_subtitle">View application logs</string>
     <string name="settings_debug_developer_tools_section">Developer Tools</string>
-    <string name="settings_debug_generate_dummy_title">Generate Dummy Data</string>
-    <string name="settings_debug_generate_dummy_subtitle">Create test tracking data (DEBUG only)</string>
+
     <string name="settings_debug_disable_developer_subtitle">Hide developer options from settings</string>
     <string name="settings_debug_developer_mode_disabled_toast">Developer mode disabled</string>
-    <string name="settings_debug_seed_data_confirm_title">Seed dummy data?</string>
-    <string name="settings_debug_seed_data_confirm_message">This adds 3 dummy New York City sessions for development and testing. Continue?</string>
+
     <string name="settings_data_management_section">Data Management</string>
     <string name="settings_data_danger_zone_section">Danger Zone</string>
     <string name="settings_osm_import_section">Map data (OpenStreetMap)</string>
@@ -80,20 +33,30 @@
     <string name="settings_osm_import_action_running">Importing — tap to cancel</string>
     <string name="settings_osm_import_action_failed">Offline map import could not be completed.</string>
     <string name="settings_osm_import_action_source_unavailable">The selected map file could not be opened.</string>
-    <string name="settings_osm_import_action_success">Imported %1$d roads from %2$d nodes.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Imported %1$d road from %2$d nodes.</item>
+        <item quantity="other">Imported %1$d roads from %2$d nodes.</item>
+    </plurals>
     <string name="settings_osm_imports_empty">No OpenStreetMap region imported yet.</string>
     <string name="settings_osm_imports_attribution">Map data © OpenStreetMap contributors (ODbL 1.0). All processing happens on-device.</string>
-    <string name="settings_osm_import_entry_subtitle">%1$,d roads · imported %2$s</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d road · imported %2$s</item>
+        <item quantity="other">%1$,d roads · imported %2$s</item>
+    </plurals>
     <string name="settings_osm_import_remove_title">Remove imported region</string>
     <string name="settings_osm_import_remove_message">Remove %1$s? Vehicle compliance will fall back to the fixed baseline until you re-import a region.</string>
-    <string name="settings_osm_import_remove_done">Region removed</string>
+
     <string name="settings_incremental_backups_title">Incremental backups</string>
     <string name="settings_incremental_backups_summary">Only export new data since last backup. Reduces export time and file size.</string>
     <string name="settings_reset_export_watermarks_title">Force full export</string>
     <string name="settings_reset_export_watermarks_summary">Next automated backup will include all data instead of only changes</string>
     <string name="settings_reset_export_watermarks_done">Export watermarks reset — next backup will be a full export</string>
     <string name="settings_migration_backup_export_title">Export pre-upgrade safety backup</string>
-    <string name="settings_migration_backup_export_summary">Full database copy from v%1$d, created before migration to v%2$d and kept privately for up to 30 days</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string
+        name="settings_migration_backup_export_summary"
+        tools:ignore="PluralsCandidate"
+    >Full database copy from v%1$d, created before migration to v%2$d and kept privately for up to 30 days</string>
     <string name="settings_migration_backup_warning_title">Export sensitive database backup?</string>
     <string name="settings_migration_backup_warning_message">This backup may contain precise locations, Wi-Fi and cell observations, activities, and other private data from before the upgrade. Save it only somewhere you trust.</string>
     <string name="settings_migration_backup_export_action">Export backup</string>
@@ -134,33 +97,22 @@
     <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
     <string name="settings_map_online_tiles_attribution_format">Attribution: %1$s</string>
     <string name="settings_map_online_tiles_privacy_disclosure">Online tiles are opt-in. While enabled, the chosen provider can see your IP address and which tiles you load (approximately which area of the map you are viewing). Tracker never sends an account, identifier, or location history.</string>
-    <string name="settings_developer_enabled">Developer options enabled</string>
+
     <string name="settings_developer_mode_enabled_toast">Developer mode enabled</string>
     <string name="settings_developer_mode_disable">Disable developer mode</string>
     <string name="settings_developer_mode_subtitle">Developer mode active</string>
-    <string name="settings_developer_mode_tap_countdown">Tap %d more times to enable developer mode</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Tap %d more time to enable developer mode</item>
+        <item quantity="other">Tap %d more times to enable developer mode</item>
+    </plurals>
     <string name="settings_version_info_title">Version information</string>
     <string name="settings_version_format">Version: %1$s (%2$d)</string>
-    <string name="settings_error_reporting_summary">Crash reports stay on-device unless you choose to export them manually.</string>
-    <string name="settings_error_reporting_title">Local crash reports</string>
-
-    <string name="settings_hello_world_key" translatable="false">helloWorld</string>
-    <string name="settings_hello_world_title">Hello world!</string>
 
     <string name="settings_language_summary">Current language: %s</string>
     <string name="settings_language_title">Application language</string>
 
-    <string name="settings_units_section_title">Units</string>
     <string name="settings_units_auto_summary_on">Adapts length system to detected activities</string>
     <string name="settings_units_auto_summary_off">Applies the selected length system everywhere</string>
-    <string name="settings_units_length_metric_summary">Kilometers and meters</string>
-    <string name="settings_units_length_imperial_summary">Miles and feet</string>
-    <string name="settings_units_length_ancient_roman_summary">Passus and mille passus</string>
-    <string name="settings_units_length_sailing_summary">Nautical miles and fathoms</string>
-    <string name="settings_units_length_flying_summary">Flight levels and nautical miles</string>
-    <string name="settings_units_speed_hour_summary">Speed (km/h, mph)</string>
-    <string name="settings_units_speed_minute_summary">Pace per distance (min/km, min/mi)</string>
-    <string name="settings_units_speed_second_summary">Speed per second (m/s)</string>
 
     <string-array name="settings_length_system_names">
         <item>Metric</item>
@@ -169,22 +121,22 @@
         <item>Sailing</item>
         <item>Flying</item>
     </string-array>
-    <string name="settings_length_system_title">Length system</string>    <string-array name="settings_length_system_values" translatable="false">
+    <string name="settings_length_system_title">Length system</string>
+    <string-array name="settings_length_system_values" translatable="false">
         <item>Metric</item>
         <item>Imperial</item>
         <item>AncientRoman</item>
         <item>Sailing</item>
         <item>Flying</item>
     </string-array>
-    <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
+
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_subtitle">View bundled third-party notices included with this build.</string>
     <string name="settings_licenses_loading">Loading licenses…</string>
     <string name="settings_licenses_unavailable">Couldn’t load bundled third-party license data.</string>
-    <string name="settings_licenses_variant_unavailable">This build variant does not bundle generated license data. Use a release-like build to view third-party licenses.</string>
     <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
-    <string name="privacy_policy_load_error">Privacy policy could not be loaded. Please reinstall the app or contact support.</string>
+
     <string name="settings_privacy_policy_unavailable">The bundled privacy policy could not be opened. Please try again after restarting the app.</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>
@@ -207,37 +159,11 @@
     <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Map &amp; street data</string>
     <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
-    <string name="settings_send_feedback_title">Send feedback</string>
-    <string name="settings_send_feedback_subtitle">Report issues on GitHub</string>
-    <string name="settings_log_activity_title">Log activity changes</string>
-    <string name="settings_log_enabled_title">Enable logging</string>
-    <string name="settings_log_performance_enabled_title">Enable performance logging</string>
-    <string name="settings_log_games_title">Log games</string>
-    <string name="settings_log_list_activity_key" translatable="false">logViewer</string>
-    <string name="settings_log_list_activity_title">Log viewer</string>
-    <string name="settings_crash_viewer_key" translatable="false">crashViewer</string>
-    <string name="settings_crash_viewer_title">Crash viewer</string>
-    <string name="settings_export_crashes_key" translatable="false">exportCrashes</string>
-    <string name="settings_export_crashes_title">Export crashes</string>
-    <string name="settings_clear_crashes_key" translatable="false">clearCrashes</string>
-    <string name="settings_clear_crashes_title">Clear crashes</string>
-    <string name="settings_test_crash_key" translatable="false">testCrash</string>
-    <string name="settings_test_crash_title">Test crash (Debug only)</string>
-    <string name="settings_generate_dummy_data_key" translatable="false">generateDummyData</string>
-    <string name="settings_generate_dummy_data_title" translatable="false">Generate dummy data</string>
-    <string name="dummy_data_not_empty" translatable="false">Database is not empty. Dummy data can only be generated on an empty database.</string>
-    <string name="dummy_data_generation_success" translatable="false">Dummy data generated.</string>
-    <string name="dummy_data_generation_failed" translatable="false">Failed to generate dummy data.</string>
-    <string name="dummy_data_generation_title_progress" translatable="false">Generating dummy data…</string>
-    <string name="dummy_data_second_confirm_title" translatable="false">Database not empty</string>
-    <string name="dummy_data_second_confirm_message" translatable="false">Your database already has data. Do you still want to append dummy data? This is intended for development only.</string>
-    <string name="settings_module_enable_key" translatable="false">modules</string>
-    <string name="settings_module_enable_title">Modules</string>
-    <string name="settings_module_group_key" translatable="false">moduleSettings</string>
+
     <string name="settings_module_group_title">Module settings</string>
     <string name="settings_core_group_title">Core</string>
     <string name="settings_other_title">Units &amp; Display</string>
-    <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
+
     <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>
     <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
     <string-array name="settings_speed_format_names">
@@ -251,43 +177,13 @@
         <item>Minute</item>
         <item>Hour</item>
     </string-array>
-    <string name="settings_style_color_category_key" translatable="false">styleColorCategory</string>
-    <string name="settings_style_mode_title">Style mode</string>
-    <string name="settings_style_title">Style</string>
-    <string name="settings_title">Settings</string>
 
-    <!-- Color picker dialog -->
-    <string name="settings_color_dialog_title">Select color</string>
-    <string name="settings_color_picker_select_label">Select a color</string>
-    <string name="settings_color_picker_shades_label">Shade variants</string>
-    <string name="settings_color_picker_apply">Apply</string>
-    <string name="settings_color_picker_reset">Reset</string>
-    <string name="settings_color_picker_cancel">Cancel</string>
-    <string name="settings_color_picker_swatch_cd">%1$s color %2$s</string>
-    <string name="settings_color_picker_shade_cd">%1$s shade %2$s</string>
-    <string name="settings_color_picker_selected_prefix">Selected</string>
+    <string name="settings_title">Settings</string>
 
     <string name="switch_state_on">On</string>
     <string name="switch_state_off">Off</string>
 
-    <string name="show_tips_title">Show tips</string>
-
-    <string name="tutorial_game_description">You can find games on the right</string>
-    <string name="tutorial_game_title">Games</string>
-    <string name="tutorial_map_description">If you click or drag this surface upwards, it will bring up the map</string>
-    <string name="tutorial_map_title">Map</string>
-    <string name="tutorial_settings_description">This button hides many options to customize your experience</string>
-    <string name="tutorial_settings_title">Settings</string>
-    <string name="tutorial_stats_description">You can find statistics on the left</string>
-    <string name="tutorial_stats_title">Statistics</string>
-
     <!-- Onboarding Strings -->
-    <string name="onboarding_button_back">Back</string>
-    <string name="onboarding_button_continue">Continue</string>
-    <string name="onboarding_button_cancel">Cancel</string>
-    <string name="onboarding_button_get_started">Get Started</string>
-    <string name="onboarding_button_next">Next</string>
-    <string name="onboarding_button_finish">Finish Setup</string>
 
     <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Track Your Journeys Privately</string>
@@ -299,125 +195,22 @@
     <string name="onboarding_benefit_gamification_title">Achievements</string>
     <string name="onboarding_benefit_gamification_desc">Unlock 150+ achievements as you walk, run, cycle, and explore — all earned locally on your device.</string>
     <string name="onboarding_get_started">GET STARTED</string>
-    <string name="onboarding_learn_more">Learn more</string>
+
     <string name="onboarding_privacy_policy_button">Read Privacy Policy</string>
     <string name="onboarding_state_read_error_message">We could not verify whether setup was already completed, so setup is shown to keep your data private. You can continue safely.</string>
 
-    <!-- Contextual Permission Rationales are defined in :sbase strings.xml (the shared module that owns ContextualPermissionRequest). Do not duplicate here. -->
-    <string name="permission_allow">Allow</string>
-    <string name="permission_deny">Not Now</string>
-    <string name="permission_denied_tracking_disabled">Location permission required to start tracking</string>
-    <string name="permission_denied_settings_action">Open Settings</string>
-
-    <!-- Onboarding permission/rationale and settings dialogs -->
-    <string name="onboarding_perm_rationale_title">Permission required</string>
-    <string name="onboarding_open_settings_title">Open settings to grant permission</string>
-    <string name="onboarding_open_settings_generic_message">Grant this permission from the system settings.</string>
-    <string name="onboarding_background_location_settings_message">To enable automatic tracking, set Location permission to "Allow all the time" in App info &gt; Permissions.</string>
-    <string name="onboarding_open_settings_confirm">Open Settings</string>
-
-    <!-- Welcome Screen (legacy multi-step) -->
-    <string name="onboarding_welcome_title">Welcome to Tracker</string>
-    <string name="onboarding_welcome_subtitle">Privacy-first location and activity tracking designed for your peace of mind</string>
-    <string name="welcome_privacy_highlight">🔒 Your data stays on your device</string>
-    <string name="welcome_offline_highlight">📱 Works completely offline</string>
-    <string name="welcome_control_highlight">🎯 You control what gets tracked</string>
-
-    <!-- What to Track Screen -->
-    <string name="onboarding_what_to_track_title">What Would You Like to Track?</string>
-    <string name="onboarding_what_to_track_subtitle">Choose the data types that matter to you. You can always change these later.</string>
-    <string name="tracking_option_location_title">Location</string>
-    <string name="tracking_option_location_description">Track your movement and visited places</string>
-    <string name="tracking_option_activity_title">Activity</string>
-    <string name="tracking_option_activity_description">Detect walking, driving, cycling, and more</string>
-    <string name="tracking_option_wifi_title">Wi-Fi Networks</string>
-    <string name="tracking_option_wifi_description">Log nearby networks for location context</string>
-    <string name="tracking_option_cell_title">Cell Towers</string>
-    <string name="tracking_option_cell_description">Record cellular network information for coverage analysis</string>
-    <string name="tracking_option_steps_title">Step Count</string>
-    <string name="tracking_option_steps_description">Count your daily steps and movement</string>
-    <string name="onboarding_steps_not_available">Step counting is not available on this device</string>
-
-    <!-- Auto-Tracking Setup Screen -->
-    <string name="onboarding_auto_tracking_title">Auto-Tracking Setup</string>
-    <string name="onboarding_auto_tracking_subtitle">Configure how Tracker monitors your activities automatically</string>
-    <string name="onboarding_enable_auto_tracking">Enable Auto-Tracking</string>
-    <string name="onboarding_auto_tracking_description">Automatically detect and log activities without manual intervention</string>
-    <string name="onboarding_tracking_profile_title">Tracking Profile</string>
-    <string name="onboarding_tracking_profile_subtitle">Choose how aggressively Tracker monitors your activities</string>
-    <string name="tracking_profile_eco">ECO - Minimal battery usage</string>
-    <string name="tracking_profile_eco_description">Best for battery life. Reduced accuracy and sampling frequency.</string>
-    <string name="tracking_profile_balanced">BALANCED - Good accuracy with reasonable battery usage</string>
-    <string name="tracking_profile_balanced_description">Balanced between accuracy and battery usage. Recommended for most users.</string>
-    <string name="tracking_profile_precise">PRECISE - Maximum accuracy and detail</string>
-    <string name="tracking_profile_precise_description">Highest accuracy and detail. Increased battery consumption.</string>
-    <string name="auto_tracking_explanation">Auto-tracking uses your device\'s sensors to detect when you\'re walking, running, or in a vehicle. All data stays on your device.</string>
-    <string name="onboarding_auto_tracking_more_title">Advanced auto-tracking options</string>
-    <string name="onboarding_auto_tracking_more_subtitle">These map to Settings so you can fine-tune behavior later</string>
-    <string name="onboarding_auto_tracking_transition_title">Use activity transitions</string>
-    <string name="onboarding_auto_tracking_transition_summary">React to system-detected activity transitions when available</string>
-    <string name="onboarding_activity_watcher_title">Enable periodic activity checks</string>
-    <string name="onboarding_activity_watcher_summary">Occasionally check activity to improve detection when transitions miss</string>
-    <string name="onboarding_pause_while_charging_title">Pause while charging</string>
-    <string name="onboarding_pause_while_charging_summary">Disable auto-tracking when device is charging to save battery</string>
-
-    <!-- Background Location Screen -->
-    <string name="onboarding_bg_title">Background Location Tracking</string>
-    <string name="onboarding_bg_enabled_title">Background Tracking Enabled!</string>
-    <string name="onboarding_bg_subtitle">Enable automatic tracking when the app is in the background for seamless movement logging.</string>
-    <string name="onboarding_bg_needs_location_subtitle">Location permission is required before enabling background tracking.</string>
-    <string name="onboarding_bg_enabled_subtitle">Automatic tracking is now enabled. The app can track your movements even when minimized.</string>
-    <string name="onboarding_bg_grant_location_first_message">Grant location first, then allow background. We\'ll guide you step-by-step.</string>
-    <string name="onboarding_bg_grant_location_first_cta">Grant Location First</string>
-    <string name="onboarding_bg_benefits_title">Why enable background tracking?</string>
-    <string name="onboarding_bg_benefit_automatic_title">Automatic Tracking</string>
-    <string name="onboarding_bg_benefit_automatic_desc">No need to manually start/stop tracking sessions</string>
-    <string name="onboarding_bg_benefit_complete_title">Complete Journey Capture</string>
-    <string name="onboarding_bg_benefit_complete_desc">Track entire trips even when switching between apps</string>
-    <string name="onboarding_bg_benefit_insights_title">Better Insights</string>
-    <string name="onboarding_bg_benefit_insights_desc">More complete data for better movement patterns</string>
-    <string name="onboarding_bg_battery_title">Battery Usage</string>
-    <string name="onboarding_bg_battery_desc">Background tracking uses more battery. The app is optimized to minimize impact, but you may notice increased battery usage.</string>
-    <string name="onboarding_bg_privacy_title">Privacy Protected</string>
-    <string name="onboarding_bg_privacy_desc">All location data remains on your device. We never upload or share your location information.</string>
-    <string name="onboarding_bg_allow_cta">Allow Background Location</string>
-    <string name="onboarding_bg_skip">Skip - Track manually</string>
-    <string name="onboarding_bg_ready_title">Background tracking is ready!</string>
-    <string name="onboarding_bg_ready_desc">The app will now automatically track your movements even when running in the background.</string>
-
-    <!-- Privacy Screen -->
-    <string name="onboarding_privacy_title">Privacy First</string>
-    <string name="onboarding_privacy_subtitle">Your data, your control. We believe privacy is a fundamental right.</string>
-    <string name="privacy_local_storage_title">Local Storage Only</string>
-    <string name="privacy_local_storage_description">All your tracking data stays on your device. Nothing is uploaded to our servers.</string>
-    <string name="privacy_no_cloud_title">No Cloud Sync</string>
-    <string name="privacy_no_cloud_description">We don\'t collect, analyze, or share your personal movement patterns.</string>
-    <string name="privacy_open_source_title">Open Source</string>
-    <string name="privacy_open_source_description">Our code is transparent and auditable. You can verify exactly what we do.</string>
-    <string name="privacy_your_control_title">Full Control</string>
-    <string name="privacy_your_control_description">Export, delete, or modify your data anytime. You own it completely.</string>
-    <string name="privacy_data_storage_preferences">Data Storage Preferences</string>
-    <string name="privacy_auto_cleanup_title">Auto-cleanup old data</string>
-    <string name="privacy_auto_cleanup_description">Automatically remove data older than 1 year</string>
-    <string name="privacy_export_reminder">You can export your data anytime from the settings menu</string>
-    <string name="privacy_footer_note">Tracker is designed with privacy by design. Your location data never leaves your device unless you explicitly choose to export it.</string>
-
-    <!-- Data retention setting (also used by onboarding toggle) -->
-    <string name="settings_auto_cleanup_old_data_key" translatable="false">autoCleanupOldData</string>
     <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
-    <string name="settings_auto_cleanup_old_data_summary">Automatically remove data older than 1 year</string>
+
     <string name="settings_auto_cleanup_old_data_summary_forever">Keep data forever; auto-cleanup will not delete old data</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Automatically remove data older than %1$d year</item>
         <item quantity="other">Automatically remove data older than %1$d years</item>
     </plurals>
-    <string name="settings_auto_cleanup_old_data_default" translatable="false">false</string>
 
     <!-- Data retention period options -->
-    <string name="settings_data_retention_years_key" translatable="false">dataRetentionYears</string>
+
     <string name="settings_data_retention_years_title">Keep data for</string>
-    <string name="settings_data_retention_years_default" translatable="false">1</string>
 
     <string-array name="settings_data_retention_years_titles">
         <item>Keep forever</item>
@@ -437,156 +230,8 @@
     </string-array>
 
     <!-- Common Buttons -->
-    <string name="button_ok">OK</string>
-    <string name="button_cancel">Cancel</string>
-    <string name="button_back">Back</string>
+
     <string name="button_continue">CONTINUE</string>
-    <string name="button_skip">Skip for now</string>
-    <string name="loading_text">Loading…</string>
-
-    <!-- Onboarding: Location Setup -->
-    <string name="onboarding_location_enable_button">Enable Location Access</string>
-    <string name="onboarding_location_benefits_title">What you\'ll get:</string>
-    <string name="onboarding_privacy_protected_title">Your privacy is protected</string>
-    <string name="onboarding_privacy_message">All location data stays on your device. We never upload or share your routes.</string>
-    <string name="onboarding_background_location_required_title">Background Location Required</string>
-    <string name="onboarding_background_location_required_message">Since automatic tracking is enabled, background location permission is needed for the app to track movements when minimized.</string>
-    <string name="onboarding_background_location_enable_button">Enable Background Location</string>
-    <string name="onboarding_continue_without_background_button">Continue without background tracking</string>
-    <string name="onboarding_background_benefits_title">Background tracking benefits:</string>
-    <string name="onboarding_battery_usage_title">Battery Usage</string>
-    <string name="onboarding_battery_usage_message">Background tracking uses additional battery, but the app is optimized to minimize impact.</string>
-
-    <!-- Onboarding: Enhanced Features -->
-    <string name="onboarding_enhanced_features_title">Enhanced Features</string>
-    <string name="onboarding_enhanced_features_subtitle">Optional features to improve tracking accuracy and user experience.</string>
-    <string name="onboarding_wifi_permission_title">Wi‑Fi permission needed</string>
-    <string name="onboarding_wifi_permission_message">Grant Wi‑Fi permission to improve indoor accuracy.</string>
-    <string name="onboarding_wifi_grant_button">Grant Wi‑Fi permission</string>
-    <string name="onboarding_skip_enhanced_features">Skip enhanced features</string>
-    <string name="onboarding_grant_permission_button">Grant Permission</string>
-    <string name="onboarding_enhanced_features_privacy_note">All these features are optional and can be enabled or disabled anytime in settings. Your privacy remains protected.</string>
-    <string name="onboarding_enhanced_wifi_card_title">WiFi-Based Indoor Tracking</string>
-    <string name="onboarding_enhanced_wifi_card_description">Improve location accuracy when GPS is weak indoors</string>
-    <string name="onboarding_enhanced_wifi_benefit_indoor_detection">Better indoor position detection</string>
-    <string name="onboarding_enhanced_wifi_benefit_battery">Reduced battery usage indoors</string>
-    <string name="onboarding_enhanced_wifi_benefit_accuracy">More accurate building-level tracking</string>
-    <string name="onboarding_enhanced_notifications_card_title">Smart Notifications</string>
-    <string name="onboarding_enhanced_notifications_card_description">Get helpful insights about your movement patterns</string>
-    <string name="onboarding_enhanced_notifications_benefit_daily_summary">Daily movement summaries</string>
-    <string name="onboarding_enhanced_notifications_benefit_achievements">Achievement notifications</string>
-    <string name="onboarding_enhanced_notifications_benefit_status_updates">Tracking status updates</string>
-
-    <!-- Onboarding: Basic Preferences -->
-    <string name="onboarding_preferences_title">Preferences</string>
-    <string name="onboarding_preferences_subtitle">Adjust defaults. You can always change these later in Settings.</string>
-    <string name="onboarding_additional_settings_title">Additional Settings</string>
-    <string name="onboarding_auto_start_title">Auto-start tracking</string>
-    <string name="onboarding_auto_start_summary">Start tracking automatically when you move</string>
-    <string name="onboarding_smart_pause_title">Smart pause</string>
-    <string name="onboarding_smart_pause_summary">Pause tracking when stationary for extended periods</string>
-
-    <!-- Onboarding: Activity Setup -->
-    <string name="onboarding_activity_title">Smart Activity Detection</string>
-    <string name="onboarding_activity_enabled_title">Activity Detection Enabled!</string>
-    <string name="onboarding_activity_subtitle">Let Tracker automatically detect when you\'re walking, running, driving, or stationary.</string>
-    <string name="onboarding_activity_enabled_subtitle">Activity recognition is now enabled. The app will automatically detect your movement type!</string>
-    <string name="onboarding_activity_detects_title">Automatically detects:</string>
-    <string name="onboarding_activity_type_walking_title">Walking</string>
-    <string name="onboarding_activity_type_walking_description">Leisurely strolls and urban exploration</string>
-    <string name="onboarding_activity_type_running_title">Running</string>
-    <string name="onboarding_activity_type_running_description">Jogging, running, and fitness activities</string>
-    <string name="onboarding_activity_type_driving_title">Driving</string>
-    <string name="onboarding_activity_type_driving_description">Car trips and vehicle transportation</string>
-    <string name="onboarding_activity_type_stationary_title">Stationary</string>
-    <string name="onboarding_activity_type_stationary_description">Resting, working, or staying in one place</string>
-    <string name="onboarding_activity_why_title">Why this helps:</string>
-    <string name="onboarding_activity_benefits">• Better insights into your daily movement patterns\n• Accurate distance and calorie calculations\n• Smart detection of driving, walking, and cycling\n• Enhanced route visualization with activity context</string>
-    <string name="onboarding_activity_ready_title">Activity detection is ready!</string>
-    <string name="onboarding_activity_ready_message">The app will now automatically detect your movement type and provide better insights.</string>
-    <string name="onboarding_activity_enable_button">Enable Activity Detection</string>
-    <string name="onboarding_continue_setup_button">Continue Setup</string>
-
-    <!-- Onboarding: Auto Tracking Setup -->
-    <string name="onboarding_distance_meters">%d m</string>
-
-    <!-- Onboarding: Completion -->
-    <string name="onboarding_start_tracking_button">Start Tracking!</string>
-    <string name="onboarding_complete_setup_button">Complete Setup</string>
-    <string name="onboarding_success_title">Setup Complete!</string>
-    <string name="onboarding_success_message">Tracker is ready to help you discover your daily patterns and insights.</string>
-    <string name="onboarding_success_features_title">Features Enabled:</string>
-    <string name="onboarding_success_feature_location">📍 Location tracking</string>
-    <string name="onboarding_success_feature_activity">🏃 Activity detection</string>
-    <string name="onboarding_success_feature_background">🔄 Background tracking</string>
-    <string name="onboarding_success_feature_wifi">📶 WiFi-based indoor tracking</string>
-    <string name="onboarding_success_feature_notifications">🔔 Smart notifications</string>
-    <string name="onboarding_success_feature_privacy">🛡️ Privacy-first data storage</string>
-    <string name="onboarding_success_next_steps_title">What\'s Next?</string>
-    <string name="onboarding_success_next_steps_message">• Start your first tracking session\n• Explore the map view to see your routes\n• Check statistics for movement insights\n• Adjust settings anytime in preferences</string>
-
-    <!-- Onboarding: Placeholder -->
-    <string name="onboarding_placeholder_coming_soon">Coming in Stage 2+</string>
-
-    <!-- Onboarding: Value Demo -->
-    <string name="onboarding_value_demo_title">What can Tracker do for you?</string>
-    <string name="onboarding_value_demo_subtitle">A quick peek at the insights Tracker can surface for you</string>
-    <string name="onboarding_value_demo_card_movement_title">Your movement, visualized</string>
-    <string name="onboarding_value_demo_card_movement_description">See your daily paths, time at places, and how your days flow</string>
-    <string name="onboarding_value_demo_card_activity_title">Automatic activity detection</string>
-    <string name="onboarding_value_demo_card_activity_description">Walk, drive, stay still — Tracker classifies it for you</string>
-    <string name="onboarding_value_demo_card_insights_title">Meaningful insights</string>
-    <string name="onboarding_value_demo_card_insights_description">Daily and weekly summaries help you spot trends and changes</string>
-    <string name="onboarding_value_demo_ready_title">Ready to set up tracking your way?</string>
-    <string name="onboarding_value_demo_collapse">Collapse</string>
-    <string name="onboarding_value_demo_expand">Expand</string>
-    <string name="onboarding_value_demo_card_location_preview">Interactive Map Preview</string>
-    <string name="onboarding_value_demo_activity_walking">Walking</string>
-    <string name="onboarding_value_demo_activity_walking_duration">2.3 hours</string>
-    <string name="onboarding_value_demo_activity_driving">Driving</string>
-    <string name="onboarding_value_demo_activity_driving_duration">1.1 hours</string>
-    <string name="onboarding_value_demo_activity_still">Still</string>
-    <string name="onboarding_value_demo_activity_still_duration">20.6 hours</string>
-    <string name="onboarding_value_demo_insight_distance_label">Distance traveled today</string>
-    <string name="onboarding_value_demo_insight_distance_value">12.4 km</string>
-    <string name="onboarding_value_demo_insight_location_label">Most visited location</string>
-    <string name="onboarding_value_demo_insight_location_value">Home (8.2 hours)</string>
-    <string name="onboarding_value_demo_insight_active_time_label">Active time</string>
-    <string name="onboarding_value_demo_insight_active_time_value">3.4 hours</string>
-    <string name="onboarding_value_demo_insight_places_label">Places discovered</string>
-    <string name="onboarding_value_demo_insight_places_value">3 new locations</string>
-
-    <!-- Onboarding: Progress -->
-    <string name="onboarding_progress_step">Step %1$d of %2$d</string>
-    <string name="onboarding_progress_percent">%d%%</string>
-
-    <!-- Debug: General -->
-    <string name="debug_system_status_title">System Status</string>
-    <string name="debug_log_viewer_title">Log Viewer</string>
-    <string name="debug_no_logs">No logs available</string>
-    <string name="debug_showing_logs_count">Showing last %d logs:</string>
-    <string name="debug_collapse">Collapse</string>
-    <string name="debug_expand">Expand</string>
-
-    <!-- Debug: Crash Viewer -->
-    <string name="debug_loading_crashes">Loading crashes…</string>
-    <string name="debug_no_crashes">No crashes found!</string>
-    <string name="debug_crash_number">Crash #%d</string>
-    <string name="debug_file_name">File: %s</string>
-    <string name="debug_file_modified">Modified: %s</string>
-    <string name="debug_failed_read_file">Failed to read file</string>
-
-    <!-- Debug: Crash Manager -->
-    <string name="debug_loading_crash_data">Loading crash data…</string>
-    <string name="debug_crash_statistics_title">Crash Statistics</string>
-    <string name="debug_total_crashes">Total crashes: %d</string>
-    <string name="debug_crash_storage_note">Crash reports are saved on your device and can be exported for debugging.</string>
-    <string name="debug_information_title">ℹ️ Information</string>
-    <string name="debug_crash_info_message">• Crash reports are automatically saved when the app closes unexpectedly\n• All data stays on your device\n• Nothing is sent automatically\n• You can export crash logs for debugging</string>
-    <string name="debug_clear_crashes_title">Clear All Crashes</string>
-    <string name="debug_clear_crashes_confirm">Are you sure you want to clear all crash data? This action cannot be undone.</string>
-    <string name="debug_clear_button">Clear</string>
-    <string name="debug_cancel_button">Cancel</string>
 
     <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Export Data</string>
@@ -606,39 +251,9 @@
     <string name="export_sensitivity_json_message">This JSON export contains full-precision locations and session summaries. Some derived metadata is lossy on import; only save or share it with destinations you trust.</string>
     <string name="export_sensitivity_db_message">This raw database backup may include precise locations, Wi-Fi/cell radio data, activity, and settings. Keep it private and only store it somewhere you trust.</string>
     <string name="export_sensitivity_confirm">Continue export</string>
-    
-    <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
-    <string name="export_button">Export</string>
-    <string name="export_default_file_name">Advention_export_data</string>
-    <string name="export_file_name">File name</string>
-    <string name="export_gpx_description">Export of location data from %1$s to %2$s tracked with Advention.</string>
-    <string name="export_error_stream_failed">Could not create stream to file %s</string>
-    <string name="export_gpx_error">GPX export failed with error: %s</string>
-    <string name="export_share_button">Share</string>
 
-    <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
-    <string name="import_notification_extracting">Extracting %s …</string>
-    <plurals name="import_notification_finished">
-        <item quantity="other">Import finished. Successfully imported %d files.</item>
-        <item quantity="one">Import finished. Successfully imported %d file.</item>
-    </plurals>
-    <string name="import_notification_importing">Importing %s …</string>
-    <string name="import_notification_progress">Import in progress …</string>
-
-    <string name="settings_export_dialog_from">From</string>
-    <string name="settings_export_dialog_to">To</string>
-    <string name="settings_export_gpx_summary">Export your tracked location to GPX file</string>
-    <string name="settings_export_gpx_title">As GPX file</string>
-    <string name="settings_export_json_summary">Export your tracked data to JSON file</string>
-    <string name="settings_export_json_title">As JSON file</string>
-    <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
-    <string name="settings_export_kml_title">As KML file</string>
-    <string name="settings_export_no_data">No data to export</string>
-    <string name="settings_export_sqlite_summary">Export raw SQLite3 database file</string>
-    <string name="settings_export_sqlite_title">Raw database file</string>
     <string name="settings_export_title">Export</string>
 
-    <string name="settings_import_no_types">no types supported on your device, sorry.</string>
     <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
     <string name="settings_import_title">Import</string>
 
@@ -654,10 +269,9 @@
     <string name="precision_mode_title">Choose Location Precision</string>
     <string name="precision_mode_approximate_title">Approximate</string>
     <string name="precision_mode_approximate_description">Network-based location. Good for general area tracking with minimal battery use.</string>
-    <string name="precision_mode_approximate_accuracy">~100–500 meters accuracy</string>
+
     <string name="precision_mode_precise_title">Precise</string>
     <string name="precision_mode_precise_description">GPS-based location. Best for detailed routes, heatmaps, and challenges.</string>
-    <string name="precision_mode_precise_accuracy">&lt;10 meters accuracy</string>
 
     <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Unlock Precise Tracking</string>
@@ -698,27 +312,10 @@
 
     <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Tracking Policy</string>
-    <string name="tracking_policy_estimated_duration">Estimated tracking: %d hours</string>
-    <string name="tracking_policy_show_details">Show details</string>
-    <string name="tracking_policy_hide_details">Hide details</string>
-    <string name="tracking_policy_detail_location">Location: %s</string>
-    <string name="tracking_policy_detail_location_enabled">Enabled</string>
-    <string name="tracking_policy_detail_location_disabled">Disabled</string>
-    <string name="tracking_policy_detail_precision">Precision: %s</string>
-    <string name="tracking_policy_detail_precision_precise">Precise GPS</string>
-    <string name="tracking_policy_detail_precision_approximate">Approximate</string>
-    <string name="tracking_policy_detail_interval">Update interval: %1$d meters / %2$d seconds</string>
-    <string name="tracking_policy_detail_accuracy">Required accuracy: %d meters</string>
-    <string name="tracking_policy_detail_sensors">Sensors: %s</string>
-    <string name="tracking_policy_detail_transition">Adaptive tracking: %s</string>
-    <string name="tracking_policy_detail_enabled">On</string>
-    <string name="tracking_policy_detail_disabled">Off</string>
-    <string name="tracking_policy_sensor_activity">Activity</string>
-    <string name="tracking_policy_sensor_steps">Steps</string>
-    <string name="tracking_policy_sensor_wifi">WiFi</string>
-    <string name="tracking_policy_sensor_wifi_count">WiFi Count</string>
-    <string name="tracking_policy_sensor_cell">Cell</string>
-    <string name="tracking_policy_sensor_none">None</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Estimated tracking: %d hour</item>
+        <item quantity="other">Estimated tracking: %d hours</item>
+    </plurals>
 
     <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
@@ -757,7 +354,7 @@
     <string name="settings_auto_unit_switch_title">Automatic unit switching</string>
     <string name="settings_module_map_subtitle">Heatmap quality and visualization options</string>
     <string name="settings_module_game_subtitle">Goals, achievements, and milestones</string>
-    <string name="settings_module_statistics_subtitle">Unit preferences and display options</string>
+
     <string name="action_navigate_back">Navigate back</string>
     <string name="action_help">Help</string>
 
@@ -768,7 +365,6 @@
     <string name="widget_start_tracking">Start Tracking</string>
     <string name="widget_stop_tracking">Stop Tracking</string>
     <string name="widget_tracking_active">Tracking Active</string>
-    <string name="widget_tracking_inactive">Tracking Inactive</string>
 
     <string name="widget_today_summary_name">Today\'s Summary</string>
     <string name="widget_today_summary_description">See your tracking stats for today at a glance.</string>
@@ -791,7 +387,7 @@
     <string name="widget_speed_format_decimal">%.1f km/h</string>
     <string name="widget_speed_format_whole">%d km/h</string>
     <string name="widget_collections">Collections</string>
-    <string name="widget_distance_on_foot">On Foot</string>
+
     <string name="widget_path_preview">Path Preview</string>
     <string name="widget_activity_unknown">Activity unavailable</string>
     <string name="widget_goal_label">Goal:</string>
@@ -806,10 +402,16 @@
     <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Great progress!</string>
     <string name="goal_notification_title_almost">Almost there!</string>
-    <string name="goal_notification_title_complete">🎉 Daily goal complete!</string>
-    <string name="goal_notification_body_75">%1$d steps left to hit your daily goal</string>
-    <string name="goal_notification_body_90">Just %1$d steps to go!</string>
-    <string name="goal_notification_body_complete">You reached %1$d steps today!</string>
+
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">%1$d step left to hit your daily goal</item>
+        <item quantity="other">%1$d steps left to hit your daily goal</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Just %1$d step to go!</item>
+        <item quantity="other">Just %1$d steps to go!</item>
+    </plurals>
+
     <string name="settings_smart_goal_notifications_title">Smart goal notifications</string>
     <string name="settings_smart_goal_notifications_summary">Get notified when you\'re close to your daily step goal</string>
 
@@ -852,9 +454,7 @@
     <string name="setup_perm_granted">Granted ✓</string>
     <string name="permission_grant_in_settings">Allow in Settings →</string>
     <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
-    <string name="setup_failed_message">Setup failed: %1$s. Please try again.</string>
-    <string name="setup_background_location_title">Background Location</string>
-    <string name="setup_background_location_desc">Needed for In Motion auto-tracking so Tracker can keep recording while the app is not open.</string>
+
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_wifi_privacy_summary">Records nearby Wi-Fi networks to improve location accuracy. Data stays on this device.</string>
@@ -890,19 +490,61 @@
     <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
     <string name="background_reliability_samsung_action">Open device battery settings</string>
 
-    <!-- Privacy-bounded, session-only Tracebox alpha trial -->
-    <string name="settings_tracebox_title">Tracebox alpha trial</string>
-    <string name="settings_tracebox_root_summary">Optional, session-only structural diagnostics</string>
-    <string name="settings_tracebox_control_header">Trial control</string>
-    <string name="settings_tracebox_toggle_title">Record structural codes for this app run</string>
-    <string name="settings_tracebox_toggle_summary_off">Off. No structural codes are being recorded.</string>
-    <string name="settings_tracebox_toggle_summary_on">On for this app run. Turning it off stops recording and clears the codes now.</string>
-    <string name="settings_tracebox_toggle_summary_unavailable">Available only in the Android 8.0+ Tracebox trial build.</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Crash diagnostics</string>
+    <string name="settings_tracebox_root_summary">Local crash, ANR, and structural diagnostics</string>
+    <string name="settings_tracebox_status_header">Capture status</string>
+    <string name="settings_tracebox_toggle_title">Record crash diagnostics</string>
+    <string name="settings_tracebox_toggle_summary_off">Capture is off. Existing local diagnostics remain until you delete them.</string>
+    <string name="settings_tracebox_toggle_summary_on">Crash, ANR, and fixed structural diagnostics are recorded locally.</string>
+    <string name="settings_tracebox_readiness_label">Storage readiness</string>
+    <string name="settings_tracebox_readiness_volatile">Starting durable storage; volatile capture is available</string>
+    <string name="settings_tracebox_readiness_durable">Durable capture is ready</string>
+    <string name="settings_tracebox_readiness_degraded">Capture is degraded; some records may be unavailable</string>
+    <string name="settings_tracebox_readiness_closed">Capture is closed</string>
+    <string name="settings_tracebox_health_label">Runtime health</string>
+    <string name="settings_tracebox_health_disabled">Disabled</string>
+    <string name="settings_tracebox_health_initializing">Initializing</string>
+    <string name="settings_tracebox_health_ready">Ready</string>
+    <string name="settings_tracebox_health_degraded">Degraded</string>
+    <string name="settings_tracebox_health_deleting">Deleting local diagnostics</string>
+    <string name="settings_tracebox_health_closed">Closed</string>
+    <string name="settings_tracebox_package_header">Diagnostic package</string>
+    <string name="settings_tracebox_package_body">Tracebox first shows the exact disclosure for the finalized package. Nothing is saved or shared until you approve it and choose the destination.</string>
+    <string name="settings_tracebox_package_review_action">Review and approve package</string>
+    <string name="settings_tracebox_package_save_action">Save approved package</string>
+    <string name="settings_tracebox_package_share_action">Share approved package</string>
+    <string name="settings_tracebox_share_limit">Android can confirm that the chooser opened, but cannot prove that another app received the package.</string>
+    <string name="settings_tracebox_data_header">Tracebox data</string>
+    <string name="settings_tracebox_data_body">This deletes Tracebox-owned diagnostics and package staging. Files you already saved or sent are controlled by their destination apps.</string>
+    <string name="settings_tracebox_delete_action">Delete all Tracebox data</string>
+    <string name="settings_tracebox_delete_confirm_title">Delete all crash diagnostics?</string>
+    <string name="settings_tracebox_delete_confirm_body">This removes all Tracebox-owned diagnostics and package staging from Tracker. The action cannot be undone.</string>
+    <string name="settings_tracebox_delete_confirm_action">Delete</string>
+    <string name="settings_tracebox_result_header">Last result</string>
+    <string name="settings_tracebox_result_enabled">Crash diagnostics enabled.</string>
+    <string name="settings_tracebox_result_disabled">Crash diagnostics disabled. Existing data was not deleted.</string>
+    <string name="settings_tracebox_result_policy_restricted">The restrictive policy was saved locally, but not every process confirmed it yet.</string>
+    <string name="settings_tracebox_result_policy_partial">The policy was saved locally, but runtime convergence was incomplete.</string>
+    <string name="settings_tracebox_result_failed">The operation did not reach the local durability boundary.</string>
+    <string name="settings_tracebox_result_delete_complete">All Tracebox-owned data was deleted.</string>
+    <string name="settings_tracebox_result_delete_pending">Deletion completed only partially. Some handler-owned data is still pending deletion.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox rejected the deletion request.</string>
+    <string name="settings_tracebox_result_review_ready">Disclosure ready: %1$d included values containing %2$d bytes of diagnostic data.</string>
+    <string name="settings_tracebox_result_package_created">The approved diagnostic package is ready to save or share.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Package approval was cancelled. No package was created.</string>
+    <string name="settings_tracebox_result_package_rejected">Package creation was rejected because the approval no longer matched the finalized bytes.</string>
+    <string name="settings_tracebox_result_package_not_ready">A diagnostic package is not ready. Review and approve it first.</string>
+    <string name="settings_tracebox_result_save_complete">Saved the complete approved package (%1$d bytes).</string>
+    <string name="settings_tracebox_result_save_partial">Only %1$d bytes were copied. The destination may contain an incomplete package.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Saving was cancelled after %1$d bytes. The destination may contain an incomplete package.</string>
+    <string name="settings_tracebox_result_save_failed">The approved package could not be saved.</string>
+    <string name="settings_tracebox_result_save_cancelled">No save destination was chosen.</string>
+    <string name="settings_tracebox_result_share_opened">The Android share chooser opened.</string>
+    <string name="settings_tracebox_result_share_unknown">The chooser returned. Android cannot prove whether the recipient received the package.</string>
     <string name="settings_tracebox_records_header">What it records</string>
-    <string name="settings_tracebox_records_body">A limited number of predefined codes about app structure and execution order. They are held only in memory and cleared when you turn the trial off or the app process ends.</string>
+    <string name="settings_tracebox_records_body">Crash and ANR evidence plus a bounded set of predefined codes about app structure and execution order. Tracebox is Tracker’s only crash and diagnostic recorder.</string>
     <string name="settings_tracebox_privacy_header">What it leaves out</string>
-    <string name="settings_tracebox_privacy_body">The trial accepts no text you type, location, account details, device identifiers, or sensor readings.</string>
-    <string name="settings_tracebox_limits_header">Alpha limits</string>
-    <string name="settings_tracebox_limits_body">This alpha does not record crashes or ANRs. It cannot save, export, or send diagnostics.</string>
+    <string name="settings_tracebox_privacy_body">The recording API accepts no arbitrary text, location, account details, device identifiers, or sensor readings. Standard packages exclude raw crash artifacts and are never uploaded automatically.</string>
 
 </resources>

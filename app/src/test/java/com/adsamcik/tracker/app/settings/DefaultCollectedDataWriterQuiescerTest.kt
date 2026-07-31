@@ -84,7 +84,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 		val requests = listOf(
 			delayedWork(tag = "ActivityRecognition"),
 			delayedWork(tag = PointsDomainEventConsumer.POINTS_WORK_TAG),
-			delayedWork(tag = AchievementWorker.TAG),
+			delayedWork(tag = AchievementWorker.WORK_TAG),
 		)
 		requests.forEach { workManager.enqueue(it).result.get() }
 		val dailySummary = delayedWork()

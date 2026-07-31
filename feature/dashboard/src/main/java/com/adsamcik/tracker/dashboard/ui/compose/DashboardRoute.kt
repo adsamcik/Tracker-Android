@@ -38,9 +38,9 @@ import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
@@ -266,7 +266,7 @@ fun DashboardRoute(
 	// Permission denied snackbar
 	if (permissionDenied) {
 		val message = context.getString(
-			com.adsamcik.tracker.shared.base.R.string.permission_denied_tracking_disabled,
+			com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_disabled,
 		)
 		PermissionDeniedSnackbar(
 			snackbarHostState = snackbarHostState,

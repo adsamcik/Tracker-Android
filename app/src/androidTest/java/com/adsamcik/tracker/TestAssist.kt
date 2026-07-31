@@ -1,7 +1,6 @@
 package com.adsamcik.tracker
 
 import android.os.Build
-import android.util.Log
 import androidx.test.InstrumentationRegistry.getInstrumentation
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObjectNotFoundException
@@ -19,8 +18,8 @@ fun handlePermissions(accept: Boolean) {
 	if (allowPermissions.exists()) {
 		try {
 			allowPermissions.click()
-		} catch (e: UiObjectNotFoundException) {
-			Log.e("Advention", "There is no permissions dialog to interact with ")
+		} catch (_: UiObjectNotFoundException) {
+			return
 		}
 
 	}
@@ -29,7 +28,7 @@ fun handlePermissions(accept: Boolean) {
 fun sleep(milliseconds: Long) {
 	try {
 		Thread.sleep(milliseconds)
-	} catch (e: InterruptedException) {
-		e.printStackTrace()
+	} catch (_: InterruptedException) {
+		Thread.currentThread().interrupt()
 	}
 }

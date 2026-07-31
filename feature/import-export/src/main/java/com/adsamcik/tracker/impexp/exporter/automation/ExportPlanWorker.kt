@@ -10,17 +10,16 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.impexp.exporter.EXPORT_LOG_SOURCE
 import com.adsamcik.tracker.impexp.exporter.CursorAwareExporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
 import com.adsamcik.tracker.impexp.format.FormatRegistry
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.base.time.Clock
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -51,25 +50,19 @@ class ExportPlanWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val planId = inputData.getLong(KEY_PLAN_ID, -1L)
         if (planId <= 0L) {
-            Reporter.w(EXPORT_LOG_SOURCE, "ExportPlanWorker missing plan id; skipping")
             return Result.failure()
         }
 
         val plan = planStore.getPlan(ExportPlanId(planId))
         if (plan == null) {
-            Reporter.i(EXPORT_LOG_SOURCE, "Plan $planId no longer exists; nothing to export")
             return Result.success()
         }
 
         if (!plan.enabled) {
-            Reporter.i(EXPORT_LOG_SOURCE, "Plan '${plan.name}' is disabled; skipping")
             return Result.success()
         }
 
         val startedAt = clock.currentTimeMillis()
-        val trigger = inputData.getString(KEY_TRIGGER_REASON) ?: "unknown"
-        Reporter.i(EXPORT_LOG_SOURCE, "Executing plan '${plan.name}' (trigger=$trigger)")
-
         return try {
             val exportResult = executePlan(plan)
             val completedAt = clock.currentTimeMillis()
@@ -77,7 +70,6 @@ class ExportPlanWorker @AssistedInject constructor(
 
             when (exportResult) {
                 is PlanExportResult.Success -> {
-                    Reporter.i(EXPORT_LOG_SOURCE, "Plan '${plan.name}' completed: ${exportResult.fileName} (${exportResult.recordCount} records)")
                     // Update watermark only on successful export with actual records
                     if (exportResult.shouldAdvanceWatermark && exportResult.recordCount > 0 && exportResult.maxTimeMs > 0L) {
                         planStore.updateWatermark(
@@ -95,14 +87,12 @@ class ExportPlanWorker @AssistedInject constructor(
                 }
                 is PlanExportResult.Failed -> {
                     // Do NOT update watermark on failure
-                    Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' failed: ${exportResult.error}")
                     Result.failure()
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' threw exception: ${e.message}")
             logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, clock.currentTimeMillis())
             Result.retry()
         }
@@ -205,7 +195,6 @@ class ExportPlanWorker @AssistedInject constructor(
             is ExportResult.Error -> {
                 val errorMessage = result.message?.localize(applicationContext)
                     ?: "Export returned error for ${plan.name}"
-                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${output.fileName}: $errorMessage")
                 output.deletePartial()
                 PlanExportResult.Failed(errorMessage)
             }
@@ -383,7 +372,7 @@ class ExportPlanWorker @AssistedInject constructor(
         startedAt: Long,
         completedAt: Long,
     ) {
-        try {
+        runCatchingCancellable {
             val entity = when (result) {
                 is PlanExportResult.Success -> ExportLogEntity(
                     format = plan.format.name,
@@ -410,9 +399,7 @@ class ExportPlanWorker @AssistedInject constructor(
                 )
             }
             appDatabase.exportLogDao().insert(entity)
-        } catch (e: Exception) {
-            Reporter.w(EXPORT_LOG_SOURCE, "Failed to log export: ${e.message}")
-        }
+        }.getOrNull()
     }
 
     private fun showExportCompletedNotification(plan: ExportBackupPlan, result: PlanExportResult.Success) {
@@ -449,8 +436,6 @@ class ExportPlanWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_PLAN_ID = "plan_id"
-        const val KEY_TRIGGER_REASON = "trigger_reason"
-        const val KEY_TRIGGER_METADATA = "trigger_metadata"
         private const val PAGE_SIZE = 5000
         private const val EXPORT_NOTIFICATION_ID_BASE = 904_000
     }
@@ -490,9 +475,7 @@ private data class FileExportOutput(private val file: File) : ExportOutput {
     override fun length(): Long = file.length()
 
     override fun deletePartial() {
-        if (file.exists() && !file.delete()) {
-            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial export $fileName")
-        }
+        if (file.exists()) file.delete()
     }
 }
 
@@ -506,8 +489,6 @@ private data class DocumentFileExportOutput(
     override fun length(): Long = document.length()
 
     override fun deletePartial() {
-        if (!document.delete()) {
-            Reporter.w(EXPORT_LOG_SOURCE, "Failed to delete partial document export")
-        }
+        document.delete()
     }
 }

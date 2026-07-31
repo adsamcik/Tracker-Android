@@ -7,8 +7,6 @@ import com.adsamcik.tracker.stats.engine.processor.AchievementProcessor
 import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.stats.engine.processor.ExplorationProcessor
 import com.adsamcik.tracker.stats.engine.processor.SegmentDetectorProcessor
-import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
@@ -28,12 +26,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object ProcessorPipelineModule {
-
-	@Provides
-	@Singleton
-	fun providePersistenceErrorCollector(): PersistenceErrorCollector {
-		return DefaultPersistenceErrorCollector()
-	}
 
 	@Provides
 	@Singleton

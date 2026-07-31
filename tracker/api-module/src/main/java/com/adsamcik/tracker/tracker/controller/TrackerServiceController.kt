@@ -3,11 +3,9 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -106,12 +104,6 @@ interface TrackerStateReader {
      */
     val planeStateFlow: StateFlow<LivePlaneState?>
 
-    /**
-     * Flow of database persistence errors.
-     * Observers can display to user, log, or take corrective action.
-     * Null when no error collector is active (tracking not running).
-     */
-    val persistenceErrorFlow: SharedFlow<PersistenceError>?
 }
 
 /**
@@ -146,12 +138,6 @@ interface TrackerServiceController : TrackerStateReader {
      */
     fun updateCollectionData(data: TrackerCollectionSnapshot?)
     
-    /**
-     * Internal: Update persistence error flow.
-     * Called by TrackerService when component manager is initialized/destroyed.
-     */
-    fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?)
-
     /**
      * Internal: Update policy tier.
      * Called by TrackerService when the escalation engine changes tier.

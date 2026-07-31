@@ -7,7 +7,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -44,11 +43,11 @@ internal class StepDataProducer(
 		get() = PreferenceKeys.STEPS_ENABLED_DEFAULT
 
 	override fun onDataRequest(builder: TrackingCycleBuilder) {
-		val invalidCount = synchronized(lockObject) {
+		synchronized(lockObject) {
 			if (stepCountSinceLastCollection < 0) {
-				true
-			} else {
-				if (stepCountSinceLastCollection > 0) {
+				return@synchronized
+			}
+			if (stepCountSinceLastCollection > 0) {
 				builder.stepDelta = stepCountSinceLastCollection
 				builder.totalStepsSinceBoot = if (lastStepCount >= 0) lastStepCount.toLong() else null
 				builder.stepSensorValueStart = stepValueAtCollectionStart
@@ -58,18 +57,13 @@ internal class StepDataProducer(
 				builder.stepWindowEndElapsedRealtimeNanos = lastEventElapsedRealtimeNanos
 				builder.stepSourceFirstSequence = firstEventSequence
 				builder.stepSourceLastSequence = eventSequence
-				}
-				stepCountSinceLastCollection = 0
-				stepValueAtCollectionStart = lastStepCount
-				sensorResetDetected = false
-				firstEventElapsedRealtimeNanos = null
-				lastEventElapsedRealtimeNanos = null
-				firstEventSequence = null
-				false
 			}
-		}
-		if (invalidCount) {
-			Reporter.report("Negative step count since last collection $stepCountSinceLastCollection")
+			stepCountSinceLastCollection = 0
+			stepValueAtCollectionStart = lastStepCount
+			sensorResetDetected = false
+			firstEventElapsedRealtimeNanos = null
+			lastEventElapsedRealtimeNanos = null
+			firstEventSequence = null
 		}
 	}
 

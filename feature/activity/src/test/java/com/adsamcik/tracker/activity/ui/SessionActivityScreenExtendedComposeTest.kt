@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.activity.data.SessionActivityItem
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -29,11 +29,11 @@ class SessionActivityScreenExtendedComposeTest {
 	val composeRule = createComposeRule()
 
 	private fun setScreen(
-		items: List<SessionActivity> = emptyList(),
+		items: List<SessionActivityItem> = emptyList(),
 		onNavigateBack: (() -> Unit)? = null,
 		onAddActivity: () -> Unit = {},
-		onEditActivity: (SessionActivity) -> Unit = {},
-		onDeleteActivity: (SessionActivity) -> Unit = {},
+		onEditActivity: (SessionActivityItem) -> Unit = {},
+		onDeleteActivity: (SessionActivityItem) -> Unit = {},
 	) {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
@@ -76,13 +76,13 @@ class SessionActivityScreenExtendedComposeTest {
 
 	@Test
 	fun `edit icon shown for user-created activity`() {
-		setScreen(items = listOf(SessionActivity(id = 5, name = "Hiking")))
+		setScreen(items = listOf(SessionActivityItem(id = 5, name = "Hiking")))
 		composeRule.onNodeWithContentDescription("Edit").assertIsDisplayed()
 	}
 
 	@Test
 	fun `edit icon hidden for system activity with negative id`() {
-		setScreen(items = listOf(SessionActivity(id = -1, name = "Unknown")))
+		setScreen(items = listOf(SessionActivityItem(id = -1, name = "Unknown")))
 		composeRule.onNodeWithContentDescription("Edit").assertDoesNotExist()
 	}
 
@@ -91,9 +91,9 @@ class SessionActivityScreenExtendedComposeTest {
 	@Test
 	fun `displays multiple activity items in order`() {
 		val activities = listOf(
-			SessionActivity(id = 1, name = "Walking"),
-			SessionActivity(id = 2, name = "Running"),
-			SessionActivity(id = 3, name = "Cycling"),
+			SessionActivityItem(id = 1, name = "Walking"),
+			SessionActivityItem(id = 2, name = "Running"),
+			SessionActivityItem(id = 3, name = "Cycling"),
 		)
 		setScreen(items = activities)
 		composeRule.onNodeWithText("Walking").assertIsDisplayed()
@@ -103,9 +103,9 @@ class SessionActivityScreenExtendedComposeTest {
 
 	@Test
 	fun `system activity is not clickable for edit`() {
-		var editedActivity: SessionActivity? = null
+		var editedActivity: SessionActivityItem? = null
 		setScreen(
-			items = listOf(SessionActivity(id = -1, name = "System")),
+			items = listOf(SessionActivityItem(id = -1, name = "System")),
 			onEditActivity = { editedActivity = it },
 		)
 		// onEdit is null for id < 0, so clicking should not trigger callback

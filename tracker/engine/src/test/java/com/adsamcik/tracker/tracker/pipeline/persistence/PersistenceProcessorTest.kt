@@ -45,8 +45,6 @@ import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
 import com.adsamcik.tracker.stats.api.value.StepCount
-import com.adsamcik.tracker.tracker.data.PersistenceError
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -80,7 +78,6 @@ class PersistenceProcessorTest {
 	private lateinit var pendingSignalDao: PendingSignalDao
 	private lateinit var pendingSignalClaimDao: PendingSignalClaimDao
 	private lateinit var durableBuffer: DurableSignalBuffer
-	private lateinit var errorCollector: PersistenceErrorCollector
 	private lateinit var processor: PersistenceProcessor
 	private val stagedSignals = mutableListOf<TrackingSignal>()
 	private var nextCheckpointId = 1L
@@ -110,7 +107,6 @@ class PersistenceProcessorTest {
 		pendingSignalDao = mockk(relaxed = true)
 		pendingSignalClaimDao = mockk(relaxed = true)
 		durableBuffer = mockk(relaxed = true)
-		errorCollector = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
 		coEvery {
@@ -153,7 +149,6 @@ class PersistenceProcessorTest {
 			pendingSignalClaimDao = pendingSignalClaimDao,
 			durableBuffer = durableBuffer,
 			transactor = transactor,
-			errorCollector = errorCollector,
 		)
 	}
 
@@ -197,7 +192,6 @@ class PersistenceProcessorTest {
 		pendingSignalClaimDao = pendingSignalClaimDao,
 		durableBuffer = durableBuffer,
 		transactor = transactor,
-		errorCollector = errorCollector,
 	)
 
 	private fun claimedBatch(
@@ -368,9 +362,6 @@ class PersistenceProcessorTest {
 			// No destination write and no WAL acknowledgement happened.
 			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
 			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
-			coVerify(exactly = 1) {
-				errorCollector.reportError(match<PersistenceError> { it.operation == "checkpoint" })
-			}
 		}
 
 		@Test
@@ -387,7 +378,6 @@ class PersistenceProcessorTest {
 			processor.checkpointStagedSignals() shouldBe false
 			processor.onStop()
 
-			coVerify(exactly = 0) { errorCollector.reportError(any()) }
 			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
 		}
 
@@ -422,7 +412,6 @@ class PersistenceProcessorTest {
 				pendingSignalDao = pendingSignalDao,
 				durableBuffer = durableBuffer,
 				transactor = cancelAfterCommitTransactor,
-				errorCollector = errorCollector,
 			)
 			cancelSafeProcessor.onStart(
 				ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L),
@@ -463,7 +452,6 @@ class PersistenceProcessorTest {
 				pendingSignalDao = pendingSignalDao,
 				durableBuffer = durableBuffer,
 				transactor = commitThenStallTransactor,
-				errorCollector = errorCollector,
 			)
 			timeoutSafeProcessor.onStart(
 				ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L),
@@ -553,9 +541,6 @@ class PersistenceProcessorTest {
 
 			// The transaction failed: WAL rows must NOT be acknowledged.
 			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
-			coVerify(exactly = 1) {
-				errorCollector.reportError(match<PersistenceError> { it.operation == "flush" })
-			}
 
 			// Buffers and pending ids are retained: a later successful flush
 			// persists the cell and acknowledges the original WAL ids.
@@ -1024,9 +1009,6 @@ class PersistenceProcessorTest {
 			}
 
 			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
-			coVerify(exactly = 1) {
-				errorCollector.reportError(match<PersistenceError> { it.operation == "checkpoint" })
-			}
 		}
 	}
 

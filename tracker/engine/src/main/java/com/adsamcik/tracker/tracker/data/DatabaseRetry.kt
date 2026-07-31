@@ -2,10 +2,8 @@ package com.adsamcik.tracker.tracker.data
 
 import android.database.sqlite.SQLiteDatabaseLockedException
 import android.database.sqlite.SQLiteException
-import android.util.Log
 import kotlinx.coroutines.delay
 
-private const val TAG = "DatabaseRetry"
 
 /**
  * Retry wrapper for transient database failures (SQLITE_BUSY, lock contention).
@@ -30,7 +28,6 @@ internal suspend fun <T> withDatabaseRetry(
 			if (attempt < maxAttempts - 1) {
 				val jitter = (0..currentDelay / 2).random()
 				val waitMs = (currentDelay + jitter).coerceAtMost(maxDelayMs)
-				Log.w(TAG, "Transient DB lock (attempt ${attempt + 1}/$maxAttempts), retrying in ${waitMs}ms", e)
 				delay(waitMs)
 				currentDelay = (currentDelay * 2).coerceAtMost(maxDelayMs)
 			}
@@ -40,7 +37,6 @@ internal suspend fun <T> withDatabaseRetry(
 				if (attempt < maxAttempts - 1) {
 					val jitter = (0..currentDelay / 2).random()
 					val waitMs = (currentDelay + jitter).coerceAtMost(maxDelayMs)
-					Log.w(TAG, "Transient DB lock (attempt ${attempt + 1}/$maxAttempts), retrying in ${waitMs}ms", e)
 					delay(waitMs)
 					currentDelay = (currentDelay * 2).coerceAtMost(maxDelayMs)
 				}

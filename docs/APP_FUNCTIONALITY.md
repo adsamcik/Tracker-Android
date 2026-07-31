@@ -231,9 +231,8 @@ When no data exists (fresh install or after data wipe):
 - Routes: Tracker, Map, Statistics, Game, Settings
 
 #### Debug Screens
-- **Crash Viewer**: View individual crash details
-- **Crash Manager**: List all crashes, export options
-- **Crash Export**: Share crashes via system share sheet
+- **Tracebox Diagnostics**: Review local diagnostic captures and create disclosure-gated
+  packages for save/share
 - **Debug Route**: Developer settings interface
 
 ---
@@ -482,12 +481,8 @@ Customize activity type labels for your sessions:
 #### Developer Mode
 - **Activation**: Tap version number 7 times in Debug settings
 - **Features Unlocked**:
-  - **Crash Manager**: View and export crash logs
-  - **Log Viewer**: Real-time application logs
+  - **Tracebox Diagnostics**: Review captures and save/share diagnostic packages
   - **Dummy Data Generator** (debug builds only): Create fake sessions for testing
-  - **Test Crash**: Trigger intentional crash for testing crash handler
-  - **Clear Crashes**: Delete all crash logs from database
-  - **Export Crashes**: Share all crashes via Intent
 
 ### 7.6 Additional UI Components
 
@@ -675,47 +670,32 @@ Progressive permission disclosure aligned with Apple-style UX:
 
 ---
 
-## 10. Crash Reporting & Debugging
+## 10. Crash Capture & Diagnostics
 
-### 10.1 Crash Handler System
+### 10.1 Tracebox Runtime
 
-The app includes a comprehensive crash reporting system that captures detailed diagnostic information:
+Tracebox is Tracker's sole crash and diagnostic backend. The main process
+installs it during `Application.attachBaseContext()`, before content providers
+and `Application.onCreate()`, while Tracebox's private handler process skips the
+Tracker application graph to avoid recursive installation.
 
-#### Automatic Crash Capture
-When the app crashes, the system records:
-- **Exception Details**: Type, message, full stack trace, caused-by chain
-- **App State**: Version, build number, whether app was in background
-- **Device Info**: Manufacturer, model, Android version
-- **System State**:
-  - Available/total memory
-  - Battery level and charging status
-  - Network type (WiFi/Mobile/Ethernet)
-  - Thread name where crash occurred
+Application code emits only fixed, payload-free breadcrumbs and handled-error
+codes through `:core:diagnostics`. Tracker has no parallel diagnostic Room storage,
+file-fallback migration, or legacy crash/log viewer.
 
-#### Fallback Storage Strategy
-1. **Primary**: Attempts to store crash in Room database
-2. **Fallback**: If database is locked/corrupted, writes to file system (`/files/crashes/`)
-3. **Migration**: On next successful app start, file-based crashes are moved to database
-4. **Cleanup**: Automatically removes old crash logs (max 50 files)
+### 10.2 Diagnostics Controls
 
-### 10.2 Crash Manager (Debug Mode)
+The Tracebox settings screen exposes the supported diagnostic workflow:
 
-Accessible after enabling Developer Mode (*Settings → Debug → tap version 7 times*):
+- inspect readiness and health;
+- enable or disable the diagnostics profile;
+- delete all Tracebox-owned data;
+- prepare a standard diagnostic package;
+- review and explicitly approve its disclosure; and
+- save or share the approved package through Android system UI.
 
-- **Crash List**: View all recorded crashes with timestamps
-- **Detailed View**: Inspect full stack trace and system state
-- **Export Options**:
-  - Copy to clipboard
-  - Share via Intent (email to developers)
-  - Export as text file
-- **Clear History**: Delete all crash logs
-
-### 10.3 Log Viewer
-
-Real-time application logging for debugging:
-- **Sources**: Track logs by module (Tracker, Map, Game, etc.)
-- **Filtering**: Search by keyword or log level
-- **Export**: Share logs for bug reports
+Tracker does not render raw crash records or free-form application logs in its
+own UI.
 
 ---
 

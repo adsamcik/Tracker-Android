@@ -3,7 +3,7 @@ package com.adsamcik.tracker.dashboard.ui
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.dashboard.data.DashboardLayout
-import com.adsamcik.tracker.dashboard.data.DashboardLayoutRepository
+import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -47,7 +47,7 @@ class DashboardViewModelPermissionTest {
     }
 
     private fun createViewModel(): DashboardViewModel {
-        val layoutRepository = mockk<DashboardLayoutRepository>()
+        val layoutRepository = mockk<DashboardLayoutStore>()
         every { layoutRepository.layout } returns flowOf(DashboardLayout())
 
         val trackerStateReader = mockk<TrackerStateReader>()
@@ -61,8 +61,7 @@ class DashboardViewModelPermissionTest {
 
         return DashboardViewModel(
             appContext = ApplicationProvider.getApplicationContext<Context>(),
-            dispatchers = mockk(relaxed = true),
-            appDatabaseProvider = mockk(),
+            historyRepository = mockk(),
             layoutRepository = layoutRepository,
             sessionInsightsGenerator = mockk(relaxed = true),
             widgetRegistry = mockk(relaxed = true),

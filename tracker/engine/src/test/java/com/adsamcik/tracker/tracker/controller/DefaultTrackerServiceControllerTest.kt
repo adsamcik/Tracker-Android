@@ -4,7 +4,6 @@ import app.cash.turbine.test
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -16,7 +15,6 @@ import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.collections.immutable.PersistentList
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -76,10 +74,6 @@ class DefaultTrackerServiceControllerTest {
 			controller.policyStateFlow.value.shouldBeNull()
 		}
 
-		@Test
-		fun `persistence error flow is null by default`() {
-			controller.persistenceErrorFlow.shouldBeNull()
-		}
 	}
 
 	@Nested
@@ -486,26 +480,6 @@ class DefaultTrackerServiceControllerTest {
 			controller.updatePlaneState(state)
 
 			controller.planeStateFlow.value shouldBe state
-		}
-	}
-
-	@Nested
-	inner class `updatePersistenceErrorFlow` {
-
-		@Test
-		fun `sets error flow`() {
-			val errorFlow = MutableSharedFlow<PersistenceError>()
-			controller.updatePersistenceErrorFlow(errorFlow)
-
-			controller.persistenceErrorFlow shouldBe errorFlow
-		}
-
-		@Test
-		fun `clears error flow with null`() {
-			controller.updatePersistenceErrorFlow(MutableSharedFlow())
-			controller.updatePersistenceErrorFlow(null)
-
-			controller.persistenceErrorFlow.shouldBeNull()
 		}
 	}
 

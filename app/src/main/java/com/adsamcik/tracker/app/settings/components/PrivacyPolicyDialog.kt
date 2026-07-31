@@ -10,7 +10,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.utils.style.compose.MarkdownText
@@ -19,9 +19,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.MarkdownText
 fun PrivacyPolicyDialog(
     onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val privacyText = remember(context) {
-        readBundledPrivacyPolicy(context.resources)
+    val resources = LocalResources.current
+    val privacyText = remember(resources) {
+        readBundledPrivacyPolicy(resources)
     }
 
     AlertDialog(

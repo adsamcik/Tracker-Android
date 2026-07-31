@@ -27,7 +27,7 @@ dependencies {
     implementation(project(":core:base"))
 	implementation(project(":core:model"))
     implementation(project(":data:preferences"))
-    implementation(project(":core:logging-api"))
+    implementation(project(":core:diagnostics"))
 
     // Core
     implementation(libs.kotlinx.coroutines.android)

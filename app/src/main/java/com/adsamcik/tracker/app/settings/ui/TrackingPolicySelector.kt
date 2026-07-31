@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
@@ -105,9 +106,10 @@ fun TrackingPolicySelector(
         // Estimated tracking duration disclaimer
         if (selectedPreset != null) {
             Text(
-                text = stringResource(
-                    R.string.tracking_policy_estimated_duration,
-                    selectedPreset.settings.estimatedTrackingHours()
+                text = pluralStringResource(
+                    R.plurals.tracking_policy_estimated_duration,
+                    selectedPreset.settings.estimatedTrackingHours(),
+                    selectedPreset.settings.estimatedTrackingHours(),
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

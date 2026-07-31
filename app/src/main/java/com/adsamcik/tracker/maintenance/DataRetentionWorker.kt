@@ -9,7 +9,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
@@ -77,8 +78,8 @@ class DataRetentionWorker @AssistedInject constructor(
 			}
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Reporter.report(e)
+        } catch (_: Exception) {
+            TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
             Result.retry()
         }
     }
@@ -115,9 +116,9 @@ class DataRetentionWorker @AssistedInject constructor(
         internal fun syncScheduling(context: Context, enabled: Boolean) {
             try {
                 if (enabled) ensureScheduled(context) else cancel(context)
-            } catch (e: IllegalStateException) {
-                Reporter.report(e)
+            } catch (_: IllegalStateException) {
                 // WorkManager may not be initialized in tests; ignore the exception as before.
+                return
             }
         }
 
@@ -134,48 +135,48 @@ class DataRetentionWorker @AssistedInject constructor(
     }
 
     @WorkerThread
-	private suspend fun pruneRawData(
-		cutoffMillis: Long,
-		lifecycle: CollectedDataLifecycleSnapshot,
-		updatedAtMs: Long,
-	): RawRetentionPruneResult {
+    private suspend fun pruneRawData(
+        cutoffMillis: Long,
+        lifecycle: CollectedDataLifecycleSnapshot,
+        updatedAtMs: Long,
+    ): RawRetentionPruneResult {
         val pruned = appDatabase.withTransaction {
-			val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
-			val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
-				epoch = lifecycle.epoch,
-				retainedFromMs = lifecycle.retainedFromMs,
-				updatedAtMs = updatedAtMs,
-			)
-			if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
-			if (!lifecycleChanged) {
-				check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
-					"Unable to advance source-evidence revision for raw-data retention"
-				}
-			}
-			appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
+            val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
+            val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
+                epoch = lifecycle.epoch,
+                retainedFromMs = lifecycle.retainedFromMs,
+                updatedAtMs = updatedAtMs,
+            )
+            if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+            if (!lifecycleChanged) {
+                check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+                    "Unable to advance source-evidence revision for raw-data retention"
+                }
+            }
+            appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
             val observationDao = appDatabase.locationObservationDao()
             observationDao.deleteOlderThan(cutoffMillis)
-			appDatabase.locationObservationDecisionDao().apply {
-				deleteOlderThan(cutoffMillis)
-				deleteWithoutObservation()
-			}
-			appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
+            appDatabase.locationObservationDecisionDao().apply {
+                deleteOlderThan(cutoffMillis)
+                deleteWithoutObservation()
+            }
+            appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
             locationSampleDao.deleteOlderThan(cutoffMillis)
             wifiObservationDao.deleteOlderThan(cutoffMillis)
             cellSampleDao.deleteOlderThan(cutoffMillis)
             sessionSegmentDao.deleteOlderThan(cutoffMillis)
             true
         }
-		return if (pruned) {
+        return if (pruned) {
             exportPlanStore.resetAllWatermarks()
-			RawRetentionPruneResult.PRUNED
-		} else {
-			RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS
-		}
+            RawRetentionPruneResult.PRUNED
+        } else {
+            RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS
+        }
     }
 
-	private enum class RawRetentionPruneResult {
-		PRUNED,
-		DEFERRED_FOR_PENDING_SIGNALS,
-	}
+    private enum class RawRetentionPruneResult {
+        PRUNED,
+        DEFERRED_FOR_PENDING_SIGNALS,
+    }
 }

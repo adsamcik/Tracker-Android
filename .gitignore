@@ -96,8 +96,6 @@ crowdin.properties
 ############################################################
 # Secrets / Credentials
 ############################################################
-# Firebase configs in any module or sourceSet
-**/google-services.json
 # Common Android keystore files and configs
 *.jks
 *.keystore

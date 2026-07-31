@@ -4,7 +4,6 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.logger.Reporter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.api.ski.SkiLift
 import kotlinx.coroutines.CancellationException
@@ -39,8 +38,7 @@ class DefaultSkiInfrastructureManager @Inject constructor(
 			context.contentResolver.openInputStream(uri)
 		} catch (e: CancellationException) {
 			throw e
-		} catch (e: Exception) {
-			Reporter.w(LOG_SOURCE, "Failed to open ski infrastructure import source: ${e.message}")
+		} catch (_: Exception) {
 			return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
 		} ?: return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
 
@@ -99,8 +97,7 @@ class DefaultSkiInfrastructureManager @Inject constructor(
 					if (cursor.moveToFirst()) cursor.getString(0) else null
 				}
 			}
-		} catch (e: Exception) {
-			Reporter.w(LOG_SOURCE, "Failed to read ski infrastructure metadata: ${e.message}")
+		} catch (_: Exception) {
 			null
 		}
 	}
@@ -150,8 +147,7 @@ class DefaultSkiInfrastructureManager @Inject constructor(
 				}
 				lifts
 			}
-		} catch (e: Exception) {
-			Reporter.w(LOG_SOURCE, "Failed to query nearby ski lifts: ${e.message}")
+		} catch (_: Exception) {
 			emptyList()
 		}
 	}
@@ -164,7 +160,4 @@ class DefaultSkiInfrastructureManager @Inject constructor(
 		)
 	}
 
-	private companion object {
-		const val LOG_SOURCE = "SkiInfrastructureManager"
-	}
 }

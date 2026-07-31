@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app.di
 
 import android.content.Context
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.adsamcik.tracker.app.tracebox.TraceboxDeleteResult
+import com.adsamcik.tracker.app.tracebox.TraceboxDiagnosticsController
 import com.adsamcik.tracker.network.DefaultNetworkGateway
 import com.adsamcik.tracker.network.NetworkGateway
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
@@ -186,12 +188,16 @@ object InfrastructureModule {
         exportPlanStore: ExportPlanStore,
         writerQuiescer: CollectedDataWriterQuiescer,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
+        traceboxDiagnosticsController: TraceboxDiagnosticsController,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
         context = context,
         pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
         exportPlanStore = exportPlanStore,
         writerQuiescer = writerQuiescer,
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
+        traceboxDataDeletion = {
+            traceboxDiagnosticsController.deleteAllData() == TraceboxDeleteResult.COMPLETE
+        },
     )
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.

@@ -21,7 +21,7 @@ import java.io.File
  * Usage in tests:
  * ```kotlin
  * val fakeResolver = FakeFileResolver(tempDir)
- * val exporter = CrashExporter(fakeResolver)
+ * val output = fakeResolver.resolveInternal("exports/result.json")
  * ```
  */
 interface FileResolver {

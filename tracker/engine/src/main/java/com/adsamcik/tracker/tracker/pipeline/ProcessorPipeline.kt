@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline
 
-import android.util.Log
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
@@ -8,7 +9,6 @@ import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -63,13 +63,11 @@ internal interface DurableSignalProcessor : SignalProcessor {
  */
 class ProcessorPipeline(
 	private val processors: Set<SignalProcessor>,
-	@Suppress("UNUSED_PARAMETER") scope: CoroutineScope,
 	private val onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
 	/** Production pipelines make the pending-signal commit the acceptance boundary. */
 	private val requireDurableAdmission: Boolean = false,
 ) {
 	private companion object {
-		const val TAG = "ProcessorPipeline"
 		const val MAX_CONSECUTIVE_FAILURES = 5
 		const val DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS = 3_000L
 	}
@@ -125,15 +123,13 @@ class ProcessorPipeline(
 	 * Caller **must** ensure exclusive access to mutable state
 	 * (i.e. call under [mutex] or wrap in `mutex.withLock`).
 	 */
-	private fun recordFailure(processorId: String, operation: String, e: Exception) {
+	private fun recordFailure(processorId: String) {
 		val count = (failureCounts[processorId] ?: 0) + 1
 		failureCounts[processorId] = count
-		Log.w(TAG, "Processor $processorId $operation failed (consecutive: $count): ${e.message}")
-
 		if (count >= MAX_CONSECUTIVE_FAILURES && processorId !in _disabledProcessors) {
 			_disabledProcessors.add(processorId)
 			cachedActiveProcessors = cachedActiveProcessors.filter { it.descriptor.id != processorId }
-			Log.w(TAG, "Processor $processorId disabled after $count consecutive failures")
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_PROCESSOR_DISABLED)
 		}
 	}
 
@@ -194,7 +190,7 @@ class ProcessorPipeline(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					recordFailure(id, "start", e)
+					recordFailure(id)
 					quarantinedProcessors.add(processor)
 					cachedActiveProcessors = cachedActiveProcessors.filterNot { it === processor }
 					lastFlushTime.remove(id)
@@ -258,7 +254,7 @@ class ProcessorPipeline(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					recordFailure(durability.descriptor.id, "signal", e)
+					recordFailure(durability.descriptor.id)
 					durabilityDeliveryFailed = true
 					false
 				}
@@ -279,7 +275,7 @@ class ProcessorPipeline(
 					throw e
 				} catch (e: Exception) {
 					mutex.withLock {
-						recordFailure(durability.descriptor.id, "signal checkpoint", e)
+						recordFailure(durability.descriptor.id)
 					}
 					DurableAdmissionStatus.FAILED
 				}
@@ -299,7 +295,7 @@ class ProcessorPipeline(
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: Exception) {
-						recordFailure(id, "signal", e)
+						recordFailure(id)
 					}
 				}
 
@@ -327,7 +323,7 @@ class ProcessorPipeline(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					mutex.withLock { recordFailure(id, "flush", e) }
+					mutex.withLock { recordFailure(id) }
 				}
 			}
 			if (events.isNotEmpty()) {
@@ -364,7 +360,7 @@ class ProcessorPipeline(
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: Exception) {
-						recordFailure(id, "raw-signal checkpoint", e)
+						recordFailure(id)
 						false
 					}
 				}
@@ -389,7 +385,6 @@ class ProcessorPipeline(
 				persistPendingEvents(pendingRuntimeEvents, "runtime")
 			} catch (e: IllegalStateException) {
 				failedPendingEventCount = mutex.withLock { pendingRuntimeEvents.size }
-				Log.w(TAG, "Deferring pending tier-transition event persistence", e)
 			}
 
 			mutex.withLock {
@@ -414,7 +409,7 @@ class ProcessorPipeline(
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: Exception) {
-						recordFailure(id, "escalation-start", e)
+						recordFailure(id)
 						quarantinedProcessors.add(processor)
 					}
 				}
@@ -431,7 +426,7 @@ class ProcessorPipeline(
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: Exception) {
-						recordFailure(id, "de-escalation-stop", e)
+						recordFailure(id)
 					}
 				}
 				currentTier = newTier
@@ -445,8 +440,8 @@ class ProcessorPipeline(
 				try {
 					checkpointSignalsBeforePendingEvents(pendingRuntimeEvents)
 					persistPendingEvents(pendingRuntimeEvents, "runtime")
-				} catch (e: IllegalStateException) {
-					Log.w(TAG, "Deferring tier-transition event persistence", e)
+				} catch (_: IllegalStateException) {
+					// The events stay queued and will be retried by the next flush or stop.
 				}
 			}
 		}
@@ -533,7 +528,7 @@ class ProcessorPipeline(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			mutex.withLock { recordFailure(id, "stop", e) }
+			mutex.withLock { recordFailure(id) }
 			throw IllegalStateException("Processor $id failed during final shutdown", e)
 		}
 
@@ -563,6 +558,7 @@ class ProcessorPipeline(
 					onDomainEvents(events)
 				}
 			} catch (e: TimeoutCancellationException) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.DOMAIN_EVENT_PERSIST_FAILED)
 				throw IllegalStateException(
 					"$phase domain event dispatch timed out after ${DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS}ms",
 					e,
@@ -570,6 +566,7 @@ class ProcessorPipeline(
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.DOMAIN_EVENT_PERSIST_FAILED)
 				throw IllegalStateException("$phase domain event dispatch failed", e)
 			}
 			mutex.withLock {

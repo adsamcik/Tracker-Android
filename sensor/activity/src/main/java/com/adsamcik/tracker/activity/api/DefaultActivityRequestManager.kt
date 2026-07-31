@@ -5,7 +5,6 @@ import android.util.SparseArray
 import androidx.core.util.forEach
 import androidx.core.util.isEmpty
 import androidx.core.util.isNotEmpty
-import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
@@ -13,9 +12,6 @@ import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
-import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -50,14 +46,6 @@ class DefaultActivityRequestManager @Inject constructor(
         requestData: ActivityRequestData,
     ): Boolean = requestMutex.withLock {
         require(requestData.transitionData != null || requestData.changeData != null)
-
-        logActivity(
-            LogData(
-                message = "new activity request",
-                data = requestData,
-                source = ACTIVITY_LOG_SOURCE,
-            ),
-        )
 
         val hash = requestData.key.hashCode()
         val previousRequest = activeRequestArray.get(hash)
@@ -106,19 +94,11 @@ class DefaultActivityRequestManager @Inject constructor(
                 }
                 return@withLock
             }
-            Reporter.report("Trying to remove class that is not subscribed (${tClass.java.name})")
             return@withLock
         }
 
         val removedRequest = activeRequestArray.valueAt(index)
         activeRequestArray.removeAt(index)
-        logActivity(
-            LogData(
-                message = "removed request for ${tClass.java.name}",
-                source = ACTIVITY_LOG_SOURCE,
-            ),
-        )
-
         try {
             val updated = if (activeRequestArray.isEmpty()) {
                 backend.stopUpdates()
@@ -164,9 +144,6 @@ class DefaultActivityRequestManager @Inject constructor(
         if (unchanged && !force) return true
 
         if (!context.hasActivityPermission) {
-            val message = "activity recognition permission missing; request not started"
-            logActivity(LogData(message = message, source = ACTIVITY_LOG_SOURCE))
-            Reporter.log(message)
             return false
         }
 
@@ -199,9 +176,6 @@ class DefaultActivityRequestManager @Inject constructor(
             throw exception
         } catch (exception: Exception) {
             configurationKnown = false
-            Reporter.report(
-                IllegalStateException("Failed to restore activity recognition configuration", exception),
-            )
         }
     }
 

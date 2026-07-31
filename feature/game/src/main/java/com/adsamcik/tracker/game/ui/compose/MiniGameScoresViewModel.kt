@@ -2,10 +2,10 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.game.data.MiniGameScore
+import com.adsamcik.tracker.game.data.MiniGameScoreRepository
 import com.adsamcik.tracker.game.minigame.MiniGameRegistry
 import com.adsamcik.tracker.game.minigame.MiniGameScoreUnit
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,8 +50,8 @@ internal data class MiniGameScoreGroup(
 /**
  * Backs the past-runs screen.
  *
- * Pulls every persisted [MiniGameScoreEntity] (capped at [HISTORY_LIMIT] for
- * performance), groups them by [MiniGameScoreEntity.gameId], orders each group
+ * Pulls persisted scores (capped at [HISTORY_LIMIT] for performance), groups
+ * them by game id, orders each group
  * by score descending, and maps each row into its game's real unit so the UI
  * never shows a generic point score. Rank #1 in each group is flagged as the
  * personal best.
@@ -60,11 +60,11 @@ internal data class MiniGameScoreGroup(
  */
 @HiltViewModel
 internal class MiniGameScoresViewModel @Inject constructor(
-	private val scoreDao: MiniGameScoreDao,
+	private val scoreRepository: MiniGameScoreRepository,
 	private val registry: MiniGameRegistry,
 ) : ViewModel() {
 
-	val groups: StateFlow<List<MiniGameScoreGroup>?> = scoreDao.getRecent(HISTORY_LIMIT)
+	val groups: StateFlow<List<MiniGameScoreGroup>?> = scoreRepository.observeRecent(HISTORY_LIMIT)
 		.map { rows -> buildGroups(rows) }
 		.stateIn(
 			viewModelScope,
@@ -72,7 +72,7 @@ internal class MiniGameScoresViewModel @Inject constructor(
 			null,
 		)
 
-	private fun buildGroups(rows: List<MiniGameScoreEntity>): List<MiniGameScoreGroup> {
+	private fun buildGroups(rows: List<MiniGameScore>): List<MiniGameScoreGroup> {
 		if (rows.isEmpty()) return emptyList()
 		val byGame = rows.groupBy { it.gameId }
 		val knownOrder = registry.allSorted().mapIndexed { index, game -> game.id to index }.toMap()

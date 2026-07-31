@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CancellationException
@@ -24,7 +26,6 @@ internal class TrackingCycleDispatcher(
 	scope: CoroutineScope,
 	dispatcher: CoroutineDispatcher,
 	private val capacity: Int = DEFAULT_CAPACITY,
-	private val onFailure: (Throwable) -> Unit,
 	private val processCycle: suspend (TrackingCycle) -> Unit,
 ) {
 	init {
@@ -129,7 +130,7 @@ internal class TrackingCycleDispatcher(
 			queued.completions.forEach { it.cancel(e) }
 			throw e
 		} catch (e: Exception) {
-			onFailure(e)
+			TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_CYCLE_FAILED)
 			queued.completions.forEach { it.completeExceptionally(e) }
 		}
 	}

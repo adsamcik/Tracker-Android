@@ -58,8 +58,8 @@ import com.adsamcik.tracker.game.minigame.MiniGameConfiguration
 import com.adsamcik.tracker.game.minigame.MiniGameGoalProgress
 import com.adsamcik.tracker.game.minigame.MiniGameSnapshot
 import com.adsamcik.tracker.game.session.GameSessionFailureReason
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineMotion
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing

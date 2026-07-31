@@ -1,10 +1,10 @@
 # Module Rearchitecture — Status & Roadmap
 
 > Branch: `dev/v10`
-> Last updated: 2026-07-29
+> Last updated: 2026-07-31
 
 This document records the module rearchitecture currently present on `dev/v10`.
-The Gradle project contains 33 application modules (including API contract modules), plus
+The Gradle project contains 32 application modules (including API contract modules), plus
 the `:tools:ski-data-generator` tooling module. The `build-logic` included build is
 separate from that count.
 
@@ -16,7 +16,7 @@ separate from that count.
 :core:model                  pure Room-free domain models (Location, Trip, LocationSample, SkiRunSegment, …)
 :core:common                 foundation leaf: concurrency, time, constant, exception, di, graph, io, logging, notification, service
 :core:ui                     shared Compose UI + AppTheme (was sutils)
-:core:logging / :core:logging-api  logging impl / contracts (were logger / logging-api)
+:core:diagnostics             payload-free diagnostic contracts and Tracebox boundary
 :core:network                network helpers (was network)
 :core:sqlite-runtime         bundled SQLiteX runtime + AndroidX SupportSQLite adapter
 :core:testing                test fakes + utilities (was testing-common)
@@ -123,6 +123,44 @@ owned by their screens.
 As a result, `:tracker:engine`, `:stats:data`, `:domain:points`, `:domain:osm`,
 and `:sensor:activity` no longer depend on `:core:ui`.
 
+### Feature presentation data ports and sibling contracts (COMPLETE)
+
+Feature ViewModels no longer inject `AppDatabase` or Room DAOs. Activity
+management (including built-in activity localization), dashboard history and
+layout, game exploration/achievement, score, and leaderboard reads, tracker
+recent trips, and import/export presentation now consume feature-facing
+repositories. App-owned OSM settings consume entity-free `OsmImportSummary`
+values and delete imports through `OsmImportController`. Room adapters and Hilt
+bindings remain behind those boundaries, and the presentation-facing contracts
+expose shared models or immutable feature-owned snapshots.
+
+The two remaining feature implementation edges were also removed.
+`:feature:statistics` embeds trip previews through `RoutePreviewRenderer` from
+`:feature:map:api`; the application composition root supplies the MapLibre-backed
+renderer. GPX sharing crosses the consumer-owned `TripGpxExporter` port in
+`:feature:statistics:api`, with `:feature:import-export` supplying the format
+adapter and owning the Android `Context`. The API contract remains Android-free,
+and statistics depends on neither sibling implementation.
+
+### App diagnostic boundary (COMPLETE)
+
+`:core:diagnostics` is the single application boundary for fixed, payload-free
+diagnostic codes. Tracebox is the sole active diagnostic and crash backend.
+The former diagnostic Room storage, migration-only read/export/delete path,
+compatibility reporting layer, and parallel crash pipeline were deleted; no
+transitional diagnostic implementation remains.
+
+### Screen-local permission presentation ownership (COMPLETE)
+
+The active contextual permission rationale, Activity Result launcher, and denial
+snackbar moved from database-owning `:core:base` to `:core:ui`. Their state remains
+local to each composition: no singleton manager, receiver, service, manifest
+permission, or process-wide permission state was introduced.
+
+`:core:base` and `:core:common` no longer apply the Compose convention plugin or
+carry Compose and Activity Result dependencies. All existing consumers already
+depended on `:core:ui`, so the ownership correction added no new module edge.
+
 ## Guardrails
 - `CoreCommonBoundaryTest` (`:core:common`) fails if `:core:common` imports Room, the database
   package, base data models, or other base-resident packages.
@@ -132,25 +170,30 @@ and `:sensor:activity` no longer depend on `:core:ui`.
 - `TrackerApiBoundaryTest` rejects dependencies on `:core:base` and imports from its data,
   database, and mapper packages, keeping tracker contracts implementation-free. It also keeps
   the notification settings boundary context-free and hides engine runtime components.
-- `CoreUiBoundaryTest` requires a permission-free, project-dependency-free
-  `:core:ui` and rejects tracker state, WorkManager, permission orchestration,
-  logging, base, and preferences ownership from returning.
+- `CoreUiBoundaryTest` requires a manifest-permission-free,
+  project-dependency-free `:core:ui` and rejects tracker state, WorkManager,
+  process-wide permission orchestration, logging, base, and preferences ownership
+  from returning. Screen-local permission presentation is explicitly allowed.
 - `GameTrackerStateBoundaryTest` keeps game goals on `TrackerStateReader` and
   immutable `TrackerSessionSnapshot` rather than the removed legacy channel or
   Room-backed session entity.
-- Module dependency fitness rules prevent `:core:network` from regaining a database dependency
-  and reject new feature implementation-to-implementation edges. Feature modules may not depend
-  on any `:*:engine` implementation module, and tracker notification UI may not regain direct
-  preference-database access.
+- Module dependency fitness rules prevent `:core:network` from regaining a
+  database dependency and reject every feature implementation-to-implementation
+  edge. They also keep feature ViewModels off Room APIs, DAOs, and persistence
+  entities; prevent feature or app ViewModel/Compose code from opening Room
+  databases or importing Room entities and DAOs; and keep Compose
+  out of `:core:base` and `:core:common`. Feature
+  modules may not depend on any `:*:engine` implementation module, and tracker
+  notification UI may not regain direct preference-database access.
+- `StatisticsFeatureBoundaryTest` keeps statistics on the route-preview and GPX
+  export contracts rather than sibling implementation symbols.
 - Root `checkRoomSchemaDrift` task continues to guard Room schema changes after the directory moves.
 
-## Next boundary pass
+## Evidence-gated follow-up
 
-The next work is intentionally incremental rather than another path-only module migration:
-
-1. Introduce feature-facing repositories/ports so ViewModels no longer inject `AppDatabase` or
-   DAOs directly.
-2. Replace the two allowlisted feature implementation edges with small contracts for statistics
-   map preview and import/export coordination, then delete their fitness-test allowlist.
-3. Move the active Compose permission-request presentation out of database-owning
-   `:core:base` without recreating a process-wide permission manager.
+The planned structural boundary pass is complete. The next tracker-control step is
+operational rather than another source move: collect and evaluate shadow-comparison
+results before assigning production decision authority to `:tracker:control`.
+Additional repository seams should be introduced incrementally when a non-UI
+feature service needs independent ownership or testing, not as another path-only
+module migration.

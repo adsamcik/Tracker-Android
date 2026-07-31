@@ -4,21 +4,25 @@
 **Branch**: `refactor/modernisation`
 **Todo**: `5b-database-consolidation`
 
+> **Diagnostics update (2026-07-31):** Diagnostics no longer use a Room
+> database. `:core:diagnostics` is the payload-free Tracebox boundary, and
+> Tracebox is the sole crash and diagnostic backend.
+
 ---
 
 ## Current State
 
-The project has 7 Room databases. This analysis focuses on whether `StatsDatabase` and `PointsDatabase` should merge into `AppDatabase`.
+This historical analysis focuses on whether `StatsDatabase` and
+`PointsDatabase` should merge into `AppDatabase`. Retired diagnostic databases
+are intentionally excluded from the table.
 
 | Database | Module | Version | Entities | Migrations | Purpose |
 |----------|--------|---------|----------|------------|---------|
 | **AppDatabase** | sbase | v11 | 32 | 9 migrations | Main data store |
 | **StatsDatabase** | statistics | v1 | 1 (`CacheStatData`) | None | Stats cache |
 | **PointsDatabase** | points | v1 | 1 (`PointsAwarded`) | None | Points ledger |
-| **LogDatabase** | logger | v2 | 2 | Destructive | Debug logs |
 | ChallengeDatabase | game | — | — | — | Challenges |
 | PreferenceDatabase | sbase | — | — | — | Preferences |
-| DebugDatabase | sbase | — | — | — | Debug data |
 
 ---
 
@@ -98,9 +102,6 @@ The project has 7 Room databases. This analysis focuses on whether `StatsDatabas
    - The `points` module is architecturally independent. Merging would create an unnecessary dependency from `points` → `sbase` for the entity definition, or require moving `PointsAwarded` into `sbase` (violating module boundaries).
    - Points data is append-only and query-by-time-range — no joins with location/session tables needed.
    - One extra SQLite connection is negligible overhead on modern Android (WAL mode, shared cache).
-
-3. **LogDatabase → KEEP SEPARATE** (not in scope, but confirmed)
-   - Destructive migration is a feature, not a limitation. Must remain isolated.
 
 ### Future Considerations
 - If `PointsAwarded` ever needs FK relationships to sessions/trips in AppDatabase (e.g., `sessionId` column), re-evaluate merging at that point.

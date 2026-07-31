@@ -6,21 +6,21 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.dashboard.data.DashboardHistoryRepository
+import com.adsamcik.tracker.dashboard.data.DashboardHistorySection
 import com.adsamcik.tracker.dashboard.data.DashboardLayout
-import com.adsamcik.tracker.dashboard.data.DashboardLayoutRepository
+import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
+import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
-import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.model.Trip
@@ -37,28 +37,23 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Provider
-import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
-import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
-import com.adsamcik.tracker.stats.api.metric.MetricKey
 import kotlin.LazyThreadSafetyMode
 
 /**
  * ViewModel for the Dashboard screen.
  *
- * Owns historical data (loaded from Room), permission state, and derived computations.
+ * Owns historical presentation state loaded through feature-facing repositories,
+ * permission state, and derived computations.
  * All AppGraph dependencies are injected via Hilt constructor.
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
 	@ApplicationContext
 	private val appContext: Context,
-	private val dispatchers: DispatchersProvider,
-	private val appDatabaseProvider: Provider<AppDatabase>,
-	private val layoutRepository: DashboardLayoutRepository,
+	private val historyRepository: DashboardHistoryRepository,
+	private val layoutRepository: DashboardLayoutStore,
 	private val sessionInsightsGenerator: SessionInsightsGenerator,
 	val widgetRegistry: DashboardWidgetRegistry,
 	val trackerStateReader: TrackerStateReader,
@@ -128,39 +123,69 @@ class DashboardViewModel @Inject constructor(
 	 */
 	fun refreshTodaySummary() {
 		viewModelScope.launch {
-			_todaySummary.value = try {
+			_todaySummary.value = runCatchingCancellable {
 				dailySummaryProvider.get().fetchTodaySummary()
-			} catch (e: Exception) {
-				Reporter.report(e)
-				null
-			}
+			}.getOrNull()
 		}
 	}
 
 	/**
-	 * Loads historical data from Room when not actively tracking.
-	 * [lastSessionData] is the controller's last session — if null, falls back to DB.
+	 * Loads historical data from persistence when not actively tracking.
+	 * [lastSessionData] is the controller's last session; if null, the repository
+	 * supplies the latest persisted session.
 	 */
 	fun loadHistoricalData(isTracking: Boolean, lastSessionData: TrackerSessionSnapshot?) {
 		if (isTracking) return
 
 		viewModelScope.launch {
-			withContext(dispatchers.io) {
-				try {
-					val appDatabase = appDatabaseProvider.get()
-					if (lastSessionData == null) {
-						_dbLastSession.value = appDatabase.tripDao().getRecentTrips(1).firstOrNull()?.toModel()
-					}
-					_recentTrips.value = appDatabase.tripDao().getRecentTrips(5).map { it.toModel() }
-
-					loadExplorationData(appDatabase)
-					loadStreakData(appDatabase)
-					loadLatestAchievement(appDatabase)
-				} catch (e: Exception) {
-					Reporter.report(e)
-					// DB errors are non-fatal — cards simply won't show
+			runCatchingCancellable {
+				val history = historyRepository.load(includeLastSession = lastSessionData == null)
+				if (lastSessionData == null) {
+					_dbLastSession.value = history.lastSession
 				}
-			}
+				_recentTrips.value = history.recentTrips
+				when (val exploration = history.exploration) {
+					is DashboardHistorySection.Loaded -> {
+						_explorationState.value = exploration.value?.let {
+							ExplorationUiState(
+								totalCells = it.totalCells,
+								newCellsToday = it.newCellsToday,
+								seasonsCovered = it.seasonsCovered,
+								hasExplorationData = true,
+							)
+						} ?: ExplorationUiState()
+					}
+					DashboardHistorySection.Failed -> Unit
+				}
+				when (val streak = history.streak) {
+					is DashboardHistorySection.Loaded -> {
+						_streakState.value = StreakState(
+							currentStreak = streak.value.currentStreak,
+							bestStreak = streak.value.bestStreak,
+							weeklyDistances = streak.value.weeklyDistances,
+							weeklyTrend = when (streak.value.weeklyTrend) {
+								DashboardWeeklyTrend.UP -> WeeklyTrend.UP
+								DashboardWeeklyTrend.DOWN -> WeeklyTrend.DOWN
+								DashboardWeeklyTrend.STEADY -> WeeklyTrend.STEADY
+							},
+						)
+					}
+					DashboardHistorySection.Failed -> Unit
+				}
+				when (val achievement = history.latestAchievement) {
+					is DashboardHistorySection.Loaded -> {
+						_latestAchievement.value = achievement.value?.let {
+							LatestAchievementUi(
+								id = it.id,
+								nameRes = it.nameRes,
+								tier = it.tier,
+								unlockedAt = it.unlockedAt,
+							)
+						}
+					}
+					DashboardHistorySection.Failed -> Unit
+				}
+			}.getOrNull()
 		}
 	}
 
@@ -171,93 +196,11 @@ class DashboardViewModel @Inject constructor(
 		}
 
 		viewModelScope.launch {
-			_sessionInsights.value = runCatching {
+			_sessionInsights.value = runCatchingCancellable {
 				sessionInsightsGenerator.generate(session)
 			}.getOrElse {
-				Reporter.report(it)
 				emptyList()
 			}
-		}
-	}
-
-	private suspend fun loadExplorationData(db: AppDatabase) {
-		val cellDao = db.explorationCellDao()
-		val totalCells = cellDao.countAtLevel(14)
-		if (totalCells > 0) {
-			val todayStartMs = Calendar.getInstance().apply {
-				set(Calendar.HOUR_OF_DAY, 0)
-				set(Calendar.MINUTE, 0)
-				set(Calendar.SECOND, 0)
-				set(Calendar.MILLISECOND, 0)
-			}.timeInMillis
-			val newToday = cellDao.countDiscoveredSince(todayStartMs, 14)
-			val bitmasks = cellDao.getDistinctSeasonBitmasks(14)
-			val combinedBitmask = bitmasks.fold(0) { acc, b -> acc or b }
-			_explorationState.value = ExplorationUiState(
-				totalCells = totalCells,
-				newCellsToday = newToday,
-				seasonsCovered = Integer.bitCount(combinedBitmask),
-				hasExplorationData = true,
-			)
-		}
-	}
-
-	private suspend fun loadStreakData(db: AppDatabase) {
-		val streak = db.explorationStreakDao().getByType(DOMAIN_DAILY_DISCOVERY)
-		val cal = Calendar.getInstance().apply {
-			set(Calendar.HOUR_OF_DAY, 0)
-			set(Calendar.MINUTE, 0)
-			set(Calendar.SECOND, 0)
-			set(Calendar.MILLISECOND, 0)
-		}
-		val todayEpochDay = cal.timeInMillis / 86_400_000L
-		val startEpochDay = todayEpochDay - 6
-		val summariesByDay = db.dailySummaryDao()
-			.getBetween(startEpochDay, todayEpochDay)
-			.associateBy(DailySummaryEntity::dateEpochDay)
-		val weeklyDistances = (startEpochDay..todayEpochDay).map { epochDay ->
-			summariesByDay[epochDay]?.totalDistanceM ?: 0f
-		}
-		// Use averages to normalise for unequal group sizes (4 older + 3 recent = 7 days).
-		val recentAvg = weeklyDistances.takeLast(3).average().toFloat()
-		val olderAvg = weeklyDistances.take(4).average().toFloat()
-		val trend = when {
-			olderAvg <= 0f -> if (recentAvg > 0f) WeeklyTrend.UP else WeeklyTrend.STEADY
-			recentAvg > olderAvg * 1.1f -> WeeklyTrend.UP
-			recentAvg < olderAvg * 0.9f -> WeeklyTrend.DOWN
-			else -> WeeklyTrend.STEADY
-		}
-
-		// Validate streak: reset to 0 if last increment was more than 1 day ago
-		val streakCount = if (streak != null && streak.lastIncrementDay > 0) {
-			val daysSinceLastIncrement = todayEpochDay - streak.lastIncrementDay
-			if (daysSinceLastIncrement > 1) 0 else streak.currentCount
-		} else {
-			streak?.currentCount ?: 0
-		}
-
-		_streakState.value = StreakState(
-			currentStreak = streakCount,
-			bestStreak = streak?.bestCount ?: 0,
-			weeklyDistances = weeklyDistances,
-			weeklyTrend = trend,
-		)
-	}
-
-	private suspend fun loadLatestAchievement(db: AppDatabase) {
-		val row = db.achievementProgressDao().getAll()
-			.firstOrNull { it.lastTierIndex >= 0 }
-		val metric = row?.metricKey?.let(MetricKey::fromStorageKey)
-		val definition = if (metric != null) AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex) else null
-		_latestAchievement.value = if (row != null && definition != null) {
-			LatestAchievementUi(
-				id = definition.id,
-				nameRes = definition.nameRes,
-				tier = definition.tier,
-				unlockedAt = row.updatedAt,
-			)
-		} else {
-			null
 		}
 	}
 
@@ -306,7 +249,6 @@ class DashboardViewModel @Inject constructor(
 	}
 
 	companion object {
-		private const val DOMAIN_DAILY_DISCOVERY = "DAILY_DISCOVERY"
 		private fun checkLocationPermission(context: Context): Boolean {
 			return ContextCompat.checkSelfPermission(
 				context,

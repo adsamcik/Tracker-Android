@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.app
 
+import android.annotation.SuppressLint
 import android.app.ActivityManager
-import android.app.ApplicationExitInfo
+import android.content.Context
 import android.os.Build
-import android.database.sqlite.SQLiteException
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.hilt.work.HiltWorkerFactory
@@ -11,15 +11,15 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
-import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
-import com.adsamcik.tracker.app.tracebox.TraceboxTrialController
-import com.adsamcik.tracker.logger.CrashHandler
-import com.adsamcik.tracker.logger.Logger
-import android.util.Log
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
+import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
+import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
+import com.adsamcik.tracker.app.tracebox.isTrackerMainProcessName
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
@@ -35,7 +35,6 @@ import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -50,6 +49,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider
+import kotlin.coroutines.cancellation.CancellationException
 
 
 /**
@@ -117,20 +117,24 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Inject
 	lateinit var trackingStartupGuard: TrackingStartupGuard
 
-	/**
-	 * Creates the disabled Tracebox alpha handle at process startup. The user-facing settings flow
-	 * controls whether its bounded structural trial is enabled for this process.
-	 */
-	@Suppress("unused")
-	@Inject
-	lateinit var traceboxTrialController: TraceboxTrialController
-
 	@Volatile
 	var isStartupReady: Boolean = false
 	private set
 
 	private val deferredStartupStarted = AtomicBoolean(false)
 	private val maintenanceStartupStarted = AtomicBoolean(false)
+
+	override fun attachBaseContext(base: Context) {
+		super.attachBaseContext(base)
+		if (isRobolectricUnitTest()) return
+		val processName = currentTrackerProcessName(base)
+		if (isTraceboxHandlerProcessName(processName, packageName)) return
+		if (isTrackerMainProcessName(processName, packageName)) {
+			// Providers are created after Application attachment but before onCreate. Installing
+			// here makes Tracebox the crash owner for that startup interval as well.
+			TrackerTraceboxRuntime.install(this)
+		}
+	}
 	
 	override val workManagerConfiguration: Configuration
 		get() = Configuration.Builder()
@@ -144,13 +148,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@WorkerThread
 	private fun initializeClasses() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-			Shortcuts.initializeShortcuts(this)
-		}
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			NotificationChannels.prepareChannels(this)
-		}
+		Shortcuts.initializeShortcuts(this)
+		NotificationChannels.prepareChannels(this)
 	}
 
 	@MainThread
@@ -168,37 +167,41 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	private fun initializeDatabaseMaintenance() {
+		var schedulingFailed = false
 		try {
 			GoalResetScheduler.ensureScheduled(this)
-		} catch (e: IllegalStateException) {
-			Log.w("App", "Skipping GoalResetScheduler.ensureScheduled during unit tests: ${e.message}")
+		} catch (_: IllegalStateException) {
+			schedulingFailed = true
 		}
 		// Schedule periodic DB maintenance if WorkManager is available
 		try {
 			DatabaseMaintenanceWorker.schedule(this)
-		} catch (e: IllegalStateException) {
+		} catch (_: IllegalStateException) {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			Log.w("App", "Skipping DatabaseMaintenanceWorker.schedule during unit tests: ${e.message}")
+			schedulingFailed = true
 		}
 		// Ensure weekly auto-cleanup job is in sync with preference
 		try {
 			dataRetentionScheduler.initialize()
-		} catch (e: IllegalStateException) {
+		} catch (_: IllegalStateException) {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			Log.w("App", "Skipping DataRetentionScheduler.initialize during unit tests: ${e.message}")
+			schedulingFailed = true
 		}
 		// Schedule daily summary materialization (stats rearchitecture Phase 3)
 		try {
 			DailySummaryMaterializationWorker.schedule(this)
-		} catch (e: IllegalStateException) {
+		} catch (_: IllegalStateException) {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			Log.w("App", "Skipping DailySummaryMaterializationWorker.schedule during unit tests: ${e.message}")
+			schedulingFailed = true
 		}
 		// Schedule smart goal notification checks every 2 hours
 		try {
 			GoalNotificationWorker.schedule(this)
-		} catch (e: IllegalStateException) {
-			Log.w("App", "Skipping GoalNotificationWorker.schedule during unit tests: ${e.message}")
+		} catch (_: IllegalStateException) {
+			schedulingFailed = true
+		}
+		if (schedulingFailed) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
 		}
 	}
 
@@ -216,25 +219,24 @@ class Application : AndroidApplication(), Configuration.Provider {
 		appScope.launch(dispatchers.io) {
 			try {
 				collectedDataDeletionService.reconcilePendingDeletion()
-			} catch (error: DatabaseMigrationBackupException) {
-				Log.e("App", "Could not resume pending collected-data deletion", error)
-			} catch (error: SQLiteException) {
-				Log.e("App", "Could not resume pending database deletion", error)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				// Reconciliation is retryable while its marker remains. File-system, SQLite,
+				// Tracebox, and directory-fsync failures must not cancel the rest of startup.
+				TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
 			}
 			try {
-				Reporter.initialize(this@Application)
-				Logger.initialize(this@Application)
-				CrashHandler(this@Application).initialize()
 				if (trackingStartupGuard.wasForceStopped(this@Application)) {
 					trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
 					previousExitRecoveryCoordinator.suppressAfterForceStop()
 				}
-				logPreviousExitReason()
+				reconcilePreviousExit()
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}
-			} catch (t: Throwable) {
-				Log.e("App", "Background startup initialization failed", t)
+			} catch (_: Throwable) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			} finally {
 				isStartupReady = true
 			}
@@ -244,12 +246,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
 
 	/**
-	 * Records the previous process exit reason on Android 11+ as diagnostic context for
-	 * tracking recovery. Abnormal exits enqueue an expedited WAL drain; a user-requested
-	 * termination suppresses tracking recovery for this process.
+	 * Reconciles the previous process exit reason on Android 11+ with tracking recovery.
+	 * Abnormal exits enqueue an expedited WAL drain; a user-requested termination suppresses
+	 * tracking recovery for this process.
 	 */
 	@WorkerThread
-	private suspend fun logPreviousExitReason(): PreviousExitRecoveryAction {
+	private suspend fun reconcilePreviousExit(): PreviousExitRecoveryAction {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
 			return PreviousExitRecoveryAction.NONE
 		}
@@ -261,40 +263,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 				.getHistoricalProcessExitReasons(packageName, 0, 1)
 				.firstOrNull() ?: return PreviousExitRecoveryAction.NONE
 
-			val reasonLabel = when (exitInfo.reason) {
-				ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
-				ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
-				ApplicationExitInfo.REASON_CRASH -> "CRASH"
-				ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
-				ApplicationExitInfo.REASON_ANR -> "ANR"
-				ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
-				ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
-				ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INITIALIZATION_FAILURE"
-				ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
-				ApplicationExitInfo.REASON_OTHER -> "OTHER"
-				else -> "reason=${exitInfo.reason}"
-			}
-
-			val isAbnormal = when (exitInfo.reason) {
-				ApplicationExitInfo.REASON_LOW_MEMORY,
-				ApplicationExitInfo.REASON_SIGNALED,
-				ApplicationExitInfo.REASON_CRASH,
-				ApplicationExitInfo.REASON_CRASH_NATIVE,
-				ApplicationExitInfo.REASON_ANR,
-				ApplicationExitInfo.REASON_INITIALIZATION_FAILURE,
-				ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> true
-				else -> false
-			}
-
-			val message = "Previous process exit: $reasonLabel (status=${exitInfo.status})"
-			if (isAbnormal) Reporter.w("App", message) else Reporter.log(message)
 			val action = previousExitRecoveryCoordinator.handle(exitInfo.reason)
 			if (action == PreviousExitRecoveryAction.SUPPRESS_RESTART) {
 				trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
 			}
 			action
-		} catch (e: RuntimeException) {
-			Reporter.report(e)
+		} catch (_: RuntimeException) {
 			PreviousExitRecoveryAction.NONE
 		}
 	}
@@ -309,8 +283,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 				}
 				initializeClasses()
 				initializeFeatures()
-			} catch (t: Throwable) {
-				Log.e("App", "Deferred startup initialization failed", t)
+			} catch (_: Throwable) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
 			}
 		}
 	}
@@ -321,8 +295,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 		appScope.launch(dispatchers.io) {
 			try {
 				initializeDatabaseMaintenance()
-			} catch (t: Throwable) {
-				Log.e("App", "Maintenance startup initialization failed", t)
+			} catch (_: Throwable) {
+				TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
 			}
 		}
 	}
@@ -347,27 +321,18 @@ class Application : AndroidApplication(), Configuration.Provider {
 		precisionUpgradeConsumerProvider.get().processUnconsumed()
 	}
 
-	private fun enableStrictMode() {
-		if (BuildConfig.DEBUG) {
-			android.os.StrictMode.setThreadPolicy(
-				android.os.StrictMode.ThreadPolicy.Builder()
-					.detectAll()
-					.penaltyLog()
-					.build()
-			)
-			android.os.StrictMode.setVmPolicy(
-				android.os.StrictMode.VmPolicy.Builder()
-					.detectLeakedSqlLiteObjects()
-					.detectLeakedClosableObjects()
-					.penaltyLog()
-					.build()
-			)
-		}
-	}
-
+	@SuppressLint("MissingSuperCall")
 	override fun onCreate() {
+		val processName = currentTrackerProcessName(this)
+		if (isTraceboxHandlerProcessName(processName, packageName)) {
+			// android.app.Application.onCreate is empty. Skipping the generated Hilt super call
+			// keeps Tracker's dependency graph and startup work out of Tracebox's private handler.
+			return
+		}
+		if (!isRobolectricUnitTest() && isTrackerMainProcessName(processName, packageName)) {
+			TrackerTraceboxRuntime.install(this)
+		}
 		super.onCreate()
-		enableStrictMode()
 
 		// Wire MapLibre's HTTP through the project NetworkGateway so tile/style/sprite
 		// fetches share the kill switch + allowlist + rate-limit interceptors that

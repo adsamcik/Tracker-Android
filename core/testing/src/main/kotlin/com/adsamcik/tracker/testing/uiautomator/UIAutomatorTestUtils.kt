@@ -1,14 +1,12 @@
 package com.adsamcik.tracker.testing.uiautomator
 
 import android.os.Build
-import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import java.util.Locale
 
-private const val TAG = "UIAutomatorTestUtils"
 private const val DEFAULT_TIMEOUT_MS = 2_000L
 
 /**
@@ -40,14 +38,11 @@ fun handlePermissions(accept: Boolean, timeoutMs: Long = DEFAULT_TIMEOUT_MS): Bo
 	return if (button != null) {
 		try {
 			button.click()
-			Log.d(TAG, "Clicked permission button: $buttonText")
 			true
-		} catch (e: Exception) {
-			Log.e(TAG, "Failed to click permission button: $buttonText", e)
+		} catch (_: Exception) {
 			false
 		}
 	} else {
-		Log.d(TAG, "No permission dialog found with button: $buttonText")
 		false
 	}
 }
@@ -89,15 +84,9 @@ fun handleSystemPermissionDialogs(
 	// Try resource IDs first (more reliable)
 	for (resId in orderedIds) {
 		val obj = device.wait(Until.findObject(By.res(resId)), timeoutMs)
-		if (obj != null) {
-			try {
-				obj.click()
-				Log.d(TAG, "Clicked permission button by resource ID: $resId")
-				handled = true
-				break
-			} catch (e: Exception) {
-				Log.e(TAG, "Failed to click permission button: $resId", e)
-			}
+		if (obj != null && runCatching { obj.click() }.isSuccess) {
+			handled = true
+			break
 		}
 	}
 
@@ -121,15 +110,9 @@ fun handleSystemPermissionDialogs(
 
 		for (text in orderedTexts) {
 			val obj = device.wait(Until.findObject(By.text(text)), timeoutMs / 4)
-			if (obj != null) {
-				try {
-					obj.click()
-					Log.d(TAG, "Clicked permission button by text: $text")
-					handled = true
-					break
-				} catch (e: Exception) {
-					Log.e(TAG, "Failed to click permission button: $text", e)
-				}
+			if (obj != null && runCatching { obj.click() }.isSuccess) {
+				handled = true
+				break
 			}
 		}
 	}
@@ -156,15 +139,9 @@ fun dismissSystemDialogs(timeoutMs: Long = DEFAULT_TIMEOUT_MS): Boolean {
 
 	for (text in dismissTexts) {
 		val obj = device.wait(Until.findObject(By.text(text)), timeoutMs / 4)
-		if (obj != null) {
-			try {
-				obj.click()
-				Log.d(TAG, "Dismissed dialog with button: $text")
-				dismissed = true
-				break
-			} catch (e: Exception) {
-				Log.e(TAG, "Failed to dismiss dialog: $text", e)
-			}
+		if (obj != null && runCatching { obj.click() }.isSuccess) {
+			dismissed = true
+			break
 		}
 	}
 

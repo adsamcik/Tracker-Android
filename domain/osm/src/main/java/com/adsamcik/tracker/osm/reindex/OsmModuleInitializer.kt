@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.osm.reindex
 
-import com.adsamcik.tracker.logging.api.ReporterFacade
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
@@ -19,8 +20,8 @@ import javax.inject.Inject
  * `osm_way_cell` table (caused by the v31->v32 migration or any other
  * cell-size change) self-heals without blocking startup or UI threads.
  *
- * Failures inside the reindex job are caught and reported via
- * [ReporterFacade]; we deliberately don't rethrow because the user-visible
+ * Failures inside the reindex job are recorded as a fixed diagnostic event; we deliberately don't
+ * rethrow because the user-visible
  * fallback (`DefaultSpeedLimitSource` returns the fixed baseline while
  * the cell index is empty) is already safe.
  *
@@ -47,37 +48,20 @@ class OsmModuleInitializer @Inject constructor(
 						it.status == "BUILDING" && it.importedAt < startupStartedAt
 					}
 				abandonedImports.forEach { osmImportDao.delete(it.id) }
-				val removedImports = abandonedImports.size
-				if (removedImports > 0) {
-					ReporterFacade.log(
-						"OsmModuleInitializer: removed $removedImports abandoned OSM imports",
-					)
-				}
 				// OSM tables have not shipped. Old development rows stored ordinary
 				// longitude extrema, which are ambiguous and cannot safely be
 				// reinterpreted as the directed child-way contract used by V10.
-				val removedLegacyBboxImports = osmImportDao.deleteImportsWithUnsupportedWayBboxEncoding(
+				osmImportDao.deleteImportsWithUnsupportedWayBboxEncoding(
 					OsmImportEntity.WAY_BBOX_ENCODING_DIRECTED_V1,
 				)
-				if (removedLegacyBboxImports > 0) {
-					ReporterFacade.log(
-						"OsmModuleInitializer: removed $removedLegacyBboxImports development OSM imports " +
-							"with obsolete bbox encoding; re-import is required",
-					)
-				}
-				val rowsWritten = reindexer.reindexIfNeeded()
-				if (rowsWritten > 0) {
-					ReporterFacade.log(
-						"OsmModuleInitializer: rebuilt $rowsWritten osm_way_cell rows",
-					)
-				}
+				reindexer.reindexIfNeeded()
 			} catch (cancellation: kotlinx.coroutines.CancellationException) {
 				throw cancellation
 			} catch (t: Throwable) {
 				// Cell index stays empty → DefaultSpeedLimitSource keeps
 				// returning the fixed baseline. Safe; just lose the OSM-specific
 				// precision for this session.
-				ReporterFacade.report(t)
+				TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
 			}
 		}
 	}

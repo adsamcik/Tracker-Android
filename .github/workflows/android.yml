@@ -34,7 +34,6 @@ jobs:
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-          cp -f google-services.json.example app/google-services.json
       - name: Run unit tests (all modules)
         run: |
           ./gradlew --no-daemon --stacktrace testDebugUnitTest
@@ -74,7 +73,6 @@ jobs:
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-          cp -f google-services.json.example app/google-services.json
       - name: Run debug lint
         run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
       - name: Run release lint

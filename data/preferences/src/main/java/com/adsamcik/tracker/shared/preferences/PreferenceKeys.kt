@@ -13,20 +13,12 @@ object PreferenceKeys {
     const val CELL_ENABLED = "trackingCellEnabled"
     const val CELL_ENABLED_DEFAULT = false
 
-    const val ERROR_REPORTING = "errorReporting"
-    const val ERROR_REPORTING_DEFAULT = false
 
     const val LENGTH_SYSTEM = "lengthSystem"
     const val LENGTH_SYSTEM_DEFAULT = "Metric"
 
     const val LOCATION_ENABLED = "trackingLocationEnabled"
     const val LOCATION_ENABLED_DEFAULT = true
-
-    const val LOG_ACTIVITY = "log_activity"
-    const val LOG_ACTIVITY_DEFAULT = false
-
-    const val LOG_GAMES = "log_games"
-    const val LOG_GAMES_DEFAULT = false
 
     const val NOTIFICATION_STYLED = "notificationStyle"
     const val NOTIFICATION_STYLED_DEFAULT = true

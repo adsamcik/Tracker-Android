@@ -162,7 +162,10 @@ Defined in `Typography.kt` (`AppTypography`). All 15 M3 roles are defined. Using
 
 ### 3.4 Hardcoded Sizes
 
-Only one found: `10.sp` in `CrashViewerActivity.kt` (debug-only crash log viewer). Acceptable — debug tooling is exempt from the type scale.
+At the time of the Round 14 audit, the only exception was `10.sp` in the
+then-existing debug crash viewer. That viewer was later removed during the
+Tracebox hard migration; this historical observation grants no current
+type-scale exemption.
 
 ### 3.5 Numeric Typography
 

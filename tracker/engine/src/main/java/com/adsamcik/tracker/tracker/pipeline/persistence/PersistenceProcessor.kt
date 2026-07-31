@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
-import android.util.Log
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import android.database.sqlite.SQLiteConstraintException
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -47,8 +48,6 @@ import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.signal.WifiSignal
-import com.adsamcik.tracker.tracker.data.PersistenceError
-import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.withDatabaseRetry
 import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
 import com.adsamcik.tracker.tracker.pipeline.DurableSignalProcessor
@@ -121,7 +120,6 @@ class PersistenceProcessor @Inject constructor(
 	private val pendingSignalClaimDao: PendingSignalClaimDao? = null,
 	private val durableBuffer: DurableSignalBuffer,
 	private val transactor: TrackingPersistenceTransactor,
-	private val errorCollector: PersistenceErrorCollector,
 ) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -275,16 +273,8 @@ class PersistenceProcessor @Inject constructor(
 			return admission.statusFor(signalId)
 		} catch (e: CancellationException) {
 			throw e
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Log.w(TAG, "Durable checkpoint failed; staged signals retained", e)
-			errorCollector.reportError(
-				PersistenceError(
-					source = PROCESSOR_ID,
-					operation = "checkpoint",
-					recordCount = durableBuffer.stagingSize,
-					cause = e,
-				),
-			)
+		} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+			TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
 			return DurableAdmissionStatus.FAILED
 		}
 	}
@@ -663,7 +653,6 @@ class PersistenceProcessor @Inject constructor(
 
 		val ackIds = pendingIds.toList()
 		val claimToken = pendingClaimToken
-		val recordCount = totalBufferedCount()
 		lastPersistenceFailure = null
 
 		try {
@@ -689,7 +678,7 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			reportFlushFailure(recordCount, e)
+			TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
 			return false
 		} catch (e: CancellationException) {
 			lastPersistenceFailure = e
@@ -702,7 +691,7 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			reportFlushFailure(recordCount, e)
+			TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
 			return false
 		}
 
@@ -823,12 +812,10 @@ class PersistenceProcessor @Inject constructor(
 				count
 			}
 		} catch (e: TimeoutCancellationException) {
-			Log.w(TAG, "Timed out reconciling persistence commit status", e)
 			return CommitResolution.UNKNOWN
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Log.w(TAG, "Unable to reconcile persistence commit status", e)
 			return CommitResolution.UNKNOWN
 		}
 
@@ -846,25 +833,10 @@ class PersistenceProcessor @Inject constructor(
 				CommitResolution.ROLLED_BACK
 			}
 			else -> {
-				Log.e(
-					TAG,
-					"Persistence commit status is inconsistent: $remainingCount of ${ackIds.size} WAL rows remain",
-				)
+				TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_COMMIT_INCONSISTENT)
 				CommitResolution.UNKNOWN
 			}
 		}
-	}
-
-	private suspend fun reportFlushFailure(recordCount: Int, exception: Exception) {
-		Log.w(TAG, "Persist transaction failed; buffers and WAL retained for retry", exception)
-		errorCollector.reportError(
-			PersistenceError(
-				source = PROCESSOR_ID,
-				operation = "flush",
-				recordCount = recordCount,
-				cause = exception,
-			),
-		)
 	}
 
 	/**
@@ -1056,7 +1028,6 @@ class PersistenceProcessor @Inject constructor(
 	} catch (e: CancellationException) {
 		throw e
 	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-		Log.w(TAG, "Unable to discard stale claimed WAL rows", e)
 		null
 	}
 
@@ -1148,7 +1119,6 @@ class PersistenceProcessor @Inject constructor(
 	} catch (e: CancellationException) {
 		throw e
 	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-		Log.w(TAG, "Unable to quarantine pending signal id=${entry.id}", e)
 		false
 	}
 
@@ -1191,16 +1161,6 @@ class PersistenceProcessor @Inject constructor(
 			stepBuffer.isEmpty() &&
 			activityBuffer.isEmpty()
 
-	private fun totalBufferedCount(): Int =
-		locationBuffer.size +
-			locationObservationBuffer.size +
-			locationDecisionBuffer.size +
-			cellBuffer.size +
-			wifiBuffer.size +
-			pressureBuffer.size +
-			stepBuffer.size +
-			activityBuffer.size
-
 	private fun clearBuffers() {
 		locationBuffer.clear()
 		locationObservationBuffer.clear()
@@ -1213,7 +1173,6 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	companion object {
-		private const val TAG = "PersistenceProcessor"
 		internal const val PROCESSOR_ID = "persistence"
 		internal const val FLUSH_INTERVAL_MS = 5000L
 		internal const val PRIORITY = 0

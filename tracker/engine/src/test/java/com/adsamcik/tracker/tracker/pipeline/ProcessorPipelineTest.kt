@@ -17,15 +17,12 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -167,12 +164,10 @@ class ProcessorPipelineTest {
 
 	private fun createPipeline(
 		processors: Set<SignalProcessor>,
-		scope: CoroutineScope,
 		requireDurableAdmission: Boolean = false,
 		onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
 	) = ProcessorPipeline(
 		processors = processors,
-		scope = scope,
 		onDomainEvents = onDomainEvents,
 		requireDurableAdmission = requireDurableAdmission,
 	)
@@ -185,7 +180,7 @@ class ProcessorPipelineTest {
 	fun `start calls onStart on processors matching tier`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 
@@ -197,7 +192,7 @@ class ProcessorPipelineTest {
 	fun `start with ACTIVE tier starts both ambient and active processors`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 
@@ -210,7 +205,7 @@ class ProcessorPipelineTest {
 		val processor = ambientProcessor().apply {
 			onStartAction = { error("start failed") }
 		}
-		val pipeline = createPipeline(setOf(processor), this)
+		val pipeline = createPipeline(setOf(processor))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 		pipeline.onSignal(testSignal())
@@ -225,7 +220,7 @@ class ProcessorPipelineTest {
 		val processor = ambientProcessor().apply {
 			onStartAction = { error("start failed") }
 		}
-		val pipeline = createPipeline(setOf(processor), this)
+		val pipeline = createPipeline(setOf(processor))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 		pipeline.escalate(PolicyTier.ACTIVE, EpochMs(2_000L))
@@ -242,7 +237,7 @@ class ProcessorPipelineTest {
 			onStartAction = { error("recovery failed") }
 		}
 		val healthy = ambientProcessor(id = "healthy", priority = 10)
-		val pipeline = createPipeline(setOf(persistence, healthy), this)
+		val pipeline = createPipeline(setOf(persistence, healthy))
 
 		shouldThrow<IllegalStateException> {
 			pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
@@ -256,7 +251,7 @@ class ProcessorPipelineTest {
 
 	@Test
 	fun `double start throws IllegalStateException`() = runTest {
-		val pipeline = createPipeline(setOf(ambientProcessor()), this)
+		val pipeline = createPipeline(setOf(ambientProcessor()))
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 
 		shouldThrow<IllegalStateException> {
@@ -268,7 +263,7 @@ class ProcessorPipelineTest {
 	fun `stop calls onStop on all active processors`() = runTest {
 		val a = ambientProcessor()
 		val b = activeProcessor()
-		val pipeline = createPipeline(setOf(a, b), this)
+		val pipeline = createPipeline(setOf(a, b))
 
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 		pipeline.stop()
@@ -289,7 +284,7 @@ class ProcessorPipelineTest {
 		val aggregator = ambientProcessor(id = "aggregator", priority = 10).apply {
 			stopEvents = { listOf(testStopEvent()) }
 		}
-		val pipeline = createPipeline(setOf(aggregator, persistence), this) {
+		val pipeline = createPipeline(setOf(aggregator, persistence)) {
 			collectedEvents.addAll(it)
 		}
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
@@ -316,7 +311,7 @@ class ProcessorPipelineTest {
 		}
 		var eventPersistenceHealthy = false
 		val collectedEvents = mutableListOf<DomainEvent>()
-		val pipeline = createPipeline(setOf(processor), this) { events ->
+		val pipeline = createPipeline(setOf(processor)) { events ->
 			if (!eventPersistenceHealthy) error("event persistence failed")
 			collectedEvents.addAll(events)
 		}
@@ -341,7 +336,7 @@ class ProcessorPipelineTest {
 				currentCoroutineContext()[Job]?.cancel()
 			}
 		}
-		val pipeline = createPipeline(setOf(processor), this)
+		val pipeline = createPipeline(setOf(processor))
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
 		val cancelledStop = launch { pipeline.stop() }
@@ -353,14 +348,14 @@ class ProcessorPipelineTest {
 
 	@Test
 	fun `stop on idle pipeline is no-op`() = runTest {
-		val pipeline = createPipeline(setOf(ambientProcessor()), this)
+		val pipeline = createPipeline(setOf(ambientProcessor()))
 		pipeline.stop() // should not throw
 	}
 
 	@Test
 	fun `restart after stop is allowed`() = runTest {
 		val p = ambientProcessor()
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.stop()
@@ -383,7 +378,7 @@ class ProcessorPipelineTest {
 		val low = ambientProcessor(id = "low", priority = 10).apply {
 			onSignalAction = { order.add("low") }
 		}
-		val pipeline = createPipeline(setOf(low, high), this)
+		val pipeline = createPipeline(setOf(low, high))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.onSignal(testSignal())
@@ -395,7 +390,7 @@ class ProcessorPipelineTest {
 	fun `onSignal skips processors above current tier`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.onSignal(testSignal())
@@ -407,7 +402,7 @@ class ProcessorPipelineTest {
 	@Test
 	fun `onSignal does nothing when pipeline is not running`() = runTest {
 		val p = ambientProcessor()
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.onSignal(testSignal()) // before start
 		p.signals shouldHaveSize 0
@@ -419,7 +414,7 @@ class ProcessorPipelineTest {
 			onSignalAction = { throw RuntimeException("boom") }
 		}
 		val healthy = ambientProcessor(id = "healthy", priority = 10)
-		val pipeline = createPipeline(setOf(failing, healthy), this)
+		val pipeline = createPipeline(setOf(failing, healthy))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.onSignal(testSignal())
@@ -431,7 +426,7 @@ class ProcessorPipelineTest {
 	fun `raw evidence is checkpointed only by the durability processor`() = runTest {
 		val persistence = DurableRecordingProcessor()
 		val analytics = ambientProcessor(id = "analytics", priority = 10)
-		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		val pipeline = createPipeline(setOf(persistence, analytics))
 		val rawSignals = listOf(testSignal(1_100L), testSignal(1_200L))
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
@@ -445,7 +440,7 @@ class ProcessorPipelineTest {
 	@Test
 	fun `raw evidence checkpoint reports unavailable or unhealthy durability`() = runTest {
 		val persistence = DurableRecordingProcessor().apply { checkpointHealthy = false }
-		val pipeline = createPipeline(setOf(persistence), this)
+		val pipeline = createPipeline(setOf(persistence))
 
 		pipeline.checkpointDurableSignals(listOf(testSignal())) shouldBe false
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
@@ -455,7 +450,7 @@ class ProcessorPipelineTest {
 	@Test
 	fun `normal signals checkpoint before producer acceptance`() = runTest {
 		val persistence = DurableRecordingProcessor()
-		val pipeline = createPipeline(setOf(persistence), this)
+		val pipeline = createPipeline(setOf(persistence))
 		var accepted = 0
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
@@ -469,7 +464,7 @@ class ProcessorPipelineTest {
 	fun `failed normal signal checkpoint does not advance producer acceptance`() = runTest {
 		val persistence = DurableRecordingProcessor().apply { checkpointHealthy = false }
 		val analytics = ambientProcessor(id = "analytics", priority = 10)
-		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		val pipeline = createPipeline(setOf(persistence, analytics))
 		var accepted = 0
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
@@ -484,7 +479,7 @@ class ProcessorPipelineTest {
 	fun `lifecycle-rejected signal never fans out to downstream processors`() = runTest {
 		val persistence = DurableRecordingProcessor().apply { lifecycleRejected = true }
 		val analytics = ambientProcessor(id = "analytics", priority = 10)
-		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		val pipeline = createPipeline(setOf(persistence, analytics))
 		var accepted = 0
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
@@ -504,7 +499,7 @@ class ProcessorPipelineTest {
 			perSignalAdmissionStatus = DurableAdmissionStatus.ADMITTED
 		}
 		val analytics = ambientProcessor(id = "analytics", priority = 10)
-		val pipeline = createPipeline(setOf(persistence, analytics), this)
+		val pipeline = createPipeline(setOf(persistence, analytics))
 		var accepted = 0
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
 
@@ -522,7 +517,6 @@ class ProcessorPipelineTest {
 		val analytics = ambientProcessor(id = "analytics")
 		val pipeline = createPipeline(
 			processors = setOf(analytics),
-			scope = this,
 			requireDurableAdmission = true,
 		)
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1_000L))
@@ -546,7 +540,7 @@ class ProcessorPipelineTest {
 				priority = 0,
 			),
 		)
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 		pipeline.onSignal(testSignal(50L))  // 50ms since start — no flush
@@ -565,7 +559,7 @@ class ProcessorPipelineTest {
 				priority = 0,
 			),
 		)
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 		pipeline.onSignal(testSignal(1000L))
@@ -592,10 +586,8 @@ class ProcessorPipelineTest {
 		).apply {
 			flushEvents = { listOf(testEvent(100L)) }
 		}
-		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val pipeline = createPipeline(
 			setOf(p),
-			CoroutineScope(dispatcher + SupervisorJob()),
 		) { events -> collectedEvents.addAll(events) }
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
@@ -621,7 +613,7 @@ class ProcessorPipelineTest {
 		}
 		var persistenceHealthy = false
 		val collectedEvents = mutableListOf<DomainEvent>()
-		val pipeline = createPipeline(setOf(processor), this) { events ->
+		val pipeline = createPipeline(setOf(processor)) { events ->
 			if (!persistenceHealthy) error("event persistence failed")
 			collectedEvents.addAll(events)
 		}
@@ -650,7 +642,7 @@ class ProcessorPipelineTest {
 		).apply {
 			flushEvents = { listOf(testEvent()) }
 		}
-		val pipeline = createPipeline(setOf(persistence, eventProcessor), this)
+		val pipeline = createPipeline(setOf(persistence, eventProcessor))
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 
 		pipeline.onSignal(testSignal(200L))
@@ -672,7 +664,7 @@ class ProcessorPipelineTest {
 			flushEvents = { listOf(testEvent()) }
 		}
 		var eventPersistenceHealthy = false
-		val pipeline = createPipeline(setOf(persistence, eventProcessor), this) {
+		val pipeline = createPipeline(setOf(persistence, eventProcessor)) {
 			if (!eventPersistenceHealthy) error("event persistence failed")
 		}
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
@@ -705,7 +697,7 @@ class ProcessorPipelineTest {
 			flushEvents = { listOf(testEvent()) }
 		}
 		var eventPersistenceHealthy = false
-		val pipeline = createPipeline(setOf(persistence, eventProcessor), this) {
+		val pipeline = createPipeline(setOf(persistence, eventProcessor)) {
 			if (!eventPersistenceHealthy) error("event persistence failed")
 		}
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
@@ -727,7 +719,7 @@ class ProcessorPipelineTest {
 			stopEvents = { listOf(finalEvent) }
 		}
 		var persistenceHealthy = false
-		val pipeline = createPipeline(setOf(processor), this) {
+		val pipeline = createPipeline(setOf(processor)) {
 			if (!persistenceHealthy) awaitCancellation()
 		}
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
@@ -745,7 +737,7 @@ class ProcessorPipelineTest {
 		val p = ambientProcessor().apply {
 			stopEvents = { listOf(testStopEvent(5000L)) }
 		}
-		val pipeline = createPipeline(setOf(p), this) { events ->
+		val pipeline = createPipeline(setOf(p)) { events ->
 			collectedEvents.addAll(events)
 		}
 
@@ -762,7 +754,7 @@ class ProcessorPipelineTest {
 		val p = ambientProcessor().apply {
 			stopEvents = { listOf(expectedEvent) }
 		}
-		val pipeline = createPipeline(setOf(p), this) { collected.addAll(it) }
+		val pipeline = createPipeline(setOf(p)) { collected.addAll(it) }
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 		pipeline.onSignal(testSignal(1L))
@@ -780,7 +772,7 @@ class ProcessorPipelineTest {
 	fun `escalate from AMBIENT to ACTIVE starts active processors`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		ambient.startCalls shouldHaveSize 1
@@ -795,7 +787,7 @@ class ProcessorPipelineTest {
 	fun `de-escalate from ACTIVE to AMBIENT stops active processors`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 		pipeline.escalate(PolicyTier.AMBIENT, EpochMs(2000L))
@@ -813,7 +805,7 @@ class ProcessorPipelineTest {
 				if (!stopHealthy) error("stop failed")
 			}
 		}
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 
 		pipeline.escalate(PolicyTier.AMBIENT, EpochMs(2000L))
@@ -833,7 +825,7 @@ class ProcessorPipelineTest {
 	@Test
 	fun `escalate does nothing when pipeline is not running`() = runTest {
 		val p = ambientProcessor()
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.escalate(PolicyTier.PRECISION, EpochMs(1000L))
 		p.startCalls shouldHaveSize 0
@@ -843,7 +835,7 @@ class ProcessorPipelineTest {
 	fun `after escalation onSignal reaches newly active processors`() = runTest {
 		val ambient = ambientProcessor()
 		val active = activeProcessor()
-		val pipeline = createPipeline(setOf(ambient, active), this)
+		val pipeline = createPipeline(setOf(ambient, active))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.onSignal(testSignal(1500L))
@@ -865,7 +857,7 @@ class ProcessorPipelineTest {
 			onStartAction = { throw RuntimeException("start failed") }
 		}
 		val healthy = ambientProcessor(id = "healthy", priority = 10)
-		val pipeline = createPipeline(setOf(failing, healthy), this)
+		val pipeline = createPipeline(setOf(failing, healthy))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		healthy.startCalls shouldHaveSize 1
@@ -891,7 +883,7 @@ class ProcessorPipelineTest {
 				priority = 10,
 			),
 		)
-		val pipeline = createPipeline(setOf(failing, healthy), this)
+		val pipeline = createPipeline(setOf(failing, healthy))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 		pipeline.onSignal(testSignal(200L)) // triggers flush on both
@@ -904,7 +896,7 @@ class ProcessorPipelineTest {
 		val failing = ambientProcessor(id = "failing").apply {
 			onSignalAction = { throw RuntimeException("boom") }
 		}
-		val pipeline = createPipeline(setOf(failing), this)
+		val pipeline = createPipeline(setOf(failing))
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 
 		repeat(5) { pipeline.onSignal(testSignal(it.toLong())) }
@@ -920,7 +912,7 @@ class ProcessorPipelineTest {
 	@Test
 	fun `multiple signals delivered in order`() = runTest {
 		val p = ambientProcessor()
-		val pipeline = createPipeline(setOf(p), this)
+		val pipeline = createPipeline(setOf(p))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
 
@@ -941,7 +933,7 @@ class ProcessorPipelineTest {
 	fun `tier filtering - processors below current tier are not signaled`() = runTest {
 		val ambient = ambientProcessor()
 		val precision = precisionProcessor()
-		val pipeline = createPipeline(setOf(ambient, precision), this)
+		val pipeline = createPipeline(setOf(ambient, precision))
 
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 		pipeline.onSignal(testSignal())
@@ -954,7 +946,7 @@ class ProcessorPipelineTest {
 	fun `escalate changes active processor set`() = runTest {
 		val ambient = ambientProcessor()
 		val precision = precisionProcessor()
-		val pipeline = createPipeline(setOf(ambient, precision), this)
+		val pipeline = createPipeline(setOf(ambient, precision))
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
 		pipeline.onSignal(testSignal(1500L))
@@ -977,7 +969,7 @@ class ProcessorPipelineTest {
 			onSignalAction = { throw IllegalStateException("processor error") }
 		}
 		val healthy = activeProcessor(id = "healthy", priority = 10)
-		val pipeline = createPipeline(setOf(failing, healthy), this)
+		val pipeline = createPipeline(setOf(failing, healthy))
 
 		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
 		pipeline.onSignal(testSignal())
@@ -1010,10 +1002,8 @@ class ProcessorPipelineTest {
 				priority = 10,
 			),
 		).apply { flushEvents = { listOf(eventB) } }
-		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val pipeline = createPipeline(
 			setOf(a, b),
-			CoroutineScope(dispatcher + SupervisorJob()),
 		) { events -> collectedEvents.addAll(events) }
 
 		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
@@ -1033,7 +1023,7 @@ class ProcessorPipelineTest {
 		val b = ambientProcessor(id = "stop-b").apply {
 			stopEvents = { listOf(stopB) }
 		}
-		val pipeline = createPipeline(setOf(a, b), this) { events ->
+		val pipeline = createPipeline(setOf(a, b)) { events ->
 			collectedEvents.addAll(events)
 		}
 

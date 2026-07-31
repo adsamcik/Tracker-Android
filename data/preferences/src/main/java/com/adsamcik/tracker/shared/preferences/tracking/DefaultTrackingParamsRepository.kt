@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.preferences.tracking
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -40,8 +39,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
 
     override suspend fun readFrom(input: InputStream): TrackingParamsProto = try {
         TrackingParamsProto.parseFrom(input)
-    } catch (e: Exception) {
-        Log.w("TrackingParams", "Corruption reading tracking params proto – using defaults", e)
+    } catch (_: Exception) {
         defaultValue
     }
 
@@ -196,14 +194,11 @@ class DefaultTrackingParamsRepository(
                     .setLegacyMigrated(true)
                     .build()
             }
-        } catch (e: Exception) {
-            Log.w("TrackingParams", "Legacy migration failed – using defaults", e)
-            try {
+        } catch (_: Exception) {
+            runCatching {
                 context.trackingParamsDataStore.updateData { current ->
                     current.toBuilder().setLegacyMigrated(true).build()
                 }
-            } catch (e2: Exception) {
-                Log.e("TrackingParams", "Failed to mark migration complete", e2)
             }
         }
     }

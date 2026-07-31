@@ -8,7 +8,6 @@ import androidx.datastore.dataStore
 import androidx.datastore.migrations.SharedPreferencesMigration
 import com.adsamcik.tracker.shared.preferences.PreferenceKeys
 import com.adsamcik.tracker.shared.preferences.R
-import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -20,20 +19,15 @@ import java.io.OutputStream
 // Contract:
 // Inputs: Proto DataStore file, legacy SharedPreferences for one-time migration.
 // Outputs: Flow<TrackerSettings>; mutation via suspend setters.
-// Failure: Corruption -> emit default settings; logged (debug). No exceptions leak outward.
-
-// Internal logger indirection to avoid module cycle with :logger. Repository can register a lambda.
-internal object TrackerSettingsInternalLogger { var logger: ((String) -> Unit)? = null }
+// Failure: Corruption -> emit default settings and one payload-free diagnostic event.
 
 private object TrackerSettingsSerializer : Serializer<TrackerSettingsProto> {
     override val defaultValue: TrackerSettingsProto = TrackerSettingsProto.getDefaultInstance()
 
     override suspend fun readFrom(input: InputStream): TrackerSettingsProto = try {
         TrackerSettingsProto.parseFrom(input)
-    } catch (e: Exception) {
-        // Corruption -> fallback to default; structured log via indirection (no module dependency).
-        Log.w("TrackerSettings", "Corruption while reading settings proto – using defaults", e)
-        TrackerSettingsInternalLogger.logger?.invoke("SET-CORRUPTION: fallback to defaults (${e::class.simpleName})")
+    } catch (_: Exception) {
+        // Corruption falls back to the default and emits one payload-free diagnostic event.
         defaultValue
     }
 
@@ -144,15 +138,7 @@ class DefaultTrackerSettingsRepository(
     private val context: Context,
     private val io: CoroutineDispatcher,
     private val keys: TrackerSettingsKeyProvider = ResourceTrackerSettingsKeyProvider(context),
-    private val log: (String) -> Unit = {}
 ) : TrackerSettingsRepository {
-
-    init {
-        // Register logger once if not yet present.
-        if (TrackerSettingsInternalLogger.logger == null) {
-            TrackerSettingsInternalLogger.logger = log
-        }
-    }
 
     override val data: Flow<TrackerSettingsState> = context.trackerSettingsDataStore.data
         .map { proto ->

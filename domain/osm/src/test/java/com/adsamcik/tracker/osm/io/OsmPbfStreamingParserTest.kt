@@ -1,21 +1,16 @@
 package com.adsamcik.tracker.osm.io
 
-import com.adsamcik.tracker.logging.api.ErrorReporter
-import com.adsamcik.tracker.logging.api.ReporterFacade
 import com.google.protobuf.ByteString
 import crosby.binary.Osmformat
 import crosby.binary.file.BlockOutputStream
 import crosby.binary.file.FileBlock
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -31,16 +26,6 @@ import java.io.ByteArrayOutputStream
  */
 @DisplayName("OsmPbfStreamingParser")
 class OsmPbfStreamingParserTest {
-
-	@AfterEach
-	fun clearReporterDelegate() {
-		// ReporterFacade.delegate is a process-wide static; reset so tests
-		// don't bleed log expectations into each other (or into sibling
-		// modules running in the same VM).
-		val field = ReporterFacade::class.java.getDeclaredField("delegate")
-		field.isAccessible = true
-		field.set(ReporterFacade, null)
-	}
 
 	@Test
 	fun `rejects files larger than the legacy 100 MB cap before opening the stream`() = runTest {
@@ -321,71 +306,6 @@ class OsmPbfStreamingParserTest {
 			)
 
 			parser.maxReferencedNodes shouldBe expected
-		}
-	}
-
-	@Nested
-	@DisplayName("startup logging")
-	inner class StartupLogging {
-
-		@Test
-		fun `parse start logs the chosen adaptive cap so field reports are debuggable`() = runTest {
-			val recorder = RecordingReporter()
-			ReporterFacade.setDelegate(recorder)
-			val parser = OsmPbfStreamingParser(maxMemoryBytes = 256L * BYTES_PER_MB)
-
-			// We don't care about the rest of the parse — feed an empty stream
-			// so BlockInputStream returns immediately after the size guard
-			// passes (the guard runs first, then logging runs, then pass-1
-			// scans the empty stream and yields zero ways).
-			runCatching {
-				parser.parse(
-					fileSizeBytes = 0L,
-					openInputStream = { ByteArrayInputStream(ByteArray(0)) },
-					onWayBatch = { /* never invoked */ },
-				)
-			}
-
-			recorder.logs shouldHaveAtLeastSize 1
-			val startupLog = recorder.logs.first()
-			startupLog shouldContain "OsmPbfStreamingParser"
-			startupLog shouldContain "maxReferencedNodes=335544"
-			startupLog shouldContain "heap=256 MB"
-			startupLog shouldContain "budget=1/4"
-			startupLog shouldContain "perRef=200B"
-			startupLog shouldContain "floor=256000"
-			startupLog shouldContain "ceiling=2000000"
-		}
-
-		@Test
-		fun `parse does not log when the file-size guard rejects the import early`() = runTest {
-			// Failing the file-size guard should NOT emit the adaptive-cap log
-			// line — that line is meant to document the cap actually used for
-			// the parse, and a parse that never started has no cap "in effect".
-			val recorder = RecordingReporter()
-			ReporterFacade.setDelegate(recorder)
-			val parser = OsmPbfStreamingParser(maxMemoryBytes = 256L * BYTES_PER_MB)
-
-			shouldThrow<OsmParseException.FileTooLarge> {
-				parser.parse(
-					fileSizeBytes = OsmPbfStreamingParser.MAX_FILE_SIZE_BYTES + 1,
-					openInputStream = { ByteArrayInputStream(ByteArray(0)) },
-					onWayBatch = { /* never invoked */ },
-				)
-			}
-
-			recorder.logs shouldHaveSize 0
-		}
-	}
-
-	private class RecordingReporter : ErrorReporter {
-		private val _logs = mutableListOf<String>()
-		val logs: List<String> get() = _logs.toList()
-
-		override fun report(message: String) = Unit
-		override fun report(exception: Throwable) = Unit
-		override fun log(message: String) {
-			_logs.add(message)
 		}
 	}
 

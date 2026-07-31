@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
@@ -173,8 +172,7 @@ private fun LayerTile(
 	val title = remember(layer.id) {
 		try {
 			context.getString(layer.titleRes)
-		} catch (e: Exception) {
-			Reporter.w("LayerPickerPopover", "title lookup failed for ${layer.id}: ${e.message}")
+		} catch (_: Exception) {
 			layer.id
 		}
 	}
@@ -267,4 +265,3 @@ private fun LegendStrip(legend: ImmutableList<LegendItem>) {
 		}
 	}
 }
-

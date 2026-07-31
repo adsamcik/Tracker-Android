@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
@@ -26,7 +24,7 @@ import org.robolectric.annotation.Config
 
 /**
  * Tests for the debug settings screen layout.
- * Since DebugSettingsScreen uses hiltViewModel(), we test with a reconstructed layout.
+ * Uses a reconstructed layout so build-type branches stay deterministic under Robolectric.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -40,8 +38,6 @@ class DebugSettingsScreenTest {
         isDebugBuild: Boolean = true,
         developerModeEnabled: Boolean = true,
         onDisableDeveloperMode: () -> Unit = {},
-        onCrashManagerClick: () -> Unit = {},
-        onLogViewerClick: () -> Unit = {},
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -59,27 +55,6 @@ class DebugSettingsScreenTest {
                 }
             }
 
-            // Debug tools
-            item { SectionHeader("Debug Tools") }
-
-            item {
-                SettingsItem(
-                    title = "Crash Manager",
-                    subtitle = "View and manage crash reports",
-                    icon = Icons.Default.BugReport,
-                    onClick = onCrashManagerClick,
-                )
-            }
-
-            item {
-                SettingsItem(
-                    title = "Log Viewer",
-                    subtitle = "View application logs",
-                    icon = Icons.Default.Description,
-                    onClick = onLogViewerClick,
-                )
-            }
-
             // Developer tools (only in debug builds)
             if (isDebugBuild) {
                 item { SectionHeader("Developer Tools") }
@@ -88,37 +63,12 @@ class DebugSettingsScreenTest {
     }
 
     @Test
-    fun displaysDebugTools() {
+    fun legacyDiagnosticArchivesAreNotExposed() {
         composeTestRule.setContent {
             AppTheme { DebugSettingsTestLayout() }
         }
-        composeTestRule.onNodeWithText("Debug Tools").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Crash Manager").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Log Viewer").assertIsDisplayed()
-    }
-
-    @Test
-    fun crashManagerClickCallsCallback() {
-        var clicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                DebugSettingsTestLayout(onCrashManagerClick = { clicked = true })
-            }
-        }
-        composeTestRule.onNodeWithText("Crash Manager").performClick()
-        clicked shouldBe true
-    }
-
-    @Test
-    fun logViewerClickCallsCallback() {
-        var clicked = false
-        composeTestRule.setContent {
-            AppTheme {
-                DebugSettingsTestLayout(onLogViewerClick = { clicked = true })
-            }
-        }
-        composeTestRule.onNodeWithText("Log Viewer").performClick()
-        clicked shouldBe true
+        composeTestRule.onNodeWithText("Legacy crash archive").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Legacy log archive").assertDoesNotExist()
     }
 
     @Test

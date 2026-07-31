@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -53,6 +54,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import com.adsamcik.tracker.dashboard.navigation.dashboardGraph
 import com.adsamcik.tracker.game.navigation.gameGraph
 import com.adsamcik.tracker.map.navigation.mapGraph
+import com.adsamcik.tracker.map.ui.MapRoutePreviewRenderer
 import com.adsamcik.tracker.app.ui.navigation.settingsGraph
 import com.adsamcik.tracker.statistics.navigation.statsGraph
 import com.adsamcik.tracker.app.ui.navigation.setupGraph
@@ -76,11 +78,10 @@ import com.adsamcik.tracker.app.ui.navigation.toSettingsOrigin
 import com.adsamcik.tracker.app.activity.DeepNavigationRequest
 import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
-import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import android.Manifest
 import android.content.pm.PackageManager
-import android.util.Log
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import androidx.compose.ui.res.stringResource
@@ -120,7 +121,7 @@ fun MainRoot(
             }
         )
     }
-    var settingsLaunchNonce by remember { mutableStateOf(0L) }
+    var settingsLaunchNonce by remember { mutableLongStateOf(0L) }
     var tripDetailFallbackRoute by rememberSaveable(stateSaver = tripDetailFallbackRouteSaver) {
         mutableStateOf<Any>(Stats)
     }
@@ -175,7 +176,7 @@ fun MainRoot(
                     onRouteChanged(route)
                 }
             } else {
-                Log.w("MainRoot", "Unrecognized destination: ${destination.route}")
+                viewModel.recordUnrecognizedDestination()
             }
         }
     }
@@ -376,6 +377,7 @@ fun MainRoot(
                     navController = navController,
                     getTripDetailFallbackRoute = { tripDetailFallbackRoute },
                     onSetTripDetailFallback = { tripDetailFallbackRoute = it },
+                    routePreviewRenderer = MapRoutePreviewRenderer,
                 )
                 gameGraph(
                     navController = navController,
@@ -493,10 +495,5 @@ private val tripDetailFallbackRouteSaver = Saver<Any, String>(
         }
     },
 )
-
-
-
-
-
 
 

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.goals.settings
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
@@ -165,12 +164,7 @@ private object GoalsSettingsSerializer : Serializer<GoalsSettingsProto> {
 
 	override suspend fun readFrom(input: InputStream): GoalsSettingsProto = try {
 		GoalsSettingsProto.parseFrom(input)
-	} catch (exception: InvalidProtocolBufferException) {
-		Log.w(
-			"GoalsSettings",
-			"Corruption while reading goals settings proto; using defaults",
-			exception,
-		)
+	} catch (_: InvalidProtocolBufferException) {
 		defaultValue
 	}
 

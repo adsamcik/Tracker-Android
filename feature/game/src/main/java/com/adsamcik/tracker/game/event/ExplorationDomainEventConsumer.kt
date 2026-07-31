@@ -2,9 +2,6 @@ package com.adsamcik.tracker.game.event
 
 import android.content.Context
 import androidx.room.withTransaction
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
-import com.adsamcik.tracker.game.GAME_LOG_SOURCE
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
@@ -65,10 +62,9 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			// this drops to ONE transaction. Atomicity per event is still preserved
 			// because all cell+streak writes inside the loop roll back together if
 			// any fail. The cursor acknowledgement is included so mutations and
-			// consumption progress commit or roll back together. We collect dirty/log
+			// consumption progress commit or roll back together. We collect dirty
 			// effects and apply them outside the transaction (mark-after-commit contract).
 			val dirtyTables = mutableSetOf<String>()
-			val newCellLogCount = mutableListOf<Int>() // captured event.level for new cells
 			val last = batch.last()
 			database.withTransaction {
 				batch.forEach { unconsumed ->
@@ -78,7 +74,6 @@ class ExplorationDomainEventConsumer @Inject constructor(
 						streakDao = streakDao,
 					)
 					dirtyTables += effects.dirty
-					if (effects.newCellLevel != null) newCellLogCount += effects.newCellLevel
 				}
 				// Ack the LAST event by (timestamp, id) so a future event sharing the same
 				// timestamp as our boundary doesn't get silently skipped by the next fetch.
@@ -90,21 +85,12 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			}
 
 			if (dirtyTables.isNotEmpty()) dirtyTracker.markDirty(dirtyTables)
-			newCellLogCount.forEach { level ->
-				Logger.log(
-					LogData(
-						message = "Cell discovered: level=$level isNew=true",
-						source = GAME_LOG_SOURCE,
-					),
-				)
-			}
 		}
 	}
 
 	/** Side effects to apply AFTER the transaction commits (mark-after-commit). */
 	private data class EventEffects(
 		val dirty: Set<String>,
-		val newCellLevel: Int?,
 	)
 
 	private suspend fun handleEvent(
@@ -113,7 +99,7 @@ class ExplorationDomainEventConsumer @Inject constructor(
 		streakDao: ExplorationStreakDao,
 	): EventEffects = when (event) {
 		is DomainEvent.CellDiscovered -> onCellDiscovered(event, cellDao, streakDao)
-		else -> EventEffects(dirty = emptySet(), newCellLevel = null)
+		else -> EventEffects(dirty = emptySet())
 	}
 
 	private suspend fun onCellDiscovered(
@@ -149,7 +135,6 @@ class ExplorationDomainEventConsumer @Inject constructor(
 			streakTracker.onCellDiscovered(streakDao, event, wasNewCell = true)
 			return EventEffects(
 				dirty = setOf(MetricKeys.TABLE_EXPLORATION_CELL, MetricKeys.TABLE_EXPLORATION_STREAK),
-				newCellLevel = event.level,
 			)
 		}
 
@@ -162,7 +147,6 @@ class ExplorationDomainEventConsumer @Inject constructor(
 		)
 		return EventEffects(
 			dirty = setOf(MetricKeys.TABLE_EXPLORATION_CELL),
-			newCellLevel = null,
 		)
 	}
 

@@ -91,6 +91,7 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
@@ -112,6 +113,7 @@ internal data class TrackerDashboardUiState(
     val policyTier: PolicyTier = PolicyTier.OFF,
     val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED,
     val trackingParams: TrackingParamsState = TrackingParamsState(),
+    val recentTrips: List<Trip> = emptyList(),
 )
 
 @Composable
@@ -197,6 +199,7 @@ internal fun TrackerDashboard(
                 snackbarHostState = snackbarHostState,
                 pathPoints = state.pathPoints,
                 trackingParams = state.trackingParams,
+                recentTrips = state.recentTrips,
             )
         }
     }
@@ -398,6 +401,7 @@ private fun TrackingContent(
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
     pathPoints: List<Location>? = null,
     trackingParams: TrackingParamsState,
+    recentTrips: List<Trip>,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -494,6 +498,7 @@ private fun TrackingContent(
                     exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                 ) {
                     RecentTripsCard(
+                        trips = recentTrips,
                         settings = trackerSettings,
                         onTripClick = onSessionDetailClick
                     )

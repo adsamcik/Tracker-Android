@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.stats.api.PolicyTier
+import java.util.Locale
 
 @Preview(showBackground = true, name = "Today summary")
 @Composable
@@ -182,7 +183,11 @@ private fun WidgetPreviewStatsRow(vararg items: Pair<String, String>) {
 }
 
 private fun formatDistancePreview(distanceMeters: Float): String =
-    if (distanceMeters >= 1000f) String.format("%.1f km", distanceMeters / 1000f) else "${distanceMeters.toInt()} m"
+    if (distanceMeters >= 1000f) {
+        String.format(Locale.ROOT, "%.1f km", distanceMeters / 1000f)
+    } else {
+        "${distanceMeters.toInt()} m"
+    }
 
 private fun previewPolicyTierLabel(tier: PolicyTier): String =
-    tier.name.lowercase().replaceFirstChar { it.titlecase() }
+    tier.name.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }

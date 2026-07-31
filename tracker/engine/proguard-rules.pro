@@ -16,7 +16,6 @@
 
 # --- Cross-module class references ---
 # Keep classes from shared modules referenced by tracker (prevent R8 missing class errors)
--keep class com.adsamcik.tracker.logger.** { *; }
 -keep class com.adsamcik.tracker.shared.base.** { *; }
 -keep class com.adsamcik.tracker.shared.preferences.** { *; }
 -keep class com.adsamcik.tracker.shared.utils.** { *; }

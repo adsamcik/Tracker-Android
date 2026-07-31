@@ -163,6 +163,14 @@ class DailyStepGoalTest {
 		}
 
 		@Test
+		fun `regressing same-session step count clamps the delta`() {
+			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
+			goal.onSessionUpdated(createSession(id = 1L, steps = 50), isNewSession = false)
+
+			goal.value shouldBe 100
+		}
+
+		@Test
 		fun `new session after continuing session resets diff tracking`() {
 			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
 			goal.onSessionUpdated(createSession(id = 1L, steps = 300), isNewSession = false)

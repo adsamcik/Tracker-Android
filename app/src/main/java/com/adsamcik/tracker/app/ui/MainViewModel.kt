@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app.ui
 
 import androidx.lifecycle.ViewModel
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +28,10 @@ class MainViewModel @Inject constructor() : ViewModel() {
     fun setCurrentRoute(route: Any) {
         _currentRoute.value = route
     }
+
+    fun recordUnrecognizedDestination() {
+        TrackerDiagnostics.record(TrackerDiagnosticCode.NAVIGATION_DESTINATION_REJECTED)
+    }
     
     /**
      * Compute navigation bar elevation based on current route.
@@ -34,7 +40,3 @@ class MainViewModel @Inject constructor() : ViewModel() {
         return 4f
     }
 }
-
-
-
-
