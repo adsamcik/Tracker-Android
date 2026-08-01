@@ -15,9 +15,7 @@
     <string name="minigame_fuserun_description">Escape each virtual blast radius before its fuse expires</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Carve sharp alternating turns to build a flow combo</string>
-    <string name="minigame_section_title">Mini-Games</string>
     <string name="minigame_locked">Unlocks at Level %1$d</string>
-    <string name="minigame_coming_soon">Coming soon</string>
 
     <!-- Game hub: Play section -->
     <string name="game_play_section_title">Play</string>
@@ -53,20 +51,11 @@
     <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">View past scores</string>
     <string name="minigame_session_close">Close</string>
-    <string name="minigame_session_start_cta">Start</string>
-    <string name="minigame_session_stop_cta">Stop</string>
     <string name="minigame_session_play_again">Play again</string>
     <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
-    <string name="minigame_session_score_label">Score</string>
-    <string name="minigame_session_finished_title">Run complete</string>
-    <string name="minigame_session_final_score">Final score: %1$s</string>
-    <string name="minigame_session_points_earned">+%1$d pts</string>
-    <string name="minigame_session_points_zero">No points this run</string>
     <string name="minigame_session_permission_title">Location needed</string>
     <string name="minigame_session_permission_body">Mini-games use live location to track your run. Nothing is saved beyond the final score.</string>
     <string name="minigame_session_permission_grant">Grant access</string>
-    <string name="minigame_session_idle_hint">Tap Start, then keep walking — we\'ll do the rest.</string>
-    <string name="minigame_session_waiting_for_fix">Waiting for first GPS fix…</string>
 
     <!-- Mini-game setup -->
     <string name="minigame_setup_title">Set up your run</string>
@@ -92,12 +81,9 @@
     <string name="minigame_difficulty_easy">Easy</string>
     <string name="minigame_difficulty_normal">Normal</string>
     <string name="minigame_difficulty_hard">Hard</string>
-    <string name="minigame_setup_goal_selected">%1$s, selected</string>
-    <string name="minigame_setup_difficulty_selected">%1$s, selected</string>
 
     <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Getting ready…</string>
-    <string name="minigame_session_acquiring">Finding your location…</string>
     <string name="minigame_session_finishing">Saving your run…</string>
     <string name="minigame_session_paused_title">Paused</string>
     <string name="minigame_session_pause_cta">Pause</string>
@@ -105,7 +91,6 @@
     <string name="minigame_session_finish_cta">Finish</string>
     <string name="minigame_session_background_note">Your run keeps going if you leave this screen. Reopen from Games to continue.</string>
     <string name="minigame_session_elapsed_label">Active time</string>
-    <string name="minigame_session_goal_label">Goal</string>
     <string name="minigame_session_goal_progress">%1$d%% of goal</string>
     <string name="minigame_session_goal_reached">Goal reached</string>
 
@@ -118,11 +103,8 @@
     <string name="minigame_signal_stale">GPS delayed</string>
 
     <!-- Notification permission (contextual, optional) -->
-    <string name="minigame_notification_permission_title">Enable notifications?</string>
-    <string name="minigame_notification_permission_body">Allow notifications to pause or finish your run from the notification shade. Your run starts either way.</string>
 
     <!-- Outrun visualization -->
-    <string name="minigame_outrun_gap_label">Lead</string>
     <string name="minigame_outrun_best_run">Best this run</string>
     <string name="minigame_outrun_personal_best">Personal best</string>
     <string name="minigame_outrun_warning">Ghost closing in</string>
@@ -148,13 +130,6 @@
     <string name="minigame_outrun_ahead_of_best">Ahead of your personal best</string>
 
     <!-- Territory visualization -->
-    <string name="minigame_territory_grid_title">Nearby areas</string>
-    <string name="minigame_territory_grid_description">Grid of areas around where you started. %1$d nearby cells claimed.</string>
-    <string name="minigame_territory_current_label">Current area</string>
-    <plurals name="minigame_territory_claimed">
-        <item quantity="one">%1$d cell claimed</item>
-        <item quantity="other">%1$d cells claimed</item>
-    </plurals>
     <string name="minigame_territory_grid_description_detailed">Territory map. %1$d nearby areas claimed; %2$d frontier areas highlighted. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Current area highlighted</string>
     <string name="minigame_territory_current_waiting">Waiting for a current area</string>
@@ -163,17 +138,10 @@
     <string name="minigame_territory_legend">Glow marks your current area • Frontier hints: %1$d</string>
 
     <!-- Zen Walk visualization -->
-    <string name="minigame_zen_calibrating">Calibrating your pace…</string>
-    <string name="minigame_zen_calibration_progress">Calibration %1$d%%</string>
     <string name="minigame_zen_pace_label">Pace</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
     <string name="minigame_zen_target_zone">Target %1$s–%2$s km/h</string>
-    <string name="minigame_zen_in_zone">In the zone</string>
-    <string name="minigame_zen_below_zone">Pick up the pace</string>
-    <string name="minigame_zen_above_zone">Ease off a little</string>
-    <string name="minigame_zen_time_in_zone">Time in zone</string>
-    <string name="minigame_zen_gauge_description">Pace gauge. %1$s. %2$s.</string>
     <string name="minigame_zen_calibration_title">Find your natural rhythm</string>
     <string name="minigame_zen_calibration_hint">Walk naturally while your pace gently settles</string>
     <string name="minigame_zen_calibration_settled">%1$d%% settled</string>
@@ -244,8 +212,6 @@
     <string name="minigame_scores_empty_title">Your first run is waiting</string>
     <string name="minigame_scores_empty_body">Finish a mini-game to set a personal best — every run you beat shows up here.</string>
     <string name="minigame_scores_rank_format">#%1$d</string>
-    <string name="minigame_scores_score_format">%1$s pts</string>
-    <string name="minigame_scores_points_format">+%1$d pts</string>
     <string name="minigame_scores_xp_format">+%1$d XP</string>
     <string name="minigame_scores_personal_best">Personal best</string>
     <string name="minigame_scores_unknown_game">Mini-game</string>
@@ -254,9 +220,6 @@
     <string name="goals_daily_goal">daily</string>
     <string name="goals_weekly_goal">weekly</string>
     <string name="goals_monthly_goal">monthly</string>
-    <string name="goals_steps_daily">daily steps</string>
-    <string name="goals_steps_weekly">weekly steps</string>
-    <string name="goals_value">%1$s of %2$s</string>
     
     <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Steps goals</string>
@@ -269,49 +232,14 @@
     <string name="game_loading">Loading…</string>
 
     <!-- Hero Level Card -->
-    <string name="game_hero_start_tracking_hint">Start tracking to level up!</string>
-    <string name="game_level">Level %1$d</string>
-    <string name="game_level_label">Level</string>
-    <string name="game_xp_progress">%1$s / %2$s XP</string>
-    <string name="game_xp_to_next_level">%1$s XP to next level</string>
-    <string name="game_streak_label">Streak</string>
-    <string name="game_streak_count">%1$d</string>
-    <string name="game_streak_freezes">%1$d freezes</string>
-    <string name="game_streak_best">Best: %1$d</string>
 
 
     <!-- Trophy Summary -->
-    <string name="game_trophy_summary">%1$d completed</string>
-    <string name="game_trophy_view_all">View Trophy Case</string>
-    <string name="game_trophies_title">Trophies</string>
     
     <!-- Trophy Case Screen -->
-    <string name="game_trophy_case_title">Trophy Case</string>
-    <string name="game_trophy_case_empty">No trophies yet</string>
-    <string name="game_trophy_filter_all">All</string>
-    <string name="game_trophy_filter_gold">Gold</string>
-    <string name="game_trophy_filter_silver">Silver</string>
-    <string name="game_trophy_filter_bronze">Bronze</string>
-    <string name="game_trophy_xp_earned">+%1$d XP</string>
-    <string name="game_trophy_completed_on">Completed %1$s</string>
     <string name="action_navigate_back">Navigate back</string>
-    <string name="game_trophy_expired">Expired</string>
-    <string name="game_personal_records_title">Personal Records</string>
-    <string name="game_personal_records_empty">No records yet — keep challenging yourself!</string>
-    <string name="game_personal_record_value">%1$s</string>
-    <string name="game_lifetime_stats_title">Lifetime Stats</string>
-    <string name="game_lifetime_completion_rate">Completion Rate</string>
-    <string name="game_lifetime_total_xp">Total XP Earned</string>
-    <string name="game_lifetime_medal_breakdown">Medal Breakdown</string>
 
     <!-- Medal labels -->
-    <string name="medal_gold">Gold</string>
-    <string name="medal_silver">Silver</string>
-    <string name="medal_bronze">Bronze</string>
-    <string name="medal_none">None</string>
-    <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
-    <string name="game_start_tracking_action">Open Dashboard to start</string>
-    <string name="game_track_and_earn_points_action">Track &amp; Earn Points</string>
     <string name="game_open_settings">Open settings</string>
     <string name="game_close">Close</string>
 
@@ -321,7 +249,6 @@
     <string name="exploration_current_streak">Current Streak</string>
     <string name="exploration_best_streak">Best Streak</string>
     <string name="exploration_seasons_explored">Seasons Explored</string>
-    <string name="exploration_days">days</string>
     <plurals name="exploration_days_plural">
         <item quantity="one">day</item>
         <item quantity="other">days</item>
@@ -330,8 +257,6 @@
 
     <!-- Achievements card -->
     <string name="achievements_title">Achievements</string>
-    <string name="achievements_unlocked">Unlocked</string>
-    <string name="achievements_view_all">View All</string>
     <string name="achievements_bronze">Bronze</string>
     <string name="achievements_silver">Silver</string>
     <string name="achievements_gold">Gold</string>
@@ -355,42 +280,18 @@
         <item>Splendid</item>
     </string-array>
 
-    <!-- Game progress formatting -->
-    <string name="game_progress_format">%1$d / %2$d</string>
 
 
     <string name="points_earned_today">points earned today</string>
 
-    <string name="settings_game_goals_category_title">Goals</string>
-    <string name="settings_game_goals_day_steps_title">Daily step goal</string>
-    <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
-    <string name="settings_game_goals_notification_summary">Get notified when you reach your goals</string>
-    <string name="settings_game_goals_week_steps_daily_percentage_summary">Maximum percentage of weekly goal that can be completed each day</string>
-    <string name="settings_game_goals_week_steps_daily_percentage_title">Maximum daily progress of weekly goal</string>
-    <string name="settings_game_goals_week_steps_title">Weekly step goal</string>
-    <string name="settings_game_goals_day_steps_summary">Current target: %1$s steps</string>
-    <string name="settings_game_goals_week_steps_summary">Current target: %1$s steps</string>
-    <string name="settings_game_goals_week_steps_percentage_label">Max daily progress: %1$d%% of weekly goal</string>
 
     <!-- Streak Milestones -->
-    <string name="game_streak_milestone_3">Getting warmed up 🔥</string>
-    <string name="game_streak_milestone_7">On fire!</string>
-    <string name="game_streak_milestone_14">Unstoppable 💪</string>
-    <string name="game_streak_milestone_30">Legend 👑</string>
 
     <!-- Unlock Announcements -->
     <string name="game_unlock_title">New Unlock!</string>
-    <string name="game_unlock_personal_records">Personal Records</string>
-    <string name="game_unlock_outrun">Outrun Mini-Game</string>
-    <string name="game_unlock_streak_freeze">Streak Freeze</string>
-    <string name="game_unlock_territory">Territory Mini-Game</string>
-    <string name="game_unlock_lifetime_stats">Lifetime Stats</string>
-    <string name="game_unlock_zen_walk">Zen Walk Mini-Game</string>
-    <string name="game_unlock_weekly_rank">Weekly Rank</string>
     <string name="game_unlock_message">You reached Level %1$d!</string>
 
     <!-- Level Up -->
-    <string name="game_level_up">Level Up!</string>
 
     <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Weekly Challenge</string>
@@ -412,7 +313,6 @@
     <string name="leaderboard_week_progress">Week progress</string>
     <string name="leaderboard_monday">Mon</string>
     <string name="leaderboard_sunday">Sun</string>
-    <string name="leaderboard_no_data">Not enough data yet</string>
     <string name="leaderboard_you">You</string>
     <string name="leaderboard_current_week">This Week</string>
     <string name="leaderboard_empty_title">No history to race yet</string>
@@ -422,18 +322,7 @@
     <string name="leaderboard_retry">Retry</string>
 
     <!-- Unlock feature display names -->
-    <string name="unlock_feature_medals">Medals</string>
-    <string name="unlock_feature_streaks">Streaks</string>
-    <string name="unlock_feature_trophy_case">Trophy Case</string>
-    <string name="unlock_feature_personal_records">Personal Records</string>
-    <string name="unlock_feature_outrun">Outrun Mini-Game</string>
-    <string name="unlock_feature_streak_freeze">Streak Freeze</string>
-    <string name="unlock_feature_territory">Territory Mini-Game</string>
-    <string name="unlock_feature_lifetime_stats">Lifetime Stats</string>
-    <string name="unlock_feature_zen_walk">Zen Walk Mini-Game</string>
-    <string name="unlock_feature_weekly_rank">Weekly Rank</string>
     <string name="achievements_mythic">Mythic</string>
-    <string name="game_achievement_progress_title">Achievement progress</string>
     <string name="game_view_all_achievements">View all</string>
     <string name="game_recent_achievements">Recent unlocks</string>
     <string name="game_next_achievements">Next up</string>

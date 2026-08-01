@@ -5,10 +5,8 @@
     <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
     <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_error_no_databases">No application databases are available to export.</string>
-    <string name="export_error_no_share">Sharing aborted</string>
     <string name="export_error_no_uri">No export folder was selected</string>
     <string name="export_error_stream_failed">Could not create stream to file %s</string>
-    <string name="export_error_source_database_unavailable">Could not read the source database.</string>
     <string name="export_error_unknown">Export failed.</string>
     <string name="export_error_with_reason">Export failed: %s</string>
     <string name="export_file_name">File name</string>
@@ -36,22 +34,13 @@
 
     <string name="settings_export_dialog_from">From</string>
     <string name="settings_export_dialog_to">To</string>
-    <string name="settings_export_gpx_summary">Export your tracked location to GPX file</string>
-    <string name="settings_export_gpx_title">As GPX file</string>
-    <string name="settings_export_json_summary">Export your tracked data to JSON file</string>
-    <string name="settings_export_json_title">As JSON file</string>
-    <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
-    <string name="settings_export_kml_title">As KML file</string>
     <string name="settings_export_no_data">No data to export</string>
-    <string name="settings_export_sqlite_summary">Export all application databases in a ZIP backup</string>
-    <string name="settings_export_sqlite_title">Database backup</string>
     <string name="settings_export_title">Export</string>
     <string name="format_gpx">GPX</string>
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Database backup (ZIP)</string>
 
-    <string name="settings_import_no_types">no types supported on your device, sorry.</string>
     <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
     <string name="settings_import_title">Import</string>
 </resources>

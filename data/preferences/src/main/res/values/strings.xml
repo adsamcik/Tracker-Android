@@ -28,13 +28,6 @@
     <string name="settings_statistics_auto_unit_switch_summary">Automatically switch to sailing/flying units when viewing sessions with those activities</string>
     
     <!-- Location precision preference (Phase 2) -->
-    <string name="settings_location_precision_key" translatable="false">locationPrecisionMode</string>
-    <string name="settings_location_precision_default" translatable="false">APPROXIMATE</string>
     
     <!-- Precision upgrade tracking (Phase 2) -->
-    <string name="settings_approximate_session_count_key" translatable="false">approximateSessionCount</string>
-    <string name="settings_should_show_precision_upgrade_key" translatable="false">shouldShowPrecisionUpgrade</string>
-    <string name="settings_precision_upgrade_dismissed_key" translatable="false">precisionUpgradeDismissed</string>
-    <string name="settings_location_precision_approximate" translatable="false">APPROXIMATE</string>
-    <string name="settings_location_precision_precise" translatable="false">PRECISE</string>
 </resources>

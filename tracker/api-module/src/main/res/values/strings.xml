@@ -6,17 +6,8 @@
     <string name="altitude_title">Altitude</string>
     <string name="altitude_value">alt %s</string>
 
-    <string name="auto_tracking_options_summary">%s</string>
-    <string name="auto_tracking_options_title">Automatic tracking mode</string>
-    <string-array name="auto_tracking_options_values">
-        <item>Disabled</item>
-        <item>On foot</item>
-        <item>In motion</item>
-    </string-array>
-
     <string name="cell_count_title">Cell count</string>
     <string name="cell_count_value">cells %d</string>
-    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm</string>
     <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
     <string name="cell_current_title">Current cell</string>
     <string name="cell_current_value">active cells (%s)</string>
@@ -27,15 +18,12 @@
     <string name="coordinates_title">Coordinates</string>
 
     <string name="description_settings">Settings button</string>
-    <string name="description_tracking_lock">Lock disabling button</string>
     <string name="description_tracking_start">Start tracking button</string>
     <string name="description_tracking_stop">Stop tracking button</string>
     <string name="description_tracking_start_no_permission">Start tracking — permission required</string>
     <string name="description_points_today">Points earned today: %s</string>
     <string name="description_copy">Copy value</string>
     <string name="description_copied">Value copied</string>
-    <string name="description_location_search">Location search</string>
-    <string name="description_goal_progress">Goal progress</string>
     <string name="description_recharge_settings">Recharge settings: tap to configure</string>
 
     <string name="distance_invehicle_title">Distance in vehicle</string>
@@ -56,7 +44,6 @@
     <string name="horizontal_accuracy_title">Horizontal accuracy</string>
     <string name="horizontal_accuracy_value">acc %s</string>
 
-    <string name="in_range">in range</string>
 
     <string name="last_update_title">Last update time</string>
     <string name="last_update_value">last %s</string>
@@ -89,7 +76,6 @@
 
 
     <string name="settings_activity_enabled_title">Activity</string>
-    <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_auto_tracking_transition_summary">Battery-efficient mode (slightly slower activity detection)</string>
     <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
     <string name="settings_cell_enabled_title">Cell</string>
@@ -99,10 +85,7 @@
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
     <string name="settings_disabled_time_default" translatable="false">0</string>
     <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
-    <string name="settings_enable_category_title">What to track</string>
     <string name="settings_location_enabled_title">Location</string>
-    <string name="settings_notification_category">Notifications</string>
-    <string name="settings_notification_customize_key" translatable="false">customize_notification</string>
     <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
     <string name="settings_notification_customize_title">Customize notification</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
@@ -122,68 +105,15 @@
     <string name="settings_tracker_timer_clock">Interval-based</string>
     <string name="settings_tracker_timer_fused">Google Play location</string>
     <string name="settings_tracker_timer_location">Android location</string>
-    <string name="settings_tracker_timer_summary">Location update method: %s</string>
-    <string name="settings_tracker_timer_title">Location update method</string>
-    <string name="settings_tracking_min_distance_summary">Minimum distance between location updates</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between updates</string>
-    <integer-array name="settings_tracking_min_distance_values">
-        <item>5</item>
-        <item>10</item>
-        <item>15</item>
-        <item>20</item>
-        <item>30</item>
-        <item>40</item>
-        <item>50</item>
-        <item>80</item>
-        <item>100</item>
-        <item>250</item>
-        <item>500</item>
-        <item>1000</item>
-        <item>2000</item>
-    </integer-array>
-    <string name="settings_tracking_min_time_summary">Minimum time between location updates</string>
     <string name="settings_tracking_min_time_title">Minimum delay between updates</string>
-    <integer-array name="settings_tracking_min_time_values">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>5</item>
-        <item>10</item>
-        <item>20</item>
-        <item>40</item>
-        <item>60</item>
-        <item>120</item>
-        <item>300</item>
-        <item>600</item>
-        <item>900</item>
-    </integer-array>
     <string name="settings_tracking_notice_summary">Changes take effect when you restart tracking</string>
-    <string name="settings_tracking_notice_title">Notice</string>
-    <string name="settings_location_warning_summary">Since Android 11, explicit background location permission need to be set in order for background tracking to work.</string>
-    <string name="settings_location_warning_title">Background location permission not granted!</string>
 
-    <integer-array name="settings_tracking_required_accuracy">
-        <item>5</item>
-        <item>10</item>
-        <item>15</item>
-        <item>20</item>
-        <item>35</item>
-        <item>50</item>
-        <item>75</item>
-        <item>100</item>
-        <item>200</item>
-        <item>500</item>
-        <item>1000</item>
-        <item>10000</item>
-    </integer-array>
-    <string name="settings_tracking_required_accuracy_summary">Location updates require this accuracy level</string>
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_vehicle_speed_limit_baseline_title">Vehicle speed limit baseline</string>
     <string name="help_vehicle_speed_limit_baseline">Used by the Vehicle speed compliance map layer. Driving samples are coloured by how their speed compares to this baseline. Choose a value matching the limits where you drive most often (e.g. 50 km/h for cities, 90 km/h for highways).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
-    <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>
-    <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
 
     <string name="shortcut_start_tracking">Start tracking</string>
     <string name="shortcut_start_tracking_long">Start location tracking</string>
@@ -198,7 +128,6 @@
     <string name="start_time_title">Session start time</string>
     <string name="start_time_value">start %s</string>
 
-    <string name="tracker_activity_card_title">Activity</string>
     <string name="tracker_activity_confidence">Confidence</string>
     <string name="tracker_activity_title">Activity</string>
     <string name="tracker_collections_title">Updates</string>
@@ -214,7 +143,6 @@
     <string name="tracker_signal_strength_title">Signal</string>
     <string name="tracker_signal_strength_value">%1$d dBm peak</string>
 
-    <string name="tracker_path_preview_title">Path Preview</string>
     <string name="insight_distance_value_km">%1$.1f km</string>
     <string name="insight_duration_title">Time well spent</string>
     <plurals name="insight_duration_desc">
@@ -229,7 +157,6 @@
     <string name="insight_comparison_title">Above average</string>
     <string name="insight_comparison_desc">This session was %1$d%% longer than your recent average</string>
 
-    <string name="vertical_accuracy_title">Vertical accuracy</string>
 
     <string name="wifi_count_title">Wi-Fi count</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
@@ -239,19 +166,13 @@
     <string name="wifi_permission_hint_text">Grant Wi‑Fi permission in app settings to improve signal-based location indoors. No Wi‑Fi radio data is collected until you allow it.</string>
 
     <!-- Tracker Dashboard -->
-    <string name="tracker_time_placeholder">--:--</string>
-    <string name="tracker_ready_to_track">Ready to track</string>
-    <string name="tracker_press_play_to_start">Press play to start</string>
     
     <!-- Today Progress Card -->
     <string name="dashboard_today_title">Today</string>
     <string name="dashboard_today_empty_title">No sessions today</string>
-    <string name="dashboard_today_empty_subtitle">Tap play to start your first session</string>
     <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_steps">Steps</string>
     <string name="dashboard_today_duration">Duration</string>
-    <string name="dashboard_goal_progress">Goal progress</string>
-    <string name="sessions_title">Sessions</string>
 
     <!-- Tracking Presets -->
     <string name="tracking_preset_title">Tracking Mode</string>
@@ -265,21 +186,16 @@
     
     <!-- Battery Impact Indicators -->
     <string name="battery_impact_low">Low battery impact</string>
-    <string name="battery_impact_low_desc">Suitable for all-day tracking</string>
     <string name="battery_impact_moderate">Moderate battery impact</string>
-    <string name="battery_impact_moderate_desc">Good balance of detail and battery life</string>
     <string name="battery_impact_high">Higher battery usage</string>
-    <string name="battery_impact_high_desc">Provides maximum detail</string>
     <string name="battery_impact_high_warning">This configuration may significantly reduce battery life. Consider Balanced mode for all-day tracking.</string>
     
     <!-- Advanced Settings Section -->
-    <string name="settings_advanced_section_title">Advanced Settings</string>
     
     <!-- Help Text for Advanced Settings -->
     <string name="help_min_distance">Tracker waits until you\&#039;ve moved this far before recording your next location. Smaller values = more detailed routes but higher battery usage.</string>
     <string name="help_min_time">How often Tracker checks your location. Smaller values = more frequent updates but higher battery usage.</string>
     <string name="help_required_accuracy">GPS accuracy threshold. Tracker ignores location updates with accuracy worse than this value. Lower = more precise but may skip updates in poor GPS conditions.</string>
-    <string name="help_wifi_location_count">Track how many times you\&#039;ve been to places based on nearby Wi-Fi networks (no network names are stored).</string>
     <string name="help_transition_detection">Tracker starts/stops automatically based on your movement. Uses less battery than constant GPS but may delay detection of activity changes.</string>
 
     <!-- Policy Tier Indicator (Phase 4a) -->
@@ -299,7 +215,6 @@
     <string name="tracker_disabled">Disabled</string>
 
     <!-- Content descriptions -->
-    <string name="tracker_empty_state_icon_desc">Location tracking illustration</string>
     <string name="tracker_lock_icon_desc">Lock status</string>
     <string name="tracker_settings_icon_desc">Component settings</string>
     <string name="tracker_points_icon_desc">Points progress</string>
@@ -312,7 +227,6 @@
     <string name="tracker_cell_label">Cell</string>
     <string name="tracker_collapse">Collapse</string>
     <string name="tracker_expand">Expand</string>
-    <string name="tracker_tap_below_to_start">Tap below to start</string>
     <string name="tracker_go_to_map">Go to map</string>
     <string name="tracker_session_summary_copied">Session summary copied</string>
     <string name="tracker_share_session_summary">Share session summary</string>
@@ -328,21 +242,9 @@
     <string name="action_navigate_back">Navigate back</string>
 
     <!-- Session Insights (Task F) -->
-    <string name="insight_quick_session_title">Quick session</string>
-    <string name="insight_quick_session_desc">Short but every bit counts!</string>
-    <string name="insight_solid_session_title">Solid session</string>
-    <string name="insight_solid_session_desc">Great session — over %1$d minutes of tracking.</string>
-    <string name="insight_extended_session_title">Extended trek</string>
-    <string name="insight_extended_session_desc">An impressive %1$d-minute session!</string>
     <string name="insight_distance_title">Distance covered</string>
     <string name="insight_distance_desc">You covered %1$s this session.</string>
     <string name="insight_steps_title">Steps recorded</string>
     <string name="insight_steps_desc">%1$s steps this session — keep it up!</string>
-    <string name="insight_multi_session_title">Multi-session day</string>
-    <string name="insight_multi_session_desc">This is session #%1$d today.</string>
-    <string name="insight_goal_close_title">Goal in sight</string>
-    <string name="insight_goal_close_desc">You\'re at %1$d%% of your daily step goal.</string>
-    <string name="insight_goal_reached_title">Goal reached!</string>
-    <string name="insight_goal_reached_desc">You hit your daily step goal — awesome!</string>
 
 </resources>

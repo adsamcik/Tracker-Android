@@ -3,56 +3,28 @@
     <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistics</string>
 
-    <string name="change_activity">Change activity</string>
 
-    <string name="edit_session">Edit session</string>
 
-    <string name="remove_session">Delete session</string>
 
-    <string name="stats_afternoon">afternoon</string>
-    <string name="stats_ascended">Total ascension</string>
-    <string name="stats_avg_speed">Avg speed</string>
     <string name="stats_cell_count">Cell count</string>
     <string name="stats_collections">Update count</string>
-    <string name="stats_descended">Total descension</string>
-    <string name="stats_details">Details</string>
     <string name="stats_distance_in_vehicle">Distance in vehicle</string>
     <string name="stats_distance_on_foot">Distance on foot</string>
     <string name="stats_distance_total">Distance</string>
-    <string name="stats_elevation">Elevation</string>
-    <string name="stats_elevation_max">Max elevation</string>
-    <string name="stats_elevation_min">Min elevation</string>
-    <string name="stats_evening">evening</string>
     <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_generic_title_text" translatable="false">%1$s %2$s</string>
     <string name="stats_location_count">Location count</string>
-    <string name="stats_lunch">lunch</string>
-    <string name="stats_max_speed">Max speed</string>
-    <string name="stats_midnight">midnight</string>
-    <string name="stats_morning">morning</string>
-    <string name="stats_night">night</string>
     <string name="stats_no_tracker_sessions">No tracking sessions yet</string>
     <string name="stats_empty_subtitle">Start tracking to see your activity here</string>
-    <string name="stats_ride">ride</string>
-    <string name="stats_run">run</string>
     <string name="stats_session_count">Session count</string>
     <string name="stats_steps">Step count</string>
-    <string name="stats_step_sensor_unavailable">Step sensor unavailable</string>
     <string name="stats_metric_not_available_short">N/A</string>
-    <string name="stats_metric_no_data">No data</string>
     <string name="stats_sum_title">Summary</string>
     <string name="stats_time">Time spent tracking</string>
-    <string name="stats_title_text" translatable="false">%1$s %2$s %3$s</string>
-    <string name="stats_walk">walk</string>
     <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_weekly_chart_title">This week</string>
-    <string name="stats_weekly_chart_steps_total">steps this week</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_wifi_label">Wi‑Fi</string>
     <string name="stats_wifi_chip_label">Wi‑Fi stats</string>
     <string name="stats_cell_signal_chip_label">Cell signal</string>
     <string name="stats_filter_dates">Dates</string>
-    <string name="stats_filter_dialog_title">Choose date range</string>
     <string name="stats_filter_active_label">Showing %1$s</string>
     <string name="stats_filter_clear">Clear filter</string>
     <string name="stats_date_dialog_title">Date range</string>
@@ -74,16 +46,11 @@
     </plurals>
     <string name="stats_error_generic">Something went wrong</string>
     <string name="stats_loading">Loading sessions…</string>
-    <string name="stats_failed_to_load">Failed to load</string>
     <string name="stats_append_error">Load more failed</string>
     <string name="action_retry">Retry</string>
     <!-- Added for compose StatsScreen placeholders -->
-    <string name="stats_session_header">Session %1$d</string>
-    <string name="stats_session_subtitle_placeholder">Tap to open details</string>
     <string name="stats_start_tracking_cta">Start Tracking</string>
 
-    <string name="stats_session_activity_selection_title">Select Activity</string>
-    <string name="stats_session_activity_selection_empty">No activities available</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s step</item>
         <item quantity="other">%1$s steps</item>
@@ -132,9 +99,6 @@
 
     <!-- Trip detail screen -->
     <string name="trip_detail_title">Trip Details</string>
-    <string name="trip_detail_tab_overview">Overview</string>
-    <string name="trip_detail_tab_map">Map</string>
-    <string name="trip_detail_tab_stats">Stats</string>
     <string name="trip_detail_not_found">Trip not found</string>
     <string name="trip_detail_not_found_subtitle">This trip may have been deleted</string>
     <string name="trip_detail_error_title">Failed to load trip</string>
@@ -145,7 +109,6 @@
     <string name="trip_detail_steps">Steps</string>
     <string name="trip_detail_samples">Samples</string>
     <string name="trip_detail_source">Source</string>
-    <string name="trip_detail_wifi_coming_soon">Wi-Fi browser coming soon</string>
     <string name="trip_detail_avg_speed">Avg speed</string>
     <string name="trip_detail_max_speed">Max speed</string>
     <string name="trip_detail_pace">Pace</string>
@@ -157,7 +120,6 @@
     <string name="trip_detail_max_altitude">Max altitude</string>
     <string name="trip_detail_route_map">Route map</string>
     <string name="trip_detail_view_on_map" translatable="false">View on map</string>
-    <string name="trip_route_preview_loading" translatable="false">Loading route map…</string>
     <string name="trip_detail_no_location_data">No location data</string>
     <string name="trip_detail_route_unavailable_legacy">Route map not available for legacy sessions</string>
     <string name="trip_detail_route_no_gps_points">Distance recorded but no GPS route available</string>
@@ -185,9 +147,7 @@
     <string name="wifilist_filter_capabilities">Capabilities</string>
     <string name="wifilist_filter_count">How many to show</string>
     <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_from">From</string>
     <string name="wifilist_filter_ssid">SSID (name)</string>
-    <string name="wifilist_filter_to">To</string>
     <string name="wifilist_item_frequency">%d MHz</string>
     <string name="wifilist_title">Wi-Fi list</string>
     <string name="wifilist_title_bssid">BSSID</string>

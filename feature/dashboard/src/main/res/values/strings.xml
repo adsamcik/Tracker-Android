@@ -12,7 +12,6 @@
     <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Activity type</string>
     <string name="dashboard_cd_explore_icon">Exploration</string>
-    <string name="dashboard_cd_fire_icon">Streak</string>
     <string name="dashboard_cd_forward_arrow">View details</string>
     <string name="dashboard_cd_last_session">Last session: %1$s duration, %2$s distance. Tap for details</string>
     <string name="dashboard_cd_locked_badge">Tracking locked</string>
@@ -26,7 +25,6 @@
     <string name="dashboard_cd_streak_banner_empty">Start a streak. Tap to view streak details</string>
     <string name="dashboard_cd_stop_tracking">Stop tracking</string>
     <string name="dashboard_action_enable_location">Enable location access</string>
-    <string name="dashboard_action_open_settings">Open settings</string>
     <string name="dashboard_action_view_details">View details</string>
     <string name="dashboard_action_view_map">View map</string>
     <string name="dashboard_action_view_streak_details">View streak details</string>
@@ -35,7 +33,6 @@
 
     <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Altitude profile, %1$.0f–%2$.0f m</string>
-    <string name="dashboard_format_altitude_value">%1$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
 
@@ -48,18 +45,12 @@
     <string name="dashboard_milestone_points">+10 pts</string>
 
     <!-- Idle state -->
-    <string name="dashboard_greeting_morning">Good morning</string>
-    <string name="dashboard_greeting_afternoon">Good afternoon</string>
-    <string name="dashboard_greeting_evening">Good evening</string>
-    <string name="dashboard_greeting_night">Good night</string>
     <string name="dashboard_today_title">Today</string>
     <string name="dashboard_today_no_activity">No activity yet today</string>
     <string name="dashboard_today_distance">Distance</string>
     <string name="dashboard_today_duration">Duration</string>
     <string name="dashboard_today_steps">Steps</string>
     <string name="dashboard_today_trips">Trips</string>
-    <string name="dashboard_daily_goal">Daily</string>
-    <string name="dashboard_weekly_goal">Weekly</string>
     <string name="dashboard_goal_get_started">Get started</string>
     <string name="dashboard_goal_on_track">On track</string>
     <string name="dashboard_goal_ahead">Ahead</string>
@@ -72,8 +63,6 @@
     <string name="dashboard_last_session_duration">Duration</string>
     <string name="dashboard_last_session_distance">Distance</string>
     <string name="dashboard_last_session_steps">Steps</string>
-    <string name="dashboard_last_session_steps_unavailable">Step sensor unavailable</string>
-    <string name="dashboard_metric_not_available_short">N/A</string>
     <string name="dashboard_last_session_view_map">View Map</string>
     <string name="dashboard_recent_trips_title">Recent Trips</string>
     <string name="dashboard_recent_trips_empty">No recent trips. Start tracking to see your journeys here.</string>
@@ -83,7 +72,6 @@
     <string name="dashboard_exploration_seasons">Seasons</string>
 
     <!-- Live charts -->
-    <string name="dashboard_live_charts_title">Live Charts</string>
     <string name="dashboard_live_charts_speed">Speed</string>
     <string name="dashboard_live_charts_altitude">Altitude</string>
 
@@ -149,8 +137,6 @@
     <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Customize Dashboard</string>
     <string name="dashboard_customize_reset">Reset to Default</string>
-    <string name="dashboard_customize_cd_move_up">Move %1$s up</string>
-    <string name="dashboard_customize_cd_move_down">Move %1$s down</string>
     <string name="dashboard_customize_cd_toggle">Toggle %1$s visibility</string>
     <string name="dashboard_customize_cd_drag_handle">Reorder %1$s</string>
 
@@ -179,7 +165,6 @@
     <string name="dashboard_pill_start">Start</string>
     <string name="dashboard_pill_stop">Stop</string>
     <string name="dashboard_pill_enable_location">Enable location</string>
-    <string name="dashboard_pill_recording">Recording · %1$s</string>
 
     <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Session Insights</string>

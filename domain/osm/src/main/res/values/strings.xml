@@ -8,7 +8,4 @@
     <string name="osm_import_complete_content">Offline road data is ready for vehicle compliance.</string>
     <string name="osm_import_failed_title">OSM import failed</string>
     <string name="osm_import_failed_content">Offline map import could not be completed.</string>
-    <string name="osm_import_file_too_large">File is %1$d MB. Please import a city or region (≤ 100 MB), not a whole country.</string>
-    <string name="osm_import_too_many_nodes">File would need ~%1$d MB of memory to parse. Pick a smaller region.</string>
-    <string name="osm_attribution_short">Map data © OpenStreetMap contributors (ODbL 1.0)</string>
 </resources>

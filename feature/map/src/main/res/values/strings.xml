@@ -4,33 +4,17 @@
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Map</string>
 
-    <string name="date_range_selector_all_days">All</string>
-    <string name="date_range_selector_custom_days">Custom</string>
-    <plurals name="date_range_selector_x_days">
-        <item quantity="one">Today</item>
-        <item quantity="other">Last %d days</item>
-    </plurals>
 
-    <string name="description_date_range">Date range for map data</string>
-    <string name="description_legend">Map legend</string>
     <string name="description_map_search">Search button</string>
-    <string name="description_my_location">Current location button</string>
 
-    <plurals name="generating_tile_count">
-        <item quantity="one">generating 1 tile</item>
-        <item quantity="other">generating %d tiles</item>
-    </plurals>
 
-    <string name="map_drag_content_description">Drag or tap to change map bottom sheet visibility.</string>
     <string name="map_layer_cell_heatmap_description">Your observed cellular landscape by radio technology. Soft fields show where serving cells reached you; glowing centers are conservative site estimates and become sharper only when observations surround them.</string>
     <string name="map_layer_cell_heatmap_title">Cellular topology</string>
-    <string name="map_layer_location_heatmap_description">Heatmap based on the count of locations in a given area.</string>
     <string name="map_layer_location_heatmap_high">High density</string>
     <string name="map_layer_location_heatmap_low">Low density</string>
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Medium density</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_location_heatmap_title">Location heatmap</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Distinct visits</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visits</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relative density of accepted location fixes. This shows distinct observations, not time spent.</string>
@@ -57,7 +41,6 @@
     <string name="map_layer_speed_moderate">Moderate Speed</string>
     <string name="map_layer_speed_fast">Fast Movement</string>
     <string name="map_layer_speed_very_fast">Very Fast</string>
-    <string name="map_layer_speed_extreme">Extreme Speed</string>
     <string name="map_layer_speed_heatmap_title">Speed heatmap</string>
     <string name="map_layer_legacy_heatmap_title">Legacy heatmap</string>
     <string name="map_layer_legacy_heatmap_chip">Legacy tiles</string>
@@ -127,7 +110,6 @@
     <string name="map_layer_vehicle_compliance_at_limit">Near limit</string>
     <string name="map_layer_vehicle_compliance_slightly_over">Slightly over</string>
     <string name="map_layer_vehicle_compliance_speeding">Speeding</string>
-    <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_location_polyline_description">Line connecting your recorded locations over time.</string>
     <string name="map_layer_location_polyline_title">Location polyline</string>
     <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
@@ -135,11 +117,8 @@
          ~12 characters at typical font sizes. Fall back to titleRes for layers
          whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Polyline</string>
-    <string name="map_layer_location_heatmap_chip">Locations</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi overlap</string>
     <string name="map_layer_vehicle_compliance_chip">Speeding</string>
-    <string name="map_layer_no_data">Current layer has no available data</string>
-    <string name="map_layer_none">No overlay</string>
     <string name="map_layer_none_title">No overlay</string>
     <string name="map_date_preset_week">Last week</string>
     <string name="map_date_preset_month">Last month</string>
@@ -157,15 +136,9 @@
     <string name="map_layer_wifi_radio_24">2.4 GHz reach</string>
     <string name="map_layer_wifi_radio_5">5 GHz reach</string>
     <string name="map_layer_wifi_radio_6">6 GHz reach</string>
-    <string name="map_legend_title">%s legend</string>
     <string name="map_legend_label">Legend</string>
     <string name="map_chip_layers">Layer</string>
     <string name="map_chip_dates">Dates</string>
-    <string name="map_no_play_services">Map requires up-to-date Play Services</string>
-    <string name="map_search">Search…</string>
-    <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
-    <string name="map_search_no_results">No results found for \"%s\"</string>
-    <string name="map_search_no_text">Searching for nothing is not very useful</string>
 
     <string name="permission_rationale_location_map">To show your location on the map, Tracker needs location access. All data stays on your device.</string>
 
@@ -179,47 +152,28 @@
     <string name="basemap_import_error_copy">Couldn\'t copy the basemap file. Check that there\'s enough free space and try again.</string>
     <string name="basemap_import_error_invalid_format">Not a valid PMTiles file: %1$s</string>
     <string name="settings_map_advanced_section_title">Advanced Settings</string>
-    <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
     <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_format">%.2fx</string>
-    <string name="settings_map_quality_summary">Higher values show more detail (may slow rendering on older devices)</string>
     <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_summary">Minimum time to stay in one place before it\'s counted as a visit</string>
     <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
     <string name="settings_map_legacy_heatmap_title">Legacy heatmap (10\u202fm tiles)</string>
     <string name="settings_map_legacy_heatmap_subtitle">Easter egg: adds a \"Legacy heatmap\" layer that draws location density as discrete 10\u202fm grid tiles, like the original server-rendered Signals heatmap.</string>
     <string name="settings_map_zoom_buttons_title">Map zoom buttons</string>
     <string name="settings_map_zoom_buttons_subtitle">Show on-screen + and − buttons to zoom the map, for when pinch-to-zoom is hard to use.</string>
 
-    <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
     <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_hidden_sheet_description">No worries, you can always bring it back up with a gentle tap on the map.</string>
-    <string name="tips_map_hidden_sheet_title">The sheet is gone!!!</string>
-    <string name="tips_map_my_location_description">Tapping on this button moves you to your location. Map will follow your location until you move the map manually. Tapping on it again while following shows you the direction you are facing.</string>
     <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_search_description">Type or paste coordinates here to jump on the map. Supported formats include 48.8566, 2.3522; 48.8566 2.3522; N48.8566 E2.3522; and 48°51\'24\"N 2°21\'08\"E.</string>
-    <string name="tips_map_search_title">Search</string>
     <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
-    <string name="tips_map_sheet_title">More options</string>
 
     <!-- Map Sheet Controls -->
     <!-- Keep short so it fits the search field at typical 360dp widths;
          the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Lat, Lng e.g. 50.075, 14.437</string>
-    <string name="map_search_hint">Lat, Lng  •  e.g. 48.8566, 2.3522</string>
     <string name="map_search_invalid_format">Try 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Clear search</string>
     <string name="map_search_paste">Paste from clipboard into search</string>
     <string name="map_search_clipboard_empty">Clipboard doesn\'t contain coordinates yet</string>
-    <string name="map_search_current_center">Map center: %1$s</string>
-    <string name="map_search_not_found">Invalid coordinates. Try: 48.8566, 2.3522</string>
-    <string name="map_search_found">Moved to location ✓</string>
-    <string name="map_layers_button">Map layers</string>
-    <string name="map_date_range_button">Date range</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Cancel</string>
-    <string name="map_controls_title">Map Controls</string>
-    <string name="map_filters_title">Filters</string>
 
     <!-- Share map as image -->
     <string name="map_share_button">Share map</string>
@@ -231,18 +185,10 @@
     <string name="map_share_action">Share</string>
     <string name="map_share_preparing">Preparing image…</string>
     <string name="map_share_error">Couldn\'t render the map image. Please try again.</string>
-    <string name="map_quality_label">Quality</string>
-    <string name="map_quality_fast">Fast</string>
-    <string name="map_quality_balanced">Balanced</string>
-    <string name="map_quality_detailed">Detailed</string>
-    <string name="map_quality_low">Low</string>
-    <string name="map_quality_high">High</string>
     <string name="map_date_range_all_time">All time</string>
     <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
     <string name="map_layers_title">Map Layers</string>
     <string name="map_layer_load_error">Couldn\'t load this layer. Try selecting a different one.</string>
-    <string name="map_empty_title">No mappable data</string>
-    <string name="map_empty_subtitle">No mappable data in this view or date range. Map features require location collected while tracking.</string>
     <string name="map_empty_subtitle_location">No location data in this view or date range. Route and map features require location collected while tracking.</string>
     <string name="map_empty_subtitle_cell">No located cell data in this view or date range. Cell samples recorded without location are still saved, but cannot appear on the map.</string>
     <string name="map_empty_subtitle_wifi">No located Wi-Fi data in this view or date range. Wi-Fi observations recorded without location are still saved, but cannot appear on the map.</string>
@@ -262,8 +208,6 @@
     <string name="map_zoom_out">Zoom out</string>
     <string name="map_loading">Loading map…</string>
     <string name="map_basemap_unavailable">Map basemap could not be prepared. Close and reopen the map to try again.</string>
-    <string name="map_legend_button">Legend</string>
-    <string name="map_generating_tiles">Generating %d tiles…</string>
     <string name="map_a11y_map_overview">Map overview</string>
     <string name="map_a11y_centered_on_location">Map centered on your location</string>
     <string name="map_a11y_showing_location">Map showing your location</string>
@@ -274,14 +218,11 @@
     <string name="map_a11y_active_recording_visible">Active recording path visible</string>
     <string name="map_a11y_recorded_route_history">Showing recorded route history</string>
 	<string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Showing distinct accepted location observations</string>
-	<string name="map_a11y_location_heatmap">Showing a location heatmap</string>
     <string name="map_a11y_cell_heatmap">Showing cellular coverage fields and approximate serving-site centers</string>
     <string name="map_a11y_wifi_heatmap">Showing Wi-Fi bands, coverage fields, and approximate access-point centers</string>
     <string name="map_a11y_wifi_count_heatmap">Showing distinct Wi-Fi access-point overlap</string>
     <string name="map_a11y_speed_heatmap">Showing a speed heatmap</string>
     <string name="map_a11y_saved_map_data">Showing saved map data</string>
-    <string name="map_following">Following location</string>
-    <string name="map_not_following">Not following location</string>
     <string name="map_location_permission_opening_settings">Location access required. Opening Settings…</string>
     <string name="map_permission_banner_dismiss">Dismiss location permission message</string>
     <string name="map_loading_layer">Loading map layer</string>

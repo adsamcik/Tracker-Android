@@ -16,6 +16,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Check unused string resources
+        run: python3 tools/check_unused_string_resources.py
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:

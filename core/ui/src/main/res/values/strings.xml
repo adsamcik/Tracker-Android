@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="percentage_format">%s%%</string>
     <string name="action_navigate_back">Navigate back</string>
     <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Location access</string>
     <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker needs location access to record your route and show it on the map. Location data stays on this device — nothing is sent to a server.</string>
