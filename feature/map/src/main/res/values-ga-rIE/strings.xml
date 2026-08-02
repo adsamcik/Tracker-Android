@@ -1,16 +1,15 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-    <!-- Module title for distribution manifest -->
+    <string name="trip_route_preview_unavailable">Níorbh fhéidir réamhamharc léarscáile an bhealaigh a ullmhú</string>
     <string name="module_map_title">Léarscáil</string>
     <string name="description_map_search">Cnaipe cuardaigh</string>
     <string name="map_layer_cell_heatmap_description">Do thírdhreach ceallach breathnaithe de réir teicneolaíochta raidió. Taispeánann réimsí boga na háiteanna ar shroich cealla freastail tú; is meastacháin choimeádacha suímh iad lárionaid lonracha agus ní ghéaraítear iad ach nuair a bhíonn breathnuithe mórthimpeall orthu.</string>
     <string name="map_layer_cell_heatmap_title">Topaicíocht cheallach</string>
     <string name="map_layer_location_heatmap_high">Dlús ard</string>
     <string name="map_layer_location_heatmap_low">Dlús íseal</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Dlús íseal go measartha</string>
     <string name="map_layer_location_heatmap_medium">Dlús measartha</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Buaicdlús</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Cuairteanna ar leith</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Cuairteanna</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Dlús coibhneasta ceartúchán suímh glactha. Taispeánann sé seo breathnuithe ar leith, ní am caite.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Criosanna marbha comhartha</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Criosanna marbha</string>
     <string name="map_layer_signal_coverage_description">Aibhsíonn sé áiteanna ina raibh do chomhartha cille lag nó ar iarraidh. Dá dheirge an limistéar, is measa an clúdach; fanann limistéir dea-chlúdaithe soiléir.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Lag</string>
+    <string name="map_layer_signal_coverage_poor">Dona</string>
+    <string name="map_layer_signal_coverage_very_poor">An-dona</string>
+    <string name="map_layer_signal_coverage_dead">Crios marbh</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Auróra comhartha</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Auróra</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Comhartha cille rindreáilte mar lonrú cosúil le hóróra: fáinne leathan corcra faoi chroílár geal cian-uaine. Bogann an lonrú gan sonraí a athlódáil agus éiríonn sé statach nuair a dhíchumasaítear beochana córais.</string>
@@ -108,10 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">Ag luasghéarú</string>
     <string name="map_layer_location_polyline_description">Líne a nascann do shuímh taifeadta le himeacht ama.</string>
     <string name="map_layer_location_polyline_title">Polailíne suímh</string>
-    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
-         layer chip on the map control bar (~360dp). Each chip label fits in
-         ~12 characters at typical font sizes. Fall back to titleRes for layers
-         whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Polailíne</string>
     <string name="map_layer_wifi_count_heatmap_chip">Forluí Wi‑Fi</string>
     <string name="map_layer_vehicle_compliance_chip">Ag luasghéarú</string>
@@ -155,9 +150,6 @@
     <string name="tips_map_date_range_title">Raon dátaí</string>
     <string name="tips_map_my_location_title">Mo shuíomh</string>
     <string name="tips_map_sheet_description">Osclóidh sconna nó tarraingt suas an bharra seo tuilleadh roghanna don léarscáil, lena n-áirítear roghnú sraithe agus eochair.</string>
-    <!-- Map Sheet Controls -->
-    <!-- Keep short so it fits the search field at typical 360dp widths;
-         the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Domhanleithead, Domhanfhad m.sh. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Bain triail as 48.8566, 2.3522 • 48.8566 2.3522 • T48.8566 O2.3522 • 48°51\'24\"T 2°21\'08\"O</string>
     <string name="map_search_clear">Glan cuardach</string>
@@ -165,7 +157,6 @@
     <string name="map_search_clipboard_empty">Níl comhordanáidí sa ghearrthaisce fós</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Cealaigh</string>
-    <!-- Share map as image -->
     <string name="map_share_button">Comhroinn léarscáil</string>
     <string name="map_share_sheet_title">Comhroinn léarscáil mar íomhá</string>
     <string name="map_share_sheet_subtitle">Rindreálann sé an radharc reatha agus an tsraith ghníomhach mar íomhá statach. Ní chuirtear do shuíomh beo san áireamh riamh.</string>
@@ -176,7 +167,7 @@
     <string name="map_share_preparing">Ag ullmhú íomhá…</string>
     <string name="map_share_error">Níorbh fhéidir íomhá na léarscáile a rindreáil. Bain triail eile as.</string>
     <string name="map_date_range_all_time">An t-am ar fad</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Turas roghnaithe</string>
     <string name="map_layers_title">Sraitheanna léarscáile</string>
     <string name="map_layer_load_error">Níorbh fhéidir an tsraith seo a luchtú. Bain triail as ceann eile a roghnú.</string>
     <string name="map_empty_subtitle_location">Níl sonraí suímh sa radharc nó sa raon dátaí seo. Teastaíonn suíomh bailithe agus rianú ar ghnéithe bealaigh agus léarscáile.</string>
@@ -221,7 +212,6 @@
     <string name="map_a11y_city_scale">Scála cathrach</string>
     <string name="map_a11y_neighborhood_scale">Scála comharsanachta</string>
     <string name="map_a11y_street_scale">Scála sráide</string>
-    <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Iolraitheoir sonraí rindreála. Taispeánann luachanna níos airde níos mó sonraí ach d’fhéadfadh siad luchtú na léarscáile a mhoilliú ar ghléasanna níos sine.</string>
     <string name="help_max_heat_points">Uaslíon pointí suímh a thaispeántar i radharc na léarscáile teasa. Is ionann luachanna níos airde agus níos mó sonraí, ach rindreáil níos moille.</string>
     <string name="help_visit_threshold">Cá fhad is gá duit fanacht in aon áit sula marcáiltear í mar “chuairt” ar an léarscáil. Méadaigh é seo chun tranglam ó stadanna gairide a laghdú.</string>

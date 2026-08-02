@@ -1,8 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Cluiche</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Teitheadh</string>
     <string name="minigame_outrun_description">Rásaigh taibhse. Fan chun tosaigh!</string>
     <string name="minigame_territory_name">Críoch</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Cúlchasadh</string>
     <string name="minigame_switchback_description">Déan casaidh ghéara mhalartacha chun teaglama sreafa a thógáil</string>
     <string name="minigame_locked">Díghlasáiltear ag Leibhéal %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Imir</string>
     <string name="game_progress_section_title">Dul chun cinn</string>
     <string name="minigame_outrun_goal_line">Coinnigh 25–100 m chun tosaigh ar an taibhse</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Sconna faoi dhó chun a fheiceáil conas díghlasáil</string>
     <string name="minigame_active_session_running">Ar siúl — sconna Imir chun filleadh</string>
     <string name="minigame_active_session_paused">Ar sos — sconna Imir chun atosú</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d chill</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d chasadh</item>
         <item quantity="other">%1$d casadh</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Féach ar scóir roimhe seo</string>
     <string name="minigame_session_close">Dún</string>
     <string name="minigame_session_play_again">Imir arís</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Tá suíomh de dhíth</string>
     <string name="minigame_session_permission_body">Úsáideann mionchluichí suíomh beo chun do rith a rianú. Ní shábháiltear aon ní seachas an scór deiridh.</string>
     <string name="minigame_session_permission_grant">Deonaigh rochtain</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Socraigh do rith</string>
     <string name="minigame_setup_goal_title">Sprioc</string>
     <string name="minigame_setup_difficulty_title">Deacracht</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Éasca</string>
     <string name="minigame_difficulty_normal">Gnáth</string>
     <string name="minigame_difficulty_hard">Deacair</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Ag ullmhú…</string>
     <string name="minigame_session_finishing">Ag sábháil do reatha…</string>
     <string name="minigame_session_paused_title">Ar sos</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Am gníomhach</string>
     <string name="minigame_session_goal_progress">%1$d%% den sprioc</string>
     <string name="minigame_session_goal_reached">Baineadh an sprioc amach</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">GPS láidir</string>
     <string name="minigame_signal_fair">GPS measartha</string>
     <string name="minigame_signal_poor">GPS lag</string>
     <string name="minigame_signal_unavailable">Gan chomhartha GPS</string>
     <string name="minigame_signal_unknown">Ag aimsiú…</string>
     <string name="minigame_signal_stale">GPS moillithe</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Is fearr sa rith seo</string>
     <string name="minigame_outrun_personal_best">An toradh pearsanta is fearr</string>
     <string name="minigame_outrun_warning">Tá an taibhse ag druidim</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Baineadh an sprioc amach. D’éalaigh tú le %1$d méadar chun tosaigh. Is fearr sa rith seo: %2$d méadar.</string>
     <string name="minigame_outrun_description_finished">Rith críochnaithe. Ba é %1$d méadar do bhearna deiridh agus %2$d méadar an bhearna is fearr agat.</string>
     <string name="minigame_outrun_ahead_of_best">Chun tosaigh ar do thoradh pearsanta is fearr</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Léarscáil chríche. Éilíodh %1$d limistéar in aice láimhe; aibhsíodh %2$d limistéar teorann. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Aibhsíodh an limistéar reatha</string>
     <string name="minigame_territory_current_waiting">Ag fanacht le limistéar reatha</string>
     <string name="minigame_territory_goal_complete">Sprioc críochnaithe</string>
     <string name="minigame_territory_goal_in_progress">Sprioc ar siúl</string>
     <string name="minigame_territory_legend">Léiríonn lonrú do limistéar reatha • Leideanna teorann: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Luas</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Ag luasghéarú go réidh</string>
     <string name="minigame_zen_flow_time">Sreabhadh %1$s</string>
     <string name="minigame_zen_flow_description">Sreabhadh luais Zen. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">Tá an taibhse ag druidim</string>
     <string name="minigame_feedback_pb_crossed">Toradh pearsanta nua is fearr</string>
     <string name="minigame_feedback_territory_claimed">Éilíodh limistéar nua</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Tá tú sa chrios luais</string>
     <string name="minigame_feedback_zen_exited">D’fhág tú an crios luais</string>
     <string name="minigame_feedback_completed">Rith críochnaithe</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">An chéad rith taifeadta!</string>
     <string name="minigame_completion_new_best_title">Toradh pearsanta nua is fearr!</string>
     <string name="minigame_completion_tied_title">Chothromaigh tú do thoradh is fearr</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Gan pointí sa rith seo</string>
     <string name="minigame_completion_change_setup">Athraigh socrú</string>
     <string name="minigame_completion_done">Déanta</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">Níor críochnaíodh an rith</string>
     <string name="minigame_failure_permission">Tá suíomh beacht riachtanach chun imirt. Deonaigh é agus bain triail eile as.</string>
     <string name="minigame_failure_location">Níorbh fhéidir suíomh iontaofa a fháil. Téigh go háit le spéir níos soiléire agus bain triail eile as.</string>
     <string name="minigame_failure_persistence">Níorbh fhéidir an rith seo a shábháil. Bain triail eile as.</string>
     <string name="minigame_failure_generic">Chuaigh rud éigin mícheart agus stop an rith.</string>
     <string name="minigame_session_try_again">Bain triail eile as</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Cluiche gníomhach</string>
     <string name="game_session_channel_description">Coinníonn sé mionchluiche gníomhach ar siúl nuair atá an scáileán as</string>
     <string name="game_session_notification_title">Cluiche Tracker</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Cuir ar sos</string>
     <string name="game_session_action_resume">Atosaigh</string>
     <string name="game_session_action_finish">Críochnaigh</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Rithí mionchluiche roimhe seo</string>
     <string name="minigame_scores_back">Ar ais</string>
     <string name="minigame_scores_empty_title">Tá do chéad rith ag fanacht</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">laethúil</string>
     <string name="goals_weekly_goal">seachtainiúil</string>
     <string name="goals_monthly_goal">míosaúil</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Spriocanna céimeanna</string>
     <string name="game_step_sensor_unavailable">Níl braiteoir céime ar fáil</string>
     <string name="game_step_sensor_unavailable_detail">Níl braiteoir comhairimh céimeanna ag an ngléas seo. Ní féidir spriocanna céimeanna a rianú.</string>
     <string name="game_steps_today">Inniu</string>
     <string name="game_steps_week">Seachtain</string>
-    <!-- Game empty states -->
     <string name="game_loading">Ag lódáil…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Téigh siar</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Oscail socruithe</string>
     <string name="game_close">Dún</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Taiscéalaíocht</string>
     <string name="exploration_cells_discovered">Cealla aimsithe</string>
     <string name="exploration_current_streak">Sraith reatha</string>
@@ -229,7 +204,6 @@
         <item quantity="other">lá</item>
     </plurals>
     <string name="exploration_of_four">as 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Éachtaí</string>
     <string name="achievements_bronze">Cré-umha</string>
     <string name="achievements_silver">Airgead</string>
@@ -253,12 +227,8 @@
         <item>Sármhaith</item>
     </string-array>
     <string name="points_earned_today">pointí tuillte inniu</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Díghlasáil nua!</string>
     <string name="game_unlock_message">Shroich tú Leibhéal %1$d!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Dúshlán seachtainiúil</string>
     <string name="leaderboard_metric_distance">Fad</string>
     <string name="leaderboard_metric_steps">Céimeanna</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Níl an clár ceannairí ar fáil</string>
     <string name="leaderboard_error_body">Tá do shonraí sábháilte ar an ngléas seo. Déan iarracht an dúshlán seachtainiúil a luchtú arís.</string>
     <string name="leaderboard_retry">Bain triail eile as</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Miotasach</string>
     <string name="game_view_all_achievements">Féach ar gach rud</string>
     <string name="game_recent_achievements">Díghlasálacha le déanaí</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Féilire</string>
     <string name="achievement_unlocked_content_description">Díghlasáilte</string>
     <string name="achievement_locked_content_description">Faoi ghlas</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

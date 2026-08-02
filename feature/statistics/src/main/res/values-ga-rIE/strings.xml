@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Staitisticí</string>
     <string name="stats_cell_count">Líon na gceall</string>
     <string name="stats_collections">Líon nuashonruithe</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Ag lódáil seisiúin…</string>
     <string name="stats_append_error">Theip ar níos mó a luchtú</string>
     <string name="action_retry">Bain triail eile as</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Tosaigh rianú</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s chéim</item>
         <item quantity="other">%1$s chéim</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Inniu</string>
     <string name="stats_date_yesterday">Inné</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Ag lódáil achoimre…</string>
     <string name="stats_summary_empty">Níl staitisticí achoimre ar fáil</string>
     <string name="stats_summary_empty_subtitle">Cuir tús le rianú chun achoimre do ghníomhaíochta a fheiceáil</string>
     <string name="stats_summary_error">Theip ar an achoimre a luchtú</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Ag lódáil staitisticí seachtainiúla…</string>
     <string name="stats_week_empty">Níl staitisticí seachtainiúla ar fáil</string>
     <string name="stats_week_empty_subtitle">Rianaigh ar feadh 7 lá chun d’achoimre sheachtainiúil a fheiceáil</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Líonraí uathúla feicthe</string>
     <string name="stats_wifi_total_scans">Scananna iomlána</string>
     <string name="stats_wifi_average_per_scan">Meánlíonraí in aghaidh an scanadh</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Tuairisc chomhartha cille</string>
     <string name="stats_cell_signal_dialog_loading">Ag lódáil tuairisce comhartha cille…</string>
     <string name="stats_cell_signal_dialog_empty_title">Níl sonraí cille ar fáil</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Túir ar leith</string>
     <string name="stats_cell_signal_section_networks">De réir cineáil líonra</string>
     <string name="stats_cell_signal_section_towers">Túir is minice feicthe</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s de shamplaí · %2$s túr</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Cill %1$s · %2$s sampla</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Oibreoir %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Sonraí an turais</string>
     <string name="trip_detail_not_found">Níor aimsíodh an turas</string>
     <string name="trip_detail_not_found_subtitle">D’fhéadfadh an turas seo a bheith scriosta</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Caillteanas airde</string>
     <string name="trip_detail_max_altitude">Uas-airde</string>
     <string name="trip_detail_route_map">Léarscáil bealaigh</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Féach ar an léarscáil</string>
     <string name="trip_detail_no_location_data">Gan sonraí suímh</string>
     <string name="trip_detail_route_unavailable_legacy">Níl léarscáil bealaigh ar fáil do sheisiúin oidhreachta</string>
     <string name="trip_detail_route_no_gps_points">Taifeadadh fad ach níl bealach GPS ar fáil</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Scrios</string>
     <string name="trip_detail_cancel">Cealaigh</string>
     <string name="trip_detail_more_options">Tuilleadh roghanna</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Seisiún sciála</string>
     <string name="ski_detail_runs">Rithí</string>
     <string name="ski_detail_vertical">Ingearach</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Minicíocht</string>
     <string name="wifilist_title_last_seen">Feicthe go deireanach</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Amlíne</string>
     <string name="history_tab_trips">Turais</string>
     <string name="history_tab_calendar">Féilire</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d turas</item>
         <item quantity="other">%d turas</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Gan ghníomhaíocht fós</string>
     <string name="history_timeline_empty_desc">Cuir tús le rianú chun stair do ghluaiseachta a fheiceáil anseo</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Níor taifeadadh turais ar bith</string>
     <string name="history_trips_empty_desc">Beidh turais le feiceáil anseo agus tú ag gluaiseacht</string>
     <string name="trip_gps_anomaly">Braitheadh aimhrialtacht GPS — d’fhéadfadh an fad a bheith míchruinn</string>
     <string name="trip_deleted_snackbar">Scriosadh turas</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">An mhí roimhe seo</string>
     <string name="history_calendar_next_month">An chéad mhí eile</string>
     <string name="history_calendar_distance">Fad</string>
     <string name="history_calendar_steps">Céimeanna</string>
     <string name="history_calendar_trips">Turais</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Taiscéalaíocht</string>
     <string name="history_exploration_cells">Cealla</string>
     <string name="history_exploration_streak">Sraith</string>
     <string name="history_exploration_best">Is fearr</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Téigh siar</string>
-    <!-- History navigation -->
     <string name="history_button_label">Stair</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Féach ar an turas ar an léarscáil</string>
     <string name="stats_heatmap_title">Gníomhaíocht</string>
 </resources>

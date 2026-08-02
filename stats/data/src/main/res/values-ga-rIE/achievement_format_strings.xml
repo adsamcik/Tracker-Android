@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Rianaigh ar a laghad %2$d lá éagsúla chun é a dhíghlasáil.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Taisteal %1$s</string>
     <string name="ach_desc_distance_total">Clúdaigh %1$s den fhad iomlán taifeadta thar do sheisiúin uile.</string>
     <string name="ach_title_week_distance">%1$s an tseachtain seo</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Rothaigh %1$s san iomlán.</string>
     <string name="ach_title_vehicle_distance">Taisteal mótaraithe %1$s</string>
     <string name="ach_desc_vehicle_distance">Clúdaigh %1$s i gcarr, bus, traein, bád nó eitleán.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Tóg %1$s céim</string>
     <string name="ach_desc_steps_total">Taifead %1$s céim thar do sheisiúin uile.</string>
     <string name="ach_title_best_daily_steps">%1$s céim in aon lá amháin</string>
     <string name="ach_desc_best_daily_steps">Tóg %1$s céim laistigh d’aon lá amháin.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">An chéad seisiún</item>
         <item quantity="other">Taifead %1$s seisiún</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Tabhair cuairt ar %d tír</item>
     </plurals>
     <string name="ach_desc_countries_visited">Taifead seisiún amháin ar a laghad i %1$d tír éagsúil.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">An chéad lá gníomhach</item>
         <item quantity="other">%1$s lá gníomhach</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Taifead gníomhaíocht le linn %1$d uair éagsúla den lá thar gach seisiún.</string>
     <string name="ach_title_days_of_week">Gach seacht lá den tseachtain</string>
     <string name="ach_desc_days_of_week">Rianaigh gníomhaíocht ar gach lá den tseachtain ar a laghad uair amháin.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Bain triail as %d cineál gníomhaíochta</item>
         <item quantity="other">Bain triail as %d cineál gníomhaíochta</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Taifead gníomhaíocht ar na seacht lá ar fad de sheachtain fhéilire.</string>
     <string name="ach_title_walk_cycle_drive">Siúil, rothaigh, tiomáin</string>
     <string name="ach_desc_walk_cycle_drive">Taifead seisiún amháin ar a laghad de gach ceann: siúl, rothaíocht agus tiomáint.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Seisiún %1$s</string>
     <string name="ach_desc_max_session_duration">Taifead seisiún aonair a mhaireann ar a laghad %1$s.</string>
     <string name="ach_title_max_speed">Sroich %1$s</string>
     <string name="ach_desc_max_speed">Sroich luas uasta ar a laghad %1$s le linn seisiúin.</string>
     <string name="ach_title_active_minutes">%1$s nóiméad gníomhach</string>
     <string name="ach_desc_active_minutes">Carn %1$s nóiméad d’am rianaithe gníomhach.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">An chéad easpórtáil</item>
         <item quantity="other">%d easpórtáil</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Rianaigh trí %d séasúr</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Taifead gníomhaíocht le linn %1$d séasúr ar leith (earrach/samhradh/fómhar/geimhreadh).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Rianaire na hAthbhliana</string>
     <string name="ach_desc_calendar_new_year">Taifead seisiún an 1 Eanáir.</string>
     <string name="ach_title_calendar_leap_day">Ceannródaí lae léim</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Taifead seisiún ar an lá is faide den bhliain.</string>
     <string name="ach_title_calendar_winter_solstice">Grianstad an gheimhridh</string>
     <string name="ach_desc_calendar_winter_solstice">Taifead seisiún ar an lá is giorra den bhliain.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Cailleach oíche</item>
         <item quantity="other">%1$s seisiún oíche</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Úsáid %d formáid easpórtála</item>
     </plurals>
     <string name="ach_desc_export_formats">Easpórtáil do shonraí i %1$d formáid chomhaid éagsúla.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Sroich leibhéal %1$d</string>
     <string name="ach_desc_player_level">Dreap go leibhéal imreora %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP in aon lá amháin</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Imir %1$s mionchluiche</item>
     </plurals>
     <string name="ach_desc_minigames_played">Críochnaigh %1$d rith mionchluiche.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Dreap %1$s</string>
     <string name="ach_desc_total_ascent">Carn %1$s den ghnóthachan iomlán airde (dreapadh) thar do rianú uile.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Tuilleann ó fhoinse XP amháin</item>
         <item quantity="other">Tuilleann ó %d fhoinse XP</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d seachtaine foirfe</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Bain do sprioc céimeanna laethúil amach gach lá ar feadh %1$d seachtain iomlán.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">Sraith sprice %d lá</item>
         <item quantity="other">Sraith sprice %d lá</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Críochnaigh %d catagóir</item>
     </plurals>
     <string name="ach_desc_categories_completed">Díghlasáil gach éacht i %1$d catagóir éagsúil.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d soicind</item>
         <item quantity="other">%d soicind</item>

@@ -1,6 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">Iompórtáil léarscáile OSM</string>
     <string name="osm_import_notification_channel_description">Fógra tulra a thaispeántar agus réigiún OpenStreetMap a d’iompórtáil an t-úsáideoir á pharsáil.</string>
     <string name="osm_import_notification_title">Ag iompórtáil réigiún OpenStreetMap</string>
     <string name="osm_import_notification_content">%1$d bóthar parsáilte</string>

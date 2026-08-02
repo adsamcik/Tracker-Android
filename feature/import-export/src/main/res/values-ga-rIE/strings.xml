@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="export_button">Easpórtáil</string>
     <string name="export_default_file_name_range">Advention_easpórtáil_sonraí_%1$s__%2$s</string>

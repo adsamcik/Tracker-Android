@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Painéal</string>
     <string name="dashboard_tracking_title">Rianú</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Níl cead suímh ar fáil</string>
     <string name="dashboard_permission_banner_subtitle">Ní féidir le Tracker bealaí a thaifeadadh go dtí go ndeonaíonn tú rochtain suímh. Sconna chun é a dheonú.</string>
     <string name="dashboard_permission_banner_cd">Meirge nach bhfuil cead suímh ar fáil, sconna chun rochtain suímh a dheonú</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Cineál gníomhaíochta</string>
     <string name="dashboard_cd_explore_icon">Taiscéalaíocht</string>
     <string name="dashboard_cd_forward_arrow">Féach ar shonraí</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Féach ar shonraí na sraithe</string>
     <string name="dashboard_action_open_tracking_settings">Socruithe</string>
     <string name="dashboard_action_restart_tracking">Atosaigh</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Próifíl airde, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Ag fanacht le comhartha GPS…</string>
     <string name="dashboard_tracking_recording_route">Ag taifeadadh bealaigh…</string>
     <string name="dashboard_milestone_distance">km bainte amach!</string>
     <string name="dashboard_milestone_steps">céimeanna bainte amach!</string>
     <string name="dashboard_milestone_time">nóim rianaithe!</string>
     <string name="dashboard_milestone_points">+10 pt</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Inniu</string>
     <string name="dashboard_today_no_activity">Gan ghníomhaíocht fós inniu</string>
     <string name="dashboard_today_distance">Fad</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Nua inniu</string>
     <string name="dashboard_exploration_total_cells">Cealla iomlána</string>
     <string name="dashboard_exploration_seasons">Séasúir</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Luas</string>
     <string name="dashboard_live_charts_altitude">Airde</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Sonraí braiteora</string>
     <string name="dashboard_sensor_expand">Leathnaigh sonraí braiteora</string>
     <string name="dashboard_sensor_collapse">Laghdaigh sonraí braiteora</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Luas</string>
     <string name="dashboard_sensor_cell_types">Cineálacha cille</string>
     <string name="dashboard_sensor_raw_coords">Comhordanáidí (dífhabhtú)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Ag dul suas</string>
     <string name="dashboard_trend_down">Ag dul síos</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Ag tosú díreach…</string>
     <string name="dashboard_motivational_keep_going">Lean ort! 💪</string>
     <string name="dashboard_motivational_impressive">Seisiún iontach!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Tráthnóna maith! Déan athbhreithniú ar do lá?</string>
     <string name="dashboard_motivational_night">Mód cailleach oíche 🦉</string>
     <string name="dashboard_motivational_streak">🔥 Sraith %1$d lá!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Tosaíonn do thuras anseo</string>
     <string name="dashboard_empty_subtitle">Úsáid an cárta Réidh thíos chun rochtain suímh a dheonú nuair is gá agus do chéad eachtra a thosú</string>
     <string name="dashboard_empty_feature_explore">Taiscéal</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Réidh nuair atá tú</string>
     <string name="dashboard_empty_fab_hint_desc">Sconna anseo chun do chéad seisiún rianaithe a thosú.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Sconna anseo chun rochtain suímh a dheonú, ansin tosaigh do chéad seisiún rianaithe.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Dul chun cinn an lae inniu</string>
     <string name="widget_streak">Sraith</string>
     <string name="widget_last_session">An seisiún deireanach</string>
     <string name="widget_recent_trips">Turais le déanaí</string>
     <string name="widget_exploration">Taiscéalaíocht</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Saincheap an painéal</string>
     <string name="dashboard_customize_reset">Athshocraigh go réamhshocraithe</string>
     <string name="dashboard_customize_cd_toggle">Scoránaigh infheictheacht %1$s</string>
     <string name="dashboard_customize_cd_drag_handle">Athordaigh %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Gan sonraí airde</string>
     <string name="dashboard_cd_no_altitude_data">Níl sonraí airde ar fáil</string>
     <string name="dashboard_cd_speed_sparkline">Sparklíne luais le %1$d pointe sonraí</string>
     <string name="dashboard_cd_session_path">Réamhamharc bealaigh seisiúin le %1$d pointe</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Luas</string>
     <string name="dashboard_metric_distance">Fad</string>
     <string name="dashboard_metric_duration">Fad ama</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi‑Fi</string>
     <string name="dashboard_metric_cell">Cill</string>
     <string name="dashboard_metric_coordinates">Comhordanáidí</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Tosaigh rianú</string>
     <string name="dashboard_ring_enable_location">Cumasaigh suíomh</string>
     <string name="dashboard_pill_start">Tosaigh</string>
     <string name="dashboard_pill_stop">Stad</string>
     <string name="dashboard_pill_enable_location">Cumasaigh suíomh</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Léargais seisiúin</string>
     <string name="dashboard_cd_insight_item">Léargas: %1$s</string>
     <string name="widget_latest_achievement">An t-éacht is déanaí</string>
