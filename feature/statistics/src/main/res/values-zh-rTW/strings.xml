@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">累積下降</string>
     <string name="trip_detail_max_altitude">最高海拔</string>
     <string name="trip_detail_route_map">路線地圖</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">在地圖上查看</string>
     <string name="trip_detail_no_location_data">沒有位置資料</string>
     <string name="trip_detail_route_unavailable_legacy">舊版工作階段無法使用路線地圖</string>
     <string name="trip_detail_route_no_gps_points">已記錄距離，但沒有可用的 GPS 路線</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">最佳</string>
     <string name="action_navigate_back">返回</string>
     <string name="history_button_label">歷程</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">在地圖上查看行程</string>
     <string name="stats_heatmap_title">活動</string>
 </resources>

@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">省電模式（活動偵測會稍慢）</string>
     <string name="settings_auto_tracking_transition_title">使用活動轉換</string>
     <string name="settings_cell_enabled_title">基地台</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">在手機連接充電器前，自動追蹤已停用</string>
     <string name="settings_disabled_recharge_title">停用至充電為止</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">位置</string>
     <string name="settings_notification_customize_summary">變更追蹤通知中顯示的內容及其順序。</string>
     <string name="settings_notification_customize_title">自訂通知</string>

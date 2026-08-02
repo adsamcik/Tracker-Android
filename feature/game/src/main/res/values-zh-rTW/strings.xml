@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">無法儲存此次活動。請再試一次。</string>
     <string name="minigame_failure_generic">發生問題，活動已停止。</string>
     <string name="minigame_session_try_again">再試一次</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">進行中的遊戲</string>
     <string name="game_session_channel_description">螢幕關閉時讓進行中的小遊戲持續執行</string>
     <string name="game_session_notification_title">Tracker 遊戲</string>

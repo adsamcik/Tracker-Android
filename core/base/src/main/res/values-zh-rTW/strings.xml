@@ -24,19 +24,14 @@
     <string name="cell_unknown">不明</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">僅供「活動監看」服務使用的通知頻道，方便您移除此常駐通知。</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">活動監看</string>
     <string name="channel_achievements_description">與成就相關的通知。</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">成就</string>
     <string name="channel_other_description">不屬於其他任何類別的通知。</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">其他</string>
     <string name="channel_track_description">與追蹤相關的通知。</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">追蹤</string>
     <string name="channel_goals_description">目標完成提醒。</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">目標進度</string>
     <string name="day_short">%d 天</string>
     <string name="generic_add">新增</string>

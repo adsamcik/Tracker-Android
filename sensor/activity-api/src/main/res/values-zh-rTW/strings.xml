@@ -2,12 +2,8 @@
 <resources>
     <string name="notification_activity_watcher_info">目前活動：%1$s（%2$d%%）</string>
     <string name="notification_activity_watcher_ticker">活動監看服務已啟用</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_snackbar_message">已移除 %s</string>
     <string name="settings_activity_title">活動</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
     <string name="settings_activity_watcher_title">活動監看</string>
     <string name="settings_ski_infrastructure_title">滑雪纜車資料</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">已載入（輕觸即可移除）</string>
