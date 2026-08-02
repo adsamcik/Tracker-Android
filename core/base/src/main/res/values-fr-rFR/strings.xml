@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-
     <string name="activity_walking">Marche</string>
     <string name="activity_running">Course à pied</string>
     <string name="activity_bicycle">Vélo</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Véhicule terrestre</string>
     <string name="activity_water_vehicle">Véhicule nautique</string>
     <string name="activity_air_vehicle">Véhicule aérien</string>
-
     <string name="activity_in_vehicle">En véhicule</string>
     <string name="activity_on_foot">À pied</string>
     <string name="activity_name">Nom de l'activité</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Immobile</string>
     <string name="activity_unknown">Détection…</string>
     <string name="activity_vehicle">Véhicule</string>
-
     <string name="alert_confirm">Voulez-vous vraiment %1$s ?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,20 +24,14 @@
     <string name="cell_unknown">Inconnu</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Canal utilisé exclusivement par le service de surveillance de l'activité afin de vous permettre de supprimer facilement cette notification persistante.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Surveillance de l'activité</string>
     <string name="channel_achievements_description">Notifications liées aux succès.</string>
-
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Succès</string>
     <string name="channel_other_description">Autres notifications n'appartenant à aucune autre catégorie.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Autres</string>
     <string name="channel_track_description">Notifications liées au suivi.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Suivi</string>
     <string name="channel_goals_description">Alertes de réalisation des objectifs.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Progression de l'objectif</string>
     <string name="day_short">%d j</string>
     <string name="generic_add">Ajouter</string>

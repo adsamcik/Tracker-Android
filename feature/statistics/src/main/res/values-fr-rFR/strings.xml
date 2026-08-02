@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-
     <string name="module_statistics_title">Statistiques</string>
     <string name="stats_cell_count">Nombre de cellules</string>
     <string name="stats_collections">Nombre de mises à jour</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Chargement des sessions…</string>
     <string name="stats_append_error">Échec du chargement de données supplémentaires</string>
     <string name="action_retry">Réessayer</string>
-
     <string name="stats_start_tracking_cta">DÉMARRER LE SUIVI</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s pas</item>
         <item quantity="other">%1$s pas</item>
     </plurals>
-
     <string name="stats_date_today">Aujourd’hui</string>
     <string name="stats_date_yesterday">Hier</string>
-
     <string name="stats_summary_loading">Chargement du résumé…</string>
     <string name="stats_summary_empty">Aucune statistique récapitulative disponible</string>
     <string name="stats_summary_empty_subtitle">Démarrez le suivi pour voir le résumé de votre activité</string>
     <string name="stats_summary_error">Échec du chargement du résumé</string>
-
     <string name="stats_week_loading">Chargement des statistiques hebdomadaires…</string>
     <string name="stats_week_empty">Aucune statistique hebdomadaire disponible</string>
     <string name="stats_week_empty_subtitle">Effectuez un suivi pendant 7 jours pour voir votre résumé hebdomadaire</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Réseaux uniques observés</string>
     <string name="stats_wifi_total_scans">Nombre total d’analyses</string>
     <string name="stats_wifi_average_per_scan">Moyenne de réseaux par analyse</string>
-
     <string name="stats_cell_signal_dialog_title">Rapport sur le signal cellulaire</string>
     <string name="stats_cell_signal_dialog_loading">Chargement du rapport sur le signal cellulaire…</string>
     <string name="stats_cell_signal_dialog_empty_title">Aucune donnée cellulaire disponible</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Antennes distinctes</string>
     <string name="stats_cell_signal_section_networks">Par type de réseau</string>
     <string name="stats_cell_signal_section_towers">Antennes les plus observées</string>
-
     <string name="stats_cell_signal_network_secondary">%1$s des échantillons · %2$s antennes</string>
-
     <string name="stats_cell_signal_tower_detail">Cellule %1$s · %2$s échantillons</string>
-
     <string name="stats_cell_signal_carrier">Opérateur %1$s‑%2$s</string>
-
     <string name="trip_detail_title">Détails du trajet</string>
     <string name="trip_detail_not_found">Trajet introuvable</string>
     <string name="trip_detail_not_found_subtitle">Ce trajet a peut-être été supprimé</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Dénivelé négatif</string>
     <string name="trip_detail_max_altitude">Altitude max.</string>
     <string name="trip_detail_route_map">Carte de l’itinéraire</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Afficher sur la carte</string>
     <string name="trip_detail_no_location_data">Aucune donnée de localisation</string>
     <string name="trip_detail_route_unavailable_legacy">La carte de l’itinéraire n’est pas disponible pour les sessions héritées</string>
     <string name="trip_detail_route_no_gps_points">Distance enregistrée, mais aucun itinéraire GPS disponible</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Supprimer</string>
     <string name="trip_detail_cancel">Annuler</string>
     <string name="trip_detail_more_options">Plus d’options</string>
-
     <string name="ski_detail_header">Session de ski</string>
     <string name="ski_detail_runs">Descentes</string>
     <string name="ski_detail_vertical">Dénivelé</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Fréquence</string>
     <string name="wifilist_title_last_seen">Dernière détection</string>
     <string name="wifilist_title_ssid">SSID</string>
-
     <string name="history_tab_timeline">Chronologie</string>
     <string name="history_tab_trips">Trajets</string>
     <string name="history_tab_calendar">Calendrier</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d trajet</item>
         <item quantity="other">%d trajets</item>
     </plurals>
-
     <string name="history_timeline_empty_title">Aucune activité pour le moment</string>
     <string name="history_timeline_empty_desc">Démarrez le suivi pour voir ici l’historique de vos déplacements</string>
-
     <string name="history_trips_empty_title">Aucun trajet enregistré</string>
     <string name="history_trips_empty_desc">Les trajets apparaîtront ici au fil de vos déplacements</string>
     <string name="trip_gps_anomaly">Anomalie GPS détectée — la distance peut être imprécise</string>
     <string name="trip_deleted_snackbar">Trajet supprimé</string>
-
     <string name="history_calendar_previous_month">Mois précédent</string>
     <string name="history_calendar_next_month">Mois suivant</string>
     <string name="history_calendar_distance">Distance</string>
     <string name="history_calendar_steps">Pas</string>
     <string name="history_calendar_trips">Trajets</string>
-
     <string name="history_exploration_title">Exploration</string>
     <string name="history_exploration_cells">Cellules</string>
     <string name="history_exploration_streak">Série</string>
     <string name="history_exploration_best">Meilleur résultat</string>
-
     <string name="action_navigate_back">Revenir en arrière</string>
-
     <string name="history_button_label">Historique</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-
+    <string name="history_view_trip_on_map">Afficher le trajet sur la carte</string>
     <string name="stats_heatmap_title">Activité</string>
 </resources>

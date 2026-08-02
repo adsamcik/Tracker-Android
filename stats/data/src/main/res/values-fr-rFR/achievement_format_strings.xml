@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Effectuez un suivi pendant au moins %2$d jours différents pour le débloquer.</string>
-
     <string name="ach_title_distance_total">Parcourez %1$s</string>
     <string name="ach_desc_distance_total">Couvrez %1$s de distance totale enregistrée au cours de toutes vos sessions.</string>
     <string name="ach_title_week_distance">%1$s cette semaine</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Parcourez %1$s à vélo au total.</string>
     <string name="ach_title_vehicle_distance">Parcourez %1$s en véhicule motorisé</string>
     <string name="ach_desc_vehicle_distance">Couvrez %1$s en voiture, bus, train, bateau ou avion.</string>
-
     <string name="ach_title_steps_total">Faites %1$s pas</string>
     <string name="ach_desc_steps_total">Enregistrez %1$s pas au cours de toutes vos sessions.</string>
     <string name="ach_title_best_daily_steps">%1$s pas en une journée</string>
     <string name="ach_desc_best_daily_steps">Faites %1$s pas en une seule journée.</string>
-
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Première session</item>
         <item quantity="other">Enregistrez %1$s sessions</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Visitez %d pays</item>
     </plurals>
     <string name="ach_desc_countries_visited">Enregistrez au moins une session dans %1$d pays différents.</string>
-
     <plurals name="ach_title_active_days">
         <item quantity="one">Premier jour actif</item>
         <item quantity="other">%1$s jours actifs</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Enregistrez de l'activité pendant %1$d heures différentes de la journée au cours de toutes vos sessions.</string>
     <string name="ach_title_days_of_week">Les sept jours de la semaine</string>
     <string name="ach_desc_days_of_week">Effectuez un suivi d'activité au moins une fois chaque jour de la semaine.</string>
-
     <plurals name="ach_title_activity_types">
         <item quantity="one">Essayez %d type d'activité</item>
         <item quantity="other">Essayez %d types d'activité</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Enregistrez de l'activité les sept jours d'une même semaine civile.</string>
     <string name="ach_title_walk_cycle_drive">Marchez, pédalez, conduisez</string>
     <string name="ach_desc_walk_cycle_drive">Enregistrez au moins une session de chaque type : marche, vélo et conduite.</string>
-
     <string name="ach_title_max_session_duration">Session de %1$s</string>
     <string name="ach_desc_max_session_duration">Enregistrez une seule session d'au moins %1$s.</string>
     <string name="ach_title_max_speed">Atteignez %1$s</string>
     <string name="ach_desc_max_speed">Atteignez une vitesse maximale d'au moins %1$s pendant une session.</string>
     <string name="ach_title_active_minutes">%1$s minutes actives</string>
     <string name="ach_desc_active_minutes">Cumulez %1$s minutes de suivi actif.</string>
-
     <plurals name="ach_title_exports_total">
         <item quantity="one">Premier export</item>
         <item quantity="other">%d exports</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Effectuez un suivi pendant %d saisons</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Enregistrez de l'activité pendant %1$d saisons distinctes (printemps/été/automne/hiver).</string>
-
     <string name="ach_title_calendar_new_year">Suivi du Nouvel An</string>
     <string name="ach_desc_calendar_new_year">Enregistrez une session le 1er janvier.</string>
     <string name="ach_title_calendar_leap_day">Pionnier du jour bissextile</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Enregistrez une session le jour le plus long de l'année.</string>
     <string name="ach_title_calendar_winter_solstice">Solstice d'hiver</string>
     <string name="ach_desc_calendar_winter_solstice">Enregistrez une session le jour le plus court de l'année.</string>
-
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Oiseau de nuit</item>
         <item quantity="other">%1$s sessions nocturnes</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Utilisez %d formats d'exportation</item>
     </plurals>
     <string name="ach_desc_export_formats">Exportez vos données dans %1$d formats de fichier différents.</string>
-
     <string name="ach_title_player_level">Atteignez le niveau %1$d</string>
     <string name="ach_desc_player_level">Atteignez le niveau de joueur %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP en une journée</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Jouez à %1$s mini-jeux</item>
     </plurals>
     <string name="ach_desc_minigames_played">Terminez %1$d parties de mini-jeux.</string>
-
     <string name="ach_title_total_ascent">Grimpez %1$s</string>
     <string name="ach_desc_total_ascent">Cumulez %1$s de dénivelé positif total au cours de tous vos suivis.</string>
-
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Gagnez de l'XP avec une source</item>
         <item quantity="other">Gagnez de l'XP avec %d sources</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d semaines parfaites</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Atteignez votre objectif quotidien de pas chaque jour pendant %1$d semaines complètes.</string>
-
     <plurals name="ach_title_goal_streak">
         <item quantity="one">Série d'objectifs de %d jour</item>
         <item quantity="other">Série d'objectifs de %d jours</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Terminez %d catégories</item>
     </plurals>
     <string name="ach_desc_categories_completed">Débloquez chaque succès dans %1$d catégories différentes.</string>
-
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d seconde</item>
         <item quantity="other">%d secondes</item>

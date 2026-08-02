@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-
     <string name="module_game_title">Jeux</string>
-
     <string name="minigame_outrun_name">Course-poursuite</string>
     <string name="minigame_outrun_description">Faites la course contre un fantôme. Restez devant !</string>
     <string name="minigame_territory_name">Territoire</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Lacets</string>
     <string name="minigame_switchback_description">Enchaînez des virages serrés alternés pour créer un combo fluide</string>
     <string name="minigame_locked">Se débloque au niveau %1$d</string>
-
     <string name="game_play_section_title">Jouer</string>
     <string name="game_progress_section_title">Progression</string>
     <string name="minigame_outrun_goal_line">Gardez 25 à 100 m d’avance sur le fantôme</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Appuyez deux fois pour voir comment débloquer</string>
     <string name="minigame_active_session_running">En cours — appuyez sur Jouer pour revenir</string>
     <string name="minigame_active_session_paused">En pause — appuyez sur Jouer pour reprendre</string>
-
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d cellule</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d virage</item>
         <item quantity="other">%1$d virages</item>
     </plurals>
-
     <string name="minigame_view_past_scores">Voir les scores précédents</string>
     <string name="minigame_session_close">Fermer</string>
     <string name="minigame_session_play_again">Rejouer</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Localisation requise</string>
     <string name="minigame_session_permission_body">Les mini-jeux utilisent la localisation en direct pour suivre votre partie. Seul le score final est enregistré.</string>
     <string name="minigame_session_permission_grant">Autoriser l’accès</string>
-
     <string name="minigame_setup_title">Configurez votre partie</string>
     <string name="minigame_setup_goal_title">Objectif</string>
     <string name="minigame_setup_difficulty_title">Difficulté</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Facile</string>
     <string name="minigame_difficulty_normal">Normale</string>
     <string name="minigame_difficulty_hard">Difficile</string>
-
     <string name="minigame_session_starting">Préparation…</string>
     <string name="minigame_session_finishing">Enregistrement de votre partie…</string>
     <string name="minigame_session_paused_title">En pause</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Temps actif</string>
     <string name="minigame_session_goal_progress">%1$d%% de l’objectif</string>
     <string name="minigame_session_goal_reached">Objectif atteint</string>
-
     <string name="minigame_signal_good">GPS puissant</string>
     <string name="minigame_signal_fair">GPS moyen</string>
     <string name="minigame_signal_poor">GPS faible</string>
     <string name="minigame_signal_unavailable">Aucun signal GPS</string>
     <string name="minigame_signal_unknown">Localisation…</string>
     <string name="minigame_signal_stale">GPS en retard</string>
-
-
     <string name="minigame_outrun_best_run">Meilleur de cette partie</string>
     <string name="minigame_outrun_personal_best">Record personnel</string>
     <string name="minigame_outrun_warning">Le fantôme se rapproche</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Objectif atteint. Vous vous êtes échappé avec %1$d mètres d’avance. Meilleur de cette partie : %2$d mètres.</string>
     <string name="minigame_outrun_description_finished">Partie terminée. Votre écart final était de %1$d mètres et votre meilleure avance de %2$d mètres.</string>
     <string name="minigame_outrun_ahead_of_best">Devant votre record personnel</string>
-
     <string name="minigame_territory_grid_description_detailed">Carte du territoire. %1$d zones proches conquises ; %2$d zones frontalières mises en évidence. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Zone actuelle mise en évidence</string>
     <string name="minigame_territory_current_waiting">En attente d’une zone actuelle</string>
     <string name="minigame_territory_goal_complete">Objectif terminé</string>
     <string name="minigame_territory_goal_in_progress">Objectif en cours</string>
     <string name="minigame_territory_legend">La lueur marque votre zone actuelle • Indices de frontière : %1$d</string>
-
     <string name="minigame_zen_pace_label">Allure</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Vous accélérez doucement</string>
     <string name="minigame_zen_flow_time">Flux %1$s</string>
     <string name="minigame_zen_flow_description">Flux d’allure zen. %1$s. %2$s. %3$s. %4$s.</string>
-
     <string name="minigame_feedback_outrun_danger">Le fantôme se rapproche</string>
     <string name="minigame_feedback_pb_crossed">Nouveau record personnel</string>
     <string name="minigame_feedback_territory_claimed">Nouvelle zone conquise</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Vous êtes dans la zone d’allure</string>
     <string name="minigame_feedback_zen_exited">Vous avez quitté la zone d’allure</string>
     <string name="minigame_feedback_completed">Partie terminée</string>
-
     <string name="minigame_completion_first_run_title">Première partie enregistrée !</string>
     <string name="minigame_completion_new_best_title">Nouveau record personnel !</string>
     <string name="minigame_completion_tied_title">Record égalé</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Aucun point pour cette partie</string>
     <string name="minigame_completion_change_setup">Modifier la configuration</string>
     <string name="minigame_completion_done">Terminé</string>
-
     <string name="minigame_session_failed_title">La partie n’est pas terminée</string>
     <string name="minigame_failure_permission">Une localisation précise est requise pour jouer. Autorisez-la et réessayez.</string>
     <string name="minigame_failure_location">Nous n’avons pas pu obtenir une position fiable. Allez dans un lieu plus dégagé et réessayez.</string>
     <string name="minigame_failure_persistence">Nous n’avons pas pu enregistrer cette partie. Réessayez.</string>
     <string name="minigame_failure_generic">Un problème est survenu et la partie s’est arrêtée.</string>
     <string name="minigame_session_try_again">Réessayer</string>
-
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Jeu actif</string>
     <string name="game_session_channel_description">Maintient un mini-jeu actif lorsque l’écran est éteint</string>
     <string name="game_session_notification_title">Jeu Tracker</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Pause</string>
     <string name="game_session_action_resume">Reprendre</string>
     <string name="game_session_action_finish">Terminer</string>
-
     <string name="minigame_scores_title">Parties précédentes des mini-jeux</string>
     <string name="minigame_scores_back">Retour</string>
     <string name="minigame_scores_empty_title">Votre première partie vous attend</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">quotidien</string>
     <string name="goals_weekly_goal">hebdomadaire</string>
     <string name="goals_monthly_goal">mensuel</string>
-
     <string name="game_steps_goals_title">Objectifs de pas</string>
     <string name="game_step_sensor_unavailable">Capteur de pas indisponible</string>
     <string name="game_step_sensor_unavailable_detail">Cet appareil ne possède pas de capteur de comptage de pas. Les objectifs de pas ne peuvent pas être suivis.</string>
     <string name="game_steps_today">Aujourd’hui</string>
     <string name="game_steps_week">Semaine</string>
-
     <string name="game_loading">Chargement…</string>
-
-
-
     <string name="action_navigate_back">Revenir en arrière</string>
-
     <string name="game_open_settings">Ouvrir les paramètres</string>
     <string name="game_close">Fermer</string>
-
     <string name="exploration_title">Exploration</string>
     <string name="exploration_cells_discovered">Cellules découvertes</string>
     <string name="exploration_current_streak">Série actuelle</string>
@@ -229,7 +204,6 @@
         <item quantity="other">jours</item>
     </plurals>
     <string name="exploration_of_four">sur 4</string>
-
     <string name="achievements_title">Succès</string>
     <string name="achievements_bronze">Bronze</string>
     <string name="achievements_silver">Argent</string>
@@ -253,12 +227,8 @@
         <item>Splendide</item>
     </string-array>
     <string name="points_earned_today">points gagnés aujourd’hui</string>
-
-
     <string name="game_unlock_title">Nouveau déblocage !</string>
     <string name="game_unlock_message">Vous avez atteint le niveau %1$d !</string>
-
-
     <string name="leaderboard_title">Défi hebdomadaire</string>
     <string name="leaderboard_metric_distance">Distance</string>
     <string name="leaderboard_metric_steps">Pas</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Classement indisponible</string>
     <string name="leaderboard_error_body">Vos données sont en sécurité sur cet appareil. Essayez de charger à nouveau le défi hebdomadaire.</string>
     <string name="leaderboard_retry">Réessayer</string>
-
     <string name="achievements_mythic">Mythique</string>
     <string name="game_view_all_achievements">Tout voir</string>
     <string name="game_recent_achievements">Déblocages récents</string>
@@ -310,5 +279,4 @@
     <string name="achievement_category_calendar">Calendrier</string>
     <string name="achievement_unlocked_content_description">Débloqué</string>
     <string name="achievement_locked_content_description">Verrouillé</string>
-
 </resources>
