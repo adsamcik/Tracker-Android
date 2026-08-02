@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">Import map OSM</string>
     <string name="osm_import_notification_channel_description">Oznámení na popředí zobrazené při analýze uživatelem importované oblasti OpenStreetMap.</string>
     <string name="osm_import_notification_title">Importování oblasti OpenStreetMap</string>
     <string name="osm_import_notification_content">Zpracováno silnic: %1$d</string>

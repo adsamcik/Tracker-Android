@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistiky</string>
     <string name="stats_cell_count">Počet mobilních vysílačů</string>
     <string name="stats_collections">Počet sběrů</string>
@@ -46,7 +45,6 @@
     <string name="stats_loading">Načítání relací…</string>
     <string name="stats_append_error">Načtení dalších dat se nezdařilo</string>
     <string name="action_retry">Opakovat</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Spustit sledování</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s krok</item>
@@ -54,15 +52,12 @@
         <item quantity="many">%1$s kroků</item>
         <item quantity="other">%1$s kroků</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Dnes</string>
     <string name="stats_date_yesterday">Včera</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Načítání souhrnu…</string>
     <string name="stats_summary_empty">Nejsou k dispozici žádné souhrnné statistiky</string>
     <string name="stats_summary_empty_subtitle">Spusťte sledování a zobrazí se souhrn aktivity</string>
     <string name="stats_summary_error">Souhrn se nepodařilo načíst</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Načítání týdenních statistik…</string>
     <string name="stats_week_empty">Nejsou k dispozici žádné týdenní statistiky</string>
     <string name="stats_week_empty_subtitle">Sledujte aktivitu 7 dní a zobrazí se týdenní souhrn</string>
@@ -75,7 +70,6 @@
     <string name="stats_wifi_unique_networks">Počet zjištěných jedinečných sítí</string>
     <string name="stats_wifi_total_scans">Celkový počet skenů</string>
     <string name="stats_wifi_average_per_scan">Průměrný počet sítí na sken</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Přehled signálu mobilní sítě</string>
     <string name="stats_cell_signal_dialog_loading">Načítání přehledu signálu mobilní sítě…</string>
     <string name="stats_cell_signal_dialog_empty_title">Nejsou k dispozici žádná data mobilní sítě</string>
@@ -85,13 +79,9 @@
     <string name="stats_cell_signal_distinct_towers">Různé základnové stanice</string>
     <string name="stats_cell_signal_section_networks">Podle typu sítě</string>
     <string name="stats_cell_signal_section_towers">Nejčastěji zaznamenané stanice</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s vzorků · %2$s stanic</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Buňka %1$s · %2$s vzorků</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operátor %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Podrobnosti cesty</string>
     <string name="trip_detail_not_found">Cesta nebyla nalezena</string>
     <string name="trip_detail_not_found_subtitle">Tato cesta mohla být smazána</string>
@@ -113,7 +103,7 @@
     <string name="trip_detail_elevation_loss">Klesání</string>
     <string name="trip_detail_max_altitude">Max. nadmořská výška</string>
     <string name="trip_detail_route_map">Mapa trasy</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Zobrazit na mapě</string>
     <string name="trip_detail_no_location_data">Žádná data o poloze</string>
     <string name="trip_detail_route_unavailable_legacy">Mapa trasy není pro starší relace k dispozici</string>
     <string name="trip_detail_route_no_gps_points">Vzdálenost byla zaznamenána, ale trasa GPS není k dispozici</string>
@@ -124,7 +114,6 @@
     <string name="trip_detail_delete_confirm">Smazat</string>
     <string name="trip_detail_cancel">Zrušit</string>
     <string name="trip_detail_more_options">Další možnosti</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Lyžařská relace</string>
     <string name="ski_detail_runs">Sjezdy</string>
     <string name="ski_detail_vertical">Převýšení</string>
@@ -148,7 +137,6 @@
     <string name="wifilist_title_frequency">Frekvence</string>
     <string name="wifilist_title_last_seen">Naposledy viděno</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Časová osa</string>
     <string name="history_tab_trips">Cesty</string>
     <string name="history_tab_calendar">Kalendář</string>
@@ -159,30 +147,23 @@
         <item quantity="many">%d cest</item>
         <item quantity="other">%d cest</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Zatím žádná aktivita</string>
     <string name="history_timeline_empty_desc">Spusťte sledování a historie pohybu se zobrazí zde</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Žádné zaznamenané cesty</string>
     <string name="history_trips_empty_desc">Cesty se zde budou zobrazovat, jak se budete pohybovat</string>
     <string name="trip_gps_anomaly">Zjištěna anomálie GPS — vzdálenost může být nepřesná</string>
     <string name="trip_deleted_snackbar">Cesta smazána</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Předchozí měsíc</string>
     <string name="history_calendar_next_month">Další měsíc</string>
     <string name="history_calendar_distance">Vzdálenost</string>
     <string name="history_calendar_steps">Kroky</string>
     <string name="history_calendar_trips">Cesty</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Objevování</string>
     <string name="history_exploration_cells">Buňky</string>
     <string name="history_exploration_streak">Série</string>
     <string name="history_exploration_best">Nejlepší</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Přejít zpět</string>
-    <!-- History navigation -->
     <string name="history_button_label">Historie</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Zobrazit cestu na mapě</string>
     <string name="stats_heatmap_title">Aktivita</string>
 </resources>

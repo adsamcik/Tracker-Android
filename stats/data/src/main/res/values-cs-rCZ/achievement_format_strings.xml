@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Sledujte aktivitu alespoň %2$d různých dní, abyste jej odemkli.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Celkem %1$s</string>
     <string name="ach_desc_distance_total">Nasbírejte celkovou zaznamenanou vzdálenost %1$s ve všech relacích.</string>
     <string name="ach_title_week_distance">%1$s tento týden</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Ujeďte na kole celkem %1$s.</string>
     <string name="ach_title_vehicle_distance">Motorovým dopravním prostředkem %1$s</string>
     <string name="ach_desc_vehicle_distance">Urazte %1$s autem, autobusem, vlakem, lodí nebo letadlem.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">%1$s kroků</string>
     <string name="ach_desc_steps_total">Zaznamenejte %1$s kroků ve všech relacích.</string>
     <string name="ach_title_best_daily_steps">%1$s kroků za den</string>
     <string name="ach_desc_best_daily_steps">Udělejte %1$s kroků během jednoho dne.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">První relace</item>
         <item quantity="few">Zaznamenejte %1$s relace</item>
@@ -43,7 +40,6 @@
         <item quantity="other">Navštivte %d zemí</item>
     </plurals>
     <string name="ach_desc_countries_visited">Zaznamenejte alespoň jednu relaci v %1$d různých zemích.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">První aktivní den</item>
         <item quantity="few">%1$s aktivní dny</item>
@@ -102,7 +98,6 @@
     <string name="ach_desc_hours_of_day">Zaznamenávejte aktivitu během %1$d různých denních hodin ve všech relacích.</string>
     <string name="ach_title_days_of_week">Všech sedm dní v týdnu</string>
     <string name="ach_desc_days_of_week">Sledujte aktivitu alespoň jednou každý den v týdnu.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Vyzkoušejte %d typ aktivity</item>
         <item quantity="few">Vyzkoušejte %d typy aktivit</item>
@@ -121,14 +116,12 @@
     <string name="ach_desc_week_all_days">Zaznamenejte aktivitu všech sedm dní kalendářního týdne.</string>
     <string name="ach_title_walk_cycle_drive">Chůze, kolo, řízení</string>
     <string name="ach_desc_walk_cycle_drive">Zaznamenejte alespoň jednu relaci každé z těchto aktivit: chůze, jízda na kole a řízení.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Relace dlouhá %1$s</string>
     <string name="ach_desc_max_session_duration">Zaznamenejte jednu relaci trvající alespoň %1$s.</string>
     <string name="ach_title_max_speed">Dosáhněte %1$s</string>
     <string name="ach_desc_max_speed">Dosáhněte během relace maximální rychlosti alespoň %1$s.</string>
     <string name="ach_title_active_minutes">%1$s aktivních minut</string>
     <string name="ach_desc_active_minutes">Nasbírejte %1$s minut aktivního sledování.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">První export</item>
         <item quantity="few">%d exporty</item>
@@ -143,7 +136,6 @@
         <item quantity="other">%d ročních období</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Zaznamenejte aktivitu během %1$d různých ročních období (jaro/léto/podzim/zima).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Sledování na Nový rok</string>
     <string name="ach_desc_calendar_new_year">Zaznamenejte relaci 1. ledna.</string>
     <string name="ach_title_calendar_leap_day">Průkopník přestupného dne</string>
@@ -152,7 +144,6 @@
     <string name="ach_desc_calendar_summer_solstice">Zaznamenejte relaci v nejdelší den roku.</string>
     <string name="ach_title_calendar_winter_solstice">Zimní slunovrat</string>
     <string name="ach_desc_calendar_winter_solstice">Zaznamenejte relaci v nejkratší den roku.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Noční sova</item>
         <item quantity="few">%1$s noční relace</item>
@@ -224,7 +215,6 @@
         <item quantity="other">Použijte %d formátů exportu</item>
     </plurals>
     <string name="ach_desc_export_formats">Exportujte svá data v %1$d různých formátech souborů.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Dosáhněte úrovně %1$d</string>
     <string name="ach_desc_player_level">Postupte na hráčskou úroveň %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP za den</string>
@@ -236,10 +226,8 @@
         <item quantity="other">Zahrajte si %1$s miniher</item>
     </plurals>
     <string name="ach_desc_minigames_played">Dokončete %1$d her v minihrách.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Nastoupejte %1$s</string>
     <string name="ach_desc_total_ascent">Nasbírejte %1$s celkového převýšení při všech sledovaných aktivitách.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Získejte z jednoho zdroje XP</item>
         <item quantity="few">Získejte z %d zdrojů XP</item>
@@ -254,7 +242,6 @@
         <item quantity="other">%d dokonalých týdnů</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Plňte denní cíl kroků každý den po dobu %1$d celých týdnů.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%ddenní série cílů</item>
         <item quantity="few">%ddenní série cílů</item>
@@ -276,7 +263,6 @@
         <item quantity="other">Dokončete %d kategorií</item>
     </plurals>
     <string name="ach_desc_categories_completed">Odemkněte každý úspěch v %1$d různých kategoriích.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d sekunda</item>
         <item quantity="few">%d sekundy</item>
