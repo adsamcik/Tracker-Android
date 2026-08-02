@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Autorizzazione alla posizione non disponibile</string>
     <string name="dashboard_permission_banner_subtitle">Tracker non può registrare percorsi finché non concedi l\'accesso alla posizione. Tocca per concederlo.</string>
     <string name="dashboard_permission_banner_cd">Banner: autorizzazione alla posizione non disponibile, tocca per concedere l\'accesso alla posizione</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Tipo di attività</string>
     <string name="dashboard_cd_explore_icon">Esplorazione</string>
     <string name="dashboard_cd_forward_arrow">Visualizza dettagli</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Visualizza dettagli della serie</string>
     <string name="dashboard_action_open_tracking_settings">Impostazioni</string>
     <string name="dashboard_action_restart_tracking">Riavvia</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Profilo altimetrico, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">In attesa del segnale GPS…</string>
     <string name="dashboard_tracking_recording_route">Registrazione percorso…</string>
     <string name="dashboard_milestone_distance">km raggiunti!</string>
     <string name="dashboard_milestone_steps">passi raggiunti!</string>
     <string name="dashboard_milestone_time">min tracciati!</string>
     <string name="dashboard_milestone_points">+10 pt</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Oggi</string>
     <string name="dashboard_today_no_activity">Nessuna attività oggi</string>
     <string name="dashboard_today_distance">Distanza</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Nuove oggi</string>
     <string name="dashboard_exploration_total_cells">Celle totali</string>
     <string name="dashboard_exploration_seasons">Stagioni</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Velocità</string>
     <string name="dashboard_live_charts_altitude">Altitudine</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Dettagli sensori</string>
     <string name="dashboard_sensor_expand">Espandi dettagli sensori</string>
     <string name="dashboard_sensor_collapse">Comprimi dettagli sensori</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Velocità</string>
     <string name="dashboard_sensor_cell_types">Tipi di celle</string>
     <string name="dashboard_sensor_raw_coords">Coordinate (diagnostica)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">In aumento</string>
     <string name="dashboard_trend_down">In diminuzione</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Hai appena iniziato…</string>
     <string name="dashboard_motivational_keep_going">Continua così! 💪</string>
     <string name="dashboard_motivational_impressive">Sessione impressionante!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Buonasera! Vuoi rivedere la tua giornata?</string>
     <string name="dashboard_motivational_night">Modalità nottambulo 🦉</string>
     <string name="dashboard_motivational_streak">🔥 Serie di %1$d giorni!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Il tuo viaggio inizia qui</string>
     <string name="dashboard_empty_subtitle">Usa la scheda Pronto qui sotto per concedere l\'accesso alla posizione quando necessario e iniziare la tua prima avventura</string>
     <string name="dashboard_empty_feature_explore">Esplora</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Pronto quando vuoi</string>
     <string name="dashboard_empty_fab_hint_desc">Tocca qui per avviare la tua prima sessione di tracciamento.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Tocca qui per concedere l\'accesso alla posizione, quindi avvia la tua prima sessione di tracciamento.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Progressi di oggi</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Ultima sessione</string>
     <string name="widget_recent_trips">Viaggi recenti</string>
     <string name="widget_exploration">Esplorazione</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Personalizza pannello</string>
     <string name="dashboard_customize_reset">Ripristina predefiniti</string>
     <string name="dashboard_customize_cd_toggle">Attiva/disattiva visibilità di %1$s</string>
     <string name="dashboard_customize_cd_drag_handle">Riordina %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Nessun dato di altitudine</string>
     <string name="dashboard_cd_no_altitude_data">Nessun dato di altitudine disponibile</string>
     <string name="dashboard_cd_speed_sparkline">Grafico miniatura della velocità con %1$d punti dati</string>
     <string name="dashboard_cd_session_path">Anteprima del percorso della sessione con %1$d punti</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Velocità</string>
     <string name="dashboard_metric_distance">Distanza</string>
     <string name="dashboard_metric_duration">Durata</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi-Fi</string>
     <string name="dashboard_metric_cell">Cella</string>
     <string name="dashboard_metric_coordinates">Coordinate</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Avvia tracciamento</string>
     <string name="dashboard_ring_enable_location">Abilita posizione</string>
     <string name="dashboard_pill_start">Avvia</string>
     <string name="dashboard_pill_stop">Interrompi</string>
     <string name="dashboard_pill_enable_location">Abilita posizione</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Informazioni sulla sessione</string>
     <string name="dashboard_cd_insight_item">Informazione: %1$s</string>
     <string name="widget_latest_achievement">Ultimo obiettivo</string>
