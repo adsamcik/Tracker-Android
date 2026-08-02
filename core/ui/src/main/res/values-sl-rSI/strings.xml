@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Nazaj</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Dostop do lokacije</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker potrebuje dostop do vaše lokacije, da lahko zabeleži vašo pot in jo prikaže na zemljevidu. Podatki o lokaciji ostanejo v vaši napravi — ničesar ne pošiljamo na strežnik.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Prepoznavanje dejavnosti</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker uporablja prepoznavanje dejavnosti, da ugotovi, kaj počnete (hodite, tečete, kolesarite, vozite ali mirujete). Tako lahko samodejno sledenje začasno ustavi, ko se ne premikate, in varčuje z baterijo. Podatki o dejavnosti ostanejo v vaši napravi — ničesar ne pošiljamo na strežnik.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Lokacija v ozadju</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Da lahko Tracker še naprej beleži vašo pot, ko zamenjate aplikacijo ali se zaslon izklopi, potrebuje dostop do vaše lokacije v ozadju. Zabeležena lokacija ostane v vaši napravi — ničesar ne pošiljamo na strežnik. V naslednjem sistemskem pozivu izberite »Vedno dovoli«; možnost »Dovoli le med uporabo aplikacije« omogoča delovanje Trackerja le, ko je njegov zaslon odprt.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Dovoli</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ne zdaj</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Za začetek sledenja potrebujete dovoljenje za lokacijo</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Odpri nastavitve</string>
+</resources>

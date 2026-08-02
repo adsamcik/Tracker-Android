@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="dashboard_title">Nadzorna plošča</string>
+    <string name="dashboard_tracking_title">Sledenje</string>
+    <string name="dashboard_recording">Beleženje</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Sledenje se je nepričakovano ustavilo</string>
+    <string name="dashboard_permission_banner_title">Dovoljenje za lokacijo ni na voljo</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker ne more beležiti poti, dokler ne dovolite dostopa do lokacije. Tapnite za dovoljenje.</string>
+    <string name="dashboard_permission_banner_cd">Pasica o nedostopnem dovoljenju za lokacijo; tapnite za dovoljenje dostopa do lokacije</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Vrsta dejavnosti</string>
+    <string name="dashboard_cd_explore_icon">Raziskovanje</string>
+    <string name="dashboard_cd_forward_arrow">Prikaži podrobnosti</string>
+    <string name="dashboard_cd_last_session">Zadnja seja: trajanje %1$s, razdalja %2$s. Tapnite za podrobnosti.</string>
+    <string name="dashboard_cd_locked_badge">Sledenje je zaklenjeno</string>
+    <string name="dashboard_cd_open_settings">Odpri nastavitve</string>
+    <string name="dashboard_cd_start_tracking">Začni sledenje</string>
+    <string name="dashboard_cd_start_tracking_permission">Začni sledenje; potrebno je dovoljenje</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Niz: %1$d dan. Tapnite za podrobnosti niza.</item>
+        <item quantity="two">Niz: %1$d dni. Tapnite za podrobnosti niza.</item>
+        <item quantity="few">Niz: %1$d dni. Tapnite za podrobnosti niza.</item>
+        <item quantity="other">Niz: %1$d dni. Tapnite za podrobnosti niza.</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Začnite niz. Tapnite za podrobnosti niza.</string>
+    <string name="dashboard_cd_stop_tracking">Ustavi sledenje</string>
+    <string name="dashboard_action_enable_location">Omogoči dostop do lokacije</string>
+    <string name="dashboard_action_view_details">Prikaži podrobnosti</string>
+    <string name="dashboard_action_view_map">Prikaži zemljevid</string>
+    <string name="dashboard_action_view_streak_details">Prikaži podrobnosti niza</string>
+    <string name="dashboard_action_open_tracking_settings">Nastavitve</string>
+    <string name="dashboard_action_restart_tracking">Znova zaženi</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Višinski profil, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Čakanje na signal GPS …</string>
+    <string name="dashboard_tracking_recording_route">Beleženje poti …</string>
+    <string name="dashboard_milestone_distance">doseženih km!</string>
+    <string name="dashboard_milestone_steps">doseženih korakov!</string>
+    <string name="dashboard_milestone_time">sledenih min!</string>
+    <string name="dashboard_milestone_points">+10 točk</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Danes</string>
+    <string name="dashboard_today_no_activity">Danes še ni dejavnosti</string>
+    <string name="dashboard_today_distance">Razdalja</string>
+    <string name="dashboard_today_duration">Trajanje</string>
+    <string name="dashboard_today_steps">Koraki</string>
+    <string name="dashboard_today_trips">Poti</string>
+    <string name="dashboard_goal_get_started">Začnite</string>
+    <string name="dashboard_goal_on_track">Na pravi poti</string>
+    <string name="dashboard_goal_ahead">Pred načrtom</string>
+    <string name="dashboard_goal_behind">Za načrtom</string>
+    <string name="dashboard_streak_day_streak">dnevni niz</string>
+    <string name="dashboard_streak_start">Začnite niz!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% glede na prejšnji teden</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% glede na prejšnji teden</string>
+    <string name="dashboard_last_session_title">Zadnja seja</string>
+    <string name="dashboard_last_session_duration">Trajanje</string>
+    <string name="dashboard_last_session_distance">Razdalja</string>
+    <string name="dashboard_last_session_steps">Koraki</string>
+    <string name="dashboard_last_session_view_map">Prikaži zemljevid</string>
+    <string name="dashboard_recent_trips_title">Nedavne poti</string>
+    <string name="dashboard_recent_trips_empty">Ni nedavnih poti. Za ogled potovanj tukaj začnite sledenje.</string>
+    <string name="dashboard_exploration_title">Raziskovanje</string>
+    <string name="dashboard_exploration_new_today">Novo danes</string>
+    <string name="dashboard_exploration_total_cells">Skupaj celic</string>
+    <string name="dashboard_exploration_seasons">Letni časi</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Hitrost</string>
+    <string name="dashboard_live_charts_altitude">Nadmorska višina</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Podrobnosti senzorjev</string>
+    <string name="dashboard_sensor_expand">Razširi podrobnosti senzorjev</string>
+    <string name="dashboard_sensor_collapse">Strni podrobnosti senzorjev</string>
+    <string name="dashboard_sensor_location_accuracy">Natančnost lokacije</string>
+    <string name="dashboard_sensor_activity">Dejavnost</string>
+    <string name="dashboard_sensor_wifi">Omrežja Wi‑Fi</string>
+    <string name="dashboard_sensor_cell">Bazne postaje</string>
+    <string name="dashboard_sensor_altitude">Nadmorska višina</string>
+    <string name="dashboard_sensor_speed">Hitrost</string>
+    <string name="dashboard_sensor_cell_types">Vrste celic</string>
+    <string name="dashboard_sensor_raw_coords">Koordinate (odpravljanje napak)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Trend narašča</string>
+    <string name="dashboard_trend_down">Trend pada</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Šele začenjate …</string>
+    <string name="dashboard_motivational_keep_going">Kar tako naprej! 💪</string>
+    <string name="dashboard_motivational_impressive">Impresivna seja!</string>
+    <string name="dashboard_motivational_marathon">Maratonski raziskovalec! 🏆</string>
+    <string name="dashboard_motivational_morning">Dobro jutro! Ste pripravljeni na raziskovanje?</string>
+    <string name="dashboard_motivational_afternoon">Dober dan! Boste nadaljevali gibanje?</string>
+    <string name="dashboard_motivational_evening">Dober večer! Boste pregledali svoj dan?</string>
+    <string name="dashboard_motivational_night">Način nočne sove 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d-dnevni niz!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Vaše potovanje se začne tukaj</string>
+    <string name="dashboard_empty_subtitle">S spodnjo kartico »Pripravljeni« po potrebi dovolite dostop do lokacije in začnite svojo prvo pustolovščino.</string>
+    <string name="dashboard_empty_feature_explore">Raziščite</string>
+    <string name="dashboard_empty_feature_explore_desc">Odkrijte nove kraje in poti</string>
+    <string name="dashboard_empty_feature_achieve">Dosežite</string>
+    <string name="dashboard_empty_feature_achieve_desc">Nastavite cilje in zaslužite točke</string>
+    <string name="dashboard_empty_feature_track">Sledite</string>
+    <string name="dashboard_empty_feature_track_desc">Beležite sprehode, teke in vožnje</string>
+    <string name="dashboard_empty_feature_privacy">Zasebnost</string>
+    <string name="dashboard_empty_feature_privacy_desc">Vsi podatki ostanejo v vaši napravi</string>
+    <string name="dashboard_empty_icon_desc">Ilustracija sledenja lokaciji</string>
+    <string name="dashboard_empty_quick_start_title">Hitri začetek</string>
+    <string name="dashboard_empty_quick_start_subtitle">To je najhitrejši način, da prazno nadzorno ploščo spremenite v uporabne zemljevide, seje in dnevni napredek.</string>
+    <string name="dashboard_empty_step_customize_title">Izberite način sledenja</string>
+    <string name="dashboard_empty_step_customize_desc">Kadar koli odprite nastavitve, da prilagodite prednastavitve, porabo baterije in senzorje, ki jih želite beležiti.</string>
+    <string name="dashboard_empty_step_start_title">Začnite prvo sledenje</string>
+    <string name="dashboard_empty_step_start_desc">Zgoraj tapnite »Ko ste pripravljeni«, da po potrebi dovolite dostop do lokacije, nato pa začnite sprehod, tek, vožnjo ali sejo sledenja v ozadju.</string>
+    <string name="dashboard_empty_step_review_title">Preglejte zemljevide in statistiko</string>
+    <string name="dashboard_empty_step_review_desc">Po prvi seji se bodo zavihki Nadzorna plošča, Zemljevid in Statistika napolnili z nedavno dejavnostjo in vpogledi.</string>
+    <string name="dashboard_empty_fab_hint_title">Ko ste pripravljeni</string>
+    <string name="dashboard_empty_fab_hint_desc">Tapnite tukaj, da začnete prvo sejo sledenja.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Tapnite tukaj, da dovolite dostop do lokacije, nato pa začnete prvo sejo sledenja.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Današnji napredek</string>
+    <string name="widget_streak">Niz</string>
+    <string name="widget_last_session">Zadnja seja</string>
+    <string name="widget_recent_trips">Nedavne poti</string>
+    <string name="widget_exploration">Raziskovanje</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Prilagodi nadzorno ploščo</string>
+    <string name="dashboard_customize_reset">Ponastavi na privzeto</string>
+    <string name="dashboard_customize_cd_toggle">Preklopi vidnost za %1$s</string>
+    <string name="dashboard_customize_cd_drag_handle">Spremeni vrstni red za %1$s</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Ni podatkov o nadmorski višini</string>
+    <string name="dashboard_cd_no_altitude_data">Podatki o nadmorski višini niso na voljo</string>
+    <string name="dashboard_cd_speed_sparkline">Iskrični graf hitrosti z %1$d podatkovnimi točkami</string>
+    <string name="dashboard_cd_session_path">Predogled poti seje z %1$d točkami</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Hitrost</string>
+    <string name="dashboard_metric_distance">Razdalja</string>
+    <string name="dashboard_metric_duration">Trajanje</string>
+    <string name="dashboard_metric_steps">Koraki</string>
+    <string name="dashboard_metric_altitude">Nadmorska višina</string>
+    <string name="dashboard_metric_activity">Dejavnost</string>
+    <string name="dashboard_metric_accuracy">Natančnost</string>
+    <string name="dashboard_metric_avg_speed">Povp. hitrost</string>
+    <string name="dashboard_metric_wifi">Wi‑Fi</string>
+    <string name="dashboard_metric_cell">Celica</string>
+    <string name="dashboard_metric_coordinates">Koordinate</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Začni sledenje</string>
+    <string name="dashboard_ring_enable_location">Omogoči lokacijo</string>
+    <string name="dashboard_pill_start">Začni</string>
+    <string name="dashboard_pill_stop">Ustavi</string>
+    <string name="dashboard_pill_enable_location">Omogoči lokacijo</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Vpogledi v sejo</string>
+    <string name="dashboard_cd_insight_item">Vpogled: %1$s</string>
+    <string name="widget_latest_achievement">Najnovejši dosežek</string>
+    <string name="dashboard_latest_achievement_title">Najnovejši dosežek</string>
+    <string name="dashboard_latest_achievement_empty">Nadaljujte s sledenjem, da odklenete prvi dosežek</string>
+</resources>

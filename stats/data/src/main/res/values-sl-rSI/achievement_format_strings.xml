@@ -1,0 +1,304 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Spremljajte vsaj %2$d različnih dni, da ga odklenete.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Prepotujte %1$s</string>
+    <string name="ach_desc_distance_total">V vseh sejah zabeležite skupno razdaljo %1$s.</string>
+    <string name="ach_title_week_distance">%1$s ta teden</string>
+    <string name="ach_desc_week_distance">Prepotujte %1$s v enem koledarskem tednu.</string>
+    <string name="ach_title_best_day_distance">%1$s v dnevu</string>
+    <string name="ach_desc_best_day_distance">V enem dnevu prepotujte %1$s.</string>
+    <string name="ach_title_max_session_distance">%1$s v eni seji</string>
+    <string name="ach_desc_max_session_distance">Zabeležite eno sejo, v kateri brez ustavljanja prepotujete %1$s.</string>
+    <string name="ach_title_on_foot_distance">Prehodite ali pretecite %1$s</string>
+    <string name="ach_desc_on_foot_distance">Peš prepotujte %1$s (hoja in tek skupaj).</string>
+    <string name="ach_title_cycling_distance">Prekolesarite %1$s</string>
+    <string name="ach_desc_cycling_distance">Skupno prekolesarite %1$s.</string>
+    <string name="ach_title_vehicle_distance">Motorizirano prepotujte %1$s</string>
+    <string name="ach_desc_vehicle_distance">Z avtom, avtobusom, vlakom, ladjo ali letalom prepotujte %1$s.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Naredite %1$s korakov</string>
+    <string name="ach_desc_steps_total">V vseh sejah zabeležite %1$s korakov.</string>
+    <string name="ach_title_best_daily_steps">%1$s korakov v dnevu</string>
+    <string name="ach_desc_best_daily_steps">V enem dnevu naredite %1$s korakov.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Prva seja</item>
+        <item quantity="two">Zabeležite %1$s seji</item>
+        <item quantity="few">Zabeležite %1$s seje</item>
+        <item quantity="other">Zabeležite %1$s sej</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Skupno zabeležite %1$s sej sledenja.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Odkrijte prvo celico</item>
+        <item quantity="two">Odkrijte %1$s celici zemljevida</item>
+        <item quantity="few">Odkrijte %1$s celice zemljevida</item>
+        <item quantity="other">Odkrijte %1$s celic zemljevida</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Raziščite %1$s različnih mrežnih celic na zemljevidu (vsaka meri približno 1 km²).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Obiščite %d državo</item>
+        <item quantity="two">Obiščite %d državi</item>
+        <item quantity="few">Obiščite %d države</item>
+        <item quantity="other">Obiščite %d držav</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Zabeležite vsaj eno sejo v %1$d različnih državah.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Prvi aktivni dan</item>
+        <item quantity="two">%1$s aktivna dneva</item>
+        <item quantity="few">%1$s aktivni dnevi</item>
+        <item quantity="other">%1$s aktivnih dni</item>
+    </plurals>
+    <string name="ach_desc_active_days">Skupno spremljajte dejavnost v %1$s različnih dneh.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d-dnevni niz</item>
+        <item quantity="two">%d-dnevni niz</item>
+        <item quantity="few">%d-dnevni niz</item>
+        <item quantity="other">%d-dnevni niz</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Spremljajte dejavnost %1$d dni zapored.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Osebni rekord: %d dan</item>
+        <item quantity="two">Osebni rekord: %d dni</item>
+        <item quantity="few">Osebni rekord: %d dni</item>
+        <item quantity="other">Osebni rekord: %d dni</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Dosezite osebni rekord niza sledenja %1$d dni.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d mesec s Trackerjem</item>
+        <item quantity="two">%d meseca s Trackerjem</item>
+        <item quantity="few">%d mesece s Trackerjem</item>
+        <item quantity="other">%d mesecev s Trackerjem</item>
+    </plurals>
+    <string name="ach_desc_months_active">Bodite aktivni v Trackerju %1$d različnih mesecev.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d aktiven dan ta teden</item>
+        <item quantity="two">%d aktivna dneva ta teden</item>
+        <item quantity="few">%d aktivni dnevi ta teden</item>
+        <item quantity="other">%d aktivnih dni ta teden</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Spremljajte dejavnost %1$d dni v enem tednu.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Prvi dan s Trackerjem</item>
+        <item quantity="two">%1$s dni s Trackerjem</item>
+        <item quantity="few">%1$s dni s Trackerjem</item>
+        <item quantity="other">%1$s dni s Trackerjem</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Tracker naj bo nameščen %1$s dni.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Dobrodošli nazaj</item>
+        <item quantity="two">Dobrodošli nazaj po %d dneh</item>
+        <item quantity="few">Dobrodošli nazaj po %d dneh</item>
+        <item quantity="other">Dobrodošli nazaj po %d dneh</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Vrnite se k sledenju po %1$d-dnevnem premoru.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Spremljajte ob %d uri dneva</item>
+        <item quantity="two">Spremljajte ob %d različnih urah</item>
+        <item quantity="few">Spremljajte ob %d različnih urah</item>
+        <item quantity="other">Spremljajte ob %d različnih urah</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">V vseh sejah zabeležite dejavnost v %1$d različnih urah dneva.</string>
+    <string name="ach_title_days_of_week">Vseh sedem dni v tednu</string>
+    <string name="ach_desc_days_of_week">Vsak dan v tednu vsaj enkrat spremljajte dejavnost.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Preizkusite %d vrsto dejavnosti</item>
+        <item quantity="two">Preizkusite %d vrsti dejavnosti</item>
+        <item quantity="few">Preizkusite %d vrste dejavnosti</item>
+        <item quantity="other">Preizkusite %d vrst dejavnosti</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Zabeležite seje v %1$d različnih vrstah dejavnosti (hoja, kolesarjenje, vožnja, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d vrsta dejavnosti ta teden</item>
+        <item quantity="two">%d vrsti dejavnosti ta teden</item>
+        <item quantity="few">%d vrste dejavnosti ta teden</item>
+        <item quantity="other">%d vrst dejavnosti ta teden</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">V enem tednu uporabite %1$d različnih vrst dejavnosti.</string>
+    <string name="ach_title_week_all_days">Spremljajte vsak dan v tednu</string>
+    <string name="ach_desc_week_all_days">Vseh sedem dni koledarskega tedna zabeležite dejavnost.</string>
+    <string name="ach_title_walk_cycle_drive">Hodite, kolesarite, vozite</string>
+    <string name="ach_desc_walk_cycle_drive">Zabeležite vsaj eno sejo vsake vrste: hoje, kolesarjenja in vožnje.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">Seja %1$s</string>
+    <string name="ach_desc_max_session_duration">Zabeležite eno sejo, ki traja vsaj %1$s.</string>
+    <string name="ach_title_max_speed">Dosezite %1$s</string>
+    <string name="ach_desc_max_speed">Med sejo dosezite najvišjo hitrost vsaj %1$s.</string>
+    <string name="ach_title_active_minutes">%1$s aktivnih minut</string>
+    <string name="ach_desc_active_minutes">Zberite %1$s minut aktivnega sledenja.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Prvi izvoz</item>
+        <item quantity="two">%d izvoza</item>
+        <item quantity="few">%d izvoze</item>
+        <item quantity="other">%d izvozov</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Podatke izvozite %1$d-krat.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Spremljajte en letni čas</item>
+        <item quantity="two">Spremljajte %d letna časa</item>
+        <item quantity="few">Spremljajte %d letne čase</item>
+        <item quantity="other">Spremljajte %d letnih časov</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Zabeležite dejavnost v %1$d različnih letnih časih (pomlad/poletje/jesen/zima).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Sledilnik za novo leto</string>
+    <string name="ach_desc_calendar_new_year">Zabeležite sejo 1. januarja.</string>
+    <string name="ach_title_calendar_leap_day">Pionir prestopnega dne</string>
+    <string name="ach_desc_calendar_leap_day">Zabeležite sejo 29. februarja.</string>
+    <string name="ach_title_calendar_summer_solstice">Poletni solsticij</string>
+    <string name="ach_desc_calendar_summer_solstice">Zabeležite sejo na najdaljši dan v letu.</string>
+    <string name="ach_title_calendar_winter_solstice">Zimski solsticij</string>
+    <string name="ach_desc_calendar_winter_solstice">Zabeležite sejo na najkrajši dan v letu.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Nočna sova</item>
+        <item quantity="two">%1$s nočni seji</item>
+        <item quantity="few">%1$s nočne seje</item>
+        <item quantity="other">%1$s nočnih sej</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Zabeležite %1$d sej, ki se začnejo med polnočjo in 5. uro zjutraj.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Zgodnja ptica</item>
+        <item quantity="two">%1$s jutranji seji</item>
+        <item quantity="few">%1$s jutranje seje</item>
+        <item quantity="other">%1$s jutranjih sej</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Zabeležite %1$d sej, ki se začnejo med 5. in 8. uro zjutraj.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Ročni sledilnik</item>
+        <item quantity="two">Ročno začnite %1$s seji</item>
+        <item quantity="few">Ročno začnite %1$s seje</item>
+        <item quantity="other">Ročno začnite %1$s sej</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Ročno začnite %1$d sej sledenja.</string>
+    <string name="ach_title_max_cycle_session">Prekolesarite %1$s v eni vožnji</string>
+    <string name="ach_desc_max_cycle_session">V eni vožnji prekolesarite %1$s.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Večmodalni dan</item>
+        <item quantity="two">%d večmodalna dneva</item>
+        <item quantity="few">%d večmodalni dnevi</item>
+        <item quantity="other">%d večmodalnih dni</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Peš, s kolesom in z motoriziranim prevozom potujte v istem dnevu, v %1$d različnih dneh.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Kraj za vse letne čase</item>
+        <item quantity="two">V vseh štirih letnih časih obiščite %d kraja</item>
+        <item quantity="few">V vseh štirih letnih časih obiščite %d kraje</item>
+        <item quantity="other">V vseh štirih letnih časih obiščite %d krajev</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Obiščite %1$d celic zemljevida v vseh štirih letnih časih.</string>
+    <string name="ach_title_max_cell_visits">En kraj obiščite %1$d-krat</string>
+    <string name="ach_desc_max_cell_visits">Eno celico zemljevida obiščite %1$d-krat.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Temeljito raziščite celico</item>
+        <item quantity="two">Temeljito raziščite %1$s celici</item>
+        <item quantity="few">Temeljito raziščite %1$s celice</item>
+        <item quantity="other">Temeljito raziščite %1$s celic</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Temeljito raziščite %1$d različnih celic zemljevida.</string>
+    <string name="ach_title_max_cell_span">Dosezite razmik %1$s</string>
+    <string name="ach_desc_max_cell_span">Odkrijte dve celici zemljevida, oddaljeni vsaj %1$s.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">V dnevu odkrijte celico</item>
+        <item quantity="two">V dnevu odkrijte %d celici</item>
+        <item quantity="few">V dnevu odkrijte %d celice</item>
+        <item quantity="other">V dnevu odkrijte %d celic</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">V enem dnevu odkrijte %1$d novih celic zemljevida.</string>
+    <string name="ach_title_max_cell_revisit_gap">Vrnite se po %1$d dneh</string>
+    <string name="ach_desc_max_cell_revisit_gap">Celico zemljevida ponovno obiščite %1$d dni po prvem odkritju.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Popoln mesec</item>
+        <item quantity="two">%d popolna meseca</item>
+        <item quantity="few">%d popolne mesece</item>
+        <item quantity="other">%d popolnih mesecev</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Vsak dan v %1$d koledarskih mesecih spremljajte dejavnost.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Uporabite eno obliko izvoza</item>
+        <item quantity="two">Uporabite %d obliki izvoza</item>
+        <item quantity="few">Uporabite %d oblike izvoza</item>
+        <item quantity="other">Uporabite %d oblik izvoza</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Podatke izvozite v %1$d različnih oblikah datoteke.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Dosezite raven %1$d</string>
+    <string name="ach_desc_player_level">Povzpnite se na raven igralca %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP v dnevu</string>
+    <string name="ach_desc_best_day_xp">V enem dnevu zaslužite %1$d XP.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Igrajte prvo miniigro</item>
+        <item quantity="two">Igrajte %1$s miniigri</item>
+        <item quantity="few">Igrajte %1$s miniigre</item>
+        <item quantity="other">Igrajte %1$s miniiger</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Dokončajte %1$d zagonov miniiger.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Preplezajte %1$s</string>
+    <string name="ach_desc_total_ascent">Med vsem sledenjem zberite %1$s skupnega višinskega vzpona.</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Zaslužite iz enega vira XP</item>
+        <item quantity="two">Zaslužite iz %d virov XP</item>
+        <item quantity="few">Zaslužite iz %d virov XP</item>
+        <item quantity="other">Zaslužite iz %d virov XP</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Zaslužite XP iz %1$d različnih virov — sej sledenja, miniiger in ciljev.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Popoln teden</item>
+        <item quantity="two">%d popolna tedna</item>
+        <item quantity="few">%d popolne tedne</item>
+        <item quantity="other">%d popolnih tednov</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Vsak dan %1$d polnih tednov izpolnite dnevni cilj korakov.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d-dnevni niz ciljev</item>
+        <item quantity="two">%d-dnevni niz ciljev</item>
+        <item quantity="few">%d-dnevni niz ciljev</item>
+        <item quantity="other">%d-dnevni niz ciljev</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">%1$d dni zapored izpolnite dnevni cilj korakov.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Odklenite en dosežek</item>
+        <item quantity="two">Odklenite %d dosežka</item>
+        <item quantity="few">Odklenite %d dosežke</item>
+        <item quantity="other">Odklenite %d dosežkov</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Skupno odklenite %1$d dosežkov.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Dokončajte kategorijo</item>
+        <item quantity="two">Dokončajte %d kategoriji</item>
+        <item quantity="few">Dokončajte %d kategorije</item>
+        <item quantity="other">Dokončajte %d kategorij</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Odklenite vsak dosežek v %1$d različnih kategorijah.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d sekunda</item>
+        <item quantity="two">%d sekundi</item>
+        <item quantity="few">%d sekunde</item>
+        <item quantity="other">%d sekund</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minutna</item>
+        <item quantity="two">%d-minutni</item>
+        <item quantity="few">%d-minutni</item>
+        <item quantity="other">%d-minutni</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-urna</item>
+        <item quantity="two">%d-urni</item>
+        <item quantity="few">%d-urni</item>
+        <item quantity="other">%d-urni</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-dnevna</item>
+        <item quantity="two">%d-dnevni</item>
+        <item quantity="few">%d-dnevni</item>
+        <item quantity="other">%d-dnevni</item>
+    </plurals>
+</resources>
