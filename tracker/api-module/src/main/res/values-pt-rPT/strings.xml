@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">Modo eficiente em bateria (deteção de atividade ligeiramente mais lenta)</string>
     <string name="settings_auto_tracking_transition_title">Usar transições de atividade</string>
     <string name="settings_cell_enabled_title">Celular</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">A monitorização automática está desativada até o telemóvel estar ligado a um carregador</string>
     <string name="settings_disabled_recharge_title">Desativado até carregar</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Localização</string>
     <string name="settings_notification_customize_summary">Altere o que deve aparecer e por que ordem na notificação de monitorização.</string>
     <string name="settings_notification_customize_title">Personalizar notificação</string>

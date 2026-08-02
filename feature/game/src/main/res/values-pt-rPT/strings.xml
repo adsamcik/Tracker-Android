@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">Não foi possível guardar esta corrida. Tente novamente.</string>
     <string name="minigame_failure_generic">Ocorreu um erro e a corrida parou.</string>
     <string name="minigame_session_try_again">Tentar novamente</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Jogo ativo</string>
     <string name="game_session_channel_description">Mantém um minijogo ativo em execução quando o ecrã está desligado</string>
     <string name="game_session_notification_title">Jogo do Tracker</string>

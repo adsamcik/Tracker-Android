@@ -2,12 +2,8 @@
 <resources>
     <string name="notification_activity_watcher_info">Atividade atual %1$s (%2$d%%)</string>
     <string name="notification_activity_watcher_ticker">Serviço Monitor de atividade ativo</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_snackbar_message">Removido %s</string>
     <string name="settings_activity_title">Atividades</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
     <string name="settings_activity_watcher_title">Monitor de atividade</string>
     <string name="settings_ski_infrastructure_title">Dados de teleféricos</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Carregado (toque para remover)</string>

@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Desnível negativo</string>
     <string name="trip_detail_max_altitude">Altitude máxima</string>
     <string name="trip_detail_route_map">Mapa do percurso</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Ver no mapa</string>
     <string name="trip_detail_no_location_data">Sem dados de localização</string>
     <string name="trip_detail_route_unavailable_legacy">O mapa do percurso não está disponível para sessões antigas</string>
     <string name="trip_detail_route_no_gps_points">A distância foi registada, mas não existe percurso GPS disponível</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">Melhor</string>
     <string name="action_navigate_back">Navegar para trás</string>
     <string name="history_button_label">Histórico</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">Ver viagem no mapa</string>
     <string name="stats_heatmap_title">Atividade</string>
 </resources>

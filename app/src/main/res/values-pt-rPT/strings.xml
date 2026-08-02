@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Jogo</string>
     <string name="module_map_title">Mapa</string>
     <string name="module_statistics_title">Estatísticas</string>
@@ -104,13 +102,6 @@
         <item>Aviação</item>
     </string-array>
     <string name="settings_length_system_title">Sistema de comprimento</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Licenças de código aberto</string>
     <string name="settings_licenses_subtitle">Veja os avisos de terceiros incluídos nesta compilação.</string>
     <string name="settings_licenses_loading">A carregar licenças…</string>
@@ -126,19 +117,13 @@
     <string name="about_version_label">Versão</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Commit da compilação</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">Email</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Ligações</string>
     <string name="about_attributions_title">Atribuições de dados</string>
     <string name="about_attribution_geonames_label">Nomes de locais</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Dados de mapa e estradas</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Definições dos módulos</string>
     <string name="settings_core_group_title">Núcleo</string>
     <string name="settings_other_title">Unidades e visualização</string>
@@ -150,11 +135,6 @@
         <item>Velocidade (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Formato de velocidade</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Definições</string>
     <string name="switch_state_on">Ligado</string>
     <string name="switch_state_off">Desligado</string>
@@ -169,7 +149,6 @@
     <string name="onboarding_get_started">COMEÇAR</string>
     <string name="onboarding_privacy_policy_button">Ler a Política de Privacidade</string>
     <string name="onboarding_state_read_error_message">Não foi possível verificar se a configuração já foi concluída, por isso a configuração é apresentada para manter os seus dados privados. Pode continuar em segurança.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Limpeza automática de dados antigos</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Manter os dados para sempre; a limpeza automática não eliminará dados antigos</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
@@ -184,14 +163,6 @@
         <item>3 anos</item>
         <item>5 anos</item>
         <item>10 anos</item>
-    </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
     </string-array>
     <string name="button_continue">CONTINUAR</string>
     <string name="settings_export_data_title">Exportar dados</string>

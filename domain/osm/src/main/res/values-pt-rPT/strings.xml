@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">Importação de mapa OSM</string>
     <string name="osm_import_notification_channel_description">Notificação em primeiro plano apresentada enquanto uma região do OpenStreetMap importada pelo utilizador é analisada.</string>
     <string name="osm_import_notification_title">A importar região do OpenStreetMap</string>
     <string name="osm_import_notification_content">%1$d estradas processadas</string>

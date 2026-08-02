@@ -24,19 +24,14 @@
     <string name="cell_unknown">Desconhecido</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Canal utilizado exclusivamente pelo serviço Monitor de atividade, para que possa remover facilmente esta notificação permanente.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Monitor de atividade</string>
     <string name="channel_achievements_description">Notificações relacionadas com conquistas.</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Conquista</string>
     <string name="channel_other_description">Outras notificações que não pertencem a nenhuma outra categoria.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Outros</string>
     <string name="channel_track_description">Notificações relacionadas com a monitorização.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Monitorização</string>
     <string name="channel_goals_description">Alertas de conclusão de objetivos.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Progresso do objetivo</string>
     <string name="day_short">%d d</string>
     <string name="generic_add">Adicionar</string>
