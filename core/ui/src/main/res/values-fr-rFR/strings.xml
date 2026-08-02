@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Revenir en arrière</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Accès à la localisation</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker a besoin d'accéder à votre position pour enregistrer votre itinéraire et l'afficher sur la carte. Les données de localisation restent sur cet appareil — rien n'est envoyé à un serveur.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Reconnaissance d'activité</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker utilise la reconnaissance d'activité pour détecter ce que vous faites (marche, vélo, conduite, immobilité), afin que le suivi automatique puisse se mettre en pause lorsque vous ne bougez pas et économiser la batterie. Les données d'activité restent sur cet appareil — rien n'est envoyé à un serveur.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Localisation en arrière-plan</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Pour continuer à enregistrer votre itinéraire lorsque vous changez d'application ou que l'écran s'éteint, Tracker doit accéder à votre position en arrière-plan. La position enregistrée reste sur cet appareil — rien n'est envoyé à un serveur. À la prochaine demande du système, choisissez « Autoriser tout le temps » ; « Autoriser uniquement lorsque l'application est utilisée » ne permet à Tracker de fonctionner que lorsque son écran est ouvert.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Autoriser</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Pas maintenant</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Autorisation de localisation requise pour démarrer le suivi</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Ouvrir les paramètres</string>
 </resources>

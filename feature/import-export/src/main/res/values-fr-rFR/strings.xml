@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exporter</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Aucune localisation trouvée dans l'intervalle sélectionné.</string>
+    <string name="export_error_no_databases">Aucune base de données d'application n'est disponible à l'exportation.</string>
+    <string name="export_error_no_uri">Aucun dossier d'exportation n'a été sélectionné</string>
+    <string name="export_error_stream_failed">Impossible de créer le flux vers le fichier %s</string>
+    <string name="export_error_unknown">Échec de l'exportation.</string>
+    <string name="export_error_with_reason">Échec de l'exportation : %s</string>
+    <string name="export_file_name">Nom du fichier</string>
+    <string name="export_file_name_error">Les noms de fichiers ne peuvent pas contenir \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Exportation des données de localisation du %1$s au %2$s suivies avec Advention.</string>
+    <string name="export_gpx_error">Échec de l'exportation GPX : %s</string>
+    <string name="export_sensitivity_title">Exporter des données de localisation précises ?</string>
+    <string name="export_sensitivity_message">Cet export ou partage contient des données de localisation de précision complète et peut inclure des métadonnées radio brutes dans les exports de base de données. Continuez uniquement si vous faites confiance à la destination.</string>
+    <string name="export_sensitivity_confirm">Continuer</string>
+    <string name="export_share_button">Partager</string>
+    <string name="export_in_progress">Exportation…</string>
+    <string name="export_completed">Exportation terminée.</string>
+    <string name="import_notification_error_failed_open_database">Échec de l'ouverture du fichier de base de données %s</string>
+    <string name="import_notification_error_file_not_supported">Le fichier %s n'est pas pris en charge.</string>
+    <string name="import_notification_extracting">Extraction de %s…</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Importation terminée. %d enregistrement importé avec succès.</item>
+        <item quantity="other">Importation terminée. %d enregistrements importés avec succès.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Importation terminée. %1$d enregistrements importés (%2$d ignorés).</string>
+    <string name="import_notification_error_records_failed">Échec de l'importation de %d enregistrements en raison de violations de contraintes.</string>
+    <string name="import_notification_importing">Importation de %s…</string>
+    <string name="import_notification_progress">Importation en cours…</string>
+    <string name="settings_export_dialog_from">Du</string>
+    <string name="settings_export_dialog_to">Au</string>
+    <string name="settings_export_no_data">Aucune donnée à exporter</string>
+    <string name="settings_export_title">Exporter</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Sauvegarde de base de données (ZIP)</string>
+    <string name="settings_import_summary">Importez des données à partir de types pris en charge (%1$s) et d'archives (%2$s). Les importations de bases de données fusionnent les lignes compatibles ; elles ne remplacent pas les données existantes.</string>
+    <string name="settings_import_title">Importer</string>
+</resources>
