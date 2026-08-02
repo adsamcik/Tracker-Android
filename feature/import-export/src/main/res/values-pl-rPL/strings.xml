@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="export_button">Eksportuj</string>
     <string name="export_default_file_name_range">Tracker_eksport_danych_%1$s__%2$s</string>
@@ -23,7 +23,11 @@
     <string name="import_notification_error_file_not_supported">Plik %s nie jest obsługiwany.</string>
     <string name="import_notification_extracting">Rozpakowywanie %s…</string>
     <plurals name="import_notification_finished">
-        <item quantity="one">Import ukończony. Pomyślnie zaimportowano %d rekord.</item><item quantity="few">Import ukończony. Pomyślnie zaimportowano %d rekordy.</item><item quantity="many">Import ukończony. Pomyślnie zaimportowano %d rekordów.</item><item quantity="other">Import ukończony. Pomyślnie zaimportowano %d rekordu.</item></plurals>
+        <item quantity="one">Import ukończony. Pomyślnie zaimportowano %d rekord.</item>
+        <item quantity="few">Import ukończony. Pomyślnie zaimportowano %d rekordy.</item>
+        <item quantity="many">Import ukończony. Pomyślnie zaimportowano %d rekordów.</item>
+        <item quantity="other">Import ukończony. Pomyślnie zaimportowano %d rekordu.</item>
+    </plurals>
     <string name="import_notification_finished_with_skipped">Import ukończony. Zaimportowano %1$d rekordów (pominięto: %2$d).</string>
     <string name="import_notification_error_records_failed">Nie udało się zaimportować %d rekordów z powodu naruszeń ograniczeń.</string>
     <string name="import_notification_importing">Importowanie %s…</string>

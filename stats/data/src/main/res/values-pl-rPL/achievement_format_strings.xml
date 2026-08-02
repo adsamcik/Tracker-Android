@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Śledź aktywność przez co najmniej %2$d różnych dni, aby je odblokować.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Przemierz %1$s</string>
     <string name="ach_desc_distance_total">Pokonaj łącznie %1$s zarejestrowanej odległości we wszystkich sesjach.</string>
     <string name="ach_title_week_distance">%1$s w tym tygodniu</string>
@@ -16,74 +15,127 @@
     <string name="ach_desc_cycling_distance">Przejedź rowerem łącznie %1$s.</string>
     <string name="ach_title_vehicle_distance">Przejedź pojazdem %1$s</string>
     <string name="ach_desc_vehicle_distance">Pokonaj %1$s samochodem, autobusem, pociągiem, łodzią lub samolotem.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Zrób %1$s kroków</string>
     <string name="ach_desc_steps_total">Zarejestruj %1$s kroków we wszystkich sesjach.</string>
     <string name="ach_title_best_daily_steps">%1$s kroków w ciągu dnia</string>
     <string name="ach_desc_best_daily_steps">Zrób %1$s kroków w jednym dniu.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
-        <item quantity="one">Pierwsza sesja</item><item quantity="few">Zarejestruj %1$s sesje</item><item quantity="many">Zarejestruj %1$s sesji</item><item quantity="other">Zarejestruj %1$s sesji</item></plurals>
+        <item quantity="one">Pierwsza sesja</item>
+        <item quantity="few">Zarejestruj %1$s sesje</item>
+        <item quantity="many">Zarejestruj %1$s sesji</item>
+        <item quantity="other">Zarejestruj %1$s sesji</item>
+    </plurals>
     <string name="ach_desc_sessions_total">Zarejestruj łącznie %1$s sesji śledzenia.</string>
     <plurals name="ach_title_distinct_cells">
-        <item quantity="one">Odkryj pierwszą komórkę</item><item quantity="few">Odkryj %1$s komórki mapy</item><item quantity="many">Odkryj %1$s komórek mapy</item><item quantity="other">Odkryj %1$s komórki mapy</item></plurals>
+        <item quantity="one">Odkryj pierwszą komórkę</item>
+        <item quantity="few">Odkryj %1$s komórki mapy</item>
+        <item quantity="many">Odkryj %1$s komórek mapy</item>
+        <item quantity="other">Odkryj %1$s komórki mapy</item>
+    </plurals>
     <string name="ach_desc_distinct_cells">Odkryj %1$s różnych komórek siatki na mapie (każda o boku ok. 1 km).</string>
     <plurals name="ach_title_countries_visited">
-        <item quantity="one">Odwiedź %d kraj</item><item quantity="few">Odwiedź %d kraje</item><item quantity="many">Odwiedź %d krajów</item><item quantity="other">Odwiedź %d kraju</item></plurals>
+        <item quantity="one">Odwiedź %d kraj</item>
+        <item quantity="few">Odwiedź %d kraje</item>
+        <item quantity="many">Odwiedź %d krajów</item>
+        <item quantity="other">Odwiedź %d kraju</item>
+    </plurals>
     <string name="ach_desc_countries_visited">Zarejestruj co najmniej jedną sesję w %1$d różnych krajach.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
-        <item quantity="one">Pierwszy aktywny dzień</item><item quantity="few">%1$s aktywne dni</item><item quantity="many">%1$s aktywnych dni</item><item quantity="other">%1$s aktywnego dnia</item></plurals>
+        <item quantity="one">Pierwszy aktywny dzień</item>
+        <item quantity="few">%1$s aktywne dni</item>
+        <item quantity="many">%1$s aktywnych dni</item>
+        <item quantity="other">%1$s aktywnego dnia</item>
+    </plurals>
     <string name="ach_desc_active_days">Śledź aktywność przez łącznie %1$s różnych dni.</string>
     <plurals name="ach_title_current_streak">
-        <item quantity="one">%d-dniowa seria</item><item quantity="few">%d-dniowa seria</item><item quantity="many">%d-dniowa seria</item><item quantity="other">%d-dniowa seria</item></plurals>
+        <item quantity="one">%d-dniowa seria</item>
+        <item quantity="few">%d-dniowa seria</item>
+        <item quantity="many">%d-dniowa seria</item>
+        <item quantity="other">%d-dniowa seria</item>
+    </plurals>
     <string name="ach_desc_current_streak">Śledź aktywność przez %1$d dni z rzędu.</string>
     <plurals name="ach_title_best_streak">
-        <item quantity="one">Rekord: %d dzień</item><item quantity="few">Rekord: %d dni</item><item quantity="many">Rekord: %d dni</item><item quantity="other">Rekord: %d dnia</item></plurals>
+        <item quantity="one">Rekord: %d dzień</item>
+        <item quantity="few">Rekord: %d dni</item>
+        <item quantity="many">Rekord: %d dni</item>
+        <item quantity="other">Rekord: %d dnia</item>
+    </plurals>
     <string name="ach_desc_best_streak">Osiągnij rekordową serię śledzenia przez %1$d dni.</string>
     <plurals name="ach_title_months_active">
-        <item quantity="one">%d miesiąc z Trackerem</item><item quantity="few">%d miesiące z Trackerem</item><item quantity="many">%d miesięcy z Trackerem</item><item quantity="other">%d miesiąca z Trackerem</item></plurals>
+        <item quantity="one">%d miesiąc z Trackerem</item>
+        <item quantity="few">%d miesiące z Trackerem</item>
+        <item quantity="many">%d miesięcy z Trackerem</item>
+        <item quantity="other">%d miesiąca z Trackerem</item>
+    </plurals>
     <string name="ach_desc_months_active">Pozostań aktywny w Trackerze przez %1$d różnych miesięcy.</string>
     <plurals name="ach_title_week_active_days">
-        <item quantity="one">%d aktywny dzień w tym tygodniu</item><item quantity="few">%d aktywne dni w tym tygodniu</item><item quantity="many">%d aktywnych dni w tym tygodniu</item><item quantity="other">%d aktywnego dnia w tym tygodniu</item></plurals>
+        <item quantity="one">%d aktywny dzień w tym tygodniu</item>
+        <item quantity="few">%d aktywne dni w tym tygodniu</item>
+        <item quantity="many">%d aktywnych dni w tym tygodniu</item>
+        <item quantity="other">%d aktywnego dnia w tym tygodniu</item>
+    </plurals>
     <string name="ach_desc_week_active_days">Śledź aktywność przez %1$d dni w jednym tygodniu.</string>
     <plurals name="ach_title_app_age_days">
-        <item quantity="one">Pierwszy dzień z Trackerem</item><item quantity="few">%1$s dni z Trackerem</item><item quantity="many">%1$s dni z Trackerem</item><item quantity="other">%1$s dnia z Trackerem</item></plurals>
+        <item quantity="one">Pierwszy dzień z Trackerem</item>
+        <item quantity="few">%1$s dni z Trackerem</item>
+        <item quantity="many">%1$s dni z Trackerem</item>
+        <item quantity="other">%1$s dnia z Trackerem</item>
+    </plurals>
     <string name="ach_desc_app_age_days">Miej zainstalowanego Trackera przez %1$s dni.</string>
     <plurals name="ach_title_comeback_gap_days">
-        <item quantity="one">Witaj ponownie</item><item quantity="few">Witaj ponownie po %d dniach</item><item quantity="many">Witaj ponownie po %d dniach</item><item quantity="other">Witaj ponownie po %d dnia</item></plurals>
+        <item quantity="one">Witaj ponownie</item>
+        <item quantity="few">Witaj ponownie po %d dniach</item>
+        <item quantity="many">Witaj ponownie po %d dniach</item>
+        <item quantity="other">Witaj ponownie po %d dnia</item>
+    </plurals>
     <string name="ach_desc_comeback_gap_days">Wróć do śledzenia po %1$d-dniowej przerwie.</string>
     <plurals name="ach_title_hours_of_day">
-        <item quantity="one">Śledź o %d godzinie dnia</item><item quantity="few">Śledź w %d różnych godzinach</item><item quantity="many">Śledź w %d różnych godzinach</item><item quantity="other">Śledź w %d różnych godzinach</item></plurals>
+        <item quantity="one">Śledź o %d godzinie dnia</item>
+        <item quantity="few">Śledź w %d różnych godzinach</item>
+        <item quantity="many">Śledź w %d różnych godzinach</item>
+        <item quantity="other">Śledź w %d różnych godzinach</item>
+    </plurals>
     <string name="ach_desc_hours_of_day">Rejestruj aktywność w %1$d różnych godzinach dnia we wszystkich sesjach.</string>
     <string name="ach_title_days_of_week">Wszystkie siedem dni tygodnia</string>
     <string name="ach_desc_days_of_week">Śledź aktywność co najmniej raz w każdy dzień tygodnia.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
-        <item quantity="one">Wypróbuj %d typ aktywności</item><item quantity="few">Wypróbuj %d typy aktywności</item><item quantity="many">Wypróbuj %d typów aktywności</item><item quantity="other">Wypróbuj %d typu aktywności</item></plurals>
+        <item quantity="one">Wypróbuj %d typ aktywności</item>
+        <item quantity="few">Wypróbuj %d typy aktywności</item>
+        <item quantity="many">Wypróbuj %d typów aktywności</item>
+        <item quantity="other">Wypróbuj %d typu aktywności</item>
+    </plurals>
     <string name="ach_desc_activity_types">Rejestruj sesje w %1$d różnych typach aktywności (chodzenie, rower, jazda, …).</string>
     <plurals name="ach_title_week_activity_types">
-        <item quantity="one">%d typ aktywności w tym tygodniu</item><item quantity="few">%d typy aktywności w tym tygodniu</item><item quantity="many">%d typów aktywności w tym tygodniu</item><item quantity="other">%d typu aktywności w tym tygodniu</item></plurals>
+        <item quantity="one">%d typ aktywności w tym tygodniu</item>
+        <item quantity="few">%d typy aktywności w tym tygodniu</item>
+        <item quantity="many">%d typów aktywności w tym tygodniu</item>
+        <item quantity="other">%d typu aktywności w tym tygodniu</item>
+    </plurals>
     <string name="ach_desc_week_activity_types">Użyj %1$d różnych typów aktywności w jednym tygodniu.</string>
     <string name="ach_title_week_all_days">Śledź każdy dzień tygodnia</string>
     <string name="ach_desc_week_all_days">Rejestruj aktywność we wszystkie siedem dni tygodnia kalendarzowego.</string>
     <string name="ach_title_walk_cycle_drive">Chodź, jedź rowerem, prowadź</string>
     <string name="ach_desc_walk_cycle_drive">Zarejestruj co najmniej jedną sesję każdej z aktywności: chodzenia, jazdy na rowerze i prowadzenia pojazdu.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Sesja %1$s</string>
     <string name="ach_desc_max_session_duration">Zarejestruj jedną sesję trwającą co najmniej %1$s.</string>
     <string name="ach_title_max_speed">Osiągnij %1$s</string>
     <string name="ach_desc_max_speed">Osiągnij podczas sesji prędkość maksymalną co najmniej %1$s.</string>
     <string name="ach_title_active_minutes">%1$s aktywnych minut</string>
     <string name="ach_desc_active_minutes">Zgromadź %1$s minut aktywnego śledzenia.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
-        <item quantity="one">Pierwszy eksport</item><item quantity="few">%d eksporty</item><item quantity="many">%d eksportów</item><item quantity="other">%d eksportu</item></plurals>
+        <item quantity="one">Pierwszy eksport</item>
+        <item quantity="few">%d eksporty</item>
+        <item quantity="many">%d eksportów</item>
+        <item quantity="other">%d eksportu</item>
+    </plurals>
     <string name="ach_desc_exports_total">Wyeksportuj dane %1$d razy.</string>
     <plurals name="ach_title_seasons_explored">
-        <item quantity="one">Śledź przez jedną porę roku</item><item quantity="few">Śledź przez %d pory roku</item><item quantity="many">Śledź przez %d pór roku</item><item quantity="other">Śledź przez %d pory roku</item></plurals>
+        <item quantity="one">Śledź przez jedną porę roku</item>
+        <item quantity="few">Śledź przez %d pory roku</item>
+        <item quantity="many">Śledź przez %d pór roku</item>
+        <item quantity="other">Śledź przez %d pory roku</item>
+    </plurals>
     <string name="ach_desc_seasons_explored">Rejestruj aktywność w %1$d różnych porach roku (wiosna/lato/jesień/zima).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Śledzący Nowy Rok</string>
     <string name="ach_desc_calendar_new_year">Zarejestruj sesję 1 stycznia.</string>
     <string name="ach_title_calendar_leap_day">Pionier dnia przestępnego</string>
@@ -92,77 +144,147 @@
     <string name="ach_desc_calendar_summer_solstice">Zarejestruj sesję w najdłuższy dzień roku.</string>
     <string name="ach_title_calendar_winter_solstice">Przesilenie zimowe</string>
     <string name="ach_desc_calendar_winter_solstice">Zarejestruj sesję w najkrótszy dzień roku.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
-        <item quantity="one">Nocny marek</item><item quantity="few">%1$s nocne sesje</item><item quantity="many">%1$s nocnych sesji</item><item quantity="other">%1$s nocnej sesji</item></plurals>
+        <item quantity="one">Nocny marek</item>
+        <item quantity="few">%1$s nocne sesje</item>
+        <item quantity="many">%1$s nocnych sesji</item>
+        <item quantity="other">%1$s nocnej sesji</item>
+    </plurals>
     <string name="ach_desc_night_sessions">Zarejestruj %1$d sesji rozpoczynających się między północą a 5:00.</string>
     <plurals name="ach_title_dawn_sessions">
-        <item quantity="one">Ranny ptaszek</item><item quantity="few">%1$s sesje o świcie</item><item quantity="many">%1$s sesji o świcie</item><item quantity="other">%1$s sesji o świcie</item></plurals>
+        <item quantity="one">Ranny ptaszek</item>
+        <item quantity="few">%1$s sesje o świcie</item>
+        <item quantity="many">%1$s sesji o świcie</item>
+        <item quantity="other">%1$s sesji o świcie</item>
+    </plurals>
     <string name="ach_desc_dawn_sessions">Zarejestruj %1$d sesji rozpoczynających się między 5:00 a 8:00.</string>
     <plurals name="ach_title_user_created_sessions">
-        <item quantity="one">Ręczny tracker</item><item quantity="few">Ręcznie rozpocznij %1$s sesje</item><item quantity="many">Ręcznie rozpocznij %1$s sesji</item><item quantity="other">Ręcznie rozpocznij %1$s sesji</item></plurals>
+        <item quantity="one">Ręczny tracker</item>
+        <item quantity="few">Ręcznie rozpocznij %1$s sesje</item>
+        <item quantity="many">Ręcznie rozpocznij %1$s sesji</item>
+        <item quantity="other">Ręcznie rozpocznij %1$s sesji</item>
+    </plurals>
     <string name="ach_desc_user_created_sessions">Ręcznie rozpocznij %1$d sesji śledzenia.</string>
     <string name="ach_title_max_cycle_session">Przejedź rowerem %1$s w jednej jeździe</string>
     <string name="ach_desc_max_cycle_session">Przejedź rowerem %1$s w jednej jeździe.</string>
     <plurals name="ach_title_triathlon_days">
-        <item quantity="one">Dzień wielu środków transportu</item><item quantity="few">%d dni wielu środków transportu</item><item quantity="many">%d dni wielu środków transportu</item><item quantity="other">%d dnia wielu środków transportu</item></plurals>
+        <item quantity="one">Dzień wielu środków transportu</item>
+        <item quantity="few">%d dni wielu środków transportu</item>
+        <item quantity="many">%d dni wielu środków transportu</item>
+        <item quantity="other">%d dnia wielu środków transportu</item>
+    </plurals>
     <string name="ach_desc_triathlon_days">Przemieszczaj się pieszo, rowerem i transportem silnikowym w tym samym dniu, przez %1$d różnych dni.</string>
     <plurals name="ach_title_cell_all_seasons">
-        <item quantity="one">Miejsce na każdą porę roku</item><item quantity="few">Wszystkie cztery pory roku w %d miejscach</item><item quantity="many">Wszystkie cztery pory roku w %d miejscach</item><item quantity="other">Wszystkie cztery pory roku w %d miejscu</item></plurals>
+        <item quantity="one">Miejsce na każdą porę roku</item>
+        <item quantity="few">Wszystkie cztery pory roku w %d miejscach</item>
+        <item quantity="many">Wszystkie cztery pory roku w %d miejscach</item>
+        <item quantity="other">Wszystkie cztery pory roku w %d miejscu</item>
+    </plurals>
     <string name="ach_desc_cell_all_seasons">Odwiedź %1$d komórek mapy we wszystkich czterech porach roku.</string>
     <string name="ach_title_max_cell_visits">Odwiedź jedno miejsce %1$d razy</string>
     <string name="ach_desc_max_cell_visits">Odwiedź pojedynczą komórkę mapy %1$d razy.</string>
     <plurals name="ach_title_cells_thorough">
-        <item quantity="one">Dokładnie zbadaj komórkę</item><item quantity="few">Dokładnie zbadaj %1$s komórki</item><item quantity="many">Dokładnie zbadaj %1$s komórek</item><item quantity="other">Dokładnie zbadaj %1$s komórki</item></plurals>
+        <item quantity="one">Dokładnie zbadaj komórkę</item>
+        <item quantity="few">Dokładnie zbadaj %1$s komórki</item>
+        <item quantity="many">Dokładnie zbadaj %1$s komórek</item>
+        <item quantity="other">Dokładnie zbadaj %1$s komórki</item>
+    </plurals>
     <string name="ach_desc_cells_thorough">Dokładnie zbadaj %1$d różnych komórek mapy.</string>
     <string name="ach_title_max_cell_span">Dotrzyj na odległość %1$s</string>
     <string name="ach_desc_max_cell_span">Odkryj dwie komórki mapy oddalone od siebie o co najmniej %1$s.</string>
     <plurals name="ach_title_max_cells_in_day">
-        <item quantity="one">Odkryj komórkę w ciągu dnia</item><item quantity="few">Odkryj %d komórki w ciągu dnia</item><item quantity="many">Odkryj %d komórek w ciągu dnia</item><item quantity="other">Odkryj %d komórki w ciągu dnia</item></plurals>
+        <item quantity="one">Odkryj komórkę w ciągu dnia</item>
+        <item quantity="few">Odkryj %d komórki w ciągu dnia</item>
+        <item quantity="many">Odkryj %d komórek w ciągu dnia</item>
+        <item quantity="other">Odkryj %d komórki w ciągu dnia</item>
+    </plurals>
     <string name="ach_desc_max_cells_in_day">Odkryj %1$d nowych komórek mapy w jednym dniu.</string>
     <string name="ach_title_max_cell_revisit_gap">Wróć po %1$d dniach</string>
     <string name="ach_desc_max_cell_revisit_gap">Odwiedź ponownie komórkę mapy %1$d dni po jej pierwszym odkryciu.</string>
     <plurals name="ach_title_perfect_months">
-        <item quantity="one">Idealny miesiąc</item><item quantity="few">%d idealne miesiące</item><item quantity="many">%d idealnych miesięcy</item><item quantity="other">%d idealnego miesiąca</item></plurals>
+        <item quantity="one">Idealny miesiąc</item>
+        <item quantity="few">%d idealne miesiące</item>
+        <item quantity="many">%d idealnych miesięcy</item>
+        <item quantity="other">%d idealnego miesiąca</item>
+    </plurals>
     <string name="ach_desc_perfect_months">Śledź aktywność każdego dnia przez %1$d miesięcy kalendarzowych.</string>
     <plurals name="ach_title_export_formats">
-        <item quantity="one">Użyj jednego formatu eksportu</item><item quantity="few">Użyj %d formatów eksportu</item><item quantity="many">Użyj %d formatów eksportu</item><item quantity="other">Użyj %d formatu eksportu</item></plurals>
+        <item quantity="one">Użyj jednego formatu eksportu</item>
+        <item quantity="few">Użyj %d formatów eksportu</item>
+        <item quantity="many">Użyj %d formatów eksportu</item>
+        <item quantity="other">Użyj %d formatu eksportu</item>
+    </plurals>
     <string name="ach_desc_export_formats">Eksportuj dane w %1$d różnych formatach plików.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Osiągnij poziom %1$d</string>
     <string name="ach_desc_player_level">Wejdź na poziom gracza %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP w ciągu dnia</string>
     <string name="ach_desc_best_day_xp">Zdobądź %1$d XP w jednym dniu.</string>
     <plurals name="ach_title_minigames_played">
-        <item quantity="one">Zagraj w pierwszą minigrę</item><item quantity="few">Zagraj w %1$s minigry</item><item quantity="many">Zagraj w %1$s minigier</item><item quantity="other">Zagraj w %1$s minigry</item></plurals>
+        <item quantity="one">Zagraj w pierwszą minigrę</item>
+        <item quantity="few">Zagraj w %1$s minigry</item>
+        <item quantity="many">Zagraj w %1$s minigier</item>
+        <item quantity="other">Zagraj w %1$s minigry</item>
+    </plurals>
     <string name="ach_desc_minigames_played">Ukończ %1$d rozgrywek minigier.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Wespnij się na %1$s</string>
     <string name="ach_desc_total_ascent">Zgromadź %1$s łącznego przewyższenia (podejść) podczas całego śledzenia.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
-        <item quantity="one">Zdobywaj z jednego źródła XP</item><item quantity="few">Zdobywaj z %d źródeł XP</item><item quantity="many">Zdobywaj z %d źródeł XP</item><item quantity="other">Zdobywaj z %d źródła XP</item></plurals>
+        <item quantity="one">Zdobywaj z jednego źródła XP</item>
+        <item quantity="few">Zdobywaj z %d źródeł XP</item>
+        <item quantity="many">Zdobywaj z %d źródeł XP</item>
+        <item quantity="other">Zdobywaj z %d źródła XP</item>
+    </plurals>
     <string name="ach_desc_xp_sources">Zdobywaj XP z %1$d różnych źródeł — sesji śledzenia, minigier i celów.</string>
     <plurals name="ach_title_perfect_weeks">
-        <item quantity="one">Idealny tydzień</item><item quantity="few">%d idealne tygodnie</item><item quantity="many">%d idealnych tygodni</item><item quantity="other">%d idealnego tygodnia</item></plurals>
+        <item quantity="one">Idealny tydzień</item>
+        <item quantity="few">%d idealne tygodnie</item>
+        <item quantity="many">%d idealnych tygodni</item>
+        <item quantity="other">%d idealnego tygodnia</item>
+    </plurals>
     <string name="ach_desc_perfect_weeks">Spełniaj dzienny cel kroków każdego dnia przez %1$d pełnych tygodni.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
-        <item quantity="one">%d-dniowa seria celów</item><item quantity="few">%d-dniowa seria celów</item><item quantity="many">%d-dniowa seria celów</item><item quantity="other">%d-dniowa seria celów</item></plurals>
+        <item quantity="one">%d-dniowa seria celów</item>
+        <item quantity="few">%d-dniowa seria celów</item>
+        <item quantity="many">%d-dniowa seria celów</item>
+        <item quantity="other">%d-dniowa seria celów</item>
+    </plurals>
     <string name="ach_desc_goal_streak">Spełniaj dzienny cel kroków przez %1$d dni z rzędu.</string>
     <plurals name="ach_title_achievements_unlocked">
-        <item quantity="one">Odblokuj jedno osiągnięcie</item><item quantity="few">Odblokuj %d osiągnięcia</item><item quantity="many">Odblokuj %d osiągnięć</item><item quantity="other">Odblokuj %d osiągnięcia</item></plurals>
+        <item quantity="one">Odblokuj jedno osiągnięcie</item>
+        <item quantity="few">Odblokuj %d osiągnięcia</item>
+        <item quantity="many">Odblokuj %d osiągnięć</item>
+        <item quantity="other">Odblokuj %d osiągnięcia</item>
+    </plurals>
     <string name="ach_desc_achievements_unlocked">Odblokuj łącznie %1$d osiągnięć.</string>
     <plurals name="ach_title_categories_completed">
-        <item quantity="one">Ukończ kategorię</item><item quantity="few">Ukończ %d kategorie</item><item quantity="many">Ukończ %d kategorii</item><item quantity="other">Ukończ %d kategorii</item></plurals>
+        <item quantity="one">Ukończ kategorię</item>
+        <item quantity="few">Ukończ %d kategorie</item>
+        <item quantity="many">Ukończ %d kategorii</item>
+        <item quantity="other">Ukończ %d kategorii</item>
+    </plurals>
     <string name="ach_desc_categories_completed">Odblokuj każde osiągnięcie w %1$d różnych kategoriach.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
-        <item quantity="one">%d-sekundowa</item><item quantity="few">%d-sekundowe</item><item quantity="many">%d-sekundowych</item><item quantity="other">%d-sekundowej</item></plurals>
+        <item quantity="one">%d-sekundowa</item>
+        <item quantity="few">%d-sekundowe</item>
+        <item quantity="many">%d-sekundowych</item>
+        <item quantity="other">%d-sekundowej</item>
+    </plurals>
     <plurals name="ach_duration_minutes">
-        <item quantity="one">%d-minutowa</item><item quantity="few">%d-minutowe</item><item quantity="many">%d-minutowych</item><item quantity="other">%d-minutowej</item></plurals>
+        <item quantity="one">%d-minutowa</item>
+        <item quantity="few">%d-minutowe</item>
+        <item quantity="many">%d-minutowych</item>
+        <item quantity="other">%d-minutowej</item>
+    </plurals>
     <plurals name="ach_duration_hours">
-        <item quantity="one">%d-godzinna</item><item quantity="few">%d-godzinne</item><item quantity="many">%d-godzinnych</item><item quantity="other">%d-godzinnej</item></plurals>
+        <item quantity="one">%d-godzinna</item>
+        <item quantity="few">%d-godzinne</item>
+        <item quantity="many">%d-godzinnych</item>
+        <item quantity="other">%d-godzinnej</item>
+    </plurals>
     <plurals name="ach_duration_days">
-        <item quantity="one">%d-dniowa</item><item quantity="few">%d-dniowe</item><item quantity="many">%d-dniowych</item><item quantity="other">%d-dniowej</item></plurals>
+        <item quantity="one">%d-dniowa</item>
+        <item quantity="few">%d-dniowe</item>
+        <item quantity="many">%d-dniowych</item>
+        <item quantity="other">%d-dniowej</item>
+    </plurals>
 </resources>

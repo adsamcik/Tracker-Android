@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Gra</string>
     <string name="module_map_title">Mapa</string>
     <string name="module_statistics_title">Statystyki</string>
@@ -25,11 +23,19 @@
     <string name="settings_osm_import_action_failed">Nie udało się ukończyć importu mapy offline.</string>
     <string name="settings_osm_import_action_source_unavailable">Nie można było otworzyć wybranego pliku mapy.</string>
     <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Zaimportowano %1$d drogę z %2$d węzłów.</item><item quantity="few">Zaimportowano %1$d drogi z %2$d węzłów.</item><item quantity="many">Zaimportowano %1$d dróg z %2$d węzłów.</item><item quantity="other">Zaimportowano %1$d dróg z %2$d węzłów.</item></plurals>
+        <item quantity="one">Zaimportowano %1$d drogę z %2$d węzłów.</item>
+        <item quantity="few">Zaimportowano %1$d drogi z %2$d węzłów.</item>
+        <item quantity="many">Zaimportowano %1$d dróg z %2$d węzłów.</item>
+        <item quantity="other">Zaimportowano %1$d dróg z %2$d węzłów.</item>
+    </plurals>
     <string name="settings_osm_imports_empty">Nie zaimportowano jeszcze żadnego regionu OpenStreetMap.</string>
     <string name="settings_osm_imports_attribution">Dane mapy © współtwórcy OpenStreetMap (ODbL 1.0). Całe przetwarzanie odbywa się na urządzeniu.</string>
     <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d droga · zaimportowano %2$s</item><item quantity="few">%1$,d drogi · zaimportowano %2$s</item><item quantity="many">%1$,d dróg · zaimportowano %2$s</item><item quantity="other">%1$,d dróg · zaimportowano %2$s</item></plurals>
+        <item quantity="one">%1$,d droga · zaimportowano %2$s</item>
+        <item quantity="few">%1$,d drogi · zaimportowano %2$s</item>
+        <item quantity="many">%1$,d dróg · zaimportowano %2$s</item>
+        <item quantity="other">%1$,d dróg · zaimportowano %2$s</item>
+    </plurals>
     <string name="settings_osm_import_remove_title">Usuń zaimportowany region</string>
     <string name="settings_osm_import_remove_message">Usunąć %1$s? Kontrola zgodności pojazdu będzie korzystać ze stałej wartości bazowej do czasu ponownego importu regionu.</string>
     <string name="settings_incremental_backups_title">Kopie przyrostowe</string>
@@ -38,7 +44,6 @@
     <string name="settings_reset_export_watermarks_summary">Następna automatyczna kopia zapasowa obejmie wszystkie dane, a nie tylko zmiany</string>
     <string name="settings_reset_export_watermarks_done">Znaczniki eksportu zresetowane — następna kopia zapasowa będzie pełnym eksportem</string>
     <string name="settings_migration_backup_export_title">Eksportuj kopię bezpieczeństwa sprzed aktualizacji</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Pełna kopia bazy danych z wersji v%1$d, utworzona przed migracją do v%2$d i przechowywana prywatnie maksymalnie przez 30 dni</string>
     <string name="settings_migration_backup_warning_title">Eksportować kopię zapasową zawierającą dane wrażliwe?</string>
     <string name="settings_migration_backup_warning_message">Ta kopia zapasowa może zawierać dokładne lokalizacje, obserwacje Wi-Fi i sieci komórkowej, aktywności oraz inne prywatne dane sprzed aktualizacji. Zapisz ją tylko w zaufanym miejscu.</string>
@@ -84,7 +89,11 @@
     <string name="settings_developer_mode_disable">Wyłącz tryb programisty</string>
     <string name="settings_developer_mode_subtitle">Tryb programisty aktywny</string>
     <plurals name="settings_developer_mode_tap_countdown">
-        <item quantity="one">Dotknij jeszcze %d raz, aby włączyć tryb programisty</item><item quantity="few">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item><item quantity="many">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item><item quantity="other">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item></plurals>
+        <item quantity="one">Dotknij jeszcze %d raz, aby włączyć tryb programisty</item>
+        <item quantity="few">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item>
+        <item quantity="many">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item>
+        <item quantity="other">Dotknij jeszcze %d razy, aby włączyć tryb programisty</item>
+    </plurals>
     <string name="settings_version_info_title">Informacje o wersji</string>
     <string name="settings_version_format">Wersja: %1$s (%2$d)</string>
     <string name="settings_language_summary">Obecny język: %s</string>
@@ -99,13 +108,6 @@
         <item>Lotniczy</item>
     </string-array>
     <string name="settings_length_system_title">System długości</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Licencje open source</string>
     <string name="settings_licenses_subtitle">Wyświetl dołączone powiadomienia innych firm zawarte w tej kompilacji.</string>
     <string name="settings_licenses_loading">Wczytywanie licencji…</string>
@@ -121,19 +123,13 @@
     <string name="about_version_label">Wersja</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Commit kompilacji</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-mail</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Łącza</string>
     <string name="about_attributions_title">Źródła danych</string>
     <string name="about_attribution_geonames_label">Nazwy miejsc</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Dane map i ulic</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Ustawienia modułów</string>
     <string name="settings_core_group_title">Podstawowe</string>
     <string name="settings_other_title">Jednostki i wyświetlanie</string>
@@ -145,16 +141,9 @@
         <item>Prędkość (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Format prędkości</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Ustawienia</string>
     <string name="switch_state_on">Włączone</string>
     <string name="switch_state_off">Wyłączone</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Śledź podróże prywatnie</string>
     <string name="onboarding_streamlined_subtitle">Wszystkie dane pozostają na urządzeniu. Bez synchronizacji z chmurą i śledzenia przez firmy zewnętrzne.</string>
     <string name="onboarding_benefit_privacy_title">Prywatność przede wszystkim</string>
@@ -166,12 +155,14 @@
     <string name="onboarding_get_started">ROZPOCZNIJ</string>
     <string name="onboarding_privacy_policy_button">Przeczytaj politykę prywatności</string>
     <string name="onboarding_state_read_error_message">Nie udało się sprawdzić, czy konfiguracja została ukończona, dlatego jest wyświetlana, aby chronić prywatność danych. Możesz bezpiecznie kontynuować.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Automatycznie usuwaj stare dane</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Przechowuj dane bezterminowo; automatyczne czyszczenie nie usunie starych danych</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
-        <item quantity="one">Automatycznie usuń dane starsze niż %1$d rok</item><item quantity="few">Automatycznie usuń dane starsze niż %1$d lata</item><item quantity="many">Automatycznie usuń dane starsze niż %1$d lat</item><item quantity="other">Automatycznie usuń dane starsze niż %1$d lat</item></plurals>
-    <!-- Data retention period options -->
+        <item quantity="one">Automatycznie usuń dane starsze niż %1$d rok</item>
+        <item quantity="few">Automatycznie usuń dane starsze niż %1$d lata</item>
+        <item quantity="many">Automatycznie usuń dane starsze niż %1$d lat</item>
+        <item quantity="other">Automatycznie usuń dane starsze niż %1$d lat</item>
+    </plurals>
     <string name="settings_data_retention_years_title">Przechowuj dane przez</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Przechowuj bezterminowo</item>
@@ -181,17 +172,7 @@
         <item>5 lat</item>
         <item>10 lat</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">KONTYNUUJ</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Eksport danych</string>
     <string name="settings_export_data_summary">Zapisz dane śledzenia w różnych formatach</string>
     <string name="export_format_dialog_title">Wybierz format eksportu</string>
@@ -212,19 +193,15 @@
     <string name="settings_export_title">Eksport</string>
     <string name="settings_import_summary">Importuj dane z obsługiwanych typów (%1$s) i archiwów (%2$s). Importy baz danych scalają zgodne wiersze; nie zastępują istniejących danych.</string>
     <string name="settings_import_title">Import</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Rozumiem</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Mały wpływ</string>
     <string name="battery_impact_moderate">Umiarkowany wpływ</string>
     <string name="battery_impact_high">Duży wpływ</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Wybierz dokładność lokalizacji</string>
     <string name="precision_mode_approximate_title">Przybliżona</string>
     <string name="precision_mode_approximate_description">Lokalizacja oparta na sieci. Dobra do śledzenia ogólnego obszaru przy minimalnym zużyciu baterii.</string>
     <string name="precision_mode_precise_title">Dokładna</string>
     <string name="precision_mode_precise_description">Lokalizacja oparta na GPS. Najlepsza dla szczegółowych tras, map cieplnych i wyzwań.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Odblokuj dokładne śledzenie</string>
     <string name="upgrade_to_precise_message_general">Używasz przybliżonej lokalizacji. Przełącz na dokładne śledzenie GPS, aby uzyskać lepszą precyzję.</string>
     <string name="upgrade_to_precise_message_route_analysis">Dokładna lokalizacja jest zalecana do precyzyjnej analizy tras i pomiarów odległości.</string>
@@ -238,7 +215,6 @@
     <string name="upgrade_to_precise_battery_message">Dokładny GPS zużywa więcej baterii. Szacowany czas śledzenia: 6–8 godzin na typowych urządzeniach.</string>
     <string name="upgrade_to_precise_button_upgrade">Włącz dokładną lokalizację</string>
     <string name="upgrade_to_precise_button_cancel">Może później</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Wysoka dokładność</string>
     <string name="tracking_preset_high_accuracy_description">Najlepsze szczegóły przy najszybszych aktualizacjach i włączonych wszystkich głównych czujnikach</string>
     <string name="tracking_preset_balanced_name">Zrównoważony</string>
@@ -259,11 +235,13 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Zasady śledzenia</string>
     <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Szacowany czas śledzenia: %d godzina</item><item quantity="few">Szacowany czas śledzenia: %d godziny</item><item quantity="many">Szacowany czas śledzenia: %d godzin</item><item quantity="other">Szacowany czas śledzenia: %d godziny</item></plurals>
-    <!-- Additional aliases for code compatibility -->
+        <item quantity="one">Szacowany czas śledzenia: %d godzina</item>
+        <item quantity="few">Szacowany czas śledzenia: %d godziny</item>
+        <item quantity="many">Szacowany czas śledzenia: %d godzin</item>
+        <item quantity="other">Szacowany czas śledzenia: %d godziny</item>
+    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Wybierz, z jaką dokładnością Tracker rejestruje lokalizację</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -295,13 +273,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automatyczne przełączanie jednostek</string>
     <string name="settings_module_map_subtitle">Jakość mapy cieplnej i opcje wizualizacji</string>
     <string name="settings_module_game_subtitle">Cele, osiągnięcia i kamienie milowe</string>
     <string name="action_navigate_back">Wróć</string>
     <string name="action_help">Pomoc</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Wczytywanie…</string>
     <string name="widget_quick_start_name">Szybki start Trackera</string>
     <string name="widget_quick_start_description">Rozpocznij lub zatrzymaj śledzenie lokalizacji jednym dotknięciem.</string>
@@ -338,16 +314,22 @@
     <string name="widget_tier_ambient">Otoczenie</string>
     <string name="widget_tier_active">Aktywny</string>
     <string name="widget_tier_precision">Precyzja</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Świetny postęp!</string>
     <string name="goal_notification_title_almost">Już prawie!</string>
     <plurals name="goal_notification_body_75">
-        <item quantity="one">Do osiągnięcia dziennego celu pozostał %1$d krok</item><item quantity="few">Do osiągnięcia dziennego celu pozostały %1$d kroki</item><item quantity="many">Do osiągnięcia dziennego celu pozostało %1$d kroków</item><item quantity="other">Do osiągnięcia dziennego celu pozostało %1$d kroku</item></plurals>
+        <item quantity="one">Do osiągnięcia dziennego celu pozostał %1$d krok</item>
+        <item quantity="few">Do osiągnięcia dziennego celu pozostały %1$d kroki</item>
+        <item quantity="many">Do osiągnięcia dziennego celu pozostało %1$d kroków</item>
+        <item quantity="other">Do osiągnięcia dziennego celu pozostało %1$d kroku</item>
+    </plurals>
     <plurals name="goal_notification_body_90">
-        <item quantity="one">Został tylko %1$d krok!</item><item quantity="few">Zostały tylko %1$d kroki!</item><item quantity="many">Zostało tylko %1$d kroków!</item><item quantity="other">Zostało tylko %1$d kroku!</item></plurals>
+        <item quantity="one">Został tylko %1$d krok!</item>
+        <item quantity="few">Zostały tylko %1$d kroki!</item>
+        <item quantity="many">Zostało tylko %1$d kroków!</item>
+        <item quantity="other">Zostało tylko %1$d kroku!</item>
+    </plurals>
     <string name="settings_smart_goal_notifications_title">Inteligentne powiadomienia o celach</string>
     <string name="settings_smart_goal_notifications_summary">Otrzymuj powiadomienia, gdy zbliżasz się do dziennego celu kroków</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Jak ma działać śledzenie?</string>
     <string name="setup_how_to_track_subtitle">Wybierz, kiedy rozpoczyna się śledzenie i jak szczegółowe ma być.</string>
     <string name="setup_auto_tracking_title">Automatyczne śledzenie</string>
@@ -396,7 +378,6 @@
     <string name="setup_start_exploring">Rozpocznij odkrywanie</string>
     <string name="setup_continue">Kontynuuj</string>
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Kafelki map online?</string>
     <string name="setup_online_tiles_subtitle">Tracker zawiera mapę bazową offline, więc działa bez sieci. Jeśli chcesz bogatszych map, możesz zamiast tego pobierać kafelki od publicznego dostawcy.</string>
     <string name="setup_online_tiles_off_title">Tylko offline (zalecane)</string>
@@ -405,10 +386,8 @@
     <string name="setup_online_tiles_on_desc">Pobieraj wektorowe kafelki o większej szczegółowości z OpenFreeMap (domyślnie). Dostawcę można później zmienić w Ustawienia → Mapa.</string>
     <string name="setup_online_tiles_privacy">Po włączeniu dostawca może zobaczyć Twój adres IP i ładowane kafelki — w przybliżeniu obszar oglądanej mapy. Tracker nigdy nie wysyła konta, identyfikatora ani historii lokalizacji.</string>
     <string name="setup_online_tiles_change_later">Możesz to zmienić w dowolnym momencie w Ustawienia → Mapa → Kafelki map online.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Aby rejestrować podróże przy wyłączonym ekranie lub zamkniętej aplikacji, Tracker musi nadal działać w tle. Ustawienia baterii telefonu mogą go wstrzymać — zezwól na działanie w tle, aby automatyczne śledzenie było niezawodne.</string>
     <string name="setup_background_access_optional">Opcjonalne, lecz zalecane. Możesz to zmienić w dowolnym momencie w Ustawienia → Śledzenie.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Niezawodne śledzenie w tle</string>
     <string name="background_reliability_status_exempt">Działanie w tle dozwolone</string>
     <string name="background_reliability_status_optimized">Optymalizacja baterii jest włączona</string>
@@ -417,7 +396,6 @@
     <string name="background_reliability_allow_action">Zezwól na działanie w tle</string>
     <string name="background_reliability_samsung_hint">Urządzenia Samsung mogą także umieszczać aplikacje w „Uśpionych aplikacjach”. Otwórz ustawienia baterii, usuń stamtąd Tracker i ustaw, aby nie był usypiany.</string>
     <string name="background_reliability_samsung_action">Otwórz ustawienia baterii urządzenia</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Diagnostyka awarii</string>
     <string name="settings_tracebox_root_summary">Lokalna diagnostyka awarii, ANR i struktury</string>
     <string name="settings_tracebox_status_header">Stan przechwytywania</string>

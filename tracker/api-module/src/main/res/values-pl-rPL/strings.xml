@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Aktywność</string>
     <string name="activity_value">%s</string>
@@ -42,7 +42,11 @@
     <string name="longitude_value_east">%s E</string>
     <string name="longitude_value_west">%s W</string>
     <plurals name="notification_auto_tracking_lock">
-        <item quantity="one">Automatyczne śledzenie zablokowano na %1$d minutę.</item><item quantity="few">Automatyczne śledzenie zablokowano na %1$d minuty.</item><item quantity="many">Automatyczne śledzenie zablokowano na %1$d minut.</item><item quantity="other">Automatyczne śledzenie zablokowano na %1$d minuty.</item></plurals>
+        <item quantity="one">Automatyczne śledzenie zablokowano na %1$d minutę.</item>
+        <item quantity="few">Automatyczne śledzenie zablokowano na %1$d minuty.</item>
+        <item quantity="many">Automatyczne śledzenie zablokowano na %1$d minut.</item>
+        <item quantity="other">Automatyczne śledzenie zablokowano na %1$d minuty.</item>
+    </plurals>
     <string name="notification_looking_for_gps">Szukanie GPS — lokalizacja używana</string>
     <string name="notification_starting">Uruchamianie Trackera — lokalizacja używana</string>
     <string name="notification_starting_without_location">Uruchamianie Trackera</string>
@@ -60,12 +64,8 @@
     <string name="settings_auto_tracking_transition_summary">Tryb oszczędzający baterię (nieco wolniejsze wykrywanie aktywności)</string>
     <string name="settings_auto_tracking_transition_title">Używaj przejść aktywności</string>
     <string name="settings_cell_enabled_title">Sieć komórkowa</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Automatyczne śledzenie jest wyłączone, dopóki telefon nie zostanie podłączony do ładowarki</string>
     <string name="settings_disabled_recharge_title">Wyłączone do naładowania</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Lokalizacja</string>
     <string name="settings_notification_customize_summary">Zmień, co ma się pojawiać w powiadomieniu śledzenia i w jakiej kolejności.</string>
     <string name="settings_notification_customize_title">Dostosuj powiadomienie</string>
@@ -113,31 +113,39 @@
     <string name="tracker_session_card_title">Sesja</string>
     <string name="tracker_component_waiting_data">Oczekiwanie na dane na żywo</string>
     <plurals name="tracker_wifi_networks_value">
-        <item quantity="one">%d sieć</item><item quantity="few">%d sieci</item><item quantity="many">%d sieci</item><item quantity="other">%d sieci</item></plurals>
+        <item quantity="one">%d sieć</item>
+        <item quantity="few">%d sieci</item>
+        <item quantity="many">%d sieci</item>
+        <item quantity="other">%d sieci</item>
+    </plurals>
     <string name="tracker_signal_strength_title">Sygnał</string>
     <string name="tracker_signal_strength_value">Szczyt: %1$d dBm</string>
     <string name="insight_distance_value_km">%1$.1f km</string>
     <string name="insight_duration_title">Dobrze wykorzystany czas</string>
     <plurals name="insight_duration_desc">
-        <item quantity="one">%1$d minuta śledzenia</item><item quantity="few">%1$d minuty śledzenia</item><item quantity="many">%1$d minut śledzenia</item><item quantity="other">%1$d minuty śledzenia</item></plurals>
+        <item quantity="one">%1$d minuta śledzenia</item>
+        <item quantity="few">%1$d minuty śledzenia</item>
+        <item quantity="many">%1$d minut śledzenia</item>
+        <item quantity="other">%1$d minuty śledzenia</item>
+    </plurals>
     <string name="insight_exploration_title">Odkrywca!</string>
     <plurals name="insight_exploration_desc">
-        <item quantity="one">Odkryto %1$d nowy obszar</item><item quantity="few">Odkryto %1$d nowe obszary</item><item quantity="many">Odkryto %1$d nowych obszarów</item><item quantity="other">Odkryto %1$d nowego obszaru</item></plurals>
+        <item quantity="one">Odkryto %1$d nowy obszar</item>
+        <item quantity="few">Odkryto %1$d nowe obszary</item>
+        <item quantity="many">Odkryto %1$d nowych obszarów</item>
+        <item quantity="other">Odkryto %1$d nowego obszaru</item>
+    </plurals>
     <string name="insight_comparison_title">Powyżej średniej</string>
     <string name="insight_comparison_desc">Ta sesja była o %1$d%% dłuższa od ostatniej średniej</string>
     <string name="wifi_count_title">Liczba Wi‑Fi</string>
     <string name="wifi_count_value">Wi‑Fi: %d</string>
-    <!-- Soft hint when Wi‑Fi permission is missing -->
     <string name="wifi_permission_hint_title">Zezwól na Wi‑Fi dla lepszej dokładności w budynkach</string>
     <string name="wifi_permission_hint_text">Przyznaj uprawnienie Wi‑Fi w ustawieniach aplikacji, aby poprawić lokalizację opartą na sygnale w budynkach. Dane radiowe Wi‑Fi nie są zbierane, dopóki na to nie zezwolisz.</string>
-    <!-- Tracker Dashboard -->
-    <!-- Today Progress Card -->
     <string name="dashboard_today_title">Dzisiaj</string>
     <string name="dashboard_today_empty_title">Brak sesji dzisiaj</string>
     <string name="dashboard_today_distance">Odległość</string>
     <string name="dashboard_today_steps">Kroki</string>
     <string name="dashboard_today_duration">Czas trwania</string>
-    <!-- Tracking Presets -->
     <string name="tracking_preset_title">Tryb śledzenia</string>
     <string name="tracking_preset_battery_saver_title">Oszczędzanie baterii</string>
     <string name="tracking_preset_battery_saver_desc">Zoptymalizowane do całodziennego śledzenia</string>
@@ -146,35 +154,27 @@
     <string name="tracking_preset_high_precision_title">Wysoka precyzja</string>
     <string name="tracking_preset_high_precision_desc">Maksymalna szczegółowość i dokładność</string>
     <string name="tracking_preset_custom_badge">Zastosowano ustawienia własne</string>
-    <!-- Battery Impact Indicators -->
     <string name="battery_impact_low">Mały wpływ na baterię</string>
     <string name="battery_impact_moderate">Umiarkowany wpływ na baterię</string>
     <string name="battery_impact_high">Większe zużycie baterii</string>
     <string name="battery_impact_high_warning">Ta konfiguracja może znacznie skrócić czas pracy baterii. Rozważ tryb zrównoważony dla całodziennego śledzenia.</string>
-    <!-- Advanced Settings Section -->
-    <!-- Help Text for Advanced Settings -->
     <string name="help_min_distance">Tracker czeka, aż przemieścisz się o tę odległość, zanim zarejestruje następną lokalizację. Mniejsze wartości = bardziej szczegółowe trasy, ale większe zużycie baterii.</string>
     <string name="help_min_time">Jak często Tracker sprawdza lokalizację. Mniejsze wartości = częstsze aktualizacje, ale większe zużycie baterii.</string>
     <string name="help_required_accuracy">Próg dokładności GPS. Tracker ignoruje aktualizacje lokalizacji o dokładności gorszej niż ta wartość. Niższa wartość = większa precyzja, ale aktualizacje mogą być pomijane przy słabym GPS.</string>
     <string name="help_transition_detection">Tracker uruchamia się i zatrzymuje automatycznie na podstawie ruchu. Używa mniej baterii niż stały GPS, ale może opóźnić wykrycie zmian aktywności.</string>
-    <!-- Policy Tier Indicator (Phase 4a) -->
     <string name="policy_tier_ambient">Otoczenie</string>
     <string name="policy_tier_active">Aktywny</string>
     <string name="policy_tier_precision">Precyzja</string>
-    <!-- Recent Trips Card (Phase 4d) -->
     <string name="dashboard_recent_trips">Ostatnie podróże</string>
-    <!-- Hardcoded string extractions -->
     <string name="tracker_hide_details">Ukryj szczegóły</string>
     <string name="tracker_show_sensor_details">Pokaż szczegóły czujników</string>
     <string name="tracker_view_map">Zobacz mapę</string>
     <string name="tracker_average_label">Śr.</string>
     <string name="tracker_accuracy_label">Dokładność</string>
     <string name="tracker_disabled">Wyłączone</string>
-    <!-- Content descriptions -->
     <string name="tracker_lock_icon_desc">Stan blokady</string>
     <string name="tracker_settings_icon_desc">Ustawienia komponentu</string>
     <string name="tracker_points_icon_desc">Postęp punktów</string>
-    <!-- Hardcoded string extractions (HI-03) -->
     <string name="tracker_start_button">START</string>
     <string name="tracker_duration_label">Czas trwania</string>
     <string name="tracker_distance_label">Odległość</string>
@@ -195,7 +195,6 @@
     <string name="policy_tier_status_prefix">Zasady GPS:</string>
     <string name="tracker_precision_chip_hint">Dotknij, aby przełączyć na %1$s</string>
     <string name="action_navigate_back">Wróć</string>
-    <!-- Session Insights (Task F) -->
     <string name="insight_distance_title">Pokonana odległość</string>
     <string name="insight_distance_desc">Pokonano %1$s w tej sesji.</string>
     <string name="insight_steps_title">Zarejestrowane kroki</string>
