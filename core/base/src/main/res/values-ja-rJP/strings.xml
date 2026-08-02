@@ -24,19 +24,14 @@
     <string name="cell_unknown">不明</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">常駐通知を簡単に消せるよう、アクティビティウォッチャーサービス専用に使用するチャンネルです。</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">アクティビティウォッチャー</string>
     <string name="channel_achievements_description">実績に関する通知。</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">実績</string>
     <string name="channel_other_description">ほかのカテゴリに属さない通知。</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">その他</string>
     <string name="channel_track_description">トラッキングに関する通知。</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">トラッキング</string>
     <string name="channel_goals_description">目標達成の通知。</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">目標の進捗</string>
     <string name="day_short">%d日</string>
     <string name="generic_add">追加</string>

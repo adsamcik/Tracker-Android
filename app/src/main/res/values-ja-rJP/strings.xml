@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">ゲーム</string>
     <string name="module_map_title">地図</string>
     <string name="module_statistics_title">統計</string>
@@ -104,13 +102,6 @@
         <item>航空</item>
     </string-array>
     <string name="settings_length_system_title">長さの単位系</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">オープンソースライセンス</string>
     <string name="settings_licenses_subtitle">このビルドに含まれるサードパーティの通知を表示します。</string>
     <string name="settings_licenses_loading">ライセンスを読み込んでいます…</string>
@@ -126,19 +117,13 @@
     <string name="about_version_label">バージョン</string>
     <string name="about_version_format">%1$s（%2$d）</string>
     <string name="about_build_commit_label">ビルドコミット</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">作成者</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">メール</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">リンク</string>
     <string name="about_attributions_title">データの帰属表示</string>
     <string name="about_attribution_geonames_label">地名</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">地図・道路データ</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">モジュール設定</string>
     <string name="settings_core_group_title">コア</string>
     <string name="settings_other_title">単位と表示</string>
@@ -150,11 +135,6 @@
         <item>速度（km/h、mph）</item>
     </string-array>
     <string name="settings_speed_format_title">速度の形式</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">設定</string>
     <string name="switch_state_on">オン</string>
     <string name="switch_state_off">オフ</string>
@@ -169,7 +149,6 @@
     <string name="onboarding_get_started">はじめる</string>
     <string name="onboarding_privacy_policy_button">プライバシーポリシーを読む</string>
     <string name="onboarding_state_read_error_message">セットアップがすでに完了しているか確認できなかったため、データのプライバシーを守るためにセットアップを表示しています。安全に続行できます。</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">古いデータを自動削除</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">データを永久に保持します。自動クリーンアップで古いデータが削除されることはありません</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
@@ -184,14 +163,6 @@
         <item>3年間</item>
         <item>5年間</item>
         <item>10年間</item>
-    </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
     </string-array>
     <string name="button_continue">続行</string>
     <string name="settings_export_data_title">データをエクスポート</string>

@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">下降標高</string>
     <string name="trip_detail_max_altitude">最高標高</string>
     <string name="trip_detail_route_map">ルート地図</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">地図で表示</string>
     <string name="trip_detail_no_location_data">位置情報データがありません</string>
     <string name="trip_detail_route_unavailable_legacy">レガシーセッションではルート地図を利用できません</string>
     <string name="trip_detail_route_no_gps_points">距離は記録されていますが、GPSルートを利用できません</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">最高</string>
     <string name="action_navigate_back">戻る</string>
     <string name="history_button_label">履歴</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">移動を地図で表示</string>
     <string name="stats_heatmap_title">アクティビティ</string>
 </resources>

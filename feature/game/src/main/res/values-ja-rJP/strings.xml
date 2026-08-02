@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">この走行を保存できませんでした。もう一度お試しください。</string>
     <string name="minigame_failure_generic">問題が発生したため、走行が停止しました。</string>
     <string name="minigame_session_try_again">もう一度試す</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">アクティブなゲーム</string>
     <string name="game_session_channel_description">画面がオフのときもアクティブなミニゲームを実行し続けます</string>
     <string name="game_session_notification_title">Trackerゲーム</string>

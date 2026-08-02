@@ -1,15 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="trip_route_preview_unavailable">ルートマップのプレビューを準備できませんでした</string>
     <string name="module_map_title">地図</string>
     <string name="description_map_search">検索ボタン</string>
     <string name="map_layer_cell_heatmap_description">無線技術別に観測したセルラー環境です。淡い領域は通信中のセルが届いた場所を示し、光る中心は保守的に推定した基地局位置です。観測が周囲に集まるほど推定は精密になります。</string>
     <string name="map_layer_cell_heatmap_title">セルラートポロジー</string>
     <string name="map_layer_location_heatmap_high">高密度</string>
     <string name="map_layer_location_heatmap_low">低密度</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">低～中密度</string>
     <string name="map_layer_location_heatmap_medium">中密度</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">最高密度</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">個別の訪問</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">訪問</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">受け入れられた位置情報の相対密度です。滞在時間ではなく、個別の観測を表示します。</string>
@@ -18,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">電波の不感地帯</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">電波の不感地帯</string>
     <string name="map_layer_signal_coverage_description">セルラー信号が弱い、またはない場所を強調表示します。領域が赤いほどカバレッジは悪く、十分にカバーされた領域は透明のままです。</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">弱い</string>
+    <string name="map_layer_signal_coverage_poor">悪い</string>
+    <string name="map_layer_signal_coverage_very_poor">非常に悪い</string>
+    <string name="map_layer_signal_coverage_dead">電波の不感地帯</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">シグナルオーロラ</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">オーロラ</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">セルラー信号をオーロラのような輝きで描画します。明るいシアン緑の中心の下に広い紫の光輪を表示します。データを再読み込みせずに明滅し、システムアニメーションを無効にすると静止します。</string>
@@ -167,7 +167,7 @@
     <string name="map_share_preparing">画像を準備中…</string>
     <string name="map_share_error">地図画像を描画できませんでした。もう一度お試しください。</string>
     <string name="map_date_range_all_time">すべての期間</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">選択した移動</string>
     <string name="map_layers_title">地図レイヤー</string>
     <string name="map_layer_load_error">このレイヤーを読み込めませんでした。別のレイヤーを選択してください。</string>
     <string name="map_empty_subtitle_location">この表示または日付範囲に位置情報データがありません。ルートと地図の機能には、トラッキング中に収集した位置情報が必要です。</string>
