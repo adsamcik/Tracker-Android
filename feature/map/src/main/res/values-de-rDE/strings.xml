@@ -1,22 +1,228 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Karte</string>
+    <string name="description_map_search">Schaltfläche Suchen</string>
+    <string name="map_layer_cell_heatmap_description">Deine beobachtete Mobilfunklandschaft nach Funktechnologie. Weiche Felder zeigen, wo dich versorgende Zellen erreicht haben; leuchtende Zentren sind vorsichtige Standortschätzungen und werden erst schärfer, wenn Beobachtungen sie umgeben.</string>
+    <string name="map_layer_cell_heatmap_title">Mobilfunktopologie</string>
+    <string name="map_layer_location_heatmap_high">Hohe Dichte</string>
+    <string name="map_layer_location_heatmap_low">Geringe Dichte</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Mittlere Dichte</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Unterschiedliche Besuche</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Besuche</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relative Dichte akzeptierter Standortbestimmungen. Dies zeigt unterschiedliche Beobachtungen, nicht die verbrachte Zeit.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-Abdeckung</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Funklöcher</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Hebt hervor, wo dein Mobilfunksignal schwach war oder fehlte. Je röter der Bereich, desto schlechter die Abdeckung; gut versorgte Bereiche bleiben klar.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalaurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobilfunksignal als auroraähnliches Leuchten: ein breiter violetter Schein unter einem hellen cyan-grünen Kern. Das Leuchten pulsiert ohne Neuladen der Daten und wird statisch, wenn Systemanimationen deaktiviert sind.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Schwaches Signal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Starkes Signal</string>
+    <string name="map_layer_speed_heatmap_description">Heatmap, die die Bewegungsgeschwindigkeit in verschiedenen Bereichen darstellt.</string>
+    <string name="map_layer_speed_very_slow">Sehr langsam</string>
+    <string name="map_layer_speed_walking">Schritttempo</string>
+    <string name="map_layer_speed_running">Lauftempo</string>
+    <string name="map_layer_speed_moderate">Mittlere Geschwindigkeit</string>
+    <string name="map_layer_speed_fast">Schnelle Bewegung</string>
+    <string name="map_layer_speed_very_fast">Sehr schnell</string>
+    <string name="map_layer_speed_heatmap_title">Geschwindigkeits-Heatmap</string>
+    <string name="map_layer_legacy_heatmap_title">Legacy-Heatmap</string>
+    <string name="map_layer_legacy_heatmap_chip">Legacy-Kacheln</string>
+    <string name="map_layer_legacy_heatmap_description">Erinnerung an die ursprüngliche Signals-App: Deine Standortdichte als getrennte 25-m-Rasterkacheln, wie die Heatmap aussah, als Kacheln auf dem Server gerendert wurden. Zoome hinein, um die Quadrate zu sehen.</string>
+    <string name="map_layer_seasonal_title">Saisonaler Entdecker</string>
+    <string name="map_layer_seasonal_chip">Jahreszeiten</string>
+    <string name="map_layer_seasonal_description">Ein Mosaik saisonaler Erinnerungen: Jeder von dir erkundete Bereich ist nach der Jahreszeit deines ersten Besuchs eingefärbt. Finde die Wege, die du nur im Sommer gehst, oder die Straßen, die du nur im Winter siehst.</string>
+    <string name="map_layer_season_spring">Frühling</string>
+    <string name="map_layer_season_summer">Sommer</string>
+    <string name="map_layer_season_autumn">Herbst</string>
+    <string name="map_layer_season_winter">Winter</string>
+    <string name="map_layer_terrain_title">Leben als Gelände</string>
+    <string name="map_layer_terrain_chip">Gelände</string>
+    <string name="map_layer_terrain_description">Deine Standortdichte als 3D-Landschaft: Orte, an denen du die meiste Zeit verbringst, erheben sich als hohe leuchtende Plateaus, während einmalige Orte niedrig bleiben. Neige die Karte, um das Relief deines Lebens zu sehen.</string>
+    <string name="map_layer_terrain_low">Selten hier</string>
+    <string name="map_layer_terrain_mid">Manchmal</string>
+    <string name="map_layer_terrain_high">Oft hier</string>
+    <string name="map_layer_places_title">Häufige Orte</string>
+    <string name="map_layer_places_chip">Orte</string>
+    <string name="map_layer_places_description">Deine wichtigen Orte als Markierungen, deren Größe und Farbe zeigen, wie oft du sie besuchst. Zuhause und Arbeit werden zu großen warmen Punkten; ein einmal besuchter Ort bleibt klein und kühl.</string>
+    <string name="map_layer_places_rare">Selten</string>
+    <string name="map_layer_places_often">Manchmal</string>
+    <string name="map_layer_places_anchor">Deine Anker</string>
+    <string name="map_layer_speed_ribbon_title">Geschwindigkeitsband</string>
+    <string name="map_layer_speed_ribbon_chip">Band</string>
+    <string name="map_layer_speed_ribbon_description">Deine Route wird nach deiner Bewegungsgeschwindigkeit eingefärbt, mit fließenden Farben von einem langsamen violetten Spaziergang bis zu einem feurig roten Sprint oder einer Fahrt. Anders als die Geschwindigkeits-Heatmap behält das Band deinen Weg bei, sodass du genau siehst, wo du beschleunigt und abgebremst hast.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Höhenband</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Höhe</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Deine Route wird nach absoluter Höhe eingefärbt, von tiefblauem Tiefland über cyanfarbene Ausläufer bis zu warmen Berghöhen. Die Skala bleibt beim Verschieben fest, sodass dieselbe Höhe immer dieselbe Farbe behält.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Tiefland</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Vorgebirge</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Hochgebirge</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Aktivitätsband</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktivität</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Deine Route wird nach dem mit jeder Bestimmung aufgezeichneten zuverlässigen Bewegungszustand eingefärbt: grau bei unbekanntem Zustand, blau im Stillstand und grün in Bewegung.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Unbekannt</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Stillstand</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">In Bewegung</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Ski-Röntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski-Röntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Eine Diagnoseansicht erkannter Skiabschnitte. Abfahrten, Lifte, Gehstrecken und Pausen werden am nächsten aufgezeichneten Standort verankert und mit ihren wichtigsten Messwerten beschriftet.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Abfahrt</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gehen oder Pause</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Fahrtkonstellationen</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Fahrten</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Wiederholte Wege zwischen deinen häufigen Orten werden zu geschwungenen Konstellationen. Ein stabiler Bogen zeigt jede Route, während ein Komet darauf entlangläuft; dickere Bögen bedeuten, dass du diesen Weg öfter zurückgelegt hast.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gehen</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Radfahren</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autofahren</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Öffentlicher Verkehr</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Sonstiges</string>
+    <string name="map_layer_fog_title">Nebel des Entdeckers</string>
+    <string name="map_layer_fog_chip">Nebel</string>
+    <string name="map_layer_fog_description">Die Welt taucht aus dem Nebel auf: Jeder von dir berührte Bereich wird sichtbar und leuchtet umso heller, je gründlicher du ihn kennengelernt hast. Orte, die du nur passiert hast, bleiben ein schwacher Dunst; tief erkundete Orte leuchten golden. Unerforschtes Gelände bleibt dunkel.</string>
+    <string name="map_layer_fog_faint">Durchquert</string>
+    <string name="map_layer_fog_known">Gut erkundet</string>
+    <string name="map_layer_first_contact_title">Erste Begegnung</string>
+    <string name="map_layer_first_contact_chip">Entdeckung</string>
+    <string name="map_layer_first_contact_description">Eine Zeitleiste deiner Entdeckungen: Jeder Bereich ist danach gefärbt, wie lange dein erster Besuch zurückliegt. Orte, die du vor langer Zeit gefunden hast, verblassen zu tiefem Indigo, während diese Woche entdecktes Gelände hell cyan leuchtet — lies die Geschichte deiner Erkundung bis zu deinen neuesten Grenzen.</string>
+    <string name="map_layer_first_contact_old">Vor langer Zeit</string>
+    <string name="map_layer_first_contact_recent">Gerade entdeckt</string>
+    <string name="map_layer_vehicle_compliance_title">Einhaltung von Geschwindigkeitsbegrenzungen</string>
+    <string name="map_layer_vehicle_compliance_description">Polylinie von Fahrproben, die danach eingefärbt ist, wie die Geschwindigkeit mit deiner festgelegten Grundbegrenzung verglichen wird.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Weit unter dem Limit</string>
+    <string name="map_layer_vehicle_compliance_slow">Unter dem Limit</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Nahe am Limit</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Leicht darüber</string>
+    <string name="map_layer_vehicle_compliance_speeding">Zu schnell</string>
+    <string name="map_layer_location_polyline_description">Linie, die deine aufgezeichneten Standorte im Zeitverlauf verbindet.</string>
+    <string name="map_layer_location_polyline_title">Standort-Polylinie</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polylinie</string>
+    <string name="map_layer_wifi_count_heatmap_chip">WLAN-Überlappung</string>
+    <string name="map_layer_vehicle_compliance_chip">Zu schnell</string>
+    <string name="map_layer_none_title">Kein Overlay</string>
+    <string name="map_date_preset_week">Letzte Woche</string>
+    <string name="map_date_preset_month">Letzter Monat</string>
+    <string name="map_date_preset_custom">Benutzerdefiniert…</string>
+    <string name="map_date_today">Heute</string>
+    <string name="map_date_yesterday">Gestern</string>
+    <string name="map_date_this_week">Diese Woche</string>
+    <string name="map_layer_wifi_count_heatmap_title">WLAN-Überlappung</string>
+    <string name="map_layer_wifi_count_heatmap_description">Zeigt, wie viele unterschiedliche Zugangspunkte sich an jedem Ort überlappen. Wiederholte Scans desselben AP zählen nur einmal, sodass heißere Bereiche tatsächlich dichtere Funkabdeckung bedeuten.</string>
+    <string name="map_layer_wifi_heatmap_description">Eine bandbewusste WLAN-Konstellation aus deinen eigenen Beobachtungen. Farbige Felder zeigen beobachtete 2,4-, 5- und 6-GHz-Abdeckung; leuchtende Zentren sind ungefähre AP-Positionen und werden nur angezeigt, wenn die Stichprobengeometrie sie unterstützt.</string>
+    <string name="map_layer_wifi_heatmap_high">Viele überlappende APs</string>
+    <string name="map_layer_wifi_heatmap_low">Wenige überlappende APs</string>
+    <string name="map_layer_wifi_heatmap_medium">Mehrere überlappende APs</string>
+    <string name="map_layer_wifi_heatmap_title">WLAN-Konstellation</string>
+    <string name="map_layer_wifi_radio_24">2,4-GHz-Reichweite</string>
+    <string name="map_layer_wifi_radio_5">5-GHz-Reichweite</string>
+    <string name="map_layer_wifi_radio_6">6-GHz-Reichweite</string>
+    <string name="map_legend_label">Legende</string>
+    <string name="map_chip_layers">Ebenen</string>
+    <string name="map_chip_dates">Daten</string>
+    <string name="permission_rationale_location_map">Um deinen Standort auf der Karte anzuzeigen, benötigt Tracker Standortzugriff. Alle Daten bleiben auf deinem Gerät.</string>
+    <string name="map_location_permission_denied">Standortberechtigung zum Anzeigen deiner Position erforderlich</string>
+    <string name="map_open_settings">Einstellungen öffnen</string>
+    <string name="settings_map_basemap_title">Basiskarte</string>
+    <string name="settings_map_basemap_custom">Benutzerdefinierte .pmtiles-Datei aktiv (zum Entfernen tippen)</string>
+    <string name="settings_map_basemap_default">Integrierte Basiskarte aktiv. Tippe, um eine benutzerdefinierte .pmtiles-Datei zu importieren.</string>
+    <string name="basemap_import_error_source_open">Diese Datei konnte nicht geöffnet werden. Versuche eine andere oder teile sie erneut mit Tracker.</string>
+    <string name="basemap_import_error_copy">Die Basiskartendatei konnte nicht kopiert werden. Prüfe, ob genügend Speicherplatz frei ist, und versuche es erneut.</string>
+    <string name="basemap_import_error_invalid_format">Keine gültige PMTiles-Datei: %1$s</string>
+    <string name="settings_map_advanced_section_title">Erweiterte Einstellungen</string>
+    <string name="settings_map_max_heat_title">Maximale Hitze nach Besuchen</string>
+    <string name="settings_map_quality_title">Heatmap-Auflösung</string>
+    <string name="settings_map_visit_threshold_title">Zeitschwelle für Standortbesuche</string>
+    <string name="settings_map_legacy_heatmap_title">Legacy-Heatmap (10-m-Kacheln)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Osterei: Fügt eine Ebene „Legacy-Heatmap“ hinzu, die Standortdichte als getrennte 10-m-Rasterkacheln zeichnet, wie die ursprünglich auf dem Server gerenderte Signals-Heatmap.</string>
+    <string name="settings_map_zoom_buttons_title">Karten-Zoomtasten</string>
+    <string name="settings_map_zoom_buttons_subtitle">Zeigt + und − auf dem Bildschirm zum Zoomen der Karte, wenn die Pinch-Geste schwer zu verwenden ist.</string>
+    <string name="tips_map_date_range_title">Datumsbereich</string>
+    <string name="tips_map_my_location_title">Mein Standort</string>
+    <string name="tips_map_sheet_description">Durch Tippen auf oder Hochziehen dieser Leiste öffnest du weitere Kartenoptionen einschließlich Ebenenauswahl und Legende.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Breite, Länge, z. B. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Versuche 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522</string>
+    <string name="map_search_clear">Suche löschen</string>
+    <string name="map_search_paste">Aus Zwischenablage in die Suche einfügen</string>
+    <string name="map_search_clipboard_empty">Die Zwischenablage enthält noch keine Koordinaten</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Abbrechen</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Karte teilen</string>
+    <string name="map_share_sheet_title">Karte als Bild teilen</string>
+    <string name="map_share_sheet_subtitle">Rendert die aktuelle Ansicht und aktive Ebene als statisches Bild. Dein Live-Standort ist nie enthalten.</string>
+    <string name="map_share_resolution_standard">Standard (1080p)</string>
+    <string name="map_share_resolution_high">Hoch (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Teilen</string>
+    <string name="map_share_preparing">Bild wird vorbereitet…</string>
+    <string name="map_share_error">Kartenbild konnte nicht gerendert werden. Bitte versuche es erneut.</string>
+    <string name="map_date_range_all_time">Gesamter Zeitraum</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Kartenebenen</string>
+    <string name="map_layer_load_error">Diese Ebene konnte nicht geladen werden. Wähle eine andere aus.</string>
+    <string name="map_empty_subtitle_location">Keine Standortdaten in dieser Ansicht oder diesem Datumsbereich. Routen- und Kartenfunktionen benötigen während der Aufzeichnung gesammelte Standortdaten.</string>
+    <string name="map_empty_subtitle_cell">Keine verorteten Mobilfunkdaten in dieser Ansicht oder diesem Datumsbereich. Ohne Standort aufgezeichnete Funkzellproben werden weiterhin gespeichert, können aber nicht auf der Karte erscheinen.</string>
+    <string name="map_empty_subtitle_wifi">Keine verorteten WLAN-Daten in dieser Ansicht oder diesem Datumsbereich. Ohne Standort aufgezeichnete WLAN-Beobachtungen werden weiterhin gespeichert, können aber nicht auf der Karte erscheinen.</string>
+    <string name="map_empty_subtitle_speed">Keine Geschwindigkeitsdaten in dieser Ansicht oder diesem Datumsbereich. Geschwindigkeitskarten benötigen brauchbare Standortproben, die während der Aufzeichnung gesammelt wurden.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Keine straßenzugeordneten Fahrten zum Anzeigen. Importiere eine OpenStreetMap-Region (Einstellungen) und zeichne einige Fahrten auf, damit wir deine Route echten Straßen zuordnen können.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Meldung „Keine Daten“ schließen</string>
+    <string name="map_speed_probe_title">Geschwindigkeit hier</string>
+    <string name="map_speed_probe_avg_label">Durchschnitt</string>
+    <string name="map_speed_probe_max_label">Max.</string>
+    <string name="map_speed_probe_empty">Keine Geschwindigkeitsdaten an dieser Stelle. Tippe auf einen Bereich mit Hitze, um Geschwindigkeiten zu sehen.</string>
+    <string name="map_speed_probe_hint">Tippe auf die Karte, um Geschwindigkeiten zu sehen</string>
+    <string name="map_speed_probe_dismiss">Geschwindigkeitsdetails schließen</string>
+    <string name="map_place_callout_loading">Ort wird gesucht…</string>
+    <string name="map_place_callout_empty">Hier wurde kein Ort gefunden</string>
+    <string name="map_place_callout_dismiss">Ortsdetails schließen</string>
+    <string name="map_zoom_in">Vergrößern</string>
+    <string name="map_zoom_out">Verkleinern</string>
+    <string name="map_loading">Karte wird geladen…</string>
+    <string name="map_basemap_unavailable">Basiskarte konnte nicht vorbereitet werden. Schließe und öffne die Karte erneut, um es noch einmal zu versuchen.</string>
+    <string name="map_a11y_map_overview">Kartenübersicht</string>
+    <string name="map_a11y_centered_on_location">Karte auf deinem Standort zentriert</string>
+    <string name="map_a11y_showing_location">Karte zeigt deinen Standort</string>
+    <string name="map_a11y_loading_data">Aufgezeichnete Kartendaten werden geladen</string>
+    <string name="map_a11y_no_recorded_data">Die ausgewählte Ebene hat in dieser Ansicht oder diesem Datumsbereich keine kartierbaren Daten</string>
+    <string name="map_a11y_no_layer_selected">Keine Kartenebene ausgewählt</string>
+    <string name="map_a11y_search_result_visible">Markierung des Suchergebnisses sichtbar</string>
+    <string name="map_a11y_active_recording_visible">Pfad der aktiven Aufzeichnung sichtbar</string>
+    <string name="map_a11y_recorded_route_history">Aufgezeichneter Routenverlauf wird angezeigt</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Akzeptierte unterschiedliche Standortbeobachtungen werden angezeigt</string>
+    <string name="map_a11y_cell_heatmap">Mobilfunkabdeckungsfelder und ungefähre Zentren versorgender Standorte werden angezeigt</string>
+    <string name="map_a11y_wifi_heatmap">WLAN-Bänder, Abdeckungsfelder und ungefähre Zugangspunktzentren werden angezeigt</string>
+    <string name="map_a11y_wifi_count_heatmap">Überlappung unterschiedlicher WLAN-Zugangspunkte wird angezeigt</string>
+    <string name="map_a11y_speed_heatmap">Geschwindigkeits-Heatmap wird angezeigt</string>
+    <string name="map_a11y_saved_map_data">Gespeicherte Kartendaten werden angezeigt</string>
+    <string name="map_location_permission_opening_settings">Standortzugriff erforderlich. Einstellungen werden geöffnet…</string>
+    <string name="map_permission_banner_dismiss">Meldung zur Standortberechtigung schließen</string>
+    <string name="map_loading_layer">Kartenebene wird geladen</string>
+    <string name="map_a11y_world_scale">Weltmaßstab</string>
+    <string name="map_a11y_regional_scale">Regionaler Maßstab</string>
+    <string name="map_a11y_city_scale">Stadtmaßstab</string>
+    <string name="map_a11y_neighborhood_scale">Viertelmaßstab</string>
+    <string name="map_a11y_street_scale">Straßenmaßstab</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Multiplikator für die Renderdetailtiefe. Höhere Werte zeigen mehr Details, können das Laden der Karte auf älteren Geräten aber verlangsamen.</string>
+    <string name="help_max_heat_points">Maximale Anzahl der in der Heatmap-Ansicht angezeigten Standortpunkte. Höhere Werte bedeuten mehr Details, aber langsameres Rendern.</string>
+    <string name="help_visit_threshold">Wie lange du an einem Ort bleiben musst, bevor er auf der Karte als „Besuch“ markiert wird. Erhöhe diesen Wert, um Unordnung durch kurze Stopps zu reduzieren.</string>
 </resources>

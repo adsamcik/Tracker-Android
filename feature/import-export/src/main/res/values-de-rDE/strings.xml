@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exportieren</string>
+    <string name="export_default_file_name_range">Advention_Exportdaten_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_Exportdaten_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Im ausgewählten Zeitraum wurden keine Standorte gefunden.</string>
+    <string name="export_error_no_databases">Es sind keine Anwendungsdatenbanken zum Exportieren verfügbar.</string>
+    <string name="export_error_no_uri">Es wurde kein Exportordner ausgewählt</string>
+    <string name="export_error_stream_failed">Stream für Datei %s konnte nicht erstellt werden</string>
+    <string name="export_error_unknown">Export fehlgeschlagen.</string>
+    <string name="export_error_with_reason">Export fehlgeschlagen: %s</string>
+    <string name="export_file_name">Dateiname</string>
+    <string name="export_file_name_error">Dateinamen dürfen folgende Zeichen nicht enthalten: \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Export von Standortdaten vom %1$s bis %2$s, die mit Advention aufgezeichnet wurden.</string>
+    <string name="export_gpx_error">GPX-Export mit Fehler fehlgeschlagen: %s</string>
+    <string name="export_sensitivity_title">Präzise Standortdaten exportieren?</string>
+    <string name="export_sensitivity_message">Dieser Export bzw. diese Freigabe enthält Standortdaten in voller Genauigkeit und kann bei Datenbankexporten rohe Funkmetadaten enthalten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_sensitivity_confirm">Fortfahren</string>
+    <string name="export_share_button">Teilen</string>
+    <string name="export_in_progress">Export wird erstellt…</string>
+    <string name="export_completed">Export abgeschlossen.</string>
+    <string name="import_notification_error_failed_open_database">Datenbankdatei %s konnte nicht geöffnet werden</string>
+    <string name="import_notification_error_file_not_supported">Datei %s wird nicht unterstützt.</string>
+    <string name="import_notification_extracting">%s wird entpackt …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import abgeschlossen. %d Datensatz erfolgreich importiert.</item>
+        <item quantity="other">Import abgeschlossen. %d Datensätze erfolgreich importiert.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import abgeschlossen. %1$d Datensätze importiert (%2$d übersprungen).</string>
+    <string name="import_notification_error_records_failed">%d Datensätze konnten aufgrund von Einschränkungsverletzungen nicht importiert werden.</string>
+    <string name="import_notification_importing">%s wird importiert …</string>
+    <string name="import_notification_progress">Import läuft …</string>
+    <string name="settings_export_dialog_from">Von</string>
+    <string name="settings_export_dialog_to">Bis</string>
+    <string name="settings_export_no_data">Keine Daten zum Exportieren</string>
+    <string name="settings_export_title">Exportieren</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Datenbanksicherung (ZIP)</string>
+    <string name="settings_import_summary">Daten aus unterstützten Typen (%1$s) und Archiven (%2$s) importieren. Datenbankimporte führen kompatible Zeilen zusammen; sie ersetzen keine vorhandenen Daten.</string>
+    <string name="settings_import_title">Importieren</string>
+</resources>

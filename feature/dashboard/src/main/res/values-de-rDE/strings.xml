@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Übersicht</string>
+    <string name="dashboard_tracking_title">Aufzeichnung</string>
+    <string name="dashboard_recording">Wird aufgezeichnet</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Aufzeichnung wurde unerwartet beendet</string>
+    <string name="dashboard_permission_banner_title">Standortberechtigung nicht verfügbar</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker kann keine Routen aufzeichnen, bis du Standortzugriff gewährst. Tippe zum Gewähren.</string>
+    <string name="dashboard_permission_banner_cd">Banner „Standortberechtigung nicht verfügbar“, zum Gewähren des Standortzugriffs tippen</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Aktivitätstyp</string>
+    <string name="dashboard_cd_explore_icon">Erkundung</string>
+    <string name="dashboard_cd_forward_arrow">Details anzeigen</string>
+    <string name="dashboard_cd_last_session">Letzte Sitzung: Dauer %1$s, Strecke %2$s. Tippe für Details</string>
+    <string name="dashboard_cd_locked_badge">Aufzeichnung gesperrt</string>
+    <string name="dashboard_cd_open_settings">Einstellungen öffnen</string>
+    <string name="dashboard_cd_start_tracking">Aufzeichnung starten</string>
+    <string name="dashboard_cd_start_tracking_permission">Aufzeichnung starten, Berechtigung erforderlich</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Serie: %1$d Tag. Tippe, um Seriendetails anzuzeigen</item>
+        <item quantity="other">Serie: %1$d Tage. Tippe, um Seriendetails anzuzeigen</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Starte eine Serie. Tippe, um Seriendetails anzuzeigen</string>
+    <string name="dashboard_cd_stop_tracking">Aufzeichnung beenden</string>
+    <string name="dashboard_action_enable_location">Standortzugriff aktivieren</string>
+    <string name="dashboard_action_view_details">Details anzeigen</string>
+    <string name="dashboard_action_view_map">Karte anzeigen</string>
+    <string name="dashboard_action_view_streak_details">Seriendetails anzeigen</string>
+    <string name="dashboard_action_open_tracking_settings">Einstellungen</string>
+    <string name="dashboard_action_restart_tracking">Neu starten</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Höhenprofil, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Warte auf GPS-Signal…</string>
+    <string name="dashboard_tracking_recording_route">Route wird aufgezeichnet…</string>
+    <string name="dashboard_milestone_distance">km erreicht!</string>
+    <string name="dashboard_milestone_steps">Schritte erreicht!</string>
+    <string name="dashboard_milestone_time">Min. aufgezeichnet!</string>
+    <string name="dashboard_milestone_points">+10 Pkt.</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Heute</string>
+    <string name="dashboard_today_no_activity">Heute noch keine Aktivität</string>
+    <string name="dashboard_today_distance">Strecke</string>
+    <string name="dashboard_today_duration">Dauer</string>
+    <string name="dashboard_today_steps">Schritte</string>
+    <string name="dashboard_today_trips">Fahrten</string>
+    <string name="dashboard_goal_get_started">Loslegen</string>
+    <string name="dashboard_goal_on_track">Im Plan</string>
+    <string name="dashboard_goal_ahead">Voraus</string>
+    <string name="dashboard_goal_behind">Zurück</string>
+    <string name="dashboard_streak_day_streak">Tage in Folge</string>
+    <string name="dashboard_streak_start">Starte eine Serie!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% gegenüber letzter Woche</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% gegenüber letzter Woche</string>
+    <string name="dashboard_last_session_title">Letzte Sitzung</string>
+    <string name="dashboard_last_session_duration">Dauer</string>
+    <string name="dashboard_last_session_distance">Strecke</string>
+    <string name="dashboard_last_session_steps">Schritte</string>
+    <string name="dashboard_last_session_view_map">Karte anzeigen</string>
+    <string name="dashboard_recent_trips_title">Letzte Fahrten</string>
+    <string name="dashboard_recent_trips_empty">Keine letzten Fahrten. Starte die Aufzeichnung, um hier deine Wege zu sehen.</string>
+    <string name="dashboard_exploration_title">Erkundung</string>
+    <string name="dashboard_exploration_new_today">Heute neu</string>
+    <string name="dashboard_exploration_total_cells">Zellen insgesamt</string>
+    <string name="dashboard_exploration_seasons">Jahreszeiten</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Geschwindigkeit</string>
+    <string name="dashboard_live_charts_altitude">Höhe</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Sensordetails</string>
+    <string name="dashboard_sensor_expand">Sensordetails ausklappen</string>
+    <string name="dashboard_sensor_collapse">Sensordetails einklappen</string>
+    <string name="dashboard_sensor_location_accuracy">Standortgenauigkeit</string>
+    <string name="dashboard_sensor_activity">Aktivität</string>
+    <string name="dashboard_sensor_wifi">WLAN-Netzwerke</string>
+    <string name="dashboard_sensor_cell">Funkmasten</string>
+    <string name="dashboard_sensor_altitude">Höhe</string>
+    <string name="dashboard_sensor_speed">Geschwindigkeit</string>
+    <string name="dashboard_sensor_cell_types">Funkzelltypen</string>
+    <string name="dashboard_sensor_raw_coords">Koordinaten (Debug)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Steigend</string>
+    <string name="dashboard_trend_down">Fallend</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Gerade erst angefangen…</string>
+    <string name="dashboard_motivational_keep_going">Weiter so! 💪</string>
+    <string name="dashboard_motivational_impressive">Beeindruckende Sitzung!</string>
+    <string name="dashboard_motivational_marathon">Marathon-Entdecker! 🏆</string>
+    <string name="dashboard_motivational_morning">Guten Morgen! Bereit zum Erkunden?</string>
+    <string name="dashboard_motivational_afternoon">Guten Tag! Weiter in Bewegung?</string>
+    <string name="dashboard_motivational_evening">Guten Abend! Deinen Tag ansehen?</string>
+    <string name="dashboard_motivational_night">Nachteulenmodus 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 Serie von %1$d Tagen!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Deine Reise beginnt hier</string>
+    <string name="dashboard_empty_subtitle">Verwende die Karte „Bereit“ unten, um bei Bedarf Standortzugriff zu gewähren und dein erstes Abenteuer zu starten</string>
+    <string name="dashboard_empty_feature_explore">Erkunden</string>
+    <string name="dashboard_empty_feature_explore_desc">Entdecke neue Orte und Routen</string>
+    <string name="dashboard_empty_feature_achieve">Erreichen</string>
+    <string name="dashboard_empty_feature_achieve_desc">Setze Ziele und verdiene Punkte</string>
+    <string name="dashboard_empty_feature_track">Aufzeichnen</string>
+    <string name="dashboard_empty_feature_track_desc">Zeichne Spaziergänge, Läufe und Fahrten auf</string>
+    <string name="dashboard_empty_feature_privacy">Datenschutz</string>
+    <string name="dashboard_empty_feature_privacy_desc">Alle Daten bleiben auf deinem Gerät</string>
+    <string name="dashboard_empty_icon_desc">Illustration zur Standortaufzeichnung</string>
+    <string name="dashboard_empty_quick_start_title">Schnellstart</string>
+    <string name="dashboard_empty_quick_start_subtitle">So verwandelst du diese leere Übersicht am schnellsten in nützliche Karten, Sitzungen und täglichen Fortschritt.</string>
+    <string name="dashboard_empty_step_customize_title">Wähle deinen Aufzeichnungsstil</string>
+    <string name="dashboard_empty_step_customize_desc">Öffne jederzeit Einstellungen, um Voreinstellungen, Akkuverbrauch und die Sensoren anzupassen, die du aufzeichnen möchtest.</string>
+    <string name="dashboard_empty_step_start_title">Starte deine erste Aufzeichnung</string>
+    <string name="dashboard_empty_step_start_desc">Tippe oben auf „Bereit, wenn du es bist“, um bei Bedarf Standortzugriff zu gewähren, und starte dann eine Geh-, Lauf-, Fahr- oder Hintergrundaufzeichnung.</string>
+    <string name="dashboard_empty_step_review_title">Karten und Statistiken ansehen</string>
+    <string name="dashboard_empty_step_review_desc">Nach deiner ersten Sitzung füllen sich die Tabs Übersicht, Karte und Statistiken mit letzten Aktivitäten und Einblicken.</string>
+    <string name="dashboard_empty_fab_hint_title">Bereit, wenn du es bist</string>
+    <string name="dashboard_empty_fab_hint_desc">Tippe hier, um deine erste Aufzeichnungssitzung zu starten.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Tippe hier, um Standortzugriff zu gewähren und dann deine erste Aufzeichnungssitzung zu starten.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Heutiger Fortschritt</string>
+    <string name="widget_streak">Serie</string>
+    <string name="widget_last_session">Letzte Sitzung</string>
+    <string name="widget_recent_trips">Letzte Fahrten</string>
+    <string name="widget_exploration">Erkundung</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Übersicht anpassen</string>
+    <string name="dashboard_customize_reset">Auf Standard zurücksetzen</string>
+    <string name="dashboard_customize_cd_toggle">Sichtbarkeit von %1$s umschalten</string>
+    <string name="dashboard_customize_cd_drag_handle">%1$s neu anordnen</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Keine Höhendaten</string>
+    <string name="dashboard_cd_no_altitude_data">Keine Höhendaten verfügbar</string>
+    <string name="dashboard_cd_speed_sparkline">Geschwindigkeits-Sparkline mit %1$d Datenpunkten</string>
+    <string name="dashboard_cd_session_path">Routenvorschau der Sitzung mit %1$d Punkten</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Geschwindigkeit</string>
+    <string name="dashboard_metric_distance">Strecke</string>
+    <string name="dashboard_metric_duration">Dauer</string>
+    <string name="dashboard_metric_steps">Schritte</string>
+    <string name="dashboard_metric_altitude">Höhe</string>
+    <string name="dashboard_metric_activity">Aktivität</string>
+    <string name="dashboard_metric_accuracy">Genauigkeit</string>
+    <string name="dashboard_metric_avg_speed">Durchschnittsgeschwindigkeit</string>
+    <string name="dashboard_metric_wifi">WLAN</string>
+    <string name="dashboard_metric_cell">Funkzelle</string>
+    <string name="dashboard_metric_coordinates">Koordinaten</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Aufzeichnung starten</string>
+    <string name="dashboard_ring_enable_location">Standort aktivieren</string>
+    <string name="dashboard_pill_start">Start</string>
+    <string name="dashboard_pill_stop">Stopp</string>
+    <string name="dashboard_pill_enable_location">Standort aktivieren</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Sitzungseinblicke</string>
+    <string name="dashboard_cd_insight_item">Einblick: %1$s</string>
+    <string name="widget_latest_achievement">Letzter Erfolg</string>
+    <string name="dashboard_latest_achievement_title">Letzter Erfolg</string>
+    <string name="dashboard_latest_achievement_empty">Zeichne weiter auf, um deinen ersten Erfolg freizuschalten</string>
+</resources>
