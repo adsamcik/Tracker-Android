@@ -78,6 +78,8 @@ def text(node: element_tree.Element) -> str:
 
 
 def format_tokens(node: element_tree.Element) -> Counter[str]:
+    if node.get("formatted") == "false":
+        return Counter()
     return Counter(
         token
         for item in node.iter()
