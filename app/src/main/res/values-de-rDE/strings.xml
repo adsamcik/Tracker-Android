@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Spiel</string>
     <string name="module_map_title">Karte</string>
     <string name="module_statistics_title">Statistiken</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Die nächste automatische Sicherung enthält alle Daten statt nur Änderungen</string>
     <string name="settings_reset_export_watermarks_done">Exportmarkierungen zurückgesetzt — die nächste Sicherung ist ein vollständiger Export</string>
     <string name="settings_migration_backup_export_title">Sicherung vor dem Upgrade exportieren</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Vollständige Datenbankkopie von v%1$d, vor der Migration zu v%2$d erstellt und bis zu 30 Tage privat aufbewahrt</string>
     <string name="settings_migration_backup_warning_title">Sensible Datenbanksicherung exportieren?</string>
     <string name="settings_migration_backup_warning_message">Diese Sicherung kann präzise Standorte, WLAN- und Mobilfunkbeobachtungen, Aktivitäten und andere private Daten von vor dem Upgrade enthalten. Speichere sie nur an einem Ort, dem du vertraust.</string>
@@ -105,13 +102,6 @@
         <item>Fliegen</item>
     </string-array>
     <string name="settings_length_system_title">Längensystem</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Open-Source-Lizenzen</string>
     <string name="settings_licenses_subtitle">Mit diesem Build ausgelieferte Hinweise zu Drittanbietern anzeigen.</string>
     <string name="settings_licenses_loading">Lizenzen werden geladen…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Version</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Build-Commit</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-Mail</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Links</string>
     <string name="about_attributions_title">Datenquellen</string>
     <string name="about_attribution_geonames_label">Ortsnamen</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Karten- &amp; Straßendaten</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Moduleinstellungen</string>
     <string name="settings_core_group_title">Kern</string>
     <string name="settings_other_title">Einheiten &amp; Anzeige</string>
@@ -151,16 +135,9 @@
         <item>Geschwindigkeit (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Geschwindigkeitsformat</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Einstellungen</string>
     <string name="switch_state_on">Ein</string>
     <string name="switch_state_off">Aus</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Verfolge deine Wege privat</string>
     <string name="onboarding_streamlined_subtitle">Alle Daten bleiben auf deinem Gerät. Keine Cloud-Synchronisierung und kein Tracking durch Dritte.</string>
     <string name="onboarding_benefit_privacy_title">Datenschutz zuerst</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">LOSLEGEN</string>
     <string name="onboarding_privacy_policy_button">Datenschutzerklärung lesen</string>
     <string name="onboarding_state_read_error_message">Wir konnten nicht prüfen, ob die Einrichtung bereits abgeschlossen wurde, daher wird sie angezeigt, um deine Daten privat zu halten. Du kannst sicher fortfahren.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Alte Daten automatisch bereinigen</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Daten dauerhaft behalten; die automatische Bereinigung löscht keine alten Daten</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Daten, die älter als %1$d Jahr sind, automatisch entfernen</item>
         <item quantity="other">Daten, die älter als %1$d Jahre sind, automatisch entfernen</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Daten behalten für</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Dauerhaft behalten</item>
@@ -189,17 +164,7 @@
         <item>5 Jahre</item>
         <item>10 Jahre</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">FORTFAHREN</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Daten exportieren</string>
     <string name="settings_export_data_summary">Speichere deine Aufzeichnungsdaten in verschiedenen Formaten</string>
     <string name="export_format_dialog_title">Exportformat auswählen</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Exportieren</string>
     <string name="settings_import_summary">Daten aus unterstützten Typen (%1$s) und Archiven (%2$s) importieren. Datenbankimporte führen kompatible Zeilen zusammen; sie ersetzen keine vorhandenen Daten.</string>
     <string name="settings_import_title">Importieren</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Verstanden</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Geringe Auswirkung</string>
     <string name="battery_impact_moderate">Mittlere Auswirkung</string>
     <string name="battery_impact_high">Hohe Auswirkung</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Standortgenauigkeit auswählen</string>
     <string name="precision_mode_approximate_title">Ungefähr</string>
     <string name="precision_mode_approximate_description">Netzwerkbasierter Standort. Gut für die Aufzeichnung allgemeiner Bereiche bei minimalem Akkuverbrauch.</string>
     <string name="precision_mode_precise_title">Präzise</string>
     <string name="precision_mode_precise_description">GPS-basierter Standort. Am besten für detaillierte Routen, Heatmaps und Herausforderungen.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Präzise Aufzeichnung freischalten</string>
     <string name="upgrade_to_precise_message_general">Du verwendest einen ungefähren Standort. Wechsle für bessere Genauigkeit zur präzisen GPS-Aufzeichnung.</string>
     <string name="upgrade_to_precise_message_route_analysis">Für genaue Routenanalysen und Entfernungsmessungen wird ein präziser Standort empfohlen.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Präzises GPS verbraucht mehr Akku. Geschätzte Aufzeichnungszeit: 6–8 Stunden auf üblichen Geräten.</string>
     <string name="upgrade_to_precise_button_upgrade">Präzisen Standort aktivieren</string>
     <string name="upgrade_to_precise_button_cancel">Vielleicht später</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Hohe Genauigkeit</string>
     <string name="tracking_preset_high_accuracy_description">Beste Detailtiefe mit schnellsten Aktualisierungen und allen wichtigen aktivierten Sensoren</string>
     <string name="tracking_preset_balanced_name">Ausgewogen</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Aufzeichnungsrichtlinie</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Geschätzte Aufzeichnungsdauer: %d Stunde</item>
         <item quantity="other">Geschätzte Aufzeichnungsdauer: %d Stunden</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Wähle, wie genau Tracker deinen Standort aufzeichnet</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automatischer Einheitenwechsel</string>
     <string name="settings_module_map_subtitle">Heatmap-Qualität und Visualisierungsoptionen</string>
     <string name="settings_module_game_subtitle">Ziele, Erfolge und Meilensteine</string>
     <string name="action_navigate_back">Zurück navigieren</string>
     <string name="action_help">Hilfe</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Wird geladen…</string>
     <string name="widget_quick_start_name">Tracker-Schnellstart</string>
     <string name="widget_quick_start_description">Starte oder beende die Standortaufzeichnung mit einem einzigen Tippen.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Im Hintergrund</string>
     <string name="widget_tier_active">Aktiv</string>
     <string name="widget_tier_precision">Präzision</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Großartiger Fortschritt!</string>
     <string name="goal_notification_title_almost">Fast geschafft!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Intelligente Zielbenachrichtigungen</string>
     <string name="settings_smart_goal_notifications_summary">Lass dich benachrichtigen, wenn du deinem täglichen Schrittziel nahe bist</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Wie soll die Aufzeichnung funktionieren?</string>
     <string name="setup_how_to_track_subtitle">Wähle, wann die Aufzeichnung beginnt und wie detailliert sie sein soll.</string>
     <string name="setup_auto_tracking_title">Automatische Aufzeichnung</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Erkunden starten</string>
     <string name="setup_continue">Fortfahren</string>
     <string name="setup_step_indicator">Schritt %1$d von %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Online-Kartenkacheln?</string>
     <string name="setup_online_tiles_subtitle">Tracker wird mit einer Offline-Basiskarte ausgeliefert und funktioniert daher ohne Netzwerk. Wenn du umfangreichere Karten möchtest, kannst du stattdessen Kacheln von einem öffentlichen Anbieter streamen.</string>
     <string name="setup_online_tiles_off_title">Nur offline (empfohlen)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Streame Vektorkacheln mit höherem Detailgrad von OpenFreeMap (Standard). Du kannst den Anbieter später unter Einstellungen → Karte ändern.</string>
     <string name="setup_online_tiles_privacy">Wenn diese Option aktiviert ist, kann der Anbieter deine IP-Adresse und die geladenen Kacheln sehen — also ungefähr den Kartenausschnitt, den du ansiehst. Tracker sendet niemals ein Konto, eine Kennung oder deinen Standortverlauf.</string>
     <string name="setup_online_tiles_change_later">Du kannst dies jederzeit unter Einstellungen → Karte → Online-Kartenkacheln ändern.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Damit Fahrten bei ausgeschaltetem Bildschirm oder geschlossener App aufgezeichnet werden, muss Tracker im Hintergrund weiterlaufen. Akkueinstellungen des Telefons können ihn pausieren — erlaube Hintergrundaktivität, damit die automatische Aufzeichnung zuverlässig bleibt.</string>
     <string name="setup_background_access_optional">Optional, aber empfohlen. Du kannst dies jederzeit unter Einstellungen → Aufzeichnung ändern.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Zuverlässige Aufzeichnung im Hintergrund</string>
     <string name="background_reliability_status_exempt">Hintergrundaktivität erlaubt</string>
     <string name="background_reliability_status_optimized">Akkuoptimierung ist aktiviert</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Hintergrundaktivität erlauben</string>
     <string name="background_reliability_samsung_hint">Samsung-Geräte können Apps auch in „Schlafende Apps“ verschieben. Öffne die Akkueinstellungen, entferne Tracker aus Schlafende Apps und stelle ein, dass er nicht in den Ruhezustand versetzt wird.</string>
     <string name="background_reliability_samsung_action">Akkueinstellungen des Geräts öffnen</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Absturzdiagnose</string>
     <string name="settings_tracebox_root_summary">Lokale Absturz-, ANR- und Strukturdiagnose</string>
     <string name="settings_tracebox_status_header">Erfassungsstatus</string>
