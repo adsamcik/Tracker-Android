@@ -1,22 +1,218 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">地圖</string>
+    <string name="description_map_search">搜尋按鈕</string>
+    <string name="map_layer_cell_heatmap_description">依無線電技術呈現您觀測到的行動網路樣貌。柔和區域顯示服務基地台曾覆蓋您的地方；發光中心是保守的站點估計，只有觀測資料環繞時才會更清晰。</string>
+    <string name="map_layer_cell_heatmap_title">行動網路拓撲</string>
+    <string name="map_layer_location_heatmap_high">高密度</string>
+    <string name="map_layer_location_heatmap_low">低密度</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">中等密度</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">不同造訪</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">造訪</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">已接受位置定位的相對密度。此圖顯示不同觀測點，而非停留時間。</string>
+    <string name="map_layer_cell_radio_gsm">GSM 覆蓋範圍</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">訊號死角</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">標示您的基地台訊號微弱或缺失的位置。區域越紅，覆蓋越差；覆蓋良好的區域保持清晰。</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">訊號極光</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">極光</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">以極光般光暈呈現基地台訊號：明亮青綠核心下方有寬廣的紫羅蘭光環。光暈會在不重新載入資料的情況下呼吸閃動；系統停用動畫時則保持靜態。</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">微弱訊號</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">強訊號</string>
+    <string name="map_layer_speed_heatmap_description">以熱點圖呈現不同區域的移動速度。</string>
+    <string name="map_layer_speed_very_slow">非常緩慢</string>
+    <string name="map_layer_speed_walking">步行速度</string>
+    <string name="map_layer_speed_running">跑步速度</string>
+    <string name="map_layer_speed_moderate">中等速度</string>
+    <string name="map_layer_speed_fast">快速移動</string>
+    <string name="map_layer_speed_very_fast">非常快速</string>
+    <string name="map_layer_speed_heatmap_title">速度熱點圖</string>
+    <string name="map_layer_legacy_heatmap_title">舊版熱點圖</string>
+    <string name="map_layer_legacy_heatmap_chip">舊版圖磚</string>
+    <string name="map_layer_legacy_heatmap_description">重現原始 Signals 應用程式：以離散的 25 公尺格網圖磚繪出位置密度，如同圖磚仍由伺服器轉譯時的熱點圖。放大即可看見方格。</string>
+    <string name="map_layer_seasonal_title">季節探索者</string>
+    <string name="map_layer_seasonal_chip">季節</string>
+    <string name="map_layer_seasonal_description">季節記憶的拼布：每個您探索過的區域，都以首次造訪時的季節著色。找出只在夏天走過的步道，或只在冬天見過的街道。</string>
+    <string name="map_layer_season_spring">春季</string>
+    <string name="map_layer_season_summer">夏季</string>
+    <string name="map_layer_season_autumn">秋季</string>
+    <string name="map_layer_season_winter">冬季</string>
+    <string name="map_layer_terrain_title">生活地形</string>
+    <string name="map_layer_terrain_chip">地形</string>
+    <string name="map_layer_terrain_description">將您的位置密度抬升為 3D：停留最多的地方會化為高聳發光的桌山，偶爾造訪的地點則保持低矮。傾斜地圖以看見您的生活起伏。</string>
+    <string name="map_layer_terrain_low">很少到此</string>
+    <string name="map_layer_terrain_mid">有時到此</string>
+    <string name="map_layer_terrain_high">常到此</string>
+    <string name="map_layer_places_title">常去地點</string>
+    <string name="map_layer_places_chip">地點</string>
+    <string name="map_layer_places_description">以標記呈現您的重要地點，每個標記會依造訪頻率調整大小與顏色。住家與工作地點會成為溫暖的大圓點；只去過一次的地點則是冷色小圓點。</string>
+    <string name="map_layer_places_rare">很少</string>
+    <string name="map_layer_places_often">有時</string>
+    <string name="map_layer_places_anchor">您的據點</string>
+    <string name="map_layer_speed_ribbon_title">速度絲帶</string>
+    <string name="map_layer_speed_ribbon_chip">絲帶</string>
+    <string name="map_layer_speed_ribbon_description">依移動速度為路線著色，從緩慢漫步的紫羅蘭色流向疾跑或駕駛時的熾紅色。不同於速度熱點圖，絲帶會保留完整路徑，讓您精確看出加速與減速的位置。</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">海拔絲帶</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">海拔</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">依絕對海拔為路線著色，從深藍低地、青色山麓到暖色高山。平移地圖時尺度保持固定，因此相同海拔永遠使用相同顏色。</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">低地</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">山麓</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">高山</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">活動絲帶</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">活動</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">依每次定位記錄的可靠移動狀態為路線著色：狀態不明為灰色、靜止為藍色、移動為綠色。</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">不明</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">靜止</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">移動</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">滑雪 X 光</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">滑雪 X 光</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">偵測到的滑雪區段診斷檢視。下坡滑行、纜車、步行與暫停會錨定在最近記錄的位置，並標示關鍵指標。</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">下坡滑行</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">纜車</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">步行或暫停</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">行程星座</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">行程</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">常去地點之間重複的旅程會形成彎曲星座。穩定的弧線顯示每條路線，彗星沿線移動；弧線越粗表示您越常進行該旅程。</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">步行</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">騎自行車</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">開車</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">大眾運輸</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">其他</string>
+    <string name="map_layer_fog_title">探索者之霧</string>
+    <string name="map_layer_fog_chip">迷霧</string>
+    <string name="map_layer_fog_description">世界從迷霧中浮現：您踏足過的每個區域都會揭露，探索得越徹底便越明亮。僅路過的地方保持淡霧；深度探索的地點則燃起金色光芒。未探索的地面仍是黑暗。</string>
+    <string name="map_layer_fog_faint">僅路過</string>
+    <string name="map_layer_fog_known">已充分探索</string>
+    <string name="map_layer_first_contact_title">初次接觸</string>
+    <string name="map_layer_first_contact_chip">發現</string>
+    <string name="map_layer_first_contact_description">您的發現時間軸：每個區域依首次踏足距今多久著色。很久以前發現的地點褪為深靛色，而本週開拓的地面閃耀亮青色 — 從內向外閱讀您的探索故事，直到最新的前線。</string>
+    <string name="map_layer_first_contact_old">很久以前</string>
+    <string name="map_layer_first_contact_recent">剛發現</string>
+    <string name="map_layer_vehicle_compliance_title">車速合規</string>
+    <string name="map_layer_vehicle_compliance_description">依駕駛樣本速度與您設定的基準限速比較結果著色的折線。</string>
+    <string name="map_layer_vehicle_compliance_way_under">遠低於限速</string>
+    <string name="map_layer_vehicle_compliance_slow">低於限速</string>
+    <string name="map_layer_vehicle_compliance_at_limit">接近限速</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">略超速</string>
+    <string name="map_layer_vehicle_compliance_speeding">超速</string>
+    <string name="map_layer_location_polyline_description">隨時間連接所記錄位置的線。</string>
+    <string name="map_layer_location_polyline_title">位置折線</string>
+    <string name="map_layer_location_polyline_chip">折線</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi 重疊</string>
+    <string name="map_layer_vehicle_compliance_chip">超速</string>
+    <string name="map_layer_none_title">無疊加圖層</string>
+    <string name="map_date_preset_week">上週</string>
+    <string name="map_date_preset_month">上個月</string>
+    <string name="map_date_preset_custom">自訂…</string>
+    <string name="map_date_today">今天</string>
+    <string name="map_date_yesterday">昨天</string>
+    <string name="map_date_this_week">本週</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi 重疊</string>
+    <string name="map_layer_wifi_count_heatmap_description">顯示每個地點有多少不同存取點重疊。同一 AP 的重複掃描只計一次，因此越熱的區域代表真正更密集的無線電覆蓋。</string>
+    <string name="map_layer_wifi_heatmap_description">依您自己的觀測建立的頻段感知 Wi-Fi 星座。彩色區域顯示觀測到的 2.4、5 與 6 GHz 覆蓋範圍；只有樣本幾何條件足夠時才會顯示發光中心作為約略 AP 位置。</string>
+    <string name="map_layer_wifi_heatmap_high">許多重疊 AP</string>
+    <string name="map_layer_wifi_heatmap_low">少量重疊 AP</string>
+    <string name="map_layer_wifi_heatmap_medium">數個重疊 AP</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi 星座</string>
+    <string name="map_layer_wifi_radio_24">2.4 GHz 範圍</string>
+    <string name="map_layer_wifi_radio_5">5 GHz 範圍</string>
+    <string name="map_layer_wifi_radio_6">6 GHz 範圍</string>
+    <string name="map_legend_label">圖例</string>
+    <string name="map_chip_layers">圖層</string>
+    <string name="map_chip_dates">日期</string>
+    <string name="permission_rationale_location_map">Tracker 需要位置存取權才能在地圖上顯示您的位置。所有資料都會留在裝置上。</string>
+    <string name="map_location_permission_denied">顯示您的位置需要位置權限</string>
+    <string name="map_open_settings">開啟設定</string>
+    <string name="settings_map_basemap_title">底圖</string>
+    <string name="settings_map_basemap_custom">已啟用自訂 .pmtiles 檔案（輕觸即可移除）</string>
+    <string name="settings_map_basemap_default">已啟用內建底圖。輕觸即可匯入自訂 .pmtiles 檔案。</string>
+    <string name="basemap_import_error_source_open">無法開啟該檔案。請嘗試其他檔案，或再次分享給 Tracker。</string>
+    <string name="basemap_import_error_copy">無法複製底圖檔案。請確認有足夠可用空間後再試一次。</string>
+    <string name="basemap_import_error_invalid_format">不是有效的 PMTiles 檔案：%1$s</string>
+    <string name="settings_map_advanced_section_title">進階設定</string>
+    <string name="settings_map_max_heat_title">造訪後的最大熱度</string>
+    <string name="settings_map_quality_title">熱點圖解析度</string>
+    <string name="settings_map_visit_threshold_title">位置造訪時間門檻</string>
+    <string name="settings_map_legacy_heatmap_title">舊版熱點圖（10 公尺圖磚）</string>
+    <string name="settings_map_legacy_heatmap_subtitle">彩蛋：新增「舊版熱點圖」圖層，以離散的 10 公尺格網圖磚繪出位置密度，如同原始由伺服器轉譯的 Signals 熱點圖。</string>
+    <string name="settings_map_zoom_buttons_title">地圖縮放按鈕</string>
+    <string name="settings_map_zoom_buttons_subtitle">顯示畫面上的 + 和 − 按鈕以縮放地圖，適合難以使用雙指縮放時。</string>
+    <string name="tips_map_date_range_title">日期範圍</string>
+    <string name="tips_map_my_location_title">我的位置</string>
+    <string name="tips_map_sheet_description">輕觸或向上拉動此列可開啟更多地圖選項，包括圖層選擇與圖例。</string>
+    <string name="map_search_placeholder">緯度、經度，例如 50.075, 14.437</string>
+    <string name="map_search_invalid_format">請嘗試 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">清除搜尋</string>
+    <string name="map_search_paste">將剪貼簿內容貼到搜尋欄</string>
+    <string name="map_search_clipboard_empty">剪貼簿尚未包含座標</string>
+    <string name="map_date_range_dialog_ok">確定</string>
+    <string name="map_date_range_dialog_cancel">取消</string>
+    <string name="map_share_button">分享地圖</string>
+    <string name="map_share_sheet_title">將地圖分享為圖片</string>
+    <string name="map_share_sheet_subtitle">將目前檢視與啟用圖層轉譯為靜態圖片。絕不會包含您的即時位置。</string>
+    <string name="map_share_resolution_standard">標準（1080p）</string>
+    <string name="map_share_resolution_high">高（1440p）</string>
+    <string name="map_share_resolution_ultra">超高（4K）</string>
+    <string name="map_share_action">分享</string>
+    <string name="map_share_preparing">正在準備圖片…</string>
+    <string name="map_share_error">無法轉譯地圖圖片。請再試一次。</string>
+    <string name="map_date_range_all_time">所有時間</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">地圖圖層</string>
+    <string name="map_layer_load_error">無法載入此圖層。請嘗試選擇其他圖層。</string>
+    <string name="map_empty_subtitle_location">此檢視或日期範圍中沒有位置資料。路線與地圖功能需要在追蹤期間收集的位置資料。</string>
+    <string name="map_empty_subtitle_cell">此檢視或日期範圍中沒有已定位的基地台資料。未附位置記錄的基地台樣本仍會儲存，但無法顯示在地圖上。</string>
+    <string name="map_empty_subtitle_wifi">此檢視或日期範圍中沒有已定位的 Wi-Fi 資料。未附位置記錄的 Wi-Fi 觀測仍會儲存，但無法顯示在地圖上。</string>
+    <string name="map_empty_subtitle_speed">此檢視或日期範圍中沒有速度資料。速度地圖需要在追蹤期間收集的可用位置樣本。</string>
+    <string name="map_empty_subtitle_vehicle_compliance">沒有可顯示的道路配對駕駛資料。請匯入 OpenStreetMap 區域（設定），並記錄一些駕駛資料，讓我們將路線配對到實際道路。</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">關閉無資料訊息</string>
+    <string name="map_speed_probe_title">此處速度</string>
+    <string name="map_speed_probe_avg_label">平均</string>
+    <string name="map_speed_probe_max_label">最高</string>
+    <string name="map_speed_probe_empty">此處沒有速度資料。輕觸有熱度的地方即可查看速度。</string>
+    <string name="map_speed_probe_hint">輕觸地圖以查看速度</string>
+    <string name="map_speed_probe_dismiss">關閉速度詳細資料</string>
+    <string name="map_place_callout_loading">正在尋找地點…</string>
+    <string name="map_place_callout_empty">此處找不到地點</string>
+    <string name="map_place_callout_dismiss">關閉地點詳細資料</string>
+    <string name="map_zoom_in">放大</string>
+    <string name="map_zoom_out">縮小</string>
+    <string name="map_loading">正在載入地圖…</string>
+    <string name="map_basemap_unavailable">無法準備地圖底圖。請關閉後重新開啟地圖再試一次。</string>
+    <string name="map_a11y_map_overview">地圖概覽</string>
+    <string name="map_a11y_centered_on_location">地圖已置中於您的位置</string>
+    <string name="map_a11y_showing_location">地圖顯示您的位置</string>
+    <string name="map_a11y_loading_data">正在載入已記錄的地圖資料</string>
+    <string name="map_a11y_no_recorded_data">所選圖層在此檢視或日期範圍中沒有可繪製的資料</string>
+    <string name="map_a11y_no_layer_selected">未選擇地圖圖層</string>
+    <string name="map_a11y_search_result_visible">搜尋結果標記可見</string>
+    <string name="map_a11y_active_recording_visible">進行中記錄的路徑可見</string>
+    <string name="map_a11y_recorded_route_history">正在顯示已記錄的路線歷程</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">正在顯示不同的已接受位置觀測</string>
+    <string name="map_a11y_cell_heatmap">正在顯示行動網路覆蓋區域與約略服務站點中心</string>
+    <string name="map_a11y_wifi_heatmap">正在顯示 Wi-Fi 頻段、覆蓋區域與約略存取點中心</string>
+    <string name="map_a11y_wifi_count_heatmap">正在顯示不同 Wi-Fi 存取點重疊</string>
+    <string name="map_a11y_speed_heatmap">正在顯示速度熱點圖</string>
+    <string name="map_a11y_saved_map_data">正在顯示已儲存的地圖資料</string>
+    <string name="map_location_permission_opening_settings">需要位置存取權。正在開啟設定…</string>
+    <string name="map_permission_banner_dismiss">關閉位置權限訊息</string>
+    <string name="map_loading_layer">正在載入地圖圖層</string>
+    <string name="map_a11y_world_scale">世界尺度</string>
+    <string name="map_a11y_regional_scale">區域尺度</string>
+    <string name="map_a11y_city_scale">城市尺度</string>
+    <string name="map_a11y_neighborhood_scale">街區尺度</string>
+    <string name="map_a11y_street_scale">街道尺度</string>
+    <string name="help_map_quality">轉譯細節倍率。數值越高，細節越多，但舊裝置載入地圖可能較慢。</string>
+    <string name="help_max_heat_points">熱點圖檢視顯示的最大位置點數。數值越高＝細節越多，但轉譯較慢。</string>
+    <string name="help_visit_threshold">在地圖上標示為「造訪」前，您需要在一個地方停留的時間。提高此值可減少短暫停留造成的雜亂。</string>
 </resources>

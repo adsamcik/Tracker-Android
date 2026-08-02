@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">匯出</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">所選期間內找不到位置資料。</string>
+    <string name="export_error_no_databases">沒有可匯出的應用程式資料庫。</string>
+    <string name="export_error_no_uri">未選擇匯出資料夾</string>
+    <string name="export_error_stream_failed">無法建立寫入檔案 %s 的串流</string>
+    <string name="export_error_unknown">匯出失敗。</string>
+    <string name="export_error_with_reason">匯出失敗：%s</string>
+    <string name="export_file_name">檔案名稱</string>
+    <string name="export_file_name_error">檔案名稱不得包含 \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">由 Advention 追蹤的 %1$s 至 %2$s 位置資料匯出檔。</string>
+    <string name="export_gpx_error">GPX 匯出失敗，錯誤：%s</string>
+    <string name="export_sensitivity_title">要匯出精確位置資料嗎？</string>
+    <string name="export_sensitivity_message">此匯出／分享包含完整精度位置資料，資料庫匯出可能包含原始無線電中繼資料。僅在您信任目的地時繼續。</string>
+    <string name="export_sensitivity_confirm">繼續</string>
+    <string name="export_share_button">分享</string>
+    <string name="export_in_progress">正在匯出…</string>
+    <string name="export_completed">匯出完成。</string>
+    <string name="import_notification_error_failed_open_database">無法開啟資料庫檔案 %s</string>
+    <string name="import_notification_error_file_not_supported">不支援檔案 %s。</string>
+    <string name="import_notification_extracting">正在解壓縮 %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">匯入完成。已成功匯入 %d 筆記錄。</item>
+        <item quantity="other">匯入完成。已成功匯入 %d 筆記錄。</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">匯入完成。已匯入 %1$d 筆記錄（略過 %2$d 筆）。</string>
+    <string name="import_notification_error_records_failed">因違反限制條件，%d 筆記錄無法匯入。</string>
+    <string name="import_notification_importing">正在匯入 %s …</string>
+    <string name="import_notification_progress">正在匯入…</string>
+    <string name="settings_export_dialog_from">從</string>
+    <string name="settings_export_dialog_to">至</string>
+    <string name="settings_export_no_data">沒有可匯出的資料</string>
+    <string name="settings_export_title">匯出</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">資料庫備份 (ZIP)</string>
+    <string name="settings_import_summary">從支援的類型 (%1$s) 與封存檔 (%2$s) 匯入資料。資料庫匯入會合併相容的資料列；不會取代現有資料。</string>
+    <string name="settings_import_title">匯入</string>
+</resources>

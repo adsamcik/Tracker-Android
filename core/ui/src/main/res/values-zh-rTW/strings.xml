@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">返回</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">位置存取權</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker 需要位置存取權才能記錄您的路線並在地圖上顯示。位置資料會留在此裝置上 — 不會傳送至伺服器。</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">活動辨識</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker 使用活動辨識來偵測您的活動（步行、騎自行車、開車、靜止），以便在未移動時暫停自動追蹤並節省電量。活動資料會留在此裝置上 — 不會傳送至伺服器。</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">背景位置</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">切換應用程式或螢幕關閉時，要持續記錄您的路線，Tracker 需要在背景存取您的位置。記錄的位置會留在此裝置上 — 不會傳送至伺服器。在下一個系統提示中，請選擇「一律允許」；選擇「僅在使用應用程式期間」時，Tracker 僅會在畫面開啟時運作。</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">允許</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">現在不要</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">開始追蹤需要位置權限</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">開啟設定</string>
 </resources>

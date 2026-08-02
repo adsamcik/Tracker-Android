@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">遊戲</string>
+    <string name="module_map_title">地圖</string>
+    <string name="module_statistics_title">統計資料</string>
+    <string name="main_nav_tracker">首頁</string>
+    <string name="settings_clear_preferences_title">清除偏好設定</string>
+    <string name="settings_clear_preferences_message">這會重設所有應用程式偏好設定（功能開關、介面設定）。不會影響您的追蹤資料。要繼續嗎？</string>
+    <string name="settings_data_title">資料</string>
+    <string name="settings_debug_group_title">偵錯</string>
+    <string name="settings_debug_title">開發人員選項</string>
+    <string name="settings_debug_developer_tools_section">開發人員工具</string>
+    <string name="settings_debug_disable_developer_subtitle">從設定中隱藏開發人員選項</string>
+    <string name="settings_debug_developer_mode_disabled_toast">開發人員模式已停用</string>
+    <string name="settings_data_management_section">資料管理</string>
+    <string name="settings_data_danger_zone_section">危險區</string>
+    <string name="settings_osm_import_section">地圖資料（OpenStreetMap）</string>
+    <string name="settings_osm_import_action_title">匯入 OSM 區域</string>
+    <string name="settings_osm_import_action_summary">選擇 .osm.pbf 檔案。之後，車輛合規功能會離線使用實際道路限速。</string>
+    <string name="settings_osm_import_unavailable_title">離線地圖匯入無法使用</string>
+    <string name="settings_osm_import_action_unavailable">在完成檔案安全性保護前，暫時無法使用離線地圖匯入。</string>
+    <string name="settings_osm_import_action_running">正在匯入 — 輕觸即可取消</string>
+    <string name="settings_osm_import_action_failed">無法完成離線地圖匯入。</string>
+    <string name="settings_osm_import_action_source_unavailable">無法開啟所選地圖檔案。</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">已從 %2$d 個節點匯入 %1$d 條道路。</item>
+        <item quantity="other">已從 %2$d 個節點匯入 %1$d 條道路。</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">尚未匯入 OpenStreetMap 區域。</string>
+    <string name="settings_osm_imports_attribution">地圖資料 © OpenStreetMap 貢獻者 (ODbL 1.0)。所有處理均在裝置上進行。</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d 條道路 · 於 %2$s 匯入</item>
+        <item quantity="other">%1$,d 條道路 · 於 %2$s 匯入</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">移除已匯入區域</string>
+    <string name="settings_osm_import_remove_message">要移除 %1$s 嗎？在重新匯入區域前，車輛合規功能會改用固定基準值。</string>
+    <string name="settings_incremental_backups_title">漸進式備份</string>
+    <string name="settings_incremental_backups_summary">僅匯出自上次備份後的新資料。可減少匯出時間與檔案大小。</string>
+    <string name="settings_reset_export_watermarks_title">強制完整匯出</string>
+    <string name="settings_reset_export_watermarks_summary">下一次自動備份會包含所有資料，而非僅限變更</string>
+    <string name="settings_reset_export_watermarks_done">已重設匯出水位標記 — 下一次備份將為完整匯出</string>
+    <string name="settings_migration_backup_export_title">匯出升級前安全備份</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">從 v%1$d 完整複製資料庫，於移轉至 v%2$d 前建立，並私下保留最多 30 天</string>
+    <string name="settings_migration_backup_warning_title">要匯出含敏感資料的資料庫備份嗎？</string>
+    <string name="settings_migration_backup_warning_message">此備份可能包含升級前的精確位置、Wi-Fi 與基地台觀測資料、活動及其他私人資料。僅儲存在您信任的位置。</string>
+    <string name="settings_migration_backup_export_action">匯出備份</string>
+    <string name="settings_migration_backup_export_success">已匯出升級前備份</string>
+    <string name="settings_migration_backup_export_failure">無法匯出升級前備份</string>
+    <string name="settings_migration_backup_export_cleanup_required">匯出失敗。請從所選位置刪除部分匯出的備份。</string>
+    <string name="settings_delete_data_success">已刪除所有收集的資料</string>
+    <string name="settings_delete_data_failure">無法刪除所有收集的資料</string>
+    <string name="settings_game_goals_title">目標</string>
+    <string name="settings_game_daily_target_title">每日步數目標</string>
+    <string name="settings_game_weekly_target_title">每週步數目標</string>
+    <string name="settings_game_daily_contribution_title">每日最大貢獻</string>
+    <string name="settings_game_steps_unit">步</string>
+    <string name="settings_game_notifications_title">通知</string>
+    <string name="settings_game_goal_notifications_title">目標進度通知</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">在每日目標的 75% 與 90% 時收到本機提醒。</string>
+    <string name="settings_game_during_games_title">遊戲期間</string>
+    <string name="settings_game_haptics_title">遊戲觸覺回饋</string>
+    <string name="settings_game_haptics_summary">使用細微震動提供遊戲回饋。</string>
+    <string name="settings_game_quiet_coaching_title">安靜指導提示</string>
+    <string name="settings_game_quiet_coaching_summary">遊玩時減少指引的頻率。</string>
+    <string name="settings_game_remember_setup_title">記住上次的遊戲設定</string>
+    <string name="settings_game_remember_setup_summary">下次重複使用上次的目標與難度。</string>
+    <string name="settings_game_privacy_battery_title">隱私權與電池</string>
+    <string name="settings_game_privacy_battery_disclosure">遊戲僅在進行期間使用即時位置，且會在可用時重複使用 Tracker 的位置資訊。暫停會釋放遊戲的位置使用權。僅會將分數與點數／經驗值儲存在此裝置；不會持久儲存原始遊戲位置。</string>
+    <string name="settings_game_loading">正在載入遊戲設定…</string>
+    <string name="settings_game_load_error">無法載入遊戲設定。請再試一次。</string>
+    <string name="settings_map_info_hint">這些設定控制地圖視覺品質與效能。大多數使用者可使用預設值。</string>
+    <string name="settings_map_online_tiles_section_title">線上地圖圖磚</string>
+    <string name="settings_map_online_tiles_enable_title">使用線上地圖圖磚</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">關閉 — 僅使用隨附的離線底圖。不發出網路要求。</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">開啟 — 正在從 %1$s 擷取圖磚</string>
+    <string name="settings_map_online_tiles_provider_title">圖磚提供者</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap（建議）</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">自訂網址</string>
+    <string name="settings_map_online_tiles_custom_url_label">樣式 JSON 網址</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">歸屬：%1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">線上圖磚需自行啟用。啟用時，所選提供者可看見您的 IP 位址及所載入的圖磚（約略反映您正在檢視地圖的區域）。Tracker 絕不會傳送帳戶、識別碼或位置記錄。</string>
+    <string name="settings_developer_mode_enabled_toast">開發人員模式已啟用</string>
+    <string name="settings_developer_mode_disable">停用開發人員模式</string>
+    <string name="settings_developer_mode_subtitle">開發人員模式已啟用</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">再輕觸 %d 次即可啟用開發人員模式</item>
+        <item quantity="other">再輕觸 %d 次即可啟用開發人員模式</item>
+    </plurals>
+    <string name="settings_version_info_title">版本資訊</string>
+    <string name="settings_version_format">版本：%1$s (%2$d)</string>
+    <string name="settings_language_summary">目前語言：%s</string>
+    <string name="settings_language_title">應用程式語言</string>
+    <string name="settings_units_auto_summary_on">依偵測到的活動調整長度系統</string>
+    <string name="settings_units_auto_summary_off">在所有地方套用所選長度系統</string>
+    <string-array name="settings_length_system_names">
+        <item>公制</item>
+        <item>英制 (USC)</item>
+        <item>古羅馬</item>
+        <item>航海</item>
+        <item>航空</item>
+    </string-array>
+    <string name="settings_length_system_title">長度系統</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">開放原始碼授權</string>
+    <string name="settings_licenses_subtitle">檢視此版本隨附的第三方聲明。</string>
+    <string name="settings_licenses_loading">正在載入授權…</string>
+    <string name="settings_licenses_unavailable">無法載入隨附的第三方授權資料。</string>
+    <string name="settings_licenses_text_at_url">完整授權文字可於此取得：%1$s</string>
+    <string name="settings_privacy_policy_title">隱私權政策</string>
+    <string name="settings_privacy_policy_unavailable">無法開啟隨附的隱私權政策。請重新啟動應用程式後再試一次。</string>
+    <string name="settings_about_header">關於</string>
+    <string name="settings_about_app_title">Tracker（由 adsamcik 開發）</string>
+    <string name="settings_about_app_subtitle">隱私權優先的位置與活動追蹤工具</string>
+    <string name="about_title">關於</string>
+    <string name="about_app_name_label">應用程式</string>
+    <string name="about_version_label">版本</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">建置提交</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">作者</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">電子郵件</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">連結</string>
+    <string name="about_attributions_title">資料來源標示</string>
+    <string name="about_attribution_geonames_label">地名</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">地圖與街道資料</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">模組設定</string>
+    <string name="settings_core_group_title">核心</string>
+    <string name="settings_other_title">單位與顯示</string>
+    <string name="settings_remove_all_collected_data_summary">刪除您的追蹤資料（會保留自訂活動與設定）</string>
+    <string name="settings_remove_all_collected_data_title">刪除所有收集的資料</string>
+    <string-array name="settings_speed_format_names">
+        <item>每秒速度 (m/s)</item>
+        <item>每距離配速 (min/km、min/mi)</item>
+        <item>速度 (km/h、mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">速度格式</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">設定</string>
+    <string name="switch_state_on">開啟</string>
+    <string name="switch_state_off">關閉</string>
+    <string name="onboarding_streamlined_title">私密追蹤您的旅程</string>
+    <string name="onboarding_streamlined_subtitle">所有資料都會留在您的裝置上。無雲端同步或第三方追蹤。</string>
+    <string name="onboarding_benefit_privacy_title">隱私權優先</string>
+    <string name="onboarding_benefit_privacy_desc">所有追蹤資料皆保留在您的裝置。無伺服器、無雲端同步，完全由您掌控。</string>
+    <string name="onboarding_benefit_insights_title">活動洞察</string>
+    <string name="onboarding_benefit_insights_desc">在地圖上檢視路線、分析統計資料，並隨時間追蹤進度。</string>
+    <string name="onboarding_benefit_gamification_title">成就</string>
+    <string name="onboarding_benefit_gamification_desc">在步行、跑步、騎自行車與探索時解鎖超過 150 項成就 — 全部在您的裝置上於本機取得。</string>
+    <string name="onboarding_get_started">開始使用</string>
+    <string name="onboarding_privacy_policy_button">閱讀隱私權政策</string>
+    <string name="onboarding_state_read_error_message">我們無法確認設定是否已完成，因此仍顯示設定以保障您的資料隱私。您可以安全地繼續。</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">自動清除舊資料</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">永久保留資料；自動清除不會刪除舊資料</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">自動移除超過 %1$d 年的資料</item>
+        <item quantity="other">自動移除超過 %1$d 年的資料</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">資料保留期限</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>永久保留</item>
+        <item>1 年</item>
+        <item>2 年</item>
+        <item>3 年</item>
+        <item>5 年</item>
+        <item>10 年</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">繼續</string>
+    <string name="settings_export_data_title">匯出資料</string>
+    <string name="settings_export_data_summary">以多種格式儲存您的追蹤資料</string>
+    <string name="export_format_dialog_title">選擇匯出格式</string>
+    <string name="export_format_gpx_name">GPX（建議）</string>
+    <string name="export_format_gpx_desc">供 GPS 裝置、健身應用程式與通用相容性使用的完整精度路線點</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">供 Google Earth 與地理視覺化使用的完整精度路線點</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">串流位置資料與工作階段摘要；匯入會合併資料並重新產生部分中繼資料</string>
+    <string name="export_format_db_name">資料庫</string>
+    <string name="export_format_db_desc">包含所有資料與設定的原始 SQLite 備份；匯入會合併相容的資料列，並非完整還原</string>
+    <string name="export_sensitivity_dialog_title">要匯出精確位置資料嗎？</string>
+    <string name="export_sensitivity_gpx_message">此 GPX 匯出包含完整精度路線點。僅儲存或分享給您信任的人員與應用程式。</string>
+    <string name="export_sensitivity_kml_message">此 KML 匯出包含完整精度路線點。僅儲存或分享給您信任的人員與應用程式。</string>
+    <string name="export_sensitivity_json_message">此 JSON 匯出包含完整精度位置資料與工作階段摘要。部分衍生中繼資料在匯入時可能會遺失；僅儲存或分享給您信任的目的地。</string>
+    <string name="export_sensitivity_db_message">此原始資料庫備份可能包含精確位置、Wi-Fi／基地台無線電資料、活動與設定。請保持私密，僅儲存在您信任的位置。</string>
+    <string name="export_sensitivity_confirm">繼續匯出</string>
+    <string name="settings_export_title">匯出</string>
+    <string name="settings_import_summary">從支援的類型 (%1$s) 與封存檔 (%2$s) 匯入資料。資料庫匯入會合併相容的資料列；不會取代現有資料。</string>
+    <string name="settings_import_title">匯入</string>
+    <string name="got_it">知道了</string>
+    <string name="battery_impact_low">影響低</string>
+    <string name="battery_impact_moderate">中等影響</string>
+    <string name="battery_impact_high">影響高</string>
+    <string name="precision_mode_title">選擇位置精確度</string>
+    <string name="precision_mode_approximate_title">概略</string>
+    <string name="precision_mode_approximate_description">以網路為基礎的位置。適合以最低電池用量追蹤一般區域。</string>
+    <string name="precision_mode_precise_title">精確</string>
+    <string name="precision_mode_precise_description">以 GPS 為基礎的位置。最適合詳細路線、熱點圖與挑戰。</string>
+    <string name="upgrade_to_precise_title">解鎖精確追蹤</string>
+    <string name="upgrade_to_precise_message_general">您正在使用概略位置。請切換至精確 GPS 追蹤以獲得更佳準確度。</string>
+    <string name="upgrade_to_precise_message_route_analysis">建議使用精確位置，以準確分析路線與測量距離。</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">精確位置可提供細緻定位的詳細熱點圖視覺化。</string>
+    <string name="upgrade_to_precise_message_challenges">許多挑戰需要精確 GPS 追蹤才能準確驗證完成情況。</string>
+    <string name="upgrade_to_precise_benefits_title">優點</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">準確的路線形狀與逐轉路徑細節</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">詳細的熱點圖與空間分析</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">精確的距離與速度測量</string>
+    <string name="upgrade_to_precise_battery_title">電池用量</string>
+    <string name="upgrade_to_precise_battery_message">精確 GPS 使用較多電量。預估追蹤時間：一般裝置為 6–8 小時。</string>
+    <string name="upgrade_to_precise_button_upgrade">啟用精確位置</string>
+    <string name="upgrade_to_precise_button_cancel">稍後再說</string>
+    <string name="tracking_preset_high_accuracy_name">高準確度</string>
+    <string name="tracking_preset_high_accuracy_description">以最快更新頻率和所有主要感測器啟用，提供最佳細節</string>
+    <string name="tracking_preset_balanced_name">平衡</string>
+    <string name="tracking_preset_balanced_description">提供良好準確度與合理電池續航力，適合每日追蹤</string>
+    <string name="tracking_preset_power_save_name">省電</string>
+    <string name="tracking_preset_power_save_description">以較低電池用量、較不頻繁更新與減少的感測器運作</string>
+    <string name="tracking_preset_custom_name">自訂</string>
+    <string name="tracking_preset_custom_description">手動調整每個追蹤參數</string>
+    <string name="tracking_preset_selector_title">追蹤預設</string>
+    <string name="tracking_preset_selector_subtitle">選擇一個設定檔作為起點，然後微調下方任何設定。</string>
+    <string name="tracking_preset_custom_hint">調整下方任何設定會根據目前預設建立自訂設定檔。</string>
+    <string name="tracking_preset_customized_summary">您已微調追蹤設定。選擇上方預設即可重設。</string>
+    <string name="settings_tracking_section_detection">偵測與自動化</string>
+    <string name="settings_tracking_section_sources">資料來源</string>
+    <string name="settings_tracking_section_detail">位置收集</string>
+    <string name="settings_tracking_section_notifications">通知</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">追蹤原則</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">預估追蹤時間：%d 小時</item>
+        <item quantity="other">預估追蹤時間：%d 小時</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">選擇 Tracker 記錄您位置的準確程度</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">精確</string>
+    <string name="approximate">概略</string>
+    <string name="tracking_policy_selector_subtitle">選擇追蹤預設或自訂設定</string>
+    <string name="tracking_policy_custom_badge">自訂</string>
+    <string name="collapse_details">隱藏詳細資料</string>
+    <string name="expand_details">顯示詳細資料</string>
+    <string name="settings_section_collapse">收合</string>
+    <string name="settings_section_expand">展開</string>
+    <string name="tracking_policy_details_title">設定詳細資料</string>
+    <string name="preset_detail_location_precision">位置精確度</string>
+    <string name="preset_detail_min_distance">最小距離</string>
+    <string name="preset_detail_min_time">最短時間</string>
+    <string name="preset_detail_accuracy">必要準確度</string>
+    <string name="preset_detail_sensors">感測器</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">自動切換單位</string>
+    <string name="settings_module_map_subtitle">熱點圖品質與視覺化選項</string>
+    <string name="settings_module_game_subtitle">目標、成就與里程碑</string>
+    <string name="action_navigate_back">返回</string>
+    <string name="action_help">說明</string>
+    <string name="widget_loading">載入中…</string>
+    <string name="widget_quick_start_name">Tracker 快速開始</string>
+    <string name="widget_quick_start_description">輕觸一次即可開始或停止位置追蹤。</string>
+    <string name="widget_start_tracking">開始追蹤</string>
+    <string name="widget_stop_tracking">停止追蹤</string>
+    <string name="widget_tracking_active">追蹤已啟用</string>
+    <string name="widget_today_summary_name">今日摘要</string>
+    <string name="widget_today_summary_description">一覽今日追蹤統計資料。</string>
+    <string name="widget_today">今天</string>
+    <string name="widget_distance">距離</string>
+    <string name="widget_steps">步數</string>
+    <string name="widget_sessions">工作階段</string>
+    <string name="widget_duration">持續時間</string>
+    <string name="widget_no_data_today">今日沒有追蹤資料</string>
+    <string name="widget_active_session_name">進行中的工作階段</string>
+    <string name="widget_active_session_description">即時監控目前的追蹤工作階段。</string>
+    <string name="widget_no_active_session">沒有進行中的工作階段</string>
+    <string name="widget_tap_to_start">輕觸以開始追蹤</string>
+    <string name="widget_session_distance">工作階段距離</string>
+    <string name="widget_session_steps">工作階段步數</string>
+    <string name="widget_session_duration">工作階段持續時間</string>
+    <string name="widget_current_speed">目前速度</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f 公里／小時</string>
+    <string name="widget_speed_format_whole">%d 公里／小時</string>
+    <string name="widget_collections">集合</string>
+    <string name="widget_path_preview">路徑預覽</string>
+    <string name="widget_activity_unknown">活動資料無法使用</string>
+    <string name="widget_goal_label">目標：</string>
+    <string name="widget_goal_progress">%1$s / %2$s 步</string>
+    <string name="widget_format_km">%.1f 公里</string>
+    <string name="widget_format_meters">%d 公尺</string>
+    <string name="widget_tier_off">關閉</string>
+    <string name="widget_tier_ambient">環境</string>
+    <string name="widget_tier_active">活動</string>
+    <string name="widget_tier_precision">精確</string>
+    <string name="goal_notification_title_progress">進度很棒！</string>
+    <string name="goal_notification_title_almost">快完成了！</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">再走 %1$d 步即可達成每日目標</item>
+        <item quantity="other">再走 %1$d 步即可達成每日目標</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">只差 %1$d 步！</item>
+        <item quantity="other">只差 %1$d 步！</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">智慧目標通知</string>
+    <string name="settings_smart_goal_notifications_summary">快接近每日步數目標時通知您</string>
+    <string name="setup_how_to_track_title">追蹤方式應如何運作？</string>
+    <string name="setup_how_to_track_subtitle">選擇何時開始追蹤，以及所需的細節程度。</string>
+    <string name="setup_auto_tracking_title">自動追蹤</string>
+    <string name="setup_auto_tracking_disabled">已停用</string>
+    <string name="setup_auto_tracking_disabled_desc">手動開始與停止追蹤。</string>
+    <string name="setup_auto_tracking_on_foot">步行時</string>
+    <string name="setup_auto_tracking_on_foot_desc">自動追蹤步行與跑步。</string>
+    <string name="setup_auto_tracking_in_motion">移動時</string>
+    <string name="setup_auto_tracking_in_motion_desc">自動追蹤所有移動，包括開車與騎自行車。</string>
+    <string name="setup_preset_title">追蹤細節</string>
+    <string name="setup_what_to_collect_title">收集內容</string>
+    <string name="setup_what_to_collect_subtitle">下方有更多選項。您可不授予權限就開始探索，也可稍後授予。資料會保留在此裝置上。</string>
+    <string name="setup_source_location">位置</string>
+    <string name="setup_source_location_desc">在地圖上記錄您的路線與位置。</string>
+    <string name="setup_source_activity">活動</string>
+    <string name="setup_source_activity_desc">偵測您是否正在步行、跑步、騎自行車或開車。</string>
+    <string name="setup_source_steps">步數</string>
+    <string name="setup_source_steps_desc">使用裝置的計步器計算步數。</string>
+    <string name="setup_source_wifi">Wi-Fi 網路</string>
+    <string name="setup_source_wifi_desc">記錄附近的 Wi-Fi 網路以改善位置準確度。</string>
+    <string name="setup_source_cell">基地台</string>
+    <string name="setup_source_cell_desc">記錄基地台資訊以提供位置脈絡。</string>
+    <string name="setup_perm_location_why">需要此權限才能記錄路線並在地圖上顯示。位置資料會留在此裝置上 — 不會傳送至伺服器。</string>
+    <string name="setup_perm_location_bg_why">切換應用程式或螢幕關閉時，要持續記錄您的路線，Tracker 需要在背景存取您的位置。記錄的位置會留在此裝置上 — 不會傳送至伺服器。在下一個系統提示中，請選擇「一律允許」以啟用自動追蹤；選擇「僅在使用應用程式期間」時，Tracker 僅會在畫面開啟時運作。</string>
+    <string name="setup_perm_activity_why">讓 Tracker 偵測您的活動（步行、騎自行車、開車、靜止），以便在未移動時暫停自動追蹤並節省電量。活動資料會留在此裝置上 — 不會傳送至伺服器。</string>
+    <string name="setup_perm_notification_why">Tracker 在記錄期間會顯示小型狀態通知，讓您一眼知道追蹤已啟用，並可輕觸一次停止。沒有行銷或促銷通知。</string>
+    <string name="setup_perm_wifi_why">Tracker 可記錄手機在旅程中偵測到的 Wi-Fi 存取點，以改善 GPS 訊號微弱地點（室內、地下）的定位準確度。無線電資料會留在此裝置上 — 不會傳送至伺服器。僅在需要時授予此權限。</string>
+    <string name="setup_perm_cell_why">Tracker 可沿路線記錄基地台 ID，以便在 GPS 不可用時推斷位置。無線電資料會留在此裝置上 — 不會傳送至伺服器。僅在需要時授予電話狀態與精確位置權限。</string>
+    <string name="setup_perm_grant">授予</string>
+    <string name="setup_perm_grant_location_content_description">授予位置權限</string>
+    <string name="setup_perm_grant_background_location_content_description">授予背景位置權限</string>
+    <string name="setup_perm_grant_activity_content_description">授予活動辨識權限</string>
+    <string name="setup_perm_grant_notification_content_description">授予通知權限</string>
+    <string name="setup_perm_grant_wifi_content_description">授予 Wi-Fi 權限</string>
+    <string name="setup_perm_grant_cell_content_description">授予基地台無線電權限</string>
+    <string name="setup_perm_granted">已授予 ✓</string>
+    <string name="permission_grant_in_settings">在設定中允許 →</string>
+    <string name="permission_disabled_due_to_denial">%1$s 因權限遭拒而已停用。請在設定中授予權限以啟用。</string>
+    <string name="settings_wifi_permission_required">需要 Wi-Fi／位置權限。開啟切換鈕以授予權限 — 在此之前不會記錄 Wi-Fi 資料，且記錄的資料會留在此裝置上。</string>
+    <string name="settings_cell_permission_required">需要電話狀態與精確位置權限。開啟切換鈕以授予權限 — 在此之前不會記錄基地台資料，且記錄的資料會留在此裝置上。</string>
+    <string name="settings_wifi_privacy_summary">記錄附近的 Wi-Fi 網路以改善位置準確度。資料會留在此裝置上。</string>
+    <string name="settings_barometer_unavailable">此裝置無法使用氣壓感測器。</string>
+    <string name="settings_activity_permission_required">需要活動辨識權限。開啟切換鈕以授予權限。</string>
+    <string name="settings_steps_unavailable">此裝置無法使用計步器感測器。</string>
+    <string name="settings_cell_privacy_summary">記錄基地台 ID 以改善位置準確度。資料會留在此裝置上。</string>
+    <string name="setup_start_exploring">開始探索</string>
+    <string name="setup_continue">繼續</string>
+    <string name="setup_step_indicator">第 %1$d 步，共 %2$d 步</string>
+    <string name="setup_online_tiles_title">使用線上地圖圖磚？</string>
+    <string name="setup_online_tiles_subtitle">Tracker 隨附離線底圖，因此不需網路即可運作。若想要更豐富的地圖，可改為從公開提供者串流圖磚。</string>
+    <string name="setup_online_tiles_off_title">僅離線（建議）</string>
+    <string name="setup_online_tiles_off_desc">不發出網路要求。僅使用隨附的底圖。</string>
+    <string name="setup_online_tiles_on_title">使用線上圖磚</string>
+    <string name="setup_online_tiles_on_desc">從 OpenFreeMap（預設）串流更高細節的向量圖磚。稍後可在「設定 → 地圖」變更提供者。</string>
+    <string name="setup_online_tiles_privacy">啟用時，提供者可看見您的 IP 位址及所載入的圖磚 — 約略反映您正在查看的地圖區域。Tracker 絕不會傳送帳戶、識別碼或位置記錄。</string>
+    <string name="setup_online_tiles_change_later">您可隨時在「設定 → 地圖 → 線上地圖圖磚」變更此項目。</string>
+    <string name="setup_background_access_subtitle">若要在螢幕關閉或應用程式關閉時記錄旅程，Tracker 必須持續在背景執行。手機的電池設定可能使其暫停 — 請允許背景活動，讓自動追蹤保持可靠。</string>
+    <string name="setup_background_access_optional">選用但建議啟用。您可隨時在「設定 → 追蹤」變更。</string>
+    <string name="background_reliability_title">可靠的背景追蹤</string>
+    <string name="background_reliability_status_exempt">已允許背景活動</string>
+    <string name="background_reliability_status_optimized">已啟用電池最佳化</string>
+    <string name="background_reliability_exempt_desc">Tracker 已排除在電池最佳化之外，因此背景與自動追蹤可可靠地運作。</string>
+    <string name="background_reliability_optimized_desc">電池最佳化可能在背景中暫停 Tracker，導致自動追蹤停止。允許背景活動以維持執行。</string>
+    <string name="background_reliability_allow_action">允許背景活動</string>
+    <string name="background_reliability_samsung_hint">Samsung 裝置可能還會將應用程式放入「休眠應用程式」。請開啟電池設定，從休眠應用程式中移除 Tracker，並設定為不要進入休眠。</string>
+    <string name="background_reliability_samsung_action">開啟裝置電池設定</string>
+    <string name="settings_tracebox_title">崩潰診斷</string>
+    <string name="settings_tracebox_root_summary">本機崩潰、ANR 與結構診斷</string>
+    <string name="settings_tracebox_status_header">擷取狀態</string>
+    <string name="settings_tracebox_toggle_title">記錄崩潰診斷</string>
+    <string name="settings_tracebox_toggle_summary_off">擷取已關閉。現有本機診斷資料會保留，直到您刪除。</string>
+    <string name="settings_tracebox_toggle_summary_on">崩潰、ANR 與固定結構診斷會記錄於本機。</string>
+    <string name="settings_tracebox_readiness_label">儲存空間就緒狀態</string>
+    <string name="settings_tracebox_readiness_volatile">正在啟動持久性儲存；可使用暫存擷取</string>
+    <string name="settings_tracebox_readiness_durable">持久性擷取已就緒</string>
+    <string name="settings_tracebox_readiness_degraded">擷取功能已降級；部分記錄可能無法使用</string>
+    <string name="settings_tracebox_readiness_closed">擷取已關閉</string>
+    <string name="settings_tracebox_health_label">執行階段健康狀態</string>
+    <string name="settings_tracebox_health_disabled">已停用</string>
+    <string name="settings_tracebox_health_initializing">正在初始化</string>
+    <string name="settings_tracebox_health_ready">已就緒</string>
+    <string name="settings_tracebox_health_degraded">已降級</string>
+    <string name="settings_tracebox_health_deleting">正在刪除本機診斷資料</string>
+    <string name="settings_tracebox_health_closed">已關閉</string>
+    <string name="settings_tracebox_package_header">診斷套件</string>
+    <string name="settings_tracebox_package_body">Tracebox 會先顯示最終套件的精確揭露內容。在您核准並選擇目的地前，不會儲存或分享任何內容。</string>
+    <string name="settings_tracebox_package_review_action">檢閱並核准套件</string>
+    <string name="settings_tracebox_package_save_action">儲存已核准套件</string>
+    <string name="settings_tracebox_package_share_action">分享已核准套件</string>
+    <string name="settings_tracebox_share_limit">Android 可確認選擇器已開啟，但無法證明另一個應用程式已收到套件。</string>
+    <string name="settings_tracebox_data_header">Tracebox 資料</string>
+    <string name="settings_tracebox_data_body">這會刪除 Tracebox 擁有的診斷資料與套件暫存區。您已儲存或傳送的檔案由其目的地應用程式控制。</string>
+    <string name="settings_tracebox_delete_action">刪除所有 Tracebox 資料</string>
+    <string name="settings_tracebox_delete_confirm_title">要刪除所有崩潰診斷資料嗎？</string>
+    <string name="settings_tracebox_delete_confirm_body">這會從 Tracker 移除所有 Tracebox 擁有的診斷資料與套件暫存區。此動作無法復原。</string>
+    <string name="settings_tracebox_delete_confirm_action">刪除</string>
+    <string name="settings_tracebox_result_header">上次結果</string>
+    <string name="settings_tracebox_result_enabled">已啟用崩潰診斷。</string>
+    <string name="settings_tracebox_result_disabled">已停用崩潰診斷。未刪除現有資料。</string>
+    <string name="settings_tracebox_result_policy_restricted">限制性原則已儲存於本機，但尚未所有程序都確認。</string>
+    <string name="settings_tracebox_result_policy_partial">原則已儲存於本機，但執行階段收斂未完成。</string>
+    <string name="settings_tracebox_result_failed">操作未到達本機持久性界限。</string>
+    <string name="settings_tracebox_result_delete_complete">已刪除所有 Tracebox 擁有的資料。</string>
+    <string name="settings_tracebox_result_delete_pending">刪除僅部分完成。某些處理常式擁有的資料仍待刪除。</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox 拒絕刪除要求。</string>
+    <string name="settings_tracebox_result_review_ready">揭露內容已就緒：包含 %1$d 個值，內含 %2$d 位元組的診斷資料。</string>
+    <string name="settings_tracebox_result_package_created">已核准的診斷套件已可儲存或分享。</string>
+    <string name="settings_tracebox_result_approval_cancelled">已取消套件核准。未建立套件。</string>
+    <string name="settings_tracebox_result_package_rejected">由於核准內容不再與最終位元組相符，已拒絕建立套件。</string>
+    <string name="settings_tracebox_result_package_not_ready">診斷套件尚未就緒。請先檢閱並核准。</string>
+    <string name="settings_tracebox_result_save_complete">已儲存完整的已核准套件（%1$d 位元組）。</string>
+    <string name="settings_tracebox_result_save_partial">僅複製 %1$d 位元組。目的地可能包含不完整的套件。</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">已在複製 %1$d 位元組後取消儲存。目的地可能包含不完整的套件。</string>
+    <string name="settings_tracebox_result_save_failed">無法儲存已核准套件。</string>
+    <string name="settings_tracebox_result_save_cancelled">未選擇儲存目的地。</string>
+    <string name="settings_tracebox_result_share_opened">Android 分享選擇器已開啟。</string>
+    <string name="settings_tracebox_result_share_unknown">選擇器已返回。Android 無法證明收件者是否已收到套件。</string>
+    <string name="settings_tracebox_records_header">記錄的內容</string>
+    <string name="settings_tracebox_records_body">崩潰與 ANR 證據，加上與應用程式結構和執行順序相關的一組有限預先定義代碼。Tracebox 是 Tracker 唯一的崩潰與診斷記錄器。</string>
+    <string name="settings_tracebox_privacy_header">排除的內容</string>
+    <string name="settings_tracebox_privacy_body">記錄 API 不接受任意文字、位置、帳戶詳細資料、裝置識別碼或感測器讀數。標準套件會排除原始崩潰成品，且絕不會自動上傳。</string>
+</resources>

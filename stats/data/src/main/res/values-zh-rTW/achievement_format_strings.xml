@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s 解鎖條件：至少在 %2$d 個不同日期進行追蹤。</string>
+    <string name="ach_title_distance_total">累計旅程 %1$s</string>
+    <string name="ach_desc_distance_total">在所有工作階段中累計記錄總距離 %1$s。</string>
+    <string name="ach_title_week_distance">本週 %1$s</string>
+    <string name="ach_desc_week_distance">在單一日曆週內行程達 %1$s。</string>
+    <string name="ach_title_best_day_distance">單日 %1$s</string>
+    <string name="ach_desc_best_day_distance">在單日內行程達 %1$s。</string>
+    <string name="ach_title_max_session_distance">單次工作階段 %1$s</string>
+    <string name="ach_desc_max_session_distance">記錄一次不中斷且距離達 %1$s 的工作階段。</string>
+    <string name="ach_title_on_foot_distance">步行或跑步 %1$s</string>
+    <string name="ach_desc_on_foot_distance">以步行方式（步行或跑步合計）行程達 %1$s。</string>
+    <string name="ach_title_cycling_distance">騎自行車 %1$s</string>
+    <string name="ach_desc_cycling_distance">騎自行車累計達 %1$s。</string>
+    <string name="ach_title_vehicle_distance">機動交通行程 %1$s</string>
+    <string name="ach_desc_vehicle_distance">以汽車、公車、火車、船舶或飛機行程達 %1$s。</string>
+    <string name="ach_title_steps_total">走 %1$s 步</string>
+    <string name="ach_desc_steps_total">在所有工作階段中記錄 %1$s 步。</string>
+    <string name="ach_title_best_daily_steps">單日 %1$s 步</string>
+    <string name="ach_desc_best_daily_steps">在單日內走 %1$s 步。</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">第一個工作階段</item>
+        <item quantity="other">記錄 %1$s 個工作階段</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">共記錄 %1$s 個追蹤工作階段。</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">發現第一個格網</item>
+        <item quantity="other">發現 %1$s 個地圖格網</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">探索地圖上 %1$s 個不同格網（每格約 1 平方公里）。</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">造訪 %d 個國家</item>
+        <item quantity="other">造訪 %d 個國家</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">在 %1$d 個不同國家各記錄至少一個工作階段。</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">第一個活躍日</item>
+        <item quantity="other">%1$s 個活躍日</item>
+    </plurals>
+    <string name="ach_desc_active_days">累計在 %1$s 個不同日期追蹤活動。</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">連續 %d 天</item>
+        <item quantity="other">連續 %d 天</item>
+    </plurals>
+    <string name="ach_desc_current_streak">連續 %1$d 天追蹤活動。</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">個人最佳：%d 天</item>
+        <item quantity="other">個人最佳：%d 天</item>
+    </plurals>
+    <string name="ach_desc_best_streak">達成連續 %1$d 天追蹤的個人最佳紀錄。</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">使用 Tracker 已 %d 個月</item>
+        <item quantity="other">使用 Tracker 已 %d 個月</item>
+    </plurals>
+    <string name="ach_desc_months_active">在 Tracker 中保持活躍達 %1$d 個不同月份。</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">本週 %d 個活躍日</item>
+        <item quantity="other">本週 %d 個活躍日</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">在單一週內的 %1$d 天追蹤活動。</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">使用 Tracker 的第一天</item>
+        <item quantity="other">使用 Tracker 已 %1$s 天</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">安裝 Tracker 滿 %1$s 天。</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">歡迎回來</item>
+        <item quantity="other">中斷 %d 天後歡迎回來</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">中斷 %1$d 天後回來追蹤。</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">在一天中的 %d 個小時追蹤</item>
+        <item quantity="other">在一天中的 %d 個不同小時追蹤</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">在所有工作階段中於一天內的 %1$d 個不同小時記錄活動。</string>
+    <string name="ach_title_days_of_week">一週七天全勤</string>
+    <string name="ach_desc_days_of_week">在一週的每一天至少追蹤一次活動。</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">嘗試 %d 種活動類型</item>
+        <item quantity="other">嘗試 %d 種活動類型</item>
+    </plurals>
+    <string name="ach_desc_activity_types">記錄 %1$d 種不同活動類型的工作階段（步行、騎自行車、開車等）。</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">本週 %d 種活動類型</item>
+        <item quantity="other">本週 %d 種活動類型</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">在單一週內使用 %1$d 種不同活動類型。</string>
+    <string name="ach_title_week_all_days">一週每天都追蹤</string>
+    <string name="ach_desc_week_all_days">在一個日曆週的七天都記錄活動。</string>
+    <string name="ach_title_walk_cycle_drive">步行、騎車、開車</string>
+    <string name="ach_desc_walk_cycle_drive">每種類型至少記錄一個工作階段：步行、騎自行車與開車。</string>
+    <string name="ach_title_max_session_duration">持續 %1$s 的工作階段</string>
+    <string name="ach_desc_max_session_duration">記錄一次至少持續 %1$s 的工作階段。</string>
+    <string name="ach_title_max_speed">達到 %1$s</string>
+    <string name="ach_desc_max_speed">在一次工作階段中達到至少 %1$s 的最高速度。</string>
+    <string name="ach_title_active_minutes">%1$s 個活躍分鐘</string>
+    <string name="ach_desc_active_minutes">累計 %1$s 分鐘的活躍追蹤時間。</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">第一次匯出</item>
+        <item quantity="other">%d 次匯出</item>
+    </plurals>
+    <string name="ach_desc_exports_total">匯出資料 %1$d 次。</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">跨越一個季節追蹤</item>
+        <item quantity="other">跨越 %d 個季節追蹤</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">在 %1$d 個不同季節記錄活動（春／夏／秋／冬）。</string>
+    <string name="ach_title_calendar_new_year">元旦追蹤者</string>
+    <string name="ach_desc_calendar_new_year">在 1 月 1 日記錄一個工作階段。</string>
+    <string name="ach_title_calendar_leap_day">閏日先驅</string>
+    <string name="ach_desc_calendar_leap_day">在 2 月 29 日記錄一個工作階段。</string>
+    <string name="ach_title_calendar_summer_solstice">夏至</string>
+    <string name="ach_desc_calendar_summer_solstice">在一年中最長的一天記錄一個工作階段。</string>
+    <string name="ach_title_calendar_winter_solstice">冬至</string>
+    <string name="ach_desc_calendar_winter_solstice">在一年中最短的一天記錄一個工作階段。</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">夜貓子</item>
+        <item quantity="other">%1$s 個夜間工作階段</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">記錄 %1$d 個於午夜至凌晨 5 點開始的工作階段。</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">早起鳥兒</item>
+        <item quantity="other">%1$s 個黎明工作階段</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">記錄 %1$d 個於清晨 5 點至 8 點開始的工作階段。</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">親手追蹤者</item>
+        <item quantity="other">手動開始 %1$s 個工作階段</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">手動開始 %1$d 個追蹤工作階段。</string>
+    <string name="ach_title_max_cycle_session">單次騎乘 %1$s</string>
+    <string name="ach_desc_max_cycle_session">在單次騎乘中完成 %1$s。</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">多模式日</item>
+        <item quantity="other">%d 個多模式日</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">在同一天內步行、騎自行車與使用機動交通，並在 %1$d 個不同日期達成。</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">四季之地</item>
+        <item quantity="other">在 %d 個地點度過四季</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">在四個季節中造訪 %1$d 個地圖格網。</string>
+    <string name="ach_title_max_cell_visits">造訪同一地點 %1$d 次</string>
+    <string name="ach_desc_max_cell_visits">造訪同一地圖格網 %1$d 次。</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">徹底探索一個格網</item>
+        <item quantity="other">徹底探索 %1$s 個格網</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">徹底探索 %1$d 個不同地圖格網。</string>
+    <string name="ach_title_max_cell_span">相距 %1$s</string>
+    <string name="ach_desc_max_cell_span">發現兩個相距至少 %1$s 的地圖格網。</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">單日發現一個格網</item>
+        <item quantity="other">單日發現 %d 個格網</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">在單日內發現 %1$d 個新地圖格網。</string>
+    <string name="ach_title_max_cell_revisit_gap">%1$d 天後重返</string>
+    <string name="ach_desc_max_cell_revisit_gap">在首次發現地圖格網 %1$d 天後再次造訪。</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">完美月份</item>
+        <item quantity="other">%d 個完美月份</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">在 %1$d 個日曆月份的每一天都追蹤活動。</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">使用一種匯出格式</item>
+        <item quantity="other">使用 %d 種匯出格式</item>
+    </plurals>
+    <string name="ach_desc_export_formats">以 %1$d 種不同檔案格式匯出資料。</string>
+    <string name="ach_title_player_level">達到等級 %1$d</string>
+    <string name="ach_desc_player_level">提升至玩家等級 %1$d。</string>
+    <string name="ach_title_best_day_xp">單日 %1$s XP</string>
+    <string name="ach_desc_best_day_xp">在單日內獲得 %1$d XP。</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">玩第一個小遊戲</item>
+        <item quantity="other">玩 %1$s 個小遊戲</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">完成 %1$d 次小遊戲。</string>
+    <string name="ach_title_total_ascent">爬升 %1$s</string>
+    <string name="ach_desc_total_ascent">在所有追蹤中累積總爬升 %1$s。</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">從一個 XP 來源獲得</item>
+        <item quantity="other">從 %d 個 XP 來源獲得</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">從 %1$d 種不同來源獲得 XP — 追蹤工作階段、小遊戲和目標。</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">完美週</item>
+        <item quantity="other">%d 個完美週</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">連續 %1$d 個完整週的每一天都達成每日步數目標。</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">連續 %d 天達成目標</item>
+        <item quantity="other">連續 %d 天達成目標</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">連續 %1$d 天達成每日步數目標。</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">解鎖一項成就</item>
+        <item quantity="other">解鎖 %d 項成就</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">總共解鎖 %1$d 項成就。</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">完成一個類別</item>
+        <item quantity="other">完成 %d 個類別</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">在 %1$d 個不同類別中解鎖所有成就。</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d 秒</item>
+        <item quantity="other">%d 秒</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d 分鐘</item>
+        <item quantity="other">%d 分鐘</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d 小時</item>
+        <item quantity="other">%d 小時</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d 天</item>
+        <item quantity="other">%d 天</item>
+    </plurals>
+</resources>
