@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Estadísticas</string>
+    <string name="stats_cell_count">Número de celdas</string>
+    <string name="stats_collections">Número de actualizaciones</string>
+    <string name="stats_distance_in_vehicle">Distancia en vehículo</string>
+    <string name="stats_distance_on_foot">Distancia a pie</string>
+    <string name="stats_distance_total">Distancia</string>
+    <string name="stats_format_unknown_activity">sesión</string>
+    <string name="stats_location_count">Número de ubicaciones</string>
+    <string name="stats_no_tracker_sessions">Aún no hay sesiones de seguimiento</string>
+    <string name="stats_empty_subtitle">Inicia el seguimiento para ver aquí tu actividad</string>
+    <string name="stats_session_count">Número de sesiones</string>
+    <string name="stats_steps">Número de pasos</string>
+    <string name="stats_metric_not_available_short">N/D</string>
+    <string name="stats_sum_title">Resumen</string>
+    <string name="stats_time">Tiempo de seguimiento</string>
+    <string name="stats_weekly_title">Últimos 7 días</string>
+    <string name="stats_wifi_count">Número de redes Wi-Fi</string>
+    <string name="stats_wifi_chip_label">Estadísticas de Wi‑Fi</string>
+    <string name="stats_cell_signal_chip_label">Señal de red móvil</string>
+    <string name="stats_filter_dates">Fechas</string>
+    <string name="stats_filter_active_label">Mostrando %1$s</string>
+    <string name="stats_filter_clear">Borrar filtro</string>
+    <string name="stats_date_dialog_title">Intervalo de fechas</string>
+    <string name="stats_date_summary_placeholder">Elige un intervalo para filtrar sesiones</string>
+    <string name="stats_date_preset_today">Hoy</string>
+    <string name="stats_date_preset_yesterday">Ayer</string>
+    <string name="stats_date_preset_last_7_days">Últimos 7 días</string>
+    <string name="stats_date_preset_last_30_days">Últimos 30 días</string>
+    <string name="stats_date_preset_this_month">Este mes</string>
+    <string name="stats_date_preset_last_month">Mes pasado</string>
+    <string name="stats_date_preset_this_year">Este año</string>
+    <string name="stats_date_preset_all_time">Todo el tiempo</string>
+    <string name="stats_sparse_summary_title">Esta semana de un vistazo</string>
+    <string name="stats_sparse_summary_active_days">Días activos</string>
+    <string name="stats_sparse_summary_week_label">Actividad diaria</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Solo se ve %1$d sesión, por lo que este resumen compacto completa el resto de tu actividad reciente.</item>
+        <item quantity="other">Solo se ven %1$d sesiones, por lo que este resumen compacto completa el resto de tu actividad reciente.</item>
+    </plurals>
     <string name="stats_error_generic">Se produjo un error</string>
+    <string name="stats_loading">Cargando sesiones…</string>
     <string name="stats_append_error">Error al cargar más</string>
     <string name="action_retry">Reintentar</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Iniciar seguimiento</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s paso</item>
+        <item quantity="other">%1$s pasos</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Hoy</string>
+    <string name="stats_date_yesterday">Ayer</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Cargando resumen…</string>
+    <string name="stats_summary_empty">No hay estadísticas de resumen disponibles</string>
+    <string name="stats_summary_empty_subtitle">Inicia el seguimiento para ver el resumen de tu actividad</string>
+    <string name="stats_summary_error">No se pudo cargar el resumen</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Cargando estadísticas semanales…</string>
+    <string name="stats_week_empty">No hay estadísticas semanales disponibles</string>
+    <string name="stats_week_empty_subtitle">Registra durante 7 días para ver tu resumen semanal</string>
+    <string name="stats_week_error">No se pudieron cargar las estadísticas semanales</string>
+    <string name="stats_wifi_dialog_title">Estadísticas de Wi‑Fi</string>
+    <string name="stats_wifi_dialog_loading">Cargando estadísticas de Wi‑Fi…</string>
+    <string name="stats_wifi_dialog_empty_title">No hay datos de Wi‑Fi disponibles</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Las estadísticas de Wi‑Fi aparecerán cuando se recopilen escaneos.</string>
+    <string name="stats_wifi_dialog_error">No se pudieron cargar las estadísticas de Wi‑Fi</string>
+    <string name="stats_wifi_unique_networks">Redes únicas detectadas</string>
+    <string name="stats_wifi_total_scans">Escaneos totales</string>
+    <string name="stats_wifi_average_per_scan">Promedio de redes por escaneo</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Informe de señal de red móvil</string>
+    <string name="stats_cell_signal_dialog_loading">Cargando informe de señal de red móvil…</string>
+    <string name="stats_cell_signal_dialog_empty_title">No hay datos de red móvil disponibles</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Las estadísticas de señal de red móvil aparecerán cuando se recopilen muestras.</string>
+    <string name="stats_cell_signal_dialog_error">No se pudo cargar el informe de señal de red móvil</string>
+    <string name="stats_cell_signal_total_samples">Muestras de red móvil</string>
+    <string name="stats_cell_signal_distinct_towers">Torres distintas</string>
+    <string name="stats_cell_signal_section_networks">Por tipo de red</string>
+    <string name="stats_cell_signal_section_towers">Torres más detectadas</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s de muestras · %2$s torres</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Celda %1$s · %2$s muestras</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Operador %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Detalles del trayecto</string>
+    <string name="trip_detail_not_found">No se encontró el trayecto</string>
+    <string name="trip_detail_not_found_subtitle">Es posible que se haya eliminado este trayecto</string>
+    <string name="trip_detail_error_title">No se pudo cargar el trayecto</string>
+    <string name="trip_detail_retry">Reintentar</string>
+    <string name="trip_detail_duration">Duración</string>
+    <string name="trip_detail_distance">Distancia</string>
+    <string name="trip_detail_date">Fecha</string>
+    <string name="trip_detail_steps">Pasos</string>
+    <string name="trip_detail_samples">Muestras</string>
+    <string name="trip_detail_source">Fuente</string>
+    <string name="trip_detail_avg_speed">Velocidad media</string>
+    <string name="trip_detail_max_speed">Velocidad máxima</string>
+    <string name="trip_detail_pace">Ritmo</string>
+    <string name="trip_detail_activity_type">Tipo de actividad</string>
+    <string name="trip_detail_start_time">Hora de inicio</string>
+    <string name="trip_detail_end_time">Hora de finalización</string>
+    <string name="trip_detail_elevation_gain">Desnivel positivo</string>
+    <string name="trip_detail_elevation_loss">Desnivel negativo</string>
+    <string name="trip_detail_max_altitude">Altitud máxima</string>
+    <string name="trip_detail_route_map">Mapa de ruta</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">No hay datos de ubicación</string>
+    <string name="trip_detail_route_unavailable_legacy">El mapa de ruta no está disponible para sesiones antiguas</string>
+    <string name="trip_detail_route_no_gps_points">Se registró la distancia, pero no hay ruta GPS disponible</string>
+    <string name="trip_detail_delete">Eliminar</string>
+    <string name="trip_detail_export_gpx">Exportar como GPX</string>
+    <string name="trip_detail_delete_confirm_title">¿Eliminar trayecto?</string>
+    <string name="trip_detail_delete_confirm_message">Este trayecto se eliminará de forma permanente.</string>
+    <string name="trip_detail_delete_confirm">Eliminar</string>
+    <string name="trip_detail_cancel">Cancelar</string>
+    <string name="trip_detail_more_options">Más opciones</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Sesión de esquí</string>
+    <string name="ski_detail_runs">Descensos</string>
+    <string name="ski_detail_vertical">Desnivel</string>
+    <string name="ski_detail_max_speed">Velocidad máxima</string>
+    <string name="ski_detail_time_skiing">Esquiando</string>
+    <string name="ski_detail_time_lifts">En remontes</string>
+    <string name="ski_detail_run_label">Descenso n.º %1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Se encontraron %d redes Wi-Fi que coinciden con el filtro</string>
+    <string name="wifilist_filter_bssid">BSSID (identificador)</string>
+    <string name="wifilist_filter_capabilities">Capacidades</string>
+    <string name="wifilist_filter_count">Cuántas mostrar</string>
+    <string name="wifilist_filter_frequency">Frecuencia</string>
+    <string name="wifilist_filter_ssid">SSID (nombre)</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Lista de Wi-Fi</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">Capacidades</string>
+    <string name="wifilist_title_first_seen">Visto por primera vez</string>
+    <string name="wifilist_title_frequency">Frecuencia</string>
+    <string name="wifilist_title_last_seen">Visto por última vez</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Cronología</string>
+    <string name="history_tab_trips">Trayectos</string>
+    <string name="history_tab_calendar">Calendario</string>
+    <string name="history_screen_title">Historial</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d trayecto</item>
+        <item quantity="other">%d trayectos</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Aún no hay actividad</string>
+    <string name="history_timeline_empty_desc">Inicia el seguimiento para ver aquí tu historial de movimiento</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">No hay trayectos registrados</string>
+    <string name="history_trips_empty_desc">Los trayectos aparecerán aquí mientras te desplazas</string>
+    <string name="trip_gps_anomaly">Se detectó una anomalía GPS; la distancia puede ser imprecisa</string>
+    <string name="trip_deleted_snackbar">Trayecto eliminado</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Mes anterior</string>
+    <string name="history_calendar_next_month">Mes siguiente</string>
+    <string name="history_calendar_distance">Distancia</string>
+    <string name="history_calendar_steps">Pasos</string>
+    <string name="history_calendar_trips">Trayectos</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Exploración</string>
+    <string name="history_exploration_cells">Celdas</string>
+    <string name="history_exploration_streak">Racha</string>
+    <string name="history_exploration_best">Mejor</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Volver</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Historial</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Actividad</string>
 </resources>

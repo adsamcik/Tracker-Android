@@ -1,8 +1,17 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
-  <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
-  <string name="settings_activity_snackbar_message">Removed %s</string>
-  <string name="settings_activity_title">Activities</string>
-  <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="notification_activity_watcher_info">Actividad actual %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Servicio Monitor de actividad activo</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Se eliminó %s</string>
+    <string name="settings_activity_title">Actividades</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Monitor de actividad</string>
+    <string name="settings_ski_infrastructure_title">Datos de remontes de esquí</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Cargado (toca para eliminar)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">No cargado. Toca para importar un archivo SQLite ski_infrastructure.db.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d remontes · Generado el %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Datos de remontes de esquí © colaboradores de OpenStreetMap (ODbL)</string>
 </resources>
