@@ -9,7 +9,7 @@
     <string name="minigame_territory_description">Rivendica nuove celle della griglia mentre cammini</string>
     <string name="minigame_zenwalk_name">Camminata zen</string>
     <string name="minigame_zenwalk_description">Mantieni un passo costante nella zona</string>
-    <string name="minigame_fuserun_name">Fuse Run</string>
+    <string name="minigame_fuserun_name">Corsa contro la miccia</string>
     <string name="minigame_fuserun_description">Esci da ogni raggio di esplosione virtuale prima che la miccia scada</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Esegui curve strette alternate per creare una combo fluida</string>

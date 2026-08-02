@@ -7,9 +7,9 @@
     <string name="minigame_outrun_description">Kapløb mod et spøgelse. Hold dig foran!</string>
     <string name="minigame_territory_name">Territory</string>
     <string name="minigame_territory_description">Erobr nye gitterfelter, mens du går</string>
-    <string name="minigame_zenwalk_name">Zen Walk</string>
+    <string name="minigame_zenwalk_name">Zen-gåtur</string>
     <string name="minigame_zenwalk_description">Hold dit tempo stabilt i zonen</string>
-    <string name="minigame_fuserun_name">Fuse Run</string>
+    <string name="minigame_fuserun_name">Lunteløb</string>
     <string name="minigame_fuserun_description">Undslip hver virtuel eksplosionsradius, før luntens tid udløber</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Lav skarpe, skiftende sving for at opbygge en flydende kombination</string>

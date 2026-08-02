@@ -75,8 +75,8 @@
     <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Nepoznato</string>
     <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Mirovanje</string>
     <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Kretanje</string>
-    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Rendgen skijanja</string>
-    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski X-ray</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Skijaški rendgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Skijaški rendgen</string>
     <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Dijagnostički prikaz otkrivenih skijaških segmenata. Spustovi, žičare, hodanja i stanke vezani su uz najbližu zabilježenu lokaciju i označeni ključnim mjernim podacima.</string>
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Spust</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Žičara</string>
