@@ -1,8 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Spel</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Outrun</string>
     <string name="minigame_outrun_description">Race tegen een geest. Blijf voor!</string>
     <string name="minigame_territory_name">Territorium</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Maak scherpe afwisselende bochten om een flow-combo op te bouwen</string>
     <string name="minigame_locked">Ontgrendelt op niveau %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Spelen</string>
     <string name="game_progress_section_title">Voortgang</string>
     <string name="minigame_outrun_goal_line">Blijf 25–100 m voor op de geest</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Dubbel tikken om te zien hoe je ontgrendelt</string>
     <string name="minigame_active_session_running">Bezig — tik op Spelen om terug te keren</string>
     <string name="minigame_active_session_paused">Gepauzeerd — tik op Spelen om te hervatten</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d cel</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d bocht</item>
         <item quantity="other">%1$d bochten</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Eerdere scores bekijken</string>
     <string name="minigame_session_close">Sluiten</string>
     <string name="minigame_session_play_again">Opnieuw spelen</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Locatie nodig</string>
     <string name="minigame_session_permission_body">Minispellen gebruiken live locatie om je run bij te houden. Alleen de eindscore wordt opgeslagen.</string>
     <string name="minigame_session_permission_grant">Toegang verlenen</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Stel je run in</string>
     <string name="minigame_setup_goal_title">Doel</string>
     <string name="minigame_setup_difficulty_title">Moeilijkheidsgraad</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Makkelijk</string>
     <string name="minigame_difficulty_normal">Normaal</string>
     <string name="minigame_difficulty_hard">Moeilijk</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Voorbereiden…</string>
     <string name="minigame_session_finishing">Je run opslaan…</string>
     <string name="minigame_session_paused_title">Gepauzeerd</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Actieve tijd</string>
     <string name="minigame_session_goal_progress">%1$d%% van doel</string>
     <string name="minigame_session_goal_reached">Doel bereikt</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">Sterk GPS</string>
     <string name="minigame_signal_fair">Redelijk GPS</string>
     <string name="minigame_signal_poor">Zwak GPS</string>
     <string name="minigame_signal_unavailable">Geen GPS-signaal</string>
     <string name="minigame_signal_unknown">Locatie bepalen…</string>
     <string name="minigame_signal_stale">GPS vertraagd</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Beste in deze run</string>
     <string name="minigame_outrun_personal_best">Persoonlijk record</string>
     <string name="minigame_outrun_warning">Geest komt dichterbij</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Doel bereikt. Je bent ontsnapt met een voorsprong van %1$d meter. Beste in deze run: %2$d meter.</string>
     <string name="minigame_outrun_description_finished">Run voltooid. Je uiteindelijke afstand was %1$d meter en je beste voorsprong was %2$d meter.</string>
     <string name="minigame_outrun_ahead_of_best">Voor op je persoonlijke record</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Territoriumkaart. %1$d gebieden in de buurt veroverd; %2$d grensgebieden gemarkeerd. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Huidig gebied gemarkeerd</string>
     <string name="minigame_territory_current_waiting">Wachten op huidig gebied</string>
     <string name="minigame_territory_goal_complete">Doel voltooid</string>
     <string name="minigame_territory_goal_in_progress">Doel in uitvoering</string>
     <string name="minigame_territory_legend">Gloed markeert je huidige gebied • Grensaanwijzingen: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Tempo</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Geleidelijk sneller</string>
     <string name="minigame_zen_flow_time">Ritme %1$s</string>
     <string name="minigame_zen_flow_description">Zen-tempo-flow. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">De geest komt dichterbij</string>
     <string name="minigame_feedback_pb_crossed">Nieuw persoonlijk record</string>
     <string name="minigame_feedback_territory_claimed">Nieuw gebied geclaimd</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Je bent in de tempozone</string>
     <string name="minigame_feedback_zen_exited">Je hebt de tempozone verlaten</string>
     <string name="minigame_feedback_completed">Run voltooid</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">Eerste run geregistreerd!</string>
     <string name="minigame_completion_new_best_title">Nieuw persoonlijk record!</string>
     <string name="minigame_completion_tied_title">Je beste geëvenaard</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Geen punten deze run</string>
     <string name="minigame_completion_change_setup">Instelling wijzigen</string>
     <string name="minigame_completion_done">Klaar</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">Run is niet voltooid</string>
     <string name="minigame_failure_permission">Nauwkeurige locatie is vereist om te spelen. Verleen die en probeer het opnieuw.</string>
     <string name="minigame_failure_location">We konden geen betrouwbare locatie bepalen. Ga naar een plek met meer vrije lucht en probeer het opnieuw.</string>
     <string name="minigame_failure_persistence">We konden deze run niet opslaan. Probeer het opnieuw.</string>
     <string name="minigame_failure_generic">Er is iets misgegaan en de run is gestopt.</string>
     <string name="minigame_session_try_again">Opnieuw proberen</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Actief spel</string>
     <string name="game_session_channel_description">Houdt een actief minispel actief wanneer het scherm uit is</string>
     <string name="game_session_notification_title">Tracker-spel</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Pauzeren</string>
     <string name="game_session_action_resume">Hervatten</string>
     <string name="game_session_action_finish">Voltooien</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Eerdere minispelruns</string>
     <string name="minigame_scores_back">Terug</string>
     <string name="minigame_scores_empty_title">Je eerste run wacht</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">dagelijkse</string>
     <string name="goals_weekly_goal">wekelijkse</string>
     <string name="goals_monthly_goal">maandelijkse</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Stappendoelen</string>
     <string name="game_step_sensor_unavailable">Stappensensor niet beschikbaar</string>
     <string name="game_step_sensor_unavailable_detail">Dit apparaat heeft geen stappentellersensor. Stappendoelen kunnen niet worden bijgehouden.</string>
     <string name="game_steps_today">Vandaag</string>
     <string name="game_steps_week">Deze week</string>
-    <!-- Game empty states -->
     <string name="game_loading">Laden…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Terug navigeren</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Instellingen openen</string>
     <string name="game_close">Sluiten</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Verkenning</string>
     <string name="exploration_cells_discovered">Ontdekte cellen</string>
     <string name="exploration_current_streak">Huidige reeks</string>
@@ -229,7 +204,6 @@
         <item quantity="other">dagen</item>
     </plurals>
     <string name="exploration_of_four">van 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Prestaties</string>
     <string name="achievements_bronze">Brons</string>
     <string name="achievements_silver">Zilver</string>
@@ -253,12 +227,8 @@
         <item>Prachtig</item>
     </string-array>
     <string name="points_earned_today">punten verdiend vandaag</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Nieuwe ontgrendeling!</string>
     <string name="game_unlock_message">Je hebt niveau %1$d bereikt!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Wekelijkse uitdaging</string>
     <string name="leaderboard_metric_distance">Afstand</string>
     <string name="leaderboard_metric_steps">Stappen</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Klassement niet beschikbaar</string>
     <string name="leaderboard_error_body">Je gegevens zijn veilig op dit apparaat. Probeer de wekelijkse uitdaging opnieuw te laden.</string>
     <string name="leaderboard_retry">Opnieuw proberen</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Mythisch</string>
     <string name="game_view_all_achievements">Alles bekijken</string>
     <string name="game_recent_achievements">Recente ontgrendelingen</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Kalender</string>
     <string name="achievement_unlocked_content_description">Ontgrendeld</string>
     <string name="achievement_locked_content_description">Vergrendeld</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

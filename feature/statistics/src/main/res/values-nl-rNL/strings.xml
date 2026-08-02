@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistieken</string>
     <string name="stats_cell_count">Aantal cellen</string>
     <string name="stats_collections">Aantal verzamelingen</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Sessies laden…</string>
     <string name="stats_append_error">Meer laden mislukt</string>
     <string name="action_retry">Opnieuw proberen</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Tracking starten</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s stap</item>
         <item quantity="other">%1$s stappen</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Vandaag</string>
     <string name="stats_date_yesterday">Gisteren</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Overzicht laden…</string>
     <string name="stats_summary_empty">Geen samenvattende statistieken beschikbaar</string>
     <string name="stats_summary_empty_subtitle">Start tracking om je activiteitenoverzicht te zien</string>
     <string name="stats_summary_error">Kon samenvatting niet laden</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Wekelijkse statistieken laden…</string>
     <string name="stats_week_empty">Geen wekelijkse statistieken beschikbaar</string>
     <string name="stats_week_empty_subtitle">Houd 7 dagen bij om je wekelijkse overzicht te zien</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Geziene unieke netwerken</string>
     <string name="stats_wifi_total_scans">Totaal aantal scans</string>
     <string name="stats_wifi_average_per_scan">Gemiddeld aantal netwerken per scan</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Rapport celsignaal</string>
     <string name="stats_cell_signal_dialog_loading">Rapport celsignaal laden…</string>
     <string name="stats_cell_signal_dialog_empty_title">Geen celgegevens beschikbaar</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Afzonderlijke masten</string>
     <string name="stats_cell_signal_section_networks">Op netwerktype</string>
     <string name="stats_cell_signal_section_towers">Meest waargenomen masten</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s van samples · %2$s masten</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Cel %1$s · %2$s samples</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Provider %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Ritdetails</string>
     <string name="trip_detail_not_found">Rit niet gevonden</string>
     <string name="trip_detail_not_found_subtitle">Deze rit is mogelijk verwijderd</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Hoogteverlies</string>
     <string name="trip_detail_max_altitude">Max. hoogte</string>
     <string name="trip_detail_route_map">Routekaart</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Op kaart bekijken</string>
     <string name="trip_detail_no_location_data">Geen locatiegegevens</string>
     <string name="trip_detail_route_unavailable_legacy">Routekaart niet beschikbaar voor oudere sessies</string>
     <string name="trip_detail_route_no_gps_points">Afstand vastgelegd maar geen GPS-route beschikbaar</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Verwijderen</string>
     <string name="trip_detail_cancel">Annuleren</string>
     <string name="trip_detail_more_options">Meer opties</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Skisessie</string>
     <string name="ski_detail_runs">Afdalingen</string>
     <string name="ski_detail_vertical">Hoogteverschil</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Frequentie</string>
     <string name="wifilist_title_last_seen">Laatst gezien</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Tijdlijn</string>
     <string name="history_tab_trips">Ritten</string>
     <string name="history_tab_calendar">Kalender</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d rit</item>
         <item quantity="other">%d ritten</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Nog geen activiteit</string>
     <string name="history_timeline_empty_desc">Start tracking om je bewegingsgeschiedenis hier te zien</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Geen ritten vastgelegd</string>
     <string name="history_trips_empty_desc">Ritten verschijnen hier wanneer je je verplaatst</string>
     <string name="trip_gps_anomaly">GPS-anomalie gedetecteerd — afstand kan onnauwkeurig zijn</string>
     <string name="trip_deleted_snackbar">Rit verwijderd</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Vorige maand</string>
     <string name="history_calendar_next_month">Volgende maand</string>
     <string name="history_calendar_distance">Afstand</string>
     <string name="history_calendar_steps">Stappen</string>
     <string name="history_calendar_trips">Ritten</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Verkenning</string>
     <string name="history_exploration_cells">Cellen</string>
     <string name="history_exploration_streak">Reeks</string>
     <string name="history_exploration_best">Beste</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Terug navigeren</string>
-    <!-- History navigation -->
     <string name="history_button_label">Geschiedenis</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Rit op kaart bekijken</string>
     <string name="stats_heatmap_title">Activiteit</string>
 </resources>

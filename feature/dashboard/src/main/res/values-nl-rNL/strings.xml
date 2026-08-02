@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Overzicht</string>
     <string name="dashboard_tracking_title">Locatietracking</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Locatiemachtiging niet beschikbaar</string>
     <string name="dashboard_permission_banner_subtitle">Tracker kan geen routes vastleggen totdat je locatietoegang verleent. Tik om toe te staan.</string>
     <string name="dashboard_permission_banner_cd">Banner: locatiemachtiging niet beschikbaar, tik om locatietoegang te verlenen</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Activiteitstype</string>
     <string name="dashboard_cd_explore_icon">Verkenning</string>
     <string name="dashboard_cd_forward_arrow">Details bekijken</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Reeksdetails bekijken</string>
     <string name="dashboard_action_open_tracking_settings">Instellingen</string>
     <string name="dashboard_action_restart_tracking">Opnieuw starten</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Hoogteprofiel, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Wachten op GPS-signaal…</string>
     <string name="dashboard_tracking_recording_route">Route vastleggen…</string>
     <string name="dashboard_milestone_distance">km bereikt!</string>
     <string name="dashboard_milestone_steps">stappen bereikt!</string>
     <string name="dashboard_milestone_time">min bijgehouden!</string>
     <string name="dashboard_milestone_points">+10 ptn</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Vandaag</string>
     <string name="dashboard_today_no_activity">Nog geen activiteit vandaag</string>
     <string name="dashboard_today_distance">Afstand</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Nieuw vandaag</string>
     <string name="dashboard_exploration_total_cells">Totaal aantal cellen</string>
     <string name="dashboard_exploration_seasons">Seizoenen</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Snelheid</string>
     <string name="dashboard_live_charts_altitude">Hoogte</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Sensordetails</string>
     <string name="dashboard_sensor_expand">Sensordetails uitvouwen</string>
     <string name="dashboard_sensor_collapse">Sensordetails samenvouwen</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Snelheid</string>
     <string name="dashboard_sensor_cell_types">Celtypen</string>
     <string name="dashboard_sensor_raw_coords">Coördinaten (foutopsporing)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Stijgende trend</string>
     <string name="dashboard_trend_down">Dalende trend</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Net begonnen…</string>
     <string name="dashboard_motivational_keep_going">Ga door! 💪</string>
     <string name="dashboard_motivational_impressive">Indrukwekkende sessie!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Goedenavond! Je dag bekijken?</string>
     <string name="dashboard_motivational_night">Nachtuilmodus 🦉</string>
     <string name="dashboard_motivational_streak">🔥 Reeks van %1$d dagen!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Je reis begint hier</string>
     <string name="dashboard_empty_subtitle">Gebruik de kaart Klaar hieronder om zo nodig locatietoegang te verlenen en je eerste avontuur te starten</string>
     <string name="dashboard_empty_feature_explore">Verkennen</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Klaar wanneer jij dat bent</string>
     <string name="dashboard_empty_fab_hint_desc">Tik hier om je eerste trackingsessie te starten.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Tik hier om locatietoegang te verlenen en je eerste trackingsessie te starten.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Voortgang van vandaag</string>
     <string name="widget_streak">Reeks</string>
     <string name="widget_last_session">Laatste sessie</string>
     <string name="widget_recent_trips">Recente ritten</string>
     <string name="widget_exploration">Verkenning</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Dashboard aanpassen</string>
     <string name="dashboard_customize_reset">Standaard herstellen</string>
     <string name="dashboard_customize_cd_toggle">Zichtbaarheid van %1$s wisselen</string>
     <string name="dashboard_customize_cd_drag_handle">%1$s opnieuw ordenen</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Geen hoogtegegevens</string>
     <string name="dashboard_cd_no_altitude_data">Geen hoogtegegevens beschikbaar</string>
     <string name="dashboard_cd_speed_sparkline">Snelheidssparklijn met %1$d gegevenspunten</string>
     <string name="dashboard_cd_session_path">Voorbeeld van sessieroute met %1$d punten</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Snelheid</string>
     <string name="dashboard_metric_distance">Afstand</string>
     <string name="dashboard_metric_duration">Duur</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wifi</string>
     <string name="dashboard_metric_cell">Cel</string>
     <string name="dashboard_metric_coordinates">Coördinaten</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Tracking starten</string>
     <string name="dashboard_ring_enable_location">Locatie inschakelen</string>
     <string name="dashboard_pill_start">Starten</string>
     <string name="dashboard_pill_stop">Stoppen</string>
     <string name="dashboard_pill_enable_location">Locatie inschakelen</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Sessie-inzichten</string>
     <string name="dashboard_cd_insight_item">Inzicht: %1$s</string>
     <string name="widget_latest_achievement">Laatste prestatie</string>

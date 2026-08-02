@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Core activity types for location-based tracking -->
     <string name="activity_walking">Wandelen</string>
     <string name="activity_running">Hardlopen</string>
     <string name="activity_bicycle">Fietsen</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Voertuig op land</string>
     <string name="activity_water_vehicle">Vaartuig</string>
     <string name="activity_air_vehicle">Luchtvaartuig</string>
-    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">In voertuig</string>
     <string name="activity_on_foot">Te voet</string>
     <string name="activity_name">Activiteitsnaam</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Stilstaand</string>
     <string name="activity_unknown">Onbekend</string>
     <string name="activity_vehicle">voertuig</string>
-    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Weet je zeker dat je %1$s wilt?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,26 +24,14 @@
     <string name="cell_unknown">Onbekend</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanaal dat uitsluitend wordt gebruikt voor de service Activiteitsmonitor, zodat je die permanente melding eenvoudig kunt verwijderen.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Activiteitsmonitor</string>
     <string name="channel_achievements_description">Meldingen over prestaties.</string>
-    <!--
-        channel_achievements_id value is intentionally kept as "challenge_channel_id"
-        (the original on-device channel identifier from the pre-Phase-13 challenge era)
-        so existing installs keep their user-configured channel settings on upgrade.
-        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
-        rework; resource VALUE must not change.
-    -->
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Prestatie</string>
     <string name="channel_other_description">Overige meldingen die niet in een andere categorie vallen.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Overige</string>
     <string name="channel_track_description">Meldingen over tracking.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Bijhouden</string>
     <string name="channel_goals_description">Meldingen over het voltooien van doelen.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Doelvoortgang</string>
     <string name="day_short">%d d</string>
     <string name="generic_add">Toevoegen</string>

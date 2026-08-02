@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Spel</string>
     <string name="module_map_title">Kaart</string>
     <string name="module_statistics_title">Statistieken</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">De volgende automatische back-up bevat alle gegevens in plaats van alleen wijzigingen</string>
     <string name="settings_reset_export_watermarks_done">Exportwatermerken gereset — de volgende back-up wordt een volledige export</string>
     <string name="settings_migration_backup_export_title">Veiligheidsback-up vóór upgrade exporteren</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Volledige databasekopie van v%1$d, gemaakt vóór de migratie naar v%2$d en maximaal 30 dagen privé bewaard</string>
     <string name="settings_migration_backup_warning_title">Gevoelige databaseback-up exporteren?</string>
     <string name="settings_migration_backup_warning_message">Deze back-up kan nauwkeurige locaties, wifi- en celwaarnemingen, activiteiten en andere privégegevens van vóór de upgrade bevatten. Sla hem alleen op een vertrouwde plek op.</string>
@@ -105,13 +102,6 @@
         <item>Vliegen</item>
     </string-array>
     <string name="settings_length_system_title">Lengtesysteem</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Open-sourcelicenties</string>
     <string name="settings_licenses_subtitle">Bekijk meegeleverde vermeldingen van derden in deze build.</string>
     <string name="settings_licenses_loading">Licenties laden…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Versie</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Buildcommit</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Auteur</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-mail</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Koppelingen</string>
     <string name="about_attributions_title">Naamsvermeldingen voor gegevens</string>
     <string name="about_attribution_geonames_label">Plaatsnamen</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Kaart- en straatgegevens</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Module-instellingen</string>
     <string name="settings_core_group_title">Kern</string>
     <string name="settings_other_title">Eenheden en weergave</string>
@@ -151,16 +135,9 @@
         <item>Snelheid (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Snelheidsweergave</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Instellingen</string>
     <string name="switch_state_on">Aan</string>
     <string name="switch_state_off">Uit</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Houd je reizen privé bij</string>
     <string name="onboarding_streamlined_subtitle">Alle gegevens blijven op je apparaat. Geen cloudsynchronisatie of tracking door derden.</string>
     <string name="onboarding_benefit_privacy_title">Privacy voorop</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">AAN DE SLAG</string>
     <string name="onboarding_privacy_policy_button">Privacybeleid lezen</string>
     <string name="onboarding_state_read_error_message">We konden niet controleren of de installatie al was voltooid. Daarom tonen we de installatie om je gegevens privé te houden. Je kunt veilig doorgaan.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Oude gegevens automatisch opschonen</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Bewaar gegevens voor altijd; automatisch opschonen verwijdert geen oude gegevens</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Verwijder automatisch gegevens ouder dan %1$d jaar</item>
         <item quantity="other">Verwijder automatisch gegevens ouder dan %1$d jaar</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Gegevens bewaren gedurende</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Voor altijd bewaren</item>
@@ -189,17 +164,7 @@
         <item>5 jaar</item>
         <item>10 jaar</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">DOORGAAN</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Gegevens exporteren</string>
     <string name="settings_export_data_summary">Sla je trackinggegevens op in verschillende formaten</string>
     <string name="export_format_dialog_title">Exportindeling kiezen</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Exporteren</string>
     <string name="settings_import_summary">Importeer gegevens uit ondersteunde typen (%1$s) en archieven (%2$s). Database-imports voegen compatibele rijen samen; bestaande gegevens worden niet vervangen.</string>
     <string name="settings_import_title">Importeren</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Begrepen</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Lage impact</string>
     <string name="battery_impact_moderate">Gemiddelde impact</string>
     <string name="battery_impact_high">Hoge impact</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Locatieprecisie kiezen</string>
     <string name="precision_mode_approximate_title">Bij benadering</string>
     <string name="precision_mode_approximate_description">Locatie op basis van netwerk. Goed voor het volgen van een algemeen gebied met minimaal batterijgebruik.</string>
     <string name="precision_mode_precise_title">Nauwkeurig</string>
     <string name="precision_mode_precise_description">Locatie op basis van GPS. Het beste voor gedetailleerde routes, warmtekaarten en uitdagingen.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Nauwkeurig volgen ontgrendelen</string>
     <string name="upgrade_to_precise_message_general">Je gebruikt een locatie bij benadering. Schakel over op nauwkeurige GPS-tracking voor betere precisie.</string>
     <string name="upgrade_to_precise_message_route_analysis">Nauwkeurige locatie wordt aanbevolen voor correcte routeanalyse en afstandsmetingen.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Nauwkeurige GPS verbruikt meer batterij. Geschatte trackingduur: 6–8 uur op gebruikelijke apparaten.</string>
     <string name="upgrade_to_precise_button_upgrade">Nauwkeurige locatie inschakelen</string>
     <string name="upgrade_to_precise_button_cancel">Misschien later</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Hoge nauwkeurigheid</string>
     <string name="tracking_preset_high_accuracy_description">Beste detail met de snelste updates en alle belangrijke sensoren ingeschakeld</string>
     <string name="tracking_preset_balanced_name">Gebalanceerd</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Trackingbeleid</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Geschatte tracking: %d uur</item>
         <item quantity="other">Geschatte tracking: %d uur</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Kies hoe nauwkeurig Tracker je locatie vastlegt</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automatisch wisselen van eenheden</string>
     <string name="settings_module_map_subtitle">Kwaliteit van warmtekaart en visualisatieopties</string>
     <string name="settings_module_game_subtitle">Doelen, prestaties en mijlpalen</string>
     <string name="action_navigate_back">Terug navigeren</string>
     <string name="action_help">Hulp</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Laden…</string>
     <string name="widget_quick_start_name">Snelle start van Tracker</string>
     <string name="widget_quick_start_description">Start of stop locatietracking met één tik.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Achtergrond</string>
     <string name="widget_tier_active">Actief</string>
     <string name="widget_tier_precision">Precisie</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Geweldige voortgang!</string>
     <string name="goal_notification_title_almost">Bijna zover!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Slimme doelmeldingen</string>
     <string name="settings_smart_goal_notifications_summary">Ontvang een melding wanneer je dicht bij je dagelijkse stappendoel bent</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Hoe moet tracking werken?</string>
     <string name="setup_how_to_track_subtitle">Kies wanneer tracking begint en hoe gedetailleerd die moet zijn.</string>
     <string name="setup_auto_tracking_title">Automatisch volgen</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Begin met verkennen</string>
     <string name="setup_continue">Doorgaan</string>
     <string name="setup_step_indicator">Stap %1$d van %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Online kaarttegels?</string>
     <string name="setup_online_tiles_subtitle">Tracker wordt geleverd met een offline-basiskaart, zodat hij zonder netwerk werkt. Voor rijkere kaarten kun je in plaats daarvan tegels van een openbare provider streamen.</string>
     <string name="setup_online_tiles_off_title">Alleen offline (aanbevolen)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Stream vectortegels met meer detail van OpenFreeMap (standaard). Je kunt de provider later wijzigen in Instellingen → Kaart.</string>
     <string name="setup_online_tiles_privacy">Wanneer deze optie is ingeschakeld, kan de provider je IP-adres zien en welke tegels je laadt — ruwweg welk gebied op de kaart je bekijkt. Tracker verzendt nooit een account, identificatiecode of je locatiegeschiedenis.</string>
     <string name="setup_online_tiles_change_later">Je kunt dit altijd wijzigen via Instellingen → Kaart → Online-kaarttegels.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Om reizen vast te leggen terwijl het scherm uit is of de app gesloten is, moet Tracker op de achtergrond blijven draaien. Batterij-instellingen van de telefoon kunnen hem pauzeren — sta activiteit op de achtergrond toe zodat automatisch volgen betrouwbaar blijft.</string>
     <string name="setup_background_access_optional">Optioneel, maar aanbevolen. Je kunt dit altijd wijzigen via Instellingen → Tracking.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Betrouwbare tracking op de achtergrond</string>
     <string name="background_reliability_status_exempt">Activiteit op de achtergrond toegestaan</string>
     <string name="background_reliability_status_optimized">Batterijoptimalisatie is ingeschakeld</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Activiteit op de achtergrond toestaan</string>
     <string name="background_reliability_samsung_hint">Samsung-apparaten kunnen apps ook in "Slapende apps" plaatsen. Open de batterij-instellingen, verwijder Tracker uit Slapende apps en stel in dat de app niet in slaap mag worden gezet.</string>
     <string name="background_reliability_samsung_action">Batterij-instellingen van apparaat openen</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Crashdiagnostiek</string>
     <string name="settings_tracebox_root_summary">Lokale crash-, ANR- en structurele diagnostiek</string>
     <string name="settings_tracebox_status_header">Vastlegstatus</string>
