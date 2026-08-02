@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">A helyengedély nem érhető el</string>
     <string name="dashboard_permission_banner_subtitle">A Tracker nem tud útvonalakat rögzíteni, amíg nem ad helyhozzáférést. Koppintson az engedélyezéshez.</string>
     <string name="dashboard_permission_banner_cd">A helyengedély nem elérhető figyelmeztetés; a helyhozzáférés megadásához koppintson</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Tevékenységtípus</string>
     <string name="dashboard_cd_explore_icon">Felfedezés</string>
     <string name="dashboard_cd_forward_arrow">Részletek megtekintése</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Sorozat részleteinek megtekintése</string>
     <string name="dashboard_action_open_tracking_settings">Beállítások</string>
     <string name="dashboard_action_restart_tracking">Nyomkövetés újraindítása</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Magasságprofil, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">GPS-jelre vár…</string>
     <string name="dashboard_tracking_recording_route">Útvonal rögzítése…</string>
     <string name="dashboard_milestone_distance">km elérve!</string>
     <string name="dashboard_milestone_steps">lépés teljesítve!</string>
     <string name="dashboard_milestone_time">perc rögzítve!</string>
     <string name="dashboard_milestone_points">+10 pont</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Ma</string>
     <string name="dashboard_today_no_activity">Ma még nincs tevékenység</string>
     <string name="dashboard_today_distance">Távolság</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Ma új</string>
     <string name="dashboard_exploration_total_cells">Összes cella</string>
     <string name="dashboard_exploration_seasons">Évszakok</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Sebesség</string>
     <string name="dashboard_live_charts_altitude">Magasság</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Érzékelő részletei</string>
     <string name="dashboard_sensor_expand">Érzékelő részleteinek kibontása</string>
     <string name="dashboard_sensor_collapse">Érzékelő részleteinek összecsukása</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Sebesség</string>
     <string name="dashboard_sensor_cell_types">Cellatípusok</string>
     <string name="dashboard_sensor_raw_coords">Koordináták (hibakeresés)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Emelkedő trend</string>
     <string name="dashboard_trend_down">Csökkenő trend</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Épp csak elkezdte…</string>
     <string name="dashboard_motivational_keep_going">Csak így tovább! 💪</string>
     <string name="dashboard_motivational_impressive">Lenyűgöző munkamenet!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Jó estét! Átnézi a napját?</string>
     <string name="dashboard_motivational_night">Éjjeli bagoly mód 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d napos sorozat!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Itt kezdődik az útja</string>
     <string name="dashboard_empty_subtitle">Az alábbi Kész kártyával adjon helyhozzáférést, amikor szükséges, és kezdje el első kalandját</string>
     <string name="dashboard_empty_feature_explore">Felfedezés</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Kész, ha Ön is</string>
     <string name="dashboard_empty_fab_hint_desc">Koppintson ide az első nyomkövetési munkamenet indításához.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Koppintson ide a helyhozzáférés megadásához, majd indítsa első nyomkövetési munkamenetét.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Mai előrehaladás</string>
     <string name="widget_streak">Sorozat</string>
     <string name="widget_last_session">Utolsó munkamenet</string>
     <string name="widget_recent_trips">Legutóbbi utak</string>
     <string name="widget_exploration">Felfedezés</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Irányítópult testreszabása</string>
     <string name="dashboard_customize_reset">Alapértelmezett visszaállítása</string>
     <string name="dashboard_customize_cd_toggle">A(z) %1$s láthatóságának váltása</string>
     <string name="dashboard_customize_cd_drag_handle">A(z) %1$s átrendezése</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Nincs magassági adat</string>
     <string name="dashboard_cd_no_altitude_data">Nem áll rendelkezésre magassági adat</string>
     <string name="dashboard_cd_speed_sparkline">Sebesség-minigrafikon %1$d adatponttal</string>
     <string name="dashboard_cd_session_path">Munkamenet útvonalának előnézete %1$d ponttal</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Sebesség</string>
     <string name="dashboard_metric_distance">Távolság</string>
     <string name="dashboard_metric_duration">Időtartam</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi-Fi</string>
     <string name="dashboard_metric_cell">Cella</string>
     <string name="dashboard_metric_coordinates">Koordináták</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Nyomkövetés indítása</string>
     <string name="dashboard_ring_enable_location">Hely engedélyezése</string>
     <string name="dashboard_pill_start">Indítás</string>
     <string name="dashboard_pill_stop">Leállítás</string>
     <string name="dashboard_pill_enable_location">Hely engedélyezése</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Munkamenet-elemzés</string>
     <string name="dashboard_cd_insight_item">Elemzés: %1$s</string>
     <string name="widget_latest_achievement">Legutóbbi teljesítmény</string>

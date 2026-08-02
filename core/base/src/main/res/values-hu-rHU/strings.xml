@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Core activity types for location-based tracking -->
     <string name="activity_walking">Gyaloglás</string>
     <string name="activity_running">Futás</string>
     <string name="activity_bicycle">Kerékpár</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Szárazföldi jármű</string>
     <string name="activity_water_vehicle">Vízi jármű</string>
     <string name="activity_air_vehicle">Légi jármű</string>
-    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">Járműben</string>
     <string name="activity_on_foot">Gyalog</string>
     <string name="activity_name">Tevékenység neve</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Mozdulatlan</string>
     <string name="activity_unknown">Észlelés…</string>
     <string name="activity_vehicle">Jármű</string>
-    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Biztosan végre szeretné hajtani ezt: %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,26 +24,14 @@
     <string name="cell_unknown">Ismeretlen</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">A Tevékenységfigyelő szolgáltatás kizárólagos értesítési csatornája, így egyszerűen megszüntetheti ezt az állandó értesítést.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Tevékenységfigyelő</string>
     <string name="channel_achievements_description">A teljesítményekhez kapcsolódó értesítések.</string>
-    <!--
-        channel_achievements_id value is intentionally kept as "challenge_channel_id"
-        (the original on-device channel identifier from the pre-Phase-13 challenge era)
-        so existing installs keep their user-configured channel settings on upgrade.
-        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
-        rework; resource VALUE must not change.
-    -->
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Teljesítmény</string>
     <string name="channel_other_description">Az egyetlen más kategóriába sem tartozó értesítések.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Egyéb</string>
     <string name="channel_track_description">A nyomkövetéshez kapcsolódó értesítések.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Nyomkövetés</string>
     <string name="channel_goals_description">Célteljesítési riasztások.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Cél előrehaladása</string>
     <string name="day_short">%d n</string>
     <string name="generic_add">Hozzáadás</string>

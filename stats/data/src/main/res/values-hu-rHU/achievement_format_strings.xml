@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Kövessen nyomon tevékenységet legalább %2$d különböző napon a feloldásához.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Összesen %1$s</string>
     <string name="ach_desc_distance_total">Rögzítsen összesen %1$s távolságot minden munkamenetében.</string>
     <string name="ach_title_week_distance">%1$s ezen a héten</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Kerékpározzon összesen %1$s-t.</string>
     <string name="ach_title_vehicle_distance">Motoros utazás: %1$s</string>
     <string name="ach_desc_vehicle_distance">Tegyen meg %1$s távolságot autóval, busszal, vonattal, hajóval vagy repülővel.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Tegyen meg %1$s lépést</string>
     <string name="ach_desc_steps_total">Rögzítsen %1$s lépést minden munkamenetében.</string>
     <string name="ach_title_best_daily_steps">%1$s lépés egy nap alatt</string>
     <string name="ach_desc_best_daily_steps">Tegyen meg %1$s lépést egyetlen napon belül.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Első munkamenet</item>
         <item quantity="other">Rögzítsen %1$s munkamenetet</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Látogasson meg %d országot</item>
     </plurals>
     <string name="ach_desc_countries_visited">Rögzítsen legalább egy munkamenetet %1$d különböző országban.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Első aktív nap</item>
         <item quantity="other">%1$s aktív nap</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Rögzítsen tevékenységet a nap %1$d különböző órájában minden munkamenetben.</string>
     <string name="ach_title_days_of_week">A hét mind a hét napja</string>
     <string name="ach_desc_days_of_week">Kövessen nyomon tevékenységet minden hétköznap legalább egyszer.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Próbáljon ki %d tevékenységtípust</item>
         <item quantity="other">Próbáljon ki %d tevékenységtípust</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Rögzítsen tevékenységet egy naptári hét mind a hét napján.</string>
     <string name="ach_title_walk_cycle_drive">Gyaloglás, kerékpározás, vezetés</string>
     <string name="ach_desc_walk_cycle_drive">Rögzítsen legalább egy-egy munkamenetet gyaloglásból, kerékpározásból és vezetésből.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">%1$s-es munkamenet</string>
     <string name="ach_desc_max_session_duration">Rögzítsen egyetlen, legalább %1$s-ig tartó munkamenetet.</string>
     <string name="ach_title_max_speed">Érje el: %1$s</string>
     <string name="ach_desc_max_speed">Érjen el legalább %1$s csúcssebességet egy munkamenet közben.</string>
     <string name="ach_title_active_minutes">%1$s aktív perc</string>
     <string name="ach_desc_active_minutes">Gyűjtsön össze %1$s perc aktív nyomkövetési időt.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Első exportálás</item>
         <item quantity="other">%d exportálás</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Kövesse nyomon %d évszakon át</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Rögzítsen tevékenységet %1$d különböző évszakban (tavasz/nyár/ősz/tél).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Újévi nyomkövető</string>
     <string name="ach_desc_calendar_new_year">Rögzítsen egy munkamenetet január 1-jén.</string>
     <string name="ach_title_calendar_leap_day">Szökőnapi úttörő</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Rögzítsen egy munkamenetet az év leghosszabb napján.</string>
     <string name="ach_title_calendar_winter_solstice">Téli napforduló</string>
     <string name="ach_desc_calendar_winter_solstice">Rögzítsen egy munkamenetet az év legrövidebb napján.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Éjjeli bagoly</item>
         <item quantity="other">%1$s éjszakai munkamenet</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Használjon %d exportformátumot</item>
     </plurals>
     <string name="ach_desc_export_formats">Exportálja adatait %1$d különböző fájlformátumban.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Érje el a(z) %1$d. szintet</string>
     <string name="ach_desc_player_level">Lépjen fel a(z) %1$d. játékosszintre.</string>
     <string name="ach_title_best_day_xp">%1$s XP egy nap alatt</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Játsszon %1$s minijátékkal</item>
     </plurals>
     <string name="ach_desc_minigames_played">Fejezzen be %1$d minijáték-futást.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Másszon %1$s-t</string>
     <string name="ach_desc_total_ascent">Gyűjtsön össze összesen %1$s szintemelkedést minden nyomkövetése során.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Szerezzen egy XP-forrásból</item>
         <item quantity="other">Szerezzen %d XP-forrásból</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d tökéletes hét</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Teljesítse napi lépéscélját minden nap %1$d teljes héten át.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d napos célsorozat</item>
         <item quantity="other">%d napos célsorozat</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Teljesítsen %d kategóriát</item>
     </plurals>
     <string name="ach_desc_categories_completed">Oldjon fel minden teljesítményt %1$d különböző kategóriában.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d másodperc</item>
         <item quantity="other">%d másodperc</item>

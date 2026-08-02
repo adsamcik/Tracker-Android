@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Játék</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Hajsza</string>
     <string name="minigame_outrun_description">Versenyezzen egy szellemmel. Maradjon előtte!</string>
     <string name="minigame_territory_name">Terület</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Szerpentin</string>
     <string name="minigame_switchback_description">Vágjon éles, váltakozó kanyarokat a flow-kombó építéséhez</string>
     <string name="minigame_locked">A feloldás a(z) %1$d. szintnél történik</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Játék</string>
     <string name="game_progress_section_title">Előrehaladás</string>
     <string name="minigame_outrun_goal_line">Tartson 25–100 m előnyt a szellemmel szemben</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">A feloldás módjának megtekintéséhez koppintson kétszer</string>
     <string name="minigame_active_session_running">Folyamatban — a visszatéréshez koppintson a Játékra</string>
     <string name="minigame_active_session_paused">Szüneteltetve — a folytatáshoz koppintson a Játékra</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d cella</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d kanyar</item>
         <item quantity="other">%1$d kanyar</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Korábbi eredmények megtekintése</string>
     <string name="minigame_session_close">Bezárás</string>
     <string name="minigame_session_play_again">Újraindítás</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Helyadat szükséges</string>
     <string name="minigame_session_permission_body">A minijátékok élő helyadatokat használnak a futás követéséhez. A végső eredményen kívül semmi nem kerül mentésre.</string>
     <string name="minigame_session_permission_grant">Hozzáférés engedélyezése</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Futás beállítása</string>
     <string name="minigame_setup_goal_title">Cél</string>
     <string name="minigame_setup_difficulty_title">Nehézség</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Könnyű</string>
     <string name="minigame_difficulty_normal">Normál</string>
     <string name="minigame_difficulty_hard">Nehéz</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Előkészület…</string>
     <string name="minigame_session_finishing">Futás mentése…</string>
     <string name="minigame_session_paused_title">Szüneteltetve</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Aktív idő</string>
     <string name="minigame_session_goal_progress">A cél %1$d%%-a</string>
     <string name="minigame_session_goal_reached">Cél elérve</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">Erős GPS</string>
     <string name="minigame_signal_fair">Megfelelő GPS</string>
     <string name="minigame_signal_poor">Gyenge GPS</string>
     <string name="minigame_signal_unavailable">Nincs GPS-jel</string>
     <string name="minigame_signal_unknown">Helymeghatározás…</string>
     <string name="minigame_signal_stale">Késleltetett GPS</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Legjobb ebben a futásban</string>
     <string name="minigame_outrun_personal_best">Egyéni csúcs</string>
     <string name="minigame_outrun_warning">A szellem közeledik</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Cél elérve. %1$d méteres előnnyel menekült el. A legjobb ebben a futásban: %2$d méter.</string>
     <string name="minigame_outrun_description_finished">A futás befejeződött. Végső távolsága %1$d méter, legjobb előnye %2$d méter volt.</string>
     <string name="minigame_outrun_ahead_of_best">Az egyéni csúcsa előtt jár</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Területtérkép. %1$d közeli terület elfoglalva; %2$d határterület kiemelve. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">A jelenlegi terület kiemelve</string>
     <string name="minigame_territory_current_waiting">Várakozás a jelenlegi területre</string>
     <string name="minigame_territory_goal_complete">Cél teljesítve</string>
     <string name="minigame_territory_goal_in_progress">Cél folyamatban</string>
     <string name="minigame_territory_legend">A ragyogás a jelenlegi területét jelöli • Határjelzések: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Tempó</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Finoman gyorsul</string>
     <string name="minigame_zen_flow_time">Ritmus: %1$s</string>
     <string name="minigame_zen_flow_description">Zen tempóritmus. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">A szellem közeledik</string>
     <string name="minigame_feedback_pb_crossed">Új egyéni csúcs</string>
     <string name="minigame_feedback_territory_claimed">Új terület elfoglalva</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">A tempózónában van</string>
     <string name="minigame_feedback_zen_exited">Elhagyta a tempózónát</string>
     <string name="minigame_feedback_completed">Futás kész</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">Első futás rögzítve!</string>
     <string name="minigame_completion_new_best_title">Új egyéni csúcs!</string>
     <string name="minigame_completion_tied_title">Elérte legjobb eredményét</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Ebben a futásban nincs pont</string>
     <string name="minigame_completion_change_setup">Beállítás módosítása</string>
     <string name="minigame_completion_done">Kész</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">A futás nem fejeződött be</string>
     <string name="minigame_failure_permission">A játékhoz pontos helyadat szükséges. Adja meg, majd próbálja újra.</string>
     <string name="minigame_failure_location">Nem sikerült megbízható helymeghatározást szerezni. Menjen nyitottabb égbolt alá, és próbálja újra.</string>
     <string name="minigame_failure_persistence">Nem sikerült menteni ezt a futást. Próbálja újra.</string>
     <string name="minigame_failure_generic">Valami hiba történt, és a futás leállt.</string>
     <string name="minigame_session_try_again">Próbálja újra</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Aktív játék</string>
     <string name="game_session_channel_description">Az aktív minijáték futását a képernyő kikapcsolása közben is fenntartja</string>
     <string name="game_session_notification_title">Tracker játék</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Szünet</string>
     <string name="game_session_action_resume">Folytatás</string>
     <string name="game_session_action_finish">Befejezés</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Korábbi minijáték-futások</string>
     <string name="minigame_scores_back">Vissza</string>
     <string name="minigame_scores_empty_title">Az első futása még várat magára</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">napi</string>
     <string name="goals_weekly_goal">heti</string>
     <string name="goals_monthly_goal">havi</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Lépéscélok</string>
     <string name="game_step_sensor_unavailable">A lépésszámláló-érzékelő nem érhető el</string>
     <string name="game_step_sensor_unavailable_detail">Ez az eszköz nem rendelkezik lépésszámláló-érzékelővel. A lépéscélok nem követhetők.</string>
     <string name="game_steps_today">Ma</string>
     <string name="game_steps_week">Hét</string>
-    <!-- Game empty states -->
     <string name="game_loading">Betöltés…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Visszalépés</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Beállítások megnyitása</string>
     <string name="game_close">Bezárás</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Felfedezés</string>
     <string name="exploration_cells_discovered">Felfedezett cellák</string>
     <string name="exploration_current_streak">Jelenlegi sorozat</string>
@@ -229,7 +204,6 @@
         <item quantity="other">nap</item>
     </plurals>
     <string name="exploration_of_four">/ 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Teljesítmények</string>
     <string name="achievements_bronze">Bronz</string>
     <string name="achievements_silver">Ezüst</string>
@@ -253,12 +227,8 @@
         <item>Csodálatos</item>
     </string-array>
     <string name="points_earned_today">Ma szerzett pontok</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Új feloldás!</string>
     <string name="game_unlock_message">Elérte a(z) %1$d. szintet!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Heti kihívás</string>
     <string name="leaderboard_metric_distance">Távolság</string>
     <string name="leaderboard_metric_steps">Lépések</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">A ranglista nem érhető el</string>
     <string name="leaderboard_error_body">Az adatai biztonságban vannak ezen az eszközön. Próbálja meg újra betölteni a heti kihívást.</string>
     <string name="leaderboard_retry">Újrapróbálás</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Mitikus</string>
     <string name="game_view_all_achievements">Összes megtekintése</string>
     <string name="game_recent_achievements">Legutóbbi feloldások</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Naptár</string>
     <string name="achievement_unlocked_content_description">Feloldva</string>
     <string name="achievement_locked_content_description">Zárolva</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

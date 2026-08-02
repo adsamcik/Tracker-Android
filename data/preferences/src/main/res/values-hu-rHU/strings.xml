@@ -9,18 +9,11 @@
     <string name="meter_abbr">%s m</string>
     <string name="mile_abbr">%s mi</string>
     <string name="millepassus">%s római mérföld</string>
-    <!-- Sailing units -->
     <string name="fathom_abbr">%s öl</string>
     <string name="cable_abbr">%s kábel</string>
     <string name="nautical_mile_abbr">%s tmf</string>
     <string name="knot_abbr">%s kn</string>
-    <!-- Flying units -->
     <string name="flight_level_abbr">FL%s</string>
-    <!-- Auto unit switch preference -->
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">Mértékegységrendszer automatikus váltása</string>
     <string name="settings_statistics_auto_unit_switch_summary">Vitorlázási/repülési mértékegységekre vált automatikusan az ilyen tevékenységű munkamenetek megtekintésekor</string>
-    <!-- Location precision preference (Phase 2) -->
-    <!-- Precision upgrade tracking (Phase 2) -->
 </resources>

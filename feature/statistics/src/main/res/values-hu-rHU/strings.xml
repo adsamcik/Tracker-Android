@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statisztikák</string>
     <string name="stats_cell_count">Cellák száma</string>
     <string name="stats_collections">Gyűjtemények száma</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Munkamenetek betöltése…</string>
     <string name="stats_append_error">Továbbiak betöltése sikertelen</string>
     <string name="action_retry">Újrapróbálás</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Nyomkövetés indítása</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s lépés</item>
         <item quantity="other">%1$s lépés</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Ma</string>
     <string name="stats_date_yesterday">Tegnap</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Összegzés betöltése…</string>
     <string name="stats_summary_empty">Nem érhetők el összesítő statisztikák</string>
     <string name="stats_summary_empty_subtitle">Indítsa el a nyomkövetést, hogy láthassa tevékenységének összegzését</string>
     <string name="stats_summary_error">Nem sikerült betölteni az összegzést</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Heti statisztikák betöltése…</string>
     <string name="stats_week_empty">Nem érhetők el heti statisztikák</string>
     <string name="stats_week_empty_subtitle">Kövessen nyomon 7 napot a heti összegzés megtekintéséhez</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Látott egyedi hálózatok</string>
     <string name="stats_wifi_total_scans">Vizsgálatok összesen</string>
     <string name="stats_wifi_average_per_scan">Vizsgálatonkénti átlagos hálózatszám</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Cellajel-jelentés</string>
     <string name="stats_cell_signal_dialog_loading">Cellajel-jelentés betöltése…</string>
     <string name="stats_cell_signal_dialog_empty_title">Nem érhető el cellaadat</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Egyedi tornyok</string>
     <string name="stats_cell_signal_section_networks">Hálózattípus szerint</string>
     <string name="stats_cell_signal_section_towers">Leggyakrabban látott tornyok</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s minta · %2$s torony</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">%1$s cella · %2$s minta</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Szolgáltató: %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Út részletei</string>
     <string name="trip_detail_not_found">Az út nem található</string>
     <string name="trip_detail_not_found_subtitle">Lehet, hogy ezt az utat törölték</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Süllyedés</string>
     <string name="trip_detail_max_altitude">Max. magasság</string>
     <string name="trip_detail_route_map">Útvonaltérkép</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Megjelenítés a térképen</string>
     <string name="trip_detail_no_location_data">Nincs helyadat</string>
     <string name="trip_detail_route_unavailable_legacy">Az útvonaltérkép nem érhető el régi munkamenetekhez</string>
     <string name="trip_detail_route_no_gps_points">A távolság rögzítve, de nem érhető el GPS-útvonal</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Törlés</string>
     <string name="trip_detail_cancel">Mégse</string>
     <string name="trip_detail_more_options">További beállítások</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Síelési munkamenet</string>
     <string name="ski_detail_runs">Menetek</string>
     <string name="ski_detail_vertical">Szintkülönbség</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Frekvencia</string>
     <string name="wifilist_title_last_seen">Utolsó észlelés</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Idővonal</string>
     <string name="history_tab_trips">Utazások</string>
     <string name="history_tab_calendar">Naptár</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d út</item>
         <item quantity="other">%d út</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Még nincs tevékenység</string>
     <string name="history_timeline_empty_desc">Indítsa el a nyomkövetést, hogy itt láthassa mozgási előzményeit</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Nincsenek rögzített utak</string>
     <string name="history_trips_empty_desc">Az utak mozgás közben itt jelennek meg</string>
     <string name="trip_gps_anomaly">GPS-anomália észlelve — a távolság pontatlan lehet</string>
     <string name="trip_deleted_snackbar">Út törölve</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Előző hónap</string>
     <string name="history_calendar_next_month">Következő hónap</string>
     <string name="history_calendar_distance">Távolság</string>
     <string name="history_calendar_steps">Lépések</string>
     <string name="history_calendar_trips">Utazások</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Felfedezés</string>
     <string name="history_exploration_cells">Cellák</string>
     <string name="history_exploration_streak">Sorozat</string>
     <string name="history_exploration_best">Legjobb</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Visszalépés</string>
-    <!-- History navigation -->
     <string name="history_button_label">Előzmények</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Út megjelenítése a térképen</string>
     <string name="stats_heatmap_title">Tevékenység</string>
 </resources>
