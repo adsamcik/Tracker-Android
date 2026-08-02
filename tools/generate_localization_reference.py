@@ -211,13 +211,17 @@ def resource_records(
                         if key != "name"
                     },
                     "value": value,
-                    "format_tokens": sorted(
-                        {
-                            token
-                            for text in text_values
-                            for token in PRINTF_TOKEN.findall(text)
-                            if token != "%%"
-                        }
+                    "format_tokens": (
+                        []
+                        if node.get("formatted") == "false"
+                        else sorted(
+                            {
+                                token
+                                for text in text_values
+                                for token in PRINTF_TOKEN.findall(text)
+                                if token != "%%"
+                            }
+                        )
                     ),
                     "usage_files": usage_index.get(name, []),
                     "existing_locale_qualifiers": existing_locale_index.get(
