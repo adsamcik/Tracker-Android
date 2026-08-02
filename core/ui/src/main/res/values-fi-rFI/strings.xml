@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Siirry takaisin</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Sijainnin käyttö</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker tarvitsee sijainnin käyttöoikeuden reittisi tallentamiseen ja näyttämiseen kartalla. Sijaintitiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Aktiivisuuden tunnistus</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker käyttää aktiivisuuden tunnistusta havaitakseen, mitä teet (kävelet, pyöräilet, ajat tai olet paikallasi), jotta automaattinen seuranta voi keskeytyä, kun et liiku, ja säästää akkua. Aktiivisuustiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Taustasijainti</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Jotta reittisi tallennus jatkuu, kun vaihdat sovellusta tai näyttö sammuu, Tracker tarvitsee sijaintisi käyttöoikeuden taustalla. Tallennettu sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle. Valitse seuraavassa järjestelmäkehotteessa "Salli aina"; "Salli vain sovellusta käytettäessä" pitää Trackerin toiminnassa vain, kun sen näyttö on avoinna.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Salli</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ei nyt</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Sijaintilupa tarvitaan seurannan aloittamiseen</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Avaa asetukset</string>
 </resources>

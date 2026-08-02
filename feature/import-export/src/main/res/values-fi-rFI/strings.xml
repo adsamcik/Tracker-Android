@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="export_button">Vie</string>
+    <string name="export_default_file_name_range">Tracker_vientitiedot_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Tracker_vientitiedot_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Valitulta aikaväliltä ei löytynyt sijainteja.</string>
+    <string name="export_error_no_databases">Vietäviä sovellustietokantoja ei ole käytettävissä.</string>
+    <string name="export_error_no_uri">Vientikansiota ei valittu</string>
+    <string name="export_error_stream_failed">Tiedostovirtaa ei voitu luoda tiedostolle %s</string>
+    <string name="export_error_unknown">Vienti epäonnistui.</string>
+    <string name="export_error_with_reason">Vienti epäonnistui: %s</string>
+    <string name="export_file_name">Tiedoston nimi</string>
+    <string name="export_file_name_error">Tiedostonimi ei voi sisältää merkkejä \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Sijaintitietojen vienti väliltä %1$s–%2$s, tallennettu Adventionilla.</string>
+    <string name="export_gpx_error">GPX-vienti epäonnistui virheeseen: %s</string>
+    <string name="export_sensitivity_title">Viedäänkö tarkat sijaintitiedot?</string>
+    <string name="export_sensitivity_message">Tämä vienti tai jako sisältää täsmällisiä sijaintitietoja ja voi sisältää raakoja radiometatietoja tietokantavienneissä. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="export_sensitivity_confirm">Jatka</string>
+    <string name="export_share_button">Jaa</string>
+    <string name="export_in_progress">Viedään…</string>
+    <string name="export_completed">Vienti valmis.</string>
+    <string name="import_notification_error_failed_open_database">Tietokantatiedoston %s avaaminen epäonnistui</string>
+    <string name="import_notification_error_file_not_supported">Tiedostoa %s ei tueta.</string>
+    <string name="import_notification_extracting">Puretaan %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Tuonti valmis. %d tietue tuotiin onnistuneesti.</item>
+        <item quantity="other">Tuonti valmis. %d tietuetta tuotiin onnistuneesti.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Tuonti valmis. Tuotiin %1$d tietuetta (%2$d ohitettiin).</string>
+    <string name="import_notification_error_records_failed">%d tietueen tuonti epäonnistui rajoiterikkomusten vuoksi.</string>
+    <string name="import_notification_importing">Tuodaan %s …</string>
+    <string name="import_notification_progress">Tuonti käynnissä …</string>
+    <string name="settings_export_dialog_from">Alkaen</string>
+    <string name="settings_export_dialog_to">Päättyen</string>
+    <string name="settings_export_no_data">Ei vietäviä tietoja</string>
+    <string name="settings_export_title">Vienti</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Tietokannan varmuuskopio (ZIP)</string>
+    <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
+    <string name="settings_import_title">Tuonti</string>
+</resources>

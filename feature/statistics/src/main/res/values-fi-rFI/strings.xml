@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_error_generic">Something went wrong</string>
-    <string name="stats_append_error">Load more failed</string>
-    <string name="action_retry">Retry</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Tilastot</string>
+    <string name="stats_cell_count">Tukiasemien määrä</string>
+    <string name="stats_collections">Päivitysten määrä</string>
+    <string name="stats_distance_in_vehicle">Matka ajoneuvolla</string>
+    <string name="stats_distance_on_foot">Matka jalan</string>
+    <string name="stats_distance_total">Matka</string>
+    <string name="stats_format_unknown_activity">istunto</string>
+    <string name="stats_location_count">Sijaintien määrä</string>
+    <string name="stats_no_tracker_sessions">Ei seurantaistuntoja vielä</string>
+    <string name="stats_empty_subtitle">Aloita seuranta nähdäksesi aktiivisuutesi täällä</string>
+    <string name="stats_session_count">Istuntojen määrä</string>
+    <string name="stats_steps">Askelmäärä</string>
+    <string name="stats_metric_not_available_short">Ei saatavilla</string>
+    <string name="stats_sum_title">Yhteenveto</string>
+    <string name="stats_time">Seurantaan käytetty aika</string>
+    <string name="stats_weekly_title">Viimeiset 7 päivää</string>
+    <string name="stats_wifi_count">Wi-Fi-määrä</string>
+    <string name="stats_wifi_chip_label">Wi‑Fi-tilastot</string>
+    <string name="stats_cell_signal_chip_label">Mobiilisignaali</string>
+    <string name="stats_filter_dates">Päivämäärät</string>
+    <string name="stats_filter_active_label">Näytetään: %1$s</string>
+    <string name="stats_filter_clear">Tyhjennä suodatin</string>
+    <string name="stats_date_dialog_title">Päivämääräväli</string>
+    <string name="stats_date_summary_placeholder">Valitse aikaväli istuntojen suodattamiseen</string>
+    <string name="stats_date_preset_today">Tänään</string>
+    <string name="stats_date_preset_yesterday">Eilen</string>
+    <string name="stats_date_preset_last_7_days">Viimeiset 7 päivää</string>
+    <string name="stats_date_preset_last_30_days">Viimeiset 30 päivää</string>
+    <string name="stats_date_preset_this_month">Tämä kuukausi</string>
+    <string name="stats_date_preset_last_month">Viime kuukausi</string>
+    <string name="stats_date_preset_this_year">Tämä vuosi</string>
+    <string name="stats_date_preset_all_time">Koko ajalta</string>
+    <string name="stats_sparse_summary_title">Tämä viikko yhdellä silmäyksellä</string>
+    <string name="stats_sparse_summary_active_days">Aktiiviset päivät</string>
+    <string name="stats_sparse_summary_week_label">Päivittäinen aktiivisuus</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Vain %1$d istunto näkyy, joten tämä tiivis yhteenveto täydentää viimeaikaista aktiivisuuttasi.</item>
+        <item quantity="other">Vain %1$d istuntoa näkyy, joten tämä tiivis yhteenveto täydentää viimeaikaista aktiivisuuttasi.</item>
+    </plurals>
+    <string name="stats_error_generic">Jokin meni pieleen</string>
+    <string name="stats_loading">Ladataan istuntoja…</string>
+    <string name="stats_append_error">Lisälataus epäonnistui</string>
+    <string name="action_retry">Yritä uudelleen</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Aloita seuranta</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s askel</item>
+        <item quantity="other">%1$s askelta</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Tänään</string>
+    <string name="stats_date_yesterday">Eilen</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Ladataan yhteenvetoa…</string>
+    <string name="stats_summary_empty">Yhteenvetotilastoja ei ole saatavilla</string>
+    <string name="stats_summary_empty_subtitle">Aloita seuranta nähdäksesi aktiivisuusyhteenvedon</string>
+    <string name="stats_summary_error">Yhteenvedon lataus epäonnistui</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Ladataan viikkotilastoja…</string>
+    <string name="stats_week_empty">Viikkotilastoja ei ole saatavilla</string>
+    <string name="stats_week_empty_subtitle">Seuraa 7 päivän ajan nähdäksesi viikkoyhteenvedon</string>
+    <string name="stats_week_error">Viikkotilastojen lataus epäonnistui</string>
+    <string name="stats_wifi_dialog_title">Wi‑Fi-tilastot</string>
+    <string name="stats_wifi_dialog_loading">Ladataan Wi‑Fi-tilastoja…</string>
+    <string name="stats_wifi_dialog_empty_title">Wi‑Fi-tietoja ei ole saatavilla</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Wi‑Fi-tilastot näkyvät, kun skannauksia on kerätty.</string>
+    <string name="stats_wifi_dialog_error">Wi‑Fi-tilastojen lataus epäonnistui</string>
+    <string name="stats_wifi_unique_networks">Havaitut yksilölliset verkot</string>
+    <string name="stats_wifi_total_scans">Skannauksia yhteensä</string>
+    <string name="stats_wifi_average_per_scan">Verkkoja keskimäärin skannausta kohti</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Mobiilisignaaliraportti</string>
+    <string name="stats_cell_signal_dialog_loading">Ladataan mobiilisignaaliraporttia…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Mobiilitietoja ei ole saatavilla</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Mobiilisignaalitilastot näkyvät, kun näytteitä on kerätty.</string>
+    <string name="stats_cell_signal_dialog_error">Mobiilisignaaliraportin lataus epäonnistui</string>
+    <string name="stats_cell_signal_total_samples">Mobiilinäytteet</string>
+    <string name="stats_cell_signal_distinct_towers">Erilliset tukiasemat</string>
+    <string name="stats_cell_signal_section_networks">Verkkotyypeittäin</string>
+    <string name="stats_cell_signal_section_towers">Useimmin havaitut tukiasemat</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s näytteistä · %2$s tukiasemaa</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Solu %1$s · %2$s näytettä</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Operaattori %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Matkan tiedot</string>
+    <string name="trip_detail_not_found">Matkaa ei löytynyt</string>
+    <string name="trip_detail_not_found_subtitle">Tämä matka on ehkä poistettu</string>
+    <string name="trip_detail_error_title">Matkan lataus epäonnistui</string>
+    <string name="trip_detail_retry">Yritä uudelleen</string>
+    <string name="trip_detail_duration">Kesto</string>
+    <string name="trip_detail_distance">Matka</string>
+    <string name="trip_detail_date">Päivämäärä</string>
+    <string name="trip_detail_steps">Askeleet</string>
+    <string name="trip_detail_samples">Näytteet</string>
+    <string name="trip_detail_source">Lähde</string>
+    <string name="trip_detail_avg_speed">Keskinopeus</string>
+    <string name="trip_detail_max_speed">Enimmäisnopeus</string>
+    <string name="trip_detail_pace">Tahti</string>
+    <string name="trip_detail_activity_type">Aktiviteetin tyyppi</string>
+    <string name="trip_detail_start_time">Aloitusaika</string>
+    <string name="trip_detail_end_time">Lopetusaika</string>
+    <string name="trip_detail_elevation_gain">Nousu</string>
+    <string name="trip_detail_elevation_loss">Lasku</string>
+    <string name="trip_detail_max_altitude">Suurin korkeus</string>
+    <string name="trip_detail_route_map">Reittikartta</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Ei sijaintitietoja</string>
+    <string name="trip_detail_route_unavailable_legacy">Reittikartta ei ole saatavilla vanhoille istunnoille</string>
+    <string name="trip_detail_route_no_gps_points">Matka tallennettiin, mutta GPS-reittiä ei ole saatavilla</string>
+    <string name="trip_detail_delete">Poista</string>
+    <string name="trip_detail_export_gpx">Vie GPX-muodossa</string>
+    <string name="trip_detail_delete_confirm_title">Poistetaanko matka?</string>
+    <string name="trip_detail_delete_confirm_message">Tämä matka poistetaan pysyvästi.</string>
+    <string name="trip_detail_delete_confirm">Poista</string>
+    <string name="trip_detail_cancel">Peruuta</string>
+    <string name="trip_detail_more_options">Lisää vaihtoehtoja</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Hiihtoistunto</string>
+    <string name="ski_detail_runs">Laskut</string>
+    <string name="ski_detail_vertical">Pystyero</string>
+    <string name="ski_detail_max_speed">Enimmäisnopeus</string>
+    <string name="ski_detail_time_skiing">Hiihto</string>
+    <string name="ski_detail_time_lifts">Hisseissä</string>
+    <string name="ski_detail_run_label">Lasku nro %1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Löytyi %d suodatinta vastaavaa Wi-Fi-verkkoa</string>
+    <string name="wifilist_filter_bssid">BSSID (tunniste)</string>
+    <string name="wifilist_filter_capabilities">Ominaisuudet</string>
+    <string name="wifilist_filter_count">Näytettävä määrä</string>
+    <string name="wifilist_filter_frequency">Taajuus</string>
+    <string name="wifilist_filter_ssid">SSID (nimi)</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Wi‑Fi-luettelo</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">Ominaisuudet</string>
+    <string name="wifilist_title_first_seen">Ensihavainto</string>
+    <string name="wifilist_title_frequency">Taajuus</string>
+    <string name="wifilist_title_last_seen">Viimeksi nähty</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Aikajana</string>
+    <string name="history_tab_trips">Matkat</string>
+    <string name="history_tab_calendar">Kalenteri</string>
+    <string name="history_screen_title">Historia</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d matka</item>
+        <item quantity="other">%d matkaa</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Ei aktiviteettia vielä</string>
+    <string name="history_timeline_empty_desc">Aloita seuranta nähdäksesi liikehistoriasi täällä</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Ei tallennettuja matkoja</string>
+    <string name="history_trips_empty_desc">Matkat näkyvät täällä liikkuessasi</string>
+    <string name="trip_gps_anomaly">GPS-poikkeama havaittu — matka voi olla epätarkka</string>
+    <string name="trip_deleted_snackbar">Matka poistettu</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Edellinen kuukausi</string>
+    <string name="history_calendar_next_month">Seuraava kuukausi</string>
+    <string name="history_calendar_distance">Matka</string>
+    <string name="history_calendar_steps">Askeleet</string>
+    <string name="history_calendar_trips">Matkat</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Tutkiminen</string>
+    <string name="history_exploration_cells">Ruudut</string>
+    <string name="history_exploration_streak">Putki</string>
+    <string name="history_exploration_best">Paras</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Siirry takaisin</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Historia</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Aktiivisuus</string>
 </resources>

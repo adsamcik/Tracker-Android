@@ -1,0 +1,490 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Peli</string>
+    <string name="module_map_title">Kartta</string>
+    <string name="module_statistics_title">Tilastot</string>
+    <string name="main_nav_tracker">Etusivu</string>
+    <string name="settings_clear_preferences_title">Tyhjennä asetukset</string>
+    <string name="settings_clear_preferences_message">Tämä palauttaa kaikki sovelluksen asetukset (toimintojen valinnat ja käyttöliittymäasetukset). Seurantatietosi eivät muutu. Jatketaanko?</string>
+    <string name="settings_data_title">Tiedot</string>
+    <string name="settings_debug_group_title">Vianmääritys</string>
+    <string name="settings_debug_title">Kehittäjäasetukset</string>
+    <string name="settings_debug_developer_tools_section">Kehittäjätyökalut</string>
+    <string name="settings_debug_disable_developer_subtitle">Piilota kehittäjäasetukset asetuksista</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Kehittäjätila poistettu käytöstä</string>
+    <string name="settings_data_management_section">Tietojen hallinta</string>
+    <string name="settings_data_danger_zone_section">Vaaravyöhyke</string>
+    <string name="settings_osm_import_section">Karttatiedot (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Tuo OSM-alue</string>
+    <string name="settings_osm_import_action_summary">Valitse .osm.pbf-tiedosto. Ajoneuvojen nopeusrajoitusten noudattaminen käyttää sitten todellisia nopeusrajoituksia offline-tilassa.</string>
+    <string name="settings_osm_import_unavailable_title">Offline-kartan tuonti ei ole käytettävissä</string>
+    <string name="settings_osm_import_action_unavailable">Offline-kartan tuonti ei ole tilapäisesti käytettävissä, kun tiedostoturvasuojaus viimeistellään.</string>
+    <string name="settings_osm_import_action_running">Tuodaan — peruuta napauttamalla</string>
+    <string name="settings_osm_import_action_failed">Offline-kartan tuontia ei voitu suorittaa.</string>
+    <string name="settings_osm_import_action_source_unavailable">Valittua karttatiedostoa ei voitu avata.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Tuotiin %1$d tie %2$d solmusta.</item>
+        <item quantity="other">Tuotiin %1$d tietä %2$d solmusta.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">OpenStreetMap-aluetta ei ole vielä tuotu.</string>
+    <string name="settings_osm_imports_attribution">Karttatiedot © OpenStreetMapin avustajat (ODbL 1.0). Kaikki käsittely tapahtuu laitteella.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d tie · tuotu %2$s</item>
+        <item quantity="other">%1$,d tietä · tuotu %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Poista tuotu alue</string>
+    <string name="settings_osm_import_remove_message">Poistetaanko %1$s? Ajoneuvojen nopeusrajoitusten tarkistus käyttää kiinteää perusarvoa, kunnes tuot alueen uudelleen.</string>
+    <string name="settings_incremental_backups_title">Kasvavat varmuuskopiot</string>
+    <string name="settings_incremental_backups_summary">Vie vain viimeisen varmuuskopion jälkeen syntyneet tiedot. Lyhentää vientiaikaa ja pienentää tiedostokokoa.</string>
+    <string name="settings_reset_export_watermarks_title">Pakota täydellinen vienti</string>
+    <string name="settings_reset_export_watermarks_summary">Seuraava automaattinen varmuuskopio sisältää kaikki tiedot pelkkien muutosten sijaan</string>
+    <string name="settings_reset_export_watermarks_done">Viennin vesileimat nollattu — seuraava varmuuskopio on täydellinen vienti</string>
+    <string name="settings_migration_backup_export_title">Vie päivitystä edeltävä turvavarmuuskopio</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Täysi tietokantakopio versiosta v%1$d, luotu ennen siirtoa versioon v%2$d ja säilytetty yksityisesti enintään 30 päivää</string>
+    <string name="settings_migration_backup_warning_title">Viedäänkö arkaluonteinen tietokantavarmuuskopio?</string>
+    <string name="settings_migration_backup_warning_message">Tämä varmuuskopio voi sisältää tarkkoja sijainteja, Wi-Fi- ja soluhavaintoja, aktiviteetteja ja muita yksityisiä tietoja ennen päivitystä. Tallenna se vain paikkaan, johon luotat.</string>
+    <string name="settings_migration_backup_export_action">Vie varmuuskopio</string>
+    <string name="settings_migration_backup_export_success">Päivitystä edeltävä varmuuskopio viety</string>
+    <string name="settings_migration_backup_export_failure">Päivitystä edeltävää varmuuskopiota ei voitu viedä</string>
+    <string name="settings_migration_backup_export_cleanup_required">Vienti epäonnistui. Poista osittain viety varmuuskopio valitusta sijainnista.</string>
+    <string name="settings_delete_data_success">Kaikki kerätyt tiedot poistettiin</string>
+    <string name="settings_delete_data_failure">Kaikkia kerättyjä tietoja ei voitu poistaa</string>
+    <string name="settings_game_goals_title">Tavoitteet</string>
+    <string name="settings_game_daily_target_title">Päivittäinen askeltavoite</string>
+    <string name="settings_game_weekly_target_title">Viikoittainen askeltavoite</string>
+    <string name="settings_game_daily_contribution_title">Päivittäisen osuuden enimmäismäärä</string>
+    <string name="settings_game_steps_unit">askelta</string>
+    <string name="settings_game_notifications_title">Ilmoitukset</string>
+    <string name="settings_game_goal_notifications_title">Tavoitteen edistymisilmoitukset</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Saat paikallisen muistutuksen, kun päivittäisestä tavoitteestasi on saavutettu 75 % ja 90 %.</string>
+    <string name="settings_game_during_games_title">Pelien aikana</string>
+    <string name="settings_game_haptics_title">Pelin haptinen palaute</string>
+    <string name="settings_game_haptics_summary">Käytä hienovaraista värinää pelipalautteena.</string>
+    <string name="settings_game_quiet_coaching_title">Hiljaiset ohjevihjeet</string>
+    <string name="settings_game_quiet_coaching_summary">Käytä harvempia ohjeita pelatessasi.</string>
+    <string name="settings_game_remember_setup_title">Muista edellinen pelimääritys</string>
+    <string name="settings_game_remember_setup_summary">Käytä seuraavalla kerralla edellistä tavoitettasi ja vaikeustasoasi.</string>
+    <string name="settings_game_privacy_battery_title">Yksityisyys ja akku</string>
+    <string name="settings_game_privacy_battery_disclosure">Pelit käyttävät reaaliaikaista sijaintia vain ollessaan aktiivisia ja hyödyntävät Trackerin sijaintia, kun se on saatavilla. Keskeytys vapauttaa pelin sijainnin käytön. Vain tuloksesi ja pisteet/XP tallennetaan tälle laitteelle; raakoja pelisijainteja ei säilytetä.</string>
+    <string name="settings_game_loading">Ladataan peliasetuksia…</string>
+    <string name="settings_game_load_error">Peliasetuksia ei voitu ladata. Yritä uudelleen.</string>
+    <string name="settings_map_info_hint">Nämä asetukset ohjaavat kartan visualisoinnin laatua ja suorituskykyä. Useimmat käyttäjät voivat käyttää oletusarvoja.</string>
+    <string name="settings_map_online_tiles_section_title">Verkkokarttalaatat</string>
+    <string name="settings_map_online_tiles_enable_title">Käytä verkkokarttalaattoja</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Pois — käytetään vain mukana toimitettua offline-taustakarttaa. Ei verkkopyyntöjä.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Päällä — haetaan karttalaattoja palvelusta %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Karttalautojen tarjoaja</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (suositeltu)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Mukautettu URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Tyylin JSON-URL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Tietolähde: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Verkkokarttalaatat ovat valinnainen toiminto. Kun ne ovat käytössä, valittu tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat (likimääräisesti tarkastelemasi kartta-alueen). Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaa.</string>
+    <string name="settings_developer_mode_enabled_toast">Kehittäjätila käytössä</string>
+    <string name="settings_developer_mode_disable">Poista kehittäjätila käytöstä</string>
+    <string name="settings_developer_mode_subtitle">Kehittäjätila aktiivinen</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Napauta vielä %d kerran ottaaksesi kehittäjätilan käyttöön</item>
+        <item quantity="other">Napauta vielä %d kertaa ottaaksesi kehittäjätilan käyttöön</item>
+    </plurals>
+    <string name="settings_version_info_title">Versiotiedot</string>
+    <string name="settings_version_format">Versio: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Nykyinen kieli: %s</string>
+    <string name="settings_language_title">Sovelluksen kieli</string>
+    <string name="settings_units_auto_summary_on">Sovittaa pituusyksikköjärjestelmän havaittuihin aktiviteetteihin</string>
+    <string name="settings_units_auto_summary_off">Käyttää valittua pituusyksikköjärjestelmää kaikkialla</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrinen</item>
+        <item>Brittiläinen (USC)</item>
+        <item>Antiikin roomalainen</item>
+        <item>Purjehdus</item>
+        <item>Lentäminen</item>
+    </string-array>
+    <string name="settings_length_system_title">Pituusyksikköjärjestelmä</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Avoimen lähdekoodin lisenssit</string>
+    <string name="settings_licenses_subtitle">Näytä tähän koontiversioon sisältyvät kolmannen osapuolen ilmoitukset.</string>
+    <string name="settings_licenses_loading">Ladataan lisenssejä…</string>
+    <string name="settings_licenses_unavailable">Mukana toimitettuja kolmannen osapuolen lisenssitietoja ei voitu ladata.</string>
+    <string name="settings_licenses_text_at_url">Lisenssin koko teksti on saatavilla osoitteessa: %1$s</string>
+    <string name="settings_privacy_policy_title">Tietosuojakäytäntö</string>
+    <string name="settings_privacy_policy_unavailable">Mukana toimitettua tietosuojakäytäntöä ei voitu avata. Yritä uudelleen sovelluksen uudelleenkäynnistyksen jälkeen.</string>
+    <string name="settings_about_header">Tietoja sovelluksesta</string>
+    <string name="settings_about_app_title">Tracker, tekijä adsamcik</string>
+    <string name="settings_about_app_subtitle">Yksityisyyslähtöinen sijainti- ja aktiivisuusseuranta</string>
+    <string name="about_title">Tietoja sovelluksesta</string>
+    <string name="about_app_name_label">Sovellus</string>
+    <string name="about_version_label">Versio</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Koontiversion commit</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Tekijä</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Sähköposti</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Linkit</string>
+    <string name="about_attributions_title">Tietolähteet</string>
+    <string name="about_attribution_geonames_label">Paikannimet</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Kartta- ja katutiedot</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Moduuliasetukset</string>
+    <string name="settings_core_group_title">Ydin</string>
+    <string name="settings_other_title">Yksiköt ja näyttö</string>
+    <string name="settings_remove_all_collected_data_summary">Poistaa seurantatietosi (mukautetut aktiviteetit ja asetukset säilyvät)</string>
+    <string name="settings_remove_all_collected_data_title">Poista kaikki kerätyt tiedot</string>
+    <string-array name="settings_speed_format_names">
+        <item>Nopeus sekunnissa (m/s)</item>
+        <item>Tahti matkaa kohti (min/km, min/mi)</item>
+        <item>Nopeus (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Nopeusmuoto</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Asetukset</string>
+    <string name="switch_state_on">Päällä</string>
+    <string name="switch_state_off">Pois</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Seuraa matkojasi yksityisesti</string>
+    <string name="onboarding_streamlined_subtitle">Kaikki tiedot pysyvät laitteellasi. Ei pilvisynkronointia tai kolmannen osapuolen seurantaa.</string>
+    <string name="onboarding_benefit_privacy_title">Yksityisyys ensin</string>
+    <string name="onboarding_benefit_privacy_desc">Kaikki seurantatiedot pysyvät laitteellasi. Ei palvelimia, ei pilvisynkronointia, täydellinen hallinta.</string>
+    <string name="onboarding_benefit_insights_title">Aktiivisuushavainnot</string>
+    <string name="onboarding_benefit_insights_desc">Näe reittisi kartoilla, analysoi tilastoja ja seuraa edistymistäsi ajan mittaan.</string>
+    <string name="onboarding_benefit_gamification_title">Saavutukset</string>
+    <string name="onboarding_benefit_gamification_desc">Avaa yli 150 saavutusta kävellessäsi, juostessasi, pyöräillessäsi ja tutkiessasi — kaikki ansaitaan paikallisesti laitteellasi.</string>
+    <string name="onboarding_get_started">ALOITA</string>
+    <string name="onboarding_privacy_policy_button">Lue tietosuojakäytäntö</string>
+    <string name="onboarding_state_read_error_message">Emme voineet varmistaa, oliko käyttöönotto jo valmis, joten käyttöönotto näytetään tietojesi suojaamiseksi. Voit jatkaa turvallisesti.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Poista vanhat tiedot automaattisesti</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Säilytä tiedot ikuisesti; automaattinen siivous ei poista vanhoja tietoja</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Poista automaattisesti yli %1$d vuoden vanhat tiedot</item>
+        <item quantity="other">Poista automaattisesti yli %1$d vuotta vanhat tiedot</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Säilytä tietoja</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Säilytä ikuisesti</item>
+        <item>1 vuosi</item>
+        <item>2 vuotta</item>
+        <item>3 vuotta</item>
+        <item>5 vuotta</item>
+        <item>10 vuotta</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">JATKA</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Vie tiedot</string>
+    <string name="settings_export_data_summary">Tallenna seurantatietosi useissa muodoissa</string>
+    <string name="export_format_dialog_title">Valitse vientimuoto</string>
+    <string name="export_format_gpx_name">GPX (suositeltu)</string>
+    <string name="export_format_gpx_desc">Täsmälliset reittipisteet GPS-laitteille, kuntoilusovelluksille ja yleistä yhteensopivuutta varten</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Täsmälliset reittipisteet Google Earthille ja maantieteelliseen visualisointiin</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Virtaavat sijainnit ja istuntoyhteenvedot; tuonti yhdistää tiedot ja luo osan metatiedoista uudelleen</string>
+    <string name="export_format_db_name">Tietokanta</string>
+    <string name="export_format_db_desc">Raaka SQLite-varmuuskopio kaikista tiedoista ja asetuksista; tuonti yhdistää yhteensopivat rivit, eikä palauta kaikkea kokonaan</string>
+    <string name="export_sensitivity_dialog_title">Viedäänkö tarkat sijaintitiedot?</string>
+    <string name="export_sensitivity_gpx_message">Tämä GPX-vienti sisältää täsmällisiä reittipisteitä. Tallenna tai jaa se vain ihmisille ja sovelluksille, joihin luotat.</string>
+    <string name="export_sensitivity_kml_message">Tämä KML-vienti sisältää täsmällisiä reittipisteitä. Tallenna tai jaa se vain ihmisille ja sovelluksille, joihin luotat.</string>
+    <string name="export_sensitivity_json_message">Tämä JSON-vienti sisältää täsmällisiä sijainteja ja istuntoyhteenvetoja. Osa johdetuista metatiedoista häviää tuonnissa; tallenna tai jaa se vain kohteisiin, joihin luotat.</string>
+    <string name="export_sensitivity_db_message">Tämä raaka tietokantavarmuuskopio voi sisältää tarkkoja sijainteja, Wi-Fi- tai soluradiotietoja, aktiivisuutta ja asetuksia. Pidä se yksityisenä ja tallenna se vain paikkaan, johon luotat.</string>
+    <string name="export_sensitivity_confirm">Jatka vientiä</string>
+    <string name="settings_export_title">Vienti</string>
+    <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
+    <string name="settings_import_title">Tuonti</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Selvä</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Pieni vaikutus</string>
+    <string name="battery_impact_moderate">Kohtalainen vaikutus</string>
+    <string name="battery_impact_high">Suuri vaikutus</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Valitse sijainnin tarkkuus</string>
+    <string name="precision_mode_approximate_title">Likimääräinen</string>
+    <string name="precision_mode_approximate_description">Verkkopohjainen sijainti. Sopii yleisalueen seurantaan vähäisellä akunkulutuksella.</string>
+    <string name="precision_mode_precise_title">Tarkka</string>
+    <string name="precision_mode_precise_description">GPS-pohjainen sijainti. Paras yksityiskohtaisille reiteille, lämpökartoille ja haasteille.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Ota tarkka seuranta käyttöön</string>
+    <string name="upgrade_to_precise_message_general">Käytät likimääräistä sijaintia. Vaihda tarkkaan GPS-seurantaan saadaksesi paremman tarkkuuden.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Tarkkaa sijaintia suositellaan täsmälliseen reittianalyysiin ja etäisyysmittauksiin.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Tarkka sijainti tarjoaa yksityiskohtaisen lämpökarttavisualisoinnin hienojakoisella paikannuksella.</string>
+    <string name="upgrade_to_precise_message_challenges">Monet haasteet edellyttävät tarkkaa GPS-seurantaa suorituksen luotettavaan varmistamiseen.</string>
+    <string name="upgrade_to_precise_benefits_title">Hyödyt</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Tarkat reittimuodot ja käännöskohtaiset reittitiedot</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Yksityiskohtainen lämpökartta ja paikkatietoanalyysi</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Tarkat etäisyys- ja nopeusmittaukset</string>
+    <string name="upgrade_to_precise_battery_title">Akun käyttö</string>
+    <string name="upgrade_to_precise_battery_message">Tarkka GPS kuluttaa enemmän akkua. Arvioitu seuranta-aika: 6–8 tuntia tavallisilla laitteilla.</string>
+    <string name="upgrade_to_precise_button_upgrade">Ota tarkka sijainti käyttöön</string>
+    <string name="upgrade_to_precise_button_cancel">Ehkä myöhemmin</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Korkea tarkkuus</string>
+    <string name="tracking_preset_high_accuracy_description">Parhaat yksityiskohdat nopeimmilla päivityksillä ja kaikki tärkeimmät anturit käytössä</string>
+    <string name="tracking_preset_balanced_name">Tasapainotettu</string>
+    <string name="tracking_preset_balanced_description">Hyvä tarkkuus ja kohtuullinen akunkesto päivittäiseen seurantaan</string>
+    <string name="tracking_preset_power_save_name">Virransäästö</string>
+    <string name="tracking_preset_power_save_description">Pienempi akunkulutus harvemmilla päivityksillä ja vähennetyillä antureilla</string>
+    <string name="tracking_preset_custom_name">Mukautettu</string>
+    <string name="tracking_preset_custom_description">Säädä jokaista seuranta-arvoa manuaalisesti</string>
+    <string name="tracking_preset_selector_title">Seurannan esiasetus</string>
+    <string name="tracking_preset_selector_subtitle">Valitse aloitusprofiili ja hienosäädä sitten mitä tahansa alla olevaa asetusta.</string>
+    <string name="tracking_preset_custom_hint">Minkä tahansa alla olevan asetuksen muuttaminen luo Mukautettu-profiilin nykyisestä esiasetuksesta.</string>
+    <string name="tracking_preset_customized_summary">Olet hienosäätänyt seurantaa. Palauta esiasetus valitsemalla yläpuolelta.</string>
+    <string name="settings_tracking_section_detection">Tunnistus ja automaatio</string>
+    <string name="settings_tracking_section_sources">Tietolähteet</string>
+    <string name="settings_tracking_section_detail">Sijainnin keräys</string>
+    <string name="settings_tracking_section_notifications">Ilmoitukset</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Seurantakäytäntö</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Arvioitu seuranta: %d tunti</item>
+        <item quantity="other">Arvioitu seuranta: %d tuntia</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Valitse, kuinka tarkasti Tracker tallentaa sijaintisi</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Tarkka</string>
+    <string name="approximate">Likimääräinen</string>
+    <string name="tracking_policy_selector_subtitle">Valitse seurannan esiasetus tai mukauta asetuksia</string>
+    <string name="tracking_policy_custom_badge">Mukautettu</string>
+    <string name="collapse_details">Piilota tiedot</string>
+    <string name="expand_details">Näytä tiedot</string>
+    <string name="settings_section_collapse">Kutista</string>
+    <string name="settings_section_expand">Laajenna</string>
+    <string name="tracking_policy_details_title">Määrityksen tiedot</string>
+    <string name="preset_detail_location_precision">Sijainnin tarkkuus</string>
+    <string name="preset_detail_min_distance">Pienin etäisyys</string>
+    <string name="preset_detail_min_time">Pienin aika</string>
+    <string name="preset_detail_accuracy">Vaadittu tarkkuus</string>
+    <string name="preset_detail_sensors">Anturit</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Automaattinen yksikön vaihto</string>
+    <string name="settings_module_map_subtitle">Lämpökartan laatu- ja visualisointiasetukset</string>
+    <string name="settings_module_game_subtitle">Tavoitteet, saavutukset ja virstanpylväät</string>
+    <string name="action_navigate_back">Siirry takaisin</string>
+    <string name="action_help">Ohje</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Ladataan…</string>
+    <string name="widget_quick_start_name">Trackerin pika-aloitus</string>
+    <string name="widget_quick_start_description">Aloita tai lopeta sijainninseuranta yhdellä napautuksella.</string>
+    <string name="widget_start_tracking">Aloita seuranta</string>
+    <string name="widget_stop_tracking">Lopeta seuranta</string>
+    <string name="widget_tracking_active">Seuranta aktiivinen</string>
+    <string name="widget_today_summary_name">Tämän päivän yhteenveto</string>
+    <string name="widget_today_summary_description">Näe tämän päivän seurantatilastot yhdellä silmäyksellä.</string>
+    <string name="widget_today">Tänään</string>
+    <string name="widget_distance">Matka</string>
+    <string name="widget_steps">Askeleet</string>
+    <string name="widget_sessions">Istunnot</string>
+    <string name="widget_duration">Kesto</string>
+    <string name="widget_no_data_today">Ei seurantatietoja tänään</string>
+    <string name="widget_active_session_name">Aktiivinen istunto</string>
+    <string name="widget_active_session_description">Seuraa nykyistä seurantaistuntoasi reaaliajassa.</string>
+    <string name="widget_no_active_session">Ei aktiivista istuntoa</string>
+    <string name="widget_tap_to_start">Aloita seuranta napauttamalla</string>
+    <string name="widget_session_distance">Istunnon matka</string>
+    <string name="widget_session_steps">Istunnon askeleet</string>
+    <string name="widget_session_duration">Istunnon kesto</string>
+    <string name="widget_current_speed">Nykyinen nopeus</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Päivitykset</string>
+    <string name="widget_path_preview">Reitin esikatselu</string>
+    <string name="widget_activity_unknown">Aktiivisuutta ei ole saatavilla</string>
+    <string name="widget_goal_label">Tavoite:</string>
+    <string name="widget_goal_progress">%1$s / %2$s askelta</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Pois</string>
+    <string name="widget_tier_ambient">Ympäristö</string>
+    <string name="widget_tier_active">Aktiivinen</string>
+    <string name="widget_tier_precision">Tarkkuus</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Hienoa edistymistä!</string>
+    <string name="goal_notification_title_almost">Melkein perillä!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Päivittäiseen tavoitteeseesi on jäljellä %1$d askel</item>
+        <item quantity="other">Päivittäiseen tavoitteeseesi on jäljellä %1$d askelta</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Vain %1$d askel jäljellä!</item>
+        <item quantity="other">Vain %1$d askelta jäljellä!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Älykkäät tavoiteilmoitukset</string>
+    <string name="settings_smart_goal_notifications_summary">Saat ilmoituksen, kun olet lähellä päivittäistä askeltavoitettasi</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Miten seurannan pitäisi toimia?</string>
+    <string name="setup_how_to_track_subtitle">Valitse, milloin seuranta alkaa ja kuinka yksityiskohtaista sen tulee olla.</string>
+    <string name="setup_auto_tracking_title">Automaattinen seuranta</string>
+    <string name="setup_auto_tracking_disabled">Poistettu käytöstä</string>
+    <string name="setup_auto_tracking_disabled_desc">Aloita ja lopeta seuranta manuaalisesti.</string>
+    <string name="setup_auto_tracking_on_foot">Jalan</string>
+    <string name="setup_auto_tracking_on_foot_desc">Seuraa kävelyä ja juoksua automaattisesti.</string>
+    <string name="setup_auto_tracking_in_motion">Liikkeellä</string>
+    <string name="setup_auto_tracking_in_motion_desc">Seuraa kaikkea liikettä automaattisesti, myös ajoa ja pyöräilyä.</string>
+    <string name="setup_preset_title">Seurannan yksityiskohdat</string>
+    <string name="setup_what_to_collect_title">Mitä kerätään</string>
+    <string name="setup_what_to_collect_subtitle">Lisää vaihtoehtoja alla. Aloita tutkiminen ilman käyttöoikeuksia tai myönnä ne myöhemmin. Tiedot pysyvät tällä laitteella.</string>
+    <string name="setup_source_location">Sijainti</string>
+    <string name="setup_source_location_desc">Tallenna reittisi ja sijaintisi kartalle.</string>
+    <string name="setup_source_activity">Aktiivisuus</string>
+    <string name="setup_source_activity_desc">Tunnista, käveletkö, juoksetko, pyöräiletkö vai ajatko.</string>
+    <string name="setup_source_steps">Askeleet</string>
+    <string name="setup_source_steps_desc">Laske askeleesi laitteen askelmittarilla.</string>
+    <string name="setup_source_wifi">WiFi-verkot</string>
+    <string name="setup_source_wifi_desc">Tallenna lähellä olevat WiFi-verkot parantaaksesi sijainnin tarkkuutta.</string>
+    <string name="setup_source_cell">Tukiasemat</string>
+    <string name="setup_source_cell_desc">Tallenna tukiasematiedot sijaintikontekstia varten.</string>
+    <string name="setup_perm_location_why">Tarvitaan reittiesi tallentamiseen ja näyttämiseen kartalla. Sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle.</string>
+    <string name="setup_perm_location_bg_why">Jotta reittisi tallennus jatkuu, kun vaihdat sovellusta tai näyttö sammuu, Tracker tarvitsee sijaintisi käyttöoikeuden taustalla. Tallennettu sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle. Valitse seuraavassa järjestelmäkehotteessa ”Salli aina” ottaaksesi automaattisen seurannan käyttöön; ”Salli vain sovellusta käytettäessä” pitää Trackerin toiminnassa vain, kun sen näyttö on avoinna.</string>
+    <string name="setup_perm_activity_why">Antaa Trackerin tunnistaa, mitä teet (kävelet, pyöräilet, ajat tai olet paikallasi), jotta automaattinen seuranta voi keskeytyä, kun et liiku, ja säästää akkua. Aktiivisuustiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle.</string>
+    <string name="setup_perm_notification_why">Tracker näyttää pienen tilailmoituksen tallennuksen aikana, jotta näet yhdellä silmäyksellä seurannan olevan päällä ja voit lopettaa sen yhdellä napautuksella. Ei markkinointi- tai mainosilmoituksia.</string>
+    <string name="setup_perm_wifi_why">Tracker voi tallentaa matkan aikana puhelimesi havaitsemia Wi-Fi-tukiasemia parantaakseen sijainnin tarkkuutta paikoissa, joissa GPS on heikko (sisällä tai maan alla). Radiotiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle. Myönnä lupa vain, jos haluat tämän.</string>
+    <string name="setup_perm_cell_why">Tracker voi tallentaa reittisi varrelta tukiasematunnuksia, jotta sijainti voidaan päätellä, kun GPS ei ole käytettävissä. Radiotiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle. Myönnä puhelimen tilan ja tarkan sijainnin luvat vain, jos haluat tämän.</string>
+    <string name="setup_perm_grant">Myönnä</string>
+    <string name="setup_perm_grant_location_content_description">Myönnä sijaintilupa</string>
+    <string name="setup_perm_grant_background_location_content_description">Myönnä taustasijaintilupa</string>
+    <string name="setup_perm_grant_activity_content_description">Myönnä aktiivisuuden tunnistuslupa</string>
+    <string name="setup_perm_grant_notification_content_description">Myönnä ilmoituslupa</string>
+    <string name="setup_perm_grant_wifi_content_description">Myönnä Wi-Fi-lupa</string>
+    <string name="setup_perm_grant_cell_content_description">Myönnä soluradiolupa</string>
+    <string name="setup_perm_granted">Myönnetty ✓</string>
+    <string name="permission_grant_in_settings">Salli asetuksissa →</string>
+    <string name="permission_disabled_due_to_denial">%1$s poistettiin käytöstä, koska käyttöoikeus evättiin. Myönnä se asetuksissa ottaaksesi toiminnon käyttöön.</string>
+    <string name="settings_wifi_permission_required">Vaatii Wi-Fi- tai sijaintiluvan. Ota käyttöön myöntääksesi luvan — Wi-Fi-tietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
+    <string name="settings_cell_permission_required">Vaatii puhelimen tilan ja tarkan sijainnin luvan. Ota käyttöön myöntääksesi luvan — solutietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
+    <string name="settings_wifi_privacy_summary">Tallentaa lähellä olevat Wi-Fi-verkot parantaakseen sijainnin tarkkuutta. Tiedot pysyvät tällä laitteella.</string>
+    <string name="settings_barometer_unavailable">Ilmanpaineanturi ei ole käytettävissä tällä laitteella.</string>
+    <string name="settings_activity_permission_required">Vaatii aktiivisuuden tunnistusluvan. Ota käyttöön myöntääksesi luvan.</string>
+    <string name="settings_steps_unavailable">Askelanturi ei ole käytettävissä tällä laitteella.</string>
+    <string name="settings_cell_privacy_summary">Tallentaa tukiasematunnukset parantaakseen sijainnin tarkkuutta. Tiedot pysyvät tällä laitteella.</string>
+    <string name="setup_start_exploring">Aloita tutkiminen</string>
+    <string name="setup_continue">Jatka</string>
+    <string name="setup_step_indicator">Vaihe %1$d / %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Verkkokarttalaatat?</string>
+    <string name="setup_online_tiles_subtitle">Trackerissa on offline-taustakartta, joten se toimii ilman verkkoyhteyttä. Jos haluat monipuolisempia karttoja, voit käyttää julkisen tarjoajan karttalaattavirtaa.</string>
+    <string name="setup_online_tiles_off_title">Vain offline (suositeltu)</string>
+    <string name="setup_online_tiles_off_desc">Ei verkkopyyntöjä. Käytetään vain mukana toimitettua taustakarttaa.</string>
+    <string name="setup_online_tiles_on_title">Käytä verkkokarttalaattoja</string>
+    <string name="setup_online_tiles_on_desc">Käytä yksityiskohtaisempia vektorikarttalaattoja OpenFreeMapista (oletus). Voit vaihtaa tarjoajaa myöhemmin kohdassa Asetukset → Kartta.</string>
+    <string name="setup_online_tiles_privacy">Kun toiminto on käytössä, tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat — suurin piirtein katsomasi kartta-alueen. Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaasi.</string>
+    <string name="setup_online_tiles_change_later">Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Kartta → Verkkokarttalaatat.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Jotta matkoja voidaan tallentaa näytön ollessa pois päältä tai sovelluksen ollessa suljettuna, Trackerin on jatkettava toimintaa taustalla. Puhelimen akkuasetukset voivat keskeyttää sen — salli taustatoiminta, jotta automaattinen seuranta pysyy luotettavana.</string>
+    <string name="setup_background_access_optional">Valinnainen, mutta suositeltu. Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Seuranta.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Luotettava taustaseuranta</string>
+    <string name="background_reliability_status_exempt">Taustatoiminta sallittu</string>
+    <string name="background_reliability_status_optimized">Akun optimointi on käytössä</string>
+    <string name="background_reliability_exempt_desc">Tracker on jätetty akun optimoinnin ulkopuolelle, joten tausta- ja automaattinen seuranta voivat toimia luotettavasti.</string>
+    <string name="background_reliability_optimized_desc">Akun optimointi voi keskeyttää Trackerin taustalla ja pysäyttää automaattisen seurannan. Salli taustatoiminta pitääksesi sen käynnissä.</string>
+    <string name="background_reliability_allow_action">Salli taustatoiminta</string>
+    <string name="background_reliability_samsung_hint">Samsung-laitteet voivat myös siirtää sovelluksia Nukkuvat sovellukset -luokkaan. Avaa akkuasetukset, poista Tracker Nukkuvat sovellukset -luokasta ja määritä, ettei sitä aseteta nukkumaan.</string>
+    <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
+    <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
+    <string name="settings_tracebox_status_header">Tallennuksen tila</string>
+    <string name="settings_tracebox_toggle_title">Tallenna kaatumisdiagnostiikkaa</string>
+    <string name="settings_tracebox_toggle_summary_off">Tallennus on pois päältä. Nykyiset paikalliset diagnostiikkatiedot säilyvät, kunnes poistat ne.</string>
+    <string name="settings_tracebox_toggle_summary_on">Kaatumis-, ANR- ja kiinteä rakenteellinen diagnostiikka tallennetaan paikallisesti.</string>
+    <string name="settings_tracebox_readiness_label">Tallennustilan valmius</string>
+    <string name="settings_tracebox_readiness_volatile">Kestävää tallennustilaa käynnistetään; väliaikainen tallennus on käytettävissä</string>
+    <string name="settings_tracebox_readiness_durable">Kestävä tallennus on valmis</string>
+    <string name="settings_tracebox_readiness_degraded">Tallennus on heikentynyt; joitakin tietueita ei ehkä ole saatavilla</string>
+    <string name="settings_tracebox_readiness_closed">Tallennus on suljettu</string>
+    <string name="settings_tracebox_health_label">Ajonaikainen tila</string>
+    <string name="settings_tracebox_health_disabled">Poistettu käytöstä</string>
+    <string name="settings_tracebox_health_initializing">Alustetaan</string>
+    <string name="settings_tracebox_health_ready">Valmis</string>
+    <string name="settings_tracebox_health_degraded">Heikentynyt</string>
+    <string name="settings_tracebox_health_deleting">Poistetaan paikallista diagnostiikkaa</string>
+    <string name="settings_tracebox_health_closed">Suljettu</string>
+    <string name="settings_tracebox_package_header">Diagnostiikkapaketti</string>
+    <string name="settings_tracebox_package_body">Tracebox näyttää ensin viimeistellyn paketin tarkan tietosuojailmoituksen. Mitään ei tallenneta tai jaeta, ennen kuin hyväksyt sen ja valitset kohteen.</string>
+    <string name="settings_tracebox_package_review_action">Tarkista ja hyväksy paketti</string>
+    <string name="settings_tracebox_package_save_action">Tallenna hyväksytty paketti</string>
+    <string name="settings_tracebox_package_share_action">Jaa hyväksytty paketti</string>
+    <string name="settings_tracebox_share_limit">Android voi vahvistaa, että jakovalitsin avautui, mutta ei voi todistaa, että toinen sovellus vastaanotti paketin.</string>
+    <string name="settings_tracebox_data_header">Tracebox-tiedot</string>
+    <string name="settings_tracebox_data_body">Tämä poistaa Traceboxin omistaman diagnostiikan ja paketin valmistelutiedot. Jo tallentamiasi tai lähettämiäsi tiedostoja hallitsevat niiden kohdesovellukset.</string>
+    <string name="settings_tracebox_delete_action">Poista kaikki Tracebox-tiedot</string>
+    <string name="settings_tracebox_delete_confirm_title">Poistetaanko kaikki kaatumisdiagnostiikka?</string>
+    <string name="settings_tracebox_delete_confirm_body">Tämä poistaa Trackerista kaiken Traceboxin omistaman diagnostiikan ja paketin valmistelutiedot. Toimintoa ei voi kumota.</string>
+    <string name="settings_tracebox_delete_confirm_action">Poista</string>
+    <string name="settings_tracebox_result_header">Viimeisin tulos</string>
+    <string name="settings_tracebox_result_enabled">Kaatumisdiagnostiikka otettu käyttöön.</string>
+    <string name="settings_tracebox_result_disabled">Kaatumisdiagnostiikka poistettu käytöstä. Nykyisiä tietoja ei poistettu.</string>
+    <string name="settings_tracebox_result_policy_restricted">Rajoittava käytäntö tallennettiin paikallisesti, mutta kaikki prosessit eivät ole vielä vahvistaneet sitä.</string>
+    <string name="settings_tracebox_result_policy_partial">Käytäntö tallennettiin paikallisesti, mutta ajonaikainen yhdenmukaistuminen jäi kesken.</string>
+    <string name="settings_tracebox_result_failed">Toiminto ei saavuttanut paikallisen kestävän tallennuksen rajaa.</string>
+    <string name="settings_tracebox_result_delete_complete">Kaikki Traceboxin omistamat tiedot poistettiin.</string>
+    <string name="settings_tracebox_result_delete_pending">Poisto valmistui vain osittain. Joitakin käsittelijän omistamia tietoja odottaa vielä poistoa.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox hylkäsi poistopyynnön.</string>
+    <string name="settings_tracebox_result_review_ready">Tietosuojailmoitus valmis: %1$d mukana olevaa arvoa sisältää %2$d tavua diagnostiikkatietoja.</string>
+    <string name="settings_tracebox_result_package_created">Hyväksytty diagnostiikkapaketti on valmis tallennettavaksi tai jaettavaksi.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Paketin hyväksyntä peruttiin. Pakettia ei luotu.</string>
+    <string name="settings_tracebox_result_package_rejected">Paketin luonti hylättiin, koska hyväksyntä ei enää vastannut viimeisteltyjä tavuja.</string>
+    <string name="settings_tracebox_result_package_not_ready">Diagnostiikkapaketti ei ole valmis. Tarkista ja hyväksy se ensin.</string>
+    <string name="settings_tracebox_result_save_complete">Koko hyväksytty paketti tallennettiin (%1$d tavua).</string>
+    <string name="settings_tracebox_result_save_partial">Vain %1$d tavua kopioitiin. Kohde voi sisältää keskeneräisen paketin.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Tallennus peruttiin %1$d tavun jälkeen. Kohde voi sisältää keskeneräisen paketin.</string>
+    <string name="settings_tracebox_result_save_failed">Hyväksyttyä pakettia ei voitu tallentaa.</string>
+    <string name="settings_tracebox_result_save_cancelled">Tallennuskohdetta ei valittu.</string>
+    <string name="settings_tracebox_result_share_opened">Androidin jakovalitsin avautui.</string>
+    <string name="settings_tracebox_result_share_unknown">Jakovalitsin palasi. Android ei voi todistaa, saiko vastaanottaja paketin.</string>
+    <string name="settings_tracebox_records_header">Mitä tallennetaan</string>
+    <string name="settings_tracebox_records_body">Kaatumis- ja ANR-todisteet sekä rajattu joukko ennalta määritettyjä koodeja sovelluksen rakenteesta ja suoritusjärjestyksestä. Tracebox on Trackerin ainoa kaatumis- ja diagnostiikkatallennin.</string>
+    <string name="settings_tracebox_privacy_header">Mitä jätetään pois</string>
+    <string name="settings_tracebox_privacy_body">Tallennusrajapinta ei hyväksy mielivaltaista tekstiä, sijaintia, tilitietoja, laitetunnisteita tai anturilukemia. Vakiopaketit eivät sisällä raakoja kaatumisartefakteja eikä niitä koskaan lähetetä automaattisesti.</string>
+</resources>

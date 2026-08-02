@@ -1,4 +1,318 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="points_earned_today">points earned today</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Peli</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Karkumatka</string>
+    <string name="minigame_outrun_description">Kilpaile haamua vastaan. Pysy edellä!</string>
+    <string name="minigame_territory_name">Valtaus</string>
+    <string name="minigame_territory_description">Valtaa uusia karttaruutuja kävellessäsi</string>
+    <string name="minigame_zenwalk_name">Zen-kävely</string>
+    <string name="minigame_zenwalk_description">Pidä tahtisi tasaisena vyöhykkeellä</string>
+    <string name="minigame_fuserun_name">Sulakejuoksu</string>
+    <string name="minigame_fuserun_description">Väistä jokainen virtuaalinen räjähdyssäde ennen kuin sulake palaa loppuun</string>
+    <string name="minigame_switchback_name">Mutkajuoksu</string>
+    <string name="minigame_switchback_description">Tee jyrkkiä vuorottelevia käännöksiä rakentaaksesi rytmiketjun</string>
+    <string name="minigame_locked">Avautuu tasolla %1$d</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Pelaa</string>
+    <string name="game_progress_section_title">Edistyminen</string>
+    <string name="minigame_outrun_goal_line">Pidä 25–100 m:n etumatka haamuun</string>
+    <string name="minigame_territory_goal_line">Valtaa jalan 5–20 ainutlaatuista ruutua</string>
+    <string name="minigame_zenwalk_goal_line">Pidä tahtisi 5–20 minuuttia</string>
+    <string name="minigame_fuserun_goal_line">Purkaa 3–8 panosta ennen sulakkeiden palamista loppuun</string>
+    <string name="minigame_switchback_goal_line">Tee jalan 4–10 jyrkkää käännöstä</string>
+    <string name="minigame_play_action_play">Pelaa</string>
+    <string name="minigame_play_personal_best">Oma ennätys %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Oma ennätys %1$s</string>
+    <string name="minigame_play_locked_summary">Saavuta taso %1$d avataksesi</string>
+    <string name="minigame_play_locked_detail">Ansaitse XP:tä pelaamalla avattuja pelejä ja seuraamalla aktiivisuuttasi noustaksesi tasolle.</string>
+    <string name="minigame_play_locked_expand_cta">Kaksoisnapauta nähdäksesi, miten tämä avataan</string>
+    <string name="minigame_active_session_running">Käynnissä — palaa napauttamalla Pelaa</string>
+    <string name="minigame_active_session_paused">Keskeytetty — jatka napauttamalla Pelaa</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d ruutu</item>
+        <item quantity="other">%1$d ruutua</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d panos</item>
+        <item quantity="other">%1$d panosta</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d käännös</item>
+        <item quantity="other">%1$d käännöstä</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Näytä aiemmat pisteet</string>
+    <string name="minigame_session_close">Sulje</string>
+    <string name="minigame_session_play_again">Pelaa uudelleen</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Sijainti tarvitaan</string>
+    <string name="minigame_session_permission_body">Minipelit käyttävät reaaliaikaista sijaintia juoksusi seuraamiseen. Mitään ei tallenneta lopputulosta lukuun ottamatta.</string>
+    <string name="minigame_session_permission_grant">Myönnä käyttöoikeus</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Määritä juoksusi</string>
+    <string name="minigame_setup_goal_title">Tavoite</string>
+    <string name="minigame_setup_difficulty_title">Vaikeustaso</string>
+    <string name="minigame_setup_start_cta">Aloita juoksu</string>
+    <string name="minigame_setup_remember">Muista tämä määritys</string>
+    <string name="minigame_setup_remember_description">Avaa tämä peli uudelleen samalla tavoitteella ja vaikeustasolla.</string>
+    <string name="minigame_setup_goal_meters">%1$d m:n etumatka</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d ruutu</item>
+        <item quantity="other">%1$d ruutua</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min vyöhykkeellä</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d panos</item>
+        <item quantity="other">%1$d panosta</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d käännös</item>
+        <item quantity="other">%1$d käännöstä</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Helppo</string>
+    <string name="minigame_difficulty_normal">Normaali</string>
+    <string name="minigame_difficulty_hard">Vaikea</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Valmistaudutaan…</string>
+    <string name="minigame_session_finishing">Tallennetaan juoksuasi…</string>
+    <string name="minigame_session_paused_title">Keskeytetty</string>
+    <string name="minigame_session_pause_cta">Keskeytä</string>
+    <string name="minigame_session_resume_cta">Jatka</string>
+    <string name="minigame_session_finish_cta">Lopeta</string>
+    <string name="minigame_session_background_note">Juoksusi jatkuu, jos poistut tästä näkymästä. Avaa se uudelleen Pelit-kohdasta jatkaaksesi.</string>
+    <string name="minigame_session_elapsed_label">Aktiivinen aika</string>
+    <string name="minigame_session_goal_progress">%1$d%% tavoitteesta</string>
+    <string name="minigame_session_goal_reached">Tavoite saavutettu</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Voimakas GPS</string>
+    <string name="minigame_signal_fair">Kohtalainen GPS</string>
+    <string name="minigame_signal_poor">Heikko GPS</string>
+    <string name="minigame_signal_unavailable">Ei GPS-signaalia</string>
+    <string name="minigame_signal_unknown">Paikannetaan…</string>
+    <string name="minigame_signal_stale">GPS viivästyy</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Paras tällä juoksulla</string>
+    <string name="minigame_outrun_personal_best">Oma ennätys</string>
+    <string name="minigame_outrun_warning">Haamu saavuttaa sinua</string>
+    <string name="minigame_outrun_move_to_start">Liiku aloittaaksesi kilpailun</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Olet %1$d metriä haamua edellä. Paras tällä juoksulla: %2$d metriä.</string>
+    <string name="minigame_outrun_you">Sinä</string>
+    <string name="minigame_outrun_ghost">Haamu</string>
+    <string name="minigame_outrun_lead_value">%1$d m:n etumatka</string>
+    <string name="minigame_outrun_ghost_lead_value">Haamu johtaa %1$d metrillä</string>
+    <string name="minigame_outrun_first_run">Ensimmäinen juoksu</string>
+    <string name="minigame_outrun_keep_moving">Kasvata etumatkaasi</string>
+    <string name="minigame_outrun_caught">Haamu sai kiinni</string>
+    <string name="minigame_outrun_escaped">Pääsit pakoon!</string>
+    <string name="minigame_outrun_escape_goal">Pakotavoite</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Pakotavoitteesta %1$d prosenttia suoritettu.</string>
+    <string name="minigame_outrun_description_waiting">Karkumatka on valmis. Liiku yli kaksi metriä aloittaaksesi takaa-ajon.</string>
+    <string name="minigame_outrun_description_warning">Vaara. Haamu on vain %1$d metriä takanasi. Paras tällä juoksulla: %2$d metriä.</string>
+    <string name="minigame_outrun_description_caught">Kiinni saatu. Haamu ohitti sinut %1$d metrillä. Paras tällä juoksulla: %2$d metriä.</string>
+    <string name="minigame_outrun_description_escaped">Tavoite saavutettu. Pääsit pakoon %1$d metrin etumatkalla. Paras tällä juoksulla: %2$d metriä.</string>
+    <string name="minigame_outrun_description_finished">Juoksu valmis. Lopullinen välimatkasi oli %1$d metriä ja paras etumatkasi %2$d metriä.</string>
+    <string name="minigame_outrun_ahead_of_best">Omaa ennätystä edellä</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Aluekarta. %1$d lähialuetta vallattu; %2$d rajavyöhykkeen aluetta korostettu. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Nykyinen alue korostettu</string>
+    <string name="minigame_territory_current_waiting">Odotetaan nykyistä aluetta</string>
+    <string name="minigame_territory_goal_complete">Tavoite valmis</string>
+    <string name="minigame_territory_goal_in_progress">Tavoite kesken</string>
+    <string name="minigame_territory_legend">Hohto merkitsee nykyistä aluettasi • Rajavihjeet: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tahti</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Tavoite %1$s–%2$s km/h</string>
+    <string name="minigame_zen_calibration_title">Löydä luonnollinen rytmisi</string>
+    <string name="minigame_zen_calibration_hint">Kävele luonnollisesti, kun tahtisi asettuu vähitellen</string>
+    <string name="minigame_zen_calibration_settled">%1$d%% asettunut</string>
+    <string name="minigame_zen_calibration_description">Tahdin kalibrointi. %1$d prosenttia asettunut. Jatka luonnollista kävelyä.</string>
+    <string name="minigame_zen_flow_waiting">Etsitään rytmiäsi</string>
+    <string name="minigame_zen_flow_settled">Rytmisi on asettunut</string>
+    <string name="minigame_zen_flow_slower">Hidastut vähitellen</string>
+    <string name="minigame_zen_flow_faster">Nopeudut vähitellen</string>
+    <string name="minigame_zen_flow_time">Virtaus %1$s</string>
+    <string name="minigame_zen_flow_description">Zen-tahtivirtaus. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Haamu lähestyy</string>
+    <string name="minigame_feedback_pb_crossed">Uusi oma ennätys</string>
+    <string name="minigame_feedback_territory_claimed">Uusi alue vallattu</string>
+    <string name="minigame_feedback_fuse_critical">Sulake on kriittinen, liiku nyt</string>
+    <string name="minigame_feedback_fuse_defused">Panos purettu</string>
+    <string name="minigame_feedback_turn_carved">Käännös tehty</string>
+    <string name="minigame_feedback_goal_reached">Tavoite saavutettu</string>
+    <string name="minigame_feedback_zen_entered">Olet tahtivyöhykkeellä</string>
+    <string name="minigame_feedback_zen_exited">Poistuit tahtivyöhykkeeltä</string>
+    <string name="minigame_feedback_completed">Juoksu valmis</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">Ensimmäinen juoksu tallennettu!</string>
+    <string name="minigame_completion_new_best_title">Uusi oma ennätys!</string>
+    <string name="minigame_completion_tied_title">Sait parhaan tuloksesi kiinni</string>
+    <string name="minigame_completion_behind_title">Hyvä juoksu</string>
+    <string name="minigame_completion_no_participation_title">Istunto päättyi</string>
+    <string name="minigame_completion_result">Tulos: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s edellä aiempaa ennätystäsi</string>
+    <string name="minigame_completion_deficit">%1$s ennätyksestäsi jäljessä</string>
+    <string name="minigame_completion_goal_reached">Tavoite saavutettu: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Tavoitetta ei saavutettu: %1$s</string>
+    <string name="minigame_completion_points">+%1$d pistettä</string>
+    <string name="minigame_completion_points_zero">Ei pisteitä tällä juoksulla</string>
+    <string name="minigame_completion_change_setup">Vaihda määritystä</string>
+    <string name="minigame_completion_done">Valmis</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Juoksu ei valmistunut</string>
+    <string name="minigame_failure_permission">Tarkka sijainti vaaditaan pelaamiseen. Myönnä se ja yritä uudelleen.</string>
+    <string name="minigame_failure_location">Luotettavaa sijaintikorjausta ei saatu. Siirry paikkaan, jossa taivas on avoimempi, ja yritä uudelleen.</string>
+    <string name="minigame_failure_persistence">Juoksua ei voitu tallentaa. Yritä uudelleen.</string>
+    <string name="minigame_failure_generic">Jokin meni pieleen ja juoksu pysähtyi.</string>
+    <string name="minigame_session_try_again">Yritä uudelleen</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktiivinen peli</string>
+    <string name="game_session_channel_description">Pitää aktiivisen minipelin käynnissä, kun näyttö on pois päältä</string>
+    <string name="game_session_notification_title">Tracker-peli</string>
+    <string name="game_session_notification_public">Peli käynnissä</string>
+    <string name="game_session_notification_starting">Käynnistetään peliä…</string>
+    <string name="game_session_notification_preparing">Valmistellaan %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s keskeytetty</string>
+    <string name="game_session_notification_finishing">Tallennetaan tulostasi…</string>
+    <string name="game_session_notification_finished">Peli valmis</string>
+    <string name="game_session_notification_failed">Peli pysähtyi</string>
+    <string name="game_session_action_pause">Keskeytä</string>
+    <string name="game_session_action_resume">Jatka</string>
+    <string name="game_session_action_finish">Lopeta</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Aiempien minipelien tulokset</string>
+    <string name="minigame_scores_back">Takaisin</string>
+    <string name="minigame_scores_empty_title">Ensimmäinen juoksusi odottaa</string>
+    <string name="minigame_scores_empty_body">Suorita minipeli saadaksesi oman ennätyksen — jokainen ennätyksen ylittävä juoksu näkyy täällä.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Oma ennätys</string>
+    <string name="minigame_scores_unknown_game">Minipeli</string>
+    <string name="goals_reached_notification">%1$s! Saavutit %2$s tavoitteesi!</string>
+    <string name="goals_daily_goal">päivittäisen</string>
+    <string name="goals_weekly_goal">viikoittaisen</string>
+    <string name="goals_monthly_goal">kuukausittaisen</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Askelta koskevat tavoitteet</string>
+    <string name="game_step_sensor_unavailable">Askelanturi ei ole käytettävissä</string>
+    <string name="game_step_sensor_unavailable_detail">Tässä laitteessa ei ole askelanturia. Askelten tavoitteita ei voi seurata.</string>
+    <string name="game_steps_today">Tänään</string>
+    <string name="game_steps_week">Viikko</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Ladataan…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Siirry takaisin</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Avaa asetukset</string>
+    <string name="game_close">Sulje</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Tutkiminen</string>
+    <string name="exploration_cells_discovered">Löydetyt ruudut</string>
+    <string name="exploration_current_streak">Nykyinen putki</string>
+    <string name="exploration_best_streak">Paras putki</string>
+    <string name="exploration_seasons_explored">Tutkitut vuodenajat</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">päivä</item>
+        <item quantity="other">päivää</item>
+    </plurals>
+    <string name="exploration_of_four">/ 4</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Saavutukset</string>
+    <string name="achievements_bronze">Pronssi</string>
+    <string name="achievements_silver">Hopea</string>
+    <string name="achievements_gold">Kulta</string>
+    <string name="achievements_diamond">Timantti</string>
+    <string name="achievements_none_yet">Saavutuksia ei ole vielä avattu. Aloita tutkiminen!</string>
+    <string name="achievement_unlocked_notification_title">Saavutus avattu: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Saavutettu taso %1$s</string>
+    <string-array name="goals_encouragement">
+        <item>Hyvää työtä</item>
+        <item>Hienosti tehty</item>
+        <item>Onnittelut</item>
+        <item>Siinä se</item>
+        <item>Onnea</item>
+        <item>Jatka samaan malliin</item>
+        <item>Olet mahtava</item>
+        <item>Upeaa</item>
+        <item>Uskomattoman upeaa</item>
+        <item>Fantastista</item>
+        <item>Hengästyttävää</item>
+        <item>Loistavaa</item>
+    </string-array>
+    <string name="points_earned_today">tänään ansaitut pisteet</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Uusi avaus!</string>
+    <string name="game_unlock_message">Saavutit tason %1$d!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Viikkohaaste</string>
+    <string name="leaderboard_metric_distance">Matka</string>
+    <string name="leaderboard_metric_steps">Askeleet</string>
+    <string name="leaderboard_metric_active_time">Aktiivinen aika</string>
+    <string name="leaderboard_metric_sessions">Istunnot</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">askelta</string>
+    <string name="leaderboard_unit_hours">h</string>
+    <string name="leaderboard_unit_sessions">matkaa</string>
+    <string name="leaderboard_ghost_best_week">Paras viikko</string>
+    <string name="leaderboard_ghost_last_4_weeks">Viimeisten 4 viikon keskiarvo</string>
+    <string name="leaderboard_ghost_same_week_last_year">Sama viikko viime vuonna</string>
+    <string name="leaderboard_ghost_average_week">Keskimääräinen viikko</string>
+    <string name="leaderboard_rank">%1$d. / %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s / %3$s tavoitteesta</string>
+    <string name="leaderboard_progress_description">%1$s / %2$s</string>
+    <string name="leaderboard_week_progress">Viikon edistyminen</string>
+    <string name="leaderboard_monday">Ma</string>
+    <string name="leaderboard_sunday">Su</string>
+    <string name="leaderboard_you">Sinä</string>
+    <string name="leaderboard_current_week">Tämä viikko</string>
+    <string name="leaderboard_empty_title">Ei vielä kilpailtavaa historiaa</string>
+    <string name="leaderboard_empty_body">Suorita vähintään yksi kokonainen viikko avataksesi haamukilpailijat — ne muodostetaan omista aiemmista viikoistasi.</string>
+    <string name="leaderboard_error_title">Tulostaulukko ei ole käytettävissä</string>
+    <string name="leaderboard_error_body">Tietosi ovat turvassa tällä laitteella. Yritä ladata viikkohaaste uudelleen.</string>
+    <string name="leaderboard_retry">Yritä uudelleen</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Myyttinen</string>
+    <string name="game_view_all_achievements">Näytä kaikki</string>
+    <string name="game_recent_achievements">Viimeksi avatut</string>
+    <string name="game_next_achievements">Seuraavaksi</string>
+    <string name="achievement_show_locked">Näytä lukitut</string>
+    <string name="achievement_show_locked_summary_off">Ota käyttöön nähdäksesi avattavissa olevien saavutusten luettelon.</string>
+    <string name="achievement_empty_state_title">Saavutuksia ei ole vielä avattu</string>
+    <string name="achievement_empty_state_body">Aloita seuranta — ensimmäinen saavutuksesi odottaa. Ota Näytä lukitut käyttöön esikatsellaksesi koko luetteloa.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">%1$s-taso · +%2$d XP</string>
+    <string name="achievement_hero_title">Pokaalikaappisi</string>
+    <string name="achievement_hero_points">%1$d XP:tä ansaittu</string>
+    <string name="achievement_hero_of_total">/ %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Tutkiminen</string>
+    <string name="achievement_category_distance">Matka</string>
+    <string name="achievement_category_steps">Askeleet</string>
+    <string name="achievement_category_streaks">Putket</string>
+    <string name="achievement_category_milestones">Virstanpylväät</string>
+    <string name="achievement_category_modes">Tilat</string>
+    <string name="achievement_category_time">Aika</string>
+    <string name="achievement_category_calendar">Kalenteri</string>
+    <string name="achievement_unlocked_content_description">Avattu</string>
+    <string name="achievement_locked_content_description">Lukittu</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

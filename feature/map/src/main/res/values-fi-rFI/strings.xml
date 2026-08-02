@@ -1,22 +1,228 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Kartta</string>
+    <string name="description_map_search">Hakupainike</string>
+    <string name="map_layer_cell_heatmap_description">Havaittu mobiiliverkkosi radiotekniikoittain. Pehmeät kentät näyttävät, missä palvelevat solut ovat ulottuneet sinuun; hohtavat keskukset ovat varovaisia tukiasema-arvioita ja terävöityvät vain, kun havaintoja on niiden ympärillä.</string>
+    <string name="map_layer_cell_heatmap_title">Mobiiliverkon rakenne</string>
+    <string name="map_layer_location_heatmap_high">Suuri tiheys</string>
+    <string name="map_layer_location_heatmap_low">Pieni tiheys</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Keskitiheys</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Erilliset käynnit</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Käynnit</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Hyväksyttyjen sijaintikorjausten suhteellinen tiheys. Tämä näyttää erillisiä havaintoja, ei paikassa vietettyä aikaa.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-peitto</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Signaalikatvealueet</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Korostaa kohdat, joissa matkapuhelinsignaalisi oli heikko tai puuttui. Mitä punaisempi alue on, sitä heikompi peitto; hyvin peitetyt alueet pysyvät kirkkaina.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signaaliaurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Revontuli</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobiilisignaali esitetään auroran kaltaisena hohteena: kirkkaan syaaninvihreän ytimen alla on laaja violetti kehä. Hohto sykkii ilman tietojen uudelleenlatausta ja muuttuu staattiseksi, kun järjestelmän animaatiot on poistettu käytöstä.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Heikko signaali</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Voimakas signaali</string>
+    <string name="map_layer_speed_heatmap_description">Lämpökartta, joka kuvaa liikkumisnopeutta eri alueilla.</string>
+    <string name="map_layer_speed_very_slow">Hyvin hidas</string>
+    <string name="map_layer_speed_walking">Kävelytahti</string>
+    <string name="map_layer_speed_running">Juoksutahti</string>
+    <string name="map_layer_speed_moderate">Kohtalainen nopeus</string>
+    <string name="map_layer_speed_fast">Nopea liike</string>
+    <string name="map_layer_speed_very_fast">Hyvin nopea</string>
+    <string name="map_layer_speed_heatmap_title">Nopeuslämpökartta</string>
+    <string name="map_layer_legacy_heatmap_title">Vanha lämpökartta</string>
+    <string name="map_layer_legacy_heatmap_chip">Vanhat ruudut</string>
+    <string name="map_layer_legacy_heatmap_description">Paluu alkuperäiseen Signals-sovellukseen: sijaintitiheytesi piirretään erillisinä 25 m:n ruutuina, kuten lämpökartta näytti, kun ruudut hahmonnettiin palvelimella. Lähennä nähdäksesi neliöt.</string>
+    <string name="map_layer_seasonal_title">Vuodenaikojen tutkija</string>
+    <string name="map_layer_seasonal_chip">Vuodenajat</string>
+    <string name="map_layer_seasonal_description">Vuodenaikamuistojen tilkkutäkki: jokainen tutkimasi alue sävytetään sen mukaan, minä vuodenaikana kävit siellä ensimmäisen kerran. Etsi polut, joilla kävelet vain kesällä, tai kadut, jotka näet vain talvella.</string>
+    <string name="map_layer_season_spring">Kevät</string>
+    <string name="map_layer_season_summer">Kesä</string>
+    <string name="map_layer_season_autumn">Syksy</string>
+    <string name="map_layer_season_winter">Talvi</string>
+    <string name="map_layer_terrain_title">Elämä maastona</string>
+    <string name="map_layer_terrain_chip">Maasto</string>
+    <string name="map_layer_terrain_description">Sijaintitiheytesi kohoaa 3D-muotoon: paikat, joissa vietät eniten aikaa, nousevat korkeiksi hohtaviksi pöytävuoriksi, kun taas kertaluonteiset paikat pysyvät matalina. Kallista karttaa nähdäksesi elämäsi reliefin.</string>
+    <string name="map_layer_terrain_low">Harvoin täällä</string>
+    <string name="map_layer_terrain_mid">Joskus</string>
+    <string name="map_layer_terrain_high">Usein täällä</string>
+    <string name="map_layer_places_title">Usein käydyt paikat</string>
+    <string name="map_layer_places_chip">Paikat</string>
+    <string name="map_layer_places_description">Tärkeät paikkasi näkyvät merkkeinä, joiden koko ja väri kertovat käyntitiheydestä. Koti ja työ kasvavat suuriksi lämpimiksi pisteiksi; kerran käymäsi paikka jää pieneksi viileäksi pisteeksi.</string>
+    <string name="map_layer_places_rare">Harvoin</string>
+    <string name="map_layer_places_often">Joskus</string>
+    <string name="map_layer_places_anchor">Tukikohtasi</string>
+    <string name="map_layer_speed_ribbon_title">Nopeusnauha</string>
+    <string name="map_layer_speed_ribbon_chip">Nauha</string>
+    <string name="map_layer_speed_ribbon_description">Reittisi on maalattu liikkumisnopeutesi mukaan: väri kulkee hitaasta violetista kävelystä punakuumaan juoksuun tai ajoon. Toisin kuin nopeuslämpökartta, nauha säilyttää reittisi ehjänä, joten näet tarkasti, missä kiihdytit ja hidastit.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Korkeusnauha</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Korkeus</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Reittisi on maalattu absoluuttisen korkeuden mukaan: syvänsinisistä alangoista syaanien esivuorten kautta lämpimiin vuoristokorkeuksiin. Asteikko pysyy samana karttaa siirtäessäsi, joten samalla korkeudella on aina sama väri.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Alangot</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Esivuoret</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Korkeat vuoret</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Aktiivisuusnauha</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktiivisuus</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Reittisi on maalattu jokaisen korjauksen yhteydessä tallennetun luotettavan liiketilan mukaan: harmaalla, kun tila oli tuntematon, sinisellä paikallaan ollessa ja vihreällä liikkuessa.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Tuntematon</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Paikallaan</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Liikkeessä</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Hiihtoröntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Hiihtoröntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Havaittujen hiihto-osuuksien diagnostiikkanäkymä. Laskut, hissit, kävelyt ja tauot ankkuroidaan lähimpään tallennettuun sijaintiin ja merkitään keskeisillä mittareilla.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lasku</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Hissi</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kävely tai tauko</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Matkojen tähtikuviot</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Matkat</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Toistuvat matkat usein käymiesi paikkojen välillä muodostavat kaarevia tähtikuvioita. Vakaa kaari näyttää jokaisen reitin, jota pitkin kulkee komeetta; paksummat kaaret tarkoittavat, että teit matkan useammin.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kävely</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Pyöräily</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autoilu</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Joukkoliikenne</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Muu</string>
+    <string name="map_layer_fog_title">Tutkijan sumu</string>
+    <string name="map_layer_fog_chip">Sumu</string>
+    <string name="map_layer_fog_description">Maailma nousee sumusta: jokainen koskettamasi alue paljastuu ja hohtaa sitä kirkkaammin, mitä perusteellisemmin siihen tutustuit. Paikat, joiden läpi vain kuljit, jäävät himmeäksi usvaksi; syvästi tutkimasi alue hohtaa kiinteän kullanvärisenä. Tutkimaton maa pysyy pimeänä.</string>
+    <string name="map_layer_fog_faint">Kuljettu läpi</string>
+    <string name="map_layer_fog_known">Hyvin tutkittu</string>
+    <string name="map_layer_first_contact_title">Ensikosketus</string>
+    <string name="map_layer_first_contact_chip">Löytö</string>
+    <string name="map_layer_first_contact_description">Löytöjesi aikajana: jokainen alue väritetään sen mukaan, kuinka äskettäin astuit siellä ensi kerran. Kauan sitten löytämäsi paikat haalistuvat syvän indigonsinisiksi, kun taas tällä viikolla löytämäsi maa hohtaa kirkkaan syaanina — lue tutkimusretkesi tarina uusimpia rajoja kohti.</string>
+    <string name="map_layer_first_contact_old">Kauan sitten</string>
+    <string name="map_layer_first_contact_recent">Juuri löydetty</string>
+    <string name="map_layer_vehicle_compliance_title">Ajoneuvon nopeusrajoitusten noudattaminen</string>
+    <string name="map_layer_vehicle_compliance_description">Ajokertojen viiva, jonka väri ilmaisee, miten nopeus vertautuu määrittämääsi perusrajoitukseen.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Selvästi alle rajan</string>
+    <string name="map_layer_vehicle_compliance_slow">Alle rajan</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Lähellä rajaa</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Hieman yli rajan</string>
+    <string name="map_layer_vehicle_compliance_speeding">Ylinopeus</string>
+    <string name="map_layer_location_polyline_description">Viiva, joka yhdistää tallennetut sijaintisi ajan kuluessa.</string>
+    <string name="map_layer_location_polyline_title">Sijaintiviiva</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Viiva</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-päällekkäisyys</string>
+    <string name="map_layer_vehicle_compliance_chip">Ylinopeus</string>
+    <string name="map_layer_none_title">Ei peittokuvaa</string>
+    <string name="map_date_preset_week">Viime viikko</string>
+    <string name="map_date_preset_month">Viime kuukausi</string>
+    <string name="map_date_preset_custom">Mukautettu…</string>
+    <string name="map_date_today">Tänään</string>
+    <string name="map_date_yesterday">Eilen</string>
+    <string name="map_date_this_week">Tämä viikko</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi-päällekkäisyys</string>
+    <string name="map_layer_wifi_count_heatmap_description">Näyttää, kuinka monta erillistä tukiasemaa on päällekkäin kussakin paikassa. Saman tukiaseman toistuvat skannaukset lasketaan kerran, joten lämpimämmät alueet tarkoittavat aidosti tiheämpää radiokuuluvuutta.</string>
+    <string name="map_layer_wifi_heatmap_description">Omista havainnoistasi muodostettu taajuusalueita huomioiva Wi-Fi-tähtikuvio. Värilliset kentät näyttävät havaitun 2,4, 5 ja 6 GHz:n peiton; hohtavat keskukset ovat likimääräisiä tukiasemien sijainteja, jotka näytetään vain, kun näytteiden geometria tukee niitä.</string>
+    <string name="map_layer_wifi_heatmap_high">Paljon päällekkäisiä tukiasemia</string>
+    <string name="map_layer_wifi_heatmap_low">Vähän päällekkäisiä tukiasemia</string>
+    <string name="map_layer_wifi_heatmap_medium">Useita päällekkäisiä tukiasemia</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi-tähtikuvio</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz:n kantama</string>
+    <string name="map_layer_wifi_radio_5">5 GHz:n kantama</string>
+    <string name="map_layer_wifi_radio_6">6 GHz:n kantama</string>
+    <string name="map_legend_label">Selite</string>
+    <string name="map_chip_layers">Taso</string>
+    <string name="map_chip_dates">Päivämäärät</string>
+    <string name="permission_rationale_location_map">Tracker tarvitsee sijainnin käyttöoikeuden näyttääkseen sijaintisi kartalla. Kaikki tiedot pysyvät laitteellasi.</string>
+    <string name="map_location_permission_denied">Sijaintilupa tarvitaan sijaintisi näyttämiseen</string>
+    <string name="map_open_settings">Avaa asetukset</string>
+    <string name="settings_map_basemap_title">Taustakartta</string>
+    <string name="settings_map_basemap_custom">Mukautettu .pmtiles-tiedosto käytössä (poista napauttamalla)</string>
+    <string name="settings_map_basemap_default">Sisäänrakennettu taustakartta käytössä. Tuo mukautettu .pmtiles-tiedosto napauttamalla.</string>
+    <string name="basemap_import_error_source_open">Tiedostoa ei voitu avata. Kokeile toista tiedostoa tai jaa se uudelleen Trackerille.</string>
+    <string name="basemap_import_error_copy">Taustakarttatiedostoa ei voitu kopioida. Tarkista, että vapaata tilaa on riittävästi, ja yritä uudelleen.</string>
+    <string name="basemap_import_error_invalid_format">Ei kelvollinen PMTiles-tiedosto: %1$s</string>
+    <string name="settings_map_advanced_section_title">Lisäasetukset</string>
+    <string name="settings_map_max_heat_title">Lämmön enimmäismäärä käyntien jälkeen</string>
+    <string name="settings_map_quality_title">Lämpökartan tarkkuus</string>
+    <string name="settings_map_visit_threshold_title">Sijaintikäynnin aikaraja</string>
+    <string name="settings_map_legacy_heatmap_title">Vanha lämpökartta (10 m:n ruudut)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Pääsiäismuna: lisää Vanha lämpökartta -tason, joka piirtää sijaintitiheyden erillisinä 10 m:n ruutuina alkuperäisen palvelimella hahmonnetun Signals-lämpökartan tapaan.</string>
+    <string name="settings_map_zoom_buttons_title">Kartan zoomauspainikkeet</string>
+    <string name="settings_map_zoom_buttons_subtitle">Näytä näytöllä + ja − -painikkeet kartan lähentämiseen ja loitontamiseen, kun nipistyszoomausta on hankala käyttää.</string>
+    <string name="tips_map_date_range_title">Päivämääräväli</string>
+    <string name="tips_map_my_location_title">Oma sijainti</string>
+    <string name="tips_map_sheet_description">Napauttamalla tai vetämällä tätä palkkia ylöspäin avaat lisää karttavaihtoehtoja, kuten tasovalinnan ja selitteen.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Leveysaste, pituusaste, esim. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Kokeile 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
+    <string name="map_search_clear">Tyhjennä haku</string>
+    <string name="map_search_paste">Liitä leikepöydältä hakuun</string>
+    <string name="map_search_clipboard_empty">Leikepöydällä ei ole vielä koordinaatteja</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Peruuta</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Jaa kartta</string>
+    <string name="map_share_sheet_title">Jaa kartta kuvana</string>
+    <string name="map_share_sheet_subtitle">Hahmontaa nykyisen näkymän ja aktiivisen tason staattiseksi kuvaksi. Nykyistä sijaintiasi ei koskaan sisällytetä.</string>
+    <string name="map_share_resolution_standard">Vakio (1080p)</string>
+    <string name="map_share_resolution_high">Korkea (1440p)</string>
+    <string name="map_share_resolution_ultra">Erittäin korkea (4K)</string>
+    <string name="map_share_action">Jaa</string>
+    <string name="map_share_preparing">Valmistellaan kuvaa…</string>
+    <string name="map_share_error">Karttakuvaa ei voitu hahmontaa. Yritä uudelleen.</string>
+    <string name="map_date_range_all_time">Koko ajalta</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Karttatasot</string>
+    <string name="map_layer_load_error">Tätä tasoa ei voitu ladata. Kokeile valita toinen.</string>
+    <string name="map_empty_subtitle_location">Tässä näkymässä tai päivämäärävälillä ei ole sijaintitietoja. Reitti- ja karttatoiminnot tarvitsevat seurannan aikana kerättyä sijaintia.</string>
+    <string name="map_empty_subtitle_cell">Tässä näkymässä tai päivämäärävälillä ei ole paikannettuja tukiasematietoja. Ilman sijaintia tallennetut solunäytteet säilyvät silti, mutta eivät voi näkyä kartalla.</string>
+    <string name="map_empty_subtitle_wifi">Tässä näkymässä tai päivämäärävälillä ei ole paikannettuja Wi-Fi-tietoja. Ilman sijaintia tallennetut Wi-Fi-havainnot säilyvät silti, mutta eivät voi näkyä kartalla.</string>
+    <string name="map_empty_subtitle_speed">Tässä näkymässä tai päivämäärävälillä ei ole nopeustietoja. Nopeuskartat tarvitsevat käyttökelpoisia seurannan aikana kerättyjä sijaintinäytteitä.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Näytettäväksi ei ole tiehen sovitettuja ajokertoja. Tuo OpenStreetMap-alue (Asetukset) ja tallenna ajoa, jotta reittisi voidaan sovittaa oikeille teille.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Sulje ei tietoja -viesti</string>
+    <string name="map_speed_probe_title">Nopeus tässä</string>
+    <string name="map_speed_probe_avg_label">Keskiarvo</string>
+    <string name="map_speed_probe_max_label">Enimmäisnopeus</string>
+    <string name="map_speed_probe_empty">Tässä kohdassa ei ole nopeustietoja. Napauta kohtaa, jossa on lämpöä, nähdäksesi nopeudet.</string>
+    <string name="map_speed_probe_hint">Näytä nopeudet napauttamalla karttaa</string>
+    <string name="map_speed_probe_dismiss">Sulje nopeustiedot</string>
+    <string name="map_place_callout_loading">Etsitään paikkaa…</string>
+    <string name="map_place_callout_empty">Täältä ei löytynyt paikkaa</string>
+    <string name="map_place_callout_dismiss">Sulje paikkatiedot</string>
+    <string name="map_zoom_in">Lähennä</string>
+    <string name="map_zoom_out">Loitonna</string>
+    <string name="map_loading">Ladataan karttaa…</string>
+    <string name="map_basemap_unavailable">Kartan taustakarttaa ei voitu valmistella. Sulje ja avaa kartta uudelleen ja yritä uudelleen.</string>
+    <string name="map_a11y_map_overview">Kartan yleiskuva</string>
+    <string name="map_a11y_centered_on_location">Kartta keskitetty sijaintiisi</string>
+    <string name="map_a11y_showing_location">Kartta näyttää sijaintisi</string>
+    <string name="map_a11y_loading_data">Ladataan tallennettuja karttatietoja</string>
+    <string name="map_a11y_no_recorded_data">Valitulla tasolla ei ole kartalla näytettäviä tietoja tässä näkymässä tai päivämäärävälillä</string>
+    <string name="map_a11y_no_layer_selected">Karttatasoa ei ole valittu</string>
+    <string name="map_a11y_search_result_visible">Hakutuloksen merkki näkyy</string>
+    <string name="map_a11y_active_recording_visible">Aktiivisen tallennuksen reitti näkyy</string>
+    <string name="map_a11y_recorded_route_history">Näytetään tallennettu reittihistoria</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Näytetään erilliset hyväksytyt sijaintihavainnot</string>
+    <string name="map_a11y_cell_heatmap">Näytetään mobiiliverkon peittokentät ja likimääräiset palvelevien tukiasemien keskipisteet</string>
+    <string name="map_a11y_wifi_heatmap">Näytetään Wi-Fi-taajuusalueet, peittokentät ja likimääräiset tukiasemien keskipisteet</string>
+    <string name="map_a11y_wifi_count_heatmap">Näytetään erillisten Wi-Fi-tukiasemien päällekkäisyys</string>
+    <string name="map_a11y_speed_heatmap">Näytetään nopeuslämpökartta</string>
+    <string name="map_a11y_saved_map_data">Näytetään tallennetut karttatiedot</string>
+    <string name="map_location_permission_opening_settings">Sijainnin käyttöoikeus vaaditaan. Avataan asetukset…</string>
+    <string name="map_permission_banner_dismiss">Sulje sijaintilupaviesti</string>
+    <string name="map_loading_layer">Ladataan karttatasoa</string>
+    <string name="map_a11y_world_scale">Maailman mittakaava</string>
+    <string name="map_a11y_regional_scale">Alueellinen mittakaava</string>
+    <string name="map_a11y_city_scale">Kaupunkimittakaava</string>
+    <string name="map_a11y_neighborhood_scale">Naapurustomittakaava</string>
+    <string name="map_a11y_street_scale">Katutasoinen mittakaava</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Hahmonnuksen yksityiskohtakerroin. Suuremmat arvot näyttävät enemmän yksityiskohtia, mutta voivat hidastaa kartan lataamista vanhemmilla laitteilla.</string>
+    <string name="help_max_heat_points">Lämpökartanäkymässä näytettävien sijaintipisteiden enimmäismäärä. Suuremmat arvot tarkoittavat enemmän yksityiskohtia mutta hitaampaa hahmonnusta.</string>
+    <string name="help_visit_threshold">Kuinka kauan sinun on oltava yhdessä paikassa, ennen kuin se merkitään kartalle käynniksi. Kasvata arvoa vähentääksesi lyhyiden pysähdysten aiheuttamaa sotkua.</string>
 </resources>
