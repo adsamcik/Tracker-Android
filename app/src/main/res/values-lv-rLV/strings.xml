@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Spēle</string>
     <string name="module_map_title">Karte</string>
     <string name="module_statistics_title">Statistika</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Nākamajā automātiskajā dublējumkopijā tiks iekļauti visi dati, nevis tikai izmaiņas</string>
     <string name="settings_reset_export_watermarks_done">Eksporta atzīmes ir atiestatītas — nākamā dublējumkopija būs pilns eksports</string>
     <string name="settings_migration_backup_export_title">Eksportēt pirmsjaunināšanas drošības dublējumkopiju</string>
-
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Pilna datu bāzes kopija no v%1$d, kas izveidota pirms migrēšanas uz v%2$d un līdz 30 dienām tiek glabāta privāti</string>
     <string name="settings_migration_backup_warning_title">Eksportēt sensitīvu datu bāzes dublējumkopiju?</string>
     <string name="settings_migration_backup_warning_message">Šajā dublējumkopijā var būt precīzas atrašanās vietas, Wi-Fi un šūnu novērojumi, aktivitātes un citi privāti dati no laika pirms jaunināšanas. Saglabājiet to tikai uzticamā vietā.</string>
@@ -105,13 +102,6 @@
         <item>Lidošana</item>
     </string-array>
     <string name="settings_length_system_title">Garuma mērvienību sistēma</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Atvērtā pirmkoda licences</string>
     <string name="settings_licenses_subtitle">Skatiet šajā būvējumā ietvertos trešo pušu paziņojumus.</string>
     <string name="settings_licenses_loading">Notiek licenču ielāde…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Versija</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Būvējuma komits</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autors</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-pasts</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Saites</string>
     <string name="about_attributions_title">Datu atsauces</string>
     <string name="about_attribution_geonames_label">Vietu nosaukumi</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Kartes un ielu dati</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Moduļu iestatījumi</string>
     <string name="settings_core_group_title">Kodols</string>
     <string name="settings_other_title">Mērvienības un attēlojums</string>
@@ -151,16 +135,9 @@
         <item>Ātrums (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Ātruma formāts</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Iestatījumi</string>
     <string name="switch_state_on">Ieslēgts</string>
     <string name="switch_state_off">Izslēgts</string>
-
-
     <string name="onboarding_streamlined_title">Izsekojiet savus ceļojumus privāti</string>
     <string name="onboarding_streamlined_subtitle">Visi dati paliek jūsu ierīcē. Nav mākoņa sinhronizācijas vai trešo pušu izsekošanas.</string>
     <string name="onboarding_benefit_privacy_title">Privātums pirmajā vietā</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">SĀKT</string>
     <string name="onboarding_privacy_policy_button">Lasīt privātuma politiku</string>
     <string name="onboarding_state_read_error_message">Neizdevās pārbaudīt, vai iestatīšana jau ir pabeigta, tāpēc iestatīšana tiek parādīta, lai saglabātu jūsu datu privātumu. Varat droši turpināt.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Automātiski tīrīt vecos datus</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Glabāt datus mūžīgi; automātiskā tīrīšana nedzēsīs vecos datus</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Automātiski noņemt datus, kas vecāki par %1$d gadu</item>
         <item quantity="other">Automātiski noņemt datus, kas vecāki par %1$d gadiem</item>
     </plurals>
-
     <string name="settings_data_retention_years_title">Glabāt datus</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Glabāt mūžīgi</item>
@@ -189,17 +164,7 @@
         <item>5 gadus</item>
         <item>10 gadus</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-
     <string name="button_continue">TURPINĀT</string>
-
     <string name="settings_export_data_title">Eksportēt datus</string>
     <string name="settings_export_data_summary">Saglabājiet savus izsekošanas datus dažādos formātos</string>
     <string name="export_format_dialog_title">Izvēlieties eksporta formātu</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Eksportēšana</string>
     <string name="settings_import_summary">Importējiet datus no atbalstītajiem tipiem (%1$s) un arhīviem (%2$s). Datu bāzes imports apvieno saderīgās rindas; tas neaizstāj esošos datus.</string>
     <string name="settings_import_title">Importēšana</string>
-
     <string name="got_it">Sapratu</string>
-
     <string name="battery_impact_low">Neliela ietekme</string>
     <string name="battery_impact_moderate">Mērena ietekme</string>
     <string name="battery_impact_high">Liela ietekme</string>
-
     <string name="precision_mode_title">Izvēlieties atrašanās vietas precizitāti</string>
     <string name="precision_mode_approximate_title">Aptuvena</string>
     <string name="precision_mode_approximate_description">Uz tīkla balstīta atrašanās vieta. Piemērota vispārējai apgabala izsekošanai ar minimālu akumulatora patēriņu.</string>
     <string name="precision_mode_precise_title">Precīza</string>
     <string name="precision_mode_precise_description">Uz GPS balstīta atrašanās vieta. Vislabākā detalizētiem maršrutiem, siltumkartēm un izaicinājumiem.</string>
-
     <string name="upgrade_to_precise_title">Atbloķēt precīzu izsekošanu</string>
     <string name="upgrade_to_precise_message_general">Izmantojat aptuvenu atrašanās vietu. Lai iegūtu labāku precizitāti, pārslēdzieties uz precīzu GPS izsekošanu.</string>
     <string name="upgrade_to_precise_message_route_analysis">Precīza atrašanās vieta ir ieteicama precīzai maršruta analīzei un attāluma mērījumiem.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Precīzs GPS patērē vairāk akumulatora. Paredzamais izsekošanas laiks: 6–8 stundas parastās ierīcēs.</string>
     <string name="upgrade_to_precise_button_upgrade">Iespējot precīzu atrašanās vietu</string>
     <string name="upgrade_to_precise_button_cancel">Varbūt vēlāk</string>
-
     <string name="tracking_preset_high_accuracy_name">Augsta precizitāte</string>
     <string name="tracking_preset_high_accuracy_description">Vislabākā detalizācija ar ātrākajiem atjauninājumiem un iespējotiem galvenajiem sensoriem</string>
     <string name="tracking_preset_balanced_name">Līdzsvarots</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-
     <string name="tracking_policy_selector_title">Izsekošanas politika</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Paredzamais izsekošanas laiks: %d stunda</item>
         <item quantity="other">Paredzamais izsekošanas laiks: %d stundas</item>
     </plurals>
-
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Izvēlieties, cik precīzi Tracker ieraksta jūsu atrašanās vietu</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-
     <string name="settings_auto_unit_switch_title">Automātiska mērvienību pārslēgšana</string>
     <string name="settings_module_map_subtitle">Siltumkartes kvalitātes un vizualizācijas opcijas</string>
     <string name="settings_module_game_subtitle">Mērķi, sasniegumi un atskaites punkti</string>
     <string name="action_navigate_back">Doties atpakaļ</string>
     <string name="action_help">Palīdzība</string>
-
     <string name="widget_loading">Notiek ielāde…</string>
     <string name="widget_quick_start_name">Tracker ātrā sākšana</string>
     <string name="widget_quick_start_description">Sāciet vai apturiet atrašanās vietas izsekošanu ar vienu pieskārienu.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Fona</string>
     <string name="widget_tier_active">Aktīvs</string>
     <string name="widget_tier_precision">Precizitāte</string>
-
     <string name="goal_notification_title_progress">Lielisks progress!</string>
     <string name="goal_notification_title_almost">Gandrīz sasniegts!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Viedie mērķa paziņojumi</string>
     <string name="settings_smart_goal_notifications_summary">Saņemiet paziņojumu, kad esat tuvu dienas soļu mērķim</string>
-
     <string name="setup_how_to_track_title">Kā darbosies izsekošana?</string>
     <string name="setup_how_to_track_subtitle">Izvēlieties, kad sākas izsekošana un cik detalizētai tai jābūt.</string>
     <string name="setup_auto_tracking_title">Automātiska izsekošana</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Sākt izpēti</string>
     <string name="setup_continue">Turpināt</string>
     <string name="setup_step_indicator">%1$d. solis no %2$d</string>
-
     <string name="setup_online_tiles_title">Tiešsaistes kartes mozaīkas?</string>
     <string name="setup_online_tiles_subtitle">Tracker komplektā ir bezsaistes pamatkarte, tāpēc tas darbojas bez tīkla. Ja vēlaties bagātīgākas kartes, varat straumēt mozaīkas no publiska nodrošinātāja.</string>
     <string name="setup_online_tiles_off_title">Tikai bezsaistē (ieteicams)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Straumējiet detalizētākas vektoru mozaīkas no OpenFreeMap (noklusējums). Vēlāk varat mainīt nodrošinātāju sadaļā Iestatījumi → Karte.</string>
     <string name="setup_online_tiles_privacy">Kad funkcija ir iespējota, nodrošinātājs var redzēt jūsu IP adresi un ielādētās mozaīkas — aptuveni kartes apgabalu, ko skatāt. Tracker nekad nesūta kontu, identifikatoru vai jūsu atrašanās vietu vēsturi.</string>
     <string name="setup_online_tiles_change_later">To jebkurā laikā varat mainīt sadaļā Iestatījumi → Karte → Tiešsaistes kartes mozaīkas.</string>
-
     <string name="setup_background_access_subtitle">Lai ierakstītu braucienus, kad ekrāns ir izslēgts vai lietotne aizvērta, Tracker jāturpina darboties fonā. Tālruņa akumulatora iestatījumi to var apturēt — atļaujiet darbību fonā, lai automātiskā izsekošana būtu uzticama.</string>
     <string name="setup_background_access_optional">Neobligāti, bet ieteicams. To jebkurā laikā varat mainīt sadaļā Iestatījumi → Izsekošana.</string>
-
     <string name="background_reliability_title">Uzticama izsekošana fonā</string>
     <string name="background_reliability_status_exempt">Darbība fonā atļauta</string>
     <string name="background_reliability_status_optimized">Akumulatora optimizācija ir ieslēgta</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Atļaut darbību fonā</string>
     <string name="background_reliability_samsung_hint">Samsung ierīces var ievietot lietotnes arī sadaļā "Miega lietotnes". Atveriet akumulatora iestatījumus, noņemiet Tracker no miega lietotnēm un iestatiet, lai tas netiktu iemidzināts.</string>
     <string name="background_reliability_samsung_action">Atvērt ierīces akumulatora iestatījumus</string>
-
     <string name="settings_tracebox_title">Avāriju diagnostika</string>
     <string name="settings_tracebox_root_summary">Vietējā avāriju, ANR un strukturālā diagnostika</string>
     <string name="settings_tracebox_status_header">Reģistrēšanas statuss</string>

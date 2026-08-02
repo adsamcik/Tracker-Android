@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Izsekojiet vismaz %2$d dažādās dienās, lai to atbloķētu.</string>
-
     <string name="ach_title_distance_total">Veiciet %1$s</string>
     <string name="ach_desc_distance_total">Veiciet kopā %1$s reģistrētā attāluma visās savās sesijās.</string>
     <string name="ach_title_week_distance">%1$s šonedēļ</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Nobrauciet ar velosipēdu kopā %1$s.</string>
     <string name="ach_title_vehicle_distance">Veiciet motorizētu braucienu %1$s</string>
     <string name="ach_desc_vehicle_distance">Veiciet %1$s ar automašīnu, autobusu, vilcienu, laivu vai lidmašīnu.</string>
-
     <string name="ach_title_steps_total">Noejiet %1$s soļu</string>
     <string name="ach_desc_steps_total">Ierakstiet %1$s soļu visās savās sesijās.</string>
     <string name="ach_title_best_daily_steps">%1$s soļu vienā dienā</string>
     <string name="ach_desc_best_daily_steps">Noejiet %1$s soļu vienā dienā.</string>
-
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Pirmā sesija</item>
         <item quantity="other">Ierakstiet %1$s sesijas</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Apmeklējiet %d valstis</item>
     </plurals>
     <string name="ach_desc_countries_visited">Ierakstiet vismaz vienu sesiju %1$d dažādās valstīs.</string>
-
     <plurals name="ach_title_active_days">
         <item quantity="one">Pirmā aktīvā diena</item>
         <item quantity="other">%1$s aktīvas dienas</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Visās sesijās reģistrējiet aktivitāti %1$d dažādās diennakts stundās.</string>
     <string name="ach_title_days_of_week">Visas septiņas nedēļas dienas</string>
     <string name="ach_desc_days_of_week">Reģistrējiet aktivitāti katrā nedēļas dienā vismaz vienu reizi.</string>
-
     <plurals name="ach_title_activity_types">
         <item quantity="one">Izmēģiniet %d aktivitātes veidu</item>
         <item quantity="other">Izmēģiniet %d aktivitāšu veidus</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Reģistrējiet aktivitāti visās septiņās kalendāra nedēļas dienās.</string>
     <string name="ach_title_walk_cycle_drive">Ejiet, brauciet ar velosipēdu, vadiet auto</string>
     <string name="ach_desc_walk_cycle_drive">Ierakstiet vismaz vienu katras aktivitātes sesiju: iešanas, braukšanas ar velosipēdu un auto vadīšanas.</string>
-
     <string name="ach_title_max_session_duration">%1$s sesija</string>
     <string name="ach_desc_max_session_duration">Ierakstiet vienu sesiju, kas ilgst vismaz %1$s.</string>
     <string name="ach_title_max_speed">Sasniedziet %1$s</string>
     <string name="ach_desc_max_speed">Sesijas laikā sasniedziet maksimālo ātrumu vismaz %1$s.</string>
     <string name="ach_title_active_minutes">%1$s aktīvas minūtes</string>
     <string name="ach_desc_active_minutes">Uzkrājiet %1$s minūšu aktīvas izsekošanas laika.</string>
-
     <plurals name="ach_title_exports_total">
         <item quantity="one">Pirmais eksports</item>
         <item quantity="other">%d eksporti</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Izsekojiet %d gadalaikus</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Reģistrējiet aktivitāti %1$d atšķirīgos gadalaikos (pavasarī/vasarā/rudenī/ziemā).</string>
-
     <string name="ach_title_calendar_new_year">Jaungada izsekotājs</string>
     <string name="ach_desc_calendar_new_year">Ierakstiet sesiju 1. janvārī.</string>
     <string name="ach_title_calendar_leap_day">Garās dienas pionieris</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Ierakstiet sesiju gada garākajā dienā.</string>
     <string name="ach_title_calendar_winter_solstice">Ziemas saulgrieži</string>
     <string name="ach_desc_calendar_winter_solstice">Ierakstiet sesiju gada īsākajā dienā.</string>
-
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Nakts pūce</item>
         <item quantity="other">%1$s nakts sesijas</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Izmantojiet %d eksporta formātus</item>
     </plurals>
     <string name="ach_desc_export_formats">Eksportējiet savus datus %1$d dažādos failu formātos.</string>
-
     <string name="ach_title_player_level">Sasniedziet %1$d līmeni</string>
     <string name="ach_desc_player_level">Sasniedziet spēlētāja līmeni %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP vienā dienā</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Spēlējiet %1$s minispēles</item>
     </plurals>
     <string name="ach_desc_minigames_played">Pabeidziet %1$d minispēļu skrējienus.</string>
-
     <string name="ach_title_total_ascent">Uzkāpiet %1$s</string>
     <string name="ach_desc_total_ascent">Uzkrājiet %1$s kopējā augstuma pieauguma (kāpuma) visā izsekošanā.</string>
-
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Nopelniet no viena XP avota</item>
         <item quantity="other">Nopelniet no %d XP avotiem</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d ideālas nedēļas</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Sasniedziet savu ikdienas soļu mērķi katru dienu %1$d pilnas nedēļas.</string>
-
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d dienas mērķa sērija</item>
         <item quantity="other">%d dienu mērķa sērija</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Pabeidziet %d kategorijas</item>
     </plurals>
     <string name="ach_desc_categories_completed">Atbloķējiet visus sasniegumus %1$d dažādās kategorijās.</string>
-
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d sekunde</item>
         <item quantity="other">%d sekundes</item>

@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-
     <string name="module_game_title">Spēle</string>
-
     <string name="minigame_outrun_name">Bēgšana</string>
     <string name="minigame_outrun_description">Sacensieties ar spoku. Palieciet priekšā!</string>
     <string name="minigame_territory_name">Teritorija</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Serpentīns</string>
     <string name="minigame_switchback_description">Veiciet asus pārmaiņus pagriezienus, lai veidotu plūsmas kombināciju</string>
     <string name="minigame_locked">Atbloķējas %1$d. līmenī</string>
-
     <string name="game_play_section_title">Spēlēt</string>
     <string name="game_progress_section_title">Gaita</string>
     <string name="minigame_outrun_goal_line">Saglabājiet 25–100 m pārsvaru pār spoku</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Veiciet dubultskārienu, lai redzētu atbloķēšanas norādes</string>
     <string name="minigame_active_session_running">Notiek — pieskarieties Spēlēt, lai atgrieztos</string>
     <string name="minigame_active_session_paused">Pauzēts — pieskarieties Spēlēt, lai atsāktu</string>
-
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d šūna</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d pagrieziens</item>
         <item quantity="other">%1$d pagriezieni</item>
     </plurals>
-
     <string name="minigame_view_past_scores">Skatīt iepriekšējos rezultātus</string>
     <string name="minigame_session_close">Aizvērt</string>
     <string name="minigame_session_play_again">Spēlēt vēlreiz</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Nepieciešama atrašanās vieta</string>
     <string name="minigame_session_permission_body">Minispēles izmanto tiešo atrašanās vietu, lai sekotu jūsu gājienam. Nekas netiek saglabāts, izņemot gala rezultātu.</string>
     <string name="minigame_session_permission_grant">Piešķirt piekļuvi</string>
-
     <string name="minigame_setup_title">Iestatiet savu gājienu</string>
     <string name="minigame_setup_goal_title">Mērķis</string>
     <string name="minigame_setup_difficulty_title">Grūtības pakāpe</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Viegla</string>
     <string name="minigame_difficulty_normal">Normāla</string>
     <string name="minigame_difficulty_hard">Grūta</string>
-
     <string name="minigame_session_starting">Gatavojas…</string>
     <string name="minigame_session_finishing">Saglabā jūsu gājienu…</string>
     <string name="minigame_session_paused_title">Pauzēts</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Aktīvais laiks</string>
     <string name="minigame_session_goal_progress">%1$d%% no mērķa</string>
     <string name="minigame_session_goal_reached">Mērķis sasniegts</string>
-
     <string name="minigame_signal_good">Spēcīgs GPS</string>
     <string name="minigame_signal_fair">Pietiekams GPS</string>
     <string name="minigame_signal_poor">Vājš GPS</string>
     <string name="minigame_signal_unavailable">Nav GPS signāla</string>
     <string name="minigame_signal_unknown">Nosaka atrašanās vietu…</string>
     <string name="minigame_signal_stale">GPS kavējas</string>
-
-
     <string name="minigame_outrun_best_run">Labākais šajā gājienā</string>
     <string name="minigame_outrun_personal_best">Personīgais rekords</string>
     <string name="minigame_outrun_warning">Spoks tuvojas</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Mērķis sasniegts. Jūs aizbēgāt ar %1$d metru pārsvaru. Šī gājiena labākais: %2$d metri.</string>
     <string name="minigame_outrun_description_finished">Gājiens pabeigts. Jūsu galīgā starpība bija %1$d metri, bet lielākais pārsvars — %2$d metri.</string>
     <string name="minigame_outrun_ahead_of_best">Priekšā savam personīgajam rekordam</string>
-
     <string name="minigame_territory_grid_description_detailed">Teritorijas karte. Iegūti %1$d tuvumā esoši apgabali; izcelti %2$d robežas apgabali. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Pašreizējais apgabals ir izcelts</string>
     <string name="minigame_territory_current_waiting">Gaida pašreizējo apgabalu</string>
     <string name="minigame_territory_goal_complete">Mērķis pabeigts</string>
     <string name="minigame_territory_goal_in_progress">Mērķis tiek pildīts</string>
     <string name="minigame_territory_legend">Mirdzums atzīmē pašreizējo apgabalu • Robežas norādes: %1$d</string>
-
     <string name="minigame_zen_pace_label">Temps</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Pakāpeniski kļūst ātrāks</string>
     <string name="minigame_zen_flow_time">Plūsma %1$s</string>
     <string name="minigame_zen_flow_description">Zen tempa plūsma. %1$s. %2$s. %3$s. %4$s.</string>
-
     <string name="minigame_feedback_outrun_danger">Spoks tuvojas</string>
     <string name="minigame_feedback_pb_crossed">Jauns personīgais rekords</string>
     <string name="minigame_feedback_territory_claimed">Iegūts jauns apgabals</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Jūs esat tempa zonā</string>
     <string name="minigame_feedback_zen_exited">Jūs izgājāt no tempa zonas</string>
     <string name="minigame_feedback_completed">Gājiens pabeigts</string>
-
     <string name="minigame_completion_first_run_title">Pirmais gājiens reģistrēts!</string>
     <string name="minigame_completion_new_best_title">Jauns personīgais rekords!</string>
     <string name="minigame_completion_tied_title">Atkārtots labākais rezultāts</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Šajā gājienā nav punktu</string>
     <string name="minigame_completion_change_setup">Mainīt iestatījumu</string>
     <string name="minigame_completion_done">Pabeigts</string>
-
     <string name="minigame_session_failed_title">Gājiens netika pabeigts</string>
     <string name="minigame_failure_permission">Lai spēlētu, nepieciešama precīza atrašanās vieta. Piešķiriet to un mēģiniet vēlreiz.</string>
     <string name="minigame_failure_location">Neizdevās iegūt uzticamu atrašanās vietu. Dodieties uz vietu ar atklātākām debesīm un mēģiniet vēlreiz.</string>
     <string name="minigame_failure_persistence">Neizdevās saglabāt šo gājienu. Lūdzu, mēģiniet vēlreiz.</string>
     <string name="minigame_failure_generic">Kaut kas nogāja greizi, un gājiens apstājās.</string>
     <string name="minigame_session_try_again">Mēģināt vēlreiz</string>
-
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Aktīva spēle</string>
     <string name="game_session_channel_description">Uztur aktīvu minispēli, kad ekrāns ir izslēgts</string>
     <string name="game_session_notification_title">Tracker spēle</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Pauzēt</string>
     <string name="game_session_action_resume">Atsākt</string>
     <string name="game_session_action_finish">Pabeigt</string>
-
     <string name="minigame_scores_title">Iepriekšējie minispēļu gājieni</string>
     <string name="minigame_scores_back">Atpakaļ</string>
     <string name="minigame_scores_empty_title">Jūsu pirmais gājiens gaida</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">dienas</string>
     <string name="goals_weekly_goal">nedēļas</string>
     <string name="goals_monthly_goal">mēneša</string>
-
     <string name="game_steps_goals_title">Soļu mērķi</string>
     <string name="game_step_sensor_unavailable">Soļu sensors nav pieejams</string>
     <string name="game_step_sensor_unavailable_detail">Šai ierīcei nav soļu skaitītāja sensora. Soļu mērķus nevar izsekot.</string>
     <string name="game_steps_today">Šodien</string>
     <string name="game_steps_week">Nedēļa</string>
-
     <string name="game_loading">Notiek ielāde…</string>
-
-
-
     <string name="action_navigate_back">Doties atpakaļ</string>
-
     <string name="game_open_settings">Atvērt iestatījumus</string>
     <string name="game_close">Aizvērt</string>
-
     <string name="exploration_title">Izpēte</string>
     <string name="exploration_cells_discovered">Atklātās šūnas</string>
     <string name="exploration_current_streak">Pašreizējā sērija</string>
@@ -229,7 +204,6 @@
         <item quantity="other">dienas</item>
     </plurals>
     <string name="exploration_of_four">no 4</string>
-
     <string name="achievements_title">Sasniegumi</string>
     <string name="achievements_bronze">Bronza</string>
     <string name="achievements_silver">Sudrabs</string>
@@ -253,12 +227,8 @@
         <item>Lieliski</item>
     </string-array>
     <string name="points_earned_today">šodien nopelnītie punkti</string>
-
-
     <string name="game_unlock_title">Jauns atbloķējums!</string>
     <string name="game_unlock_message">Jūs sasniedzāt %1$d. līmeni!</string>
-
-
     <string name="leaderboard_title">Nedēļas izaicinājums</string>
     <string name="leaderboard_metric_distance">Attālums</string>
     <string name="leaderboard_metric_steps">Soļi</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Līderu saraksts nav pieejams</string>
     <string name="leaderboard_error_body">Jūsu dati šajā ierīcē ir drošībā. Mēģiniet vēlreiz ielādēt nedēļas izaicinājumu.</string>
     <string name="leaderboard_retry">Mēģināt vēlreiz</string>
-
     <string name="achievements_mythic">Mītisks</string>
     <string name="game_view_all_achievements">Skatīt visus</string>
     <string name="game_recent_achievements">Nesen atbloķētie</string>
@@ -310,5 +279,4 @@
     <string name="achievement_category_calendar">Kalendārs</string>
     <string name="achievement_unlocked_content_description">Atbloķēts</string>
     <string name="achievement_locked_content_description">Bloķēts</string>
-
 </resources>

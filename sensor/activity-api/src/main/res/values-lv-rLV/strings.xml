@@ -2,12 +2,8 @@
 <resources>
     <string name="notification_activity_watcher_info">Pašreizējā aktivitāte %1$s (%2$d%%)</string>
     <string name="notification_activity_watcher_ticker">Aktivitāšu pārrauga pakalpojums ir aktīvs</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_snackbar_message">Noņemts: %s</string>
     <string name="settings_activity_title">Aktivitātes</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
     <string name="settings_activity_watcher_title">Aktivitāšu pārraugs</string>
     <string name="settings_ski_infrastructure_title">Slēpošanas pacēlāju dati</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Ielādēts (pieskarieties, lai noņemtu)</string>

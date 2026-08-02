@@ -9,18 +9,11 @@
     <string name="meter_abbr">%s m</string>
     <string name="mile_abbr">%s jūdzes</string>
     <string name="millepassus">%s romiešu jūdze</string>
-
     <string name="fathom_abbr">%s fatoms</string>
     <string name="cable_abbr">%s kabelis</string>
     <string name="nautical_mile_abbr">%s nmi</string>
     <string name="knot_abbr">%s mezgls</string>
-
     <string name="flight_level_abbr">FL%s</string>
-
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">Automātiski pārslēgt mērvienību sistēmu</string>
     <string name="settings_statistics_auto_unit_switch_summary">Automātiski pārslēgties uz burāšanas vai aviācijas mērvienībām, skatot sesijas ar šīm aktivitātēm</string>
-
-
 </resources>

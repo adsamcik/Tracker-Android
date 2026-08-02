@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">Akumulatoru saudzējošs režīms (nedaudz lēnāka aktivitātes noteikšana)</string>
     <string name="settings_auto_tracking_transition_title">Izmantot aktivitāšu pārejas</string>
     <string name="settings_cell_enabled_title">Šūna</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Automātiskā izsekošana ir atspējota, līdz tālrunis tiek pievienots lādētājam</string>
     <string name="settings_disabled_recharge_title">Atspējota līdz uzlādei</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Atrašanās vieta</string>
     <string name="settings_notification_customize_summary">Mainiet, kas un kādā secībā jāparādās izsekošanas paziņojumā.</string>
     <string name="settings_notification_customize_title">Pielāgot paziņojumu</string>
@@ -135,17 +131,13 @@
     <string name="insight_comparison_desc">Šī sesija bija par %1$d%% garāka nekā jūsu nesenais vidējais</string>
     <string name="wifi_count_title">Wi-Fi skaits</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
-
     <string name="wifi_permission_hint_title">Atļaujiet Wi-Fi labākai iekštelpu precizitātei</string>
     <string name="wifi_permission_hint_text">Piešķiriet Wi-Fi atļauju lietotnes iestatījumos, lai uzlabotu uz signālu balstītu atrašanās vietu telpās. Wi-Fi radio dati netiek vākti, līdz to atļaujat.</string>
-
-
     <string name="dashboard_today_title">Šodien</string>
     <string name="dashboard_today_empty_title">Šodien nav sesiju</string>
     <string name="dashboard_today_distance">Attālums</string>
     <string name="dashboard_today_steps">Soļi</string>
     <string name="dashboard_today_duration">Ilgums</string>
-
     <string name="tracking_preset_title">Izsekošanas režīms</string>
     <string name="tracking_preset_battery_saver_title">Akumulatora taupīšana</string>
     <string name="tracking_preset_battery_saver_desc">Optimizēts visas dienas izsekošanai</string>
@@ -154,35 +146,27 @@
     <string name="tracking_preset_high_precision_title">Augsta precizitāte</string>
     <string name="tracking_preset_high_precision_desc">Maksimāla detalizācija un precizitāte</string>
     <string name="tracking_preset_custom_badge">Pielāgoti iestatījumi piemēroti</string>
-
     <string name="battery_impact_low">Neliela ietekme uz akumulatoru</string>
     <string name="battery_impact_moderate">Mērena ietekme uz akumulatoru</string>
     <string name="battery_impact_high">Lielāks akumulatora patēriņš</string>
     <string name="battery_impact_high_warning">Šī konfigurācija var ievērojami samazināt akumulatora darbības laiku. Visas dienas izsekošanai apsveriet līdzsvaroto režīmu.</string>
-
-
     <string name="help_min_distance">Tracker gaida, līdz būsiet pārvietojies tik tālu, pirms ieraksta nākamo atrašanās vietu. Mazākas vērtības = detalizētāki maršruti, bet lielāks akumulatora patēriņš.</string>
     <string name="help_min_time">Cik bieži Tracker pārbauda jūsu atrašanās vietu. Mazākas vērtības = biežāki atjauninājumi, bet lielāks akumulatora patēriņš.</string>
     <string name="help_required_accuracy">GPS precizitātes slieksnis. Tracker ignorē atrašanās vietas atjauninājumus, kuru precizitāte ir sliktāka par šo vērtību. Mazāka vērtība = lielāka precizitāte, taču vājā GPS signālā atjauninājumi var tikt izlaisti.</string>
     <string name="help_transition_detection">Tracker sāk un aptur darbību automātiski atbilstoši jūsu kustībai. Tas patērē mazāk akumulatora nekā pastāvīgs GPS, bet var aizkavēt aktivitātes izmaiņu noteikšanu.</string>
-
     <string name="policy_tier_ambient">Fona</string>
     <string name="policy_tier_active">Aktīvs</string>
     <string name="policy_tier_precision">Precizitāte</string>
-
     <string name="dashboard_recent_trips">Nesenie braucieni</string>
-
     <string name="tracker_hide_details">Paslēpt detalizētu informāciju</string>
     <string name="tracker_show_sensor_details">Rādīt sensora informāciju</string>
     <string name="tracker_view_map">Skatīt karti</string>
     <string name="tracker_average_label">Vid.</string>
     <string name="tracker_accuracy_label">Precizitāte</string>
     <string name="tracker_disabled">Atspējots</string>
-
     <string name="tracker_lock_icon_desc">Bloķēšanas statuss</string>
     <string name="tracker_settings_icon_desc">Komponenta iestatījumi</string>
     <string name="tracker_points_icon_desc">Punktu progress</string>
-
     <string name="tracker_start_button">SĀKT</string>
     <string name="tracker_duration_label">Ilgums</string>
     <string name="tracker_distance_label">Attālums</string>
@@ -203,7 +187,6 @@
     <string name="policy_tier_status_prefix">GPS politika:</string>
     <string name="tracker_precision_chip_hint">Pieskarieties, lai pārslēgtos uz %1$s</string>
     <string name="action_navigate_back">Doties atpakaļ</string>
-
     <string name="insight_distance_title">Veiktais attālums</string>
     <string name="insight_distance_desc">Šajā sesijā veicāt %1$s.</string>
     <string name="insight_steps_title">Ierakstītie soļi</string>

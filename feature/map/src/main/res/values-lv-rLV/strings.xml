@@ -1,16 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-
+    <string name="trip_route_preview_unavailable">Neizdevās sagatavot maršruta kartes priekšskatījumu</string>
     <string name="module_map_title">Karte</string>
     <string name="description_map_search">Meklēšanas poga</string>
     <string name="map_layer_cell_heatmap_description">Jūsu novērotā mobilo sakaru aina pēc radio tehnoloģijas. Maigi lauki rāda, kur jūs sasniedza apkalpojošās šūnas; mirdzošie centri ir piesardzīgi staciju novērtējumi un kļūst skaidrāki tikai tad, kad tos ieskauj novērojumi.</string>
     <string name="map_layer_cell_heatmap_title">Mobilo sakaru topoloģija</string>
     <string name="map_layer_location_heatmap_high">Liels blīvums</string>
     <string name="map_layer_location_heatmap_low">Mazs blīvums</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Zems–vidējs blīvums</string>
     <string name="map_layer_location_heatmap_medium">Vidējs blīvums</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Maksimāls blīvums</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Atšķirīgi apmeklējumi</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Apmeklējumi</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Pieņemto atrašanās vietas labojumu relatīvais blīvums. Tas rāda atšķirīgus novērojumus, nevis pavadīto laiku.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Signāla mirušās zonas</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Mirušās zonas</string>
     <string name="map_layer_signal_coverage_description">Izceļ vietas, kur mobilo sakaru signāls bija vājš vai nebija pieejams. Jo sarkanāks apgabals, jo sliktāks pārklājums; labi pārklātie apgabali paliek skaidri.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Vājš</string>
+    <string name="map_layer_signal_coverage_poor">Slikts</string>
+    <string name="map_layer_signal_coverage_very_poor">Ļoti slikts</string>
+    <string name="map_layer_signal_coverage_dead">Mirušā zona</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signāla polārblāzma</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Polārblāzma</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Šūnu signāls attēlots kā polārblāzmai līdzīgs mirdzums: plaša violeta oreola josla zem spilgta ciānzaļa kodola. Mirdzums pulsē, nepārlādējot datus, un kļūst nekustīgs, kad sistēmas animācijas ir atspējotas.</string>
@@ -108,7 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">Ātruma pārsniegšana</string>
     <string name="map_layer_location_polyline_description">Līnija, kas laika gaitā savieno jūsu ierakstītās atrašanās vietas.</string>
     <string name="map_layer_location_polyline_title">Atrašanās vietu līnija</string>
-
     <string name="map_layer_location_polyline_chip">Līnija</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi pārklāšanās</string>
     <string name="map_layer_vehicle_compliance_chip">Ātruma pārsniegšana</string>
@@ -152,8 +150,6 @@
     <string name="tips_map_date_range_title">Datumu diapazons</string>
     <string name="tips_map_my_location_title">Mana atrašanās vieta</string>
     <string name="tips_map_sheet_description">Pieskaroties šai joslai vai pavelkot to uz augšu, tiks atvērtas papildu kartes opcijas, tostarp slāņa atlase un apzīmējumi.</string>
-
-
     <string name="map_search_placeholder">Plat., gar. piem. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Izmēģiniet 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Notīrīt meklēšanu</string>
@@ -161,7 +157,6 @@
     <string name="map_search_clipboard_empty">Starpliktuvē vēl nav koordinātu</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Atcelt</string>
-
     <string name="map_share_button">Kopīgot karti</string>
     <string name="map_share_sheet_title">Kopīgot karti kā attēlu</string>
     <string name="map_share_sheet_subtitle">Renderē pašreizējo skatu un aktīvo slāni kā statisku attēlu. Jūsu tiešā atrašanās vieta nekad netiek iekļauta.</string>
@@ -172,7 +167,7 @@
     <string name="map_share_preparing">Sagatavo attēlu…</string>
     <string name="map_share_error">Neizdevās renderēt kartes attēlu. Lūdzu, mēģiniet vēlreiz.</string>
     <string name="map_date_range_all_time">Viss laiks</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Atlasīts brauciens</string>
     <string name="map_layers_title">Kartes slāņi</string>
     <string name="map_layer_load_error">Neizdevās ielādēt šo slāni. Mēģiniet atlasīt citu.</string>
     <string name="map_empty_subtitle_location">Šajā skatā vai datumu diapazonā nav atrašanās vietas datu. Maršruta un kartes funkcijām nepieciešama atrašanās vieta, kas savākta izsekošanas laikā.</string>
@@ -217,7 +212,6 @@
     <string name="map_a11y_city_scale">Pilsētas mērogs</string>
     <string name="map_a11y_neighborhood_scale">Apkaimes mērogs</string>
     <string name="map_a11y_street_scale">Ielas mērogs</string>
-
     <string name="help_map_quality">Renderēšanas detalizācijas reizinātājs. Lielākas vērtības rāda vairāk detaļu, bet vecākās ierīcēs var palēnināt kartes ielādi.</string>
     <string name="help_max_heat_points">Maksimālais atrašanās vietas punktu skaits, kas redzams siltumkartē. Lielākas vērtības = vairāk detaļu, bet lēnāka renderēšana.</string>
     <string name="help_visit_threshold">Cik ilgi jāpaliek vienā vietā, pirms tā kartē tiek atzīmēta kā “apmeklējums”. Palieliniet šo vērtību, lai samazinātu īsu apstāšanos radīto jucekli.</string>
