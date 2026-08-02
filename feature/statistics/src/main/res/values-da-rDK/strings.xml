@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistik</string>
     <string name="stats_cell_count">Antal mobilceller</string>
     <string name="stats_collections">Collection count</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Indlæser sessioner…</string>
     <string name="stats_append_error">Kunne ikke indlæse flere</string>
     <string name="action_retry">Prøv igen</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Start sporing</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s skridt</item>
         <item quantity="other">%1$s skridt</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">I dag</string>
     <string name="stats_date_yesterday">I går</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Indlæser oversigt…</string>
     <string name="stats_summary_empty">Ingen oversigtsstatistik tilgængelig</string>
     <string name="stats_summary_empty_subtitle">Start sporing for at se din aktivitetsoversigt</string>
     <string name="stats_summary_error">Kunne ikke indlæse oversigten</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Indlæser ugentlig statistik…</string>
     <string name="stats_week_empty">Ingen ugentlig statistik tilgængelig</string>
     <string name="stats_week_empty_subtitle">Spor i 7 dage for at se din ugentlige oversigt</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Unikke netværk set</string>
     <string name="stats_wifi_total_scans">Scanninger i alt</string>
     <string name="stats_wifi_average_per_scan">Gennemsnitligt antal netværk pr. scanning</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Rapport om mobilsignal</string>
     <string name="stats_cell_signal_dialog_loading">Indlæser rapport om mobilsignal…</string>
     <string name="stats_cell_signal_dialog_empty_title">Ingen mobildata tilgængelige</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Unikke master</string>
     <string name="stats_cell_signal_section_networks">Efter netværkstype</string>
     <string name="stats_cell_signal_section_towers">Mest sete master</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s af prøverne · %2$s master</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Mobil %1$s · %2$s prøver</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operatør %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Turedetaljer</string>
     <string name="trip_detail_not_found">Tur ikke fundet</string>
     <string name="trip_detail_not_found_subtitle">Denne tur kan være slettet</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Højdetab</string>
     <string name="trip_detail_max_altitude">Maks. højde</string>
     <string name="trip_detail_route_map">Rutekort</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Vis på kort</string>
     <string name="trip_detail_no_location_data">Ingen placeringsdata</string>
     <string name="trip_detail_route_unavailable_legacy">Rutekort er ikke tilgængeligt for klassiske sessioner</string>
     <string name="trip_detail_route_no_gps_points">Afstand registreret, men ingen GPS-rute tilgængelig</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Slet</string>
     <string name="trip_detail_cancel">Annuller</string>
     <string name="trip_detail_more_options">Flere indstillinger</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Skisession</string>
     <string name="ski_detail_runs">Nedture</string>
     <string name="ski_detail_vertical">Højdemeter</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Frekvens</string>
     <string name="wifilist_title_last_seen">Senest set</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Tidslinje</string>
     <string name="history_tab_trips">Ture</string>
     <string name="history_tab_calendar">Kalender</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d tur</item>
         <item quantity="other">%d ture</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Ingen aktivitet endnu</string>
     <string name="history_timeline_empty_desc">Start sporing for at se din bevægelseshistorik her</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Ingen ture registreret</string>
     <string name="history_trips_empty_desc">Ture vises her, efterhånden som du bevæger dig rundt</string>
     <string name="trip_gps_anomaly">GPS-afvigelse registreret — afstanden kan være unøjagtig</string>
     <string name="trip_deleted_snackbar">Tur slettet</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Forrige måned</string>
     <string name="history_calendar_next_month">Næste måned</string>
     <string name="history_calendar_distance">Afstand</string>
     <string name="history_calendar_steps">Skridt</string>
     <string name="history_calendar_trips">Ture</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Udforskning</string>
     <string name="history_exploration_cells">Felter</string>
     <string name="history_exploration_streak">Serie</string>
     <string name="history_exploration_best">Bedste</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Gå tilbage</string>
-    <!-- History navigation -->
     <string name="history_button_label">Historik</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Vis tur på kort</string>
     <string name="stats_heatmap_title">Aktivitet</string>
 </resources>

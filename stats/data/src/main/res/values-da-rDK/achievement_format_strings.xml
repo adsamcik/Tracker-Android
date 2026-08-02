@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Spor på mindst %2$d forskellige dage for at låse den op.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Tilbagelæg %1$s</string>
     <string name="ach_desc_distance_total">Tilbagelæg i alt %1$s registreret afstand på tværs af alle dine sessioner.</string>
     <string name="ach_title_week_distance">%1$s i denne uge</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Cykel %1$s i alt.</string>
     <string name="ach_title_vehicle_distance">Motordrevet rejse på %1$s</string>
     <string name="ach_desc_vehicle_distance">Tilbagelæg %1$s med bil, bus, tog, båd eller fly.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Tag %1$s skridt</string>
     <string name="ach_desc_steps_total">Registrér %1$s skridt på tværs af alle dine sessioner.</string>
     <string name="ach_title_best_daily_steps">%1$s skridt på én dag</string>
     <string name="ach_desc_best_daily_steps">Tag %1$s skridt på en enkelt dag.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Første session</item>
         <item quantity="other">Registrér %1$s sessioner</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Besøg %d lande</item>
     </plurals>
     <string name="ach_desc_countries_visited">Registrér mindst én session i %1$d forskellige lande.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Første aktive dag</item>
         <item quantity="other">%1$s aktive dage</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Registrér aktivitet i %1$d forskellige timer af døgnet på tværs af alle sessioner.</string>
     <string name="ach_title_days_of_week">Alle ugens syv dage</string>
     <string name="ach_desc_days_of_week">Spor aktivitet på hver ugedag mindst én gang.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Prøv %d aktivitetstype</item>
         <item quantity="other">Prøv %d aktivitetstyper</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Registrér aktivitet på alle syv dage i en kalenderuge.</string>
     <string name="ach_title_walk_cycle_drive">Gå, cykl, kør</string>
     <string name="ach_desc_walk_cycle_drive">Registrér mindst én session af hver: gang, cykling og kørsel.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Session på %1$s</string>
     <string name="ach_desc_max_session_duration">Registrér en enkelt session, der varer mindst %1$s.</string>
     <string name="ach_title_max_speed">Nå %1$s</string>
     <string name="ach_desc_max_speed">Opnå en tophastighed på mindst %1$s under en session.</string>
     <string name="ach_title_active_minutes">%1$s aktive minutter</string>
     <string name="ach_desc_active_minutes">Saml %1$s minutters aktiv sporingstid.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Første eksport</item>
         <item quantity="other">%d eksporter</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Spor gennem %d årstider</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Registrér aktivitet i %1$d forskellige årstider (forår/sommer/efterår/vinter).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Nytårssporer</string>
     <string name="ach_desc_calendar_new_year">Registrér en session den 1. januar.</string>
     <string name="ach_title_calendar_leap_day">Skuddags-pioner</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Registrér en session på årets længste dag.</string>
     <string name="ach_title_calendar_winter_solstice">Vintersolhverv</string>
     <string name="ach_desc_calendar_winter_solstice">Registrér en session på årets korteste dag.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Natteravn</item>
         <item quantity="other">%1$s natlige sessioner</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Brug %d eksportformater</item>
     </plurals>
     <string name="ach_desc_export_formats">Eksportér dine data i %1$d forskellige filformater.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Nå niveau %1$d</string>
     <string name="ach_desc_player_level">Klatr til spillerniveau %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP på én dag</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Spil %1$s minispil</item>
     </plurals>
     <string name="ach_desc_minigames_played">Gennemfør %1$d gennemspilninger af minispil.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Klatr %1$s</string>
     <string name="ach_desc_total_ascent">Saml i alt %1$s højdestigning på tværs af al din sporing.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Optjen fra én XP-kilde</item>
         <item quantity="other">Optjen fra %d XP-kilder</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d perfekte uger</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Opfyld dit daglige skridtmål hver dag i %1$d hele uger.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d-dags målserie</item>
         <item quantity="other">%d-dages målserie</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Fuldfør %d kategorier</item>
     </plurals>
     <string name="ach_desc_categories_completed">Lås alle præstationer op i %1$d forskellige kategorier.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d-sekunds</item>
         <item quantity="other">%d-sekunders</item>

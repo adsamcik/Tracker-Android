@@ -1,16 +1,15 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-    <!-- Module title for distribution manifest -->
+    <string name="trip_route_preview_unavailable">Forhåndsvisning af rutekort kunne ikke forberedes</string>
     <string name="module_map_title">Kort</string>
     <string name="description_map_search">Søgeknap</string>
     <string name="map_layer_cell_heatmap_description">Varmekort over mobilsignal. Varmen ændrer sig efter den tilgængelige teknologi.</string>
     <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
     <string name="map_layer_location_heatmap_high">Høj tæthed</string>
     <string name="map_layer_location_heatmap_low">Lav tæthed</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Lav til middel tæthed</string>
     <string name="map_layer_location_heatmap_medium">Middeltæthed</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Maksimal tæthed</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Unikke besøg</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Besøg</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativ tæthed af accepterede positionsmålinger. Dette viser separate observationer, ikke tidsforbrug.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Signalblinde zoner</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Blinde zoner</string>
     <string name="map_layer_signal_coverage_description">Fremhæver steder, hvor dit mobilsignal var svagt eller manglede. Jo rødere området er, desto dårligere er dækningen; områder med god dækning forbliver klare.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Svag</string>
+    <string name="map_layer_signal_coverage_poor">Dårlig</string>
+    <string name="map_layer_signal_coverage_very_poor">Meget dårlig</string>
+    <string name="map_layer_signal_coverage_dead">Blind zone</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalnordlys</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Nordlys</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobilsignal gengivet som et nordlyslignende skær: en bred violet glorie under en lys cyan-grøn kerne. Skæret pulserer uden at genindlæse data og bliver statisk, når systemanimationer er deaktiveret.</string>
@@ -108,10 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">For høj fart</string>
     <string name="map_layer_location_polyline_description">Linje, der forbinder dine registrerede placeringer over tid.</string>
     <string name="map_layer_location_polyline_title">Positionspolylinje</string>
-    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
-         layer chip on the map control bar (~360dp). Each chip label fits in
-         ~12 characters at typical font sizes. Fall back to titleRes for layers
-         whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Polylinje</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-overlap</string>
     <string name="map_layer_vehicle_compliance_chip">For høj fart</string>
@@ -155,9 +150,6 @@
     <string name="tips_map_date_range_title">Datointerval</string>
     <string name="tips_map_my_location_title">Min placering</string>
     <string name="tips_map_sheet_description">Tryk på eller træk denne bjælke op for at åbne flere indstillinger for kortet, herunder lagvalg og forklaring.</string>
-    <!-- Map Sheet Controls -->
-    <!-- Keep short so it fits the search field at typical 360dp widths;
-         the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Bredde, længde f.eks. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Prøv 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Ryd søgning</string>
@@ -165,7 +157,6 @@
     <string name="map_search_clipboard_empty">Udklipsholderen indeholder endnu ikke koordinater</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Annuller</string>
-    <!-- Share map as image -->
     <string name="map_share_button">Del kort</string>
     <string name="map_share_sheet_title">Del kort som billede</string>
     <string name="map_share_sheet_subtitle">Gengiver den aktuelle visning og det aktive lag som et statisk billede. Din liveplacering medtages aldrig.</string>
@@ -176,7 +167,7 @@
     <string name="map_share_preparing">Forbereder billede…</string>
     <string name="map_share_error">Kunne ikke gengive kortbilledet. Prøv igen.</string>
     <string name="map_date_range_all_time">Hele perioden</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Valgt tur</string>
     <string name="map_layers_title">Kortlag</string>
     <string name="map_layer_load_error">Kunne ikke indlæse dette lag. Prøv at vælge et andet.</string>
     <string name="map_empty_subtitle_location">Ingen placeringsdata i denne visning eller dette datointerval. Rute- og kortfunktioner kræver placeringer indsamlet under sporing.</string>
@@ -221,7 +212,6 @@
     <string name="map_a11y_city_scale">Byskala</string>
     <string name="map_a11y_neighborhood_scale">Nabolagsskala</string>
     <string name="map_a11y_street_scale">Gadeskala</string>
-    <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Multiplikator for gengivelsesdetaljer. Højere værdier viser flere detaljer, men kan gøre indlæsningen af kort langsommere på ældre enheder.</string>
     <string name="help_max_heat_points">Maksimalt antal placeringspunkter vist i varmekortvisningen. Højere værdier giver flere detaljer, men langsommere gengivelse.</string>
     <string name="help_visit_threshold">Hvor længe du skal blive ét sted, før det markeres som et besøg på kortet. Øg dette for at reducere rod fra korte stop.</string>

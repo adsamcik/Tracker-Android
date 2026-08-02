@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Spil</string>
     <string name="module_map_title">Kort</string>
     <string name="module_statistics_title">Statistik</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Næste automatiske sikkerhedskopi omfatter alle data i stedet for kun ændringer</string>
     <string name="settings_reset_export_watermarks_done">Eksportmarkeringer er nulstillet — næste sikkerhedskopi bliver en fuld eksport</string>
     <string name="settings_migration_backup_export_title">Eksportér sikkerhedskopi før opgradering</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Fuld databasekopi fra v%1$d, oprettet før overflytning til v%2$d og gemt privat i op til 30 dage</string>
     <string name="settings_migration_backup_warning_title">Eksportere følsom sikkerhedskopi af databasen?</string>
     <string name="settings_migration_backup_warning_message">Denne sikkerhedskopi kan indeholde præcise placeringer, Wi-Fi- og celleobservationer, aktiviteter og andre private data fra før opgraderingen. Gem den kun et sted, du har tillid til.</string>
@@ -105,13 +102,6 @@
         <item>Flyvning</item>
     </string-array>
     <string name="settings_length_system_title">Længdesystem</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Open source-licenser</string>
     <string name="settings_licenses_subtitle">Se medfølgende meddelelser om tredjepartskomponenter i denne build.</string>
     <string name="settings_licenses_loading">Indlæser licenser…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Version</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Build-commit</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Forfatter</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-mail</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Links</string>
     <string name="about_attributions_title">Datakilder</string>
     <string name="about_attribution_geonames_label">Stednavne</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Kort- og vejdata</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Modulindstillinger</string>
     <string name="settings_core_group_title">Kerne</string>
     <string name="settings_other_title">Enheder og visning</string>
@@ -151,16 +135,9 @@
         <item>Hastighed (km/t, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Hastighedsformat</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Indstillinger</string>
     <string name="switch_state_on">Til</string>
     <string name="switch_state_off">Fra</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Spor dine rejser privat</string>
     <string name="onboarding_streamlined_subtitle">Alle data bliver på din enhed. Ingen skysynkronisering eller tredjepartssporing.</string>
     <string name="onboarding_benefit_privacy_title">Privatliv først</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">KOM I GANG</string>
     <string name="onboarding_privacy_policy_button">Læs privatlivspolitik</string>
     <string name="onboarding_state_read_error_message">Vi kunne ikke bekræfte, om opsætningen allerede var fuldført, så den vises for at beskytte dine data. Du kan trygt fortsætte.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Automatisk oprydning af gamle data</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Behold data for altid; automatisk oprydning sletter ikke gamle data</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Fjern automatisk data, der er ældre end %1$d år</item>
         <item quantity="other">Fjern automatisk data, der er ældre end %1$d år</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Behold data i</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Behold for altid</item>
@@ -189,17 +164,7 @@
         <item>5 år</item>
         <item>10 år</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">FORTSÆT</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Eksportér data</string>
     <string name="settings_export_data_summary">Gem dine sporingsdata i forskellige formater</string>
     <string name="export_format_dialog_title">Vælg eksportformat</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Eksportér</string>
     <string name="settings_import_summary">Importér data fra understøttede typer (%1$s) og arkiver (%2$s). Databaseimporter fletter kompatible rækker; de erstatter ikke eksisterende data.</string>
     <string name="settings_import_title">Importér</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Forstået</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Lav påvirkning</string>
     <string name="battery_impact_moderate">Moderat påvirkning</string>
     <string name="battery_impact_high">Høj påvirkning</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Vælg placeringspræcision</string>
     <string name="precision_mode_approximate_title">Omtrentlig</string>
     <string name="precision_mode_approximate_description">Netværksbaseret placering. God til sporing af generelle områder med minimalt batteriforbrug.</string>
     <string name="precision_mode_precise_title">Præcis</string>
     <string name="precision_mode_precise_description">GPS-baseret placering. Bedst til detaljerede ruter, varmekort og udfordringer.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Aktivér præcis sporing</string>
     <string name="upgrade_to_precise_message_general">Du bruger omtrentlig placering. Skift til præcis GPS-sporing for bedre nøjagtighed.</string>
     <string name="upgrade_to_precise_message_route_analysis">Præcis placering anbefales til nøjagtig ruteanalyse og afstandsmålinger.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Præcis GPS bruger mere batteri. Anslået sporingstid: 6–8 timer på typiske enheder.</string>
     <string name="upgrade_to_precise_button_upgrade">Slå præcis placering til</string>
     <string name="upgrade_to_precise_button_cancel">Måske senere</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Høj nøjagtighed</string>
     <string name="tracking_preset_high_accuracy_description">Bedste detaljer med de hurtigste opdateringer og alle vigtige sensorer aktiveret</string>
     <string name="tracking_preset_balanced_name">Afbalanceret</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Sporingspolitik</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Anslået sporing: %d time</item>
         <item quantity="other">Anslået sporing: %d timer</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Vælg, hvor præcist Tracker registrerer din placering</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automatisk enhedsskift</string>
     <string name="settings_module_map_subtitle">Kvalitet af varmekort og visningsindstillinger</string>
     <string name="settings_module_game_subtitle">Mål, præstationer og milepæle</string>
     <string name="action_navigate_back">Gå tilbage</string>
     <string name="action_help">Hjælp</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Indlæser…</string>
     <string name="widget_quick_start_name">Tracker hurtigstart</string>
     <string name="widget_quick_start_description">Start eller stop positionssporing med et enkelt tryk.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Baggrund</string>
     <string name="widget_tier_active">Aktiv</string>
     <string name="widget_tier_precision">Præcision</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Godt gået!</string>
     <string name="goal_notification_title_almost">Næsten i mål!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Smarte målnotifikationer</string>
     <string name="settings_smart_goal_notifications_summary">Få besked, når du er tæt på dit daglige skridtmål</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Hvordan skal sporing fungere?</string>
     <string name="setup_how_to_track_subtitle">Vælg, hvornår sporingen starter, og hvor detaljeret den skal være.</string>
     <string name="setup_auto_tracking_title">Automatisk sporing</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Begynd at udforske</string>
     <string name="setup_continue">Fortsæt</string>
     <string name="setup_step_indicator">Trin %1$d af %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Onlinekortfliser?</string>
     <string name="setup_online_tiles_subtitle">Tracker leveres med et offlinegrundkort, så den virker uden netværk. Hvis du vil have mere detaljerede kort, kan du i stedet hente fliser fra en offentlig udbyder.</string>
     <string name="setup_online_tiles_off_title">Kun offline (anbefalet)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Hent vektorfliser med flere detaljer fra OpenFreeMap (standard). Du kan ændre udbyderen senere i Indstillinger → Kort.</string>
     <string name="setup_online_tiles_privacy">Når det er slået til, kan udbyderen se din IP-adresse og de fliser, du indlæser — omtrent hvilket område af kortet du ser på. Tracker sender aldrig en konto, en identifikator eller din placeringshistorik.</string>
     <string name="setup_online_tiles_change_later">Du kan når som helst ændre dette i Indstillinger → Kort → Onlinekortfliser.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">For at registrere ture, mens skærmen er slukket eller appen er lukket, skal Tracker fortsætte med at køre i baggrunden. Telefonens batteriindstillinger kan sætte den på pause — tillad baggrundsaktivitet, så automatisk sporing forbliver pålidelig.</string>
     <string name="setup_background_access_optional">Valgfrit, men anbefalet. Du kan når som helst ændre dette i Indstillinger → Sporing.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Pålidelig sporing i baggrunden</string>
     <string name="background_reliability_status_exempt">Baggrundsaktivitet tilladt</string>
     <string name="background_reliability_status_optimized">Batterioptimering er slået til</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Tillad baggrundsaktivitet</string>
     <string name="background_reliability_samsung_hint">Samsung-enheder kan også placere apps i "Apps i dvale". Åbn batteriindstillinger, fjern derefter Tracker fra Apps i dvale, og indstil den til ikke at blive sat i dvale.</string>
     <string name="background_reliability_samsung_action">Åbn enhedens batteriindstillinger</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Nedbrudsdiagnostik</string>
     <string name="settings_tracebox_root_summary">Lokal diagnostik af nedbrud, ANR og struktur</string>
     <string name="settings_tracebox_status_header">Registreringsstatus</string>

@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Oversigt</string>
     <string name="dashboard_tracking_title">Sporing</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Placeringstilladelse er ikke tilgængelig</string>
     <string name="dashboard_permission_banner_subtitle">Tracker kan ikke registrere ruter, før du giver adgang til placering. Tryk for at give adgang.</string>
     <string name="dashboard_permission_banner_cd">Banner om utilgængelig placeringstilladelse, tryk for at give adgang til placering</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Aktivitetstype</string>
     <string name="dashboard_cd_explore_icon">Udforskning</string>
     <string name="dashboard_cd_forward_arrow">Se detaljer</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Se seriedetaljer</string>
     <string name="dashboard_action_open_tracking_settings">Indstillinger</string>
     <string name="dashboard_action_restart_tracking">Genstart</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Højdeprofil, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Afventer GPS-signal…</string>
     <string name="dashboard_tracking_recording_route">Registrerer rute…</string>
     <string name="dashboard_milestone_distance">km nået!</string>
     <string name="dashboard_milestone_steps">skridt nået!</string>
     <string name="dashboard_milestone_time">min. registreret!</string>
     <string name="dashboard_milestone_points">+10 point</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">I dag</string>
     <string name="dashboard_today_no_activity">Ingen aktivitet endnu i dag</string>
     <string name="dashboard_today_distance">Afstand</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Nye i dag</string>
     <string name="dashboard_exploration_total_cells">Felter i alt</string>
     <string name="dashboard_exploration_seasons">Sæsoner</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Hastighed</string>
     <string name="dashboard_live_charts_altitude">Højde</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Sensordetaljer</string>
     <string name="dashboard_sensor_expand">Vis sensordetaljer</string>
     <string name="dashboard_sensor_collapse">Skjul sensordetaljer</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Hastighed</string>
     <string name="dashboard_sensor_cell_types">Mobiltyper</string>
     <string name="dashboard_sensor_raw_coords">Koordinater (fejlfinding)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Stigende tendens</string>
     <string name="dashboard_trend_down">Faldende tendens</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Så er du i gang…</string>
     <string name="dashboard_motivational_keep_going">Fortsæt sådan! 💪</string>
     <string name="dashboard_motivational_impressive">Imponerende session!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">God aften! Vil du gennemgå din dag?</string>
     <string name="dashboard_motivational_night">Natteravnstilstand 🦉</string>
     <string name="dashboard_motivational_streak">🔥 Serie på %1$d dage!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Din rejse starter her</string>
     <string name="dashboard_empty_subtitle">Brug Klar-kortet nedenfor til at give adgang til placering ved behov og start dit første eventyr</string>
     <string name="dashboard_empty_feature_explore">Udforsk</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Klar, når du er</string>
     <string name="dashboard_empty_fab_hint_desc">Tryk her for at starte din første sporingssession.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Tryk her for at give adgang til placering og start derefter din første sporingssession.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Dagens fremskridt</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Seneste session</string>
     <string name="widget_recent_trips">Seneste ture</string>
     <string name="widget_exploration">Udforskning</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Tilpas oversigt</string>
     <string name="dashboard_customize_reset">Nulstil til standard</string>
     <string name="dashboard_customize_cd_toggle">Slå synlighed for %1$s til eller fra</string>
     <string name="dashboard_customize_cd_drag_handle">Omarrangér %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Ingen højdedata</string>
     <string name="dashboard_cd_no_altitude_data">Ingen højdedata tilgængelige</string>
     <string name="dashboard_cd_speed_sparkline">Hastighedsminigraf med %1$d datapunkter</string>
     <string name="dashboard_cd_session_path">Forhåndsvisning af sessionsrute med %1$d punkter</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Hastighed</string>
     <string name="dashboard_metric_distance">Afstand</string>
     <string name="dashboard_metric_duration">Varighed</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi-Fi</string>
     <string name="dashboard_metric_cell">Mobil</string>
     <string name="dashboard_metric_coordinates">Koordinater</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Start sporing</string>
     <string name="dashboard_ring_enable_location">Slå placering til</string>
     <string name="dashboard_pill_start">Start</string>
     <string name="dashboard_pill_stop">Stop</string>
     <string name="dashboard_pill_enable_location">Slå placering til</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Sessionsindsigter</string>
     <string name="dashboard_cd_insight_item">Indblik: %1$s</string>
     <string name="widget_latest_achievement">Seneste præstation</string>

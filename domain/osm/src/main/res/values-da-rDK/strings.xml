@@ -1,6 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">OSM-kortimport</string>
     <string name="osm_import_notification_channel_description">Forgrundsnotifikation vises, mens en brugerimporteret OpenStreetMap-region analyseres.</string>
     <string name="osm_import_notification_title">Importerer OpenStreetMap-region</string>
     <string name="osm_import_notification_content">%1$d veje analyseret</string>
