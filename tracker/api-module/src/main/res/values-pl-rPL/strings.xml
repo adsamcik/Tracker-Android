@@ -1,87 +1,203 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="activity_title">Activity</string>
+    <string name="activity_title">Aktywność</string>
     <string name="activity_value">%s</string>
-    <string name="altitude_title">Altitude</string>
-    <string name="altitude_value">alt %s</string>
-    <string name="cell_count_title">Cell count</string>
-    <string name="cell_count_value">cells %d</string>
+    <string name="altitude_title">Wysokość</string>
+    <string name="altitude_value">wys. %s</string>
+    <string name="cell_count_title">Liczba komórek</string>
+    <string name="cell_count_value">komórki: %d</string>
     <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
-    <string name="cell_current_title">Current cell</string>
-    <string name="cell_current_value">active cells (%s)</string>
-    <string name="collection_count_title">Collection count</string>
-    <string name="collection_count_value">%d collections</string>
-    <string name="description_settings">Settings button</string>
-    <string name="description_tracking_start">Start tracking button</string>
-    <string name="description_tracking_stop">Stop tracking button</string>
-    <string name="distance_invehicle_title">Distance in vehicle</string>
-    <string name="distance_invehicle_value">in vehicle %s</string>
-    <string name="distance_onfoot_title">Distance on foot</string>
-    <string name="distance_onfoot_value">on foot %s</string>
-    <string name="distance_title">Distance</string>
-    <string name="distance_value">distance %s</string>
-    <string name="duration_title">Session duration</string>
-    <string name="duration_value">duration %s</string>
-    <string name="error_nothing_to_track">You need to track more than time</string>
-    <string name="hint_customize_notification_show_in_content">Show in notification content</string>
-    <string name="hint_customize_notification_show_in_title">Show in notification title</string>
-    <string name="horizontal_accuracy_title">Horizontal accuracy</string>
-    <string name="horizontal_accuracy_value">acc %s</string>
-    <string name="last_update_title">Last update time</string>
-    <string name="last_update_value">last %s</string>
-    <string name="latitude_title">Latitude</string>
+    <string name="cell_current_title">Bieżąca komórka</string>
+    <string name="cell_current_value">aktywne komórki (%s)</string>
+    <string name="collection_count_title">Liczba aktualizacji</string>
+    <string name="collection_count_value">aktualizacje: %d</string>
+    <string name="coordinates_title">Współrzędne</string>
+    <string name="description_settings">Przycisk ustawień</string>
+    <string name="description_tracking_start">Przycisk rozpoczęcia śledzenia</string>
+    <string name="description_tracking_stop">Przycisk zatrzymania śledzenia</string>
+    <string name="description_tracking_start_no_permission">Rozpocznij śledzenie — wymagane uprawnienie</string>
+    <string name="description_points_today">Punkty zdobyte dzisiaj: %s</string>
+    <string name="description_copy">Kopiuj wartość</string>
+    <string name="description_copied">Wartość skopiowana</string>
+    <string name="description_recharge_settings">Ustawienia ładowania: dotknij, aby skonfigurować</string>
+    <string name="distance_invehicle_title">Odległość w pojeździe</string>
+    <string name="distance_invehicle_value">w pojeździe: %s</string>
+    <string name="distance_onfoot_title">Odległość pieszo</string>
+    <string name="distance_onfoot_value">pieszo: %s</string>
+    <string name="distance_title">Odległość</string>
+    <string name="distance_value">odległość: %s</string>
+    <string name="duration_title">Czas trwania sesji</string>
+    <string name="duration_value">czas trwania: %s</string>
+    <string name="error_nothing_to_track">Włącz co najmniej jedną opcję śledzenia (lokalizację, kroki lub aktywność)</string>
+    <string name="hint_customize_notification_show_in_content">Pokaż w treści powiadomienia</string>
+    <string name="hint_customize_notification_show_in_title">Pokaż w tytule powiadomienia</string>
+    <string name="horizontal_accuracy_title">Dokładność pozioma</string>
+    <string name="horizontal_accuracy_value">dokł. %s</string>
+    <string name="last_update_title">Czas ostatniej aktualizacji</string>
+    <string name="last_update_value">ostatnio: %s</string>
+    <string name="latitude_title">Szerokość geograficzna</string>
     <string name="latitude_value_north">%s N</string>
     <string name="latitude_value_south">%s S</string>
-    <string name="longitude_title">Longitude</string>
+    <string name="longitude_title">Długość geograficzna</string>
     <string name="longitude_value_east">%s E</string>
     <string name="longitude_value_west">%s W</string>
     <plurals name="notification_auto_tracking_lock">
-        <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
-        <item quantity="few">Auto tracking has been locked for %1$d minutes.</item>
-        <item quantity="many">Auto tracking has been locked for %1$d minutes.</item>
-        <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
-    </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS</string>
-    <string name="notification_starting">Starting Tracker service</string>
-    <string name="notification_stop">Stop</string>
-    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
-    <string name="notification_stop_til_recharge">Stop till recharge</string>
-    <string name="notification_tracker_active_ticker">Tracker is active</string>
-    <string name="notification_tracking_active">Tracking</string>
-    <string name="settings_activity_enabled_title">Activity</string>
-    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
-    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
-    <string name="settings_cell_enabled_title">Cell</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
-    <string name="settings_disabled_recharge_title">Disabled until recharge</string>
-    <string name="settings_location_enabled_title">Location</string>
-    <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
-    <string name="settings_notification_customize_title">Customize notification</string>
-    <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
-    <string name="settings_notification_styled_title">Colored notifications</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Google Play location</string>
-    <string name="settings_tracker_timer_location">Android location</string>
-    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
-    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
-    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
-    <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_wifi_enabled_title">Wi-Fi</string>
-    <string name="shortcut_start_tracking">Start tracking</string>
-    <string name="shortcut_start_tracking_long">Start tracking service</string>
-    <string name="shortcut_stop_tracking">Stop tracking</string>
-    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
-    <string name="speed_title">Speed</string>
-    <string name="speed_value">speed %s</string>
-    <string name="start_time_title">Session start time</string>
-    <string name="start_time_value">start %s</string>
-    <string name="tracker_activity_confidence">Confidence</string>
-    <string name="tracker_activity_title">Activity</string>
-    <string name="tracker_collections_title">Collections</string>
-    <string name="tracker_distance_title">Distance</string>
-    <string name="tracker_session_age">Session started</string>
-    <string name="tracker_session_card_title">Session</string>
-    <string name="wifi_count_title">Wi-Fi count</string>
-    <string name="wifi_count_value">Wi-Fi %d</string>
+        <item quantity="one">Automatyczne śledzenie zablokowano na %1$d minutę.</item><item quantity="few">Automatyczne śledzenie zablokowano na %1$d minuty.</item><item quantity="many">Automatyczne śledzenie zablokowano na %1$d minut.</item><item quantity="other">Automatyczne śledzenie zablokowano na %1$d minuty.</item></plurals>
+    <string name="notification_looking_for_gps">Szukanie GPS — lokalizacja używana</string>
+    <string name="notification_starting">Uruchamianie Trackera — lokalizacja używana</string>
+    <string name="notification_starting_without_location">Uruchamianie Trackera</string>
+    <string name="notification_stop">Zatrzymaj</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Zatrzymaj na %d minut</string>
+    <string name="notification_stop_til_recharge">Zatrzymaj do naładowania</string>
+    <string name="stop_tracking_dialog_title">Zatrzymać śledzenie?</string>
+    <string name="stop_tracking_dialog_message">Automatyczne śledzenie jest włączone i może wkrótce rozpocząć nową sesję, jeśli tylko je zatrzymasz.</string>
+    <string name="notification_tracker_active_ticker">Rejestrowanie trasy — lokalizacja używana</string>
+    <string name="notification_tracker_active_without_location">Śledzenie bez lokalizacji</string>
+    <string name="notification_tracking_active">Śledzenie</string>
+    <string name="notification_tracking_start_failed_title">Nie udało się rozpocząć śledzenia</string>
+    <string name="notification_tracking_start_failed_text">Otwórz aplikację, aby sprawdzić uprawnienia i wznowić śledzenie.</string>
+    <string name="settings_activity_enabled_title">Aktywność</string>
+    <string name="settings_auto_tracking_transition_summary">Tryb oszczędzający baterię (nieco wolniejsze wykrywanie aktywności)</string>
+    <string name="settings_auto_tracking_transition_title">Używaj przejść aktywności</string>
+    <string name="settings_cell_enabled_title">Sieć komórkowa</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_summary">Automatyczne śledzenie jest wyłączone, dopóki telefon nie zostanie podłączony do ładowarki</string>
+    <string name="settings_disabled_recharge_title">Wyłączone do naładowania</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_location_enabled_title">Lokalizacja</string>
+    <string name="settings_notification_customize_summary">Zmień, co ma się pojawiać w powiadomieniu śledzenia i w jakiej kolejności.</string>
+    <string name="settings_notification_customize_title">Dostosuj powiadomienie</string>
+    <string name="settings_notification_styled_summary">Używaj koloru stylu aplikacji dla powiadomień.</string>
+    <string name="settings_notification_styled_title">Kolorowe powiadomienia</string>
+    <string name="settings_ski_detection_title">Wykrywanie jazdy na nartach</string>
+    <string name="settings_ski_detection_summary">Automatycznie wykrywaj jazdę na nartach na podstawie wzorców barometru i dostosowuj śledzenie GPS do fazy jazdy.</string>
+    <string name="settings_sailing_detection_title">Wykrywanie żeglowania</string>
+    <string name="settings_sailing_detection_summary">Automatycznie wykrywaj żeglowanie i pływanie na podstawie prędkości GPS oraz odpowiednio dostosowuj śledzenie GPS. Tylko na podstawie prędkości — może też uruchamiać się przy aktywnościach o podobnej prędkości, takich jak jazda rowerem.</string>
+    <string name="settings_plane_detection_title">Wykrywanie lotu</string>
+    <string name="settings_plane_detection_summary">Automatycznie wykrywaj loty na podstawie zmian wysokości barometrycznej i dostosowuj śledzenie GPS do fazy lotu. Działa nawet bez GPS na wysokości przelotowej.</string>
+    <string name="ski_notification_title">Statystyki narciarskie</string>
+    <string name="ski_notification_text">🎿 Run #%1$d | ↓%2$s | ⚡%3$s</string>
+    <string name="ski_notification_lift">Przejazd %1$s</string>
+    <string name="settings_barometer_enabled_title">Barometr</string>
+    <string name="settings_steps_enabled_title">Liczba kroków</string>
+    <string name="settings_tracker_timer_ambient">Timer otoczenia</string>
+    <string name="settings_tracker_timer_clock">Oparty na interwałach</string>
+    <string name="settings_tracker_timer_fused">Lokalizacja Google Play</string>
+    <string name="settings_tracker_timer_location">Lokalizacja Androida</string>
+    <string name="settings_tracking_min_distance_title">Minimalna odległość między aktualizacjami</string>
+    <string name="settings_tracking_min_time_title">Minimalne opóźnienie między aktualizacjami</string>
+    <string name="settings_tracking_notice_summary">Zmiany zaczną obowiązywać po ponownym uruchomieniu śledzenia</string>
+    <string name="settings_tracking_required_accuracy_title">Wymagana dokładność lokalizacji</string>
+    <string name="settings_tracking_title">Śledzenie</string>
+    <string name="settings_vehicle_speed_limit_baseline_title">Bazowe ograniczenie prędkości pojazdu</string>
+    <string name="help_vehicle_speed_limit_baseline">Używane przez warstwę mapy zgodności prędkości pojazdu. Próbki jazdy są kolorowane według porównania ich prędkości z tą wartością bazową. Wybierz wartość odpowiadającą ograniczeniom tam, gdzie najczęściej jeździsz (np. 50 km/h w miastach, 90 km/h na autostradach).</string>
+    <string name="settings_wifi_enabled_title">Wi‑Fi</string>
+    <string name="shortcut_start_tracking">Rozpocznij śledzenie</string>
+    <string name="shortcut_start_tracking_long">Rozpocznij śledzenie lokalizacji</string>
+    <string name="shortcut_stop_tracking">Zatrzymaj śledzenie</string>
+    <string name="shortcut_stop_tracking_long">Zatrzymaj śledzenie lokalizacji</string>
+    <string name="speed_title">Prędkość</string>
+    <string name="speed_value">prędkość: %s</string>
+    <string name="battery_title">Bateria</string>
+    <string name="battery_low_warning">⚡ Niski poziom baterii: %d%%</string>
+    <string name="start_time_title">Czas rozpoczęcia sesji</string>
+    <string name="start_time_value">początek: %s</string>
+    <string name="tracker_activity_confidence">Pewność</string>
+    <string name="tracker_activity_title">Aktywność</string>
+    <string name="tracker_collections_title">Aktualizacje</string>
+    <string name="tracker_distance_title">Odległość</string>
+    <string name="tracker_steps_title">Kroki</string>
+    <string name="tracker_session_age">Sesja rozpoczęta</string>
+    <string name="tracker_session_card_title">Sesja</string>
+    <string name="tracker_component_waiting_data">Oczekiwanie na dane na żywo</string>
+    <plurals name="tracker_wifi_networks_value">
+        <item quantity="one">%d sieć</item><item quantity="few">%d sieci</item><item quantity="many">%d sieci</item><item quantity="other">%d sieci</item></plurals>
+    <string name="tracker_signal_strength_title">Sygnał</string>
+    <string name="tracker_signal_strength_value">Szczyt: %1$d dBm</string>
+    <string name="insight_distance_value_km">%1$.1f km</string>
+    <string name="insight_duration_title">Dobrze wykorzystany czas</string>
+    <plurals name="insight_duration_desc">
+        <item quantity="one">%1$d minuta śledzenia</item><item quantity="few">%1$d minuty śledzenia</item><item quantity="many">%1$d minut śledzenia</item><item quantity="other">%1$d minuty śledzenia</item></plurals>
+    <string name="insight_exploration_title">Odkrywca!</string>
+    <plurals name="insight_exploration_desc">
+        <item quantity="one">Odkryto %1$d nowy obszar</item><item quantity="few">Odkryto %1$d nowe obszary</item><item quantity="many">Odkryto %1$d nowych obszarów</item><item quantity="other">Odkryto %1$d nowego obszaru</item></plurals>
+    <string name="insight_comparison_title">Powyżej średniej</string>
+    <string name="insight_comparison_desc">Ta sesja była o %1$d%% dłuższa od ostatniej średniej</string>
+    <string name="wifi_count_title">Liczba Wi‑Fi</string>
+    <string name="wifi_count_value">Wi‑Fi: %d</string>
+    <!-- Soft hint when Wi‑Fi permission is missing -->
+    <string name="wifi_permission_hint_title">Zezwól na Wi‑Fi dla lepszej dokładności w budynkach</string>
+    <string name="wifi_permission_hint_text">Przyznaj uprawnienie Wi‑Fi w ustawieniach aplikacji, aby poprawić lokalizację opartą na sygnale w budynkach. Dane radiowe Wi‑Fi nie są zbierane, dopóki na to nie zezwolisz.</string>
+    <!-- Tracker Dashboard -->
+    <!-- Today Progress Card -->
+    <string name="dashboard_today_title">Dzisiaj</string>
+    <string name="dashboard_today_empty_title">Brak sesji dzisiaj</string>
+    <string name="dashboard_today_distance">Odległość</string>
+    <string name="dashboard_today_steps">Kroki</string>
+    <string name="dashboard_today_duration">Czas trwania</string>
+    <!-- Tracking Presets -->
+    <string name="tracking_preset_title">Tryb śledzenia</string>
+    <string name="tracking_preset_battery_saver_title">Oszczędzanie baterii</string>
+    <string name="tracking_preset_battery_saver_desc">Zoptymalizowane do całodziennego śledzenia</string>
+    <string name="tracking_preset_balanced_title">Zrównoważony</string>
+    <string name="tracking_preset_balanced_desc">Wszystkie czujniki włączone przy umiarkowanej szczegółowości</string>
+    <string name="tracking_preset_high_precision_title">Wysoka precyzja</string>
+    <string name="tracking_preset_high_precision_desc">Maksymalna szczegółowość i dokładność</string>
+    <string name="tracking_preset_custom_badge">Zastosowano ustawienia własne</string>
+    <!-- Battery Impact Indicators -->
+    <string name="battery_impact_low">Mały wpływ na baterię</string>
+    <string name="battery_impact_moderate">Umiarkowany wpływ na baterię</string>
+    <string name="battery_impact_high">Większe zużycie baterii</string>
+    <string name="battery_impact_high_warning">Ta konfiguracja może znacznie skrócić czas pracy baterii. Rozważ tryb zrównoważony dla całodziennego śledzenia.</string>
+    <!-- Advanced Settings Section -->
+    <!-- Help Text for Advanced Settings -->
+    <string name="help_min_distance">Tracker czeka, aż przemieścisz się o tę odległość, zanim zarejestruje następną lokalizację. Mniejsze wartości = bardziej szczegółowe trasy, ale większe zużycie baterii.</string>
+    <string name="help_min_time">Jak często Tracker sprawdza lokalizację. Mniejsze wartości = częstsze aktualizacje, ale większe zużycie baterii.</string>
+    <string name="help_required_accuracy">Próg dokładności GPS. Tracker ignoruje aktualizacje lokalizacji o dokładności gorszej niż ta wartość. Niższa wartość = większa precyzja, ale aktualizacje mogą być pomijane przy słabym GPS.</string>
+    <string name="help_transition_detection">Tracker uruchamia się i zatrzymuje automatycznie na podstawie ruchu. Używa mniej baterii niż stały GPS, ale może opóźnić wykrycie zmian aktywności.</string>
+    <!-- Policy Tier Indicator (Phase 4a) -->
+    <string name="policy_tier_ambient">Otoczenie</string>
+    <string name="policy_tier_active">Aktywny</string>
+    <string name="policy_tier_precision">Precyzja</string>
+    <!-- Recent Trips Card (Phase 4d) -->
+    <string name="dashboard_recent_trips">Ostatnie podróże</string>
+    <!-- Hardcoded string extractions -->
+    <string name="tracker_hide_details">Ukryj szczegóły</string>
+    <string name="tracker_show_sensor_details">Pokaż szczegóły czujników</string>
+    <string name="tracker_view_map">Zobacz mapę</string>
+    <string name="tracker_average_label">Śr.</string>
+    <string name="tracker_accuracy_label">Dokładność</string>
+    <string name="tracker_disabled">Wyłączone</string>
+    <!-- Content descriptions -->
+    <string name="tracker_lock_icon_desc">Stan blokady</string>
+    <string name="tracker_settings_icon_desc">Ustawienia komponentu</string>
+    <string name="tracker_points_icon_desc">Postęp punktów</string>
+    <!-- Hardcoded string extractions (HI-03) -->
+    <string name="tracker_start_button">START</string>
+    <string name="tracker_duration_label">Czas trwania</string>
+    <string name="tracker_distance_label">Odległość</string>
+    <string name="tracker_wifi_label">Wi‑Fi</string>
+    <string name="tracker_cell_label">Sieć komórkowa</string>
+    <string name="tracker_collapse">Zwiń</string>
+    <string name="tracker_expand">Rozwiń</string>
+    <string name="tracker_go_to_map">Przejdź do mapy</string>
+    <string name="tracker_session_summary_copied">Podsumowanie sesji skopiowane</string>
+    <string name="tracker_share_session_summary">Udostępnij podsumowanie sesji</string>
+    <string name="tracker_long_press_to_copy">Przytrzymaj, aby skopiować</string>
+    <string name="tracker_copy_session_summary">Kopiuj podsumowanie sesji</string>
+    <string name="tracker_live_tab">Na żywo</string>
+    <string name="tracker_route_tab">Trasa</string>
+    <string name="tracker_activity_tab">Aktywność</string>
+    <string name="tracker_precision_mode_enabled">Włączono śledzenie o wysokiej precyzji</string>
+    <string name="tracker_battery_mode_enabled">Włączono śledzenie oszczędzające baterię</string>
+    <string name="policy_tier_status_prefix">Zasady GPS:</string>
+    <string name="tracker_precision_chip_hint">Dotknij, aby przełączyć na %1$s</string>
+    <string name="action_navigate_back">Wróć</string>
+    <!-- Session Insights (Task F) -->
+    <string name="insight_distance_title">Pokonana odległość</string>
+    <string name="insight_distance_desc">Pokonano %1$s w tej sesji.</string>
+    <string name="insight_steps_title">Zarejestrowane kroki</string>
+    <string name="insight_steps_desc">%1$s kroków w tej sesji — tak trzymaj!</string>
 </resources>

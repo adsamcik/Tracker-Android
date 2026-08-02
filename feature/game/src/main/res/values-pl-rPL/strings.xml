@@ -1,4 +1,304 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="points_earned_today">points earned today</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Gra</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Ucieczka</string>
+    <string name="minigame_outrun_description">Ścigaj się z duchem. Utrzymaj przewagę!</string>
+    <string name="minigame_territory_name">Terytorium</string>
+    <string name="minigame_territory_description">Zajmuj nowe komórki siatki podczas chodzenia</string>
+    <string name="minigame_zenwalk_name">Spacer Zen</string>
+    <string name="minigame_zenwalk_description">Utrzymuj spokojne tempo w strefie</string>
+    <string name="minigame_fuserun_name">Bieg z lontem</string>
+    <string name="minigame_fuserun_description">Uciekaj z każdego wirtualnego promienia wybuchu, zanim wygaśnie lont</string>
+    <string name="minigame_switchback_name">Zygzak</string>
+    <string name="minigame_switchback_description">Wykonuj ostre naprzemienne skręty, aby budować serię płynności</string>
+    <string name="minigame_locked">Odblokowuje się na poziomie %1$d</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Graj</string>
+    <string name="game_progress_section_title">Postęp</string>
+    <string name="minigame_outrun_goal_line">Utrzymaj przewagę 25–100 m nad duchem</string>
+    <string name="minigame_territory_goal_line">Zajmij pieszo 5–20 unikalnych komórek</string>
+    <string name="minigame_zenwalk_goal_line">Utrzymuj tempo przez 5–20 minut</string>
+    <string name="minigame_fuserun_goal_line">Rozbrój 3–8 ładunków przed wygaśnięciem lontów</string>
+    <string name="minigame_switchback_goal_line">Wykonaj pieszo 4–10 ostrych skrętów</string>
+    <string name="minigame_play_action_play">Graj</string>
+    <string name="minigame_play_personal_best">Rekord %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Rekord osobisty %1$s</string>
+    <string name="minigame_play_locked_summary">Osiągnij poziom %1$d, aby odblokować</string>
+    <string name="minigame_play_locked_detail">Zdobywaj XP, grając w odblokowane gry i śledząc aktywność, aby zdobywać kolejne poziomy.</string>
+    <string name="minigame_play_locked_expand_cta">Dotknij dwukrotnie, aby zobaczyć sposób odblokowania</string>
+    <string name="minigame_active_session_running">W toku — dotknij „Graj”, aby wrócić</string>
+    <string name="minigame_active_session_paused">Wstrzymano — dotknij „Graj”, aby wznowić</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d komórka</item><item quantity="few">%1$d komórki</item><item quantity="many">%1$d komórek</item><item quantity="other">%1$d komórki</item></plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d ładunek</item><item quantity="few">%1$d ładunki</item><item quantity="many">%1$d ładunków</item><item quantity="other">%1$d ładunku</item></plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d skręt</item><item quantity="few">%1$d skręty</item><item quantity="many">%1$d skrętów</item><item quantity="other">%1$d skrętu</item></plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Zobacz wcześniejsze wyniki</string>
+    <string name="minigame_session_close">Zamknij</string>
+    <string name="minigame_session_play_again">Zagraj ponownie</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Potrzebna lokalizacja</string>
+    <string name="minigame_session_permission_body">Minigry używają bieżącej lokalizacji do śledzenia rozgrywki. Poza końcowym wynikiem nic nie jest zapisywane.</string>
+    <string name="minigame_session_permission_grant">Przyznaj dostęp</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Ustaw rozgrywkę</string>
+    <string name="minigame_setup_goal_title">Cel</string>
+    <string name="minigame_setup_difficulty_title">Trudność</string>
+    <string name="minigame_setup_start_cta">Rozpocznij rozgrywkę</string>
+    <string name="minigame_setup_remember">Zapamiętaj te ustawienia</string>
+    <string name="minigame_setup_remember_description">Otwórz tę grę ponownie z tym samym celem i trudnością.</string>
+    <string name="minigame_setup_goal_meters">Przewaga %1$d m</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d komórka</item><item quantity="few">%1$d komórki</item><item quantity="many">%1$d komórek</item><item quantity="other">%1$d komórki</item></plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min w strefie</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d ładunek</item><item quantity="few">%1$d ładunki</item><item quantity="many">%1$d ładunków</item><item quantity="other">%1$d ładunku</item></plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d skręt</item><item quantity="few">%1$d skręty</item><item quantity="many">%1$d skrętów</item><item quantity="other">%1$d skrętu</item></plurals>
+    <string name="minigame_difficulty_easy">Łatwy</string>
+    <string name="minigame_difficulty_normal">Normalny</string>
+    <string name="minigame_difficulty_hard">Trudny</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Przygotowywanie…</string>
+    <string name="minigame_session_finishing">Zapisywanie rozgrywki…</string>
+    <string name="minigame_session_paused_title">Wstrzymano</string>
+    <string name="minigame_session_pause_cta">Wstrzymaj</string>
+    <string name="minigame_session_resume_cta">Wznów</string>
+    <string name="minigame_session_finish_cta">Zakończ</string>
+    <string name="minigame_session_background_note">Rozgrywka trwa dalej po opuszczeniu tego ekranu. Otwórz ją ponownie z ekranu Gier, aby kontynuować.</string>
+    <string name="minigame_session_elapsed_label">Aktywny czas</string>
+    <string name="minigame_session_goal_progress">%1$d%% celu</string>
+    <string name="minigame_session_goal_reached">Cel osiągnięty</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Silny GPS</string>
+    <string name="minigame_signal_fair">Dostateczny GPS</string>
+    <string name="minigame_signal_poor">Słaby GPS</string>
+    <string name="minigame_signal_unavailable">Brak sygnału GPS</string>
+    <string name="minigame_signal_unknown">Ustalanie lokalizacji…</string>
+    <string name="minigame_signal_stale">GPS opóźniony</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Najlepiej w tej rozgrywce</string>
+    <string name="minigame_outrun_personal_best">Rekord osobisty</string>
+    <string name="minigame_outrun_warning">Duch się zbliża</string>
+    <string name="minigame_outrun_move_to_start">Rusz się, aby rozpocząć wyścig</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Jesteś %1$d metrów przed duchem. Najlepiej w tej rozgrywce: %2$d metrów.</string>
+    <string name="minigame_outrun_you">Ty</string>
+    <string name="minigame_outrun_ghost">Duch</string>
+    <string name="minigame_outrun_lead_value">Przewaga %1$d m</string>
+    <string name="minigame_outrun_ghost_lead_value">Duch prowadzi o %1$d m</string>
+    <string name="minigame_outrun_first_run">Pierwsza rozgrywka</string>
+    <string name="minigame_outrun_keep_moving">Buduj przewagę</string>
+    <string name="minigame_outrun_caught">Duch Cię dogonił</string>
+    <string name="minigame_outrun_escaped">Uciekłeś!</string>
+    <string name="minigame_outrun_escape_goal">Cel ucieczki</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Cel ucieczki wykonany w %1$d procentach.</string>
+    <string name="minigame_outrun_description_waiting">Ucieczka jest gotowa. Przemieść się o więcej niż dwa metry, aby rozpocząć pościg.</string>
+    <string name="minigame_outrun_description_warning">Niebezpieczeństwo. Duch jest tylko %1$d metrów za Tobą. Najlepiej w tej rozgrywce: %2$d metrów.</string>
+    <string name="minigame_outrun_description_caught">Dogoniono. Duch wyprzedził Cię o %1$d metrów. Najlepiej w tej rozgrywce: %2$d metrów.</string>
+    <string name="minigame_outrun_description_escaped">Cel osiągnięty. Uciekłeś z przewagą %1$d metrów. Najlepiej w tej rozgrywce: %2$d metrów.</string>
+    <string name="minigame_outrun_description_finished">Rozgrywka ukończona. Końcowy odstęp wyniósł %1$d metrów, a najlepsza przewaga %2$d metrów.</string>
+    <string name="minigame_outrun_ahead_of_best">Przed swoim rekordem osobistym</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Mapa terytorium. Zajęte pobliskie obszary: %1$d; wyróżnione obszary graniczne: %2$d. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Wyróżniono bieżący obszar</string>
+    <string name="minigame_territory_current_waiting">Oczekiwanie na bieżący obszar</string>
+    <string name="minigame_territory_goal_complete">Cel ukończony</string>
+    <string name="minigame_territory_goal_in_progress">Cel w toku</string>
+    <string name="minigame_territory_legend">Blask oznacza bieżący obszar • Wskazówki graniczne: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tempo</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Cel: %1$s–%2$s km/h</string>
+    <string name="minigame_zen_calibration_title">Znajdź naturalny rytm</string>
+    <string name="minigame_zen_calibration_hint">Idź naturalnie, gdy tempo łagodnie się stabilizuje</string>
+    <string name="minigame_zen_calibration_settled">Ustabilizowano: %1$d%%</string>
+    <string name="minigame_zen_calibration_description">Kalibracja tempa. Ustabilizowano: %1$d procent. Idź naturalnie.</string>
+    <string name="minigame_zen_flow_waiting">Szukanie rytmu</string>
+    <string name="minigame_zen_flow_settled">Tempo jest ustalone</string>
+    <string name="minigame_zen_flow_slower">Łagodne zwalnianie</string>
+    <string name="minigame_zen_flow_faster">Łagodne przyspieszanie</string>
+    <string name="minigame_zen_flow_time">Płynność %1$s</string>
+    <string name="minigame_zen_flow_description">Płynność tempa Zen. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Duch się zbliża</string>
+    <string name="minigame_feedback_pb_crossed">Nowy rekord osobisty</string>
+    <string name="minigame_feedback_territory_claimed">Zajęto nowy obszar</string>
+    <string name="minigame_feedback_fuse_critical">Lont krytyczny, ruszaj teraz</string>
+    <string name="minigame_feedback_fuse_defused">Ładunek rozbrojony</string>
+    <string name="minigame_feedback_turn_carved">Wykonano skręt</string>
+    <string name="minigame_feedback_goal_reached">Cel osiągnięty</string>
+    <string name="minigame_feedback_zen_entered">Jesteś w strefie tempa</string>
+    <string name="minigame_feedback_zen_exited">Opuszczono strefę tempa</string>
+    <string name="minigame_feedback_completed">Rozgrywka ukończona</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">Zapisano pierwszą rozgrywkę!</string>
+    <string name="minigame_completion_new_best_title">Nowy rekord osobisty!</string>
+    <string name="minigame_completion_tied_title">Wyrównano rekord</string>
+    <string name="minigame_completion_behind_title">Dobra rozgrywka</string>
+    <string name="minigame_completion_no_participation_title">Sesja zakończona</string>
+    <string name="minigame_completion_result">Wynik: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s przed poprzednim rekordem</string>
+    <string name="minigame_completion_deficit">%1$s do rekordu</string>
+    <string name="minigame_completion_goal_reached">Cel osiągnięty: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Cel nieosiągnięty: %1$s</string>
+    <string name="minigame_completion_points">%1$d pkt</string>
+    <string name="minigame_completion_points_zero">Brak punktów w tej rozgrywce</string>
+    <string name="minigame_completion_change_setup">Zmień ustawienia</string>
+    <string name="minigame_completion_done">Gotowe</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Rozgrywka nie została ukończona</string>
+    <string name="minigame_failure_permission">Do gry wymagana jest dokładna lokalizacja. Przyznaj ją i spróbuj ponownie.</string>
+    <string name="minigame_failure_location">Nie udało się uzyskać wiarygodnej lokalizacji. Przejdź w miejsce z lepiej widocznym niebem i spróbuj ponownie.</string>
+    <string name="minigame_failure_persistence">Nie udało się zapisać tej rozgrywki. Spróbuj ponownie.</string>
+    <string name="minigame_failure_generic">Coś poszło nie tak i rozgrywka została zatrzymana.</string>
+    <string name="minigame_session_try_again">Spróbuj ponownie</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktywna gra</string>
+    <string name="game_session_channel_description">Utrzymuje aktywną minigrę, gdy ekran jest wyłączony</string>
+    <string name="game_session_notification_title">Gra Trackera</string>
+    <string name="game_session_notification_public">Gra w toku</string>
+    <string name="game_session_notification_starting">Uruchamianie gry…</string>
+    <string name="game_session_notification_preparing">Przygotowywanie: %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s wstrzymano</string>
+    <string name="game_session_notification_finishing">Zapisywanie wyniku…</string>
+    <string name="game_session_notification_finished">Gra ukończona</string>
+    <string name="game_session_notification_failed">Gra zatrzymana</string>
+    <string name="game_session_action_pause">Wstrzymaj</string>
+    <string name="game_session_action_resume">Wznów</string>
+    <string name="game_session_action_finish">Zakończ</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Wcześniejsze rozgrywki minigier</string>
+    <string name="minigame_scores_back">Wstecz</string>
+    <string name="minigame_scores_empty_title">Pierwsza rozgrywka czeka</string>
+    <string name="minigame_scores_empty_body">Ukończ minigrę, aby ustanowić rekord osobisty — każda rozgrywka, w której go pobijesz, pojawi się tutaj.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Rekord osobisty</string>
+    <string name="minigame_scores_unknown_game">Minigra</string>
+    <string name="goals_reached_notification">%1$s! Osiągnięto %2$s cel!</string>
+    <string name="goals_daily_goal">dzienny</string>
+    <string name="goals_weekly_goal">tygodniowy</string>
+    <string name="goals_monthly_goal">miesięczny</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Cele kroków</string>
+    <string name="game_step_sensor_unavailable">Czujnik kroków niedostępny</string>
+    <string name="game_step_sensor_unavailable_detail">To urządzenie nie ma czujnika krokomierza. Nie można śledzić celów kroków.</string>
+    <string name="game_steps_today">Dzisiaj</string>
+    <string name="game_steps_week">Tydzień</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Wczytywanie…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Wróć</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Otwórz ustawienia</string>
+    <string name="game_close">Zamknij</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Odkrywanie</string>
+    <string name="exploration_cells_discovered">Odkryte komórki</string>
+    <string name="exploration_current_streak">Bieżąca seria</string>
+    <string name="exploration_best_streak">Najlepsza seria</string>
+    <string name="exploration_seasons_explored">Odkryte pory roku</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">dzień</item><item quantity="few">dni</item><item quantity="many">dni</item><item quantity="other">dnia</item></plurals>
+    <string name="exploration_of_four">z 4</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Osiągnięcia</string>
+    <string name="achievements_bronze">Brąz</string>
+    <string name="achievements_silver">Srebro</string>
+    <string name="achievements_gold">Złoto</string>
+    <string name="achievements_diamond">Diament</string>
+    <string name="achievements_none_yet">Nie odblokowano jeszcze żadnych osiągnięć. Zacznij odkrywać!</string>
+    <string name="achievement_unlocked_notification_title">Odblokowano osiągnięcie: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Osiągnięto poziom %1$s</string>
+    <string-array name="goals_encouragement">
+        <item>Dobra robota</item>
+        <item>Świetnie</item>
+        <item>Brawo</item>
+        <item>Tak trzymaj</item>
+        <item>Gratulacje</item>
+        <item>Nie zwalniaj</item>
+        <item>Świetna robota</item>
+        <item>Niesamowite</item>
+        <item>Jeszcze lepiej</item>
+        <item>Fantastycznie</item>
+        <item>Zapierające dech</item>
+        <item>Wspaniale</item>
+    </string-array>
+    <string name="points_earned_today">punktów zdobytych dzisiaj</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Nowe odblokowanie!</string>
+    <string name="game_unlock_message">Osiągnięto poziom %1$d!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Wyzwanie tygodniowe</string>
+    <string name="leaderboard_metric_distance">Odległość</string>
+    <string name="leaderboard_metric_steps">Kroki</string>
+    <string name="leaderboard_metric_active_time">Aktywność</string>
+    <string name="leaderboard_metric_sessions">Sesje</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">kroki</string>
+    <string name="leaderboard_unit_hours">godz.</string>
+    <string name="leaderboard_unit_sessions">podróże</string>
+    <string name="leaderboard_ghost_best_week">Najlepszy tydzień</string>
+    <string name="leaderboard_ghost_last_4_weeks">Śr. z ostatnich 4 tygodni</string>
+    <string name="leaderboard_ghost_same_week_last_year">Ten sam tydzień rok temu</string>
+    <string name="leaderboard_ghost_average_week">Średni tydzień</string>
+    <string name="leaderboard_rank">#%1$d z %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s z celu %3$s</string>
+    <string name="leaderboard_progress_description">%1$s z %2$s</string>
+    <string name="leaderboard_week_progress">Postęp tygodnia</string>
+    <string name="leaderboard_monday">pon.</string>
+    <string name="leaderboard_sunday">niedz.</string>
+    <string name="leaderboard_you">Ty</string>
+    <string name="leaderboard_current_week">Ten tydzień</string>
+    <string name="leaderboard_empty_title">Brak historii do wyścigu</string>
+    <string name="leaderboard_empty_body">Ukończ co najmniej jeden pełny tydzień, aby odblokować rywali-duchy — są tworzeni z Twoich własnych poprzednich tygodni.</string>
+    <string name="leaderboard_error_title">Ranking niedostępny</string>
+    <string name="leaderboard_error_body">Dane są bezpieczne na tym urządzeniu. Spróbuj ponownie wczytać wyzwanie tygodniowe.</string>
+    <string name="leaderboard_retry">Spróbuj ponownie</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Mityczny</string>
+    <string name="game_view_all_achievements">Zobacz wszystkie</string>
+    <string name="game_recent_achievements">Ostatnie odblokowania</string>
+    <string name="game_next_achievements">Następne</string>
+    <string name="achievement_show_locked">Pokaż zablokowane</string>
+    <string name="achievement_show_locked_summary_off">Włącz, aby zobaczyć katalog osiągnięć, które można odblokować.</string>
+    <string name="achievement_empty_state_title">Nie odblokowano jeszcze żadnych osiągnięć</string>
+    <string name="achievement_empty_state_body">Rozpocznij śledzenie — pierwsze osiągnięcie czeka. Włącz „Pokaż zablokowane”, aby zobaczyć cały katalog.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">Poziom %1$s · +%2$d XP</string>
+    <string name="achievement_hero_title">Twoja gablotka trofeów</string>
+    <string name="achievement_hero_points">Zdobyto %1$d XP</string>
+    <string name="achievement_hero_of_total">z %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Odkrywanie</string>
+    <string name="achievement_category_distance">Odległość</string>
+    <string name="achievement_category_steps">Kroki</string>
+    <string name="achievement_category_streaks">Serie</string>
+    <string name="achievement_category_milestones">Kamienie milowe</string>
+    <string name="achievement_category_modes">Tryby</string>
+    <string name="achievement_category_time">Czas</string>
+    <string name="achievement_category_calendar">Kalendarz</string>
+    <string name="achievement_unlocked_content_description">Odblokowano</string>
+    <string name="achievement_locked_content_description">Zablokowano</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

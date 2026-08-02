@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Powiadomienie pierwszego planu wyświetlane podczas analizowania zaimportowanego przez użytkownika regionu OpenStreetMap.</string>
+    <string name="osm_import_notification_title">Importowanie regionu OpenStreetMap</string>
+    <string name="osm_import_notification_content">Przeanalizowano %1$d dróg</string>
+    <string name="osm_import_complete_title">Zaimportowano region OSM</string>
+    <string name="osm_import_complete_content">Dane dróg offline są gotowe do kontroli zgodności pojazdu.</string>
+    <string name="osm_import_failed_title">Import OSM nie powiódł się</string>
+    <string name="osm_import_failed_content">Nie udało się ukończyć importu mapy offline.</string>
+</resources>

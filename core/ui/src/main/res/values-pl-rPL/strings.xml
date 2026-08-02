@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Wróć</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Dostęp do lokalizacji</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker potrzebuje dostępu do lokalizacji, aby rejestrować trasę i pokazywać ją na mapie. Dane lokalizacji pozostają na tym urządzeniu — nic nie jest wysyłane na serwer.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Rozpoznawanie aktywności</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker używa rozpoznawania aktywności, aby wykrywać, co robisz (chodzisz, jeździsz na rowerze, prowadzisz pojazd lub nie ruszasz się), dzięki czemu automatyczne śledzenie może się zatrzymać, gdy nie jesteś w ruchu, i oszczędzać baterię. Dane aktywności pozostają na tym urządzeniu — nic nie jest wysyłane na serwer.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Lokalizacja w tle</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Aby nadal rejestrować trasę po przełączeniu aplikacji lub wyłączeniu ekranu, Tracker potrzebuje dostępu do lokalizacji w tle. Zarejestrowana lokalizacja pozostaje na tym urządzeniu — nic nie jest wysyłane na serwer. W następnym komunikacie systemowym wybierz „Zezwalaj zawsze”; opcja „Tylko podczas używania aplikacji” pozwala Trackerowi działać tylko przy otwartym ekranie.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Zezwól</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Nie teraz</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Do rozpoczęcia śledzenia wymagane jest uprawnienie do lokalizacji</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Otwórz ustawienia</string>
 </resources>
