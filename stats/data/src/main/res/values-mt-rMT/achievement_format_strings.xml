@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Irreġistra mill-inqas %2$d jiem differenti biex tiftaħha.</string>
+    <string name="ach_title_distance_total">Ivvjaġġa %1$s</string>
+    <string name="ach_desc_distance_total">Għatti %1$s tad-distanza totali rreġistrata fis-sessjonijiet kollha tiegħek.</string>
+    <string name="ach_title_week_distance">%1$s din il-ġimgħa</string>
+    <string name="ach_desc_week_distance">Ivvjaġġa %1$s f’ġimgħa kalendarja waħda.</string>
+    <string name="ach_title_best_day_distance">%1$s f’jum wieħed</string>
+    <string name="ach_desc_best_day_distance">Għatti %1$s ta’ distanza f’jum wieħed.</string>
+    <string name="ach_title_max_session_distance">%1$s f’sessjoni waħda</string>
+    <string name="ach_desc_max_session_distance">Irreġistra sessjoni waħda li tkopri %1$s mingħajr ma tieqaf.</string>
+    <string name="ach_title_on_foot_distance">Imxi jew iġri %1$s</string>
+    <string name="ach_desc_on_foot_distance">Għatti %1$s bil-mixi (mixi jew ġiri flimkien).</string>
+    <string name="ach_title_cycling_distance">Irkeb rota %1$s</string>
+    <string name="ach_desc_cycling_distance">Irkeb rota %1$s b’kollox.</string>
+    <string name="ach_title_vehicle_distance">Ivvjaġġa b’vettura %1$s</string>
+    <string name="ach_desc_vehicle_distance">Għatti %1$s b’karozza, xarabank, ferrovija, dgħajsa jew ajruplan.</string>
+    <string name="ach_title_steps_total">Agħmel %1$s passi</string>
+    <string name="ach_desc_steps_total">Irreġistra %1$s passi fis-sessjonijiet kollha tiegħek.</string>
+    <string name="ach_title_best_daily_steps">%1$s passi f’jum wieħed</string>
+    <string name="ach_desc_best_daily_steps">Agħmel %1$s passi f’jum wieħed.</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">L-ewwel sessjoni</item>
+        <item quantity="other">Irreġistra %1$s sessjonijiet</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Irreġistra %1$s sessjonijiet ta’ traċċar b’kollox.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Skopri l-ewwel ċellola tiegħek</item>
+        <item quantity="other">Skopri %1$s ċelloli tal-mappa</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Esplora %1$s ċelloli distinti tal-gradilja fuq il-mappa (kull waħda madwar kwadru ta’ 1 km).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Żur %d pajjiż</item>
+        <item quantity="other">Żur %d pajjiżi</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Irreġistra mill-inqas sessjoni waħda f’%1$d pajjiżi differenti.</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">L-ewwel jum attiv</item>
+        <item quantity="other">%1$s jiem attivi</item>
+    </plurals>
+    <string name="ach_desc_active_days">Irreġistra attività f’%1$s jiem differenti b’kollox.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">Serje ta’ %d jum</item>
+        <item quantity="other">Serje ta’ %d jiem</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Irreġistra attività għal %1$d jiem wara xulxin.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">L-aqwa personali: %d jum</item>
+        <item quantity="other">L-aqwa personali: %d jiem</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Laħaq l-aqwa serje personali ta’ traċċar ta’ %1$d jiem.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d xahar ma’ Tracker</item>
+        <item quantity="other">%d xhur ma’ Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Ibqa’ attiv fi Tracker għal %1$d xhur differenti.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d jum attiv din il-ġimgħa</item>
+        <item quantity="other">%d jiem attivi din il-ġimgħa</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Irreġistra attività għal %1$d jiem f’ġimgħa waħda.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">L-ewwel jum ma’ Tracker</item>
+        <item quantity="other">%1$s jiem ma’ Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Żomm Tracker installat għal %1$s jiem.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Merħba lura</item>
+        <item quantity="other">Merħba lura wara %d jiem</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Erġa’ lura għat-traċċar wara waqfa ta’ %1$d jum.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Irreġistra fis-siegħa %d tal-ġurnata</item>
+        <item quantity="other">Irreġistra f’%d sigħat differenti</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Irreġistra attività matul %1$d sigħat differenti tal-ġurnata fis-sessjonijiet kollha.</string>
+    <string name="ach_title_days_of_week">Is-sebat ijiem kollha tal-ġimgħa</string>
+    <string name="ach_desc_days_of_week">Irreġistra attività f’kull jum tal-ġimgħa mill-inqas darba.</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Ipprova %d tip ta’ attività</item>
+        <item quantity="other">Ipprova %d tipi ta’ attività</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Irreġistra sessjonijiet f’%1$d tipi differenti ta’ attività (mixi, rota, sewqan, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d tip ta’ attività din il-ġimgħa</item>
+        <item quantity="other">%d tipi ta’ attività din il-ġimgħa</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Uża %1$d tipi differenti ta’ attività f’ġimgħa waħda.</string>
+    <string name="ach_title_week_all_days">Irreġistra kull jum ta’ ġimgħa</string>
+    <string name="ach_desc_week_all_days">Irreġistra attività fis-sebat ijiem kollha ta’ ġimgħa kalendarja.</string>
+    <string name="ach_title_walk_cycle_drive">Imxi, irkeb rota, saq</string>
+    <string name="ach_desc_walk_cycle_drive">Irreġistra mill-inqas sessjoni waħda minn kull waħda: mixi, rota u sewqan.</string>
+    <string name="ach_title_max_session_duration">Sessjoni ta’ %1$s</string>
+    <string name="ach_desc_max_session_duration">Irreġistra sessjoni waħda li ddum mill-inqas %1$s.</string>
+    <string name="ach_title_max_speed">Laħaq %1$s</string>
+    <string name="ach_desc_max_speed">Laħaq veloċità massima ta’ mill-inqas %1$s matul sessjoni.</string>
+    <string name="ach_title_active_minutes">%1$s minuti attivi</string>
+    <string name="ach_desc_active_minutes">Akkumula %1$s minuti ta’ ħin ta’ traċċar attiv.</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">L-ewwel esportazzjoni</item>
+        <item quantity="other">%d esportazzjonijiet</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Esporta d-dejta tiegħek %1$d darba.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Irreġistra matul staġun wieħed</item>
+        <item quantity="other">Irreġistra matul %d staġuni</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Irreġistra attività matul %1$d staġuni distinti (rebbiegħa/sajf/ħarifa/xitwa).</string>
+    <string name="ach_title_calendar_new_year">Traċċatur tas-Sena l-Ġdida</string>
+    <string name="ach_desc_calendar_new_year">Irreġistra sessjoni fl-1 ta’ Jannar.</string>
+    <string name="ach_title_calendar_leap_day">Pijunier tal-jum bisestili</string>
+    <string name="ach_desc_calendar_leap_day">Irreġistra sessjoni fid-29 ta’ Frar.</string>
+    <string name="ach_title_calendar_summer_solstice">Solstizju tas-sajf</string>
+    <string name="ach_desc_calendar_summer_solstice">Irreġistra sessjoni fl-itwal jum tas-sena.</string>
+    <string name="ach_title_calendar_winter_solstice">Solstizju tax-xitwa</string>
+    <string name="ach_desc_calendar_winter_solstice">Irreġistra sessjoni fl-iqsar jum tas-sena.</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Kokka tal-lejl</item>
+        <item quantity="other">%1$s sessjonijiet bil-lejl</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Irreġistra %1$d sessjonijiet li jibdew bejn nofsillejl u l-5 ta’ filgħodu.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Għasfur bikri</item>
+        <item quantity="other">%1$s sessjonijiet fil-bidunett</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Irreġistra %1$d sessjonijiet li jibdew bejn il-5 u t-8 ta’ filgħodu.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Traċċatur prattiku</item>
+        <item quantity="other">Ibda %1$s sessjonijiet manwalment</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Ibda manwalment %1$d sessjonijiet ta’ traċċar int stess.</string>
+    <string name="ach_title_max_cycle_session">Irkeb rota %1$s f’dawra waħda</string>
+    <string name="ach_desc_max_cycle_session">Irkeb rota %1$s f’dawra waħda.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Jum b’ħafna modi</item>
+        <item quantity="other">%d jiem b’ħafna modi</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Ivvjaġġa bil-mixi, bir-rota u b’trasport motorizzat fl-istess jum, f’%1$d jiem differenti.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Post għall-istaġuni kollha</item>
+        <item quantity="other">L-erba’ staġuni kollha f’%d postijiet</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Żur %1$d ċelloli tal-mappa fl-erba’ staġuni kollha.</string>
+    <string name="ach_title_max_cell_visits">Żur post wieħed %1$d darbiet</string>
+    <string name="ach_desc_max_cell_visits">Żur ċellola waħda tal-mappa %1$d darbiet.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Esplora bir-reqqa ċellola</item>
+        <item quantity="other">Esplora bir-reqqa %1$s ċelloli</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Esplora bir-reqqa %1$d ċelloli distinti tal-mappa.</string>
+    <string name="ach_title_max_cell_span">Laħaq distanza ta’ %1$s</string>
+    <string name="ach_desc_max_cell_span">Skopri żewġ ċelloli tal-mappa mill-inqas %1$s bogħod minn xulxin.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Skopri ċellola f’jum wieħed</item>
+        <item quantity="other">Skopri %d ċelloli f’jum wieħed</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Skopri %1$d ċelloli ġodda tal-mappa f’jum wieħed.</string>
+    <string name="ach_title_max_cell_revisit_gap">Erġa’ lura wara %1$d jiem</string>
+    <string name="ach_desc_max_cell_revisit_gap">Erġa’ żur ċellola tal-mappa %1$d jiem wara li tiskopriha għall-ewwel darba.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Xahar perfett</item>
+        <item quantity="other">%d xhur perfetti</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Irreġistra attività f’kull jum ta’ %1$d xhur kalendarji.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Uża format wieħed ta’ esportazzjoni</item>
+        <item quantity="other">Uża %d formati ta’ esportazzjoni</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Esporta d-dejta tiegħek f’%1$d formati differenti ta’ fajls.</string>
+    <string name="ach_title_player_level">Laħaq il-livell %1$d</string>
+    <string name="ach_desc_player_level">Tella’ sal-livell tal-plejer %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP f’jum wieħed</string>
+    <string name="ach_desc_best_day_xp">Aqla’ %1$d XP f’jum wieħed.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Ilgħab l-ewwel logħba żgħira tiegħek</item>
+        <item quantity="other">Ilgħab %1$s logħob żgħir</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Temm %1$d logħob żgħir.</string>
+    <string name="ach_title_total_ascent">Itla’ %1$s</string>
+    <string name="ach_desc_total_ascent">Akkumula %1$s ta’ żieda totali fl-elevazzjoni (tlugħ) fit-traċċar kollu tiegħek.</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Aqla’ minn sors wieħed ta’ XP</item>
+        <item quantity="other">Aqla’ minn %d sorsi ta’ XP</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Aqla’ XP minn %1$d sorsi differenti — sessjonijiet ta’ traċċar, logħob żgħir u miri.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Ġimgħa perfetta</item>
+        <item quantity="other">%d ġimgħat perfetti</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Laħaq il-mira ta’ passi ta’ kuljum f’kull jum għal %1$d ġimgħat sħaħ.</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">Serje ta’ mira ta’ %d jum</item>
+        <item quantity="other">Serje ta’ mira ta’ %d jiem</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Laħaq il-mira ta’ passi ta’ kuljum għal %1$d jiem wara xulxin.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Iftaħ kisba waħda</item>
+        <item quantity="other">Iftaħ %d kisbiet</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Iftaħ %1$d kisbiet b’kollox.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Imla kategorija</item>
+        <item quantity="other">Imla %d kategoriji</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Iftaħ kull kisba f’%1$d kategoriji differenti.</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d sekonda</item>
+        <item quantity="other">%d sekondi</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minuta</item>
+        <item quantity="other">%d-minuti</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-siegħa</item>
+        <item quantity="other">%d-sigħat</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-jum</item>
+        <item quantity="other">%d-jiem</item>
+    </plurals>
+</resources>

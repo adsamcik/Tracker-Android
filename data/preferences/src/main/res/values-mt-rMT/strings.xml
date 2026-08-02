@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="passus">%s pass</string>
+    <string name="per_hour_abbr">%s/s</string>
+    <string name="per_minute_abbr">%s/min</string>
+    <string name="per_second_abbr">%s/s</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="meter_abbr">%s m</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="millepassus">%s mil Ruman</string>
+    <string name="fathom_abbr">%s fatham</string>
+    <string name="cable_abbr">%s cable</string>
+    <string name="nautical_mile_abbr">%s nm</string>
+    <string name="knot_abbr">%s kn</string>
+    <string name="flight_level_abbr">FL%s</string>
+    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
+    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
+    <string name="settings_statistics_auto_unit_switch_title">Ibdel awtomatikament is-sistema tal-unitajiet</string>
+    <string name="settings_statistics_auto_unit_switch_summary">Ibdel awtomatikament għal unitajiet tat-tbaħħir/titjir meta tara sessjonijiet b’dawk l-attivitajiet</string>
+</resources>

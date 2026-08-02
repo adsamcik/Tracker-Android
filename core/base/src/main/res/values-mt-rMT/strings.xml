@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="activity_walking">Mixi</string>
+    <string name="activity_running">Ġiri</string>
+    <string name="activity_bicycle">Rota</string>
+    <string name="activity_slope_sports">Sports fuq inklinazzjoni</string>
+    <string name="activity_land_vehicle">Vettura tal-art</string>
+    <string name="activity_water_vehicle">Vettura tal-ilma</string>
+    <string name="activity_air_vehicle">Vettura tal-ajru</string>
+    <string name="activity_in_vehicle">F’vettura</string>
+    <string name="activity_on_foot">Bil-mixi</string>
+    <string name="activity_name">Isem l-attività</string>
+    <string name="activity_raw_still">Wieqaf</string>
+    <string name="activity_raw_tilting">Inklinat</string>
+    <string name="activity_still">Wieqaf</string>
+    <string name="activity_unknown">Qed jinstab…</string>
+    <string name="activity_vehicle">Vettura</string>
+    <string name="alert_confirm">Żgur li trid %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Ebda</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Mhux magħruf</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Kanal użat biss għas-servizz ta’ monitoraġġ tal-attività sabiex tkun tista’ tneħħi faċilment dik in-notifika permanenti.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Monitoraġġ tal-attività</string>
+    <string name="channel_achievements_description">Notifiki relatati mal-kisbiet.</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Kisba</string>
+    <string name="channel_other_description">Notifiki oħra li ma jappartjenux għal ebda kategorija oħra.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Oħrajn</string>
+    <string name="channel_track_description">Notifiki relatati mat-traċċar.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Traċċar</string>
+    <string name="channel_goals_description">Twissijiet meta jintlaħqu l-miri.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Avvanz tal-mira</string>
+    <string name="day_short">%d ġ</string>
+    <string name="generic_add">Żid</string>
+    <string name="generic_back">Lura</string>
+    <string name="generic_cancel">Ikkanċella</string>
+    <string name="generic_delete">Ħassar</string>
+    <string name="generic_edit">Editja</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">annulla</string>
+    <string name="hour_short">%d s</string>
+    <string name="minute_short">%d min</string>
+    <string name="second_short">%d s</string>
+</resources>

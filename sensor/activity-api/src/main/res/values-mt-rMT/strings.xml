@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="notification_activity_watcher_info">Attività attwali %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Is-servizz ta’ monitoraġġ tal-attività attiv</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Tneħħa %s</string>
+    <string name="settings_activity_title">Attivitajiet</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Monitoraġġ tal-attività</string>
+    <string name="settings_ski_infrastructure_title">Dejta tal-liftijiet tal-iskijjar</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Mgħobbija (tektek biex tneħħi)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">Mhux mgħobbija. Tektek biex timporta fajl SQLite ski_infrastructure.db.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d liftijiet · Ġġenerata %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Dejta tal-liftijiet tal-iskijjar © kontributuri ta’ OpenStreetMap (ODbL)</string>
+</resources>

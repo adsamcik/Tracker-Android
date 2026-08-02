@@ -1,0 +1,218 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">Mappa</string>
+    <string name="description_map_search">Buttuna tat-tiftix</string>
+    <string name="map_layer_cell_heatmap_description">Il-pajsaġġ ċellulari osservat tiegħek skont it-teknoloġija tar-radju. Oqsma rotob juru fejn iċ-ċelloli tas-servizz laħquk; ċentri jleqqu huma stimi konservattivi tas-siti u jidhru aktar preċiżi biss meta l-osservazzjonijiet idawruhom.</string>
+    <string name="map_layer_cell_heatmap_title">Topoloġija ċellulari</string>
+    <string name="map_layer_location_heatmap_high">Densità għolja</string>
+    <string name="map_layer_location_heatmap_low">Densità baxxa</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Densità medja</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Żjarat distinti</string>
+    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Żjarat</string>
+    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densità relattiva ta’ fissazzjonijiet tal-post aċċettati. Dan juri osservazzjonijiet distinti, mhux ħin imqatta’.</string>
+    <string name="map_layer_cell_radio_gsm">Kopertura GSM</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Żoni bla sinjal</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Jenfasizza fejn is-sinjal ċellulari tiegħek kien dgħajjef jew nieqes. Aktar ma ż-żona tkun ħamra, agħar tkun il-kopertura; iż-żoni b’kopertura tajba jibqgħu ċari.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora tas-sinjal</string>
+    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Sinjal ċellulari muri bħala dawl bħal aurora: halo vjola wiesa’ taħt qalba qawwija ċjan-ħadra. Id-dawl jiċċaqlaq mingħajr ma jerġa’ jgħabbi d-dejta u jsir wieqaf meta l-animazzjonijiet tas-sistema jkunu diżattivati.</string>
+    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Sinjal dgħajjef</string>
+    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Sinjal qawwi</string>
+    <string name="map_layer_speed_heatmap_description">Mappa termika li tirrappreżenta l-veloċità tal-moviment f’żoni differenti.</string>
+    <string name="map_layer_speed_very_slow">Bil-mod ħafna</string>
+    <string name="map_layer_speed_walking">Ritmu tal-mixi</string>
+    <string name="map_layer_speed_running">Ritmu tal-ġiri</string>
+    <string name="map_layer_speed_moderate">Veloċità moderata</string>
+    <string name="map_layer_speed_fast">Moviment mgħaġġel</string>
+    <string name="map_layer_speed_very_fast">Mgħaġġel ħafna</string>
+    <string name="map_layer_speed_heatmap_title">Mappa termika tal-veloċità</string>
+    <string name="map_layer_legacy_heatmap_title">Mappa termika klassika</string>
+    <string name="map_layer_legacy_heatmap_chip">Madum klassiku</string>
+    <string name="map_layer_legacy_heatmap_description">Tifkira tal-applikazzjoni Signals oriġinali: id-densità tal-post tiegħek miġbuda bħala madum diskret tal-gradilja ta’ 25 m, kif kienet tidher il-mappa termika meta l-madum kien jintwera fuq is-server. Żumja biex tara l-kwadri.</string>
+    <string name="map_layer_seasonal_title">Esploratur tal-istaġuni</string>
+    <string name="map_layer_seasonal_chip">Staġuni</string>
+    <string name="map_layer_seasonal_description">Mużajk ta’ memorja staġjonali: kull żona li esplorajt tingħata kulur skont l-istaġun li żorthom l-ewwel fih. Sib il-mogħdijiet li timxi fihom biss fis-sajf, jew it-toroq li tara biss fix-xitwa.</string>
+    <string name="map_layer_season_spring">Rebbiegħa</string>
+    <string name="map_layer_season_summer">Sajf</string>
+    <string name="map_layer_season_autumn">Ħarifa</string>
+    <string name="map_layer_season_winter">Xitwa</string>
+    <string name="map_layer_terrain_title">Ħajja bħala art</string>
+    <string name="map_layer_terrain_chip">Art</string>
+    <string name="map_layer_terrain_description">Id-densità tal-post tiegħek mtellgħa fi 3D: il-postijiet fejn tqatta’ l-aktar ħin jitilgħu bħala mesas għoljin jleqqu, waqt li postijiet iżolati jibqgħu baxxi. Mejjel il-mappa biex tara r-riljiev ta’ ħajtek.</string>
+    <string name="map_layer_terrain_low">Rari hawn</string>
+    <string name="map_layer_terrain_mid">Kultant</string>
+    <string name="map_layer_terrain_high">Spiss hawn</string>
+    <string name="map_layer_places_title">Postijiet frekwenti</string>
+    <string name="map_layer_places_chip">Postijiet</string>
+    <string name="map_layer_places_description">Il-postijiet importanti tiegħek bħala markaturi, kull wieħed bid-daqs u l-kulur skont kemm iżżuru. Id-dar u x-xogħol isiru tikek kbar sħan; post li żort darba jibqa’ wieħed żgħir frisk.</string>
+    <string name="map_layer_places_rare">Rari</string>
+    <string name="map_layer_places_often">Kultant</string>
+    <string name="map_layer_places_anchor">L-ankri tiegħek</string>
+    <string name="map_layer_speed_ribbon_title">Żigarella tal-veloċità</string>
+    <string name="map_layer_speed_ribbon_chip">Żigarella</string>
+    <string name="map_layer_speed_ribbon_description">Ir-rotta tiegħek miżbugħa skont kemm kont miexi malajr, b’kulur li jgħaddi minn pass vjola bil-mod għal sprint jew sewqan aħmar jaħraq. B’differenza mill-mappa termika tal-veloċità, iż-żigarella żżomm il-mogħdija tiegħek intatta sabiex tara eżatt fejn aċċellerajt u naqqast.</string>
+    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Żigarella tal-altitudni</string>
+    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitudni</string>
+    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa skont l-elevazzjoni assoluta, minn artijiet baxxi blu skuri sa għoljiet ċjan u għoli ta’ muntanji sħan. L-iskala tibqa’ fissa waqt li tiċċaqlaq fil-mappa, għalhekk l-istess altitudni dejjem iżżomm l-istess kulur.</string>
+    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Artijiet baxxi</string>
+    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Għoljiet</string>
+    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Muntanji għoljin</string>
+    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Żigarella tal-attività</string>
+    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Attività</string>
+    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa bl-istat ta’ moviment affidabbli rreġistrat ma’ kull fissazzjoni: griż fejn l-istat ma kienx magħruf, blu waqt li kont wieqaf, u aħdar waqt li kont miexi.</string>
+    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Mhux magħruf</string>
+    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Wieqaf</string>
+    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">Jiċċaqlaq</string>
+    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">X-ray tal-iskijjar</string>
+    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">X-ray tal-iskijjar</string>
+    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Veduta dijanjostika ta’ segmenti tal-iskijjar misjuba. Ġirjiet għan-niżla, liftijiet, mixjiet u pawżi huma marbuta mal-eqreb post irreġistrat u ttikkettati bil-metriċi ewlenin tagħhom.</string>
+    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Ġirja għan-niżla</string>
+    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Lift tal-iskijjar</string>
+    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Mixja jew pawża</string>
+    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Kostellazzjonijiet ta’ vjaġġi</string>
+    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Vjaġġi</string>
+    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Vjaġġi ripetuti bejn il-postijiet frekwenti tiegħek isiru kostellazzjonijiet mgħawġa. Ark stabbli juri kull rotta waqt li kometa tgħaddi tulha; arkijiet eħxen ifissru li għamilt dak il-vjaġġ aktar spiss.</string>
+    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Mixi</string>
+    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Ċikliżmu</string>
+    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Sewqan</string>
+    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Trasport pubbliku</string>
+    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Oħrajn</string>
+    <string name="map_layer_fog_title">Ċpar tal-esploratur</string>
+    <string name="map_layer_fog_chip">Ċpar</string>
+    <string name="map_layer_fog_description">Id-dinja li toħroġ miċ-ċpar: kull żona li messet tiġi żvelata u tiddi aktar ma sirtha taf sew. Postijiet li għaddejt biss minnhom jibqgħu ċpar ħafif; imkien li esplorajt fil-fond jaqbad deheb solidu. Art mhux esplorata tibqa’ skura.</string>
+    <string name="map_layer_fog_faint">Għaddejt minnha</string>
+    <string name="map_layer_fog_known">Esplorata tajjeb</string>
+    <string name="map_layer_first_contact_title">L-ewwel kuntatt</string>
+    <string name="map_layer_first_contact_chip">Skoperta</string>
+    <string name="map_layer_first_contact_description">Kronoloġija tal-iskoperti tiegħek: kull żona tingħata kulur skont kemm żortha l-ewwel riċentement. Il-postijiet li sibt żmien ilu jisparixxu f’indigo skur, waqt li l-art li esplorajt din il-ġimgħa tiddi ċjan qawwi — aqra l-istorja tal-esplorazzjoni tiegħek lejn l-aktar fruntieri ġodda.</string>
+    <string name="map_layer_first_contact_old">Żmien ilu</string>
+    <string name="map_layer_first_contact_recent">Għadha kif ġiet skoperta</string>
+    <string name="map_layer_vehicle_compliance_title">Konformità tal-veloċità tal-vetturi</string>
+    <string name="map_layer_vehicle_compliance_description">Linja ta’ kampjuni tas-sewqan ikkulurita skont kif il-veloċità titqabbel mal-limitu bażi kkonfigurat tiegħek.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Ħafna taħt il-limitu</string>
+    <string name="map_layer_vehicle_compliance_slow">Taħt il-limitu</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Viċin il-limitu</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Ftit fuq il-limitu</string>
+    <string name="map_layer_vehicle_compliance_speeding">Qiegħed issuq malajr wisq</string>
+    <string name="map_layer_location_polyline_description">Linja li tgħaqqad il-postijiet irreġistrati tiegħek maż-żmien.</string>
+    <string name="map_layer_location_polyline_title">Polilinija tal-post</string>
+    <string name="map_layer_location_polyline_chip">Polilinija</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Sovrappożizzjoni Wi-Fi</string>
+    <string name="map_layer_vehicle_compliance_chip">Eċċess ta’ veloċità</string>
+    <string name="map_layer_none_title">Ebda saff</string>
+    <string name="map_date_preset_week">Il-ġimgħa li għaddiet</string>
+    <string name="map_date_preset_month">Ix-xahar li għadda</string>
+    <string name="map_date_preset_custom">Personalizzat…</string>
+    <string name="map_date_today">Illum</string>
+    <string name="map_date_yesterday">Ilbieraħ</string>
+    <string name="map_date_this_week">Din il-ġimgħa</string>
+    <string name="map_layer_wifi_count_heatmap_title">Sovrappożizzjoni Wi-Fi</string>
+    <string name="map_layer_wifi_count_heatmap_description">Juri kemm punti ta’ aċċess distinti jikkoinċidu f’kull post. Skennjar ripetut tal-istess AP jingħadd darba, għalhekk żoni aktar sħan ifissru kopertura tar-radju tassew aktar densa.</string>
+    <string name="map_layer_wifi_heatmap_description">Kostellazzjoni Wi-Fi konxja mill-banda mill-osservazzjonijiet tiegħek stess. Oqsma ikkuluriti juru kopertura osservata ta’ 2.4, 5 u 6 GHz; ċentri jleqqu huma pożizzjonijiet approssimattivi tal-APs murija biss meta l-ġeometrija tal-kampjuni tappoġġjahom.</string>
+    <string name="map_layer_wifi_heatmap_high">Ħafna APs li jikkoinċidu</string>
+    <string name="map_layer_wifi_heatmap_low">Ftit APs li jikkoinċidu</string>
+    <string name="map_layer_wifi_heatmap_medium">Diversi APs li jikkoinċidu</string>
+    <string name="map_layer_wifi_heatmap_title">Kostellazzjoni Wi-Fi</string>
+    <string name="map_layer_wifi_radio_24">Firxa 2.4 GHz</string>
+    <string name="map_layer_wifi_radio_5">Firxa 5 GHz</string>
+    <string name="map_layer_wifi_radio_6">Firxa 6 GHz</string>
+    <string name="map_legend_label">Leġġenda</string>
+    <string name="map_chip_layers">Saff</string>
+    <string name="map_chip_dates">Dati</string>
+    <string name="permission_rationale_location_map">Biex juri l-post tiegħek fuq il-mappa, Tracker jeħtieġ aċċess għall-post. Id-dejta kollha tibqa’ fuq it-tagħmir tiegħek.</string>
+    <string name="map_location_permission_denied">Il-permess tal-post hu meħtieġ biex turi l-pożizzjoni tiegħek</string>
+    <string name="map_open_settings">Iftaħ l-issettjar</string>
+    <string name="settings_map_basemap_title">Mappa bażi</string>
+    <string name="settings_map_basemap_custom">Fajl .pmtiles personalizzat attiv (tektek biex tneħħi)</string>
+    <string name="settings_map_basemap_default">Mappa bażi integrata attiva. Tektek biex timporta fajl .pmtiles personalizzat.</string>
+    <string name="basemap_import_error_source_open">Ma setax jinfetaħ dak il-fajl. Ipprova ieħor jew erġa’ aqsamha ma’ Tracker.</string>
+    <string name="basemap_import_error_copy">Ma setax jiġi kkupjat il-fajl tal-mappa bażi. Iċċekkja jekk hemmx spazju liberu biżżejjed u erġa’ pprova.</string>
+    <string name="basemap_import_error_invalid_format">Mhuwiex fajl PMTiles validu: %1$s</string>
+    <string name="settings_map_advanced_section_title">Issettjar avvanzat</string>
+    <string name="settings_map_max_heat_title">Sħana massima wara ż-żjarat</string>
+    <string name="settings_map_quality_title">Riżoluzzjoni tal-mappa termika</string>
+    <string name="settings_map_visit_threshold_title">Limitu ta’ ħin taż-żjara fil-post</string>
+    <string name="settings_map_legacy_heatmap_title">Mappa termika klassika (madum ta’ 10 m)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Bajda tal-Għid: iżżid saff “Mappa termika klassika” li jiġbed id-densità tal-post bħala madum diskret tal-gradilja ta’ 10 m, bħall-mappa termika Signals oriġinali murija mis-server.</string>
+    <string name="settings_map_zoom_buttons_title">Buttuni taż-żum tal-mappa</string>
+    <string name="settings_map_zoom_buttons_subtitle">Uri buttuni + u − fuq l-iskrin biex iżżumja l-mappa, meta ż-żum b’għafsa ma jkunx faċli biex tuża.</string>
+    <string name="tips_map_date_range_title">Firxa tad-dati</string>
+    <string name="tips_map_my_location_title">Il-post tiegħi</string>
+    <string name="tips_map_sheet_description">Meta tikteb jew tiġbed ’il fuq din l-istrixxa, jinfetħu aktar għażliet għall-mappa inklużi l-għażla tas-saff u l-leġġenda.</string>
+    <string name="map_search_placeholder">Lat, Lng eż. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Ipprova 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
+    <string name="map_search_clear">Ċara t-tiftix</string>
+    <string name="map_search_paste">Waħħal mill-clipboard fit-tiftix</string>
+    <string name="map_search_clipboard_empty">Il-clipboard għad m’għandux koordinati</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Ikkanċella</string>
+    <string name="map_share_button">Aqsam il-mappa</string>
+    <string name="map_share_sheet_title">Aqsam il-mappa bħala immaġni</string>
+    <string name="map_share_sheet_subtitle">Joħloq il-veduta attwali u s-saff attiv bħala immaġni statika. Il-post f’ħin reali tiegħek qatt ma jiġi inkluż.</string>
+    <string name="map_share_resolution_standard">Normali (1080p)</string>
+    <string name="map_share_resolution_high">Għolja (1440p)</string>
+    <string name="map_share_resolution_ultra">Għolja ħafna (4K)</string>
+    <string name="map_share_action">Aqsam</string>
+    <string name="map_share_preparing">Qed titħejja l-immaġni…</string>
+    <string name="map_share_error">Ma setgħetx tiġi rrenduta l-immaġni tal-mappa. Erġa’ pprova.</string>
+    <string name="map_date_range_all_time">Kull żmien</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Saffi tal-mappa</string>
+    <string name="map_layer_load_error">Ma setax jitgħabba dan is-saff. Ipprova agħżel ieħor.</string>
+    <string name="map_empty_subtitle_location">Ebda dejta tal-post f’din il-veduta jew firxa tad-dati. Il-karatteristiċi tar-rotta u tal-mappa jeħtieġu post miġbur waqt it-traċċar.</string>
+    <string name="map_empty_subtitle_cell">Ebda dejta taċ-ċelloli b’post f’din il-veduta jew firxa tad-dati. Kampjuni taċ-ċelloli rreġistrati mingħajr post għadhom salvati, imma ma jistgħux jidhru fuq il-mappa.</string>
+    <string name="map_empty_subtitle_wifi">Ebda dejta Wi-Fi b’post f’din il-veduta jew firxa tad-dati. Osservazzjonijiet Wi-Fi rreġistrati mingħajr post għadhom salvati, imma ma jistgħux jidhru fuq il-mappa.</string>
+    <string name="map_empty_subtitle_speed">Ebda dejta tal-veloċità f’din il-veduta jew firxa tad-dati. Il-mapep tal-veloċità jeħtieġu kampjuni ta’ post li jistgħu jintużaw miġbura waqt it-traċċar.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Ebda sewqan imqabbel mat-triq x’turi. Importa reġjun OpenStreetMap (Issettjar) u rreġistra xi sewqan biex nistgħu nqabblu r-rotta tiegħek ma’ toroq reali.</string>
+    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Aħbi l-messaġġ ta’ ebda dejta</string>
+    <string name="map_speed_probe_title">Veloċità hawn</string>
+    <string name="map_speed_probe_avg_label">Medja</string>
+    <string name="map_speed_probe_max_label">Massimu</string>
+    <string name="map_speed_probe_empty">Ebda dejta tal-veloċità f’dan il-post. Tektek xi mkien bis-sħana biex tara l-veloċitajiet.</string>
+    <string name="map_speed_probe_hint">Tektek il-mappa biex tara l-veloċitajiet</string>
+    <string name="map_speed_probe_dismiss">Aħbi d-dettalji tal-veloċità</string>
+    <string name="map_place_callout_loading">Qed jinstab il-post…</string>
+    <string name="map_place_callout_empty">Ma nstab ebda post hawn</string>
+    <string name="map_place_callout_dismiss">Aħbi d-dettalji tal-post</string>
+    <string name="map_zoom_in">Żumja ġewwa</string>
+    <string name="map_zoom_out">Żumja barra</string>
+    <string name="map_loading">Qed titgħabba l-mappa…</string>
+    <string name="map_basemap_unavailable">Il-mappa bażi ma setgħetx titħejja. Agħlaq u erġa’ iftaħ il-mappa biex tipprova mill-ġdid.</string>
+    <string name="map_a11y_map_overview">Ħarsa ġenerali tal-mappa</string>
+    <string name="map_a11y_centered_on_location">Mappa ċċentrata fuq il-post tiegħek</string>
+    <string name="map_a11y_showing_location">Mappa li turi l-post tiegħek</string>
+    <string name="map_a11y_loading_data">Qed titgħabba dejta tal-mappa rreġistrata</string>
+    <string name="map_a11y_no_recorded_data">Is-saff magħżul m’għandux dejta li tista’ tintwera fuq mappa f’din il-veduta jew firxa tad-dati</string>
+    <string name="map_a11y_no_layer_selected">Ebda saff tal-mappa magħżul</string>
+    <string name="map_a11y_search_result_visible">Markatur tar-riżultat tat-tiftix viżibbli</string>
+    <string name="map_a11y_active_recording_visible">Il-mogħdija tar-reġistrazzjoni attiva viżibbli</string>
+    <string name="map_a11y_recorded_route_history">Qed tintwera l-istorja tar-rotot irreġistrati</string>
+    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Qed jintwerew osservazzjonijiet distinti tal-post aċċettati</string>
+    <string name="map_a11y_cell_heatmap">Qed jintwerew oqsma ta’ kopertura ċellulari u ċentri approssimattivi tas-siti tas-servizz</string>
+    <string name="map_a11y_wifi_heatmap">Qed jintwerew meded Wi-Fi, oqsma ta’ kopertura u ċentri approssimattivi tal-punti ta’ aċċess</string>
+    <string name="map_a11y_wifi_count_heatmap">Qed tintwera s-sovrappożizzjoni ta’ punti ta’ aċċess Wi-Fi distinti</string>
+    <string name="map_a11y_speed_heatmap">Qed tintwera mappa termika tal-veloċità</string>
+    <string name="map_a11y_saved_map_data">Qed tintwera dejta tal-mappa salvata</string>
+    <string name="map_location_permission_opening_settings">Aċċess għall-post meħtieġ. Qed jinfetaħ l-issettjar…</string>
+    <string name="map_permission_banner_dismiss">Aħbi l-messaġġ tal-permess tal-post</string>
+    <string name="map_loading_layer">Qed jitgħabba saff tal-mappa</string>
+    <string name="map_a11y_world_scale">Skala dinjija</string>
+    <string name="map_a11y_regional_scale">Skala reġjonali</string>
+    <string name="map_a11y_city_scale">Skala tal-belt</string>
+    <string name="map_a11y_neighborhood_scale">Skala tal-viċinat</string>
+    <string name="map_a11y_street_scale">Skala tat-triq</string>
+    <string name="help_map_quality">Multiplikatur tad-dettall tal-ħolqien. Valuri ogħla juru aktar dettall iżda jistgħu jnaqqsu t-tagħbija tal-mappa fuq tagħmir antik.</string>
+    <string name="help_max_heat_points">Numru massimu ta’ punti tal-post murija fil-veduta tal-mappa termika. Valuri ogħla = aktar dettall iżda ħolqien aktar bil-mod.</string>
+    <string name="help_visit_threshold">Kemm għandek bżonn tibqa’ f’post wieħed qabel ma jiġi mmarkat bħala “żjara” fuq il-mappa. Żid dan biex tnaqqas il-konfużjoni minn waqfiet qosra.</string>
+</resources>

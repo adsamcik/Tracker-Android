@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Logħob</string>
+    <string name="module_map_title">Mappa</string>
+    <string name="module_statistics_title">Statistika</string>
+    <string name="main_nav_tracker">Dar</string>
+    <string name="settings_clear_preferences_title">Ċara l-preferenzi</string>
+    <string name="settings_clear_preferences_message">Dan jirrisettja l-preferenzi kollha tal-applikazzjoni (għażliet tal-karatteristiċi, issettjar tal-UI). Id-dejta tat-traċċar tiegħek ma tintlaqatx. Tkompli?</string>
+    <string name="settings_data_title">Dejta</string>
+    <string name="settings_debug_group_title">Dijanjostika</string>
+    <string name="settings_debug_title">Għażliet għall-iżviluppaturi</string>
+    <string name="settings_debug_developer_tools_section">Għodod tal-iżviluppaturi</string>
+    <string name="settings_debug_disable_developer_subtitle">Aħbi l-għażliet tal-iżviluppaturi mill-issettjar</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Il-modalità tal-iżviluppatur diżattivata</string>
+    <string name="settings_data_management_section">Ġestjoni tad-dejta</string>
+    <string name="settings_data_danger_zone_section">Żona ta’ periklu</string>
+    <string name="settings_osm_import_section">Dejta tal-mappa (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Importa reġjun OSM</string>
+    <string name="settings_osm_import_action_summary">Agħżel fajl .osm.pbf. Il-konformità tal-vetturi mbagħad tuża limiti reali tat-toroq mingħajr konnessjoni.</string>
+    <string name="settings_osm_import_unavailable_title">Importazzjoni tal-mappa mingħajr konnessjoni mhix disponibbli</string>
+    <string name="settings_osm_import_action_unavailable">L-importazzjoni tal-mappa mingħajr konnessjoni temporanjament mhix disponibbli waqt li jitlestew il-protezzjonijiet tas-sigurtà tal-fajls.</string>
+    <string name="settings_osm_import_action_running">Qed jiġi importat — tektek biex tikkanċella</string>
+    <string name="settings_osm_import_action_failed">L-importazzjoni tal-mappa mingħajr konnessjoni ma setgħetx titlesta.</string>
+    <string name="settings_osm_import_action_source_unavailable">Il-fajl tal-mappa magħżul ma setax jinfetaħ.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Importata %1$d triq minn %2$d nodi.</item>
+        <item quantity="other">Importati %1$d toroq minn %2$d nodi.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Għad ma ġie importat ebda reġjun OpenStreetMap.</string>
+    <string name="settings_osm_imports_attribution">Dejta tal-mappa © kontributuri ta’ OpenStreetMap (ODbL 1.0). L-ipproċessar kollu jsir fuq it-tagħmir.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d triq · importata %2$s</item>
+        <item quantity="other">%1$,d toroq · importati %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Neħħi reġjun importat</string>
+    <string name="settings_osm_import_remove_message">Tneħħi %1$s? Il-konformità tal-vetturi terġa’ lura għal-linja bażi fissa sakemm terġa’ timporta reġjun.</string>
+    <string name="settings_incremental_backups_title">Kopji ta’ riżerva inkrementali</string>
+    <string name="settings_incremental_backups_summary">Esporta biss dejta ġdida mill-aħħar kopja ta’ riżerva. Inaqqas il-ħin tal-esportazzjoni u d-daqs tal-fajl.</string>
+    <string name="settings_reset_export_watermarks_title">Forza esportazzjoni sħiħa</string>
+    <string name="settings_reset_export_watermarks_summary">Il-kopja ta’ riżerva awtomatizzata li jmiss tinkludi d-dejta kollha minflok il-bidliet biss</string>
+    <string name="settings_reset_export_watermarks_done">Il-markaturi tal-esportazzjoni ġew irrisettjati — il-kopja ta’ riżerva li jmiss tkun esportazzjoni sħiħa</string>
+    <string name="settings_migration_backup_export_title">Esporta kopja ta’ riżerva ta’ sigurtà qabel l-aġġornament</string>
+    <string name="settings_migration_backup_export_summary" ns0:ignore="PluralsCandidate">Kopja sħiħa tal-bażi tad-dejta minn v%1$d, maħluqa qabel il-migrazzjoni għal v%2$d u miżmuma privatament sa 30 jum</string>
+    <string name="settings_migration_backup_warning_title">Tesporta kopja ta’ riżerva sensittiva tal-bażi tad-dejta?</string>
+    <string name="settings_migration_backup_warning_message">Din il-kopja ta’ riżerva tista’ tkun fiha postijiet preċiżi, osservazzjonijiet Wi-Fi u ċellulari, attivitajiet u dejta privata oħra minn qabel l-aġġornament. Salvaha biss f’post li tafda.</string>
+    <string name="settings_migration_backup_export_action">Esporta kopja ta’ riżerva</string>
+    <string name="settings_migration_backup_export_success">Kopja ta’ riżerva ta’ qabel l-aġġornament esportata</string>
+    <string name="settings_migration_backup_export_failure">Ma setgħetx tiġi esportata l-kopja ta’ riżerva ta’ qabel l-aġġornament</string>
+    <string name="settings_migration_backup_export_cleanup_required">L-esportazzjoni falliet. Ħassar il-kopja ta’ riżerva parzjalment esportata mill-post magħżul.</string>
+    <string name="settings_delete_data_success">Id-dejta miġbura kollha tħassret</string>
+    <string name="settings_delete_data_failure">Ma setgħetx titħassar id-dejta miġbura kollha</string>
+    <string name="settings_game_goals_title">Miri</string>
+    <string name="settings_game_daily_target_title">Mira ta’ passi ta’ kuljum</string>
+    <string name="settings_game_weekly_target_title">Mira ta’ passi ta’ kull ġimgħa</string>
+    <string name="settings_game_daily_contribution_title">Kontribuzzjoni massima ta’ kuljum</string>
+    <string name="settings_game_steps_unit">passi</string>
+    <string name="settings_game_notifications_title">Notifiki</string>
+    <string name="settings_game_goal_notifications_title">Notifiki tal-avvanz tal-mira</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Ikseb tifkira lokali meta tkun f’75% u 90% tal-mira ta’ kuljum tiegħek.</string>
+    <string name="settings_game_during_games_title">Waqt il-logħob</string>
+    <string name="settings_game_haptics_title">Haptics tal-logħob</string>
+    <string name="settings_game_haptics_summary">Uża vibrazzjoni sottili għal rispons tal-logħob.</string>
+    <string name="settings_game_quiet_coaching_title">Ħjiel ta’ gwida kwieti</string>
+    <string name="settings_game_quiet_coaching_summary">Uża gwida inqas frekwenti waqt li tilgħab.</string>
+    <string name="settings_game_remember_setup_title">Ftakar l-aħħar konfigurazzjoni tal-logħba</string>
+    <string name="settings_game_remember_setup_summary">Erġa’ uża l-aħħar mira u diffikultà tiegħek id-darba li jmiss.</string>
+    <string name="settings_game_privacy_battery_title">Privatezza u batterija</string>
+    <string name="settings_game_privacy_battery_disclosure">Il-logħob juża post f’ħin reali biss waqt li jkun attiv u jerġa’ juża l-post ta’ Tracker meta jkun disponibbli. It-twaqqif jirrilaxxa l-użu tal-post tal-logħba. Il-punteġġ u l-punti/XP tiegħek biss jiġu salvati fuq dan it-tagħmir; postijiet mhux ipproċessati tal-logħba ma jinżammux.</string>
+    <string name="settings_game_loading">Qed jitgħabba l-issettjar tal-logħba…</string>
+    <string name="settings_game_load_error">L-issettjar tal-logħba ma setax jitgħabba. Erġa’ pprova.</string>
+    <string name="settings_map_info_hint">Dan l-issettjar jikkontrolla l-kwalità tal-viżwalizzazzjoni u l-prestazzjoni tal-mappa. Ħafna utenti jistgħu jużaw il-valuri awtomatiċi.</string>
+    <string name="settings_map_online_tiles_section_title">Madum tal-mappa fuq l-internet</string>
+    <string name="settings_map_online_tiles_enable_title">Uża madum tal-mappa fuq l-internet</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Mitfi — tintuża biss il-mappa bażi integrata mingħajr konnessjoni. Ebda talbiet tan-netwerk.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Mixgħul — qed jinġabar madum minn %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Fornitur tal-madum</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (rakkomandat)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">URL personalizzat</string>
+    <string name="settings_map_online_tiles_custom_url_label">URL JSON tal-istil</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Attribuzzjoni: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Il-madum fuq l-internet hu fakultattiv. Meta jkun attivat, il-fornitur magħżul jista’ jara l-indirizz IP tiegħek u liema madum tgħabbi (bejn wieħed u ieħor liema żona tal-mappa qed tara). Tracker qatt ma jibgħat kont, identifikatur jew storja tal-post.</string>
+    <string name="settings_developer_mode_enabled_toast">Il-modalità tal-iżviluppatur attivata</string>
+    <string name="settings_developer_mode_disable">Diżattiva l-modalità tal-iżviluppatur</string>
+    <string name="settings_developer_mode_subtitle">Il-modalità tal-iżviluppatur attiva</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Tektek %d darba oħra biex tattiva l-modalità tal-iżviluppatur</item>
+        <item quantity="other">Tektek %d darbiet oħra biex tattiva l-modalità tal-iżviluppatur</item>
+    </plurals>
+    <string name="settings_version_info_title">Informazzjoni dwar il-verżjoni</string>
+    <string name="settings_version_format">Verżjoni: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Lingwa attwali: %s</string>
+    <string name="settings_language_title">Lingwa tal-applikazzjoni</string>
+    <string name="settings_units_auto_summary_on">Tadatta s-sistema ta’ tul għall-attivitajiet misjuba</string>
+    <string name="settings_units_auto_summary_off">Tapplika s-sistema ta’ tul magħżula kullimkien</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrika</item>
+        <item>Imperjali (USC)</item>
+        <item>Rumana antika</item>
+        <item>Tbaħħir</item>
+        <item>Titjir</item>
+    </string-array>
+    <string name="settings_length_system_title">Sistema ta’ tul</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Liċenzji ta’ sors miftuħ</string>
+    <string name="settings_licenses_subtitle">Ara avviżi miġbura ta’ partijiet terzi inklużi f’din il-bini.</string>
+    <string name="settings_licenses_loading">Qed jitgħabbew il-liċenzji…</string>
+    <string name="settings_licenses_unavailable">Ma setgħetx titgħabba d-dejta tal-liċenzji miġbura ta’ partijiet terzi.</string>
+    <string name="settings_licenses_text_at_url">It-test sħiħ tal-liċenzja disponibbli fuq: %1$s</string>
+    <string name="settings_privacy_policy_title">Politika tal-privatezza</string>
+    <string name="settings_privacy_policy_unavailable">Il-politika tal-privatezza miġbura ma setgħetx tinfetaħ. Erġa’ pprova wara li terġa’ tibda l-applikazzjoni.</string>
+    <string name="settings_about_header">Dwar</string>
+    <string name="settings_about_app_title">Tracker minn adsamcik</string>
+    <string name="settings_about_app_subtitle">Traċċatur tal-post u l-attività li jagħti prijorità lill-privatezza</string>
+    <string name="about_title">Dwar</string>
+    <string name="about_app_name_label">Applikazzjoni</string>
+    <string name="about_version_label">Verżjoni</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Commit tal-bini</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Awtur</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Imejl</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Ħoloq</string>
+    <string name="about_attributions_title">Attribuzzjonijiet tad-dejta</string>
+    <string name="about_attribution_geonames_label">Ismijiet tal-postijiet</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Dejta tal-mappa u t-toroq</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Issettjar tal-moduli</string>
+    <string name="settings_core_group_title">Qalba</string>
+    <string name="settings_other_title">Unitajiet u wirja</string>
+    <string name="settings_remove_all_collected_data_summary">Tħassar id-dejta tat-traċċar tiegħek (attivitajiet u issettjar personalizzati jinżammu)</string>
+    <string name="settings_remove_all_collected_data_title">Ħassar id-dejta miġbura kollha</string>
+    <string-array name="settings_speed_format_names">
+        <item>Veloċità kull sekonda (m/s)</item>
+        <item>Ritmu għal kull distanza (min/km, min/mi)</item>
+        <item>Veloċità (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Format tal-veloċità</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Issettjar</string>
+    <string name="switch_state_on">Mixgħul</string>
+    <string name="switch_state_off">Mitfi</string>
+    <string name="onboarding_streamlined_title">Traċċa l-vjaġġi tiegħek privatament</string>
+    <string name="onboarding_streamlined_subtitle">Id-dejta kollha tibqa’ fuq it-tagħmir tiegħek. Ebda sinkronizzazzjoni fis-sħaba jew traċċar minn parti terza.</string>
+    <string name="onboarding_benefit_privacy_title">Il-privatezza l-ewwel</string>
+    <string name="onboarding_benefit_privacy_desc">Id-dejta kollha tat-traċċar tibqa’ fuq it-tagħmir tiegħek. Ebda servers, ebda sinkronizzazzjoni fis-sħaba, kontroll sħiħ.</string>
+    <string name="onboarding_benefit_insights_title">Għarfien dwar l-attività</string>
+    <string name="onboarding_benefit_insights_desc">Ara r-rotot tiegħek fuq mapep, analizza l-istatistika u segwi l-avvanz tiegħek maż-żmien.</string>
+    <string name="onboarding_benefit_gamification_title">Kisbiet</string>
+    <string name="onboarding_benefit_gamification_desc">Iftaħ aktar minn 150 kisba waqt li timxi, tiġri, tirkeb rota u tesplora — kollha miksuba lokalment fuq it-tagħmir tiegħek.</string>
+    <string name="onboarding_get_started">IBDA</string>
+    <string name="onboarding_privacy_policy_button">Aqra l-politika tal-privatezza</string>
+    <string name="onboarding_state_read_error_message">Ma stajniex nivverifikaw jekk il-konfigurazzjoni kinitx diġà lesta, għalhekk qed tintwera biex iżżomm id-dejta tiegħek privata. Tista’ tkompli b’mod sigur.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Naddaf awtomatikament dejta qadima</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Żomm id-dejta għal dejjem; it-tindif awtomatiku ma jħassarx dejta qadima</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Neħħi awtomatikament dejta eqdem minn %1$d sena</item>
+        <item quantity="other">Neħħi awtomatikament dejta eqdem minn %1$d snin</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">Żomm id-dejta għal</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Żomm għal dejjem</item>
+        <item>sena</item>
+        <item>2 snin</item>
+        <item>3 snin</item>
+        <item>5 snin</item>
+        <item>10 snin</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">KOMPLI</string>
+    <string name="settings_export_data_title">Esporta dejta</string>
+    <string name="settings_export_data_summary">Salva d-dejta tat-traċċar tiegħek f’formati diversi</string>
+    <string name="export_format_dialog_title">Agħżel format ta’ esportazzjoni</string>
+    <string name="export_format_gpx_name">GPX (rakkomandat)</string>
+    <string name="export_format_gpx_desc">Punti tar-rotta bi preċiżjoni sħiħa għal tagħmir GPS, apps tal-fitness u kompatibbiltà universali</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Punti tar-rotta bi preċiżjoni sħiħa għal Google Earth u viżwalizzazzjoni ġeografika</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Postijiet bi streaming u sommarji tas-sessjonijiet; l-importazzjoni tgħaqqad id-dejta u terġa’ toħloq xi metadata</string>
+    <string name="export_format_db_name">Bażi tad-dejta</string>
+    <string name="export_format_db_desc">Kopja ta’ riżerva SQLite mhux ipproċessata bid-dejta u l-issettjar kollha; l-importazzjoni tgħaqqad ringieli kompatibbli, mhux restawr sħiħ</string>
+    <string name="export_sensitivity_dialog_title">Tesporta dejta preċiża tal-post?</string>
+    <string name="export_sensitivity_gpx_message">Din l-esportazzjoni GPX fiha punti tar-rotta bi preċiżjoni sħiħa. Salvaha jew aqsamha biss ma’ nies u apps li tafda.</string>
+    <string name="export_sensitivity_kml_message">Din l-esportazzjoni KML fiha punti tar-rotta bi preċiżjoni sħiħa. Salvaha jew aqsamha biss ma’ nies u apps li tafda.</string>
+    <string name="export_sensitivity_json_message">Din l-esportazzjoni JSON fiha postijiet bi preċiżjoni sħiħa u sommarji tas-sessjonijiet. Xi metadata derivata tintilef fl-importazzjoni; salvaha jew aqsamha biss ma’ destinazzjonijiet li tafda.</string>
+    <string name="export_sensitivity_db_message">Din il-kopja ta’ riżerva tal-bażi tad-dejta mhux ipproċessata tista’ tinkludi postijiet preċiżi, dejta tar-radju Wi-Fi/ċellulari, attività u issettjar. Żommha privata u aħżinha biss f’post li tafda.</string>
+    <string name="export_sensitivity_confirm">Kompli l-esportazzjoni</string>
+    <string name="settings_export_title">Esportazzjoni</string>
+    <string name="settings_import_summary">Importa dejta minn tipi appoġġati (%1$s) u arkivji (%2$s). L-importazzjonijiet tal-bażi tad-dejta jgħaqqdu ringieli kompatibbli; ma jissostitwixxux id-dejta eżistenti.</string>
+    <string name="settings_import_title">Importazzjoni</string>
+    <string name="got_it">Mifhum</string>
+    <string name="battery_impact_low">Impatt baxx</string>
+    <string name="battery_impact_moderate">Impatt moderat</string>
+    <string name="battery_impact_high">Impatt għoli</string>
+    <string name="precision_mode_title">Agħżel il-preċiżjoni tal-post</string>
+    <string name="precision_mode_approximate_title">Approssimattiva</string>
+    <string name="precision_mode_approximate_description">Post ibbażat fuq in-netwerk. Tajjeb għat-traċċar taż-żona ġenerali b’użu minimu tal-batterija.</string>
+    <string name="precision_mode_precise_title">Preċiża</string>
+    <string name="precision_mode_precise_description">Post ibbażat fuq GPS. L-aħjar għal rotot dettaljati, mapep termiċi u sfidi.</string>
+    <string name="upgrade_to_precise_title">Iftaħ traċċar preċiż</string>
+    <string name="upgrade_to_precise_message_general">Qed tuża post approssimattiv. Aqleb għal traċċar GPS preċiż għal preċiżjoni aħjar.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Post preċiż hu rakkomandat għal analiżi eżatta tar-rotta u kejl tad-distanza.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Post preċiż jagħti viżwalizzazzjoni dettaljata tal-mappa termika b’pożizzjonament fin.</string>
+    <string name="upgrade_to_precise_message_challenges">Ħafna sfidi jeħtieġu traċċar GPS preċiż biex jivverifikaw it-tlestija b’mod eżatt.</string>
+    <string name="upgrade_to_precise_benefits_title">Benefiċċji</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Forom eżatti tar-rotot u dettalji tal-mogħdija dawra b’dawra</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Mappa termika dettaljata u analiżi spazjali</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Kejl preċiż tad-distanza u l-veloċità</string>
+    <string name="upgrade_to_precise_battery_title">Użu tal-batterija</string>
+    <string name="upgrade_to_precise_battery_message">GPS preċiż juża aktar batterija. Ħin stmat ta’ traċċar: 6–8 sigħat fuq tagħmir tipiku.</string>
+    <string name="upgrade_to_precise_button_upgrade">Ippermetti post preċiż</string>
+    <string name="upgrade_to_precise_button_cancel">Forsi aktar tard</string>
+    <string name="tracking_preset_high_accuracy_name">Preċiżjoni għolja</string>
+    <string name="tracking_preset_high_accuracy_description">L-aħjar dettall b’aġġornamenti l-aktar mgħaġġla u s-sensuri ewlenin kollha attivati</string>
+    <string name="tracking_preset_balanced_name">Ibbilanċjat</string>
+    <string name="tracking_preset_balanced_description">Preċiżjoni tajba u ħajja raġonevoli tal-batterija għat-traċċar ta’ kuljum</string>
+    <string name="tracking_preset_power_save_name">Iffrankar tal-enerġija</string>
+    <string name="tracking_preset_power_save_description">Użu inqas tal-batterija b’aġġornamenti inqas frekwenti u sensuri mnaqqsa</string>
+    <string name="tracking_preset_custom_name">Personalizzat</string>
+    <string name="tracking_preset_custom_description">Aġġusta manwalment kull parametru tat-traċċar</string>
+    <string name="tracking_preset_selector_title">Profil tat-traċċar</string>
+    <string name="tracking_preset_selector_subtitle">Agħżel profil minn fejn tibda, imbagħad irfina kwalunkwe issettjar hawn taħt.</string>
+    <string name="tracking_preset_custom_hint">L-aġġustament ta’ kwalunkwe issettjar hawn taħt joħloq profil Personalizzat mill-profil attwali.</string>
+    <string name="tracking_preset_customized_summary">Irfinajt it-traċċar. Agħżel profil hawn fuq biex tirrisettja.</string>
+    <string name="settings_tracking_section_detection">Sejbien u awtomazzjoni</string>
+    <string name="settings_tracking_section_sources">Sorsi tad-dejta</string>
+    <string name="settings_tracking_section_detail">Ġbir tal-post</string>
+    <string name="settings_tracking_section_notifications">Notifiki</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">Politika tat-traċċar</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Traċċar stmat: %d siegħa</item>
+        <item quantity="other">Traċċar stmat: %d sigħat</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Agħżel kemm Tracker jirreġistra l-post tiegħek b’preċiżjoni</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Preċiża</string>
+    <string name="approximate">Approssimattiva</string>
+    <string name="tracking_policy_selector_subtitle">Agħżel profil tat-traċċar jew ippersonalizza l-issettjar</string>
+    <string name="tracking_policy_custom_badge">Personalizzat</string>
+    <string name="collapse_details">Aħbi d-dettalji</string>
+    <string name="expand_details">Uri d-dettalji</string>
+    <string name="settings_section_collapse">Aħbi</string>
+    <string name="settings_section_expand">Espandi</string>
+    <string name="tracking_policy_details_title">Dettalji tal-konfigurazzjoni</string>
+    <string name="preset_detail_location_precision">Preċiżjoni tal-post</string>
+    <string name="preset_detail_min_distance">Distanza minima</string>
+    <string name="preset_detail_min_time">Ħin minimu</string>
+    <string name="preset_detail_accuracy">Preċiżjoni meħtieġa</string>
+    <string name="preset_detail_sensors">Sensuri</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">Tibdil awtomatiku tal-unitajiet</string>
+    <string name="settings_module_map_subtitle">Kwalità tal-mappa termika u għażliet ta’ viżwalizzazzjoni</string>
+    <string name="settings_module_game_subtitle">Miri, kisbiet u stadji importanti</string>
+    <string name="action_navigate_back">Mur lura</string>
+    <string name="action_help">Għajnuna</string>
+    <string name="widget_loading">Qed jitgħabba…</string>
+    <string name="widget_quick_start_name">Bidu malajr Tracker</string>
+    <string name="widget_quick_start_description">Ibda jew waqqaf it-traċċar tal-post b’tektek waħda.</string>
+    <string name="widget_start_tracking">Ibda t-traċċar</string>
+    <string name="widget_stop_tracking">Waqqaf it-traċċar</string>
+    <string name="widget_tracking_active">Traċċar attiv</string>
+    <string name="widget_today_summary_name">Sommarju tal-lum</string>
+    <string name="widget_today_summary_description">Ara l-istatistika tat-traċċar tiegħek għal-lum f’daqqa t’għajn.</string>
+    <string name="widget_today">Illum</string>
+    <string name="widget_distance">Distanza</string>
+    <string name="widget_steps">Passi</string>
+    <string name="widget_sessions">Sessjonijiet</string>
+    <string name="widget_duration">Tul</string>
+    <string name="widget_no_data_today">Ebda dejta ta’ traċċar illum</string>
+    <string name="widget_active_session_name">Sessjoni attiva</string>
+    <string name="widget_active_session_description">Immonitorja s-sessjoni attwali tat-traċċar tiegħek f’ħin reali.</string>
+    <string name="widget_no_active_session">Ebda sessjoni attiva</string>
+    <string name="widget_tap_to_start">Tektek biex tibda t-traċċar</string>
+    <string name="widget_session_distance">Distanza tas-sessjoni</string>
+    <string name="widget_session_steps">Passi tas-sessjoni</string>
+    <string name="widget_session_duration">Tul tas-sessjoni</string>
+    <string name="widget_current_speed">Veloċità attwali</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Ġabriet</string>
+    <string name="widget_path_preview">Previżjoni tal-mogħdija</string>
+    <string name="widget_activity_unknown">Attività mhux disponibbli</string>
+    <string name="widget_goal_label">Mira:</string>
+    <string name="widget_goal_progress">%1$s / %2$s passi</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Mitfi</string>
+    <string name="widget_tier_ambient">Ambjentali</string>
+    <string name="widget_tier_active">Attiv</string>
+    <string name="widget_tier_precision">Preċiżjoni</string>
+    <string name="goal_notification_title_progress">Avvanz kbir!</string>
+    <string name="goal_notification_title_almost">Kważi wasalt!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Fadal %1$d pass biex tilħaq il-mira ta’ kuljum tiegħek</item>
+        <item quantity="other">Fadal %1$d passi biex tilħaq il-mira ta’ kuljum tiegħek</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Fadal biss %1$d pass!</item>
+        <item quantity="other">Fadal biss %1$d passi!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Notifiki intelliġenti tal-miri</string>
+    <string name="settings_smart_goal_notifications_summary">Ikseb notifika meta tkun qrib il-mira ta’ passi ta’ kuljum tiegħek</string>
+    <string name="setup_how_to_track_title">Kif għandu jaħdem it-traċċar?</string>
+    <string name="setup_how_to_track_subtitle">Agħżel meta jibda t-traċċar u kemm għandu jkun dettaljat.</string>
+    <string name="setup_auto_tracking_title">Traċċar awtomatiku</string>
+    <string name="setup_auto_tracking_disabled">Diżattivat</string>
+    <string name="setup_auto_tracking_disabled_desc">Ibda u waqqaf it-traċċar manwalment.</string>
+    <string name="setup_auto_tracking_on_foot">Bil-mixi</string>
+    <string name="setup_auto_tracking_on_foot_desc">Traċċa awtomatikament il-mixi u l-ġiri.</string>
+    <string name="setup_auto_tracking_in_motion">Waqt il-moviment</string>
+    <string name="setup_auto_tracking_in_motion_desc">Traċċa awtomatikament il-moviment kollu inkluż is-sewqan u ċ-ċikliżmu.</string>
+    <string name="setup_preset_title">Dettall tat-traċċar</string>
+    <string name="setup_what_to_collect_title">X’għandek tiġbor</string>
+    <string name="setup_what_to_collect_subtitle">Aktar għażliet hawn taħt. Ibda tesplora mingħajr permessi jew agħtihom aktar tard. Id-dejta tibqa’ fuq dan it-tagħmir.</string>
+    <string name="setup_source_location">Post</string>
+    <string name="setup_source_location_desc">Irreġistra r-rotot u l-pożizzjonijiet tiegħek fuq mappa.</string>
+    <string name="setup_source_activity">Attività</string>
+    <string name="setup_source_activity_desc">Induna jekk tkunx miexi, tiġri, tirkeb rota jew issuq.</string>
+    <string name="setup_source_steps">Passi</string>
+    <string name="setup_source_steps_desc">Għodd il-passi tiegħek bl-użu tal-pedometer tat-tagħmir.</string>
+    <string name="setup_source_wifi">Netwerks WiFi</string>
+    <string name="setup_source_wifi_desc">Irreġistra netwerks WiFi fil-qrib biex ittejjeb il-preċiżjoni tal-post.</string>
+    <string name="setup_source_cell">Torrijiet taċ-ċelloli</string>
+    <string name="setup_source_cell_desc">Irreġistra informazzjoni tat-torri ċellulari għall-kuntest tal-post.</string>
+    <string name="setup_perm_location_why">Meħtieġ biex tirreġistra r-rotot tiegħek u turihom fuq il-mappa. Il-post jibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server.</string>
+    <string name="setup_perm_location_bg_why">Biex tkompli tirreġistra r-rotta tiegħek meta tibdel l-applikazzjonijiet jew jintefa l-iskrin, Tracker jeħtieġ jaċċessa l-post tiegħek fl-isfond. Il-post irreġistrat jibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Fit-talba tas-sistema li jmiss agħżel “Ħalli l-ħin kollu” biex tattiva t-traċċar awtomatiku; “Waqt li tuża l-applikazzjoni” iżomm lil Tracker jaħdem biss meta l-iskrin tiegħu jkun miftuħ.</string>
+    <string name="setup_perm_activity_why">Jħalli lil Tracker jinduna x’qed tagħmel (mixi, ċikliżmu, sewqan, wieqaf) sabiex it-traċċar awtomatiku jkun jista’ jieqaf meta ma tkunx miexi u jiffranka l-batterija. Id-dejta tal-attività tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server.</string>
+    <string name="setup_perm_notification_why">Tracker juri notifika żgħira tal-istatus waqt li jkun qed jirreġistra sabiex tara f’daqqa t’għajn li t-traċċar mixgħul u twaqqfu b’tektek waħda. Ebda notifiki ta’ marketing jew promozzjonali.</string>
+    <string name="setup_perm_wifi_why">Tracker jista’ jirreġistra punti ta’ aċċess Wi-Fi li t-telefon tiegħek jara matul vjaġġ biex itejjeb il-preċiżjoni tal-post fejn il-GPS hu dgħajjef (ġewwa, taħt l-art). Id-dejta tar-radju tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Agħti l-permess biss jekk trid dan.</string>
+    <string name="setup_perm_cell_why">Tracker jista’ jirreġistra IDs tat-torrijiet taċ-ċelloli tul ir-rotta tiegħek sabiex il-post ikun jista’ jiġi dedott meta l-GPS ma jkunx disponibbli. Id-dejta tar-radju tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Agħti l-istat tat-telefon u l-post preċiż biss jekk trid dan.</string>
+    <string name="setup_perm_grant">Agħti</string>
+    <string name="setup_perm_grant_location_content_description">Agħti l-permess tal-post</string>
+    <string name="setup_perm_grant_background_location_content_description">Agħti l-permess tal-post fl-isfond</string>
+    <string name="setup_perm_grant_activity_content_description">Agħti l-permess għar-rikonoxximent tal-attività</string>
+    <string name="setup_perm_grant_notification_content_description">Agħti l-permess għan-notifiki</string>
+    <string name="setup_perm_grant_wifi_content_description">Agħti l-permess Wi-Fi</string>
+    <string name="setup_perm_grant_cell_content_description">Agħti l-permess għar-radju ċellulari</string>
+    <string name="setup_perm_granted">Mogħti ✓</string>
+    <string name="permission_grant_in_settings">Ħalli fl-issettjar →</string>
+    <string name="permission_disabled_due_to_denial">%1$s diżattivat minħabba li l-permess ġie miċħud. Agħtih fl-issettjar biex tattiva.</string>
+    <string name="settings_wifi_permission_required">Jeħtieġ il-permess Wi-Fi/post. Aqleb għal mixgħul biex tagħtih — ebda dejta Wi-Fi ma tiġi rreġistrata qabel, u d-dejta rreġistrata tibqa’ fuq dan it-tagħmir.</string>
+    <string name="settings_cell_permission_required">Jeħtieġ il-permess tal-istat tat-telefon u tal-post preċiż. Aqleb għal mixgħul biex tagħtih — ebda dejta ċellulari ma tiġi rreġistrata qabel, u d-dejta rreġistrata tibqa’ fuq dan it-tagħmir.</string>
+    <string name="settings_wifi_privacy_summary">Jirreġistra netwerks Wi-Fi fil-qrib biex itejjeb il-preċiżjoni tal-post. Id-dejta tibqa’ fuq dan it-tagħmir.</string>
+    <string name="settings_barometer_unavailable">Is-sensur tal-pressjoni mhuwiex disponibbli fuq dan it-tagħmir.</string>
+    <string name="settings_activity_permission_required">Jeħtieġ il-permess għar-rikonoxximent tal-attività. Aqleb għal mixgħul biex tagħtih.</string>
+    <string name="settings_steps_unavailable">Is-sensur tal-għadd tal-passi mhuwiex disponibbli fuq dan it-tagħmir.</string>
+    <string name="settings_cell_privacy_summary">Jirreġistra IDs tat-torrijiet taċ-ċelloli biex itejjeb il-preċiżjoni tal-post. Id-dejta tibqa’ fuq dan it-tagħmir.</string>
+    <string name="setup_start_exploring">Ibda tesplora</string>
+    <string name="setup_continue">Kompli</string>
+    <string name="setup_step_indicator">Pass %1$d minn %2$d</string>
+    <string name="setup_online_tiles_title">Madum tal-mappa online?</string>
+    <string name="setup_online_tiles_subtitle">Tracker jiġi b’mappa bażi offline sabiex jaħdem mingħajr netwerk. Jekk trid mapep aktar sinjuri, tista’ minflok tistrimja madum minn fornitur pubbliku.</string>
+    <string name="setup_online_tiles_off_title">Offline biss (rakkomandat)</string>
+    <string name="setup_online_tiles_off_desc">Ebda talbiet tan-netwerk. Tintgħaża biss il-mappa bażi integrata.</string>
+    <string name="setup_online_tiles_on_title">Uża madum online</string>
+    <string name="setup_online_tiles_on_desc">Istrimja madum vettorjali b’aktar dettall minn OpenFreeMap (awtomatiku). Tista’ tibdel il-fornitur aktar tard fl-Issettjar → Mappa.</string>
+    <string name="setup_online_tiles_privacy">Meta jkun attivat, il-fornitur jista’ jara l-indirizz IP tiegħek u liema madum tgħabbi — bejn wieħed u ieħor liema żona tal-mappa qed tara. Tracker qatt ma jibgħat kont, identifikatur jew l-istorja tal-post tiegħek.</string>
+    <string name="setup_online_tiles_change_later">Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Mappa → Madum tal-mappa online.</string>
+    <string name="setup_background_access_subtitle">Biex tirreġistra vjaġġi waqt li l-iskrin ikun mitfi jew l-applikazzjoni magħluqa, Tracker jeħtieġ jibqa’ jaħdem fl-isfond. L-issettjar tal-batterija tat-telefon jista’ jwaqqfu — ħalli attività fl-isfond sabiex it-traċċar awtomatiku jibqa’ affidabbli.</string>
+    <string name="setup_background_access_optional">Fakultattiv, iżda rakkomandat. Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Traċċar.</string>
+    <string name="background_reliability_title">Traċċar affidabbli fl-isfond</string>
+    <string name="background_reliability_status_exempt">Attività fl-isfond permessa</string>
+    <string name="background_reliability_status_optimized">L-ottimizzazzjoni tal-batterija mixgħula</string>
+    <string name="background_reliability_exempt_desc">Tracker hu eskluż mill-ottimizzazzjoni tal-batterija, għalhekk it-traċċar fl-isfond u awtomatiku jista’ jaħdem b’mod affidabbli.</string>
+    <string name="background_reliability_optimized_desc">L-ottimizzazzjoni tal-batterija tista’ twaqqaf lil Tracker fl-isfond, u twaqqaf it-traċċar awtomatiku. Ħalli attività fl-isfond biex iżżommu jaħdem.</string>
+    <string name="background_reliability_allow_action">Ħalli attività fl-isfond</string>
+    <string name="background_reliability_samsung_hint">Apparat Samsung jista’ wkoll ipoġġi apps f’“Apps rieqda”. Iftaħ l-issettjar tal-batterija, imbagħad neħħi Tracker minn Apps rieqda u issettjah biex ma jorqodx.</string>
+    <string name="background_reliability_samsung_action">Iftaħ l-issettjar tal-batterija tat-tagħmir</string>
+    <string name="settings_tracebox_title">Dijanjostiċi tal-waqgħat</string>
+    <string name="settings_tracebox_root_summary">Dijanjostiċi lokali tal-waqgħat, ANR u struttura</string>
+    <string name="settings_tracebox_status_header">Status tal-qbid</string>
+    <string name="settings_tracebox_toggle_title">Irreġistra dijanjostiċi tal-waqgħat</string>
+    <string name="settings_tracebox_toggle_summary_off">Il-qbid mitfi. Id-dijanjostiċi lokali eżistenti jibqgħu sakemm tħassarhom.</string>
+    <string name="settings_tracebox_toggle_summary_on">Dijanjostiċi tal-waqgħat, ANR u struttura fissa huma rreġistrati lokalment.</string>
+    <string name="settings_tracebox_readiness_label">Lest għall-ħażna</string>
+    <string name="settings_tracebox_readiness_volatile">Qed tibda ħażna dejjiema; qbid volatili disponibbli</string>
+    <string name="settings_tracebox_readiness_durable">Il-qbid dejjiemi lest</string>
+    <string name="settings_tracebox_readiness_degraded">Il-qbid degradat; xi rekords jistgħu ma jkunux disponibbli</string>
+    <string name="settings_tracebox_readiness_closed">Il-qbid magħluq</string>
+    <string name="settings_tracebox_health_label">Saħħa waqt it-tħaddim</string>
+    <string name="settings_tracebox_health_disabled">Diżattivat</string>
+    <string name="settings_tracebox_health_initializing">Qed jibda</string>
+    <string name="settings_tracebox_health_ready">Lest</string>
+    <string name="settings_tracebox_health_degraded">Degradat</string>
+    <string name="settings_tracebox_health_deleting">Qed jitħassru d-dijanjostiċi lokali</string>
+    <string name="settings_tracebox_health_closed">Magħluq</string>
+    <string name="settings_tracebox_package_header">Pakkett dijanjostiku</string>
+    <string name="settings_tracebox_package_body">Tracebox l-ewwel juri l-iżvelar eżatt għall-pakkett finalizzat. Xejn ma jiġi salvat jew maqsum sakemm tapprovah u tagħżel id-destinazzjoni.</string>
+    <string name="settings_tracebox_package_review_action">Irrevedi u approva l-pakkett</string>
+    <string name="settings_tracebox_package_save_action">Salva l-pakkett approvat</string>
+    <string name="settings_tracebox_package_share_action">Aqsam il-pakkett approvat</string>
+    <string name="settings_tracebox_share_limit">Android jista’ jikkonferma li nfetaħ l-għażel, iżda ma jistax jipprova li applikazzjoni oħra rċeviet il-pakkett.</string>
+    <string name="settings_tracebox_data_header">Dejta Tracebox</string>
+    <string name="settings_tracebox_data_body">Dan iħassar id-dijanjostiċi ta’ Tracebox u l-istadju tal-pakkett. Fajls li diġà ssejvjajt jew bgħatt huma kkontrollati mill-apps tad-destinazzjoni tagħhom.</string>
+    <string name="settings_tracebox_delete_action">Ħassar id-dejta Tracebox kollha</string>
+    <string name="settings_tracebox_delete_confirm_title">Tħassar id-dijanjostiċi kollha tal-waqgħat?</string>
+    <string name="settings_tracebox_delete_confirm_body">Dan ineħħi d-dijanjostiċi ta’ Tracebox u l-istadju tal-pakkett minn Tracker. L-azzjoni ma tistax terġa’ tinħela.</string>
+    <string name="settings_tracebox_delete_confirm_action">Ħassar</string>
+    <string name="settings_tracebox_result_header">L-aħħar riżultat</string>
+    <string name="settings_tracebox_result_enabled">Id-dijanjostiċi tal-waqgħat attivati.</string>
+    <string name="settings_tracebox_result_disabled">Id-dijanjostiċi tal-waqgħat diżattivati. Id-dejta eżistenti ma tħassritx.</string>
+    <string name="settings_tracebox_result_policy_restricted">Il-politika restrittiva ġiet salvata lokalment, iżda mhux kull proċess ikkonfermaha għadu.</string>
+    <string name="settings_tracebox_result_policy_partial">Il-politika ġiet salvata lokalment, iżda l-konverġenza waqt it-tħaddim ma kinitx kompluta.</string>
+    <string name="settings_tracebox_result_failed">L-operazzjoni ma laħqitx il-konfini lokali tad-durabbiltà.</string>
+    <string name="settings_tracebox_result_delete_complete">Id-dejta kollha ta’ Tracebox tħassret.</string>
+    <string name="settings_tracebox_result_delete_pending">It-tħassir tlesta biss parzjalment. Xi dejta tal-handler għadha pendenti għat-tħassir.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox ċaħad it-talba għat-tħassir.</string>
+    <string name="settings_tracebox_result_review_ready">Żvelar lest: %1$d valuri inklużi li fihom %2$d bytes ta’ dejta dijanjostika.</string>
+    <string name="settings_tracebox_result_package_created">Il-pakkett dijanjostiku approvat lest biex jiġi salvat jew maqsum.</string>
+    <string name="settings_tracebox_result_approval_cancelled">L-approvazzjoni tal-pakkett ġiet ikkanċellata. Ma nħoloq ebda pakkett.</string>
+    <string name="settings_tracebox_result_package_rejected">Il-ħolqien tal-pakkett ġie miċħud minħabba li l-approvazzjoni ma baqgħetx taqbel mal-bytes finalizzati.</string>
+    <string name="settings_tracebox_result_package_not_ready">Pakkett dijanjostiku mhux lest. Irrevedih u approvah l-ewwel.</string>
+    <string name="settings_tracebox_result_save_complete">Il-pakkett approvat sħiħ ġie salvat (%1$d bytes).</string>
+    <string name="settings_tracebox_result_save_partial">Ġew ikkupjati biss %1$d bytes. Id-destinazzjoni jista’ jkun fiha pakkett mhux komplut.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Is-salvataġġ ġie kkanċellat wara %1$d bytes. Id-destinazzjoni jista’ jkun fiha pakkett mhux komplut.</string>
+    <string name="settings_tracebox_result_save_failed">Il-pakkett approvat ma setax jiġi salvat.</string>
+    <string name="settings_tracebox_result_save_cancelled">Ma ntgħażlet ebda destinazzjoni għall-ħażna.</string>
+    <string name="settings_tracebox_result_share_opened">Infetaħ l-għażel tal-qsim Android.</string>
+    <string name="settings_tracebox_result_share_unknown">L-għażel irritorna. Android ma jistax jipprova jekk ir-riċevitur irċeviex il-pakkett.</string>
+    <string name="settings_tracebox_records_header">X’jirreġistra</string>
+    <string name="settings_tracebox_records_body">Evidenza ta’ waqgħat u ANR flimkien ma’ sett limitat ta’ kodiċijiet predefiniti dwar l-istruttura tal-applikazzjoni u l-ordni tal-eżekuzzjoni. Tracebox hu l-uniku reġistratur ta’ waqgħat u dijanjostiċi ta’ Tracker.</string>
+    <string name="settings_tracebox_privacy_header">X’jeskludi</string>
+    <string name="settings_tracebox_privacy_body">L-API tar-reġistrazzjoni ma taċċetta l-ebda test arbitrarju, post, dettalji tal-kont, identifikaturi tat-tagħmir jew qari tas-sensuri. Pakketti normali jeskludu artefatti mhux ipproċessati tal-waqgħat u qatt ma jittellgħu awtomatikament.</string>
+</resources>

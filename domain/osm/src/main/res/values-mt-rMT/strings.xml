@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Notifika fl-ewwel pjan murija waqt li jiġi analizzat reġjun OpenStreetMap importat mill-utent.</string>
+    <string name="osm_import_notification_title">Qed jiġi importat reġjun OpenStreetMap</string>
+    <string name="osm_import_notification_content">%1$d toroq analizzati</string>
+    <string name="osm_import_complete_title">Ir-reġjun OSM ġie importat</string>
+    <string name="osm_import_complete_content">Id-dejta tat-toroq offline hija lesta għall-konformità tal-vetturi.</string>
+    <string name="osm_import_failed_title">L-importazzjoni OSM falliet</string>
+    <string name="osm_import_failed_content">L-importazzjoni tal-mappa offline ma setgħetx titlesta.</string>
+</resources>

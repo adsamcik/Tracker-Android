@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Esporta</string>
+    <string name="export_default_file_name_range">Advention_dejta_esportata_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_dejta_esportata_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Ma nstab ebda post fl-intervall magħżul.</string>
+    <string name="export_error_no_databases">Ma hemm ebda bażi tad-dejta tal-applikazzjoni disponibbli għall-esportazzjoni.</string>
+    <string name="export_error_no_uri">Ma ntgħażlet ebda folder għall-esportazzjoni</string>
+    <string name="export_error_stream_failed">Ma setax jinħoloq fluss għall-fajl %s</string>
+    <string name="export_error_unknown">L-esportazzjoni falliet.</string>
+    <string name="export_error_with_reason">L-esportazzjoni falliet: %s</string>
+    <string name="export_file_name">Isem il-fajl</string>
+    <string name="export_file_name_error">L-ismijiet tal-fajls ma jistgħux ikun fihom \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Esportazzjoni tad-dejta tal-post minn %1$s sa %2$s traċċata b’Advention.</string>
+    <string name="export_gpx_error">L-esportazzjoni GPX falliet bl-iżball: %s</string>
+    <string name="export_sensitivity_title">Tesporta dejta preċiża tal-post?</string>
+    <string name="export_sensitivity_message">Din l-esportazzjoni/qsim fiha dejta tal-post bi preċiżjoni sħiħa u tista’ tinkludi metadata tar-radju mhux ipproċessata fl-esportazzjonijiet tal-bażi tad-dejta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_sensitivity_confirm">Kompli</string>
+    <string name="export_share_button">Aqsam</string>
+    <string name="export_in_progress">Qed tiġi esportata…</string>
+    <string name="export_completed">L-esportazzjoni lesta.</string>
+    <string name="import_notification_error_failed_open_database">Ma setax jinfetaħ il-fajl tal-bażi tad-dejta %s</string>
+    <string name="import_notification_error_file_not_supported">Il-fajl %s mhuwiex appoġġat.</string>
+    <string name="import_notification_extracting">Qed jiġi estratt %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">L-importazzjoni lesta. Ġie importat b’suċċess %d rekord.</item>
+        <item quantity="other">L-importazzjoni lesta. Ġew importati b’suċċess %d rekords.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">L-importazzjoni lesta. Ġew importati %1$d rekords (%2$d inqabżu).</string>
+    <string name="import_notification_error_records_failed">%d rekords naqsu milli jiġu importati minħabba ksur ta’ restrizzjonijiet.</string>
+    <string name="import_notification_importing">Qed jiġi importat %s …</string>
+    <string name="import_notification_progress">Importazzjoni għaddejja …</string>
+    <string name="settings_export_dialog_from">Minn</string>
+    <string name="settings_export_dialog_to">Sa</string>
+    <string name="settings_export_no_data">Ebda dejta x’tiġi esportata</string>
+    <string name="settings_export_title">Esportazzjoni</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Kopja ta’ riżerva tal-bażi tad-dejta (ZIP)</string>
+    <string name="settings_import_summary">Importa dejta minn tipi appoġġati (%1$s) u arkivji (%2$s). L-importazzjonijiet tal-bażi tad-dejta jgħaqqdu rekords kompatibbli; ma jissostitwixxux id-dejta eżistenti.</string>
+    <string name="settings_import_title">Importazzjoni</string>
+</resources>
