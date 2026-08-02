@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Estadísticas</string>
     <string name="stats_cell_count">Número de celdas</string>
     <string name="stats_collections">Número de actualizaciones</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Cargando sesiones…</string>
     <string name="stats_append_error">Error al cargar más</string>
     <string name="action_retry">Reintentar</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Iniciar seguimiento</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s paso</item>
         <item quantity="other">%1$s pasos</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Hoy</string>
     <string name="stats_date_yesterday">Ayer</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Cargando resumen…</string>
     <string name="stats_summary_empty">No hay estadísticas de resumen disponibles</string>
     <string name="stats_summary_empty_subtitle">Inicia el seguimiento para ver el resumen de tu actividad</string>
     <string name="stats_summary_error">No se pudo cargar el resumen</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Cargando estadísticas semanales…</string>
     <string name="stats_week_empty">No hay estadísticas semanales disponibles</string>
     <string name="stats_week_empty_subtitle">Registra durante 7 días para ver tu resumen semanal</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Redes únicas detectadas</string>
     <string name="stats_wifi_total_scans">Escaneos totales</string>
     <string name="stats_wifi_average_per_scan">Promedio de redes por escaneo</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Informe de señal de red móvil</string>
     <string name="stats_cell_signal_dialog_loading">Cargando informe de señal de red móvil…</string>
     <string name="stats_cell_signal_dialog_empty_title">No hay datos de red móvil disponibles</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Torres distintas</string>
     <string name="stats_cell_signal_section_networks">Por tipo de red</string>
     <string name="stats_cell_signal_section_towers">Torres más detectadas</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s de muestras · %2$s torres</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Celda %1$s · %2$s muestras</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operador %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Detalles del trayecto</string>
     <string name="trip_detail_not_found">No se encontró el trayecto</string>
     <string name="trip_detail_not_found_subtitle">Es posible que se haya eliminado este trayecto</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Desnivel negativo</string>
     <string name="trip_detail_max_altitude">Altitud máxima</string>
     <string name="trip_detail_route_map">Mapa de ruta</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Ver en el mapa</string>
     <string name="trip_detail_no_location_data">No hay datos de ubicación</string>
     <string name="trip_detail_route_unavailable_legacy">El mapa de ruta no está disponible para sesiones antiguas</string>
     <string name="trip_detail_route_no_gps_points">Se registró la distancia, pero no hay ruta GPS disponible</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Eliminar</string>
     <string name="trip_detail_cancel">Cancelar</string>
     <string name="trip_detail_more_options">Más opciones</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Sesión de esquí</string>
     <string name="ski_detail_runs">Descensos</string>
     <string name="ski_detail_vertical">Desnivel</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Frecuencia</string>
     <string name="wifilist_title_last_seen">Visto por última vez</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Cronología</string>
     <string name="history_tab_trips">Trayectos</string>
     <string name="history_tab_calendar">Calendario</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d trayecto</item>
         <item quantity="other">%d trayectos</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Aún no hay actividad</string>
     <string name="history_timeline_empty_desc">Inicia el seguimiento para ver aquí tu historial de movimiento</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">No hay trayectos registrados</string>
     <string name="history_trips_empty_desc">Los trayectos aparecerán aquí mientras te desplazas</string>
     <string name="trip_gps_anomaly">Se detectó una anomalía GPS; la distancia puede ser imprecisa</string>
     <string name="trip_deleted_snackbar">Trayecto eliminado</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Mes anterior</string>
     <string name="history_calendar_next_month">Mes siguiente</string>
     <string name="history_calendar_distance">Distancia</string>
     <string name="history_calendar_steps">Pasos</string>
     <string name="history_calendar_trips">Trayectos</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Exploración</string>
     <string name="history_exploration_cells">Celdas</string>
     <string name="history_exploration_streak">Racha</string>
     <string name="history_exploration_best">Mejor</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Volver</string>
-    <!-- History navigation -->
     <string name="history_button_label">Historial</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Ver el trayecto en el mapa</string>
     <string name="stats_heatmap_title">Actividad</string>
 </resources>

@@ -1,16 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-    <!-- Module title for distribution manifest -->
+    <string name="trip_route_preview_unavailable">No se pudo preparar la vista previa del mapa de ruta</string>
     <string name="module_map_title">Mapa</string>
     <string name="description_map_search">Botón de búsqueda</string>
     <string name="map_layer_cell_heatmap_description">Tu paisaje de red móvil observado por tecnología de radio. Los campos suaves muestran dónde te alcanzaron las celdas de servicio; los centros luminosos son estimaciones prudentes de sitios y se definen más solo cuando las observaciones los rodean.</string>
     <string name="map_layer_cell_heatmap_title">Topología móvil</string>
     <string name="map_layer_location_heatmap_high">Densidad alta</string>
     <string name="map_layer_location_heatmap_low">Densidad baja</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Densidad baja-media</string>
     <string name="map_layer_location_heatmap_medium">Densidad media</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Densidad máxima</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Visitas distintas</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visitas</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densidad relativa de correcciones de ubicación aceptadas. Muestra observaciones distintas, no el tiempo transcurrido.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Zonas sin señal</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Zonas sin señal</string>
     <string name="map_layer_signal_coverage_description">Resalta dónde tu señal móvil era débil o inexistente. Cuanto más roja sea el área, peor será la cobertura; las zonas bien cubiertas permanecen claras.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Débil</string>
+    <string name="map_layer_signal_coverage_poor">Deficiente</string>
+    <string name="map_layer_signal_coverage_very_poor">Muy deficiente</string>
+    <string name="map_layer_signal_coverage_dead">Zona sin señal</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora de señal</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">La señal móvil se muestra como un brillo similar a una aurora: un halo violeta amplio bajo un núcleo brillante cian verdoso. El brillo palpita sin recargar datos y queda estático cuando las animaciones del sistema están desactivadas.</string>
@@ -108,10 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">Exceso de velocidad</string>
     <string name="map_layer_location_polyline_description">Línea que conecta tus ubicaciones registradas a lo largo del tiempo.</string>
     <string name="map_layer_location_polyline_title">Polilínea de ubicaciones</string>
-    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
-         layer chip on the map control bar (~360dp). Each chip label fits in
-         ~12 characters at typical font sizes. Fall back to titleRes for layers
-         whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Polilínea</string>
     <string name="map_layer_wifi_count_heatmap_chip">Solapamiento de Wi-Fi</string>
     <string name="map_layer_vehicle_compliance_chip">Exceso de velocidad</string>
@@ -155,9 +150,6 @@
     <string name="tips_map_date_range_title">Intervalo de fechas</string>
     <string name="tips_map_my_location_title">Mi ubicación</string>
     <string name="tips_map_sheet_description">Al tocar o deslizar hacia arriba esta barra se abrirán más opciones para el mapa, incluida la selección de capas y la leyenda.</string>
-    <!-- Map Sheet Controls -->
-    <!-- Keep short so it fits the search field at typical 360dp widths;
-         the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Lat., long., p. ej. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Prueba 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Borrar búsqueda</string>
@@ -165,7 +157,6 @@
     <string name="map_search_clipboard_empty">El portapapeles aún no contiene coordenadas</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Cancelar</string>
-    <!-- Share map as image -->
     <string name="map_share_button">Compartir mapa</string>
     <string name="map_share_sheet_title">Compartir mapa como imagen</string>
     <string name="map_share_sheet_subtitle">Renderiza la vista actual y la capa activa como una imagen estática. Tu ubicación en directo nunca se incluye.</string>
@@ -176,7 +167,7 @@
     <string name="map_share_preparing">Preparando imagen…</string>
     <string name="map_share_error">No se pudo renderizar la imagen del mapa. Inténtalo de nuevo.</string>
     <string name="map_date_range_all_time">Todo el tiempo</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Trayecto seleccionado</string>
     <string name="map_layers_title">Capas de mapa</string>
     <string name="map_layer_load_error">No se pudo cargar esta capa. Prueba a seleccionar otra.</string>
     <string name="map_empty_subtitle_location">No hay datos de ubicación en esta vista o intervalo de fechas. Las funciones de ruta y mapa requieren ubicaciones recopiladas durante el seguimiento.</string>
@@ -221,7 +212,6 @@
     <string name="map_a11y_city_scale">Escala urbana</string>
     <string name="map_a11y_neighborhood_scale">Escala de barrio</string>
     <string name="map_a11y_street_scale">Escala de calle</string>
-    <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Multiplicador de detalle de renderizado. Los valores mayores muestran más detalle, pero pueden ralentizar la carga del mapa en dispositivos antiguos.</string>
     <string name="help_max_heat_points">Número máximo de puntos de ubicación mostrados en la vista de mapa de calor. Los valores mayores ofrecen más detalle, pero un renderizado más lento.</string>
     <string name="help_visit_threshold">Cuánto tiempo debes permanecer en un lugar antes de que se marque como una "visita" en el mapa. Auméntalo para reducir el desorden de las paradas breves.</string>

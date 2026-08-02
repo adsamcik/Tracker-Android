@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Juego</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Escape</string>
     <string name="minigame_outrun_description">Compite contra un fantasma. ¡Mantente delante!</string>
     <string name="minigame_territory_name">Territorio</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Zigzag</string>
     <string name="minigame_switchback_description">Traza giros alternos y cerrados para crear un combo de fluidez</string>
     <string name="minigame_locked">Se desbloquea en el nivel %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Jugar</string>
     <string name="game_progress_section_title">Progreso</string>
     <string name="minigame_outrun_goal_line">Mantén una ventaja de 25–100 m sobre el fantasma</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Toca dos veces para ver cómo desbloquearlo</string>
     <string name="minigame_active_session_running">En curso; toca Jugar para volver</string>
     <string name="minigame_active_session_paused">En pausa; toca Jugar para reanudar</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d celda</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d giro</item>
         <item quantity="other">%1$d giros</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Ver puntuaciones anteriores</string>
     <string name="minigame_session_close">Cerrar</string>
     <string name="minigame_session_play_again">Jugar de nuevo</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Se necesita ubicación</string>
     <string name="minigame_session_permission_body">Los minijuegos usan la ubicación en directo para registrar tu partida. No se guarda nada aparte de la puntuación final.</string>
     <string name="minigame_session_permission_grant">Conceder acceso</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Configura tu partida</string>
     <string name="minigame_setup_goal_title">Objetivo</string>
     <string name="minigame_setup_difficulty_title">Dificultad</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Fácil</string>
     <string name="minigame_difficulty_normal">Normal</string>
     <string name="minigame_difficulty_hard">Difícil</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Preparando…</string>
     <string name="minigame_session_finishing">Guardando tu partida…</string>
     <string name="minigame_session_paused_title">En pausa</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Tiempo activo</string>
     <string name="minigame_session_goal_progress">%1$d%% del objetivo</string>
     <string name="minigame_session_goal_reached">Objetivo alcanzado</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">GPS potente</string>
     <string name="minigame_signal_fair">GPS aceptable</string>
     <string name="minigame_signal_poor">GPS débil</string>
     <string name="minigame_signal_unavailable">Sin señal GPS</string>
     <string name="minigame_signal_unknown">Localizando…</string>
     <string name="minigame_signal_stale">GPS retrasado</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Mejor de esta partida</string>
     <string name="minigame_outrun_personal_best">Mejor marca personal</string>
     <string name="minigame_outrun_warning">El fantasma se acerca</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Objetivo alcanzado. Escapaste con una ventaja de %1$d metros. Mejor de esta partida: %2$d metros.</string>
     <string name="minigame_outrun_description_finished">Partida completada. Tu distancia final fue de %1$d metros y tu mejor ventaja de %2$d metros.</string>
     <string name="minigame_outrun_ahead_of_best">Por delante de tu mejor marca personal</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Mapa de territorio. %1$d zonas cercanas reclamadas; %2$d zonas de frontera resaltadas. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Zona actual resaltada</string>
     <string name="minigame_territory_current_waiting">Esperando una zona actual</string>
     <string name="minigame_territory_goal_complete">Objetivo completado</string>
     <string name="minigame_territory_goal_in_progress">Objetivo en curso</string>
     <string name="minigame_territory_legend">El brillo marca tu zona actual • Indicaciones de frontera: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Ritmo</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Acelerándote suavemente</string>
     <string name="minigame_zen_flow_time">Fluidez %1$s</string>
     <string name="minigame_zen_flow_description">Fluidez del ritmo zen. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">El fantasma se acerca</string>
     <string name="minigame_feedback_pb_crossed">Nueva mejor marca personal</string>
     <string name="minigame_feedback_territory_claimed">Nueva zona reclamada</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Estás en la zona de ritmo</string>
     <string name="minigame_feedback_zen_exited">Saliste de la zona de ritmo</string>
     <string name="minigame_feedback_completed">Partida completada</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">¡Primera partida registrada!</string>
     <string name="minigame_completion_new_best_title">¡Nueva mejor marca personal!</string>
     <string name="minigame_completion_tied_title">Igualaste tu mejor marca</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Sin puntos en esta partida</string>
     <string name="minigame_completion_change_setup">Cambiar configuración</string>
     <string name="minigame_completion_done">Listo</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">La partida no terminó</string>
     <string name="minigame_failure_permission">Se requiere ubicación precisa para jugar. Concédela e inténtalo de nuevo.</string>
     <string name="minigame_failure_location">No pudimos obtener una ubicación fiable. Ve a un lugar con el cielo más despejado e inténtalo de nuevo.</string>
     <string name="minigame_failure_persistence">No pudimos guardar esta partida. Inténtalo de nuevo.</string>
     <string name="minigame_failure_generic">Algo salió mal y la partida se detuvo.</string>
     <string name="minigame_session_try_again">Intentar de nuevo</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Juego activo</string>
     <string name="game_session_channel_description">Mantiene un minijuego activo cuando la pantalla está apagada</string>
     <string name="game_session_notification_title">Juego de Tracker</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Pausar</string>
     <string name="game_session_action_resume">Reanudar</string>
     <string name="game_session_action_finish">Finalizar</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Partidas anteriores de minijuegos</string>
     <string name="minigame_scores_back">Volver</string>
     <string name="minigame_scores_empty_title">Tu primera partida te espera</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">diario</string>
     <string name="goals_weekly_goal">semanal</string>
     <string name="goals_monthly_goal">mensual</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Objetivos de pasos</string>
     <string name="game_step_sensor_unavailable">Sensor de pasos no disponible</string>
     <string name="game_step_sensor_unavailable_detail">Este dispositivo no tiene sensor de recuento de pasos. No se pueden registrar objetivos de pasos.</string>
     <string name="game_steps_today">Hoy</string>
     <string name="game_steps_week">Semana</string>
-    <!-- Game empty states -->
     <string name="game_loading">Cargando…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Volver</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Abrir ajustes</string>
     <string name="game_close">Cerrar</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Exploración</string>
     <string name="exploration_cells_discovered">Celdas descubiertas</string>
     <string name="exploration_current_streak">Racha actual</string>
@@ -229,7 +204,6 @@
         <item quantity="other">días</item>
     </plurals>
     <string name="exploration_of_four">de 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Logros</string>
     <string name="achievements_bronze">Bronce</string>
     <string name="achievements_silver">Plata</string>
@@ -253,12 +227,8 @@
         <item>Espléndido</item>
     </string-array>
     <string name="points_earned_today">puntos obtenidos hoy</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">¡Nuevo desbloqueo!</string>
     <string name="game_unlock_message">¡Alcanzaste el nivel %1$d!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Desafío semanal</string>
     <string name="leaderboard_metric_distance">Distancia</string>
     <string name="leaderboard_metric_steps">Pasos</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Clasificación no disponible</string>
     <string name="leaderboard_error_body">Tus datos están seguros en este dispositivo. Intenta cargar de nuevo el desafío semanal.</string>
     <string name="leaderboard_retry">Reintentar</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Mítico</string>
     <string name="game_view_all_achievements">Ver todo</string>
     <string name="game_recent_achievements">Desbloqueos recientes</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Calendario</string>
     <string name="achievement_unlocked_content_description">Desbloqueado</string>
     <string name="achievement_locked_content_description">Bloqueado</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

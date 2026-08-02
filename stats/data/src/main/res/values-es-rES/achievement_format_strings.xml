@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Registra actividad al menos %2$d días distintos para desbloquearlo.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Recorre %1$s</string>
     <string name="ach_desc_distance_total">Cubre %1$s de distancia total registrada en todas tus sesiones.</string>
     <string name="ach_title_week_distance">%1$s esta semana</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Pedalea %1$s en total.</string>
     <string name="ach_title_vehicle_distance">Recorre %1$s con motor</string>
     <string name="ach_desc_vehicle_distance">Cubre %1$s en coche, autobús, tren, barco o avión.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Da %1$s pasos</string>
     <string name="ach_desc_steps_total">Registra %1$s pasos en todas tus sesiones.</string>
     <string name="ach_title_best_daily_steps">%1$s pasos en un día</string>
     <string name="ach_desc_best_daily_steps">Da %1$s pasos en un solo día.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Primera sesión</item>
         <item quantity="other">Registra %1$s sesiones</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Visita %d países</item>
     </plurals>
     <string name="ach_desc_countries_visited">Registra al menos una sesión en %1$d países distintos.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Primer día activo</item>
         <item quantity="other">%1$s días activos</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Registra actividad durante %1$d horas distintas del día en todas las sesiones.</string>
     <string name="ach_title_days_of_week">Los siete días de la semana</string>
     <string name="ach_desc_days_of_week">Registra actividad al menos una vez cada día de la semana.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Prueba %d tipo de actividad</item>
         <item quantity="other">Prueba %d tipos de actividad</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Registra actividad los siete días de una semana natural.</string>
     <string name="ach_title_walk_cycle_drive">Camina, pedalea y conduce</string>
     <string name="ach_desc_walk_cycle_drive">Registra al menos una sesión de cada tipo: caminando, en bicicleta y conduciendo.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Sesión de %1$s</string>
     <string name="ach_desc_max_session_duration">Registra una sola sesión de al menos %1$s de duración.</string>
     <string name="ach_title_max_speed">Alcanza %1$s</string>
     <string name="ach_desc_max_speed">Alcanza una velocidad máxima de al menos %1$s durante una sesión.</string>
     <string name="ach_title_active_minutes">%1$s minutos activos</string>
     <string name="ach_desc_active_minutes">Acumula %1$s minutos de tiempo de seguimiento activo.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Primera exportación</item>
         <item quantity="other">%d exportaciones</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Registra durante %d estaciones</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Registra actividad durante %1$d estaciones distintas (primavera, verano, otoño e invierno).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Registro de Año Nuevo</string>
     <string name="ach_desc_calendar_new_year">Registra una sesión el 1 de enero.</string>
     <string name="ach_title_calendar_leap_day">Pionero del día bisiesto</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Registra una sesión el día más largo del año.</string>
     <string name="ach_title_calendar_winter_solstice">Solsticio de invierno</string>
     <string name="ach_desc_calendar_winter_solstice">Registra una sesión el día más corto del año.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Noctámbulo</item>
         <item quantity="other">%1$s sesiones nocturnas</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Usa %d formatos de exportación</item>
     </plurals>
     <string name="ach_desc_export_formats">Exporta tus datos en %1$d formatos de archivo distintos.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Alcanza el nivel %1$d</string>
     <string name="ach_desc_player_level">Asciende al nivel de jugador %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP en un día</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Juega %1$s minijuegos</item>
     </plurals>
     <string name="ach_desc_minigames_played">Termina %1$d partidas de minijuego.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Asciende %1$s</string>
     <string name="ach_desc_total_ascent">Acumula %1$s de desnivel positivo total en todo tu seguimiento.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Gana de una fuente de XP</item>
         <item quantity="other">Gana de %d fuentes de XP</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d semanas perfectas</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Cumple tu objetivo diario de pasos todos los días durante %1$d semanas completas.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">Racha de objetivos de %d día</item>
         <item quantity="other">Racha de objetivos de %d días</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Completa %d categorías</item>
     </plurals>
     <string name="ach_desc_categories_completed">Desbloquea todos los logros de %1$d categorías distintas.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d segundo</item>
         <item quantity="other">%d segundos</item>

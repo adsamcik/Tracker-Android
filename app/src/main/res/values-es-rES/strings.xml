@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Juego</string>
     <string name="module_map_title">Mapa</string>
     <string name="module_statistics_title">Estadísticas</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">La próxima copia de seguridad automática incluirá todos los datos en lugar de solo los cambios</string>
     <string name="settings_reset_export_watermarks_done">Marcas de exportación restablecidas — la próxima copia de seguridad será una exportación completa</string>
     <string name="settings_migration_backup_export_title">Exportar copia de seguridad previa a la actualización</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Copia completa de la base de datos de v%1$d, creada antes de la migración a v%2$d y guardada de forma privada hasta 30 días</string>
     <string name="settings_migration_backup_warning_title">¿Exportar copia de seguridad confidencial de la base de datos?</string>
     <string name="settings_migration_backup_warning_message">Esta copia de seguridad puede contener ubicaciones precisas, observaciones de Wi-Fi y de red móvil, actividades y otros datos privados previos a la actualización. Guárdala solo en un lugar de confianza.</string>
@@ -105,13 +102,6 @@
         <item>Aviación</item>
     </string-array>
     <string name="settings_length_system_title">Sistema de longitud</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Licencias de código abierto</string>
     <string name="settings_licenses_subtitle">Consulta los avisos de terceros incluidos con esta compilación.</string>
     <string name="settings_licenses_loading">Cargando licencias…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Versión</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Commit de compilación</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">Correo electrónico</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Enlaces</string>
     <string name="about_attributions_title">Atribuciones de datos</string>
     <string name="about_attribution_geonames_label">Nombres de lugares</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Datos de mapas y calles</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Ajustes de módulos</string>
     <string name="settings_core_group_title">Núcleo</string>
     <string name="settings_other_title">Unidades y visualización</string>
@@ -151,16 +135,9 @@
         <item>Velocidad (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Formato de velocidad</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Ajustes</string>
     <string name="switch_state_on">Activado</string>
     <string name="switch_state_off">Desactivado</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Registra tus trayectos de forma privada</string>
     <string name="onboarding_streamlined_subtitle">Todos los datos permanecen en tu dispositivo. Sin sincronización en la nube ni seguimiento por terceros.</string>
     <string name="onboarding_benefit_privacy_title">La privacidad primero</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">COMENZAR</string>
     <string name="onboarding_privacy_policy_button">Leer la política de privacidad</string>
     <string name="onboarding_state_read_error_message">No pudimos comprobar si la configuración ya se había completado, por lo que se muestra para mantener tus datos privados. Puedes continuar con seguridad.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Limpieza automática de datos antiguos</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Conservar los datos para siempre; la limpieza automática no eliminará datos antiguos</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Eliminar automáticamente los datos con más de %1$d año</item>
         <item quantity="other">Eliminar automáticamente los datos con más de %1$d años</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Conservar los datos durante</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Conservar para siempre</item>
@@ -189,17 +164,7 @@
         <item>5 años</item>
         <item>10 años</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">CONTINUAR</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Exportar datos</string>
     <string name="settings_export_data_summary">Guarda tus datos de seguimiento en varios formatos</string>
     <string name="export_format_dialog_title">Elegir formato de exportación</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Exportar</string>
     <string name="settings_import_summary">Importa datos de tipos compatibles (%1$s) y archivos (%2$s). Las importaciones de base de datos combinan filas compatibles; no sustituyen los datos existentes.</string>
     <string name="settings_import_title">Importar</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Entendido</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Impacto bajo</string>
     <string name="battery_impact_moderate">Impacto moderado</string>
     <string name="battery_impact_high">Impacto alto</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Elegir precisión de ubicación</string>
     <string name="precision_mode_approximate_title">Aproximada</string>
     <string name="precision_mode_approximate_description">Ubicación basada en red. Buena para seguimiento de áreas generales con un consumo mínimo de batería.</string>
     <string name="precision_mode_precise_title">Precisa</string>
     <string name="precision_mode_precise_description">Ubicación basada en GPS. Ideal para rutas detalladas, mapas de calor y desafíos.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Desbloquear seguimiento preciso</string>
     <string name="upgrade_to_precise_message_general">Estás usando ubicación aproximada. Cambia al seguimiento GPS preciso para obtener mayor exactitud.</string>
     <string name="upgrade_to_precise_message_route_analysis">Se recomienda la ubicación precisa para un análisis exacto de rutas y mediciones de distancia.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">El GPS preciso usa más batería. Tiempo de seguimiento estimado: 6–8 horas en dispositivos habituales.</string>
     <string name="upgrade_to_precise_button_upgrade">Activar ubicación precisa</string>
     <string name="upgrade_to_precise_button_cancel">Quizá más tarde</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Alta precisión</string>
     <string name="tracking_preset_high_accuracy_description">Máximo detalle con actualizaciones más rápidas y todos los sensores principales activados</string>
     <string name="tracking_preset_balanced_name">Equilibrado</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Política de seguimiento</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Seguimiento estimado: %d hora</item>
         <item quantity="other">Seguimiento estimado: %d horas</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Elige con qué precisión Tracker registra tu ubicación</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Cambio automático de unidades</string>
     <string name="settings_module_map_subtitle">Calidad del mapa de calor y opciones de visualización</string>
     <string name="settings_module_game_subtitle">Objetivos, logros e hitos</string>
     <string name="action_navigate_back">Volver</string>
     <string name="action_help">Ayuda</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Cargando…</string>
     <string name="widget_quick_start_name">Inicio rápido de Tracker</string>
     <string name="widget_quick_start_description">Inicia o detén el seguimiento de ubicación con un solo toque.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Ambiental</string>
     <string name="widget_tier_active">Activo</string>
     <string name="widget_tier_precision">Precisión</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">¡Gran progreso!</string>
     <string name="goal_notification_title_almost">¡Ya casi!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Notificaciones inteligentes de objetivos</string>
     <string name="settings_smart_goal_notifications_summary">Recibe una notificación cuando estés cerca de tu objetivo diario de pasos</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">¿Cómo debe funcionar el seguimiento?</string>
     <string name="setup_how_to_track_subtitle">Elige cuándo empieza el seguimiento y cuán detallado debe ser.</string>
     <string name="setup_auto_tracking_title">Seguimiento automático</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Empezar a explorar</string>
     <string name="setup_continue">Continuar</string>
     <string name="setup_step_indicator">Paso %1$d de %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">¿Teselas de mapa en línea?</string>
     <string name="setup_online_tiles_subtitle">Tracker incluye un mapa base sin conexión para funcionar sin red. Si deseas mapas más completos, puedes usar teselas en streaming desde un proveedor público.</string>
     <string name="setup_online_tiles_off_title">Solo sin conexión (recomendado)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Transmite teselas vectoriales con más detalle desde OpenFreeMap (predeterminado). Puedes cambiar el proveedor más tarde en Ajustes → Mapa.</string>
     <string name="setup_online_tiles_privacy">Mientras está activado, el proveedor puede ver tu dirección IP y qué teselas cargas; aproximadamente qué zona del mapa estás mirando. Tracker nunca envía una cuenta, identificador ni tu historial de ubicaciones.</string>
     <string name="setup_online_tiles_change_later">Puedes cambiarlo en cualquier momento en Ajustes → Mapa → Teselas de mapa en línea.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Para registrar trayectos mientras la pantalla está apagada o la aplicación cerrada, Tracker debe seguir ejecutándose en segundo plano. Los ajustes de batería del teléfono pueden pausarlo; permite la actividad en segundo plano para que el seguimiento automático siga siendo fiable.</string>
     <string name="setup_background_access_optional">Opcional, pero recomendado. Puedes cambiarlo en cualquier momento en Ajustes → Seguimiento.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Seguimiento fiable en segundo plano</string>
     <string name="background_reliability_status_exempt">Actividad en segundo plano permitida</string>
     <string name="background_reliability_status_optimized">La optimización de batería está activada</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Permitir actividad en segundo plano</string>
     <string name="background_reliability_samsung_hint">Los dispositivos Samsung también pueden incluir aplicaciones en "Aplicaciones en suspensión". Abre los ajustes de batería, elimina Tracker de Aplicaciones en suspensión y configura que no entre en suspensión.</string>
     <string name="background_reliability_samsung_action">Abrir los ajustes de batería del dispositivo</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Diagnóstico de fallos</string>
     <string name="settings_tracebox_root_summary">Diagnósticos locales de fallos, ANR y estructura</string>
     <string name="settings_tracebox_status_header">Estado de captura</string>
