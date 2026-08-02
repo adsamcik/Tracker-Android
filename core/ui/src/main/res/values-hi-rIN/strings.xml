@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">पीछे जाएँ</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">स्थान की अनुमति</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker को आपका मार्ग रिकॉर्ड करने और मानचित्र पर दिखाने के लिए स्थान की अनुमति चाहिए। स्थान डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">गतिविधि पहचान</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker गतिविधि पहचान से पता करता है कि आप क्या कर रहे हैं (चलना, साइकिल चलाना, वाहन चलाना या स्थिर रहना), ताकि स्वचालित ट्रैकिंग आपके न चलने पर रुक सके और बैटरी बचा सके। गतिविधि डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">पृष्ठभूमि स्थान</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">ऐप बदलने या स्क्रीन बंद होने पर भी आपका मार्ग रिकॉर्ड रखने के लिए Tracker को पृष्ठभूमि में आपके स्थान की अनुमति चाहिए। रिकॉर्ड किया गया स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। अगले सिस्टम प्रॉम्प्ट में कृपया "हर समय अनुमति दें" चुनें; "ऐप इस्तेमाल करते समय" चुनने से Tracker केवल खुली स्क्रीन पर काम करेगा।</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">अनुमति दें</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">अभी नहीं</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">ट्रैकिंग शुरू करने के लिए स्थान की अनुमति चाहिए</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">सेटिंग खोलें</string>
+</resources>

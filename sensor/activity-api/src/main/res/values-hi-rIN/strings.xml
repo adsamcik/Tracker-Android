@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="notification_activity_watcher_info">वर्तमान गतिविधि %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">गतिविधि निगरानी सेवा सक्रिय है</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">%s हटाया गया</string>
+    <string name="settings_activity_title">गतिविधियाँ</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">गतिविधि निगरानी</string>
+    <string name="settings_ski_infrastructure_title">स्की लिफ्ट डेटा</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">लोड हो गया (हटाने के लिए टैप करें)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">लोड नहीं हुआ। ski_infrastructure.db SQLite फ़ाइल आयात करने के लिए टैप करें।</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d लिफ्ट · बनाया गया %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">स्की लिफ्ट डेटा © OpenStreetMap योगदानकर्ता (ODbL)</string>
+</resources>

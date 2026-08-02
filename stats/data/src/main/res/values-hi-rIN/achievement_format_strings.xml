@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s इसे अनलॉक करने के लिए कम से कम %2$d अलग-अलग दिनों में ट्रैक करें।</string>
+    <string name="ach_title_distance_total">%1$s यात्रा करें</string>
+    <string name="ach_desc_distance_total">अपने सभी सत्रों में कुल रिकॉर्ड दूरी के %1$s तय करें।</string>
+    <string name="ach_title_week_distance">इस सप्ताह %1$s</string>
+    <string name="ach_desc_week_distance">एक कैलेंडर सप्ताह में %1$s यात्रा करें।</string>
+    <string name="ach_title_best_day_distance">एक दिन में %1$s</string>
+    <string name="ach_desc_best_day_distance">एक दिन में %1$s दूरी तय करें।</string>
+    <string name="ach_title_max_session_distance">एक सत्र में %1$s</string>
+    <string name="ach_desc_max_session_distance">बिना रुके %1$s कवर करने वाला एक सत्र रिकॉर्ड करें।</string>
+    <string name="ach_title_on_foot_distance">%1$s चलें या दौड़ें</string>
+    <string name="ach_desc_on_foot_distance">पैदल (चलना और दौड़ना मिलाकर) %1$s कवर करें।</string>
+    <string name="ach_title_cycling_distance">%1$s साइकिल चलाएँ</string>
+    <string name="ach_desc_cycling_distance">कुल %1$s साइकिल चलाएँ।</string>
+    <string name="ach_title_vehicle_distance">%1$s मोटर यात्रा</string>
+    <string name="ach_desc_vehicle_distance">कार, बस, ट्रेन, नाव या विमान से %1$s कवर करें।</string>
+    <string name="ach_title_steps_total">%1$s कदम चलें</string>
+    <string name="ach_desc_steps_total">अपने सभी सत्रों में %1$s कदम रिकॉर्ड करें।</string>
+    <string name="ach_title_best_daily_steps">एक दिन में %1$s कदम</string>
+    <string name="ach_desc_best_daily_steps">एक दिन में %1$s कदम चलें।</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">पहला सत्र</item>
+        <item quantity="other">%1$s सत्र रिकॉर्ड करें</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">कुल %1$s ट्रैकिंग सत्र रिकॉर्ड करें।</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">अपनी पहली सेल खोजें</item>
+        <item quantity="other">%1$s मानचित्र सेल खोजें</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">मानचित्र पर %1$s अलग ग्रिड सेल खोजें (हर एक लगभग 1 किमी वर्ग)।</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">%d देश जाएँ</item>
+        <item quantity="other">%d देश जाएँ</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">%1$d अलग देशों में कम से कम एक सत्र रिकॉर्ड करें।</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">पहला सक्रिय दिन</item>
+        <item quantity="other">%1$s सक्रिय दिन</item>
+    </plurals>
+    <string name="ach_desc_active_days">कुल %1$s अलग दिनों में गतिविधि ट्रैक करें।</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d-दिन की स्ट्रीक</item>
+        <item quantity="other">%d-दिन की स्ट्रीक</item>
+    </plurals>
+    <string name="ach_desc_current_streak">लगातार %1$d दिन गतिविधि ट्रैक करें।</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">व्यक्तिगत सर्वश्रेष्ठ: %d दिन</item>
+        <item quantity="other">व्यक्तिगत सर्वश्रेष्ठ: %d दिन</item>
+    </plurals>
+    <string name="ach_desc_best_streak">%1$d दिनों की व्यक्तिगत-सर्वश्रेष्ठ ट्रैकिंग स्ट्रीक प्राप्त करें।</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">Tracker के साथ %d महीना</item>
+        <item quantity="other">Tracker के साथ %d महीने</item>
+    </plurals>
+    <string name="ach_desc_months_active">Tracker में %1$d अलग महीनों तक सक्रिय रहें।</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">इस सप्ताह %d सक्रिय दिन</item>
+        <item quantity="other">इस सप्ताह %d सक्रिय दिन</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">एक सप्ताह में %1$d दिनों पर गतिविधि ट्रैक करें।</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Tracker के साथ पहला दिन</item>
+        <item quantity="other">Tracker के साथ %1$s दिन</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">%1$s दिनों तक Tracker स्थापित रखें।</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">वापसी पर स्वागत</item>
+        <item quantity="other">%d दिनों बाद वापसी पर स्वागत</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">%1$d-दिन के विराम के बाद ट्रैकिंग पर लौटें।</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">दिन के %d घंटे में ट्रैक करें</item>
+        <item quantity="other">%d अलग घंटों में ट्रैक करें</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">सभी सत्रों में दिन के %1$d अलग घंटों में गतिविधि रिकॉर्ड करें।</string>
+    <string name="ach_title_days_of_week">सप्ताह के सभी सात दिन</string>
+    <string name="ach_desc_days_of_week">हर सप्ताह के दिन में कम से कम एक बार गतिविधि ट्रैक करें।</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">%d गतिविधि प्रकार आज़माएँ</item>
+        <item quantity="other">%d गतिविधि प्रकार आज़माएँ</item>
+    </plurals>
+    <string name="ach_desc_activity_types">%1$d अलग गतिविधि प्रकारों में सत्र रिकॉर्ड करें (चलना, साइकिल चलाना, ड्राइविंग, …)।</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">इस सप्ताह %d गतिविधि प्रकार</item>
+        <item quantity="other">इस सप्ताह %d गतिविधि प्रकार</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">एक सप्ताह में %1$d अलग गतिविधि प्रकार उपयोग करें।</string>
+    <string name="ach_title_week_all_days">सप्ताह के हर दिन ट्रैक करें</string>
+    <string name="ach_desc_week_all_days">कैलेंडर सप्ताह के सभी सात दिनों में गतिविधि रिकॉर्ड करें।</string>
+    <string name="ach_title_walk_cycle_drive">चलें, साइकिल चलाएँ, वाहन चलाएँ</string>
+    <string name="ach_desc_walk_cycle_drive">हर एक का कम से कम एक सत्र रिकॉर्ड करें: चलना, साइकिल चलाना और वाहन चलाना।</string>
+    <string name="ach_title_max_session_duration">%1$s सत्र</string>
+    <string name="ach_desc_max_session_duration">कम से कम %1$s चलने वाला एक सत्र रिकॉर्ड करें।</string>
+    <string name="ach_title_max_speed">%1$s तक पहुँचें</string>
+    <string name="ach_desc_max_speed">सत्र में कम से कम %1$s की शीर्ष गति पाएँ।</string>
+    <string name="ach_title_active_minutes">%1$s सक्रिय मिनट</string>
+    <string name="ach_desc_active_minutes">%1$s मिनट सक्रिय ट्रैकिंग समय जमा करें।</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">पहला निर्यात</item>
+        <item quantity="other">%d निर्यात</item>
+    </plurals>
+    <string name="ach_desc_exports_total">अपना डेटा %1$d बार निर्यात करें।</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">एक मौसम में ट्रैक करें</item>
+        <item quantity="other">%d मौसमों में ट्रैक करें</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">%1$d अलग मौसमों (वसंत/गर्मी/पतझड़/सर्दी) में गतिविधि रिकॉर्ड करें।</string>
+    <string name="ach_title_calendar_new_year">नव वर्ष ट्रैकर</string>
+    <string name="ach_desc_calendar_new_year">1 जनवरी को एक सत्र रिकॉर्ड करें।</string>
+    <string name="ach_title_calendar_leap_day">लीप दिवस अग्रदूत</string>
+    <string name="ach_desc_calendar_leap_day">29 फ़रवरी को एक सत्र रिकॉर्ड करें।</string>
+    <string name="ach_title_calendar_summer_solstice">ग्रीष्म अयनांत</string>
+    <string name="ach_desc_calendar_summer_solstice">वर्ष के सबसे लंबे दिन पर एक सत्र रिकॉर्ड करें।</string>
+    <string name="ach_title_calendar_winter_solstice">शीत अयनांत</string>
+    <string name="ach_desc_calendar_winter_solstice">वर्ष के सबसे छोटे दिन पर एक सत्र रिकॉर्ड करें।</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">रात-जागने वाला</item>
+        <item quantity="other">%1$s रात्रि सत्र</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">आधी रात और सुबह 5 बजे के बीच शुरू होने वाले %1$d सत्र रिकॉर्ड करें।</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">जल्दी उठने वाला</item>
+        <item quantity="other">%1$s भोर सत्र</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">सुबह 5 और 8 बजे के बीच शुरू होने वाले %1$d सत्र रिकॉर्ड करें।</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">स्वयं करने वाला ट्रैकर</item>
+        <item quantity="other">%1$s सत्र मैन्युअल रूप से शुरू करें</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">%1$d ट्रैकिंग सत्र स्वयं मैन्युअल रूप से शुरू करें।</string>
+    <string name="ach_title_max_cycle_session">एक सवारी में %1$s साइकिल चलाएँ</string>
+    <string name="ach_desc_max_cycle_session">एक सवारी में %1$s साइकिल चलाएँ।</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">बहु-मोड दिन</item>
+        <item quantity="other">%d बहु-मोड दिन</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">एक ही दिन में पैदल, साइकिल और मोटर परिवहन से यात्रा करें, %1$d अलग दिनों में।</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">हर मौसम की जगह</item>
+        <item quantity="other">%d जगहों में सभी चार मौसम</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">सभी चार मौसमों में %1$d मानचित्र सेल जाएँ।</string>
+    <string name="ach_title_max_cell_visits">एक जगह %1$d बार जाएँ</string>
+    <string name="ach_desc_max_cell_visits">एक मानचित्र सेल %1$d बार जाएँ।</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">एक सेल अच्छी तरह खोजें</item>
+        <item quantity="other">%1$s सेल अच्छी तरह खोजें</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">%1$d अलग मानचित्र सेल अच्छी तरह खोजें।</string>
+    <string name="ach_title_max_cell_span">%1$s दूर तक पहुँचें</string>
+    <string name="ach_desc_max_cell_span">कम से कम %1$s दूर दो मानचित्र सेल खोजें।</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">एक दिन में एक सेल खोजें</item>
+        <item quantity="other">एक दिन में %d सेल खोजें</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">एक दिन में %1$d नई मानचित्र सेल खोजें।</string>
+    <string name="ach_title_max_cell_revisit_gap">%1$d दिनों बाद लौटें</string>
+    <string name="ach_desc_max_cell_revisit_gap">पहली बार खोजने के %1$d दिन बाद एक मानचित्र सेल फिर जाएँ।</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">एक आदर्श महीना</item>
+        <item quantity="other">%d आदर्श महीने</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">%1$d कैलेंडर महीनों के हर एक दिन गतिविधि ट्रैक करें।</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">एक निर्यात प्रारूप उपयोग करें</item>
+        <item quantity="other">%d निर्यात प्रारूप उपयोग करें</item>
+    </plurals>
+    <string name="ach_desc_export_formats">%1$d अलग फ़ाइल प्रारूपों में अपना डेटा निर्यात करें।</string>
+    <string name="ach_title_player_level">लेवल %1$d पर पहुँचें</string>
+    <string name="ach_desc_player_level">खिलाड़ी लेवल %1$d पर पहुँचें।</string>
+    <string name="ach_title_best_day_xp">एक दिन में %1$s XP</string>
+    <string name="ach_desc_best_day_xp">एक दिन में %1$d XP अर्जित करें।</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">अपना पहला मिनी-गेम खेलें</item>
+        <item quantity="other">%1$s मिनी-गेम खेलें</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">%1$d मिनी-गेम दौड़ें पूरी करें।</string>
+    <string name="ach_title_total_ascent">%1$s चढ़ें</string>
+    <string name="ach_desc_total_ascent">अपनी सभी ट्रैकिंग में कुल ऊँचाई बढ़त (चढ़ाई) के %1$s जमा करें।</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">एक XP स्रोत से अर्जित करें</item>
+        <item quantity="other">%d XP स्रोतों से अर्जित करें</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">ट्रैकिंग सत्र, मिनी-गेम और लक्ष्य से %1$d अलग स्रोतों से XP अर्जित करें।</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">एक आदर्श सप्ताह</item>
+        <item quantity="other">%d आदर्श सप्ताह</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">%1$d पूरे सप्ताह तक हर दिन अपना दैनिक कदम लक्ष्य पूरा करें।</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d-दिन की लक्ष्य स्ट्रीक</item>
+        <item quantity="other">%d-दिन की लक्ष्य स्ट्रीक</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">लगातार %1$d दिन अपना दैनिक कदम लक्ष्य पूरा करें।</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">एक उपलब्धि अनलॉक करें</item>
+        <item quantity="other">%d उपलब्धियाँ अनलॉक करें</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">कुल %1$d उपलब्धियाँ अनलॉक करें।</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">एक श्रेणी पूरी करें</item>
+        <item quantity="other">%d श्रेणियाँ पूरी करें</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">%1$d अलग श्रेणियों में हर उपलब्धि अनलॉक करें।</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d सेकंड</item>
+        <item quantity="other">%d सेकंड</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-मिनट</item>
+        <item quantity="other">%d-मिनट</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-घंटा</item>
+        <item quantity="other">%d-घंटे</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-दिन</item>
+        <item quantity="other">%d-दिन</item>
+    </plurals>
+</resources>

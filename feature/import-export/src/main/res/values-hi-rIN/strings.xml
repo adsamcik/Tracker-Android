@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">निर्यात करें</string>
+    <string name="export_default_file_name_range">Advention_निर्यात_डेटा_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_निर्यात_डेटा_%1$s</string>
+    <string name="export_error_no_locations_in_interval">चुनी गई अवधि में कोई स्थान नहीं मिला।</string>
+    <string name="export_error_no_databases">निर्यात के लिए कोई ऐप डेटाबेस उपलब्ध नहीं है।</string>
+    <string name="export_error_no_uri">कोई निर्यात फ़ोल्डर नहीं चुना गया</string>
+    <string name="export_error_stream_failed">फ़ाइल %s के लिए स्ट्रीम नहीं बनाई जा सकी</string>
+    <string name="export_error_unknown">निर्यात विफल हुआ।</string>
+    <string name="export_error_with_reason">निर्यात विफल: %s</string>
+    <string name="export_file_name">फ़ाइल नाम</string>
+    <string name="export_file_name_error">फ़ाइल नाम में \/:"*?&lt;&gt;| नहीं हो सकते</string>
+    <string name="export_gpx_description">Advention से %1$s से %2$s तक ट्रैक किए गए स्थान डेटा का निर्यात।</string>
+    <string name="export_gpx_error">GPX निर्यात त्रुटि के साथ विफल हुआ: %s</string>
+    <string name="export_sensitivity_title">सटीक स्थान डेटा निर्यात करें?</string>
+    <string name="export_sensitivity_message">इस निर्यात/साझाकरण में पूर्ण-सटीकता स्थान डेटा है और डेटाबेस निर्यात में कच्चा रेडियो मेटाडेटा हो सकता है। केवल भरोसेमंद गंतव्य के लिए ही आगे बढ़ें।</string>
+    <string name="export_sensitivity_confirm">जारी रखें</string>
+    <string name="export_share_button">साझा करें</string>
+    <string name="export_in_progress">निर्यात हो रहा है…</string>
+    <string name="export_completed">निर्यात पूरा हुआ।</string>
+    <string name="import_notification_error_failed_open_database">डेटाबेस फ़ाइल %s नहीं खोली जा सकी</string>
+    <string name="import_notification_error_file_not_supported">फ़ाइल %s समर्थित नहीं है।</string>
+    <string name="import_notification_extracting">%s निकाला जा रहा है…</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">आयात पूरा हुआ। %d रिकॉर्ड सफलतापूर्वक आयात किया गया।</item>
+        <item quantity="other">आयात पूरा हुआ। %d रिकॉर्ड सफलतापूर्वक आयात किए गए।</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">आयात पूरा हुआ। %1$d रिकॉर्ड आयात किए गए (%2$d छोड़े गए)।</string>
+    <string name="import_notification_error_records_failed">बाधा उल्लंघन के कारण %d रिकॉर्ड आयात नहीं हो सके।</string>
+    <string name="import_notification_importing">%s आयात हो रहा है…</string>
+    <string name="import_notification_progress">आयात जारी है…</string>
+    <string name="settings_export_dialog_from">से</string>
+    <string name="settings_export_dialog_to">तक</string>
+    <string name="settings_export_no_data">निर्यात के लिए कोई डेटा नहीं</string>
+    <string name="settings_export_title">निर्यात</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">डेटाबेस बैकअप (ZIP)</string>
+    <string name="settings_import_summary">समर्थित प्रकारों (%1$s) और संग्रहों (%2$s) से डेटा आयात करें। डेटाबेस आयात संगत पंक्तियों को मिलाते हैं; वे मौजूदा डेटा को नहीं बदलते।</string>
+    <string name="settings_import_title">आयात</string>
+</resources>

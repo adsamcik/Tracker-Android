@@ -1,0 +1,218 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">मानचित्र</string>
+    <string name="description_map_search">खोज बटन</string>
+    <string name="map_layer_cell_heatmap_description">रेडियो तकनीक के अनुसार आपका देखा गया सेल्युलर परिदृश्य। मुलायम क्षेत्र दिखाते हैं कि सर्विंग सेल आप तक कहाँ पहुँचे; चमकते केंद्र सावधान साइट अनुमान हैं और अवलोकनों से घिरने पर ही स्पष्ट होते हैं।</string>
+    <string name="map_layer_cell_heatmap_title">सेल्युलर टोपोलॉजी</string>
+    <string name="map_layer_location_heatmap_high">उच्च घनत्व</string>
+    <string name="map_layer_location_heatmap_low">कम घनत्व</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">मध्यम घनत्व</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">अलग-अलग दौरे</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">दौरे</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">स्वीकृत स्थान फ़िक्स का सापेक्ष घनत्व। यह अलग-अलग अवलोकन दिखाता है, बिताया समय नहीं।</string>
+    <string name="map_layer_cell_radio_gsm">GSM कवरेज</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">सिग्नल डेड ज़ोन</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">दिखाता है कि आपका सेल सिग्नल कहाँ कमज़ोर या गायब था। जितना लाल क्षेत्र, कवरेज उतना खराब; अच्छी कवरेज वाले क्षेत्र साफ़ रहते हैं।</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">सिग्नल ऑरोरा</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">ऑरोरा</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">ऑरोरा जैसी चमक के रूप में सेल सिग्नल: चमकीले सियान-हरे केंद्र के नीचे विस्तृत बैंगनी आभामंडल। डेटा पुनः लोड किए बिना चमक धड़कती है और सिस्टम ऐनिमेशन बंद होने पर स्थिर हो जाती है।</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">हल्का सिग्नल</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">मज़बूत सिग्नल</string>
+    <string name="map_layer_speed_heatmap_description">विभिन्न क्षेत्रों में गति की चाल दर्शाने वाला हीटमैप।</string>
+    <string name="map_layer_speed_very_slow">बहुत धीमी</string>
+    <string name="map_layer_speed_walking">चलने की चाल</string>
+    <string name="map_layer_speed_running">दौड़ने की चाल</string>
+    <string name="map_layer_speed_moderate">मध्यम गति</string>
+    <string name="map_layer_speed_fast">तेज़ गति</string>
+    <string name="map_layer_speed_very_fast">बहुत तेज़</string>
+    <string name="map_layer_speed_heatmap_title">गति हीटमैप</string>
+    <string name="map_layer_legacy_heatmap_title">पुराना हीटमैप</string>
+    <string name="map_layer_legacy_heatmap_chip">पुरानी टाइलें</string>
+    <string name="map_layer_legacy_heatmap_description">मूल Signals ऐप की याद: आपकी स्थान घनता अलग 25 मी ग्रिड टाइलों में, वैसी जैसी सर्वर पर टाइल रेंडर होने पर हीटमैप दिखता था। वर्ग देखने के लिए ज़ूम करें।</string>
+    <string name="map_layer_seasonal_title">मौसमी खोजकर्ता</string>
+    <string name="map_layer_seasonal_chip">मौसम</string>
+    <string name="map_layer_seasonal_description">मौसमी स्मृति का पैबंद: आपके खोजे हर क्षेत्र को उस मौसम के रंग में दिखाया जाता है, जिसमें आप पहली बार वहाँ गए थे। वे पगडंडियाँ खोजें जिन पर आप केवल गर्मी में चलते हैं या वे सड़कें जिन्हें केवल सर्दी में देखते हैं।</string>
+    <string name="map_layer_season_spring">वसंत</string>
+    <string name="map_layer_season_summer">गर्मी</string>
+    <string name="map_layer_season_autumn">पतझड़</string>
+    <string name="map_layer_season_winter">सर्दी</string>
+    <string name="map_layer_terrain_title">भूभाग के रूप में जीवन</string>
+    <string name="map_layer_terrain_chip">भूभाग</string>
+    <string name="map_layer_terrain_description">आपकी स्थान घनता को 3D में उठाया गया है: जहाँ आप सबसे ज़्यादा समय बिताते हैं, वे ऊँची चमकती मेसा बनते हैं, जबकि एक-बार की जगहें नीचे रहती हैं। अपने जीवन का उभार देखने के लिए मानचित्र झुकाएँ।</string>
+    <string name="map_layer_terrain_low">कभी-कभार यहाँ</string>
+    <string name="map_layer_terrain_mid">कभी-कभी</string>
+    <string name="map_layer_terrain_high">अक्सर यहाँ</string>
+    <string name="map_layer_places_title">बार-बार जाने की जगहें</string>
+    <string name="map_layer_places_chip">जगहें</string>
+    <string name="map_layer_places_description">आपकी महत्वपूर्ण जगहें मार्कर के रूप में, हर एक का आकार और रंग आपके दौरों के अनुसार। घर और काम बड़े गर्म बिंदु बनते हैं; जहाँ एक बार गए वह छोटा ठंडा बिंदु रहता है।</string>
+    <string name="map_layer_places_rare">कभी-कभार</string>
+    <string name="map_layer_places_often">कभी-कभी</string>
+    <string name="map_layer_places_anchor">आपके प्रमुख स्थान</string>
+    <string name="map_layer_speed_ribbon_title">गति रिबन</string>
+    <string name="map_layer_speed_ribbon_chip">रिबन</string>
+    <string name="map_layer_speed_ribbon_description">आपका मार्ग आपकी गति के अनुसार रंगा हुआ है, धीमी बैंगनी चाल से लाल-गर्म स्प्रिंट या ड्राइव तक बहते रंग। गति हीटमैप से अलग, रिबन आपका पथ अक्षुण्ण रखता है, ताकि आप ठीक देख सकें कि कब तेज़ या धीमे हुए।</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">ऊँचाई रिबन</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">ऊँचाई</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">आपका मार्ग पूर्ण ऊँचाई के अनुसार रंगा हुआ है, गहरे नीले निचले मैदानों से सियान तलहटी और गर्म पर्वतीय ऊँचाइयों तक। पैन करते समय पैमाना स्थिर रहता है, इसलिए एक ही ऊँचाई का रंग एक-सा रहता है।</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">निचले मैदान</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">तलहटी</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">ऊँचे पहाड़</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">गतिविधि रिबन</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">गतिविधि</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">आपका मार्ग हर फ़िक्स के साथ रिकॉर्ड विश्वसनीय गति स्थिति के अनुसार रंगा है: स्थिति अज्ञात होने पर धूसर, स्थिर होने पर नीला और गति में होने पर हरा।</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">अज्ञात</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">स्थिर</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">गतिमान</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">स्की एक्स-रे</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">स्की एक्स-रे</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">पता किए गए स्की खंडों का निदान दृश्य। डाउनहिल रन, लिफ्ट, पैदल चाल और विराम निकटतम रिकॉर्ड स्थान पर आधारित हैं और उनकी मुख्य मेट्रिक से लेबल किए गए हैं।</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">डाउनहिल रन</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">लिफ्ट</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">चलना या विराम</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">यात्रा नक्षत्र</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">यात्राएँ</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">आपकी बार-बार वाली जगहों के बीच दोहराई यात्राएँ वक्र नक्षत्र बनती हैं। स्थिर चाप हर मार्ग दिखाता है और एक धूमकेतु उस पर चलता है; मोटे चाप का अर्थ है कि आपने वह यात्रा अधिक बार की।</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">चलना</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">साइकिल चलाना</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">वाहन चलाना</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">सार्वजनिक परिवहन</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">अन्य</string>
+    <string name="map_layer_fog_title">खोजकर्ता का कोहरा</string>
+    <string name="map_layer_fog_chip">कोहरा</string>
+    <string name="map_layer_fog_description">कोहरे से उभरती दुनिया: आपके छुए हर क्षेत्र का खुलासा होता है और जितना गहराई से उसे जाना, उतना अधिक चमकता है। जिन जगहों से केवल गुज़रे वे हलकी धुंध रहती हैं; जहाँ खूब खोजा वह ठोस सुनहरा चमकता है। अनखोजी भूमि अंधेरी रहती है।</string>
+    <string name="map_layer_fog_faint">गुज़र गए</string>
+    <string name="map_layer_fog_known">अच्छी तरह खोजा</string>
+    <string name="map_layer_first_contact_title">पहला संपर्क</string>
+    <string name="map_layer_first_contact_chip">खोज</string>
+    <string name="map_layer_first_contact_description">आपकी खोजों की समयरेखा: हर क्षेत्र को उस समय के अनुसार रंगा जाता है जब आपने पहली बार वहाँ कदम रखा। बहुत पहले मिली जगहें गहरे इंडिगो में फीकी होती हैं, जबकि इस सप्ताह की नई ज़मीन चमकीले सियान में चमकती है — नई सीमाओं तक अपनी खोज की कहानी पढ़ें।</string>
+    <string name="map_layer_first_contact_old">बहुत पहले</string>
+    <string name="map_layer_first_contact_recent">अभी खोजा गया</string>
+    <string name="map_layer_vehicle_compliance_title">वाहन गति अनुपालन</string>
+    <string name="map_layer_vehicle_compliance_description">ड्राइविंग नमूनों की पॉलीलाइन, आपकी कॉन्फ़िगर आधाररेखा सीमा से गति की तुलना के अनुसार रंगी हुई।</string>
+    <string name="map_layer_vehicle_compliance_way_under">सीमा से बहुत कम</string>
+    <string name="map_layer_vehicle_compliance_slow">सीमा से कम</string>
+    <string name="map_layer_vehicle_compliance_at_limit">सीमा के पास</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">थोड़ा अधिक</string>
+    <string name="map_layer_vehicle_compliance_speeding">तेज़ रफ़्तार</string>
+    <string name="map_layer_location_polyline_description">समय के साथ आपके रिकॉर्ड स्थानों को जोड़ती रेखा।</string>
+    <string name="map_layer_location_polyline_title">स्थान पॉलीलाइन</string>
+    <string name="map_layer_location_polyline_chip">पॉलीलाइन</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi ओवरलैप</string>
+    <string name="map_layer_vehicle_compliance_chip">तेज़ रफ़्तार</string>
+    <string name="map_layer_none_title">कोई ओवरले नहीं</string>
+    <string name="map_date_preset_week">पिछला सप्ताह</string>
+    <string name="map_date_preset_month">पिछला महीना</string>
+    <string name="map_date_preset_custom">कस्टम…</string>
+    <string name="map_date_today">आज</string>
+    <string name="map_date_yesterday">कल</string>
+    <string name="map_date_this_week">यह सप्ताह</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi ओवरलैप</string>
+    <string name="map_layer_wifi_count_heatmap_description">दिखाता है कि हर जगह कितने अलग अभिगम बिंदु ओवरलैप करते हैं। एक ही AP के दोहराए स्कैन एक बार गिने जाते हैं, इसलिए गर्म क्षेत्रों का अर्थ वास्तव में घना रेडियो कवरेज है।</string>
+    <string name="map_layer_wifi_heatmap_description">आपके अपने अवलोकनों से बैंड-सचेत Wi-Fi नक्षत्र। रंगीन क्षेत्र देखे गए 2.4, 5 और 6 GHz कवरेज दिखाते हैं; चमकते केंद्र अनुमानित AP स्थिति हैं जो केवल नमूना ज्यामिति समर्थन देने पर दिखते हैं।</string>
+    <string name="map_layer_wifi_heatmap_high">कई ओवरलैपिंग AP</string>
+    <string name="map_layer_wifi_heatmap_low">कुछ ओवरलैपिंग AP</string>
+    <string name="map_layer_wifi_heatmap_medium">कई AP ओवरलैप</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi नक्षत्र</string>
+    <string name="map_layer_wifi_radio_24">2.4 GHz पहुँच</string>
+    <string name="map_layer_wifi_radio_5">5 GHz पहुँच</string>
+    <string name="map_layer_wifi_radio_6">6 GHz पहुँच</string>
+    <string name="map_legend_label">लीजेंड</string>
+    <string name="map_chip_layers">परत</string>
+    <string name="map_chip_dates">तिथियाँ</string>
+    <string name="permission_rationale_location_map">मानचित्र पर आपका स्थान दिखाने के लिए Tracker को स्थान अनुमति चाहिए। सारा डेटा आपके डिवाइस पर रहता है।</string>
+    <string name="map_location_permission_denied">आपकी स्थिति दिखाने के लिए स्थान अनुमति चाहिए</string>
+    <string name="map_open_settings">सेटिंग खोलें</string>
+    <string name="settings_map_basemap_title">आधार-मानचित्र</string>
+    <string name="settings_map_basemap_custom">कस्टम .pmtiles फ़ाइल सक्रिय है (हटाने के लिए टैप करें)</string>
+    <string name="settings_map_basemap_default">अंतर्निहित आधार-मानचित्र सक्रिय है। कस्टम .pmtiles फ़ाइल आयात करने के लिए टैप करें।</string>
+    <string name="basemap_import_error_source_open">वह फ़ाइल नहीं खोली जा सकी। दूसरी फ़ाइल आज़माएँ या उसे Tracker के साथ फिर साझा करें।</string>
+    <string name="basemap_import_error_copy">आधार-मानचित्र फ़ाइल कॉपी नहीं की जा सकी। पर्याप्त खाली जगह जाँचें और फिर कोशिश करें।</string>
+    <string name="basemap_import_error_invalid_format">मान्य PMTiles फ़ाइल नहीं: %1$s</string>
+    <string name="settings_map_advanced_section_title">उन्नत सेटिंग</string>
+    <string name="settings_map_max_heat_title">दौरों के बाद अधिकतम तीव्रता</string>
+    <string name="settings_map_quality_title">हीटमैप रिज़ॉल्यूशन</string>
+    <string name="settings_map_visit_threshold_title">स्थान दौरा समय सीमा</string>
+    <string name="settings_map_legacy_heatmap_title">पुराना हीटमैप (10 मी टाइलें)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">ईस्टर एग: "पुराना हीटमैप" परत जोड़ता है, जो स्थान घनता को अलग 10 मी ग्रिड टाइलों में दिखाती है, मूल सर्वर-रेंडर Signals हीटमैप की तरह।</string>
+    <string name="settings_map_zoom_buttons_title">मानचित्र ज़ूम बटन</string>
+    <string name="settings_map_zoom_buttons_subtitle">पिंच-टू-ज़ूम कठिन होने पर मानचित्र ज़ूम करने के लिए स्क्रीन पर + और − बटन दिखाएँ।</string>
+    <string name="tips_map_date_range_title">तिथि सीमा</string>
+    <string name="tips_map_my_location_title">मेरा स्थान</string>
+    <string name="tips_map_sheet_description">इस बार को टैप या ऊपर खींचने से परत चयन और लीजेंड सहित अधिक मानचित्र विकल्प खुलेंगे।</string>
+    <string name="map_search_placeholder">अक्षांश, देशांतर जैसे 50.075, 14.437</string>
+    <string name="map_search_invalid_format">इन प्रारूपों को आज़माएँ: 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
+    <string name="map_search_clear">खोज साफ़ करें</string>
+    <string name="map_search_paste">क्लिपबोर्ड से खोज में चिपकाएँ</string>
+    <string name="map_search_clipboard_empty">क्लिपबोर्ड में अभी निर्देशांक नहीं हैं</string>
+    <string name="map_date_range_dialog_ok">ठीक है</string>
+    <string name="map_date_range_dialog_cancel">रद्द करें</string>
+    <string name="map_share_button">मानचित्र साझा करें</string>
+    <string name="map_share_sheet_title">मानचित्र को चित्र के रूप में साझा करें</string>
+    <string name="map_share_sheet_subtitle">वर्तमान दृश्य और सक्रिय परत को स्थिर चित्र के रूप में रेंडर करता है। आपका लाइव स्थान कभी शामिल नहीं होता।</string>
+    <string name="map_share_resolution_standard">मानक (1080p)</string>
+    <string name="map_share_resolution_high">उच्च (1440p)</string>
+    <string name="map_share_resolution_ultra">अल्ट्रा (4K)</string>
+    <string name="map_share_action">साझा करें</string>
+    <string name="map_share_preparing">चित्र तैयार हो रहा है…</string>
+    <string name="map_share_error">मानचित्र चित्र रेंडर नहीं किया जा सका। कृपया फिर कोशिश करें।</string>
+    <string name="map_date_range_all_time">सभी समय</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">मानचित्र परतें</string>
+    <string name="map_layer_load_error">यह परत लोड नहीं हो सकी। कोई दूसरी चुनने की कोशिश करें।</string>
+    <string name="map_empty_subtitle_location">इस दृश्य या तिथि सीमा में कोई स्थान डेटा नहीं है। मार्ग और मानचित्र सुविधाओं को ट्रैकिंग के दौरान एकत्र स्थान चाहिए।</string>
+    <string name="map_empty_subtitle_cell">इस दृश्य या तिथि सीमा में कोई स्थानयुक्त सेल डेटा नहीं है। स्थान बिना रिकॉर्ड सेल नमूने फिर भी सहेजे जाते हैं, पर मानचित्र पर नहीं दिख सकते।</string>
+    <string name="map_empty_subtitle_wifi">इस दृश्य या तिथि सीमा में कोई स्थानयुक्त Wi-Fi डेटा नहीं है। स्थान बिना रिकॉर्ड Wi-Fi अवलोकन फिर भी सहेजे जाते हैं, पर मानचित्र पर नहीं दिख सकते।</string>
+    <string name="map_empty_subtitle_speed">इस दृश्य या तिथि सीमा में कोई गति डेटा नहीं है। गति मानचित्रों को ट्रैकिंग के दौरान एकत्र उपयोगी स्थान नमूने चाहिए।</string>
+    <string name="map_empty_subtitle_vehicle_compliance">दिखाने के लिए कोई सड़क-मिलान ड्राइव नहीं है। OpenStreetMap क्षेत्र (सेटिंग) आयात करें और कुछ ड्राइविंग रिकॉर्ड करें, ताकि हम आपका मार्ग वास्तविक सड़कों से मिला सकें।</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">डेटा नहीं संदेश हटाएँ</string>
+    <string name="map_speed_probe_title">यहाँ गति</string>
+    <string name="map_speed_probe_avg_label">औसत</string>
+    <string name="map_speed_probe_max_label">अधिकतम</string>
+    <string name="map_speed_probe_empty">इस स्थान पर कोई गति डेटा नहीं। गति देखने के लिए गर्म स्थान पर टैप करें।</string>
+    <string name="map_speed_probe_hint">गति देखने के लिए मानचित्र टैप करें</string>
+    <string name="map_speed_probe_dismiss">गति विवरण हटाएँ</string>
+    <string name="map_place_callout_loading">स्थान खोजा जा रहा है…</string>
+    <string name="map_place_callout_empty">यहाँ कोई जगह नहीं मिली</string>
+    <string name="map_place_callout_dismiss">जगह विवरण हटाएँ</string>
+    <string name="map_zoom_in">ज़ूम इन</string>
+    <string name="map_zoom_out">ज़ूम आउट</string>
+    <string name="map_loading">मानचित्र लोड हो रहा है…</string>
+    <string name="map_basemap_unavailable">मानचित्र आधार-मानचित्र तैयार नहीं किया जा सका। फिर कोशिश करने के लिए मानचित्र बंद कर फिर खोलें।</string>
+    <string name="map_a11y_map_overview">मानचित्र अवलोकन</string>
+    <string name="map_a11y_centered_on_location">मानचित्र आपके स्थान पर केंद्रित है</string>
+    <string name="map_a11y_showing_location">मानचित्र आपका स्थान दिखा रहा है</string>
+    <string name="map_a11y_loading_data">रिकॉर्ड मानचित्र डेटा लोड हो रहा है</string>
+    <string name="map_a11y_no_recorded_data">चुनी गई परत में इस दृश्य या तिथि सीमा में मानचित्रयोग्य डेटा नहीं है</string>
+    <string name="map_a11y_no_layer_selected">कोई मानचित्र परत नहीं चुनी गई</string>
+    <string name="map_a11y_search_result_visible">खोज परिणाम मार्कर दिखाई दे रहा है</string>
+    <string name="map_a11y_active_recording_visible">सक्रिय रिकॉर्डिंग पथ दिखाई दे रहा है</string>
+    <string name="map_a11y_recorded_route_history">रिकॉर्ड मार्ग इतिहास दिखाया जा रहा है</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">अलग स्वीकृत स्थान अवलोकन दिखाए जा रहे हैं</string>
+    <string name="map_a11y_cell_heatmap">सेल्युलर कवरेज क्षेत्र और अनुमानित सर्विंग-साइट केंद्र दिखाए जा रहे हैं</string>
+    <string name="map_a11y_wifi_heatmap">Wi-Fi बैंड, कवरेज क्षेत्र और अनुमानित अभिगम-बिंदु केंद्र दिखाए जा रहे हैं</string>
+    <string name="map_a11y_wifi_count_heatmap">अलग Wi-Fi अभिगम-बिंदु ओवरलैप दिखाया जा रहा है</string>
+    <string name="map_a11y_speed_heatmap">गति हीटमैप दिखाया जा रहा है</string>
+    <string name="map_a11y_saved_map_data">सहेजा मानचित्र डेटा दिखाया जा रहा है</string>
+    <string name="map_location_permission_opening_settings">स्थान अनुमति चाहिए। सेटिंग खुल रही है…</string>
+    <string name="map_permission_banner_dismiss">स्थान अनुमति संदेश हटाएँ</string>
+    <string name="map_loading_layer">मानचित्र परत लोड हो रही है</string>
+    <string name="map_a11y_world_scale">विश्व स्तर</string>
+    <string name="map_a11y_regional_scale">क्षेत्रीय स्तर</string>
+    <string name="map_a11y_city_scale">शहर स्तर</string>
+    <string name="map_a11y_neighborhood_scale">मोहल्ला स्तर</string>
+    <string name="map_a11y_street_scale">सड़क स्तर</string>
+    <string name="help_map_quality">रेंडरिंग विवरण गुणक। अधिक मान अधिक विवरण दिखाते हैं, पर पुराने डिवाइस पर मानचित्र लोड धीमा कर सकते हैं।</string>
+    <string name="help_max_heat_points">हीटमैप दृश्य में दिखाए अधिकतम स्थान बिंदु। अधिक मान = अधिक विवरण, पर रेंडरिंग धीमी।</string>
+    <string name="help_visit_threshold">किसी जगह को मानचित्र पर दौरा चिह्नित करने से पहले आपको वहाँ कितनी देर रुकना है। थोड़े समय के रुकाव की अव्यवस्था कम करने के लिए इसे बढ़ाएँ।</string>
+</resources>

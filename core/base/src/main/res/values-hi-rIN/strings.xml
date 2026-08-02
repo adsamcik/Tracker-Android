@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="activity_walking">चलना</string>
+    <string name="activity_running">दौड़ना</string>
+    <string name="activity_bicycle">साइकिल</string>
+    <string name="activity_slope_sports">ढलान खेल</string>
+    <string name="activity_land_vehicle">स्थलीय वाहन</string>
+    <string name="activity_water_vehicle">जल वाहन</string>
+    <string name="activity_air_vehicle">वायु वाहन</string>
+    <string name="activity_in_vehicle">वाहन में</string>
+    <string name="activity_on_foot">पैदल</string>
+    <string name="activity_name">गतिविधि का नाम</string>
+    <string name="activity_raw_still">स्थिर</string>
+    <string name="activity_raw_tilting">झुकना</string>
+    <string name="activity_still">स्थिर</string>
+    <string name="activity_unknown">पता लगाया जा रहा है…</string>
+    <string name="activity_vehicle">वाहन</string>
+    <string name="alert_confirm">क्या आप वाकई %1$s करना चाहते हैं?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">कोई नहीं</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">अज्ञात</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">केवल गतिविधि निगरानी सेवा के लिए प्रयुक्त चैनल, ताकि आप उस स्थायी सूचना को आसानी से हटा सकें।</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">गतिविधि निगरानी</string>
+    <string name="channel_achievements_description">उपलब्धियों से संबंधित सूचनाएँ।</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">उपलब्धि</string>
+    <string name="channel_other_description">वे अन्य सूचनाएँ जो किसी और श्रेणी में नहीं आतीं।</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">अन्य</string>
+    <string name="channel_track_description">ट्रैकिंग से संबंधित सूचनाएँ।</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">ट्रैकिंग</string>
+    <string name="channel_goals_description">लक्ष्य पूरा होने की सूचनाएँ।</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">लक्ष्य प्रगति</string>
+    <string name="day_short">%d दि.</string>
+    <string name="generic_add">जोड़ें</string>
+    <string name="generic_back">वापस</string>
+    <string name="generic_cancel">रद्द करें</string>
+    <string name="generic_delete">हटाएँ</string>
+    <string name="generic_edit">संपादित करें</string>
+    <string name="generic_ok">ठीक है</string>
+    <string name="generic_undo">पूर्ववत करें</string>
+    <string name="hour_short">%d घं.</string>
+    <string name="minute_short">%d मि.</string>
+    <string name="second_short">%d से.</string>
+</resources>

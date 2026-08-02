@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">खेल</string>
+    <string name="module_map_title">मानचित्र</string>
+    <string name="module_statistics_title">आँकड़े</string>
+    <string name="main_nav_tracker">होम</string>
+    <string name="settings_clear_preferences_title">प्राथमिकताएँ साफ़ करें</string>
+    <string name="settings_clear_preferences_message">इससे सभी ऐप प्राथमिकताएँ (सुविधा टॉगल, UI सेटिंग) रीसेट हो जाएँगी। आपका ट्रैकिंग डेटा प्रभावित नहीं होगा। जारी रखें?</string>
+    <string name="settings_data_title">डेटा</string>
+    <string name="settings_debug_group_title">डीबग</string>
+    <string name="settings_debug_title">डेवलपर विकल्प</string>
+    <string name="settings_debug_developer_tools_section">डेवलपर उपकरण</string>
+    <string name="settings_debug_disable_developer_subtitle">सेटिंग से डेवलपर विकल्प छिपाएँ</string>
+    <string name="settings_debug_developer_mode_disabled_toast">डेवलपर मोड बंद है</string>
+    <string name="settings_data_management_section">डेटा प्रबंधन</string>
+    <string name="settings_data_danger_zone_section">खतरे का क्षेत्र</string>
+    <string name="settings_osm_import_section">मानचित्र डेटा (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">OSM क्षेत्र आयात करें</string>
+    <string name="settings_osm_import_action_summary">.osm.pbf फ़ाइल चुनें। इसके बाद वाहन अनुपालन ऑफ़लाइन वास्तविक सड़क सीमाओं का उपयोग करेगा।</string>
+    <string name="settings_osm_import_unavailable_title">ऑफ़लाइन मानचित्र आयात उपलब्ध नहीं है</string>
+    <string name="settings_osm_import_action_unavailable">फ़ाइल-सुरक्षा सुरक्षा उपाय पूरे होने तक ऑफ़लाइन मानचित्र आयात अस्थायी रूप से उपलब्ध नहीं है।</string>
+    <string name="settings_osm_import_action_running">आयात हो रहा है — रद्द करने के लिए टैप करें</string>
+    <string name="settings_osm_import_action_failed">ऑफ़लाइन मानचित्र आयात पूरा नहीं हो सका।</string>
+    <string name="settings_osm_import_action_source_unavailable">चुनी गई मानचित्र फ़ाइल नहीं खोली जा सकी।</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">%2$d नोड से %1$d सड़क आयात हुई।</item>
+        <item quantity="other">%2$d नोड से %1$d सड़कें आयात हुईं।</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">अभी तक कोई OpenStreetMap क्षेत्र आयात नहीं किया गया है।</string>
+    <string name="settings_osm_imports_attribution">मानचित्र डेटा © OpenStreetMap योगदानकर्ता (ODbL 1.0)। सारा प्रसंस्करण डिवाइस पर होता है।</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d सड़क · आयात %2$s</item>
+        <item quantity="other">%1$,d सड़कें · आयात %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">आयातित क्षेत्र हटाएँ</string>
+    <string name="settings_osm_import_remove_message">%1$s हटाएँ? वाहन अनुपालन क्षेत्र फिर से आयात करने तक स्थिर आधाररेखा पर लौट जाएगा।</string>
+    <string name="settings_incremental_backups_title">क्रमिक बैकअप</string>
+    <string name="settings_incremental_backups_summary">पिछले बैकअप के बाद का केवल नया डेटा निर्यात करें। निर्यात समय और फ़ाइल आकार घटता है।</string>
+    <string name="settings_reset_export_watermarks_title">पूर्ण निर्यात बाध्य करें</string>
+    <string name="settings_reset_export_watermarks_summary">अगले स्वचालित बैकअप में केवल बदलावों के बजाय सारा डेटा शामिल होगा</string>
+    <string name="settings_reset_export_watermarks_done">निर्यात वॉटरमार्क रीसेट हो गए — अगला बैकअप पूर्ण निर्यात होगा</string>
+    <string name="settings_migration_backup_export_title">अपग्रेड-पूर्व सुरक्षा बैकअप निर्यात करें</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">v%1$d से पूरा डेटाबेस प्रतिरूप, v%2$d में माइग्रेशन से पहले बनाया गया और 30 दिनों तक निजी रूप से रखा गया</string>
+    <string name="settings_migration_backup_warning_title">संवेदनशील डेटाबेस बैकअप निर्यात करें?</string>
+    <string name="settings_migration_backup_warning_message">इस बैकअप में अपग्रेड से पहले के सटीक स्थान, Wi-Fi और सेल अवलोकन, गतिविधियाँ तथा अन्य निजी डेटा हो सकते हैं। इसे केवल किसी भरोसेमंद स्थान पर सहेजें।</string>
+    <string name="settings_migration_backup_export_action">बैकअप निर्यात करें</string>
+    <string name="settings_migration_backup_export_success">अपग्रेड-पूर्व बैकअप निर्यात हुआ</string>
+    <string name="settings_migration_backup_export_failure">अपग्रेड-पूर्व बैकअप निर्यात नहीं हो सका</string>
+    <string name="settings_migration_backup_export_cleanup_required">निर्यात विफल हुआ। चुने गए स्थान से आंशिक रूप से निर्यात किया बैकअप हटाएँ।</string>
+    <string name="settings_delete_data_success">सारा एकत्रित डेटा हटा दिया गया</string>
+    <string name="settings_delete_data_failure">सारा एकत्रित डेटा हटाया नहीं जा सका</string>
+    <string name="settings_game_goals_title">लक्ष्य</string>
+    <string name="settings_game_daily_target_title">दैनिक कदम लक्ष्य</string>
+    <string name="settings_game_weekly_target_title">साप्ताहिक कदम लक्ष्य</string>
+    <string name="settings_game_daily_contribution_title">अधिकतम दैनिक योगदान</string>
+    <string name="settings_game_steps_unit">कदम</string>
+    <string name="settings_game_notifications_title">सूचनाएँ</string>
+    <string name="settings_game_goal_notifications_title">लक्ष्य प्रगति सूचनाएँ</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">अपने दैनिक लक्ष्य के 75% और 90% पर स्थानीय स्मरण पाएँ।</string>
+    <string name="settings_game_during_games_title">खेल के दौरान</string>
+    <string name="settings_game_haptics_title">खेल हैप्टिक्स</string>
+    <string name="settings_game_haptics_summary">खेल प्रतिक्रिया के लिए हल्का कंपन इस्तेमाल करें।</string>
+    <string name="settings_game_quiet_coaching_title">शांत कोचिंग संकेत</string>
+    <string name="settings_game_quiet_coaching_summary">खेलते समय कम बार मार्गदर्शन उपयोग करें।</string>
+    <string name="settings_game_remember_setup_title">आखिरी खेल सेटअप याद रखें</string>
+    <string name="settings_game_remember_setup_summary">अगली बार अपना पिछला लक्ष्य और कठिनाई फिर इस्तेमाल करें।</string>
+    <string name="settings_game_privacy_battery_title">गोपनीयता और बैटरी</string>
+    <string name="settings_game_privacy_battery_disclosure">खेल सक्रिय रहने पर ही लाइव स्थान का उपयोग करते हैं और उपलब्ध होने पर Tracker के स्थान का पुनः उपयोग करते हैं। रोकने पर खेल का स्थान उपयोग समाप्त हो जाता है। केवल आपका स्कोर और अंक/XP इस डिवाइस पर सहेजे जाते हैं; कच्चे खेल स्थान सहेजे नहीं जाते।</string>
+    <string name="settings_game_loading">खेल सेटिंग लोड हो रही हैं…</string>
+    <string name="settings_game_load_error">खेल सेटिंग लोड नहीं हो सकीं। कृपया फिर कोशिश करें।</string>
+    <string name="settings_map_info_hint">ये सेटिंग मानचित्र दृश्य गुणवत्ता और प्रदर्शन नियंत्रित करती हैं। अधिकांश उपयोगकर्ता डिफ़ॉल्ट मान उपयोग कर सकते हैं।</string>
+    <string name="settings_map_online_tiles_section_title">ऑनलाइन मानचित्र टाइलें</string>
+    <string name="settings_map_online_tiles_enable_title">ऑनलाइन मानचित्र टाइलें उपयोग करें</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">बंद — केवल शामिल ऑफ़लाइन आधार-मानचित्र उपयोग होता है। कोई नेटवर्क अनुरोध नहीं।</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">चालू — %1$s से टाइलें ली जा रही हैं</string>
+    <string name="settings_map_online_tiles_provider_title">टाइल प्रदाता</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (अनुशंसित)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">कस्टम URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">शैली JSON URL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">श्रेय: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">ऑनलाइन टाइलें वैकल्पिक हैं। सक्षम होने पर चुना गया प्रदाता आपका IP पता और लोड की गई टाइलें (लगभग मानचित्र का वह क्षेत्र जिसे आप देख रहे हैं) देख सकता है। Tracker कभी खाता, पहचानकर्ता या स्थान इतिहास नहीं भेजता।</string>
+    <string name="settings_developer_mode_enabled_toast">डेवलपर मोड चालू है</string>
+    <string name="settings_developer_mode_disable">डेवलपर मोड बंद करें</string>
+    <string name="settings_developer_mode_subtitle">डेवलपर मोड सक्रिय है</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">डेवलपर मोड सक्षम करने के लिए %d बार और टैप करें</item>
+        <item quantity="other">डेवलपर मोड सक्षम करने के लिए %d बार और टैप करें</item>
+    </plurals>
+    <string name="settings_version_info_title">संस्करण जानकारी</string>
+    <string name="settings_version_format">संस्करण: %1$s (%2$d)</string>
+    <string name="settings_language_summary">वर्तमान भाषा: %s</string>
+    <string name="settings_language_title">ऐप की भाषा</string>
+    <string name="settings_units_auto_summary_on">पता की गई गतिविधियों के अनुसार लंबाई प्रणाली अनुकूलित करता है</string>
+    <string name="settings_units_auto_summary_off">चुनी गई लंबाई प्रणाली हर जगह लागू करता है</string>
+    <string-array name="settings_length_system_names">
+        <item>मीट्रिक</item>
+        <item>इंपीरियल (USC)</item>
+        <item>प्राचीन रोमन</item>
+        <item>नौकायन</item>
+        <item>उड़ान</item>
+    </string-array>
+    <string name="settings_length_system_title">लंबाई प्रणाली</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">ओपन सोर्स लाइसेंस</string>
+    <string name="settings_licenses_subtitle">इस बिल्ड में शामिल तृतीय-पक्ष सूचनाएँ देखें।</string>
+    <string name="settings_licenses_loading">लाइसेंस लोड हो रहे हैं…</string>
+    <string name="settings_licenses_unavailable">शामिल तृतीय-पक्ष लाइसेंस डेटा लोड नहीं हो सका।</string>
+    <string name="settings_licenses_text_at_url">पूरा लाइसेंस पाठ यहाँ उपलब्ध है: %1$s</string>
+    <string name="settings_privacy_policy_title">गोपनीयता नीति</string>
+    <string name="settings_privacy_policy_unavailable">शामिल गोपनीयता नीति नहीं खोली जा सकी। ऐप रीस्टार्ट करके फिर कोशिश करें।</string>
+    <string name="settings_about_header">के बारे में</string>
+    <string name="settings_about_app_title">adsamcik का Tracker</string>
+    <string name="settings_about_app_subtitle">गोपनीयता-प्रथम स्थान और गतिविधि ट्रैकर</string>
+    <string name="about_title">के बारे में</string>
+    <string name="about_app_name_label">ऐप</string>
+    <string name="about_version_label">संस्करण</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">बिल्ड कमिट</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">लेखक</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">ईमेल</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">लिंक</string>
+    <string name="about_attributions_title">डेटा श्रेय</string>
+    <string name="about_attribution_geonames_label">स्थान के नाम</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">मानचित्र और सड़क डेटा</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">मॉड्यूल सेटिंग</string>
+    <string name="settings_core_group_title">मूल</string>
+    <string name="settings_other_title">इकाइयाँ और प्रदर्शन</string>
+    <string name="settings_remove_all_collected_data_summary">आपका ट्रैकिंग डेटा हटाता है (कस्टम गतिविधियाँ और सेटिंग रखी जाएँगी)</string>
+    <string name="settings_remove_all_collected_data_title">सारा एकत्रित डेटा हटाएँ</string>
+    <string-array name="settings_speed_format_names">
+        <item>प्रति सेकंड गति (m/s)</item>
+        <item>प्रति दूरी पेस (मि/किमी, मि/मील)</item>
+        <item>गति (किमी/घं, मील/घं)</item>
+    </string-array>
+    <string name="settings_speed_format_title">गति प्रारूप</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">सेटिंग</string>
+    <string name="switch_state_on">चालू</string>
+    <string name="switch_state_off">बंद</string>
+    <string name="onboarding_streamlined_title">अपनी यात्राएँ निजी रूप से ट्रैक करें</string>
+    <string name="onboarding_streamlined_subtitle">सारा डेटा आपके डिवाइस पर रहता है। कोई क्लाउड सिंक या तृतीय-पक्ष ट्रैकिंग नहीं।</string>
+    <string name="onboarding_benefit_privacy_title">गोपनीयता-प्रथम</string>
+    <string name="onboarding_benefit_privacy_desc">सारा ट्रैकिंग डेटा आपके डिवाइस पर रहता है। कोई सर्वर नहीं, कोई क्लाउड सिंक नहीं, पूरा नियंत्रण।</string>
+    <string name="onboarding_benefit_insights_title">गतिविधि अंतर्दृष्टि</string>
+    <string name="onboarding_benefit_insights_desc">मानचित्रों पर अपने मार्ग देखें, आँकड़ों का विश्लेषण करें और समय के साथ अपनी प्रगति ट्रैक करें।</string>
+    <string name="onboarding_benefit_gamification_title">उपलब्धियाँ</string>
+    <string name="onboarding_benefit_gamification_desc">चलते, दौड़ते, साइकिल चलाते और खोज करते समय 150+ उपलब्धियाँ अनलॉक करें — सब कुछ आपके डिवाइस पर स्थानीय रूप से अर्जित होता है।</string>
+    <string name="onboarding_get_started">शुरू करें</string>
+    <string name="onboarding_privacy_policy_button">गोपनीयता नीति पढ़ें</string>
+    <string name="onboarding_state_read_error_message">हम सत्यापित नहीं कर सके कि सेटअप पहले पूरा हुआ था या नहीं, इसलिए आपका डेटा निजी रखने के लिए सेटअप दिखाया गया है। आप सुरक्षित रूप से जारी रख सकते हैं।</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">पुराना डेटा स्वतः साफ़ करें</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">डेटा हमेशा रखें; स्वतः सफ़ाई पुराना डेटा नहीं हटाएगी</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">%1$d वर्ष से पुराना डेटा अपने-आप हटाएँ</item>
+        <item quantity="other">%1$d वर्षों से पुराना डेटा अपने-आप हटाएँ</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">डेटा रखने की अवधि</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>हमेशा रखें</item>
+        <item>1 वर्ष</item>
+        <item>2 वर्ष</item>
+        <item>3 वर्ष</item>
+        <item>5 वर्ष</item>
+        <item>10 वर्ष</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">जारी रखें</string>
+    <string name="settings_export_data_title">डेटा निर्यात करें</string>
+    <string name="settings_export_data_summary">अपने ट्रैकिंग डेटा को अलग-अलग प्रारूपों में सहेजें</string>
+    <string name="export_format_dialog_title">निर्यात प्रारूप चुनें</string>
+    <string name="export_format_gpx_name">GPX (अनुशंसित)</string>
+    <string name="export_format_gpx_desc">GPS उपकरणों, फ़िटनेस ऐप और सार्वभौमिक संगतता के लिए पूर्ण-सटीकता मार्ग बिंदु</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Google Earth और भौगोलिक दृश्यांकन के लिए पूर्ण-सटीकता मार्ग बिंदु</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">स्ट्रीमिंग स्थान और सत्र सारांश; आयात डेटा मिलाता है और कुछ मेटाडेटा फिर बनाता है</string>
+    <string name="export_format_db_name">डेटाबेस</string>
+    <string name="export_format_db_desc">सारे डेटा और सेटिंग के साथ कच्चा SQLite बैकअप; आयात संगत पंक्तियों को मिलाता है, पूरा पुनर्स्थापन नहीं</string>
+    <string name="export_sensitivity_dialog_title">सटीक स्थान डेटा निर्यात करें?</string>
+    <string name="export_sensitivity_gpx_message">इस GPX निर्यात में पूर्ण-सटीकता मार्ग बिंदु हैं। इसे केवल भरोसेमंद लोगों और ऐप के साथ सहेजें या साझा करें।</string>
+    <string name="export_sensitivity_kml_message">इस KML निर्यात में पूर्ण-सटीकता मार्ग बिंदु हैं। इसे केवल भरोसेमंद लोगों और ऐप के साथ सहेजें या साझा करें।</string>
+    <string name="export_sensitivity_json_message">इस JSON निर्यात में पूर्ण-सटीकता स्थान और सत्र सारांश हैं। आयात पर कुछ व्युत्पन्न मेटाडेटा हानिपूर्ण है; इसे केवल भरोसेमंद गंतव्यों के साथ सहेजें या साझा करें।</string>
+    <string name="export_sensitivity_db_message">इस कच्चे डेटाबेस बैकअप में सटीक स्थान, Wi-Fi/सेल रेडियो डेटा, गतिविधि और सेटिंग हो सकते हैं। इसे निजी रखें और केवल भरोसेमंद स्थान पर रखें।</string>
+    <string name="export_sensitivity_confirm">निर्यात जारी रखें</string>
+    <string name="settings_export_title">निर्यात</string>
+    <string name="settings_import_summary">समर्थित प्रकारों (%1$s) और संग्रहों (%2$s) से डेटा आयात करें। डेटाबेस आयात संगत पंक्तियों को मिलाते हैं; वे मौजूदा डेटा को नहीं बदलते।</string>
+    <string name="settings_import_title">आयात</string>
+    <string name="got_it">समझ गया</string>
+    <string name="battery_impact_low">कम प्रभाव</string>
+    <string name="battery_impact_moderate">मध्यम प्रभाव</string>
+    <string name="battery_impact_high">अधिक प्रभाव</string>
+    <string name="precision_mode_title">स्थान सटीकता चुनें</string>
+    <string name="precision_mode_approximate_title">अनुमानित</string>
+    <string name="precision_mode_approximate_description">नेटवर्क-आधारित स्थान। कम बैटरी उपयोग के साथ सामान्य क्षेत्र ट्रैकिंग के लिए अच्छा।</string>
+    <string name="precision_mode_precise_title">सटीक</string>
+    <string name="precision_mode_precise_description">GPS-आधारित स्थान। विस्तृत मार्गों, हीटमैप और चुनौतियों के लिए सबसे अच्छा।</string>
+    <string name="upgrade_to_precise_title">सटीक ट्रैकिंग अनलॉक करें</string>
+    <string name="upgrade_to_precise_message_general">आप अनुमानित स्थान का उपयोग कर रहे हैं। बेहतर सटीकता के लिए सटीक GPS ट्रैकिंग पर जाएँ।</string>
+    <string name="upgrade_to_precise_message_route_analysis">सटीक मार्ग विश्लेषण और दूरी माप के लिए सटीक स्थान अनुशंसित है।</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">सटीक स्थान बारीक स्थिति के साथ विस्तृत हीटमैप दृश्य देता है।</string>
+    <string name="upgrade_to_precise_message_challenges">कई चुनौतियों को पूरा होना सटीक रूप से सत्यापित करने के लिए सटीक GPS ट्रैकिंग चाहिए।</string>
+    <string name="upgrade_to_precise_benefits_title">लाभ</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">सटीक मार्ग आकार और हर मोड़ के पथ विवरण</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">विस्तृत हीटमैप और स्थानिक विश्लेषण</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">सटीक दूरी और गति माप</string>
+    <string name="upgrade_to_precise_battery_title">बैटरी उपयोग</string>
+    <string name="upgrade_to_precise_battery_message">सटीक GPS अधिक बैटरी उपयोग करता है। अनुमानित ट्रैकिंग समय: सामान्य डिवाइस पर 6–8 घंटे।</string>
+    <string name="upgrade_to_precise_button_upgrade">सटीक स्थान सक्षम करें</string>
+    <string name="upgrade_to_precise_button_cancel">शायद बाद में</string>
+    <string name="tracking_preset_high_accuracy_name">उच्च सटीकता</string>
+    <string name="tracking_preset_high_accuracy_description">सबसे तेज़ अपडेट और सभी प्रमुख सेंसर के साथ सर्वोत्तम विवरण</string>
+    <string name="tracking_preset_balanced_name">संतुलित</string>
+    <string name="tracking_preset_balanced_description">दैनिक ट्रैकिंग के लिए अच्छी सटीकता और उचित बैटरी अवधि</string>
+    <string name="tracking_preset_power_save_name">बैटरी बचत</string>
+    <string name="tracking_preset_power_save_description">कम बार अपडेट और घटे हुए सेंसर के साथ कम बैटरी उपयोग</string>
+    <string name="tracking_preset_custom_name">कस्टम</string>
+    <string name="tracking_preset_custom_description">हर ट्रैकिंग पैरामीटर मैन्युअल रूप से समायोजित करें</string>
+    <string name="tracking_preset_selector_title">ट्रैकिंग प्रीसेट</string>
+    <string name="tracking_preset_selector_subtitle">शुरू करने के लिए एक प्रोफ़ाइल चुनें, फिर नीचे की किसी भी सेटिंग को ठीक करें।</string>
+    <string name="tracking_preset_custom_hint">नीचे किसी भी सेटिंग को समायोजित करने पर वर्तमान प्रीसेट से कस्टम प्रोफ़ाइल बनती है।</string>
+    <string name="tracking_preset_customized_summary">आपने ट्रैकिंग को बारीकी से समायोजित किया है। रीसेट करने के लिए ऊपर प्रीसेट चुनें।</string>
+    <string name="settings_tracking_section_detection">पहचान और स्वचालन</string>
+    <string name="settings_tracking_section_sources">डेटा स्रोत</string>
+    <string name="settings_tracking_section_detail">स्थान संग्रह</string>
+    <string name="settings_tracking_section_notifications">सूचनाएँ</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">ट्रैकिंग नीति</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">अनुमानित ट्रैकिंग: %d घंटा</item>
+        <item quantity="other">अनुमानित ट्रैकिंग: %d घंटे</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">चुनें कि Tracker आपके स्थान को कितनी सटीकता से रिकॉर्ड करे</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">सटीक</string>
+    <string name="approximate">अनुमानित</string>
+    <string name="tracking_policy_selector_subtitle">ट्रैकिंग प्रीसेट चुनें या सेटिंग कस्टमाइज़ करें</string>
+    <string name="tracking_policy_custom_badge">कस्टम</string>
+    <string name="collapse_details">विवरण छिपाएँ</string>
+    <string name="expand_details">विवरण दिखाएँ</string>
+    <string name="settings_section_collapse">संकुचित करें</string>
+    <string name="settings_section_expand">विस्तृत करें</string>
+    <string name="tracking_policy_details_title">कॉन्फ़िगरेशन विवरण</string>
+    <string name="preset_detail_location_precision">स्थान सटीकता</string>
+    <string name="preset_detail_min_distance">न्यूनतम दूरी</string>
+    <string name="preset_detail_min_time">न्यूनतम समय</string>
+    <string name="preset_detail_accuracy">आवश्यक सटीकता</string>
+    <string name="preset_detail_sensors">सेंसर</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">इकाई स्वतः बदलना</string>
+    <string name="settings_module_map_subtitle">हीटमैप गुणवत्ता और दृश्यांकन विकल्प</string>
+    <string name="settings_module_game_subtitle">लक्ष्य, उपलब्धियाँ और मील के पत्थर</string>
+    <string name="action_navigate_back">पीछे जाएँ</string>
+    <string name="action_help">सहायता</string>
+    <string name="widget_loading">लोड हो रहा है…</string>
+    <string name="widget_quick_start_name">Tracker त्वरित आरंभ</string>
+    <string name="widget_quick_start_description">एक टैप से स्थान ट्रैकिंग शुरू या बंद करें।</string>
+    <string name="widget_start_tracking">ट्रैकिंग शुरू करें</string>
+    <string name="widget_stop_tracking">ट्रैकिंग बंद करें</string>
+    <string name="widget_tracking_active">ट्रैकिंग सक्रिय है</string>
+    <string name="widget_today_summary_name">आज का सारांश</string>
+    <string name="widget_today_summary_description">आज के ट्रैकिंग आँकड़े एक नज़र में देखें।</string>
+    <string name="widget_today">आज</string>
+    <string name="widget_distance">दूरी</string>
+    <string name="widget_steps">कदम</string>
+    <string name="widget_sessions">सत्र</string>
+    <string name="widget_duration">अवधि</string>
+    <string name="widget_no_data_today">आज कोई ट्रैकिंग डेटा नहीं</string>
+    <string name="widget_active_session_name">सक्रिय सत्र</string>
+    <string name="widget_active_session_description">अपने वर्तमान ट्रैकिंग सत्र को वास्तविक समय में देखें।</string>
+    <string name="widget_no_active_session">कोई सक्रिय सत्र नहीं</string>
+    <string name="widget_tap_to_start">ट्रैकिंग शुरू करने के लिए टैप करें</string>
+    <string name="widget_session_distance">सत्र की दूरी</string>
+    <string name="widget_session_steps">सत्र के कदम</string>
+    <string name="widget_session_duration">सत्र की अवधि</string>
+    <string name="widget_current_speed">वर्तमान गति</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">संग्रह</string>
+    <string name="widget_path_preview">पथ पूर्वावलोकन</string>
+    <string name="widget_activity_unknown">गतिविधि उपलब्ध नहीं</string>
+    <string name="widget_goal_label">लक्ष्य:</string>
+    <string name="widget_goal_progress">%1$s / %2$s कदम</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">बंद</string>
+    <string name="widget_tier_ambient">परिवेश</string>
+    <string name="widget_tier_active">सक्रिय</string>
+    <string name="widget_tier_precision">सटीकता</string>
+    <string name="goal_notification_title_progress">बहुत अच्छी प्रगति!</string>
+    <string name="goal_notification_title_almost">लगभग पहुँच गए!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">दैनिक लक्ष्य पूरा करने के लिए %1$d कदम बाकी है</item>
+        <item quantity="other">दैनिक लक्ष्य पूरा करने के लिए %1$d कदम बाकी हैं</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">बस %1$d कदम बाकी है!</item>
+        <item quantity="other">बस %1$d कदम बाकी हैं!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">स्मार्ट लक्ष्य सूचनाएँ</string>
+    <string name="settings_smart_goal_notifications_summary">अपने दैनिक कदम लक्ष्य के पास होने पर सूचना पाएँ</string>
+    <string name="setup_how_to_track_title">ट्रैकिंग कैसे काम करे?</string>
+    <string name="setup_how_to_track_subtitle">चुनें कि ट्रैकिंग कब शुरू हो और कितनी विस्तृत हो।</string>
+    <string name="setup_auto_tracking_title">स्वचालित ट्रैकिंग</string>
+    <string name="setup_auto_tracking_disabled">अक्षम</string>
+    <string name="setup_auto_tracking_disabled_desc">ट्रैकिंग मैन्युअल रूप से शुरू और बंद करें।</string>
+    <string name="setup_auto_tracking_on_foot">पैदल</string>
+    <string name="setup_auto_tracking_on_foot_desc">चलने और दौड़ने को अपने-आप ट्रैक करें।</string>
+    <string name="setup_auto_tracking_in_motion">गतिमान</string>
+    <string name="setup_auto_tracking_in_motion_desc">वाहन चलाने और साइकिल चलाने सहित हर गति को अपने-आप ट्रैक करें।</string>
+    <string name="setup_preset_title">ट्रैकिंग विवरण</string>
+    <string name="setup_what_to_collect_title">क्या एकत्र करें</string>
+    <string name="setup_what_to_collect_subtitle">अधिक विकल्प नीचे हैं। अनुमति के बिना खोज शुरू करें या उन्हें बाद में दें। डेटा इसी डिवाइस पर रहता है।</string>
+    <string name="setup_source_location">स्थान</string>
+    <string name="setup_source_location_desc">अपने मार्ग और स्थिति मानचित्र पर रिकॉर्ड करें।</string>
+    <string name="setup_source_activity">गतिविधि</string>
+    <string name="setup_source_activity_desc">पता करें कि आप चल रहे, दौड़ रहे, साइकिल चला रहे या वाहन चला रहे हैं।</string>
+    <string name="setup_source_steps">कदम</string>
+    <string name="setup_source_steps_desc">डिवाइस पेडोमीटर से अपने कदम गिनें।</string>
+    <string name="setup_source_wifi">WiFi नेटवर्क</string>
+    <string name="setup_source_wifi_desc">स्थान सटीकता सुधारने के लिए आस-पास के WiFi नेटवर्क लॉग करें।</string>
+    <string name="setup_source_cell">सेल टावर</string>
+    <string name="setup_source_cell_desc">स्थान संदर्भ के लिए सेल टावर जानकारी लॉग करें।</string>
+    <string name="setup_perm_location_why">आपके मार्ग रिकॉर्ड करने और मानचित्र पर दिखाने के लिए आवश्यक। स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
+    <string name="setup_perm_location_bg_why">ऐप बदलने या स्क्रीन बंद होने पर भी आपका मार्ग रिकॉर्ड रखने के लिए Tracker को पृष्ठभूमि में आपके स्थान की अनुमति चाहिए। रिकॉर्ड किया गया स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। अगली सिस्टम सूचना में स्वचालित ट्रैकिंग सक्षम करने के लिए "हर समय अनुमति दें" चुनें; "ऐप इस्तेमाल करते समय" चुनने से Tracker केवल खुली स्क्रीन पर काम करेगा।</string>
+    <string name="setup_perm_activity_why">Tracker को पता करने देता है कि आप क्या कर रहे हैं (चलना, साइकिल चलाना, वाहन चलाना या स्थिर रहना), ताकि स्वचालित ट्रैकिंग आपके न चलने पर रुक सके और बैटरी बचा सके। गतिविधि डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
+    <string name="setup_perm_notification_why">Tracker रिकॉर्ड करते समय एक छोटी स्थिति सूचना दिखाता है, ताकि आप एक नज़र में देख सकें कि ट्रैकिंग चालू है और एक टैप से रोक सकें। कोई विपणन या प्रचार सूचना नहीं।</string>
+    <string name="setup_perm_wifi_why">Tracker यात्रा के दौरान आपके फ़ोन को दिखने वाले Wi-Fi अभिगम बिंदु रिकॉर्ड कर सकता है, ताकि GPS कमजोर होने वाली जगहों (घर के अंदर, भूमिगत) में स्थान सटीकता बेहतर हो। रेडियो डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। यह केवल तब दें जब आप चाहें।</string>
+    <string name="setup_perm_cell_why">Tracker आपके मार्ग के साथ सेल टावर ID लॉग कर सकता है, ताकि GPS उपलब्ध न होने पर स्थान का अनुमान लगाया जा सके। रेडियो डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। फ़ोन स्थिति और सटीक स्थान की अनुमति केवल तब दें जब आप चाहें।</string>
+    <string name="setup_perm_grant">अनुमति दें</string>
+    <string name="setup_perm_grant_location_content_description">स्थान अनुमति दें</string>
+    <string name="setup_perm_grant_background_location_content_description">पृष्ठभूमि स्थान अनुमति दें</string>
+    <string name="setup_perm_grant_activity_content_description">गतिविधि पहचान की अनुमति दें</string>
+    <string name="setup_perm_grant_notification_content_description">सूचना अनुमति दें</string>
+    <string name="setup_perm_grant_wifi_content_description">Wi-Fi अनुमति दें</string>
+    <string name="setup_perm_grant_cell_content_description">सेल रेडियो अनुमति दें</string>
+    <string name="setup_perm_granted">अनुमति दी गई ✓</string>
+    <string name="permission_grant_in_settings">सेटिंग में अनुमति दें →</string>
+    <string name="permission_disabled_due_to_denial">अनुमति अस्वीकार होने के कारण %1$s अक्षम है। सक्षम करने के लिए सेटिंग में अनुमति दें।</string>
+    <string name="settings_wifi_permission_required">Wi-Fi/स्थान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें — तब तक कोई Wi-Fi डेटा रिकॉर्ड नहीं होगा, और रिकॉर्ड किया डेटा इसी डिवाइस पर रहेगा।</string>
+    <string name="settings_cell_permission_required">फ़ोन स्थिति और सटीक स्थान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें — तब तक कोई सेल डेटा रिकॉर्ड नहीं होगा, और रिकॉर्ड किया डेटा इसी डिवाइस पर रहेगा।</string>
+    <string name="settings_wifi_privacy_summary">स्थान सटीकता सुधारने के लिए पास के Wi-Fi नेटवर्क रिकॉर्ड करता है। डेटा इसी डिवाइस पर रहता है।</string>
+    <string name="settings_barometer_unavailable">इस डिवाइस पर दबाव सेंसर उपलब्ध नहीं है।</string>
+    <string name="settings_activity_permission_required">गतिविधि पहचान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें।</string>
+    <string name="settings_steps_unavailable">इस डिवाइस पर कदम गिनने का सेंसर उपलब्ध नहीं है।</string>
+    <string name="settings_cell_privacy_summary">स्थान सटीकता सुधारने के लिए सेल टावर ID रिकॉर्ड करता है। डेटा इसी डिवाइस पर रहता है।</string>
+    <string name="setup_start_exploring">खोज शुरू करें</string>
+    <string name="setup_continue">जारी रखें</string>
+    <string name="setup_step_indicator">चरण %1$d / %2$d</string>
+    <string name="setup_online_tiles_title">ऑनलाइन मानचित्र टाइलें?</string>
+    <string name="setup_online_tiles_subtitle">Tracker में ऑफ़लाइन आधार-मानचित्र शामिल है, इसलिए यह बिना नेटवर्क के काम करता है। अधिक समृद्ध मानचित्र चाहिए तो आप सार्वजनिक प्रदाता से टाइलें स्ट्रीम कर सकते हैं।</string>
+    <string name="setup_online_tiles_off_title">केवल ऑफ़लाइन (अनुशंसित)</string>
+    <string name="setup_online_tiles_off_desc">कोई नेटवर्क अनुरोध नहीं। केवल शामिल आधार-मानचित्र उपयोग होता है।</string>
+    <string name="setup_online_tiles_on_title">ऑनलाइन टाइलें उपयोग करें</string>
+    <string name="setup_online_tiles_on_desc">OpenFreeMap (डिफ़ॉल्ट) से अधिक-विस्तृत वेक्टर टाइलें स्ट्रीम करें। आप बाद में सेटिंग → मानचित्र में प्रदाता बदल सकते हैं।</string>
+    <string name="setup_online_tiles_privacy">सक्षम होने पर प्रदाता आपका IP पता और लोड की गई टाइलें देख सकता है — लगभग मानचित्र का वह क्षेत्र जिसे आप देख रहे हैं। Tracker कभी खाता, पहचानकर्ता या स्थान इतिहास नहीं भेजता।</string>
+    <string name="setup_online_tiles_change_later">इसे कभी भी सेटिंग → मानचित्र → ऑनलाइन मानचित्र टाइलें में बदल सकते हैं।</string>
+    <string name="setup_background_access_subtitle">स्क्रीन बंद होने या ऐप बंद होने पर यात्राएँ रिकॉर्ड करने के लिए Tracker को पृष्ठभूमि में चलता रहना चाहिए। फ़ोन की बैटरी सेटिंग इसे रोक सकती हैं — पृष्ठभूमि गतिविधि की अनुमति दें ताकि स्वचालित ट्रैकिंग भरोसेमंद रहे।</string>
+    <string name="setup_background_access_optional">वैकल्पिक, पर अनुशंसित। इसे कभी भी सेटिंग → ट्रैकिंग में बदल सकते हैं।</string>
+    <string name="background_reliability_title">भरोसेमंद पृष्ठभूमि ट्रैकिंग</string>
+    <string name="background_reliability_status_exempt">पृष्ठभूमि गतिविधि की अनुमति है</string>
+    <string name="background_reliability_status_optimized">बैटरी अनुकूलन चालू है</string>
+    <string name="background_reliability_exempt_desc">Tracker बैटरी अनुकूलन से बाहर है, इसलिए पृष्ठभूमि और स्वचालित ट्रैकिंग भरोसेमंद ढंग से चल सकती हैं।</string>
+    <string name="background_reliability_optimized_desc">बैटरी अनुकूलन पृष्ठभूमि में Tracker को रोक सकता है, जिससे स्वचालित ट्रैकिंग बंद हो जाती है। इसे चालू रखने के लिए पृष्ठभूमि गतिविधि की अनुमति दें।</string>
+    <string name="background_reliability_allow_action">पृष्ठभूमि गतिविधि की अनुमति दें</string>
+    <string name="background_reliability_samsung_hint">Samsung डिवाइस ऐप को "स्लीपिंग ऐप" में भी डाल सकते हैं। बैटरी सेटिंग खोलें, फिर Tracker को स्लीपिंग ऐप से हटाएँ और इसे स्लीप में न डालने के लिए सेट करें।</string>
+    <string name="background_reliability_samsung_action">डिवाइस बैटरी सेटिंग खोलें</string>
+    <string name="settings_tracebox_title">क्रैश निदान</string>
+    <string name="settings_tracebox_root_summary">स्थानीय क्रैश, ANR और संरचनात्मक निदान</string>
+    <string name="settings_tracebox_status_header">कैप्चर स्थिति</string>
+    <string name="settings_tracebox_toggle_title">क्रैश निदान रिकॉर्ड करें</string>
+    <string name="settings_tracebox_toggle_summary_off">कैप्चर बंद है। मौजूदा स्थानीय निदान तब तक रहेंगे जब तक आप उन्हें हटाते नहीं।</string>
+    <string name="settings_tracebox_toggle_summary_on">क्रैश, ANR और निश्चित संरचनात्मक निदान स्थानीय रूप से रिकॉर्ड किए जाते हैं।</string>
+    <string name="settings_tracebox_readiness_label">स्टोरेज तैयारी</string>
+    <string name="settings_tracebox_readiness_volatile">स्थायी स्टोरेज शुरू हो रहा है; अस्थायी कैप्चर उपलब्ध है</string>
+    <string name="settings_tracebox_readiness_durable">स्थायी कैप्चर तैयार है</string>
+    <string name="settings_tracebox_readiness_degraded">कैप्चर कमज़ोर है; कुछ रिकॉर्ड उपलब्ध नहीं हो सकते</string>
+    <string name="settings_tracebox_readiness_closed">कैप्चर बंद है</string>
+    <string name="settings_tracebox_health_label">रनटाइम स्वास्थ्य</string>
+    <string name="settings_tracebox_health_disabled">अक्षम</string>
+    <string name="settings_tracebox_health_initializing">आरंभ हो रहा है</string>
+    <string name="settings_tracebox_health_ready">तैयार</string>
+    <string name="settings_tracebox_health_degraded">कमज़ोर</string>
+    <string name="settings_tracebox_health_deleting">स्थानीय निदान हटाए जा रहे हैं</string>
+    <string name="settings_tracebox_health_closed">बंद</string>
+    <string name="settings_tracebox_package_header">निदान पैकेज</string>
+    <string name="settings_tracebox_package_body">Tracebox पहले अंतिम पैकेज के लिए सटीक प्रकटीकरण दिखाता है। जब तक आप इसे मंज़ूर नहीं करते और गंतव्य नहीं चुनते, कुछ भी सहेजा या साझा नहीं होता।</string>
+    <string name="settings_tracebox_package_review_action">पैकेज की समीक्षा करें और मंज़ूर करें</string>
+    <string name="settings_tracebox_package_save_action">मंज़ूर पैकेज सहेजें</string>
+    <string name="settings_tracebox_package_share_action">मंज़ूर पैकेज साझा करें</string>
+    <string name="settings_tracebox_share_limit">Android पुष्टि कर सकता है कि चयनकर्ता खुला था, पर यह साबित नहीं कर सकता कि किसी दूसरे ऐप को पैकेज मिला।</string>
+    <string name="settings_tracebox_data_header">Tracebox डेटा</string>
+    <string name="settings_tracebox_data_body">यह Tracebox के निदान और पैकेज स्टेजिंग हटाता है। जिन फ़ाइलों को आपने पहले से सहेजा या भेजा है, वे उनके गंतव्य ऐप द्वारा नियंत्रित होती हैं।</string>
+    <string name="settings_tracebox_delete_action">सारा Tracebox डेटा हटाएँ</string>
+    <string name="settings_tracebox_delete_confirm_title">सारे क्रैश निदान हटाएँ?</string>
+    <string name="settings_tracebox_delete_confirm_body">इससे Tracker से Tracebox के सभी निदान और पैकेज स्टेजिंग हट जाएँगे। यह क्रिया पूर्ववत नहीं की जा सकती।</string>
+    <string name="settings_tracebox_delete_confirm_action">हटाएँ</string>
+    <string name="settings_tracebox_result_header">पिछला परिणाम</string>
+    <string name="settings_tracebox_result_enabled">क्रैश निदान सक्षम है।</string>
+    <string name="settings_tracebox_result_disabled">क्रैश निदान अक्षम है। मौजूदा डेटा नहीं हटाया गया।</string>
+    <string name="settings_tracebox_result_policy_restricted">प्रतिबंधित नीति स्थानीय रूप से सहेजी गई, पर हर प्रक्रिया ने अभी इसकी पुष्टि नहीं की है।</string>
+    <string name="settings_tracebox_result_policy_partial">नीति स्थानीय रूप से सहेजी गई, पर रनटाइम अभिसरण अधूरा था।</string>
+    <string name="settings_tracebox_result_failed">कार्रवाई स्थानीय स्थायित्व सीमा तक नहीं पहुँची।</string>
+    <string name="settings_tracebox_result_delete_complete">Tracebox का सारा डेटा हटा दिया गया।</string>
+    <string name="settings_tracebox_result_delete_pending">हटाना केवल आंशिक रूप से पूरा हुआ। कुछ हैंडलर-स्वामित्व वाला डेटा हटना बाकी है।</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox ने हटाने का अनुरोध अस्वीकार किया।</string>
+    <string name="settings_tracebox_result_review_ready">प्रकटीकरण तैयार: %1$d शामिल मानों में %2$d बाइट निदान डेटा है।</string>
+    <string name="settings_tracebox_result_package_created">मंज़ूर निदान पैकेज सहेजने या साझा करने के लिए तैयार है।</string>
+    <string name="settings_tracebox_result_approval_cancelled">पैकेज मंज़ूरी रद्द की गई। कोई पैकेज नहीं बनाया गया।</string>
+    <string name="settings_tracebox_result_package_rejected">पैकेज बनाना अस्वीकार हुआ क्योंकि मंज़ूरी अंतिम बाइटों से अब मेल नहीं खाती।</string>
+    <string name="settings_tracebox_result_package_not_ready">निदान पैकेज तैयार नहीं है। पहले उसकी समीक्षा करें और मंज़ूर करें।</string>
+    <string name="settings_tracebox_result_save_complete">पूरा मंज़ूर पैकेज सहेजा गया (%1$d बाइट)।</string>
+    <string name="settings_tracebox_result_save_partial">केवल %1$d बाइट कॉपी हुए। गंतव्य में अधूरा पैकेज हो सकता है।</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">%1$d बाइट के बाद सहेजना रद्द हुआ। गंतव्य में अधूरा पैकेज हो सकता है।</string>
+    <string name="settings_tracebox_result_save_failed">मंज़ूर पैकेज सहेजा नहीं जा सका।</string>
+    <string name="settings_tracebox_result_save_cancelled">कोई सहेजने का गंतव्य नहीं चुना गया।</string>
+    <string name="settings_tracebox_result_share_opened">Android साझा चयनकर्ता खुला।</string>
+    <string name="settings_tracebox_result_share_unknown">चयनकर्ता लौट आया। Android यह साबित नहीं कर सकता कि प्राप्तकर्ता को पैकेज मिला या नहीं।</string>
+    <string name="settings_tracebox_records_header">यह क्या रिकॉर्ड करता है</string>
+    <string name="settings_tracebox_records_body">क्रैश और ANR प्रमाण, साथ ही ऐप संरचना और निष्पादन क्रम के बारे में पूर्वनिर्धारित कोड का सीमित सेट। Tracebox, Tracker का एकमात्र क्रैश और निदान रिकॉर्डर है।</string>
+    <string name="settings_tracebox_privacy_header">इसमें क्या शामिल नहीं है</string>
+    <string name="settings_tracebox_privacy_body">रिकॉर्डिंग API कोई मनमाना पाठ, स्थान, खाते का विवरण, डिवाइस पहचानकर्ता या सेंसर रीडिंग स्वीकार नहीं करता। मानक पैकेज कच्चे क्रैश आर्टिफ़ैक्ट को बाहर रखते हैं और कभी अपने-आप अपलोड नहीं होते।</string>
+</resources>
