@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Navegar para trás</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Acesso à localização</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">O Tracker necessita de acesso à localização para registar o seu percurso e apresentá-lo no mapa. Os dados de localização permanecem neste dispositivo — nada é enviado para um servidor.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Reconhecimento de atividade</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">O Tracker utiliza o reconhecimento de atividade para detetar o que está a fazer (a caminhar, a pedalar, a conduzir, parado), para que a monitorização automática possa pausar quando não se move e poupar bateria. Os dados de atividade permanecem neste dispositivo — nada é enviado para um servidor.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Localização em segundo plano</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Para continuar a registar o seu percurso quando muda de aplicação ou o ecrã se desliga, o Tracker necessita de aceder à sua localização em segundo plano. A localização registada permanece neste dispositivo — nada é enviado para um servidor. No próximo pedido do sistema, escolha "Permitir sempre"; "Enquanto utiliza a aplicação" mantém o Tracker a funcionar apenas quando o respetivo ecrã está aberto.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Permitir</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Agora não</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">É necessária a permissão de localização para iniciar a monitorização</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Abrir definições</string>
 </resources>

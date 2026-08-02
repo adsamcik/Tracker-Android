@@ -1,8 +1,17 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
-  <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
-  <string name="settings_activity_snackbar_message">Removed %s</string>
-  <string name="settings_activity_title">Activities</string>
-  <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="notification_activity_watcher_info">Atividade atual %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Serviço Monitor de atividade ativo</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Removido %s</string>
+    <string name="settings_activity_title">Atividades</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Monitor de atividade</string>
+    <string name="settings_ski_infrastructure_title">Dados de teleféricos</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Carregado (toque para remover)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">Não carregado. Toque para importar um ficheiro SQLite ski_infrastructure.db.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d teleféricos · Gerado em %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Dados de teleféricos © colaboradores do OpenStreetMap (ODbL)</string>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Notificação em primeiro plano apresentada enquanto uma região do OpenStreetMap importada pelo utilizador é analisada.</string>
+    <string name="osm_import_notification_title">A importar região do OpenStreetMap</string>
+    <string name="osm_import_notification_content">%1$d estradas processadas</string>
+    <string name="osm_import_complete_title">Região OSM importada</string>
+    <string name="osm_import_complete_content">Os dados de estradas offline estão prontos para a verificação de conformidade de veículos.</string>
+    <string name="osm_import_failed_title">Falha na importação OSM</string>
+    <string name="osm_import_failed_content">Não foi possível concluir a importação do mapa offline.</string>
+</resources>

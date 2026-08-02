@@ -1,22 +1,218 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">Mapa</string>
+    <string name="description_map_search">Botão de pesquisa</string>
+    <string name="map_layer_cell_heatmap_description">O seu panorama celular observado por tecnologia de rádio. Os campos suaves mostram onde as células de serviço o alcançaram; os centros brilhantes são estimativas conservadoras de locais e tornam-se mais nítidos apenas quando as observações os rodeiam.</string>
+    <string name="map_layer_cell_heatmap_title">Topologia celular</string>
+    <string name="map_layer_location_heatmap_high">Densidade elevada</string>
+    <string name="map_layer_location_heatmap_low">Densidade baixa</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Densidade média</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Visitas distintas</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visitas</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densidade relativa de correções de localização aceites. Mostra observações distintas, não o tempo despendido.</string>
+    <string name="map_layer_cell_radio_gsm">Cobertura GSM</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Zonas sem sinal</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Destaca onde o seu sinal de rede móvel foi fraco ou inexistente. Quanto mais vermelha a área, pior a cobertura; as áreas bem cobertas permanecem claras.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora de sinal</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Sinal de rede móvel apresentado como um brilho semelhante a aurora: um amplo halo violeta sob um núcleo brilhante ciano-verde. O brilho pulsa sem recarregar os dados e fica estático quando as animações do sistema estão desativadas.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Sinal fraco</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Sinal forte</string>
+    <string name="map_layer_speed_heatmap_description">Mapa de calor que representa a velocidade de movimento em diferentes áreas.</string>
+    <string name="map_layer_speed_very_slow">Muito lento</string>
+    <string name="map_layer_speed_walking">Ritmo de caminhada</string>
+    <string name="map_layer_speed_running">Ritmo de corrida</string>
+    <string name="map_layer_speed_moderate">Velocidade moderada</string>
+    <string name="map_layer_speed_fast">Movimento rápido</string>
+    <string name="map_layer_speed_very_fast">Muito rápido</string>
+    <string name="map_layer_speed_heatmap_title">Mapa de calor de velocidade</string>
+    <string name="map_layer_legacy_heatmap_title">Mapa de calor antigo</string>
+    <string name="map_layer_legacy_heatmap_chip">Mosaicos antigos</string>
+    <string name="map_layer_legacy_heatmap_description">Uma recordação da aplicação Signals original: a sua densidade de localização desenhada como mosaicos de grelha discretos de 25 m, tal como o mapa de calor quando os mosaicos eram renderizados no servidor. Aumente o zoom para ver os quadrados.</string>
+    <string name="map_layer_seasonal_title">Explorador sazonal</string>
+    <string name="map_layer_seasonal_chip">Estações</string>
+    <string name="map_layer_seasonal_description">Um mosaico de memórias sazonais: cada área que explorou é colorida pela estação em que a visitou pela primeira vez. Encontre os trilhos que só percorre no verão ou as ruas que só vê no inverno.</string>
+    <string name="map_layer_season_spring">Primavera</string>
+    <string name="map_layer_season_summer">Verão</string>
+    <string name="map_layer_season_autumn">Outono</string>
+    <string name="map_layer_season_winter">Inverno</string>
+    <string name="map_layer_terrain_title">A vida como terreno</string>
+    <string name="map_layer_terrain_chip">Terreno</string>
+    <string name="map_layer_terrain_description">A sua densidade de localização elevada a 3D: os locais onde passa mais tempo elevam-se como altas mesetas brilhantes, enquanto os locais únicos permanecem baixos. Incline o mapa para ver o relevo da sua vida.</string>
+    <string name="map_layer_terrain_low">Raramente aqui</string>
+    <string name="map_layer_terrain_mid">Às vezes</string>
+    <string name="map_layer_terrain_high">Frequentemente aqui</string>
+    <string name="map_layer_places_title">Locais frequentes</string>
+    <string name="map_layer_places_chip">Locais</string>
+    <string name="map_layer_places_description">Os seus locais importantes como marcadores, dimensionados e coloridos pela frequência com que os visita. Casa e trabalho tornam-se grandes pontos quentes; um local a que foi uma vez permanece pequeno e frio.</string>
+    <string name="map_layer_places_rare">Raramente</string>
+    <string name="map_layer_places_often">Às vezes</string>
+    <string name="map_layer_places_anchor">As suas âncoras</string>
+    <string name="map_layer_speed_ribbon_title">Faixa de velocidade</string>
+    <string name="map_layer_speed_ribbon_chip">Faixa</string>
+    <string name="map_layer_speed_ribbon_description">O seu percurso pintado pela rapidez com que se movia, com cores que fluem de um passeio lento violeta a um sprint ou condução vermelho-incandescente. Ao contrário do mapa de calor de velocidade, a faixa mantém o percurso intacto para poder ver exatamente onde acelerou e abrandou.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Faixa de altitude</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitude</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">O seu percurso pintado pela elevação absoluta, de terras baixas azul-profundo por sopés ciano até alturas montanhosas quentes. A escala permanece fixa ao mover o mapa, pelo que a mesma altitude mantém sempre a mesma cor.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Terras baixas</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Sopés</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Alta montanha</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Faixa de atividade</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Atividade</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">O seu percurso pintado pelo estado de movimento fiável registado em cada correção: cinzento onde o estado era desconhecido, azul enquanto estava parado e verde enquanto se movia.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Desconhecido</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Parado</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Em movimento</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Raio-X de esqui</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Raio-X de esqui</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Uma vista de diagnóstico dos segmentos de esqui detetados. Descidas, teleféricos, caminhadas e pausas estão ancorados à localização registada mais próxima e identificados com as principais métricas.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Descida</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Teleférico</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Caminhada ou pausa</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Constelações de viagens</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Viagens</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Viagens repetidas entre os seus locais frequentes tornam-se constelações curvas. Um arco estável mostra cada rota enquanto um cometa a percorre; arcos mais espessos significam que fez essa viagem mais vezes.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Caminhar</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ciclismo</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Condução</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transporte público</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Outros</string>
+    <string name="map_layer_fog_title">Névoa do explorador</string>
+    <string name="map_layer_fog_chip">Névoa</string>
+    <string name="map_layer_fog_description">O mundo a emergir da névoa: cada área que tocou é revelada e brilha mais quanto melhor a conheceu. Os locais por onde apenas passou mantêm uma bruma ténue; um sítio que explorou profundamente arde em ouro sólido. O terreno inexplorado permanece escuro.</string>
+    <string name="map_layer_fog_faint">Por onde passou</string>
+    <string name="map_layer_fog_known">Bem explorado</string>
+    <string name="map_layer_first_contact_title">Primeiro contacto</string>
+    <string name="map_layer_first_contact_chip">Descoberta</string>
+    <string name="map_layer_first_contact_description">Uma cronologia das suas descobertas: cada área é colorida pela data em que lá colocou os pés pela primeira vez. Os locais descobertos há muito tempo esbatem para índigo profundo, enquanto o terreno aberto esta semana brilha em ciano vivo — leia a história da sua exploração até às fronteiras mais recentes.</string>
+    <string name="map_layer_first_contact_old">Há muito tempo</string>
+    <string name="map_layer_first_contact_recent">Acabado de descobrir</string>
+    <string name="map_layer_vehicle_compliance_title">Conformidade com a velocidade do veículo</string>
+    <string name="map_layer_vehicle_compliance_description">Polilinha de amostras de condução colorida pela comparação da velocidade com o limite de referência configurado.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Muito abaixo do limite</string>
+    <string name="map_layer_vehicle_compliance_slow">Abaixo do limite</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Perto do limite</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Ligeiramente acima</string>
+    <string name="map_layer_vehicle_compliance_speeding">Excesso de velocidade</string>
+    <string name="map_layer_location_polyline_description">Linha que liga as localizações registadas ao longo do tempo.</string>
+    <string name="map_layer_location_polyline_title">Polilinha de localização</string>
+    <string name="map_layer_location_polyline_chip">Polilinha</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Sobreposição Wi-Fi</string>
+    <string name="map_layer_vehicle_compliance_chip">Excesso de velocidade</string>
+    <string name="map_layer_none_title">Sem sobreposição</string>
+    <string name="map_date_preset_week">Semana passada</string>
+    <string name="map_date_preset_month">Mês passado</string>
+    <string name="map_date_preset_custom">Personalizado…</string>
+    <string name="map_date_today">Hoje</string>
+    <string name="map_date_yesterday">Ontem</string>
+    <string name="map_date_this_week">Esta semana</string>
+    <string name="map_layer_wifi_count_heatmap_title">Sobreposição Wi-Fi</string>
+    <string name="map_layer_wifi_count_heatmap_description">Mostra quantos pontos de acesso distintos se sobrepõem em cada local. Análises repetidas do mesmo PA contam uma vez, pelo que áreas mais quentes significam uma cobertura de rádio realmente mais densa.</string>
+    <string name="map_layer_wifi_heatmap_description">Uma constelação Wi-Fi consciente da banda, baseada nas suas observações. Os campos coloridos mostram cobertura observada de 2,4, 5 e 6 GHz; os centros brilhantes são posições aproximadas de pontos de acesso, apresentadas apenas quando a geometria das amostras o permite.</string>
+    <string name="map_layer_wifi_heatmap_high">Muitos PA sobrepostos</string>
+    <string name="map_layer_wifi_heatmap_low">Poucos PA sobrepostos</string>
+    <string name="map_layer_wifi_heatmap_medium">Vários PA sobrepostos</string>
+    <string name="map_layer_wifi_heatmap_title">Constelação Wi-Fi</string>
+    <string name="map_layer_wifi_radio_24">Alcance de 2,4 GHz</string>
+    <string name="map_layer_wifi_radio_5">Alcance de 5 GHz</string>
+    <string name="map_layer_wifi_radio_6">Alcance de 6 GHz</string>
+    <string name="map_legend_label">Legenda</string>
+    <string name="map_chip_layers">Camada</string>
+    <string name="map_chip_dates">Datas</string>
+    <string name="permission_rationale_location_map">Para mostrar a sua localização no mapa, o Tracker necessita de acesso à localização. Todos os dados permanecem neste dispositivo.</string>
+    <string name="map_location_permission_denied">É necessária a permissão de localização para mostrar a sua posição</string>
+    <string name="map_open_settings">Abrir definições</string>
+    <string name="settings_map_basemap_title">Mapa base</string>
+    <string name="settings_map_basemap_custom">Ficheiro .pmtiles personalizado ativo (toque para remover)</string>
+    <string name="settings_map_basemap_default">Mapa base incluído ativo. Toque para importar um ficheiro .pmtiles personalizado.</string>
+    <string name="basemap_import_error_source_open">Não foi possível abrir esse ficheiro. Tente outro ou volte a partilhá-lo com o Tracker.</string>
+    <string name="basemap_import_error_copy">Não foi possível copiar o ficheiro de mapa base. Verifique se existe espaço livre suficiente e tente novamente.</string>
+    <string name="basemap_import_error_invalid_format">Não é um ficheiro PMTiles válido: %1$s</string>
+    <string name="settings_map_advanced_section_title">Definições avançadas</string>
+    <string name="settings_map_max_heat_title">Calor máximo após visitas</string>
+    <string name="settings_map_quality_title">Resolução do mapa de calor</string>
+    <string name="settings_map_visit_threshold_title">Limite de tempo de visita à localização</string>
+    <string name="settings_map_legacy_heatmap_title">Mapa de calor antigo (mosaicos de 10 m)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Ovo da Páscoa: adiciona uma camada de "Mapa de calor antigo" que desenha a densidade de localização como mosaicos de grelha discretos de 10 m, como o mapa de calor Signals original renderizado no servidor.</string>
+    <string name="settings_map_zoom_buttons_title">Botões de zoom do mapa</string>
+    <string name="settings_map_zoom_buttons_subtitle">Mostra botões + e − no ecrã para ampliar o mapa, quando o gesto de pinça é difícil de usar.</string>
+    <string name="tips_map_date_range_title">Intervalo de datas</string>
+    <string name="tips_map_my_location_title">A minha localização</string>
+    <string name="tips_map_sheet_description">Tocar ou puxar esta barra para cima abre mais opções do mapa, incluindo seleção de camadas e legenda.</string>
+    <string name="map_search_placeholder">Lat., Long., por exemplo 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Tente 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Limpar pesquisa</string>
+    <string name="map_search_paste">Colar da área de transferência na pesquisa</string>
+    <string name="map_search_clipboard_empty">A área de transferência ainda não contém coordenadas</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Cancelar</string>
+    <string name="map_share_button">Partilhar mapa</string>
+    <string name="map_share_sheet_title">Partilhar mapa como imagem</string>
+    <string name="map_share_sheet_subtitle">Gera a vista atual e a camada ativa como imagem estática. A sua localização em direto nunca é incluída.</string>
+    <string name="map_share_resolution_standard">Padrão (1080p)</string>
+    <string name="map_share_resolution_high">Alta (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Partilhar</string>
+    <string name="map_share_preparing">A preparar imagem…</string>
+    <string name="map_share_error">Não foi possível gerar a imagem do mapa. Tente novamente.</string>
+    <string name="map_date_range_all_time">Desde sempre</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Camadas do mapa</string>
+    <string name="map_layer_load_error">Não foi possível carregar esta camada. Tente selecionar outra.</string>
+    <string name="map_empty_subtitle_location">Não existem dados de localização nesta vista ou intervalo de datas. As funcionalidades de percursos e mapa requerem localização recolhida durante a monitorização.</string>
+    <string name="map_empty_subtitle_cell">Não existem dados de rede móvel localizados nesta vista ou intervalo de datas. As amostras de rede móvel registadas sem localização continuam guardadas, mas não podem aparecer no mapa.</string>
+    <string name="map_empty_subtitle_wifi">Não existem dados Wi-Fi localizados nesta vista ou intervalo de datas. As observações Wi-Fi registadas sem localização continuam guardadas, mas não podem aparecer no mapa.</string>
+    <string name="map_empty_subtitle_speed">Não existem dados de velocidade nesta vista ou intervalo de datas. Os mapas de velocidade requerem amostras de localização utilizáveis recolhidas durante a monitorização.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Não existem trajetos de condução associados a estradas para mostrar. Importe uma região do OpenStreetMap (Definições) e registe alguma condução para podermos associar o seu percurso a estradas reais.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Dispensar mensagem sem dados</string>
+    <string name="map_speed_probe_title">Velocidade aqui</string>
+    <string name="map_speed_probe_avg_label">Média</string>
+    <string name="map_speed_probe_max_label">Máx.</string>
+    <string name="map_speed_probe_empty">Não existem dados de velocidade neste ponto. Toque num local com calor para ver as velocidades.</string>
+    <string name="map_speed_probe_hint">Toque no mapa para ver velocidades</string>
+    <string name="map_speed_probe_dismiss">Dispensar detalhes de velocidade</string>
+    <string name="map_place_callout_loading">A procurar local…</string>
+    <string name="map_place_callout_empty">Não foi encontrado nenhum local aqui</string>
+    <string name="map_place_callout_dismiss">Dispensar detalhes do local</string>
+    <string name="map_zoom_in">Aumentar zoom</string>
+    <string name="map_zoom_out">Diminuir zoom</string>
+    <string name="map_loading">A carregar mapa…</string>
+    <string name="map_basemap_unavailable">Não foi possível preparar o mapa base. Feche e reabra o mapa para tentar novamente.</string>
+    <string name="map_a11y_map_overview">Descrição geral do mapa</string>
+    <string name="map_a11y_centered_on_location">Mapa centrado na sua localização</string>
+    <string name="map_a11y_showing_location">Mapa a mostrar a sua localização</string>
+    <string name="map_a11y_loading_data">A carregar dados de mapa registados</string>
+    <string name="map_a11y_no_recorded_data">A camada selecionada não tem dados mapeáveis nesta vista ou intervalo de datas</string>
+    <string name="map_a11y_no_layer_selected">Nenhuma camada de mapa selecionada</string>
+    <string name="map_a11y_search_result_visible">Marcador do resultado de pesquisa visível</string>
+    <string name="map_a11y_active_recording_visible">Percurso de registo ativo visível</string>
+    <string name="map_a11y_recorded_route_history">A mostrar histórico de percursos registados</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">A mostrar observações de localização aceites distintas</string>
+    <string name="map_a11y_cell_heatmap">A mostrar campos de cobertura celular e centros aproximados dos locais de serviço</string>
+    <string name="map_a11y_wifi_heatmap">A mostrar bandas Wi-Fi, campos de cobertura e centros aproximados de pontos de acesso</string>
+    <string name="map_a11y_wifi_count_heatmap">A mostrar sobreposição de pontos de acesso Wi-Fi distintos</string>
+    <string name="map_a11y_speed_heatmap">A mostrar um mapa de calor de velocidade</string>
+    <string name="map_a11y_saved_map_data">A mostrar dados de mapa guardados</string>
+    <string name="map_location_permission_opening_settings">É necessário acesso à localização. A abrir Definições…</string>
+    <string name="map_permission_banner_dismiss">Dispensar mensagem de permissão de localização</string>
+    <string name="map_loading_layer">A carregar camada de mapa</string>
+    <string name="map_a11y_world_scale">Escala mundial</string>
+    <string name="map_a11y_regional_scale">Escala regional</string>
+    <string name="map_a11y_city_scale">Escala de cidade</string>
+    <string name="map_a11y_neighborhood_scale">Escala de bairro</string>
+    <string name="map_a11y_street_scale">Escala de rua</string>
+    <string name="help_map_quality">Multiplicador de detalhe de renderização. Valores mais altos mostram mais detalhe, mas podem tornar o carregamento do mapa mais lento em dispositivos antigos.</string>
+    <string name="help_max_heat_points">Número máximo de pontos de localização mostrados na vista de mapa de calor. Valores mais altos dão mais detalhe, mas tornam a renderização mais lenta.</string>
+    <string name="help_visit_threshold">Quanto tempo tem de ficar num local antes de ser marcado como uma "visita" no mapa. Aumente este valor para reduzir a desordem causada por paragens breves.</string>
 </resources>

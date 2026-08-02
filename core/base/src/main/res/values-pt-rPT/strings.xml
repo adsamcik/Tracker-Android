@@ -1,35 +1,51 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <string name="activity_walking">Caminhar</string>
+    <string name="activity_running">Correr</string>
+    <string name="activity_bicycle">Bicicleta</string>
+    <string name="activity_slope_sports">Desportos de pista</string>
+    <string name="activity_land_vehicle">Veículo terrestre</string>
+    <string name="activity_water_vehicle">Embarcação</string>
+    <string name="activity_air_vehicle">Aeronave</string>
+    <string name="activity_in_vehicle">Num veículo</string>
+    <string name="activity_on_foot">A pé</string>
+    <string name="activity_name">Nome da atividade</string>
+    <string name="activity_raw_still">Parado</string>
+    <string name="activity_raw_tilting">Inclinado</string>
+    <string name="activity_still">Parado</string>
+    <string name="activity_unknown">A detetar…</string>
+    <string name="activity_vehicle">Veículo</string>
+    <string name="alert_confirm">Tem a certeza de que pretende %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">Nenhum</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">Desconhecido</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
+    <string name="channel_activity_watcher_description">Canal utilizado exclusivamente pelo serviço Monitor de atividade, para que possa remover facilmente esta notificação permanente.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Monitor de atividade</string>
+    <string name="channel_achievements_description">Notificações relacionadas com conquistas.</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Conquista</string>
+    <string name="channel_other_description">Outras notificações que não pertencem a nenhuma outra categoria.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Outros</string>
+    <string name="channel_track_description">Notificações relacionadas com a monitorização.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Monitorização</string>
+    <string name="channel_goals_description">Alertas de conclusão de objetivos.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Progresso do objetivo</string>
     <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="generic_add">Adicionar</string>
+    <string name="generic_back">Voltar</string>
+    <string name="generic_cancel">Cancelar</string>
+    <string name="generic_delete">Eliminar</string>
+    <string name="generic_edit">Editar</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
+    <string name="generic_undo">anular</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
