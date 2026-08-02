@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Статистика</string>
     <string name="stats_cell_count">Брой клетки</string>
     <string name="stats_collections">Брой обновявания</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Зареждане на сесиите…</string>
     <string name="stats_append_error">Зареждането на още е неуспешно</string>
     <string name="action_retry">Повторен опит</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Стартиране на проследяването</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s крачка</item>
         <item quantity="other">%1$s крачки</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Днес</string>
     <string name="stats_date_yesterday">Вчера</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Зареждане на обобщението…</string>
     <string name="stats_summary_empty">Няма налична обобщена статистика</string>
     <string name="stats_summary_empty_subtitle">Стартирайте проследяване, за да виждате обобщение на активността си</string>
     <string name="stats_summary_error">Неуспешно зареждане на обобщението</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Зареждане на седмичната статистика…</string>
     <string name="stats_week_empty">Няма налична седмична статистика</string>
     <string name="stats_week_empty_subtitle">Проследявайте 7 дни, за да видите седмичното си обобщение</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Видени уникални мрежи</string>
     <string name="stats_wifi_total_scans">Общо сканирания</string>
     <string name="stats_wifi_average_per_scan">Среден брой мрежи на сканиране</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Отчет за клетъчния сигнал</string>
     <string name="stats_cell_signal_dialog_loading">Зареждане на отчета за клетъчния сигнал…</string>
     <string name="stats_cell_signal_dialog_empty_title">Няма налични клетъчни данни</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Различни кули</string>
     <string name="stats_cell_signal_section_networks">По тип мрежа</string>
     <string name="stats_cell_signal_section_towers">Най-често виждани кули</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s от пробите · %2$s кули</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Клетка %1$s · %2$s проби</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Оператор %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Подробности за пътуването</string>
     <string name="trip_detail_not_found">Пътуването не е намерено</string>
     <string name="trip_detail_not_found_subtitle">Това пътуване може да е изтрито</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Спускане</string>
     <string name="trip_detail_max_altitude">Максимална височина</string>
     <string name="trip_detail_route_map">Карта на маршрута</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Показване на картата</string>
     <string name="trip_detail_no_location_data">Няма данни за местоположението</string>
     <string name="trip_detail_route_unavailable_legacy">Карта на маршрута не е налична за стари сесии</string>
     <string name="trip_detail_route_no_gps_points">Разстоянието е записано, но няма наличен GPS маршрут</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Изтриване</string>
     <string name="trip_detail_cancel">Отказ</string>
     <string name="trip_detail_more_options">Още опции</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Ски сесия</string>
     <string name="ski_detail_runs">Спускания</string>
     <string name="ski_detail_vertical">Денивелация</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Честота</string>
     <string name="wifilist_title_last_seen">Последно видяно</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Хронология</string>
     <string name="history_tab_trips">Пътувания</string>
     <string name="history_tab_calendar">Календар</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d пътуване</item>
         <item quantity="other">%d пътувания</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Все още няма активност</string>
     <string name="history_timeline_empty_desc">Стартирайте проследяване, за да виждате тук историята на движенията си</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Няма записани пътувания</string>
     <string name="history_trips_empty_desc">Пътуванията ще се появяват тук, докато се придвижвате</string>
     <string name="trip_gps_anomaly">Открита е GPS аномалия — разстоянието може да е неточно</string>
     <string name="trip_deleted_snackbar">Пътуването е изтрито</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Предишен месец</string>
     <string name="history_calendar_next_month">Следващ месец</string>
     <string name="history_calendar_distance">Разстояние</string>
     <string name="history_calendar_steps">Крачки</string>
     <string name="history_calendar_trips">Пътувания</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Изследване</string>
     <string name="history_exploration_cells">Клетки</string>
     <string name="history_exploration_streak">Поредица</string>
     <string name="history_exploration_best">Най-добро</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Назад</string>
-    <!-- History navigation -->
     <string name="history_button_label">История</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Показване на пътуването на картата</string>
     <string name="stats_heatmap_title">Активност</string>
 </resources>

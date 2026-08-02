@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Core activity types for location-based tracking -->
     <string name="activity_walking">Ходене</string>
     <string name="activity_running">Бягане</string>
     <string name="activity_bicycle">Велосипед</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Наземно превозно средство</string>
     <string name="activity_water_vehicle">Водно превозно средство</string>
     <string name="activity_air_vehicle">Въздушно превозно средство</string>
-    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">В превозно средство</string>
     <string name="activity_on_foot">Пеша</string>
     <string name="activity_name">Име на дейността</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Неподвижно</string>
     <string name="activity_unknown">Откриване…</string>
     <string name="activity_vehicle">Превозно средство</string>
-    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Сигурни ли сте, че искате да %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,26 +24,14 @@
     <string name="cell_unknown">Неизвестно</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Канал, използван само от услугата за следене на активността, за да можете лесно да премахнете постоянното известие.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Следене на активността</string>
     <string name="channel_achievements_description">Известия, свързани с постижения.</string>
-    <!--
-        channel_achievements_id value is intentionally kept as "challenge_channel_id"
-        (the original on-device channel identifier from the pre-Phase-13 challenge era)
-        so existing installs keep their user-configured channel settings on upgrade.
-        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
-        rework; resource VALUE must not change.
-    -->
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Постижения</string>
     <string name="channel_other_description">Други известия, които не принадлежат към друга категория.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Други</string>
     <string name="channel_track_description">Известия, свързани с проследяването.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Проследяване</string>
     <string name="channel_goals_description">Известия за изпълнени цели.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Напредък по цели</string>
     <string name="day_short">%d д</string>
     <string name="generic_add">Добавяне</string>

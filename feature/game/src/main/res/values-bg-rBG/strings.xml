@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Игра</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Изпреварване</string>
     <string name="minigame_outrun_description">Състезавайте се с призрак. Останете напред!</string>
     <string name="minigame_territory_name">Територия</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Серпентина</string>
     <string name="minigame_switchback_description">Правете остри редуващи се завои, за да изградите поредица от плавни движения.</string>
     <string name="minigame_locked">Отключва се на ниво %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Игра</string>
     <string name="game_progress_section_title">Напредък</string>
     <string name="minigame_outrun_goal_line">Поддържайте преднина от 25–100 м пред призрака</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Докоснете два пъти, за да видите как се отключва</string>
     <string name="minigame_active_session_running">В ход — докоснете „Игра“, за да се върнете</string>
     <string name="minigame_active_session_paused">На пауза — докоснете „Игра“, за да продължите</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d м</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d клетка</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d завой</item>
         <item quantity="other">%1$d завоя</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Преглед на предишните резултати</string>
     <string name="minigame_session_close">Затваряне</string>
     <string name="minigame_session_play_again">Играйте отново</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Необходимо е местоположение</string>
     <string name="minigame_session_permission_body">Мини игрите използват текущото местоположение, за да проследяват стартирането ви. Освен крайния резултат не се запазва нищо.</string>
     <string name="minigame_session_permission_grant">Предоставяне на достъп</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Настройте играта си</string>
     <string name="minigame_setup_goal_title">Цел</string>
     <string name="minigame_setup_difficulty_title">Трудност</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Лесна</string>
     <string name="minigame_difficulty_normal">Нормална</string>
     <string name="minigame_difficulty_hard">Трудна</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Подготовка…</string>
     <string name="minigame_session_finishing">Запазване на играта…</string>
     <string name="minigame_session_paused_title">На пауза</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Активно време</string>
     <string name="minigame_session_goal_progress">%1$d%% от целта</string>
     <string name="minigame_session_goal_reached">Целта е достигната</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">Добър GPS</string>
     <string name="minigame_signal_fair">Приемлив GPS</string>
     <string name="minigame_signal_poor">Слаб GPS</string>
     <string name="minigame_signal_unavailable">Няма GPS сигнал</string>
     <string name="minigame_signal_unknown">Определяне на местоположението…</string>
     <string name="minigame_signal_stale">GPS със закъснение</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Най-добър опит</string>
     <string name="minigame_outrun_personal_best">Личен рекорд</string>
     <string name="minigame_outrun_warning">Призракът ви настига</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Целта е достигната. Избягахте с преднина от %1$d метра. Най-добрият ви опит е %2$d метра.</string>
     <string name="minigame_outrun_description_finished">Опитът е завършен. Крайната ви разлика беше %1$d метра, а най-голямата ви преднина беше %2$d метра.</string>
     <string name="minigame_outrun_ahead_of_best">Пред личния ви рекорд</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Карта на територията. Завладени са %1$d близки области; подчертани са %2$d гранични области. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Текущата област е подчертана</string>
     <string name="minigame_territory_current_waiting">Изчакване на текуща област</string>
     <string name="minigame_territory_goal_complete">Целта е завършена</string>
     <string name="minigame_territory_goal_in_progress">Целта е в ход</string>
     <string name="minigame_territory_legend">Сиянието отбелязва текущата ви област • Подсказки за границата: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Темпо</string>
     <string name="minigame_zen_pace_value">%1$s км/ч</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Постепенно се ускорявате</string>
     <string name="minigame_zen_flow_time">Поток %1$s</string>
     <string name="minigame_zen_flow_description">Поток на дзен темпото. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">Призракът ви настига</string>
     <string name="minigame_feedback_pb_crossed">Нов личен рекорд</string>
     <string name="minigame_feedback_territory_claimed">Завладяна е нова област</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">В целевата зона на темпото сте</string>
     <string name="minigame_feedback_zen_exited">Напуснахте целевата зона на темпото</string>
     <string name="minigame_feedback_completed">Опитът е завършен</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">Първият опит е записан!</string>
     <string name="minigame_completion_new_best_title">Нов личен рекорд!</string>
     <string name="minigame_completion_tied_title">Изравнихте най-добрия си резултат</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Няма точки за този опит</string>
     <string name="minigame_completion_change_setup">Промяна на настройката</string>
     <string name="minigame_completion_done">Готово</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">Опитът не завърши</string>
     <string name="minigame_failure_permission">За игра е необходимо точно местоположение. Предоставете го и опитайте отново.</string>
     <string name="minigame_failure_location">Не можахме да получим надеждно местоположение. Отидете някъде с по-ясно небе и опитайте отново.</string>
     <string name="minigame_failure_persistence">Не можахме да запазим този опит. Опитайте отново.</string>
     <string name="minigame_failure_generic">Нещо се обърка и опитът спря.</string>
     <string name="minigame_session_try_again">Опитайте отново</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Активна игра</string>
     <string name="game_session_channel_description">Поддържа активната мини игра да работи, когато екранът е изключен</string>
     <string name="game_session_notification_title">Игра на Tracker</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Пауза</string>
     <string name="game_session_action_resume">Продължаване</string>
     <string name="game_session_action_finish">Завършване</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Предишни опити в мини игри</string>
     <string name="minigame_scores_back">Назад</string>
     <string name="minigame_scores_empty_title">Първият ви опит ви очаква</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">дневна</string>
     <string name="goals_weekly_goal">седмична</string>
     <string name="goals_monthly_goal">месечна</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Цели за крачки</string>
     <string name="game_step_sensor_unavailable">Сензорът за крачки не е наличен</string>
     <string name="game_step_sensor_unavailable_detail">Това устройство няма сензор за броене на крачки. Целите за крачки не могат да бъдат проследявани.</string>
     <string name="game_steps_today">Днес</string>
     <string name="game_steps_week">Седмица</string>
-    <!-- Game empty states -->
     <string name="game_loading">Зареждане…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Назад</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Отваряне на настройките</string>
     <string name="game_close">Затваряне</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Изследване</string>
     <string name="exploration_cells_discovered">Открити клетки</string>
     <string name="exploration_current_streak">Текуща поредица</string>
@@ -229,7 +204,6 @@
         <item quantity="other">дни</item>
     </plurals>
     <string name="exploration_of_four">от 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Постижения</string>
     <string name="achievements_bronze">Бронз</string>
     <string name="achievements_silver">Сребро</string>
@@ -253,12 +227,8 @@
         <item>Прекрасно</item>
     </string-array>
     <string name="points_earned_today">Спечелени точки днес</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Ново отключване!</string>
     <string name="game_unlock_message">Достигнахте ниво %1$d!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Седмично предизвикателство</string>
     <string name="leaderboard_metric_distance">Разстояние</string>
     <string name="leaderboard_metric_steps">Крачки</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Класацията не е налична</string>
     <string name="leaderboard_error_body">Данните ви са защитени на това устройство. Опитайте отново да заредите седмичното предизвикателство.</string>
     <string name="leaderboard_retry">Повторен опит</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Митично</string>
     <string name="game_view_all_achievements">Преглед на всички</string>
     <string name="game_recent_achievements">Скорошни отключвания</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Календар</string>
     <string name="achievement_unlocked_content_description">Отключено</string>
     <string name="achievement_locked_content_description">Заключено</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

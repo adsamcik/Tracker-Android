@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Игра</string>
     <string name="module_map_title">Карта</string>
     <string name="module_statistics_title">Статистика</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Следващото автоматично резервно копие ще включва всички данни вместо само промените</string>
     <string name="settings_reset_export_watermarks_done">Маркерите за експортиране са нулирани — следващото резервно копие ще бъде пълно експортиране</string>
     <string name="settings_migration_backup_export_title">Експортиране на резервно копие за сигурност преди надграждане</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Пълно копие на базата данни от v%1$d, създадено преди миграция към v%2$d и съхранявано поверително до 30 дни</string>
     <string name="settings_migration_backup_warning_title">Да се експортира ли резервно копие на чувствителни данни?</string>
     <string name="settings_migration_backup_warning_message">Това резервно копие може да съдържа точни местоположения, наблюдения на Wi-Fi и клетъчни мрежи, активности и други лични данни отпреди надграждането. Запазете го само на място, на което имате доверие.</string>
@@ -105,13 +102,6 @@
         <item>Авиация</item>
     </string-array>
     <string name="settings_length_system_title">Мерна система за дължина</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Лицензи с отворен код</string>
     <string name="settings_licenses_subtitle">Прегледайте включените известия на трети страни в тази компилация.</string>
     <string name="settings_licenses_loading">Зареждане на лицензите…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Версия</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Комит на компилацията</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Автор</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">Имейл</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Връзки</string>
     <string name="about_attributions_title">Посочване на източниците на данни</string>
     <string name="about_attribution_geonames_label">Имена на места</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Данни за карта и улици</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Настройки на модулите</string>
     <string name="settings_core_group_title">Основни</string>
     <string name="settings_other_title">Мерни единици и изглед</string>
@@ -151,16 +135,9 @@
         <item>Скорост (км/ч, мили/ч)</item>
     </string-array>
     <string name="settings_speed_format_title">Формат на скоростта</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Настройки</string>
     <string name="switch_state_on">Вкл.</string>
     <string name="switch_state_off">Изкл.</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Проследявайте пътуванията си поверително</string>
     <string name="onboarding_streamlined_subtitle">Всички данни остават на устройството ви. Няма синхронизиране в облак или проследяване от трети страни.</string>
     <string name="onboarding_benefit_privacy_title">Поверителността на първо място</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">ЗАПОЧНЕТЕ</string>
     <string name="onboarding_privacy_policy_button">Прочетете политиката за поверителност</string>
     <string name="onboarding_state_read_error_message">Не можахме да потвърдим дали настройката вече е завършена, затова тя се показва, за да запази данните ви поверителни. Можете да продължите безопасно.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Автоматично изчистване на стари данни</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Съхранявайте данните завинаги; автоматичното изчистване няма да изтрива стари данни</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Автоматично премахване на данни, по-стари от %1$d година</item>
         <item quantity="other">Автоматично премахване на данни, по-стари от %1$d години</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Съхраняване на данните за</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Съхраняване завинаги</item>
@@ -189,17 +164,7 @@
         <item>5 години</item>
         <item>10 години</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">ПРОДЪЛЖИ</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Експортиране на данни</string>
     <string name="settings_export_data_summary">Запазете данните си за проследяване в различни формати</string>
     <string name="export_format_dialog_title">Изберете формат за експортиране</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Експортиране</string>
     <string name="settings_import_summary">Импортирайте данни от поддържани типове (%1$s) и архиви (%2$s). Импортирането на база данни обединява съвместимите редове; не заменя съществуващите данни.</string>
     <string name="settings_import_title">Импортиране</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Разбрах</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Ниско въздействие</string>
     <string name="battery_impact_moderate">Умерено въздействие</string>
     <string name="battery_impact_high">Високо въздействие</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Изберете точността на местоположението</string>
     <string name="precision_mode_approximate_title">Приблизително</string>
     <string name="precision_mode_approximate_description">Местоположение въз основа на мрежата. Подходящо за проследяване на обща област с минимално използване на батерията.</string>
     <string name="precision_mode_precise_title">Точно</string>
     <string name="precision_mode_precise_description">Местоположение въз основа на GPS. Най-добро за подробни маршрути, топлинни карти и предизвикателства.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Активирайте точно проследяване</string>
     <string name="upgrade_to_precise_message_general">Използвате приблизително местоположение. Преминете към точно GPS проследяване за по-добра точност.</string>
     <string name="upgrade_to_precise_message_route_analysis">Точното местоположение се препоръчва за прецизен анализ на маршрута и измерване на разстояние.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Точният GPS използва повече батерия. Очаквано време за проследяване: 6–8 часа на типични устройства.</string>
     <string name="upgrade_to_precise_button_upgrade">Активиране на точно местоположение</string>
     <string name="upgrade_to_precise_button_cancel">Може би по-късно</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Висока точност</string>
     <string name="tracking_preset_high_accuracy_description">Най-добра детайлност с най-бързи обновявания и включени всички основни сензори</string>
     <string name="tracking_preset_balanced_name">Балансирано</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Политика за проследяване</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Очаквано проследяване: %d час</item>
         <item quantity="other">Очаквано проследяване: %d часа</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Изберете с каква точност Tracker да записва местоположението ви</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Автоматично превключване на мерните единици</string>
     <string name="settings_module_map_subtitle">Качество на топлинната карта и опции за визуализация</string>
     <string name="settings_module_game_subtitle">Цели, постижения и етапи</string>
     <string name="action_navigate_back">Назад</string>
     <string name="action_help">Помощ</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Зареждане…</string>
     <string name="widget_quick_start_name">Бърз старт на Tracker</string>
     <string name="widget_quick_start_description">Стартирайте или спрете проследяването на местоположението с едно докосване.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Пасивно</string>
     <string name="widget_tier_active">Активно</string>
     <string name="widget_tier_precision">Прецизно</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Чудесен напредък!</string>
     <string name="goal_notification_title_almost">Почти сте там!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Интелигентни известия за цели</string>
     <string name="settings_smart_goal_notifications_summary">Получавайте известие, когато сте близо до дневната си цел за крачки</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Как да работи проследяването?</string>
     <string name="setup_how_to_track_subtitle">Изберете кога да започва проследяването и колко подробно да бъде.</string>
     <string name="setup_auto_tracking_title">Автоматично проследяване</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Започнете да разглеждате</string>
     <string name="setup_continue">Продължаване</string>
     <string name="setup_step_indicator">Стъпка %1$d от %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Онлайн плочки за карта?</string>
     <string name="setup_online_tiles_subtitle">Tracker се предлага с офлайн базова карта, така че работи без мрежа. Ако искате по-богати карти, вместо това може да предавате плочки от публичен доставчик.</string>
     <string name="setup_online_tiles_off_title">Само офлайн (препоръчително)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Предавайте векторни плочки с повече детайли от OpenFreeMap (по подразбиране). Можете да смените доставчика по-късно в Настройки → Карта.</string>
     <string name="setup_online_tiles_privacy">Докато е включено, доставчикът може да вижда IP адреса ви и кои плочки зареждате — приблизително коя област от картата разглеждате. Tracker никога не изпраща акаунт, идентификатор или история на местоположенията ви.</string>
     <string name="setup_online_tiles_change_later">Можете да промените това по всяко време в Настройки → Карта → Онлайн плочки за карта.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">За да записва пътувания, докато екранът е изключен или приложението е затворено, Tracker трябва да продължи да работи във фонов режим. Настройките на батерията на телефона може да го поставят на пауза — разрешете активност във фонов режим, за да остане автоматичното проследяване надеждно.</string>
     <string name="setup_background_access_optional">По избор, но се препоръчва. Можете да промените това по всяко време в Настройки → Проследяване.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Надеждно проследяване във фонов режим</string>
     <string name="background_reliability_status_exempt">Разрешена е активност във фонов режим</string>
     <string name="background_reliability_status_optimized">Оптимизацията на батерията е включена</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Разрешаване на активност във фонов режим</string>
     <string name="background_reliability_samsung_hint">Устройствата Samsung може също да поставят приложенията в „Спящи приложения“. Отворете настройките за батерията, премахнете Tracker от „Спящи приложения“ и го задайте да не бъде поставян в режим на заспиване.</string>
     <string name="background_reliability_samsung_action">Отваряне на настройките за батерията на устройството</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Диагностика при сривове</string>
     <string name="settings_tracebox_root_summary">Локална диагностика на сривове, ANR и структура</string>
     <string name="settings_tracebox_status_header">Състояние на записването</string>

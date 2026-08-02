@@ -1,7 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Проследявайте поне %2$d различни дни, за да го отключите.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Изминете %1$s</string>
     <string name="ach_desc_distance_total">Изминете общо %1$s записано разстояние във всички сесии.</string>
     <string name="ach_title_week_distance">%1$s тази седмица</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Изминете общо %1$s с колело.</string>
     <string name="ach_title_vehicle_distance">Моторизирано пътуване %1$s</string>
     <string name="ach_desc_vehicle_distance">Изминете %1$s с кола, автобус, влак, лодка или самолет.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Направете %1$s крачки</string>
     <string name="ach_desc_steps_total">Запишете %1$s крачки във всички сесии.</string>
     <string name="ach_title_best_daily_steps">%1$s крачки за един ден</string>
     <string name="ach_desc_best_daily_steps">Направете %1$s крачки за един ден.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Първа сесия</item>
         <item quantity="other">Запишете %1$s сесии</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Посетете %d държави</item>
     </plurals>
     <string name="ach_desc_countries_visited">Запишете поне една сесия в %1$d различни държави.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Първи активен ден</item>
         <item quantity="other">%1$s активни дни</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Записвайте активност през %1$d различни часа от деня във всички сесии.</string>
     <string name="ach_title_days_of_week">Всичките седем дни от седмицата</string>
     <string name="ach_desc_days_of_week">Проследявайте активност поне веднъж във всеки ден от седмицата.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Опитайте %d тип активност</item>
         <item quantity="other">Опитайте %d типа активност</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Записвайте активност през всичките седем дни от една календарна седмица.</string>
     <string name="ach_title_walk_cycle_drive">Ходене, колоездене, шофиране</string>
     <string name="ach_desc_walk_cycle_drive">Запишете поне една сесия от всеки вид: ходене, колоездене и шофиране.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Сесия %1$s</string>
     <string name="ach_desc_max_session_duration">Запишете една сесия с продължителност поне %1$s.</string>
     <string name="ach_title_max_speed">Достигнете %1$s</string>
     <string name="ach_desc_max_speed">Достигнете максимална скорост поне %1$s по време на сесия.</string>
     <string name="ach_title_active_minutes">%1$s активни минути</string>
     <string name="ach_desc_active_minutes">Натрупайте %1$s минути активно проследяване.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Първо експортиране</item>
         <item quantity="other">%d експортирания</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Проследявайте през %d сезона</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Записвайте активност през %1$d различни сезона (пролет/лято/есен/зима).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Новогодишен тракер</string>
     <string name="ach_desc_calendar_new_year">Запишете сесия на 1 януари.</string>
     <string name="ach_title_calendar_leap_day">Пионер в деня на високосната година</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Запишете сесия в най-дългия ден на годината.</string>
     <string name="ach_title_calendar_winter_solstice">Зимно слънцестоене</string>
     <string name="ach_desc_calendar_winter_solstice">Запишете сесия в най-краткия ден на годината.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Нощна птица</item>
         <item quantity="other">%1$s нощни сесии</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Използвайте %d формата за експортиране</item>
     </plurals>
     <string name="ach_desc_export_formats">Експортирайте данните си в %1$d различни файлови формати.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Достигнете ниво %1$d</string>
     <string name="ach_desc_player_level">Изкачете се до ниво на играч %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP за един ден</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Изиграйте %1$s мини игри</item>
     </plurals>
     <string name="ach_desc_minigames_played">Завършете %1$d мини игри.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Изкачете %1$s</string>
     <string name="ach_desc_total_ascent">Натрупайте общо изкачване от %1$s във всички проследявания.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Спечелете от един източник на XP</item>
         <item quantity="other">Спечелете от %d източника на XP</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d перфектни седмици</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Изпълнявайте дневната си цел за крачки всеки ден в продължение на %1$d пълни седмици.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">Поредица от цели за %d ден</item>
         <item quantity="other">Поредица от цели за %d дни</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Завършете %d категории</item>
     </plurals>
     <string name="ach_desc_categories_completed">Отключете всяко постижение в %1$d различни категории.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d секунда</item>
         <item quantity="other">%d секунди</item>
