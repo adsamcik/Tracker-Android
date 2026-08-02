@@ -1,0 +1,236 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Jälgi vähemalt %2$d erineval päeval, et see avada.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Läbi %1$s</string>
+    <string name="ach_desc_distance_total">Läbi kõigi seansside jooksul kokku %1$s.</string>
+    <string name="ach_title_week_distance">Sel nädalal %1$s</string>
+    <string name="ach_desc_week_distance">Läbi ühe kalendrinädala jooksul %1$s.</string>
+    <string name="ach_title_best_day_distance">%1$s ühe päevaga</string>
+    <string name="ach_desc_best_day_distance">Läbi ühe päeva jooksul %1$s.</string>
+    <string name="ach_title_max_session_distance">%1$s ühe seansi jooksul</string>
+    <string name="ach_desc_max_session_distance">Salvesta üks peatumata seanss, mille pikkus on %1$s.</string>
+    <string name="ach_title_on_foot_distance">Kõnni või jookse %1$s</string>
+    <string name="ach_desc_on_foot_distance">Läbi jalgsi (kõndides või joostes) %1$s.</string>
+    <string name="ach_title_cycling_distance">Sõida jalgrattaga %1$s</string>
+    <string name="ach_desc_cycling_distance">Sõida jalgrattaga kokku %1$s.</string>
+    <string name="ach_title_vehicle_distance">Mootorsõiduga %1$s</string>
+    <string name="ach_desc_vehicle_distance">Läbi %1$s auto, bussi, rongi, paadi või lennukiga.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Tee %1$s sammu</string>
+    <string name="ach_desc_steps_total">Salvesta kõigi seansside jooksul %1$s sammu.</string>
+    <string name="ach_title_best_daily_steps">%1$s sammu ühe päevaga</string>
+    <string name="ach_desc_best_daily_steps">Tee ühe päeva jooksul %1$s sammu.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Esimene seanss</item>
+        <item quantity="other">Salvesta %1$s seanssi</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Salvesta kokku %1$s jälgimisseanssi.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Avasta esimene ruudustikurakk</item>
+        <item quantity="other">Avasta %1$s kaardiruudustikurakku</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Avasta kaardil %1$s erinevat ruudustikurakku (igaüks umbes 1 km²).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Külasta %d riiki</item>
+        <item quantity="other">Külasta %d riiki</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Salvesta vähemalt üks seanss %1$d erinevas riigis.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Esimene aktiivne päev</item>
+        <item quantity="other">%1$s aktiivset päeva</item>
+    </plurals>
+    <string name="ach_desc_active_days">Jälgi tegevust kokku %1$s erineval päeval.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d-päevane jada</item>
+        <item quantity="other">%d-päevane jada</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Jälgi tegevust %1$d päeva järjest.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Isiklik parim: %d päev</item>
+        <item quantity="other">Isiklik parim: %d päeva</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Saavuta isikliku parimaga võrdne %1$d-päevane jälgimisjada.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d kuu Trackeriga</item>
+        <item quantity="other">%d kuud Trackeriga</item>
+    </plurals>
+    <string name="ach_desc_months_active">Ole Trackeris aktiivne %1$d erineval kuul.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">Sel nädalal %d aktiivne päev</item>
+        <item quantity="other">Sel nädalal %d aktiivset päeva</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Jälgi tegevust ühe nädala jooksul %1$d päeval.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Esimene päev Trackeriga</item>
+        <item quantity="other">%1$s päeva Trackeriga</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Hoia Trackerit installituna %1$s päeva.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Tere tulemast tagasi</item>
+        <item quantity="other">Tere tulemast tagasi pärast %d päeva</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Naase jälgimise juurde pärast %1$d-päevast pausi.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Jälgi tegevust %d tunnil</item>
+        <item quantity="other">Jälgi tegevust %d erineval tunnil</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Salvesta tegevust kõigi seansside jooksul %1$d erineval kellaajal.</string>
+    <string name="ach_title_days_of_week">Kõik seitse nädalapäeva</string>
+    <string name="ach_desc_days_of_week">Jälgi tegevust vähemalt üks kord igal nädalapäeval.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Proovi %d tegevusetüüpi</item>
+        <item quantity="other">Proovi %d tegevusetüüpi</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Salvesta seansse %1$d erineva tegevusetüübiga (kõnd, jalgratas, auto, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">Sel nädalal %d tegevusetüüp</item>
+        <item quantity="other">Sel nädalal %d tegevusetüüpi</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Kasuta ühe nädala jooksul %1$d erinevat tegevusetüüpi.</string>
+    <string name="ach_title_week_all_days">Jälgi nädala igal päeval</string>
+    <string name="ach_desc_week_all_days">Salvesta tegevust kalendrinädala kõigil seitsmel päeval.</string>
+    <string name="ach_title_walk_cycle_drive">Kõnni, sõida jalgrattaga, sõida autoga</string>
+    <string name="ach_desc_walk_cycle_drive">Salvesta vähemalt üks seanss iga tegevusega: kõndimise, jalgrattasõidu ja autoga sõitmisega.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">%1$s seanss</string>
+    <string name="ach_desc_max_session_duration">Salvesta vähemalt %1$s kestev seanss.</string>
+    <string name="ach_title_max_speed">Saavuta %1$s</string>
+    <string name="ach_desc_max_speed">Saavuta seansi jooksul tippkiirus vähemalt %1$s.</string>
+    <string name="ach_title_active_minutes">%1$s aktiivset minutit</string>
+    <string name="ach_desc_active_minutes">Kogu %1$s minutit aktiivset jälgimisaega.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Esimene eksport</item>
+        <item quantity="other">%d eksporti</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Ekspordi oma andmed %1$d korda.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Jälgi ühe aastaaja jooksul</item>
+        <item quantity="other">Jälgi %d aastaaja jooksul</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Salvesta tegevust %1$d eri aastaajal (kevad/suvi/sügis/talv).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Uusaasta jälgija</string>
+    <string name="ach_desc_calendar_new_year">Salvesta seanss 1. jaanuaril.</string>
+    <string name="ach_title_calendar_leap_day">Liigpäeva teerajaja</string>
+    <string name="ach_desc_calendar_leap_day">Salvesta seanss 29. veebruaril.</string>
+    <string name="ach_title_calendar_summer_solstice">Suvine pööripäev</string>
+    <string name="ach_desc_calendar_summer_solstice">Salvesta seanss aasta kõige pikemal päeval.</string>
+    <string name="ach_title_calendar_winter_solstice">Talvine pööripäev</string>
+    <string name="ach_desc_calendar_winter_solstice">Salvesta seanss aasta kõige lühemal päeval.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Öökull</item>
+        <item quantity="other">%1$s öist seanssi</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Salvesta %1$d seanssi, mis algavad kesköö ja kella 5 vahel.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Varajane lind</item>
+        <item quantity="other">%1$s koidikuseanssi</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Salvesta %1$d seanssi, mis algavad kella 5 ja 8 vahel.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Käsitsi jälgija</item>
+        <item quantity="other">Alusta käsitsi %1$s seanssi</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Alusta ise käsitsi %1$d jälgimisseanssi.</string>
+    <string name="ach_title_max_cycle_session">Sõida jalgrattaga ühe sõiduga %1$s</string>
+    <string name="ach_desc_max_cycle_session">Sõida jalgrattaga ühe sõidu jooksul %1$s.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Mitmeliigiline päev</item>
+        <item quantity="other">%d mitmeliigilist päeva</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Liigu samal päeval jalgsi, jalgrattaga ja mootorsõidukiga %1$d erineval päeval.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Paik igaks aastaajaks</item>
+        <item quantity="other">Kõik neli aastaaega %d paigas</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Külasta %1$d kaardiruudustikurakku kõigil neljal aastaajal.</string>
+    <string name="ach_title_max_cell_visits">Külasta üht kohta %1$d korda</string>
+    <string name="ach_desc_max_cell_visits">Külasta üht kaardiruudustikurakku %1$d korda.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Uuri ruudustikurakku põhjalikult</item>
+        <item quantity="other">Uuri põhjalikult %1$s kaardiruudustikurakku</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Uuri põhjalikult %1$d erinevat kaardiruudustikurakku.</string>
+    <string name="ach_title_max_cell_span">Jõua %1$s kaugusele</string>
+    <string name="ach_desc_max_cell_span">Avasta kaks kaardiruudustikurakku vähemalt %1$s kaugusel teineteisest.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Avasta ühe päevaga ruudustikurakk</item>
+        <item quantity="other">Avasta ühe päevaga %d ruudustikurakku</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Avasta ühe päeva jooksul %1$d uut kaardiruudustikurakku.</string>
+    <string name="ach_title_max_cell_revisit_gap">Naase %1$d päeva pärast</string>
+    <string name="ach_desc_max_cell_revisit_gap">Külasta kaardiruudustikurakku uuesti %1$d päeva pärast selle esmakordset avastamist.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Täiuslik kuu</item>
+        <item quantity="other">%d täiuslikku kuud</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Jälgi tegevust %1$d kalendrikuu igal päeval.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Kasuta üht ekspordivormingut</item>
+        <item quantity="other">Kasuta %d ekspordivormingut</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Ekspordi oma andmed %1$d eri failivormingus.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Saavuta tase %1$d</string>
+    <string name="ach_desc_player_level">Tõuse mängijatasemele %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP ühe päevaga</string>
+    <string name="ach_desc_best_day_xp">Teeni ühe päeva jooksul %1$d XP-d.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Mängi esimene minimäng</item>
+        <item quantity="other">Mängi %1$s minimängu</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Lõpeta %1$d minimänguringi.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Tõuse %1$s</string>
+    <string name="ach_desc_total_ascent">Kogu kõigi jälgimiste jooksul %1$s tõusu (kõrguse suurenemist).</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Teeni XP-d ühest allikast</item>
+        <item quantity="other">Teeni XP-d %d allikast</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Teeni XP-d %1$d erinevast allikast — jälgimisseanssidest, minimängudest ja eesmärkidest.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Täiuslik nädal</item>
+        <item quantity="other">%d täiuslikku nädalat</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Täida oma igapäevane sammueesmärk iga päev %1$d terve nädala jooksul.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d-päevane eesmärkide jada</item>
+        <item quantity="other">%d-päevane eesmärkide jada</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Täida igapäevane sammueesmärk %1$d päeva järjest.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Ava üks saavutus</item>
+        <item quantity="other">Ava %d saavutust</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Ava kokku %1$d saavutust.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Lõpeta kategooria</item>
+        <item quantity="other">Lõpeta %d kategooriat</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Ava kõik saavutused %1$d erinevas kategoorias.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d sekund</item>
+        <item quantity="other">%d sekundit</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minutiline</item>
+        <item quantity="other">%d-minutiline</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-tunnine</item>
+        <item quantity="other">%d-tunnine</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-päevane</item>
+        <item quantity="other">%d-päevane</item>
+    </plurals>
+</resources>

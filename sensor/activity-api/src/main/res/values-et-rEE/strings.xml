@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="notification_activity_watcher_info">Praegune tegevus %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Tegevuste jälgimise teenus on aktiivne</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Eemaldati %s</string>
+    <string name="settings_activity_title">Tegevused</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Tegevuste jälgija</string>
+    <string name="settings_ski_infrastructure_title">Suusatõstukite andmed</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Laaditud (puudutage eemaldamiseks)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">Pole laaditud. Puudutage ski_infrastructure.db SQLite-faili importimiseks.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d tõstukit · loodud %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Suusatõstukite andmed © OpenStreetMapi kaasautorid (ODbL)</string>
+</resources>

@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="export_button">Ekspordi</string>
+    <string name="export_default_file_name_range">Advention_ekspordi_andmed_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_ekspordi_andmed_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Valitud ajavahemikus ei leitud asukohti.</string>
+    <string name="export_error_no_databases">Ekspordiks pole rakenduse andmebaase saadaval.</string>
+    <string name="export_error_no_uri">Ekspordikausta ei valitud</string>
+    <string name="export_error_stream_failed">Faili %s voogu ei saanud luua</string>
+    <string name="export_error_unknown">Eksport ebaõnnestus.</string>
+    <string name="export_error_with_reason">Eksport ebaõnnestus: %s</string>
+    <string name="export_file_name">Faili nimi</string>
+    <string name="export_file_name_error">Failinimed ei tohi sisaldada märke \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Adventioniga jälgitud asukohaandmete eksport ajavahemikust %1$s kuni %2$s.</string>
+    <string name="export_gpx_error">GPX-eksport ebaõnnestus veaga: %s</string>
+    <string name="export_sensitivity_title">Kas eksportida täpsed asukohaandmed?</string>
+    <string name="export_sensitivity_message">See eksport või jagamine sisaldab täpsusastmega asukohaandmeid ning andmebaasi eksport võib sisaldada toorraadioside metaandmeid. Jätkake ainult siis, kui usaldate sihtkohta.</string>
+    <string name="export_sensitivity_confirm">Jätka</string>
+    <string name="export_share_button">Jaga</string>
+    <string name="export_in_progress">Eksportimine…</string>
+    <string name="export_completed">Eksport on valmis.</string>
+    <string name="import_notification_error_failed_open_database">Andmebaasifaili %s avamine ebaõnnestus</string>
+    <string name="import_notification_error_file_not_supported">Faili %s ei toetata.</string>
+    <string name="import_notification_extracting">Faili %s lahtipakkimine …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import on lõpetatud. Edukalt imporditi %d kirje.</item>
+        <item quantity="other">Import on lõpetatud. Edukalt imporditi %d kirjet.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import on lõpetatud. Imporditi %1$d kirjet (%2$d jäeti vahele).</string>
+    <string name="import_notification_error_records_failed">Tervikluse piirangute rikkumiste tõttu ei õnnestunud importida %d kirjet.</string>
+    <string name="import_notification_importing">Faili %s importimine …</string>
+    <string name="import_notification_progress">Importimine käib …</string>
+    <string name="settings_export_dialog_from">Alates</string>
+    <string name="settings_export_dialog_to">Kuni</string>
+    <string name="settings_export_no_data">Eksporditavaid andmeid pole</string>
+    <string name="settings_export_title">Ekspordi</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Andmebaasi varukoopia (ZIP)</string>
+    <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
+    <string name="settings_import_title">Impordi</string>
+</resources>

@@ -1,0 +1,318 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Mäng</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Outrun</string>
+    <string name="minigame_outrun_description">Võistle kummitusega. Püsi ees!</string>
+    <string name="minigame_territory_name">Territoorium</string>
+    <string name="minigame_territory_description">Hõiva kõndides uusi ruudustikurakke</string>
+    <string name="minigame_zenwalk_name">Zen-kõnd</string>
+    <string name="minigame_zenwalk_description">Hoia oma tempot tsoonis ühtlasena</string>
+    <string name="minigame_fuserun_name">Süütenööri jooks</string>
+    <string name="minigame_fuserun_description">Jõua iga virtuaalse plahvatuse raadiusest välja enne süütenööri lõppemist</string>
+    <string name="minigame_switchback_name">Siksak</string>
+    <string name="minigame_switchback_description">Tee voolukombo loomiseks järske vahelduvaid pöördeid</string>
+    <string name="minigame_locked">Avaneb tasemel %1$d</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Mängi</string>
+    <string name="game_progress_section_title">Edenemine</string>
+    <string name="minigame_outrun_goal_line">Hoia kummituse ees 25–100 m edumaad</string>
+    <string name="minigame_territory_goal_line">Hõiva jalgsi 5–20 ainulaadset ruudustikurakku</string>
+    <string name="minigame_zenwalk_goal_line">Hoia oma tempot 5–20 minutit</string>
+    <string name="minigame_fuserun_goal_line">Kahjutusta 3–8 laengut enne süütenööride lõppemist</string>
+    <string name="minigame_switchback_goal_line">Tee jalgsi 4–10 järsku pööret</string>
+    <string name="minigame_play_action_play">Mängi</string>
+    <string name="minigame_play_personal_best">PB %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Isiklik rekord %1$s</string>
+    <string name="minigame_play_locked_summary">Avamiseks saavuta tase %1$d</string>
+    <string name="minigame_play_locked_detail">Teeni XP-d, mängides avatud mänge ja jälgides oma tegevust, et taset tõsta.</string>
+    <string name="minigame_play_locked_expand_cta">Topeltpuudutage, et näha, kuidas avada</string>
+    <string name="minigame_active_session_running">Käib — naasmiseks puudutage Mängi</string>
+    <string name="minigame_active_session_paused">Peatatud — jätkamiseks puudutage Mängi</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d ruudustikurakk</item>
+        <item quantity="other">%1$d ruudustikurakku</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d laeng</item>
+        <item quantity="other">%1$d laengut</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d pööre</item>
+        <item quantity="other">%1$d pööret</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Kuva varasemad tulemused</string>
+    <string name="minigame_session_close">Sulge</string>
+    <string name="minigame_session_play_again">Mängi uuesti</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Asukoht on vajalik</string>
+    <string name="minigame_session_permission_body">Minimängud kasutavad teie jooksu jälgimiseks reaalajas asukohta. Peale lõpptulemuse ei salvestata midagi.</string>
+    <string name="minigame_session_permission_grant">Anna juurdepääs</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Seadista oma jooks</string>
+    <string name="minigame_setup_goal_title">Eesmärk</string>
+    <string name="minigame_setup_difficulty_title">Raskusaste</string>
+    <string name="minigame_setup_start_cta">Alusta jooksu</string>
+    <string name="minigame_setup_remember">Jäta see seadistus meelde</string>
+    <string name="minigame_setup_remember_description">Ava see mäng uuesti sama eesmärgi ja raskusastmega.</string>
+    <string name="minigame_setup_goal_meters">%1$d m edumaa</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d ruudustikurakk</item>
+        <item quantity="other">%1$d ruudustikurakku</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min tsoonis</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d laeng</item>
+        <item quantity="other">%1$d laengut</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d pööre</item>
+        <item quantity="other">%1$d pööret</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Lihtne</string>
+    <string name="minigame_difficulty_normal">Tavaline</string>
+    <string name="minigame_difficulty_hard">Raske</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Valmistumine…</string>
+    <string name="minigame_session_finishing">Teie jooksu salvestamine…</string>
+    <string name="minigame_session_paused_title">Peatatud</string>
+    <string name="minigame_session_pause_cta">Peata</string>
+    <string name="minigame_session_resume_cta">Jätka</string>
+    <string name="minigame_session_finish_cta">Lõpeta</string>
+    <string name="minigame_session_background_note">Jooks jätkub ka siis, kui lahkute sellelt ekraanilt. Jätkamiseks avage see menüüst Mängud.</string>
+    <string name="minigame_session_elapsed_label">Aktiivne aeg</string>
+    <string name="minigame_session_goal_progress">%1$d%% eesmärgist</string>
+    <string name="minigame_session_goal_reached">Eesmärk saavutatud</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Tugev GPS</string>
+    <string name="minigame_signal_fair">Rahuldav GPS</string>
+    <string name="minigame_signal_poor">Nõrk GPS</string>
+    <string name="minigame_signal_unavailable">GPS-signaal puudub</string>
+    <string name="minigame_signal_unknown">Asukoha määramine…</string>
+    <string name="minigame_signal_stale">GPS viibib</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Selle jooksu parim</string>
+    <string name="minigame_outrun_personal_best">Isiklik rekord</string>
+    <string name="minigame_outrun_warning">Kummitus läheneb</string>
+    <string name="minigame_outrun_move_to_start">Liigu võistluse alustamiseks</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Olete kummitusest %1$d meetrit ees. Selle jooksu parim on %2$d meetrit.</string>
+    <string name="minigame_outrun_you">Teie</string>
+    <string name="minigame_outrun_ghost">Kummitus</string>
+    <string name="minigame_outrun_lead_value">%1$d m edumaa</string>
+    <string name="minigame_outrun_ghost_lead_value">Kummitus juhib %1$d m-ga</string>
+    <string name="minigame_outrun_first_run">Esimene jooks</string>
+    <string name="minigame_outrun_keep_moving">Suurenda oma edumaad</string>
+    <string name="minigame_outrun_caught">Kummitus sai teid kätte</string>
+    <string name="minigame_outrun_escaped">Pääsesite!</string>
+    <string name="minigame_outrun_escape_goal">Põgenemise eesmärk</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Põgenemise eesmärk on %1$d protsenti täidetud.</string>
+    <string name="minigame_outrun_description_waiting">Outrun on valmis. Jälituse alustamiseks liikuge rohkem kui kaks meetrit.</string>
+    <string name="minigame_outrun_description_warning">Oht. Kummitus on teist vaid %1$d meetri kaugusel. Selle jooksu parim on %2$d meetrit.</string>
+    <string name="minigame_outrun_description_caught">Kätte saadud. Kummitus möödus teist %1$d meetriga. Selle jooksu parim on %2$d meetrit.</string>
+    <string name="minigame_outrun_description_escaped">Eesmärk saavutatud. Pääsesite %1$d meetri suuruse edumaaga. Selle jooksu parim on %2$d meetrit.</string>
+    <string name="minigame_outrun_description_finished">Jooks on lõpetatud. Teie lõplik vahe oli %1$d meetrit ja parim edumaa %2$d meetrit.</string>
+    <string name="minigame_outrun_ahead_of_best">Olete oma isiklikust rekordist ees</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Territooriumikaart. %1$d lähedalasuvat ala on hõivatud; %2$d piiriala on esile tõstetud. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Praegune ala on esile tõstetud</string>
+    <string name="minigame_territory_current_waiting">Ootab praegust ala</string>
+    <string name="minigame_territory_goal_complete">Eesmärk täidetud</string>
+    <string name="minigame_territory_goal_in_progress">Eesmärgi täitmine käib</string>
+    <string name="minigame_territory_legend">Sära tähistab teie praegust ala • Piiriala vihjed: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tempo</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Siht %1$s–%2$s km/h</string>
+    <string name="minigame_zen_calibration_title">Leia oma loomulik rütm</string>
+    <string name="minigame_zen_calibration_hint">Kõndige loomulikult, kuni teie tempo õrnalt stabiliseerub</string>
+    <string name="minigame_zen_calibration_settled">%1$d%% stabiliseerunud</string>
+    <string name="minigame_zen_calibration_description">Tempo kalibreerimine. %1$d protsenti stabiliseerunud. Jätkake loomulikult kõndimist.</string>
+    <string name="minigame_zen_flow_waiting">Teie rütmi leidmine</string>
+    <string name="minigame_zen_flow_settled">Rütm on stabiliseerunud</string>
+    <string name="minigame_zen_flow_slower">Tempo aeglustub õrnalt</string>
+    <string name="minigame_zen_flow_faster">Tempo kiireneb õrnalt</string>
+    <string name="minigame_zen_flow_time">Rütm %1$s</string>
+    <string name="minigame_zen_flow_description">Zen-tempo rütm. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Kummitus läheneb</string>
+    <string name="minigame_feedback_pb_crossed">Uus isiklik rekord</string>
+    <string name="minigame_feedback_territory_claimed">Uus ala hõivatud</string>
+    <string name="minigame_feedback_fuse_critical">Süütenöör on kriitiline, liigu kohe</string>
+    <string name="minigame_feedback_fuse_defused">Laeng kahjutustatud</string>
+    <string name="minigame_feedback_turn_carved">Pööre tehtud</string>
+    <string name="minigame_feedback_goal_reached">Eesmärk saavutatud</string>
+    <string name="minigame_feedback_zen_entered">Olete tempo tsoonis</string>
+    <string name="minigame_feedback_zen_exited">Lahkusite tempo tsoonist</string>
+    <string name="minigame_feedback_completed">Jooks on lõpetatud</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">Esimene jooks salvestatud!</string>
+    <string name="minigame_completion_new_best_title">Uus isiklik rekord!</string>
+    <string name="minigame_completion_tied_title">Võrdne teie parimaga</string>
+    <string name="minigame_completion_behind_title">Hea jooks</string>
+    <string name="minigame_completion_no_participation_title">Seanss lõppes</string>
+    <string name="minigame_completion_result">Tulemus: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s parem kui teie eelmine parim</string>
+    <string name="minigame_completion_deficit">%1$s puudu teie parimast</string>
+    <string name="minigame_completion_goal_reached">Eesmärk saavutatud: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Eesmärk saavutamata: %1$s</string>
+    <string name="minigame_completion_points">+%1$d punkti</string>
+    <string name="minigame_completion_points_zero">Selle jooksu eest punkte ei saanud</string>
+    <string name="minigame_completion_change_setup">Muuda seadistust</string>
+    <string name="minigame_completion_done">Valmis</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Jooks ei lõppenud</string>
+    <string name="minigame_failure_permission">Mängimiseks on vajalik täpne asukoht. Andke luba ja proovige uuesti.</string>
+    <string name="minigame_failure_location">Me ei saanud töökindlat asukohamäärangut. Minge avarama taevaga kohta ja proovige uuesti.</string>
+    <string name="minigame_failure_persistence">Me ei saanud seda jooksu salvestada. Proovige uuesti.</string>
+    <string name="minigame_failure_generic">Midagi läks valesti ja jooks peatus.</string>
+    <string name="minigame_session_try_again">Proovi uuesti</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktiivne mäng</string>
+    <string name="game_session_channel_description">Hoiab aktiivset minimängu käimas, kui ekraan on väljas</string>
+    <string name="game_session_notification_title">Trackeri mäng</string>
+    <string name="game_session_notification_public">Mäng käib</string>
+    <string name="game_session_notification_starting">Mängu alustamine…</string>
+    <string name="game_session_notification_preparing">%1$s ettevalmistamine…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s on peatatud</string>
+    <string name="game_session_notification_finishing">Teie tulemuse salvestamine…</string>
+    <string name="game_session_notification_finished">Mäng lõpetatud</string>
+    <string name="game_session_notification_failed">Mäng peatatud</string>
+    <string name="game_session_action_pause">Peata</string>
+    <string name="game_session_action_resume">Jätka</string>
+    <string name="game_session_action_finish">Lõpeta</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Varasemad minimängude jooksud</string>
+    <string name="minigame_scores_back">Tagasi</string>
+    <string name="minigame_scores_empty_title">Teie esimene jooks ootab</string>
+    <string name="minigame_scores_empty_body">Lõpetage minimäng, et seada isiklik rekord — siin kuvatakse iga jooks, millega oma rekordit ületate.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Isiklik rekord</string>
+    <string name="minigame_scores_unknown_game">Minimäng</string>
+    <string name="goals_reached_notification">%1$s! Saavutasite oma %2$s eesmärgi!</string>
+    <string name="goals_daily_goal">päevase</string>
+    <string name="goals_weekly_goal">nädalase</string>
+    <string name="goals_monthly_goal">kuise</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Sammueesmärgid</string>
+    <string name="game_step_sensor_unavailable">Sammuandur pole saadaval</string>
+    <string name="game_step_sensor_unavailable_detail">Sellel seadmel pole sammulugeja andurit. Sammueesmärke ei saa jälgida.</string>
+    <string name="game_steps_today">Täna</string>
+    <string name="game_steps_week">Nädal</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Laadimine…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Liigu tagasi</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Ava seaded</string>
+    <string name="game_close">Sulge</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Avastamine</string>
+    <string name="exploration_cells_discovered">Avastatud ruudustikurakud</string>
+    <string name="exploration_current_streak">Praegune jada</string>
+    <string name="exploration_best_streak">Parim jada</string>
+    <string name="exploration_seasons_explored">Avastatud aastaajad</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">päev</item>
+        <item quantity="other">päeva</item>
+    </plurals>
+    <string name="exploration_of_four">4-st</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Saavutused</string>
+    <string name="achievements_bronze">Pronks</string>
+    <string name="achievements_silver">Hõbe</string>
+    <string name="achievements_gold">Kuld</string>
+    <string name="achievements_diamond">Teemant</string>
+    <string name="achievements_none_yet">Ühtegi saavutust pole veel avatud. Alustage avastamist!</string>
+    <string name="achievement_unlocked_notification_title">Saavutus avatud: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Saavutati tase %1$s</string>
+    <string-array name="goals_encouragement">
+        <item>Tubli töö</item>
+        <item>Hästi tehtud</item>
+        <item>Jõudu</item>
+        <item>Nii see käib</item>
+        <item>Õnnitlused</item>
+        <item>Jätka samas vaimus</item>
+        <item>Olete suurepärane</item>
+        <item>Hämmastav</item>
+        <item>Veelgi hämmastavam</item>
+        <item>Fantastiline</item>
+        <item>Vapustav</item>
+        <item>Hiilgav</item>
+    </string-array>
+    <string name="points_earned_today">täna teenitud punkti</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Uus avamine!</string>
+    <string name="game_unlock_message">Saavutasite taseme %1$d!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Nädalane väljakutse</string>
+    <string name="leaderboard_metric_distance">Vahemaa</string>
+    <string name="leaderboard_metric_steps">Sammud</string>
+    <string name="leaderboard_metric_active_time">Aktiivne</string>
+    <string name="leaderboard_metric_sessions">Seansid</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">sammu</string>
+    <string name="leaderboard_unit_hours">t</string>
+    <string name="leaderboard_unit_sessions">reisi</string>
+    <string name="leaderboard_ghost_best_week">Parim nädal</string>
+    <string name="leaderboard_ghost_last_4_weeks">Viimase 4 nädala keskmine</string>
+    <string name="leaderboard_ghost_same_week_last_year">Sama nädal eelmisel aastal</string>
+    <string name="leaderboard_ghost_average_week">Keskmine nädal</string>
+    <string name="leaderboard_rank">#%1$d/%2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s eesmärgist %3$s</string>
+    <string name="leaderboard_progress_description">%1$s / %2$s</string>
+    <string name="leaderboard_week_progress">Nädala edenemine</string>
+    <string name="leaderboard_monday">E</string>
+    <string name="leaderboard_sunday">P</string>
+    <string name="leaderboard_you">Teie</string>
+    <string name="leaderboard_current_week">See nädal</string>
+    <string name="leaderboard_empty_title">Võistlemiseks pole veel ajalugu</string>
+    <string name="leaderboard_empty_body">Kummitusvastaste avamiseks lõpetage vähemalt üks täisnädal — need luuakse teie enda varasematest nädalatest.</string>
+    <string name="leaderboard_error_title">Edetabel pole saadaval</string>
+    <string name="leaderboard_error_body">Teie andmed on selles seadmes turvalised. Proovige nädalast väljakutset uuesti laadida.</string>
+    <string name="leaderboard_retry">Proovi uuesti</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Müütiline</string>
+    <string name="game_view_all_achievements">Kuva kõik</string>
+    <string name="game_recent_achievements">Hiljutised avamised</string>
+    <string name="game_next_achievements">Järgmisena</string>
+    <string name="achievement_show_locked">Kuva lukustatud</string>
+    <string name="achievement_show_locked_summary_off">Lülitage sisse, et näha avatavate saavutuste kataloogi.</string>
+    <string name="achievement_empty_state_title">Ühtegi saavutust pole veel avatud</string>
+    <string name="achievement_empty_state_body">Alustage jälgimist — teie esimene saavutus ootab. Kogu kataloogi eelvaateks lülitage sisse „Kuva lukustatud”.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">%1$s tase · +%2$d XP</string>
+    <string name="achievement_hero_title">Teie karikakapp</string>
+    <string name="achievement_hero_points">Teenitud %1$d XP</string>
+    <string name="achievement_hero_of_total">%1$d-st</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Avastamine</string>
+    <string name="achievement_category_distance">Vahemaa</string>
+    <string name="achievement_category_steps">Sammud</string>
+    <string name="achievement_category_streaks">Jadad</string>
+    <string name="achievement_category_milestones">Verstapostid</string>
+    <string name="achievement_category_modes">Režiimid</string>
+    <string name="achievement_category_time">Aeg</string>
+    <string name="achievement_category_calendar">Kalender</string>
+    <string name="achievement_unlocked_content_description">Avatud</string>
+    <string name="achievement_locked_content_description">Lukustatud</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
+</resources>

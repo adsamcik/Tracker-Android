@@ -1,0 +1,182 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Statistika</string>
+    <string name="stats_cell_count">Mobiilirakkude arv</string>
+    <string name="stats_collections">Uuenduste arv</string>
+    <string name="stats_distance_in_vehicle">Sõidukiga läbitud vahemaa</string>
+    <string name="stats_distance_on_foot">Jalgsi läbitud vahemaa</string>
+    <string name="stats_distance_total">Vahemaa</string>
+    <string name="stats_format_unknown_activity">seanss</string>
+    <string name="stats_location_count">Asukohtade arv</string>
+    <string name="stats_no_tracker_sessions">Jälgimisseansse pole veel</string>
+    <string name="stats_empty_subtitle">Alustage jälgimist, et näha oma tegevust siin</string>
+    <string name="stats_session_count">Seansside arv</string>
+    <string name="stats_steps">Sammude arv</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_sum_title">Kokkuvõte</string>
+    <string name="stats_time">Jälgimisele kulunud aeg</string>
+    <string name="stats_weekly_title">Viimased 7 päeva</string>
+    <string name="stats_wifi_count">Wi‑Fi võrkude arv</string>
+    <string name="stats_wifi_chip_label">Wi‑Fi statistika</string>
+    <string name="stats_cell_signal_chip_label">Mobiilsignaal</string>
+    <string name="stats_filter_dates">Kuupäevad</string>
+    <string name="stats_filter_active_label">Kuvatakse: %1$s</string>
+    <string name="stats_filter_clear">Tühjenda filter</string>
+    <string name="stats_date_dialog_title">Kuupäevavahemik</string>
+    <string name="stats_date_summary_placeholder">Seansside filtreerimiseks valige vahemik</string>
+    <string name="stats_date_preset_today">Täna</string>
+    <string name="stats_date_preset_yesterday">Eile</string>
+    <string name="stats_date_preset_last_7_days">Viimased 7 päeva</string>
+    <string name="stats_date_preset_last_30_days">Viimased 30 päeva</string>
+    <string name="stats_date_preset_this_month">See kuu</string>
+    <string name="stats_date_preset_last_month">Eelmine kuu</string>
+    <string name="stats_date_preset_this_year">See aasta</string>
+    <string name="stats_date_preset_all_time">Kogu aeg</string>
+    <string name="stats_sparse_summary_title">Selle nädala ülevaade</string>
+    <string name="stats_sparse_summary_active_days">Aktiivsed päevad</string>
+    <string name="stats_sparse_summary_week_label">Igapäevane tegevus</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Nähtaval on ainult %1$d seanss, seega täidab see kompaktne kokkuvõte ülejäänud hiljutise tegevuse.</item>
+        <item quantity="other">Nähtaval on ainult %1$d seanssi, seega täidab see kompaktne kokkuvõte ülejäänud hiljutise tegevuse.</item>
+    </plurals>
+    <string name="stats_error_generic">Midagi läks valesti</string>
+    <string name="stats_loading">Seansside laadimine…</string>
+    <string name="stats_append_error">Rohkema laadimine ebaõnnestus</string>
+    <string name="action_retry">Proovi uuesti</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Alusta jälgimist</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s samm</item>
+        <item quantity="other">%1$s sammu</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Täna</string>
+    <string name="stats_date_yesterday">Eile</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Kokkuvõtte laadimine…</string>
+    <string name="stats_summary_empty">Kokkuvõtlik statistika pole saadaval</string>
+    <string name="stats_summary_empty_subtitle">Alustage jälgimist, et näha oma tegevuse kokkuvõtet</string>
+    <string name="stats_summary_error">Kokkuvõtte laadimine ebaõnnestus</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Nädalase statistika laadimine…</string>
+    <string name="stats_week_empty">Nädalane statistika pole saadaval</string>
+    <string name="stats_week_empty_subtitle">Jälgige 7 päeva, et näha oma nädala kokkuvõtet</string>
+    <string name="stats_week_error">Nädalase statistika laadimine ebaõnnestus</string>
+    <string name="stats_wifi_dialog_title">Wi‑Fi statistika</string>
+    <string name="stats_wifi_dialog_loading">Wi‑Fi statistika laadimine…</string>
+    <string name="stats_wifi_dialog_empty_title">Wi‑Fi andmed pole saadaval</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Wi‑Fi statistika kuvatakse pärast skannide kogumist.</string>
+    <string name="stats_wifi_dialog_error">Wi‑Fi statistika laadimine ebaõnnestus</string>
+    <string name="stats_wifi_unique_networks">Nähtud ainulaadsed võrgud</string>
+    <string name="stats_wifi_total_scans">Skannimisi kokku</string>
+    <string name="stats_wifi_average_per_scan">Keskmine võrkude arv skanni kohta</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Mobiilsignaali aruanne</string>
+    <string name="stats_cell_signal_dialog_loading">Mobiilsignaali aruande laadimine…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Mobiiliraku andmed pole saadaval</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Mobiilsignaali statistika kuvatakse pärast proovide kogumist.</string>
+    <string name="stats_cell_signal_dialog_error">Mobiilsignaali aruande laadimine ebaõnnestus</string>
+    <string name="stats_cell_signal_total_samples">Mobiiliraku proovid</string>
+    <string name="stats_cell_signal_distinct_towers">Eri mastid</string>
+    <string name="stats_cell_signal_section_networks">Võrgutüübi järgi</string>
+    <string name="stats_cell_signal_section_towers">Kõige sagedamini nähtud mastid</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s proovidest · %2$s masti</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Mobiilirakk %1$s · %2$s proovi</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Operaator %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Reisi üksikasjad</string>
+    <string name="trip_detail_not_found">Reisi ei leitud</string>
+    <string name="trip_detail_not_found_subtitle">See reis võib olla kustutatud</string>
+    <string name="trip_detail_error_title">Reisi laadimine ebaõnnestus</string>
+    <string name="trip_detail_retry">Proovi uuesti</string>
+    <string name="trip_detail_duration">Kestus</string>
+    <string name="trip_detail_distance">Vahemaa</string>
+    <string name="trip_detail_date">Kuupäev</string>
+    <string name="trip_detail_steps">Sammud</string>
+    <string name="trip_detail_samples">Proovid</string>
+    <string name="trip_detail_source">Allikas</string>
+    <string name="trip_detail_avg_speed">Keskmine kiirus</string>
+    <string name="trip_detail_max_speed">Suurim kiirus</string>
+    <string name="trip_detail_pace">Tempo</string>
+    <string name="trip_detail_activity_type">Tegevuse tüüp</string>
+    <string name="trip_detail_start_time">Algusaeg</string>
+    <string name="trip_detail_end_time">Lõpuaeg</string>
+    <string name="trip_detail_elevation_gain">Tõusumeetrid</string>
+    <string name="trip_detail_elevation_loss">Laskumismeetrid</string>
+    <string name="trip_detail_max_altitude">Suurim kõrgus</string>
+    <string name="trip_detail_route_map">Marsruudikaart</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Asukohaandmed puuduvad</string>
+    <string name="trip_detail_route_unavailable_legacy">Marsruudikaart pole pärandseansside jaoks saadaval</string>
+    <string name="trip_detail_route_no_gps_points">Vahemaa on salvestatud, kuid GPS-marsruut pole saadaval</string>
+    <string name="trip_detail_delete">Kustuta</string>
+    <string name="trip_detail_export_gpx">Ekspordi GPX-ina</string>
+    <string name="trip_detail_delete_confirm_title">Kas kustutada reis?</string>
+    <string name="trip_detail_delete_confirm_message">See reis kustutatakse jäädavalt.</string>
+    <string name="trip_detail_delete_confirm">Kustuta</string>
+    <string name="trip_detail_cancel">Tühista</string>
+    <string name="trip_detail_more_options">Rohkem valikuid</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Suusaseanss</string>
+    <string name="ski_detail_runs">Laskumised</string>
+    <string name="ski_detail_vertical">Vertikaal</string>
+    <string name="ski_detail_max_speed">Suurim kiirus</string>
+    <string name="ski_detail_time_skiing">Suusatamine</string>
+    <string name="ski_detail_time_lifts">Tõstukitel</string>
+    <string name="ski_detail_run_label">Laskumine nr %1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Leiti %d filtrile vastavat Wi‑Fi võrku</string>
+    <string name="wifilist_filter_bssid">BSSID (tunnus)</string>
+    <string name="wifilist_filter_capabilities">Võimalused</string>
+    <string name="wifilist_filter_count">Kuvatav arv</string>
+    <string name="wifilist_filter_frequency">Sagedus</string>
+    <string name="wifilist_filter_ssid">SSID (nimi)</string>
+    <string name="wifilist_item_frequency">%d MHz</string>
+    <string name="wifilist_title">Wi‑Fi loend</string>
+    <string name="wifilist_title_bssid">BSSID</string>
+    <string name="wifilist_title_capabilities">Võimalused</string>
+    <string name="wifilist_title_first_seen">Esmakordselt nähtud</string>
+    <string name="wifilist_title_frequency">Sagedus</string>
+    <string name="wifilist_title_last_seen">Viimati nähtud</string>
+    <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Ajajoon</string>
+    <string name="history_tab_trips">Reisid</string>
+    <string name="history_tab_calendar">Kalender</string>
+    <string name="history_screen_title">Ajalugu</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d reis</item>
+        <item quantity="other">%d reisi</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Tegevust pole veel</string>
+    <string name="history_timeline_empty_desc">Alustage jälgimist, et näha oma liikumisajalugu siin</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Reise pole salvestatud</string>
+    <string name="history_trips_empty_desc">Reisid ilmuvad siia, kui liigute ringi</string>
+    <string name="trip_gps_anomaly">Tuvastati GPS-i anomaalia — vahemaa võib olla ebatäpne</string>
+    <string name="trip_deleted_snackbar">Reis kustutatud</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Eelmine kuu</string>
+    <string name="history_calendar_next_month">Järgmine kuu</string>
+    <string name="history_calendar_distance">Vahemaa</string>
+    <string name="history_calendar_steps">Sammud</string>
+    <string name="history_calendar_trips">Reisid</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Avastamine</string>
+    <string name="history_exploration_cells">Ruudustikurakud</string>
+    <string name="history_exploration_streak">Jada</string>
+    <string name="history_exploration_best">Parim</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Liigu tagasi</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Ajalugu</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Tegevus</string>
+</resources>

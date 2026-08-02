@@ -1,0 +1,228 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Kaart</string>
+    <string name="description_map_search">Otsingunupp</string>
+    <string name="map_layer_cell_heatmap_description">Teie vaadeldud mobiilside maastik raadiosidetehnoloogia järgi. Pehmed väljad näitavad, kus teenindavad rakud teieni ulatusid; helendavad keskpunktid on ettevaatlikud mastiasukoha hinnangud ja muutuvad teravamaks alles siis, kui vaatlused neid ümbritsevad.</string>
+    <string name="map_layer_cell_heatmap_title">Mobiilside topoloogia</string>
+    <string name="map_layer_location_heatmap_high">Suur tihedus</string>
+    <string name="map_layer_location_heatmap_low">Väike tihedus</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Keskmine tihedus</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Eraldi külastused</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Külastused</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Vastuvõetud asukohamäärangute suhteline tihedus. See näitab eraldi vaatlusi, mitte kohapeal veedetud aega.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-leviala</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Signaali surnud tsoonid</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Tõstab esile kohad, kus mobiilsignaal oli nõrk või puudus. Mida punasem ala, seda halvem leviala; hea leviga alad jäävad selgeks.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signaaliaurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Virmalised</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobiilsignaal on kujutatud aurora-laadse helendusena: ere tsüaanroheline tuum laia violetse haloga. Helendus pulseerib andmeid uuesti laadimata ning jääb staatiliseks, kui süsteemianimatsioonid on keelatud.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Nõrk signaal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Tugev signaal</string>
+    <string name="map_layer_speed_heatmap_description">Soojuskaart, mis kujutab liikumiskiirust eri piirkondades.</string>
+    <string name="map_layer_speed_very_slow">Väga aeglane</string>
+    <string name="map_layer_speed_walking">Kõnnitempo</string>
+    <string name="map_layer_speed_running">Jooksutempo</string>
+    <string name="map_layer_speed_moderate">Mõõdukas kiirus</string>
+    <string name="map_layer_speed_fast">Kiire liikumine</string>
+    <string name="map_layer_speed_very_fast">Väga kiire</string>
+    <string name="map_layer_speed_heatmap_title">Kiiruse soojuskaart</string>
+    <string name="map_layer_legacy_heatmap_title">Pärand-soojuskaart</string>
+    <string name="map_layer_legacy_heatmap_chip">Pärandpaanid</string>
+    <string name="map_layer_legacy_heatmap_description">Tagasivaade algsele Signalsi rakendusele: teie asukohatihedus on joonistatud eraldi 25 m ruudustikupaanidena, nagu soojuskaart nägi välja serveris renderdatud paanide ajal. Ruutude nägemiseks suurendage kaarti.</string>
+    <string name="map_layer_seasonal_title">Aastaaegade avastaja</string>
+    <string name="map_layer_seasonal_chip">Aastaajad</string>
+    <string name="map_layer_seasonal_description">Aastaaegade mälestuste lapitekk: iga avastatud ala on toonitud selle aastaaja järgi, mil seda esimest korda külastasite. Leidke rajad, mida käite ainult suvel, või tänavad, mida näete ainult talvel.</string>
+    <string name="map_layer_season_spring">Kevad</string>
+    <string name="map_layer_season_summer">Suvi</string>
+    <string name="map_layer_season_autumn">Sügis</string>
+    <string name="map_layer_season_winter">Talv</string>
+    <string name="map_layer_terrain_title">Elu maastikuna</string>
+    <string name="map_layer_terrain_chip">Maastik</string>
+    <string name="map_layer_terrain_description">Teie asukohatihedus tõstetud 3D-sse: kohad, kus veedate kõige rohkem aega, kerkivad kõrgete helendavate platoodena, üksikkohad jäävad madalaks. Kallutage kaarti, et näha oma elu reljeefi.</string>
+    <string name="map_layer_terrain_low">Harva siin</string>
+    <string name="map_layer_terrain_mid">Mõnikord</string>
+    <string name="map_layer_terrain_high">Sageli siin</string>
+    <string name="map_layer_places_title">Sagedased kohad</string>
+    <string name="map_layer_places_chip">Kohad</string>
+    <string name="map_layer_places_description">Teie olulised kohad markeritena, mille suurus ja värv sõltuvad külastussagedusest. Kodu ja töö muutuvad suurteks soojadeks punktideks; üks kord külastatud koht jääb väikeseks ja jahedaks.</string>
+    <string name="map_layer_places_rare">Harva</string>
+    <string name="map_layer_places_often">Mõnikord</string>
+    <string name="map_layer_places_anchor">Teie tugipunktid</string>
+    <string name="map_layer_speed_ribbon_title">Kiiruslint</string>
+    <string name="map_layer_speed_ribbon_chip">Lint</string>
+    <string name="map_layer_speed_ribbon_description">Teie marsruut on värvitud liikumiskiiruse järgi, voolates aeglasest violetsest jalutuskäigust punakuuma sprindi või sõiduni. Erinevalt kiiruse soojuskaardist säilitab lint teie teekonna, nii et näete täpselt, kus kiirenesite ja aeglustusite.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Kõrguslint</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Kõrgus</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Teie marsruut on värvitud absoluutse kõrguse järgi, sügavsinistest madalikest tsüaanvärvi eelmäestiku kaudu soojade mäekõrgusteni. Skaala jääb kaarti liigutades fikseerituks, seega on samal kõrgusel alati sama värv.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Madalikud</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Eelmäestik</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Kõrged mäed</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Tegevuslint</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Tegevus</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Teie marsruut on värvitud iga asukohamääranguga salvestatud usaldusväärse liikumisoleku järgi: hall, kui olek oli teadmata, sinine paigal olles ja roheline liikumise ajal.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Tundmatu</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Paigal</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Liikumine</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Suusa röntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Suusa röntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Tuvastatud suusasegmentide diagnostiline vaade. Laskumised, tõstukid, kõnnid ja pausid on seotud lähima salvestatud asukohaga ning märgistatud võtmenäitajatega.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Laskumine</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Tõstuk</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kõnd või paus</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Reiside tähtkujud</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Reisid</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Korduvad teekonnad sagedaste kohtade vahel muutuvad kaarjateks tähtkujudeks. Stabiilne kaar näitab igat marsruuti, mida mööda liigub komeet; paksemad kaared tähendavad, et tegite selle teekonna sagedamini.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kõndimine</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Jalgrattasõit</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autosõit</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Ühistransport</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Muu</string>
+    <string name="map_layer_fog_title">Avastaja udu</string>
+    <string name="map_layer_fog_chip">Udu</string>
+    <string name="map_layer_fog_description">Maailm kerkib udust: iga ala, mida olete puudutanud, paljastub ning helendab seda eredamalt, mida põhjalikumalt seda tundma õppisite. Kohad, millest vaid möödusite, jäävad õrnaks uduks; sügavalt avastatud paik põleb kindla kullana. Avastamata maa jääb tumedaks.</string>
+    <string name="map_layer_fog_faint">Läbitud</string>
+    <string name="map_layer_fog_known">Hästi avastatud</string>
+    <string name="map_layer_first_contact_title">Esimene kokkupuude</string>
+    <string name="map_layer_first_contact_chip">Avastus</string>
+    <string name="map_layer_first_contact_description">Teie avastuste ajajoon: iga ala on värvitud selle järgi, kui hiljuti sinna esimest korda astusite. Ammu leitud kohad tuhmuvad sügavaks indigoks, sel nädalal avastatud maa helendab erksa tsüaanina — lugege oma avastuslugu kuni uusimate piirideni.</string>
+    <string name="map_layer_first_contact_old">Ammu</string>
+    <string name="map_layer_first_contact_recent">Äsja avastatud</string>
+    <string name="map_layer_vehicle_compliance_title">Sõiduki kiirusnõuete järgimine</string>
+    <string name="map_layer_vehicle_compliance_description">Sõiduproovide murdjoon, mille värv näitab kiiruse võrdlust teie seadistatud etalonpiiranguga.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Palju alla piiri</string>
+    <string name="map_layer_vehicle_compliance_slow">Alla piiri</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Piiri lähedal</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Veidi üle piiri</string>
+    <string name="map_layer_vehicle_compliance_speeding">Kiiruseületus</string>
+    <string name="map_layer_location_polyline_description">Joon, mis ühendab teie aja jooksul salvestatud asukohad.</string>
+    <string name="map_layer_location_polyline_title">Asukoha murdjoon</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Murdjoon</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi‑Fi kattuvus</string>
+    <string name="map_layer_vehicle_compliance_chip">Kiiruseületus</string>
+    <string name="map_layer_none_title">Ülekate puudub</string>
+    <string name="map_date_preset_week">Eelmine nädal</string>
+    <string name="map_date_preset_month">Eelmine kuu</string>
+    <string name="map_date_preset_custom">Kohandatud…</string>
+    <string name="map_date_today">Täna</string>
+    <string name="map_date_yesterday">Eile</string>
+    <string name="map_date_this_week">See nädal</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi‑Fi kattuvus</string>
+    <string name="map_layer_wifi_count_heatmap_description">Näitab, kui palju erinevaid pääsupunkte igas kohas kattub. Sama pääsupunkti korduvad skannid loetakse üheks, seega näitavad kuumemad alad tegelikult tihedamat raadioside leviala.</string>
+    <string name="map_layer_wifi_heatmap_description">Teie enda vaatlustest loodud sagedusriba teadlik Wi‑Fi tähtkuju. Värvilised väljad näitavad vaadeldud 2,4, 5 ja 6 GHz leviala; helendavad keskpunktid on ligikaudsed pääsupunktide asukohad, mida kuvatakse ainult siis, kui proovide geomeetria seda toetab.</string>
+    <string name="map_layer_wifi_heatmap_high">Palju kattuvaid pääsupunkte</string>
+    <string name="map_layer_wifi_heatmap_low">Vähe kattuvaid pääsupunkte</string>
+    <string name="map_layer_wifi_heatmap_medium">Mitu kattuvat pääsupunkti</string>
+    <string name="map_layer_wifi_heatmap_title">Wi‑Fi tähtkuju</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz leviala</string>
+    <string name="map_layer_wifi_radio_5">5 GHz leviala</string>
+    <string name="map_layer_wifi_radio_6">6 GHz leviala</string>
+    <string name="map_legend_label">Kaardiselgitus</string>
+    <string name="map_chip_layers">Kiht</string>
+    <string name="map_chip_dates">Kuupäevad</string>
+    <string name="permission_rationale_location_map">Teie asukoha kuvamiseks kaardil vajab Tracker asukohale juurdepääsu. Kõik andmed jäävad teie seadmesse.</string>
+    <string name="map_location_permission_denied">Teie asukoha kuvamiseks on vaja asukohaluba</string>
+    <string name="map_open_settings">Ava seaded</string>
+    <string name="settings_map_basemap_title">Aluskaart</string>
+    <string name="settings_map_basemap_custom">Kohandatud .pmtiles-fail on aktiivne (puudutage eemaldamiseks)</string>
+    <string name="settings_map_basemap_default">Sisseehitatud aluskaart on aktiivne. Kohandatud .pmtiles-faili importimiseks puudutage.</string>
+    <string name="basemap_import_error_source_open">Seda faili ei saanud avada. Proovige teist faili või jagage seda Trackeriga uuesti.</string>
+    <string name="basemap_import_error_copy">Aluskaardi faili ei saanud kopeerida. Kontrollige, kas vaba ruumi on piisavalt, ja proovige uuesti.</string>
+    <string name="basemap_import_error_invalid_format">Pole kehtiv PMTilesi fail: %1$s</string>
+    <string name="settings_map_advanced_section_title">Täpsemad seaded</string>
+    <string name="settings_map_max_heat_title">Maksimaalne kuumus pärast külastusi</string>
+    <string name="settings_map_quality_title">Soojuskaardi eraldusvõime</string>
+    <string name="settings_map_visit_threshold_title">Asukoha külastuse aja lävi</string>
+    <string name="settings_map_legacy_heatmap_title">Pärand-soojuskaart (10 m paanid)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Üllatus: lisab kihi „Pärand-soojuskaart”, mis joonistab asukohatiheduse eraldi 10 m ruudustikupaanidena nagu algne serveris renderdatud Signalsi soojuskaart.</string>
+    <string name="settings_map_zoom_buttons_title">Kaardi suuminupud</string>
+    <string name="settings_map_zoom_buttons_subtitle">Kuva kaardi suurendamiseks ekraanil + ja − nupud, kui kahe sõrmega suumimist on raske kasutada.</string>
+    <string name="tips_map_date_range_title">Kuupäevavahemik</string>
+    <string name="tips_map_my_location_title">Minu asukoht</string>
+    <string name="tips_map_sheet_description">Selle riba puudutamine või üles tõmbamine avab kaardi jaoks rohkem valikuid, sealhulgas kihi valiku ja legendi.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Laius, pikkus, nt 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Proovige 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Tühjenda otsing</string>
+    <string name="map_search_paste">Kleebi lõikelaualt otsingusse</string>
+    <string name="map_search_clipboard_empty">Lõikelaual pole veel koordinaate</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Tühista</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Jaga kaarti</string>
+    <string name="map_share_sheet_title">Jaga kaarti pildina</string>
+    <string name="map_share_sheet_subtitle">Renderdab praeguse vaate ja aktiivse kihi staatilise pildina. Teie reaalajas asukohta ei kaasata kunagi.</string>
+    <string name="map_share_resolution_standard">Standardne (1080p)</string>
+    <string name="map_share_resolution_high">Kõrge (1440p)</string>
+    <string name="map_share_resolution_ultra">Ülikõrge (4K)</string>
+    <string name="map_share_action">Jaga</string>
+    <string name="map_share_preparing">Pildi ettevalmistamine…</string>
+    <string name="map_share_error">Kaardipilti ei saanud renderdada. Proovige uuesti.</string>
+    <string name="map_date_range_all_time">Kogu aeg</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Kaardikihid</string>
+    <string name="map_layer_load_error">Seda kihti ei saanud laadida. Proovige valida mõni muu.</string>
+    <string name="map_empty_subtitle_location">Selles vaates või kuupäevavahemikus pole asukohaandmeid. Marsruudi- ja kaardifunktsioonid vajavad jälgimise ajal kogutud asukohta.</string>
+    <string name="map_empty_subtitle_cell">Selles vaates või kuupäevavahemikus pole asukohaga seotud mobiiliraku andmeid. Ilma asukohata salvestatud mobiiliraku proovid on alles, kuid neid ei saa kaardil kuvada.</string>
+    <string name="map_empty_subtitle_wifi">Selles vaates või kuupäevavahemikus pole asukohaga seotud Wi‑Fi andmeid. Ilma asukohata salvestatud Wi‑Fi vaatlused on alles, kuid neid ei saa kaardil kuvada.</string>
+    <string name="map_empty_subtitle_speed">Selles vaates või kuupäevavahemikus pole kiirusandmeid. Kiiruskaardid vajavad jälgimise ajal kogutud kasutuskõlblikke asukohaproove.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Pole teega sobitatud sõite, mida kuvada. Importige OpenStreetMapi piirkond (Seaded) ja salvestage mõned sõidud, et saaksime teie marsruudi päris teedega sobitada.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Loobu andmete puudumise teatest</string>
+    <string name="map_speed_probe_title">Kiirus siin</string>
+    <string name="map_speed_probe_avg_label">Keskmine</string>
+    <string name="map_speed_probe_max_label">Suurim</string>
+    <string name="map_speed_probe_empty">Selles kohas pole kiirusandmeid. Kiiruste nägemiseks puudutage kohta, kus on kuumust.</string>
+    <string name="map_speed_probe_hint">Kiiruste nägemiseks puudutage kaarti</string>
+    <string name="map_speed_probe_dismiss">Loobu kiiruse üksikasjadest</string>
+    <string name="map_place_callout_loading">Koha otsimine…</string>
+    <string name="map_place_callout_empty">Siit ei leitud kohta</string>
+    <string name="map_place_callout_dismiss">Loobu koha üksikasjadest</string>
+    <string name="map_zoom_in">Suurenda</string>
+    <string name="map_zoom_out">Vähenda</string>
+    <string name="map_loading">Kaardi laadimine…</string>
+    <string name="map_basemap_unavailable">Kaardi aluskaarti ei saanud ette valmistada. Proovimiseks sulgege ja avage kaart uuesti.</string>
+    <string name="map_a11y_map_overview">Kaardi ülevaade</string>
+    <string name="map_a11y_centered_on_location">Kaart on keskendatud teie asukohale</string>
+    <string name="map_a11y_showing_location">Kaart näitab teie asukohta</string>
+    <string name="map_a11y_loading_data">Salvestatud kaardiandmete laadimine</string>
+    <string name="map_a11y_no_recorded_data">Valitud kihil pole selles vaates või kuupäevavahemikus kaardistatavaid andmeid</string>
+    <string name="map_a11y_no_layer_selected">Kaardikihti pole valitud</string>
+    <string name="map_a11y_search_result_visible">Otsingutulemuse marker on nähtav</string>
+    <string name="map_a11y_active_recording_visible">Aktiivse salvestuse tee on nähtav</string>
+    <string name="map_a11y_recorded_route_history">Kuvatakse salvestatud marsruudi ajalugu</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Kuvatakse eraldi vastuvõetud asukohavaatlusi</string>
+    <string name="map_a11y_cell_heatmap">Kuvatakse mobiilside levivälju ja ligikaudseid teenindavate mastide keskmeid</string>
+    <string name="map_a11y_wifi_heatmap">Kuvatakse Wi‑Fi sagedusribasid, levivälju ja ligikaudseid pääsupunktide keskmeid</string>
+    <string name="map_a11y_wifi_count_heatmap">Kuvatakse erinevate Wi‑Fi pääsupunktide kattuvust</string>
+    <string name="map_a11y_speed_heatmap">Kuvatakse kiiruse soojuskaarti</string>
+    <string name="map_a11y_saved_map_data">Kuvatakse salvestatud kaardiandmeid</string>
+    <string name="map_location_permission_opening_settings">Asukohale juurdepääs on vajalik. Seadete avamine…</string>
+    <string name="map_permission_banner_dismiss">Loobu asukohaloa teatest</string>
+    <string name="map_loading_layer">Kaardikihi laadimine</string>
+    <string name="map_a11y_world_scale">Maailma mõõtkava</string>
+    <string name="map_a11y_regional_scale">Piirkondlik mõõtkava</string>
+    <string name="map_a11y_city_scale">Linna mõõtkava</string>
+    <string name="map_a11y_neighborhood_scale">Naabruskonna mõõtkava</string>
+    <string name="map_a11y_street_scale">Tänava mõõtkava</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Renderduse detailsuse kordaja. Suuremad väärtused näitavad rohkem üksikasju, kuid võivad vanemates seadmetes kaardi laadimist aeglustada.</string>
+    <string name="help_max_heat_points">Soojuskaardivaates kuvatavate asukohapunktide maksimaalne arv. Suuremad väärtused = rohkem üksikasju, kuid aeglasem renderdus.</string>
+    <string name="help_visit_threshold">Kui kaua peate ühes kohas viibima, enne kui see kaardil külastuseks märgitakse. Suurendage väärtust, et vähendada lühikestest peatustest tulenevat segadust.</string>
+</resources>

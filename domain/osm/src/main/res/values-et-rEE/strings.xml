@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Esiplaani märguanne, mida kuvatakse kasutaja imporditud OpenStreetMapi piirkonna töötlemise ajal.</string>
+    <string name="osm_import_notification_title">OpenStreetMapi piirkonna importimine</string>
+    <string name="osm_import_notification_content">%1$d teed töödeldud</string>
+    <string name="osm_import_complete_title">OSM-i piirkond imporditud</string>
+    <string name="osm_import_complete_content">Võrguühenduseta teeandmed on sõidukite nõuete järgimiseks valmis.</string>
+    <string name="osm_import_failed_title">OSM-i import ebaõnnestus</string>
+    <string name="osm_import_failed_content">Võrguühenduseta kaardi importimist ei saanud lõpule viia.</string>
+</resources>

@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Kõndimine</string>
+    <string name="activity_running">Jooksmine</string>
+    <string name="activity_bicycle">Jalgratas</string>
+    <string name="activity_slope_sports">Nõlvasport</string>
+    <string name="activity_land_vehicle">Maismaasõiduk</string>
+    <string name="activity_water_vehicle">Veesõiduk</string>
+    <string name="activity_air_vehicle">Õhusõiduk</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">Sõidukis</string>
+    <string name="activity_on_foot">Jalgsi</string>
+    <string name="activity_name">Tegevuse nimi</string>
+    <string name="activity_raw_still">Paigal</string>
+    <string name="activity_raw_tilting">Kallutamine</string>
+    <string name="activity_still">Paigal</string>
+    <string name="activity_unknown">Tuvastamine…</string>
+    <string name="activity_vehicle">Sõiduk</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">Kas soovite kindlasti %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Puudub</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Tundmatu</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Kanal, mida kasutatakse ainult tegevuste jälgimise teenuse jaoks, et saaksite selle püsiva märguande hõlpsalt eemaldada.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Tegevuste jälgija</string>
+    <string name="channel_achievements_description">Saavutustega seotud märguanded.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Saavutus</string>
+    <string name="channel_other_description">Muud märguanded, mis ei kuulu ühtegi teise kategooriasse.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Muu</string>
+    <string name="channel_track_description">Jälgimisega seotud märguanded.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Jälgimine</string>
+    <string name="channel_goals_description">Eesmärgi täitmise teated.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Eesmärgi edenemine</string>
+    <string name="day_short">%d p</string>
+    <string name="generic_add">Lisa</string>
+    <string name="generic_back">Tagasi</string>
+    <string name="generic_cancel">Tühista</string>
+    <string name="generic_delete">Kustuta</string>
+    <string name="generic_edit">Muuda</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">võta tagasi</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d min</string>
+    <string name="second_short">%d s</string>
+</resources>

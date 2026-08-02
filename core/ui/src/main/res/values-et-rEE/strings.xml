@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Liigu tagasi</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Juurdepääs asukohale</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker vajab asukohale juurdepääsu, et salvestada teie marsruut ja näidata seda kaardil. Asukohaandmed jäävad sellele seadmele — serverisse ei saadeta midagi.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Tegevuse tuvastamine</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker kasutab tegevuse tuvastamist, et teha kindlaks, mida te teete (kõnnite, sõidate jalgrattaga, juhite autot või seisate paigal), et automaatne jälgimine saaks peatuda, kui te ei liigu, ja säästa akut. Tegevusandmed jäävad sellele seadmele — serverisse ei saadeta midagi.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Asukoht taustal</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Et jätkata marsruudi salvestamist, kui vahetate rakendust või ekraan lülitub välja, vajab Tracker juurdepääsu teie asukohale taustal. Salvestatud asukoht jääb sellele seadmele — serverisse ei saadeta midagi. Valige järgmisel süsteemi viipal „Luba alati”; „Rakenduse kasutamise ajal” hoiab Trackeri töös ainult siis, kui selle ekraan on avatud.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Luba</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Mitte praegu</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Jälgimise alustamiseks on vaja asukohaluba</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Ava seaded</string>
+</resources>

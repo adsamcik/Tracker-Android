@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="dashboard_title">Ülevaade</string>
+    <string name="dashboard_tracking_title">Jälgimine</string>
+    <string name="dashboard_recording">Salvestamine</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Jälgimine peatus ootamatult</string>
+    <string name="dashboard_permission_banner_title">Asukohaluba pole saadaval</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker ei saa marsruute salvestada, kuni annate asukohale juurdepääsu. Puudutage loa andmiseks.</string>
+    <string name="dashboard_permission_banner_cd">Asukohaloa puudumise teade, puudutage asukohale juurdepääsu andmiseks</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Tegevuse tüüp</string>
+    <string name="dashboard_cd_explore_icon">Avastamine</string>
+    <string name="dashboard_cd_forward_arrow">Kuva üksikasjad</string>
+    <string name="dashboard_cd_last_session">Viimane seanss: kestus %1$s, vahemaa %2$s. Puudutage üksikasjade vaatamiseks</string>
+    <string name="dashboard_cd_locked_badge">Jälgimine lukustatud</string>
+    <string name="dashboard_cd_open_settings">Ava seaded</string>
+    <string name="dashboard_cd_start_tracking">Alusta jälgimist</string>
+    <string name="dashboard_cd_start_tracking_permission">Alusta jälgimist, luba on vajalik</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Jada: %1$d päev. Puudutage jada üksikasjade vaatamiseks</item>
+        <item quantity="other">Jada: %1$d päeva. Puudutage jada üksikasjade vaatamiseks</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Alustage jada. Puudutage jada üksikasjade vaatamiseks</string>
+    <string name="dashboard_cd_stop_tracking">Peata jälgimine</string>
+    <string name="dashboard_action_enable_location">Luba asukohale juurdepääs</string>
+    <string name="dashboard_action_view_details">Kuva üksikasjad</string>
+    <string name="dashboard_action_view_map">Kuva kaart</string>
+    <string name="dashboard_action_view_streak_details">Kuva jada üksikasjad</string>
+    <string name="dashboard_action_open_tracking_settings">Seaded</string>
+    <string name="dashboard_action_restart_tracking">Taaskäivita</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Kõrgusprofiil, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">GPS-signaali ootamine…</string>
+    <string name="dashboard_tracking_recording_route">Marsruudi salvestamine…</string>
+    <string name="dashboard_milestone_distance">km saavutatud!</string>
+    <string name="dashboard_milestone_steps">sammu saavutatud!</string>
+    <string name="dashboard_milestone_time">min jälgitud!</string>
+    <string name="dashboard_milestone_points">+10 punkti</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Täna</string>
+    <string name="dashboard_today_no_activity">Täna pole veel tegevust</string>
+    <string name="dashboard_today_distance">Vahemaa</string>
+    <string name="dashboard_today_duration">Kestus</string>
+    <string name="dashboard_today_steps">Sammud</string>
+    <string name="dashboard_today_trips">Reisid</string>
+    <string name="dashboard_goal_get_started">Alusta</string>
+    <string name="dashboard_goal_on_track">Õigel teel</string>
+    <string name="dashboard_goal_ahead">Ees</string>
+    <string name="dashboard_goal_behind">Maha jäänud</string>
+    <string name="dashboard_streak_day_streak">päevane jada</string>
+    <string name="dashboard_streak_start">Alusta jada!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% võrreldes eelmise nädalaga</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% võrreldes eelmise nädalaga</string>
+    <string name="dashboard_last_session_title">Viimane seanss</string>
+    <string name="dashboard_last_session_duration">Kestus</string>
+    <string name="dashboard_last_session_distance">Vahemaa</string>
+    <string name="dashboard_last_session_steps">Sammud</string>
+    <string name="dashboard_last_session_view_map">Kuva kaart</string>
+    <string name="dashboard_recent_trips_title">Hiljutised reisid</string>
+    <string name="dashboard_recent_trips_empty">Hiljutisi reise pole. Alustage jälgimist, et näha oma teekondi siin.</string>
+    <string name="dashboard_exploration_title">Avastamine</string>
+    <string name="dashboard_exploration_new_today">Täna uus</string>
+    <string name="dashboard_exploration_total_cells">Rakke kokku</string>
+    <string name="dashboard_exploration_seasons">Aastaajad</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Kiirus</string>
+    <string name="dashboard_live_charts_altitude">Kõrgus</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Andurite üksikasjad</string>
+    <string name="dashboard_sensor_expand">Laienda andurite üksikasju</string>
+    <string name="dashboard_sensor_collapse">Ahenda andurite üksikasju</string>
+    <string name="dashboard_sensor_location_accuracy">Asukoha täpsus</string>
+    <string name="dashboard_sensor_activity">Tegevus</string>
+    <string name="dashboard_sensor_wifi">WiFi-võrgud</string>
+    <string name="dashboard_sensor_cell">Mobiilimastid</string>
+    <string name="dashboard_sensor_altitude">Kõrgus</string>
+    <string name="dashboard_sensor_speed">Kiirus</string>
+    <string name="dashboard_sensor_cell_types">Mobiilirakkude tüübid</string>
+    <string name="dashboard_sensor_raw_coords">Koordinaadid (silumine)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Tõusutrendis</string>
+    <string name="dashboard_trend_down">Langustrendis</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Alles alustate…</string>
+    <string name="dashboard_motivational_keep_going">Jätkake samas vaimus! 💪</string>
+    <string name="dashboard_motivational_impressive">Muljetavaldav seanss!</string>
+    <string name="dashboard_motivational_marathon">Maratoniavastaja! 🏆</string>
+    <string name="dashboard_motivational_morning">Tere hommikust! Kas olete valmis avastama?</string>
+    <string name="dashboard_motivational_afternoon">Tere päevast! Jätkate liikumist?</string>
+    <string name="dashboard_motivational_evening">Tere õhtust! Kas vaatate oma päeva üle?</string>
+    <string name="dashboard_motivational_night">Öökulli režiim 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d-päevane jada!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Teie teekond algab siit</string>
+    <string name="dashboard_empty_subtitle">Kasutage allolevat kaarti Valmis, kui olete, et vajadusel anda asukohale juurdepääs ja alustada oma esimest seiklust</string>
+    <string name="dashboard_empty_feature_explore">Avasta</string>
+    <string name="dashboard_empty_feature_explore_desc">Avasta uusi kohti ja marsruute</string>
+    <string name="dashboard_empty_feature_achieve">Saavuta</string>
+    <string name="dashboard_empty_feature_achieve_desc">Seadke eesmärke ja teenige punkte</string>
+    <string name="dashboard_empty_feature_track">Jälgi</string>
+    <string name="dashboard_empty_feature_track_desc">Salvesta kõnnid, jooksud ja sõidud</string>
+    <string name="dashboard_empty_feature_privacy">Privaatsus</string>
+    <string name="dashboard_empty_feature_privacy_desc">Kõik andmed jäävad teie seadmesse</string>
+    <string name="dashboard_empty_icon_desc">Asukoha jälgimise illustratsioon</string>
+    <string name="dashboard_empty_quick_start_title">Kiirstart</string>
+    <string name="dashboard_empty_quick_start_subtitle">See on kiireim viis muuta see tühi ülevaade kasulikeks kaartideks, seanssideks ja igapäevaseks edenemiseks.</string>
+    <string name="dashboard_empty_step_customize_title">Valige oma jälgimisstiil</string>
+    <string name="dashboard_empty_step_customize_desc">Avage seadetes igal ajal eelseadistused, akukasutuse ja andurid, mida soovite salvestada.</string>
+    <string name="dashboard_empty_step_start_title">Alustage oma esimest jälgimist</string>
+    <string name="dashboard_empty_step_start_desc">Puudutage üleval käsku Valmis, kui olete, et vajadusel anda asukohale juurdepääs, seejärel alustage kõnni-, jooksu-, sõidu- või taustajälgimise seanssi.</string>
+    <string name="dashboard_empty_step_review_title">Vaadake kaarte ja statistikat</string>
+    <string name="dashboard_empty_step_review_desc">Pärast esimest seanssi täituvad Ülevaate, Kaardi ja Statistika vahekaardid hiljutise tegevuse ja ülevaadetega.</string>
+    <string name="dashboard_empty_fab_hint_title">Valmis, kui olete</string>
+    <string name="dashboard_empty_fab_hint_desc">Puudutage siin, et alustada oma esimest jälgimisseanssi.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Puudutage siin, et anda asukohale juurdepääs, seejärel alustada oma esimest jälgimisseanssi.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Tänane edenemine</string>
+    <string name="widget_streak">Jada</string>
+    <string name="widget_last_session">Viimane seanss</string>
+    <string name="widget_recent_trips">Hiljutised reisid</string>
+    <string name="widget_exploration">Avastamine</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Kohanda ülevaadet</string>
+    <string name="dashboard_customize_reset">Taasta vaikimisi seaded</string>
+    <string name="dashboard_customize_cd_toggle">Lülita %1$s nähtavust</string>
+    <string name="dashboard_customize_cd_drag_handle">Muuda %1$s järjekorda</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Kõrguse andmed puuduvad</string>
+    <string name="dashboard_cd_no_altitude_data">Kõrguse andmed pole saadaval</string>
+    <string name="dashboard_cd_speed_sparkline">Kiiruse minigraafik %1$d andmepunktiga</string>
+    <string name="dashboard_cd_session_path">Seansi marsruudi eelvaade %1$d punktiga</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Kiirus</string>
+    <string name="dashboard_metric_distance">Vahemaa</string>
+    <string name="dashboard_metric_duration">Kestus</string>
+    <string name="dashboard_metric_steps">Sammud</string>
+    <string name="dashboard_metric_altitude">Kõrgus</string>
+    <string name="dashboard_metric_activity">Tegevus</string>
+    <string name="dashboard_metric_accuracy">Täpsus</string>
+    <string name="dashboard_metric_avg_speed">Keskmine kiirus</string>
+    <string name="dashboard_metric_wifi">Wi‑Fi</string>
+    <string name="dashboard_metric_cell">Mobiilirakk</string>
+    <string name="dashboard_metric_coordinates">Koordinaadid</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Alusta jälgimist</string>
+    <string name="dashboard_ring_enable_location">Luba asukoht</string>
+    <string name="dashboard_pill_start">Alusta</string>
+    <string name="dashboard_pill_stop">Peata</string>
+    <string name="dashboard_pill_enable_location">Luba asukoht</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Seansi ülevaated</string>
+    <string name="dashboard_cd_insight_item">Ülevaade: %1$s</string>
+    <string name="widget_latest_achievement">Viimane saavutus</string>
+    <string name="dashboard_latest_achievement_title">Viimane saavutus</string>
+    <string name="dashboard_latest_achievement_empty">Jätkake jälgimist, et avada oma esimene saavutus</string>
+</resources>

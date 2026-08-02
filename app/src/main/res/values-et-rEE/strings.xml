@@ -1,0 +1,490 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Mäng</string>
+    <string name="module_map_title">Kaart</string>
+    <string name="module_statistics_title">Statistika</string>
+    <string name="main_nav_tracker">Avaleht</string>
+    <string name="settings_clear_preferences_title">Tühjenda eelistused</string>
+    <string name="settings_clear_preferences_message">See lähtestab kõik rakenduse eelistused (funktsioonide lülitid, kasutajaliidese seaded). Teie jälgimisandmeid see ei mõjuta. Kas jätkata?</string>
+    <string name="settings_data_title">Andmed</string>
+    <string name="settings_debug_group_title">Silumine</string>
+    <string name="settings_debug_title">Arendaja valikud</string>
+    <string name="settings_debug_developer_tools_section">Arendaja tööriistad</string>
+    <string name="settings_debug_disable_developer_subtitle">Peida arendaja valikud seadetes</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Arendajarežiim on keelatud</string>
+    <string name="settings_data_management_section">Andmehaldus</string>
+    <string name="settings_data_danger_zone_section">Ohtlik tsoon</string>
+    <string name="settings_osm_import_section">Kaardiandmed (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Impordi OSM-i piirkond</string>
+    <string name="settings_osm_import_action_summary">Valige .osm.pbf-fail. Sõidukite nõuete järgimiseks kasutatakse siis võrguühenduseta tegelikke teepiiranguid.</string>
+    <string name="settings_osm_import_unavailable_title">Võrguühenduseta kaardi import pole saadaval</string>
+    <string name="settings_osm_import_action_unavailable">Võrguühenduseta kaardi import pole ajutiselt saadaval, kuni failiohutuse kaitsed on lõpule viidud.</string>
+    <string name="settings_osm_import_action_running">Importimine — puudutage tühistamiseks</string>
+    <string name="settings_osm_import_action_failed">Võrguühenduseta kaardi importimist ei saanud lõpule viia.</string>
+    <string name="settings_osm_import_action_source_unavailable">Valitud kaardifaili ei saanud avada.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Imporditi %1$d tee %2$d sõlmest.</item>
+        <item quantity="other">Imporditi %1$d teed %2$d sõlmest.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Ühtegi OpenStreetMapi piirkonda pole veel imporditud.</string>
+    <string name="settings_osm_imports_attribution">Kaardiandmed © OpenStreetMapi kaasautorid (ODbL 1.0). Kogu töötlemine toimub seadmes.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d tee · imporditud %2$s</item>
+        <item quantity="other">%1$,d teed · imporditud %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Eemalda imporditud piirkond</string>
+    <string name="settings_osm_import_remove_message">Kas eemaldada %1$s? Sõidukite nõuete järgimine kasutab kindlat etaloni, kuni impordite piirkonna uuesti.</string>
+    <string name="settings_incremental_backups_title">Järkjärgulised varukoopiad</string>
+    <string name="settings_incremental_backups_summary">Ekspordi ainult pärast viimast varukoopiat lisandunud andmed. Vähendab ekspordiaega ja failisuurust.</string>
+    <string name="settings_reset_export_watermarks_title">Sunni täielik eksport</string>
+    <string name="settings_reset_export_watermarks_summary">Järgmine automaatne varukoopia sisaldab muudatuste asemel kõiki andmeid</string>
+    <string name="settings_reset_export_watermarks_done">Ekspordi veemärgid lähtestati — järgmine varukoopia on täielik eksport</string>
+    <string name="settings_migration_backup_export_title">Ekspordi versiooniuuenduse-eelne turvavarukoopia</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Täielik andmebaasikoopia versioonist v%1$d, loodud enne üleviimist versioonile v%2$d ja säilitatakse privaatselt kuni 30 päeva</string>
+    <string name="settings_migration_backup_warning_title">Kas eksportida tundlik andmebaasi varukoopia?</string>
+    <string name="settings_migration_backup_warning_message">See varukoopia võib sisaldada täpseid asukohti, Wi‑Fi- ja mobiilirakkude vaatlusi, tegevusi ning muid enne versiooniuuendust kogutud eraandmeid. Salvestage see ainult usaldusväärsesse kohta.</string>
+    <string name="settings_migration_backup_export_action">Ekspordi varukoopia</string>
+    <string name="settings_migration_backup_export_success">Versiooniuuenduse-eelne varukoopia eksporditi</string>
+    <string name="settings_migration_backup_export_failure">Versiooniuuenduse-eelset varukoopiat ei saanud eksportida</string>
+    <string name="settings_migration_backup_export_cleanup_required">Eksport ebaõnnestus. Kustutage valitud asukohast osaliselt eksporditud varukoopia.</string>
+    <string name="settings_delete_data_success">Kõik kogutud andmed kustutati</string>
+    <string name="settings_delete_data_failure">Kõiki kogutud andmeid ei saanud kustutada</string>
+    <string name="settings_game_goals_title">Eesmärgid</string>
+    <string name="settings_game_daily_target_title">Päevane sammueesmärk</string>
+    <string name="settings_game_weekly_target_title">Nädalane sammueesmärk</string>
+    <string name="settings_game_daily_contribution_title">Maksimaalne päevane panus</string>
+    <string name="settings_game_steps_unit">sammu</string>
+    <string name="settings_game_notifications_title">Märguanded</string>
+    <string name="settings_game_goal_notifications_title">Eesmärgi edenemise märguanded</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Saage kohalik meeldetuletus, kui saavutate 75% ja 90% oma päevasest eesmärgist.</string>
+    <string name="settings_game_during_games_title">Mängu ajal</string>
+    <string name="settings_game_haptics_title">Mängu haptika</string>
+    <string name="settings_game_haptics_summary">Kasuta mängu tagasisideks õrna vibratsiooni.</string>
+    <string name="settings_game_quiet_coaching_title">Vaiksed juhendamisvihjed</string>
+    <string name="settings_game_quiet_coaching_summary">Kasuta mängimise ajal harvemaid juhiseid.</string>
+    <string name="settings_game_remember_setup_title">Pea meeles viimast mänguseadistust</string>
+    <string name="settings_game_remember_setup_summary">Kasuta järgmisel korral uuesti oma viimast eesmärki ja raskusastet.</string>
+    <string name="settings_game_privacy_battery_title">Privaatsus ja aku</string>
+    <string name="settings_game_privacy_battery_disclosure">Mängud kasutavad reaalajas asukohta ainult siis, kui need on aktiivsed, ning kasutavad võimalusel Trackeri asukohta. Peatamine vabastab mängu asukohakasutuse. Sellele seadmele salvestatakse ainult teie skoor ja punktid/XP; tooreid mängu asukohti ei talletata.</string>
+    <string name="settings_game_loading">Mänguseadete laadimine…</string>
+    <string name="settings_game_load_error">Mänguseadeid ei saanud laadida. Proovige uuesti.</string>
+    <string name="settings_map_info_hint">Need seaded juhivad kaardi visualiseerimise kvaliteeti ja jõudlust. Enamik kasutajaid saab kasutada vaikeväärtusi.</string>
+    <string name="settings_map_online_tiles_section_title">Veebipõhised kaardipaanid</string>
+    <string name="settings_map_online_tiles_enable_title">Kasuta veebipõhiseid kaardipaane</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Väljas — kasutatakse ainult kaasatud võrguühenduseta aluskaarti. Võrgupäringuid ei tehta.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Sees — paanide toomine teenusest %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Paanide pakkuja</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (soovitatav)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Kohandatud URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Stiili JSON-i URL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Viide: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Veebipõhised paanid on valikulised. Kui need on lubatud, näeb valitud pakkuja teie IP-aadressi ja laaditavaid paane (ligikaudu seda kaardiala, mida vaatate). Tracker ei saada kunagi kontot, tunnust ega asukohaajalugu.</string>
+    <string name="settings_developer_mode_enabled_toast">Arendajarežiim on lubatud</string>
+    <string name="settings_developer_mode_disable">Keela arendajarežiim</string>
+    <string name="settings_developer_mode_subtitle">Arendajarežiim on aktiivne</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Puudutage veel %d kord, et lubada arendajarežiim</item>
+        <item quantity="other">Puudutage veel %d korda, et lubada arendajarežiim</item>
+    </plurals>
+    <string name="settings_version_info_title">Versiooniteave</string>
+    <string name="settings_version_format">Versioon: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Praegune keel: %s</string>
+    <string name="settings_language_title">Rakenduse keel</string>
+    <string name="settings_units_auto_summary_on">Kohandab pikkusühikute süsteemi tuvastatud tegevustega</string>
+    <string name="settings_units_auto_summary_off">Rakendab valitud pikkusühikute süsteemi kõikjal</string>
+    <string-array name="settings_length_system_names">
+        <item>Meetermõõdustik</item>
+        <item>Impeeriumi mõõdustik (USC)</item>
+        <item>Vana-Rooma</item>
+        <item>Purjetamine</item>
+        <item>Lendamine</item>
+    </string-array>
+    <string name="settings_length_system_title">Pikkusühikute süsteem</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Avatud lähtekoodiga litsentsid</string>
+    <string name="settings_licenses_subtitle">Vaadake selles järgus sisalduvaid kaasatud kolmanda osapoole teateid.</string>
+    <string name="settings_licenses_loading">Litsentside laadimine…</string>
+    <string name="settings_licenses_unavailable">Kaasatud kolmanda osapoole litsentsiandmeid ei saanud laadida.</string>
+    <string name="settings_licenses_text_at_url">Litsentsi täistekst on saadaval aadressil: %1$s</string>
+    <string name="settings_privacy_policy_title">Privaatsuspoliitika</string>
+    <string name="settings_privacy_policy_unavailable">Kaasatud privaatsuspoliitikat ei saanud avada. Proovige uuesti pärast rakenduse taaskäivitamist.</string>
+    <string name="settings_about_header">Teave</string>
+    <string name="settings_about_app_title">Tracker, autor adsamcik</string>
+    <string name="settings_about_app_subtitle">Privaatsust esikohale seadev asukoha- ja tegevusjälgija</string>
+    <string name="about_title">Teave</string>
+    <string name="about_app_name_label">Rakendus</string>
+    <string name="about_version_label">Versioon</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Järgu kommit</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Autor</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">E-post</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Lingid</string>
+    <string name="about_attributions_title">Andmeviited</string>
+    <string name="about_attribution_geonames_label">Kohanimed</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Kaardi- ja tänavaandmed</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Mooduli seaded</string>
+    <string name="settings_core_group_title">Tuumik</string>
+    <string name="settings_other_title">Ühikud ja kuva</string>
+    <string name="settings_remove_all_collected_data_summary">Kustutab teie jälgimisandmed (kohandatud tegevused ja seaded säilitatakse)</string>
+    <string name="settings_remove_all_collected_data_title">Kustuta kõik kogutud andmed</string>
+    <string-array name="settings_speed_format_names">
+        <item>Kiirus sekundis (m/s)</item>
+        <item>Tempo vahemaa kohta (min/km, min/mi)</item>
+        <item>Kiirus (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Kiiruse vorming</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Seaded</string>
+    <string name="switch_state_on">Sees</string>
+    <string name="switch_state_off">Väljas</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Jälgige oma teekondi privaatselt</string>
+    <string name="onboarding_streamlined_subtitle">Kõik andmed jäävad teie seadmesse. Puudub pilvesünkroonimine ja kolmanda osapoole jälgimine.</string>
+    <string name="onboarding_benefit_privacy_title">Privaatsus esikohal</string>
+    <string name="onboarding_benefit_privacy_desc">Kõik jälgimisandmed jäävad teie seadmesse. Puuduvad serverid, pilvesünkroonimine ja kontroll on täielikult teie käes.</string>
+    <string name="onboarding_benefit_insights_title">Tegevuse ülevaated</string>
+    <string name="onboarding_benefit_insights_desc">Vaadake oma marsruute kaartidel, analüüsige statistikat ja jälgige aja jooksul oma edenemist.</string>
+    <string name="onboarding_benefit_gamification_title">Saavutused</string>
+    <string name="onboarding_benefit_gamification_desc">Avage 150+ saavutust kõndides, joostes, jalgrattaga sõites ja avastades — kõik teenitakse kohapeal teie seadmes.</string>
+    <string name="onboarding_get_started">ALUSTA</string>
+    <string name="onboarding_privacy_policy_button">Loe privaatsuspoliitikat</string>
+    <string name="onboarding_state_read_error_message">Me ei saanud kinnitada, kas seadistus on juba lõpetatud, seega kuvatakse seadistus teie andmete privaatsuse säilitamiseks. Võite turvaliselt jätkata.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Vanade andmete automaatne puhastamine</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Säilita andmeid igavesti; automaatne puhastamine ei kustuta vanu andmeid</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Eemalda automaatselt andmed, mis on vanemad kui %1$d aasta</item>
+        <item quantity="other">Eemalda automaatselt andmed, mis on vanemad kui %1$d aastat</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Säilita andmeid</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Säilita igavesti</item>
+        <item>1 aasta</item>
+        <item>2 aastat</item>
+        <item>3 aastat</item>
+        <item>5 aastat</item>
+        <item>10 aastat</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">JÄTKA</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Ekspordi andmed</string>
+    <string name="settings_export_data_summary">Salvesta oma jälgimisandmed mitmes vormingus</string>
+    <string name="export_format_dialog_title">Valige ekspordivorming</string>
+    <string name="export_format_gpx_name">GPX (soovitatav)</string>
+    <string name="export_format_gpx_desc">Täpsed marsruudipunktid GPS-seadmete, treeningurakenduste ja üldise ühilduvuse jaoks</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Täpsed marsruudipunktid Google Earthi ja geograafilise visualiseerimise jaoks</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Vooasukohtade ja seansside kokkuvõtted; import ühendab andmed ja loob osa metaandmetest uuesti</string>
+    <string name="export_format_db_name">Andmebaas</string>
+    <string name="export_format_db_desc">Toores SQLite-varukoopia kõigi andmete ja seadetega; import ühendab ühilduvad read, mitte ei taasta kõike</string>
+    <string name="export_sensitivity_dialog_title">Kas eksportida täpsed asukohaandmed?</string>
+    <string name="export_sensitivity_gpx_message">See GPX-eksport sisaldab täpsusastmega marsruudipunkte. Salvestage või jagage seda ainult inimeste ja rakendustega, keda usaldate.</string>
+    <string name="export_sensitivity_kml_message">See KML-eksport sisaldab täpsusastmega marsruudipunkte. Salvestage või jagage seda ainult inimeste ja rakendustega, keda usaldate.</string>
+    <string name="export_sensitivity_json_message">See JSON-eksport sisaldab täpsusastmega asukohti ja seansside kokkuvõtteid. Osa tuletatud metaandmeid on importimisel kadudega; salvestage või jagage seda ainult sihtkohtadega, mida usaldate.</string>
+    <string name="export_sensitivity_db_message">See toores andmebaasi varukoopia võib sisaldada täpseid asukohti, Wi‑Fi/mobiilirakkude raadioandmeid, tegevust ja seadeid. Hoidke see privaatsena ning salvestage ainult usaldusväärsesse kohta.</string>
+    <string name="export_sensitivity_confirm">Jätka eksportimist</string>
+    <string name="settings_export_title">Ekspordi</string>
+    <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
+    <string name="settings_import_title">Impordi</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Selge</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Väike mõju</string>
+    <string name="battery_impact_moderate">Mõõdukas mõju</string>
+    <string name="battery_impact_high">Suur mõju</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Valige asukoha täpsus</string>
+    <string name="precision_mode_approximate_title">Ligikaudne</string>
+    <string name="precision_mode_approximate_description">Võrgupõhine asukoht. Sobib üldise piirkonna jälgimiseks väikese akukuluga.</string>
+    <string name="precision_mode_precise_title">Täpne</string>
+    <string name="precision_mode_precise_description">GPS-põhine asukoht. Parim detailsete marsruutide, soojuskaartide ja väljakutsete jaoks.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Avage täpne jälgimine</string>
+    <string name="upgrade_to_precise_message_general">Kasutate ligikaudset asukohta. Parema täpsuse jaoks lülituge täpsele GPS-jälgimisele.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Täpne asukoht on soovitatav marsruudi täpseks analüüsiks ja vahemaa mõõtmiseks.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Täpne asukoht annab detailse soojuskaardi visualiseeringu peene asukohamääramisega.</string>
+    <string name="upgrade_to_precise_message_challenges">Paljud väljakutsed vajavad täpset GPS-jälgimist, et täitmist täpselt kinnitada.</string>
+    <string name="upgrade_to_precise_benefits_title">Eelised</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Täpsed marsruudikujundid ja pöördehaaval tee üksikasjad</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Detailne soojuskaart ja ruumiline analüüs</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Täpsed vahemaa- ja kiirusmõõtmised</string>
+    <string name="upgrade_to_precise_battery_title">Akukasutus</string>
+    <string name="upgrade_to_precise_battery_message">Täpne GPS kasutab rohkem akut. Hinnanguline jälgimisaeg: tavaseadmetes 6–8 tundi.</string>
+    <string name="upgrade_to_precise_button_upgrade">Luba täpne asukoht</string>
+    <string name="upgrade_to_precise_button_cancel">Võib-olla hiljem</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Suur täpsus</string>
+    <string name="tracking_preset_high_accuracy_description">Parim detailsus kiireimate uuenduste ja kõigi põhianduritega</string>
+    <string name="tracking_preset_balanced_name">Tasakaalustatud</string>
+    <string name="tracking_preset_balanced_description">Hea täpsus ja mõistlik aku tööiga igapäevaseks jälgimiseks</string>
+    <string name="tracking_preset_power_save_name">Energiasääst</string>
+    <string name="tracking_preset_power_save_description">Väiksem akukulu harvemate uuenduste ja vähendatud anduritega</string>
+    <string name="tracking_preset_custom_name">Kohandatud</string>
+    <string name="tracking_preset_custom_description">Häälestage iga jälgimisparameeter käsitsi</string>
+    <string name="tracking_preset_selector_title">Jälgimise eelseadistus</string>
+    <string name="tracking_preset_selector_subtitle">Valige alustamiseks profiil, seejärel häälestage allpool soovitud seadeid.</string>
+    <string name="tracking_preset_custom_hint">Mis tahes alloleva seade kohandamine loob praegusest eelseadistusest kohandatud profiili.</string>
+    <string name="tracking_preset_customized_summary">Olete jälgimist peenhäälestanud. Lähtestamiseks valige ülal eelseadistus.</string>
+    <string name="settings_tracking_section_detection">Tuvastamine ja automatiseerimine</string>
+    <string name="settings_tracking_section_sources">Andmeallikad</string>
+    <string name="settings_tracking_section_detail">Asukoha kogumine</string>
+    <string name="settings_tracking_section_notifications">Märguanded</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Jälgimispoliitika</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Hinnanguline jälgimine: %d tund</item>
+        <item quantity="other">Hinnanguline jälgimine: %d tundi</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Valige, kui täpselt Tracker teie asukohta salvestab</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Täpne</string>
+    <string name="approximate">Ligikaudne</string>
+    <string name="tracking_policy_selector_subtitle">Valige jälgimise eelseadistus või kohandage seadeid</string>
+    <string name="tracking_policy_custom_badge">Kohandatud</string>
+    <string name="collapse_details">Peida üksikasjad</string>
+    <string name="expand_details">Kuva üksikasjad</string>
+    <string name="settings_section_collapse">Ahenda</string>
+    <string name="settings_section_expand">Laienda</string>
+    <string name="tracking_policy_details_title">Seadistuse üksikasjad</string>
+    <string name="preset_detail_location_precision">Asukoha täpsus</string>
+    <string name="preset_detail_min_distance">Minimaalne vahemaa</string>
+    <string name="preset_detail_min_time">Minimaalne aeg</string>
+    <string name="preset_detail_accuracy">Nõutav täpsus</string>
+    <string name="preset_detail_sensors">Andurid</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Ühikute automaatne vahetamine</string>
+    <string name="settings_module_map_subtitle">Soojuskaardi kvaliteedi ja visualiseerimise valikud</string>
+    <string name="settings_module_game_subtitle">Eesmärgid, saavutused ja verstapostid</string>
+    <string name="action_navigate_back">Liigu tagasi</string>
+    <string name="action_help">Abi</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Laadimine…</string>
+    <string name="widget_quick_start_name">Trackeri kiirstart</string>
+    <string name="widget_quick_start_description">Alustage või peatage asukoha jälgimine ühe puudutusega.</string>
+    <string name="widget_start_tracking">Alusta jälgimist</string>
+    <string name="widget_stop_tracking">Peata jälgimine</string>
+    <string name="widget_tracking_active">Jälgimine aktiivne</string>
+    <string name="widget_today_summary_name">Tänane kokkuvõte</string>
+    <string name="widget_today_summary_description">Vaadake tänast jälgimisstatistikat ühe pilguga.</string>
+    <string name="widget_today">Täna</string>
+    <string name="widget_distance">Vahemaa</string>
+    <string name="widget_steps">Sammud</string>
+    <string name="widget_sessions">Seansid</string>
+    <string name="widget_duration">Kestus</string>
+    <string name="widget_no_data_today">Täna pole jälgimisandmeid</string>
+    <string name="widget_active_session_name">Aktiivne seanss</string>
+    <string name="widget_active_session_description">Jälgige praegust jälgimisseanssi reaalajas.</string>
+    <string name="widget_no_active_session">Aktiivset seanssi pole</string>
+    <string name="widget_tap_to_start">Puudutage jälgimise alustamiseks</string>
+    <string name="widget_session_distance">Seansi vahemaa</string>
+    <string name="widget_session_steps">Seansi sammud</string>
+    <string name="widget_session_duration">Seansi kestus</string>
+    <string name="widget_current_speed">Praegune kiirus</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Kogumised</string>
+    <string name="widget_path_preview">Tee eelvaade</string>
+    <string name="widget_activity_unknown">Tegevus pole saadaval</string>
+    <string name="widget_goal_label">Eesmärk:</string>
+    <string name="widget_goal_progress">%1$s / %2$s sammu</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Väljas</string>
+    <string name="widget_tier_ambient">Taust</string>
+    <string name="widget_tier_active">Aktiivne</string>
+    <string name="widget_tier_precision">Täpne</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Hea edenemine!</string>
+    <string name="goal_notification_title_almost">Peaaegu kohal!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Päevase eesmärgi saavutamiseks on jäänud %1$d samm</item>
+        <item quantity="other">Päevase eesmärgi saavutamiseks on jäänud %1$d sammu</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Jäänud on vaid %1$d samm!</item>
+        <item quantity="other">Jäänud on vaid %1$d sammu!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Nutikad eesmärgi märguanded</string>
+    <string name="settings_smart_goal_notifications_summary">Saage märguanne, kui olete päevase sammueesmärgi lähedal</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Kuidas peaks jälgimine toimima?</string>
+    <string name="setup_how_to_track_subtitle">Valige, millal jälgimine algab ja kui detailne see on.</string>
+    <string name="setup_auto_tracking_title">Automaatne jälgimine</string>
+    <string name="setup_auto_tracking_disabled">Keelatud</string>
+    <string name="setup_auto_tracking_disabled_desc">Alustage ja peatage jälgimine käsitsi.</string>
+    <string name="setup_auto_tracking_on_foot">Jalgsi</string>
+    <string name="setup_auto_tracking_on_foot_desc">Jälgige kõndimist ja jooksmist automaatselt.</string>
+    <string name="setup_auto_tracking_in_motion">Liikumises</string>
+    <string name="setup_auto_tracking_in_motion_desc">Jälgige automaatselt kõiki liikumisi, sealhulgas auto- ja jalgrattasõitu.</string>
+    <string name="setup_preset_title">Jälgimise detailsus</string>
+    <string name="setup_what_to_collect_title">Mida koguda</string>
+    <string name="setup_what_to_collect_subtitle">Rohkem valikuid on allpool. Alustage avastamist ilma lubadeta või andke need hiljem. Andmed jäävad sellele seadmele.</string>
+    <string name="setup_source_location">Asukoht</string>
+    <string name="setup_source_location_desc">Salvestage oma marsruudid ja asukohad kaardil.</string>
+    <string name="setup_source_activity">Tegevus</string>
+    <string name="setup_source_activity_desc">Tuvastage, kas kõnnite, jooksete, sõidate jalgrattaga või autoga.</string>
+    <string name="setup_source_steps">Sammud</string>
+    <string name="setup_source_steps_desc">Loendage samme seadme sammulugeja abil.</string>
+    <string name="setup_source_wifi">WiFi-võrgud</string>
+    <string name="setup_source_wifi_desc">Salvestage lähedal asuvaid WiFi-võrke, et parandada asukoha täpsust.</string>
+    <string name="setup_source_cell">Mobiilimastid</string>
+    <string name="setup_source_cell_desc">Salvestage mobiilimastide teave asukoha konteksti jaoks.</string>
+    <string name="setup_perm_location_why">Vajalik marsruutide salvestamiseks ja nende kaardil näitamiseks. Asukoht jääb sellele seadmele — serverisse ei saadeta midagi.</string>
+    <string name="setup_perm_location_bg_why">Marsruudi salvestamise jätkamiseks, kui vahetate rakendust või ekraan lülitub välja, vajab Tracker juurdepääsu teie asukohale taustal. Salvestatud asukoht jääb sellele seadmele — serverisse ei saadeta midagi. Automaatse jälgimise lubamiseks valige järgmisel süsteemi viipal „Luba alati”; „Rakenduse kasutamise ajal” hoiab Trackeri töös ainult siis, kui selle ekraan on avatud.</string>
+    <string name="setup_perm_activity_why">Võimaldab Trackeril tuvastada, mida teete (kõnnite, sõidate jalgrattaga, juhite autot või seisate paigal), et automaatne jälgimine saaks peatuda, kui te ei liigu, ja säästa akut. Tegevusandmed jäävad sellele seadmele — serverisse ei saadeta midagi.</string>
+    <string name="setup_perm_notification_why">Tracker kuvab salvestamise ajal väikest olekumärguannet, et näeksite ühe pilguga, et jälgimine on sisse lülitatud, ja saaksite selle ühe puudutusega peatada. Turundus- ega reklaammärguandeid ei saadeta.</string>
+    <string name="setup_perm_wifi_why">Tracker saab asukoha täpsuse parandamiseks salvestada Wi‑Fi pääsupunkte, mida telefon reisi ajal näeb kohtades, kus GPS on nõrk (siseruumides, maa all). Raadioandmed jäävad sellele seadmele — serverisse ei saadeta midagi. Andke luba ainult siis, kui seda soovite.</string>
+    <string name="setup_perm_cell_why">Tracker saab salvestada mobiilimastide ID-d teie marsruudil, et asukohta saaks tuletada, kui GPS pole saadaval. Raadioandmed jäävad sellele seadmele — serverisse ei saadeta midagi. Andke telefoni oleku ja täpse asukoha luba ainult siis, kui seda soovite.</string>
+    <string name="setup_perm_grant">Anna luba</string>
+    <string name="setup_perm_grant_location_content_description">Anna asukohaluba</string>
+    <string name="setup_perm_grant_background_location_content_description">Anna taustaasukoha luba</string>
+    <string name="setup_perm_grant_activity_content_description">Anna tegevuse tuvastamise luba</string>
+    <string name="setup_perm_grant_notification_content_description">Anna märguannete luba</string>
+    <string name="setup_perm_grant_wifi_content_description">Anna Wi‑Fi luba</string>
+    <string name="setup_perm_grant_cell_content_description">Anna mobiilside raadioluba</string>
+    <string name="setup_perm_granted">Luba antud ✓</string>
+    <string name="permission_grant_in_settings">Luba seadetes →</string>
+    <string name="permission_disabled_due_to_denial">%1$s on keelatud, kuna luba ei antud. Lubamiseks andke luba seadetes.</string>
+    <string name="settings_wifi_permission_required">Vajab Wi‑Fi/asukoha luba. Puudutage lülitit loa andmiseks — enne seda Wi‑Fi andmeid ei salvestata ning salvestatud andmed jäävad sellele seadmele.</string>
+    <string name="settings_cell_permission_required">Vajab telefoni oleku ja täpse asukoha luba. Puudutage lülitit loa andmiseks — enne seda mobiiliraku andmeid ei salvestata ning salvestatud andmed jäävad sellele seadmele.</string>
+    <string name="settings_wifi_privacy_summary">Salvestab lähedal asuvaid Wi‑Fi võrke, et parandada asukoha täpsust. Andmed jäävad sellele seadmele.</string>
+    <string name="settings_barometer_unavailable">Rõhuandur pole selles seadmes saadaval.</string>
+    <string name="settings_activity_permission_required">Vajab tegevuse tuvastamise luba. Puudutage lülitit loa andmiseks.</string>
+    <string name="settings_steps_unavailable">Sammulugeja andur pole selles seadmes saadaval.</string>
+    <string name="settings_cell_privacy_summary">Salvestab mobiilimastide ID-d, et parandada asukoha täpsust. Andmed jäävad sellele seadmele.</string>
+    <string name="setup_start_exploring">Alusta avastamist</string>
+    <string name="setup_continue">Jätka</string>
+    <string name="setup_step_indicator">Samm %1$d/%2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Veebipõhised kaardipaanid?</string>
+    <string name="setup_online_tiles_subtitle">Tracker sisaldab võrguühenduseta aluskaarti, nii et see töötab ilma võrguta. Kui soovite rikkalikumaid kaarte, saate selle asemel voogedastada paane avalikult pakkujalt.</string>
+    <string name="setup_online_tiles_off_title">Ainult võrguühenduseta (soovitatav)</string>
+    <string name="setup_online_tiles_off_desc">Võrgupäringuid ei tehta. Kasutatakse ainult kaasatud aluskaarti.</string>
+    <string name="setup_online_tiles_on_title">Kasuta veebipõhiseid kaardipaane</string>
+    <string name="setup_online_tiles_on_desc">Voogedasta detailsemaid vektorpaneele OpenFreeMapist (vaikimisi). Pakkujat saate hiljem muuta menüüs Seaded → Kaart.</string>
+    <string name="setup_online_tiles_privacy">Kui see on lubatud, näeb pakkuja teie IP-aadressi ja laaditavaid paane — ligikaudu seda kaardiala, mida vaatate. Tracker ei saada kunagi kontot, tunnust ega teie asukohaajalugu.</string>
+    <string name="setup_online_tiles_change_later">Saate seda igal ajal muuta menüüs Seaded → Kaart → Veebipõhised kaardipaanid.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Reiside salvestamiseks, kui ekraan on väljas või rakendus on suletud, peab Tracker töötama taustal. Telefoni akuseaded võivad selle peatada — lubage taustategevus, et automaatne jälgimine püsiks töökindel.</string>
+    <string name="setup_background_access_optional">Valikuline, kuid soovitatav. Saate seda igal ajal muuta menüüs Seaded → Jälgimine.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Töökindel taustajälgimine</string>
+    <string name="background_reliability_status_exempt">Taustategevus on lubatud</string>
+    <string name="background_reliability_status_optimized">Aku optimeerimine on sees</string>
+    <string name="background_reliability_exempt_desc">Tracker on aku optimeerimisest välja jäetud, nii et tausta- ja automaatne jälgimine saavad töökindlalt toimida.</string>
+    <string name="background_reliability_optimized_desc">Aku optimeerimine võib Trackeri taustal peatada ja automaatse jälgimise katkestada. Lubage taustategevus, et seda käigus hoida.</string>
+    <string name="background_reliability_allow_action">Luba taustategevus</string>
+    <string name="background_reliability_samsung_hint">Samsungi seadmed võivad rakendusi paigutada ka jaotisse „Uinuvad rakendused”. Avage akuseaded, eemaldage Tracker uinuvatest rakendustest ja määrake, et seda ei pandaks unerežiimi.</string>
+    <string name="background_reliability_samsung_action">Ava seadme akuseaded</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Krahhi diagnostika</string>
+    <string name="settings_tracebox_root_summary">Kohalikud krahhi-, ANR-i ja struktuursed diagnostikaandmed</string>
+    <string name="settings_tracebox_status_header">Salvestuse olek</string>
+    <string name="settings_tracebox_toggle_title">Salvesta krahhidiagnostikat</string>
+    <string name="settings_tracebox_toggle_summary_off">Salvestus on väljas. Olemasolevad kohalikud diagnostikaandmed jäävad alles, kuni need kustutate.</string>
+    <string name="settings_tracebox_toggle_summary_on">Krahhi-, ANR-i ja fikseeritud struktuurne diagnostika salvestatakse kohalikult.</string>
+    <string name="settings_tracebox_readiness_label">Salvestusruumi valmisolek</string>
+    <string name="settings_tracebox_readiness_volatile">Püsiva salvestusruumi käivitamine; ajutine salvestus on saadaval</string>
+    <string name="settings_tracebox_readiness_durable">Püsiv salvestus on valmis</string>
+    <string name="settings_tracebox_readiness_degraded">Salvestus on piiratud; mõned kirjed ei pruugi olla saadaval</string>
+    <string name="settings_tracebox_readiness_closed">Salvestus on suletud</string>
+    <string name="settings_tracebox_health_label">Tööaja seisund</string>
+    <string name="settings_tracebox_health_disabled">Keelatud</string>
+    <string name="settings_tracebox_health_initializing">Lähtestamine</string>
+    <string name="settings_tracebox_health_ready">Valmis</string>
+    <string name="settings_tracebox_health_degraded">Piiratud</string>
+    <string name="settings_tracebox_health_deleting">Kohalike diagnostikaandmete kustutamine</string>
+    <string name="settings_tracebox_health_closed">Suletud</string>
+    <string name="settings_tracebox_package_header">Diagnostikapakett</string>
+    <string name="settings_tracebox_package_body">Tracebox näitab esmalt valmis paketi täpset avalikustust. Midagi ei salvestata ega jagata enne, kui kinnitate selle ja valite sihtkoha.</string>
+    <string name="settings_tracebox_package_review_action">Vaata pakett üle ja kinnita</string>
+    <string name="settings_tracebox_package_save_action">Salvesta kinnitatud pakett</string>
+    <string name="settings_tracebox_package_share_action">Jaga kinnitatud paketti</string>
+    <string name="settings_tracebox_share_limit">Android saab kinnitada, et valija avati, kuid ei saa tõendada, et mõni teine rakendus paketi vastu võttis.</string>
+    <string name="settings_tracebox_data_header">Traceboxi andmed</string>
+    <string name="settings_tracebox_data_body">See kustutab Traceboxile kuuluvad diagnostikaandmed ja paketi ettevalmistuse. Juba salvestatud või saadetud faile juhivad nende sihtrakendused.</string>
+    <string name="settings_tracebox_delete_action">Kustuta kõik Traceboxi andmed</string>
+    <string name="settings_tracebox_delete_confirm_title">Kas kustutada kõik krahhidiagnostika andmed?</string>
+    <string name="settings_tracebox_delete_confirm_body">See eemaldab Trackerist kõik Traceboxile kuuluvad diagnostikaandmed ja paketi ettevalmistuse. Toimingut ei saa tagasi võtta.</string>
+    <string name="settings_tracebox_delete_confirm_action">Kustuta</string>
+    <string name="settings_tracebox_result_header">Viimane tulemus</string>
+    <string name="settings_tracebox_result_enabled">Krahhidiagnostika on lubatud.</string>
+    <string name="settings_tracebox_result_disabled">Krahhidiagnostika on keelatud. Olemasolevaid andmeid ei kustutatud.</string>
+    <string name="settings_tracebox_result_policy_restricted">Piirav poliitika salvestati kohalikult, kuid kõik protsessid pole seda veel kinnitanud.</string>
+    <string name="settings_tracebox_result_policy_partial">Poliitika salvestati kohalikult, kuid tööaja ühtlustumine jäi puudulikuks.</string>
+    <string name="settings_tracebox_result_failed">Toiming ei jõudnud kohaliku püsivuse piirini.</string>
+    <string name="settings_tracebox_result_delete_complete">Kõik Traceboxile kuuluvad andmed kustutati.</string>
+    <string name="settings_tracebox_result_delete_pending">Kustutamine lõppes ainult osaliselt. Mõni käitlejale kuuluv andmestik ootab veel kustutamist.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox lükkas kustutamistaotluse tagasi.</string>
+    <string name="settings_tracebox_result_review_ready">Avalikustus valmis: %1$d kaasatud väärtust sisaldavad %2$d baiti diagnostikaandmeid.</string>
+    <string name="settings_tracebox_result_package_created">Kinnitatud diagnostikapakett on salvestamiseks või jagamiseks valmis.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Paketi kinnitamine tühistati. Paketti ei loodud.</string>
+    <string name="settings_tracebox_result_package_rejected">Paketi loomine lükati tagasi, sest kinnitus ei vastanud enam lõplikele baitidele.</string>
+    <string name="settings_tracebox_result_package_not_ready">Diagnostikapakett pole valmis. Vaadake see esmalt üle ja kinnitage.</string>
+    <string name="settings_tracebox_result_save_complete">Salvestati täielik kinnitatud pakett (%1$d baiti).</string>
+    <string name="settings_tracebox_result_save_partial">Kopeeriti ainult %1$d baiti. Sihtkoht võib sisaldada mittetäielikku paketti.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Salvestamine tühistati pärast %1$d baiti. Sihtkoht võib sisaldada mittetäielikku paketti.</string>
+    <string name="settings_tracebox_result_save_failed">Kinnitatud paketti ei saanud salvestada.</string>
+    <string name="settings_tracebox_result_save_cancelled">Salvestamise sihtkohta ei valitud.</string>
+    <string name="settings_tracebox_result_share_opened">Androidi jagamisvalija avati.</string>
+    <string name="settings_tracebox_result_share_unknown">Valija naasis. Android ei saa tõendada, kas vastuvõtja paketi kätte sai.</string>
+    <string name="settings_tracebox_records_header">Mida see salvestab</string>
+    <string name="settings_tracebox_records_body">Krahhi- ja ANR-i tõendid ning piiratud hulk eelmääratud koode rakenduse struktuuri ja täitmisjärjekorra kohta. Tracebox on Trackeri ainus krahhi- ja diagnostikasalvesti.</string>
+    <string name="settings_tracebox_privacy_header">Mida see välja jätab</string>
+    <string name="settings_tracebox_privacy_body">Salvestusliides ei aktsepteeri suvalist teksti, asukohta, kontoandmeid, seadmetunnuseid ega andurite näite. Standardpaketid välistavad toored krahhiartefaktid ning neid ei laadita kunagi automaatselt üles.</string>
+</resources>
