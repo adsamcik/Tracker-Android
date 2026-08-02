@@ -1,0 +1,185 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Statistika</string>
+    <string name="stats_cell_count">Broj ćelija</string>
+    <string name="stats_collections">Broj ažuriranja</string>
+    <string name="stats_distance_in_vehicle">Udaljenost u vozilu</string>
+    <string name="stats_distance_on_foot">Udaljenost pješice</string>
+    <string name="stats_distance_total">Udaljenost</string>
+    <string name="stats_format_unknown_activity">sesija</string>
+    <string name="stats_location_count">Broj lokacija</string>
+    <string name="stats_no_tracker_sessions">Još nema sesija praćenja</string>
+    <string name="stats_empty_subtitle">Pokrenite praćenje da biste ovdje vidjeli aktivnost</string>
+    <string name="stats_session_count">Broj sesija</string>
+    <string name="stats_steps">Broj koraka</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_sum_title">Sažetak</string>
+    <string name="stats_time">Vrijeme provedeno u praćenju</string>
+    <string name="stats_weekly_title">Posljednjih 7 dana</string>
+    <string name="stats_wifi_count">Broj Wi-Fi mreža</string>
+    <string name="stats_wifi_chip_label">Statistika Wi-Fi mreža</string>
+    <string name="stats_cell_signal_chip_label">Signal ćelije</string>
+    <string name="stats_filter_dates">Datumi</string>
+    <string name="stats_filter_active_label">Prikazuje se %1$s</string>
+    <string name="stats_filter_clear">Očisti filtar</string>
+    <string name="stats_date_dialog_title">Raspon datuma</string>
+    <string name="stats_date_summary_placeholder">Odaberite raspon za filtriranje sesija</string>
+    <string name="stats_date_preset_today">Danas</string>
+    <string name="stats_date_preset_yesterday">Jučer</string>
+    <string name="stats_date_preset_last_7_days">Posljednjih 7 dana</string>
+    <string name="stats_date_preset_last_30_days">Posljednjih 30 dana</string>
+    <string name="stats_date_preset_this_month">Ovaj mjesec</string>
+    <string name="stats_date_preset_last_month">Prošli mjesec</string>
+    <string name="stats_date_preset_this_year">Ove godine</string>
+    <string name="stats_date_preset_all_time">Cijelo vrijeme</string>
+    <string name="stats_sparse_summary_title">Ovaj tjedan na prvi pogled</string>
+    <string name="stats_sparse_summary_active_days">Aktivni dani</string>
+    <string name="stats_sparse_summary_week_label">Dnevna aktivnost</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Vidljiva je samo %1$d sesija, pa ovaj sažetak nadopunjuje ostatak nedavne aktivnosti.</item>
+        <item quantity="few">Vidljive su samo %1$d sesije, pa ovaj sažetak nadopunjuje ostatak nedavne aktivnosti.</item>
+        <item quantity="other">Vidljivo je samo %1$d sesija, pa ovaj sažetak nadopunjuje ostatak nedavne aktivnosti.</item>
+    </plurals>
+    <string name="stats_error_generic">Nešto je pošlo po zlu</string>
+    <string name="stats_loading">Učitavanje sesija…</string>
+    <string name="stats_append_error">Učitavanje više nije uspjelo</string>
+    <string name="action_retry">Pokušaj ponovno</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Pokreni praćenje</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s korak</item>
+        <item quantity="few">%1$s koraka</item>
+        <item quantity="other">%1$s koraka</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Danas</string>
+    <string name="stats_date_yesterday">Jučer</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Učitavanje sažetka…</string>
+    <string name="stats_summary_empty">Nema dostupne statistike sažetka</string>
+    <string name="stats_summary_empty_subtitle">Pokrenite praćenje da biste vidjeli sažetak aktivnosti</string>
+    <string name="stats_summary_error">Nije moguće učitati sažetak</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Učitavanje tjedne statistike…</string>
+    <string name="stats_week_empty">Nema dostupne tjedne statistike</string>
+    <string name="stats_week_empty_subtitle">Pratite 7 dana da biste vidjeli tjedni sažetak</string>
+    <string name="stats_week_error">Nije moguće učitati tjednu statistiku</string>
+    <string name="stats_wifi_dialog_title">Statistika Wi-Fi mreža</string>
+    <string name="stats_wifi_dialog_loading">Učitavanje statistike Wi-Fi mreža…</string>
+    <string name="stats_wifi_dialog_empty_title">Nema dostupnih Wi-Fi podataka</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Statistika Wi-Fi mreža prikazat će se nakon prikupljanja skeniranja.</string>
+    <string name="stats_wifi_dialog_error">Nije moguće učitati statistiku Wi-Fi mreža</string>
+    <string name="stats_wifi_unique_networks">Viđene jedinstvene mreže</string>
+    <string name="stats_wifi_total_scans">Ukupno skeniranja</string>
+    <string name="stats_wifi_average_per_scan">Prosječno mreža po skeniranju</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Izvješće o signalu ćelije</string>
+    <string name="stats_cell_signal_dialog_loading">Učitavanje izvješća o signalu ćelije…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Nema dostupnih podataka o ćeliji</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Statistika signala ćelije prikazat će se nakon prikupljanja uzoraka.</string>
+    <string name="stats_cell_signal_dialog_error">Nije moguće učitati izvješće o signalu ćelije</string>
+    <string name="stats_cell_signal_total_samples">Uzorci ćelije</string>
+    <string name="stats_cell_signal_distinct_towers">Različite bazne stanice</string>
+    <string name="stats_cell_signal_section_networks">Prema vrsti mreže</string>
+    <string name="stats_cell_signal_section_towers">Najčešće viđene bazne stanice</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s uzoraka · %2$s baznih stanica</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Ćelija %1$s · %2$s uzoraka</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Operater %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Pojedinosti putovanja</string>
+    <string name="trip_detail_not_found">Putovanje nije pronađeno</string>
+    <string name="trip_detail_not_found_subtitle">Ovo je putovanje možda izbrisano</string>
+    <string name="trip_detail_error_title">Nije moguće učitati putovanje</string>
+    <string name="trip_detail_retry">Pokušaj ponovno</string>
+    <string name="trip_detail_duration">Trajanje</string>
+    <string name="trip_detail_distance">Udaljenost</string>
+    <string name="trip_detail_date">Datum</string>
+    <string name="trip_detail_steps">Koraci</string>
+    <string name="trip_detail_samples">Uzorci</string>
+    <string name="trip_detail_source">Izvor</string>
+    <string name="trip_detail_avg_speed">Prosječna brzina</string>
+    <string name="trip_detail_max_speed">Najveća brzina</string>
+    <string name="trip_detail_pace">Tempo</string>
+    <string name="trip_detail_activity_type">Vrsta aktivnosti</string>
+    <string name="trip_detail_start_time">Vrijeme početka</string>
+    <string name="trip_detail_end_time">Vrijeme završetka</string>
+    <string name="trip_detail_elevation_gain">Visinski uspon</string>
+    <string name="trip_detail_elevation_loss">Visinski gubitak</string>
+    <string name="trip_detail_max_altitude">Najveća nadmorska visina</string>
+    <string name="trip_detail_route_map">Karta rute</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Nema podataka o lokaciji</string>
+    <string name="trip_detail_route_unavailable_legacy">Karta rute nije dostupna za naslijeđene sesije</string>
+    <string name="trip_detail_route_no_gps_points">Udaljenost je zabilježena, ali GPS ruta nije dostupna</string>
+    <string name="trip_detail_delete">Izbriši</string>
+    <string name="trip_detail_export_gpx">Izvezi kao GPX</string>
+    <string name="trip_detail_delete_confirm_title">Izbrisati putovanje?</string>
+    <string name="trip_detail_delete_confirm_message">Ovo će putovanje biti trajno izbrisano.</string>
+    <string name="trip_detail_delete_confirm">Izbriši</string>
+    <string name="trip_detail_cancel">Odustani</string>
+    <string name="trip_detail_more_options">Više mogućnosti</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Skijaška sesija</string>
+    <string name="ski_detail_runs">Spustovi</string>
+    <string name="ski_detail_vertical">Visinska razlika</string>
+    <string name="ski_detail_max_speed">Najveća brzina</string>
+    <string name="ski_detail_time_skiing">Skijanje</string>
+    <string name="ski_detail_time_lifts">Na žičarama</string>
+    <string name="ski_detail_run_label">Spust #%1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Pronađeno je %d Wi-Fi mreža koje odgovaraju filtru</string>
+    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
+    <string name="wifilist_filter_capabilities">Mogućnosti</string>
+    <string name="wifilist_filter_count">Koliko prikazati</string>
+    <string name="wifilist_filter_frequency">Frekvencija</string>
+    <string name="wifilist_filter_ssid">SSID (naziv)</string>
+    <string name="wifilist_item_frequency">%d MHz</string>
+    <string name="wifilist_title">Popis Wi-Fi mreža</string>
+    <string name="wifilist_title_bssid">BSSID</string>
+    <string name="wifilist_title_capabilities">Mogućnosti</string>
+    <string name="wifilist_title_first_seen">Prvi put viđeno</string>
+    <string name="wifilist_title_frequency">Frekvencija</string>
+    <string name="wifilist_title_last_seen">Posljednji put viđeno</string>
+    <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Vremenska crta</string>
+    <string name="history_tab_trips">Putovanja</string>
+    <string name="history_tab_calendar">Kalendar</string>
+    <string name="history_screen_title">Povijest</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d putovanje</item>
+        <item quantity="few">%d putovanja</item>
+        <item quantity="other">%d putovanja</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Još nema aktivnosti</string>
+    <string name="history_timeline_empty_desc">Pokrenite praćenje da biste ovdje vidjeli povijest kretanja</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Nema zabilježenih putovanja</string>
+    <string name="history_trips_empty_desc">Putovanja će se ovdje pojaviti dok se krećete</string>
+    <string name="trip_gps_anomaly">Otkrivena je anomalija GPS-a — udaljenost možda nije točna</string>
+    <string name="trip_deleted_snackbar">Putovanje je izbrisano</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Prethodni mjesec</string>
+    <string name="history_calendar_next_month">Sljedeći mjesec</string>
+    <string name="history_calendar_distance">Udaljenost</string>
+    <string name="history_calendar_steps">Koraci</string>
+    <string name="history_calendar_trips">Putovanja</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Istraživanje</string>
+    <string name="history_exploration_cells">Ćelije</string>
+    <string name="history_exploration_streak">Niz</string>
+    <string name="history_exploration_best">Najbolje</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Natrag</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Povijest</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Aktivnost</string>
+</resources>

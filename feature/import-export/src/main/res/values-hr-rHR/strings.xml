@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Izvezi</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Nisu pronađene lokacije u odabranom intervalu.</string>
+    <string name="export_error_no_databases">Nema dostupnih baza podataka aplikacije za izvoz.</string>
+    <string name="export_error_no_uri">Nije odabrana mapa za izvoz</string>
+    <string name="export_error_stream_failed">Nije moguće stvoriti tok za datoteku %s</string>
+    <string name="export_error_unknown">Izvoz nije uspio.</string>
+    <string name="export_error_with_reason">Izvoz nije uspio: %s</string>
+    <string name="export_file_name">Naziv datoteke</string>
+    <string name="export_file_name_error">Nazivi datoteka ne smiju sadržavati \:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Izvoz podataka o lokaciji od %1$s do %2$s praćenih aplikacijom Advention.</string>
+    <string name="export_gpx_error">Izvoz GPX-a nije uspio uz pogrešku: %s</string>
+    <string name="export_sensitivity_title">Izvesti precizne podatke o lokaciji?</string>
+    <string name="export_sensitivity_message">Ovaj izvoz ili dijeljenje sadrži podatke o lokaciji pune preciznosti i u izvozu baze podataka može uključivati neobrađene radijske metapodatke. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="export_sensitivity_confirm">Nastavi</string>
+    <string name="export_share_button">Dijeli</string>
+    <string name="export_in_progress">Izvoz je u tijeku…</string>
+    <string name="export_completed">Izvoz je dovršen.</string>
+    <string name="import_notification_error_failed_open_database">Nije moguće otvoriti datoteku baze podataka %s</string>
+    <string name="import_notification_error_file_not_supported">Datoteka %s nije podržana.</string>
+    <string name="import_notification_extracting">Izdvajanje %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Uvoz je dovršen. Uspješno je uvezen %d zapis.</item>
+        <item quantity="other">Uvoz je dovršen. Uspješno je uvezeno %d zapisa.</item>
+        <item quantity="few">Uvoz je dovršen. Uspješno su uvezena %d zapisa.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Uvoz je dovršen. Uvezeno je %1$d zapisa (%2$d preskočeno).</string>
+    <string name="import_notification_error_records_failed">%d zapisa nije uvezeno zbog kršenja ograničenja.</string>
+    <string name="import_notification_importing">Uvoz %s …</string>
+    <string name="import_notification_progress">Uvoz je u tijeku …</string>
+    <string name="settings_export_dialog_from">Od</string>
+    <string name="settings_export_dialog_to">Do</string>
+    <string name="settings_export_no_data">Nema podataka za izvoz</string>
+    <string name="settings_export_title">Izvoz</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Sigurnosna kopija baze podataka (ZIP)</string>
+    <string name="settings_import_summary">Uvezite podatke iz podržanih vrsta (%1$s) i arhiva (%2$s). Uvoz baze podataka spaja kompatibilne retke; ne zamjenjuje postojeće podatke.</string>
+    <string name="settings_import_title">Uvoz</string>
+</resources>

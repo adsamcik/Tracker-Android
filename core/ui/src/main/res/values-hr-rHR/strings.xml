@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Natrag</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Pristup lokaciji</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker treba pristup vašoj lokaciji da bi zabilježio vašu rutu i prikazao je na karti. Podaci o lokaciji ostaju na ovom uređaju — ništa se ne šalje na poslužitelj.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Prepoznavanje aktivnosti</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker koristi prepoznavanje aktivnosti da bi otkrio što radite (hodate, vozite bicikl, vozite, mirujete), pa se automatsko praćenje može pauzirati kada se ne krećete i štedjeti bateriju. Podaci o aktivnosti ostaju na ovom uređaju — ništa se ne šalje na poslužitelj.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Lokacija u pozadini</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Da bi nastavio bilježiti vašu rutu kada promijenite aplikaciju ili se zaslon isključi, Tracker treba pristup vašoj lokaciji u pozadini. Zabilježena lokacija ostaje na ovom uređaju — ništa se ne šalje na poslužitelj. U sljedećem sistemskom upitu odaberite „Dopusti uvijek”; opcija „Samo tijekom upotrebe aplikacije” omogućuje Trackeru rad samo dok je njegov zaslon otvoren.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Dopusti</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ne sada</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Za početak praćenja potrebna je dozvola za lokaciju</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Otvori postavke</string>
+</resources>

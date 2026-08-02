@@ -1,0 +1,228 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Karta</string>
+    <string name="description_map_search">Gumb za pretraživanje</string>
+    <string name="map_layer_cell_heatmap_description">Vaš opaženi mobilni krajolik prema radio-tehnologiji. Blaga polja pokazuju gdje su vas dosegle poslužujuće ćelije; svjetleća središta konzervativne su procjene lokacija i izoštravaju se samo kada ih opažanja okružuju.</string>
+    <string name="map_layer_cell_heatmap_title">Topologija mobilne mreže</string>
+    <string name="map_layer_location_heatmap_high">Velika gustoća</string>
+    <string name="map_layer_location_heatmap_low">Mala gustoća</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Srednja gustoća</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Različiti posjeti</string>
+    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Posjeti</string>
+    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Relativna gustoća prihvaćenih lokacijskih određivanja. Ovo prikazuje različita opažanja, a ne provedeno vrijeme.</string>
+    <string name="map_layer_cell_radio_gsm">GSM pokrivenost</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Mrtve zone signala</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Ističe mjesta gdje je signal ćelije bio slab ili ga nije bilo. Što je područje crvenije, pokrivenost je lošija; dobro pokrivena područja ostaju čista.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora signala</string>
+    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Signal ćelije prikazan kao sjaj nalik aurori: široki ljubičasti oreol ispod svijetle cijan-zelene jezgre. Sjaj pulsira bez ponovnog učitavanja podataka, a postaje statičan kada su animacije sustava isključene.</string>
+    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Slab signal</string>
+    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Snažan signal</string>
+    <string name="map_layer_speed_heatmap_description">Toplinska karta koja prikazuje brzinu kretanja kroz različita područja.</string>
+    <string name="map_layer_speed_very_slow">Vrlo sporo</string>
+    <string name="map_layer_speed_walking">Tempo hodanja</string>
+    <string name="map_layer_speed_running">Tempo trčanja</string>
+    <string name="map_layer_speed_moderate">Umjerena brzina</string>
+    <string name="map_layer_speed_fast">Brzo kretanje</string>
+    <string name="map_layer_speed_very_fast">Vrlo brzo</string>
+    <string name="map_layer_speed_heatmap_title">Toplinska karta brzine</string>
+    <string name="map_layer_legacy_heatmap_title">Naslijeđena toplinska karta</string>
+    <string name="map_layer_legacy_heatmap_chip">Naslijeđene pločice</string>
+    <string name="map_layer_legacy_heatmap_description">Povratak izvornoj aplikaciji Signals: gustoća lokacije prikazana je kao zasebne mrežne pločice od 25 m, kao kada je toplinsku kartu prikazivao poslužitelj. Povećajte prikaz da biste vidjeli kvadrate.</string>
+    <string name="map_layer_seasonal_title">Sezonski istraživač</string>
+    <string name="map_layer_seasonal_chip">Godišnja doba</string>
+    <string name="map_layer_seasonal_description">Krpana memorija godišnjih doba: svako istraženo područje obojeno je godišnjim dobom kada ste ga prvi put posjetili. Pronađite staze kojima hodate samo ljeti ili ulice koje vidite samo zimi.</string>
+    <string name="map_layer_season_spring">Proljeće</string>
+    <string name="map_layer_season_summer">Ljeto</string>
+    <string name="map_layer_season_autumn">Jesen</string>
+    <string name="map_layer_season_winter">Zima</string>
+    <string name="map_layer_terrain_title">Život kao teren</string>
+    <string name="map_layer_terrain_chip">Teren</string>
+    <string name="map_layer_terrain_description">Gustoća lokacije uzdignuta u 3D: mjesta na kojima provodite najviše vremena rastu kao visoke svjetleće zaravni, dok jednokratna mjesta ostaju niska. Nagnite kartu da biste vidjeli reljef svojeg života.</string>
+    <string name="map_layer_terrain_low">Rijetko ovdje</string>
+    <string name="map_layer_terrain_mid">Ponekad</string>
+    <string name="map_layer_terrain_high">Često ovdje</string>
+    <string name="map_layer_places_title">Česta mjesta</string>
+    <string name="map_layer_places_chip">Mjesta</string>
+    <string name="map_layer_places_description">Važna mjesta prikazana su kao oznake, čija veličina i boja ovise o učestalosti posjeta. Dom i posao postaju velike tople točke, a mjesto koje ste posjetili jednom ostaje mala hladna točka.</string>
+    <string name="map_layer_places_rare">Rijetko</string>
+    <string name="map_layer_places_often">Ponekad</string>
+    <string name="map_layer_places_anchor">Vaša sidrišta</string>
+    <string name="map_layer_speed_ribbon_title">Traka brzine</string>
+    <string name="map_layer_speed_ribbon_chip">Traka</string>
+    <string name="map_layer_speed_ribbon_description">Vaša je ruta obojena brzinom kretanja, od sporog ljubičastog hoda do užarenog crvenog sprinta ili vožnje. Za razliku od toplinske karte brzine, traka čuva putanju pa točno vidite gdje ste ubrzali i usporili.</string>
+    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Traka nadmorske visine</string>
+    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Nadmorska visina</string>
+    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Vaša ruta obojena je apsolutnom nadmorskom visinom, od dubokih plavih nizina preko cijan podnožja do toplih planinskih visina. Ljestvica ostaje fiksna pri pomicanju karte, pa ista visina uvijek ima istu boju.</string>
+    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Nizine</string>
+    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Podnožje</string>
+    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Visoke planine</string>
+    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Traka aktivnosti</string>
+    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Aktivnost</string>
+    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Vaša ruta obojena je pouzdanim stanjem kretanja zabilježenim uz svako određivanje lokacije: sivo kada je stanje nepoznato, plavo tijekom mirovanja i zeleno tijekom kretanja.</string>
+    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Nepoznato</string>
+    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Mirovanje</string>
+    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">Kretanje</string>
+    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Rendgen skijanja</string>
+    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Ski X-ray</string>
+    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Dijagnostički prikaz otkrivenih skijaških segmenata. Spustovi, žičare, hodanja i stanke vezani su uz najbližu zabilježenu lokaciju i označeni ključnim mjernim podacima.</string>
+    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Spust</string>
+    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Žičara</string>
+    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Hodanje ili stanka</string>
+    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Zviježđa putovanja</string>
+    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Putovanja</string>
+    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Ponavljana putovanja između čestih mjesta postaju zakrivljena zviježđa. Stabilan luk prikazuje svaku rutu dok komet putuje po njemu; deblji lukovi znače da ste putovanje ostvarili češće.</string>
+    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Hodanje</string>
+    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Bicikliranje</string>
+    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Vožnja</string>
+    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Javni prijevoz</string>
+    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Ostalo</string>
+    <string name="map_layer_fog_title">Magla istraživača</string>
+    <string name="map_layer_fog_chip">Magla</string>
+    <string name="map_layer_fog_description">Svijet izranja iz magle: svako područje koje ste dotaknuli otkriva se i svijetli jače što ste ga bolje upoznali. Mjesta kroz koja ste samo prošli ostaju slaba izmaglica, a duboko istražena mjesta sjaje čvrstim zlatom. Neistraženo tlo ostaje tamno.</string>
+    <string name="map_layer_fog_faint">Samo prošli</string>
+    <string name="map_layer_fog_known">Dobro istraženo</string>
+    <string name="map_layer_first_contact_title">Prvi kontakt</string>
+    <string name="map_layer_first_contact_chip">Otkriće</string>
+    <string name="map_layer_first_contact_description">Vremenska crta vaših otkrića: svako područje obojeno je prema tome koliko ste nedavno ondje prvi put kročili. Davno otkrivena mjesta blijede u duboki indigo, a područje otkriveno ovaj tjedan svijetli jarkim cijanom — pročitajte priču o istraživanju prema najnovijim granicama.</string>
+    <string name="map_layer_first_contact_old">Davno</string>
+    <string name="map_layer_first_contact_recent">Upravo otkriveno</string>
+    <string name="map_layer_vehicle_compliance_title">Usklađenost brzine vozila</string>
+    <string name="map_layer_vehicle_compliance_description">Polilinija uzoraka vožnje obojena prema usporedbi brzine s konfiguriranim osnovnim ograničenjem.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Puno ispod ograničenja</string>
+    <string name="map_layer_vehicle_compliance_slow">Ispod ograničenja</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Blizu ograničenja</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Malo iznad</string>
+    <string name="map_layer_vehicle_compliance_speeding">Prekoračenje brzine</string>
+    <string name="map_layer_location_polyline_description">Linija koja tijekom vremena povezuje zabilježene lokacije.</string>
+    <string name="map_layer_location_polyline_title">Polilinija lokacije</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polilinija</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Preklapanje Wi-Fi mreža</string>
+    <string name="map_layer_vehicle_compliance_chip">Prekoračenje</string>
+    <string name="map_layer_none_title">Bez sloja</string>
+    <string name="map_date_preset_week">Prošli tjedan</string>
+    <string name="map_date_preset_month">Prošli mjesec</string>
+    <string name="map_date_preset_custom">Prilagođeno…</string>
+    <string name="map_date_today">Danas</string>
+    <string name="map_date_yesterday">Jučer</string>
+    <string name="map_date_this_week">Ovaj tjedan</string>
+    <string name="map_layer_wifi_count_heatmap_title">Preklapanje Wi-Fi mreža</string>
+    <string name="map_layer_wifi_count_heatmap_description">Prikazuje koliko se različitih pristupnih točaka preklapa na svakom mjestu. Ponovljena skeniranja iste pristupne točke broje se jednom, pa toplija područja znače stvarno gušću radijsku pokrivenost.</string>
+    <string name="map_layer_wifi_heatmap_description">Wi-Fi zviježđe svjesno pojasa iz vlastitih opažanja. Obojena polja prikazuju opaženu pokrivenost od 2,4, 5 i 6 GHz; svjetleća središta približni su položaji pristupnih točaka, prikazani samo kada ih podržava geometrija uzoraka.</string>
+    <string name="map_layer_wifi_heatmap_high">Mnogo preklapajućih pristupnih točaka</string>
+    <string name="map_layer_wifi_heatmap_low">Malo preklapajućih pristupnih točaka</string>
+    <string name="map_layer_wifi_heatmap_medium">Nekoliko preklapajućih pristupnih točaka</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi zviježđe</string>
+    <string name="map_layer_wifi_radio_24">Doseg 2,4 GHz</string>
+    <string name="map_layer_wifi_radio_5">Doseg 5 GHz</string>
+    <string name="map_layer_wifi_radio_6">Doseg 6 GHz</string>
+    <string name="map_legend_label">Legenda</string>
+    <string name="map_chip_layers">Sloj</string>
+    <string name="map_chip_dates">Datumi</string>
+    <string name="permission_rationale_location_map">Za prikaz vaše lokacije na karti Tracker treba pristup lokaciji. Svi podaci ostaju na vašem uređaju.</string>
+    <string name="map_location_permission_denied">Za prikaz položaja potrebna je dozvola za lokaciju</string>
+    <string name="map_open_settings">Otvori postavke</string>
+    <string name="settings_map_basemap_title">Osnovna karta</string>
+    <string name="settings_map_basemap_custom">Prilagođena datoteka .pmtiles aktivna je (dodirnite za uklanjanje)</string>
+    <string name="settings_map_basemap_default">Ugrađena osnovna karta je aktivna. Dodirnite za uvoz prilagođene datoteke .pmtiles.</string>
+    <string name="basemap_import_error_source_open">Nije moguće otvoriti datoteku. Pokušajte drugu ili je ponovno podijelite s Trackerom.</string>
+    <string name="basemap_import_error_copy">Nije moguće kopirati datoteku osnovne karte. Provjerite ima li dovoljno slobodnog prostora i pokušajte ponovno.</string>
+    <string name="basemap_import_error_invalid_format">Nije valjana datoteka PMTiles: %1$s</string>
+    <string name="settings_map_advanced_section_title">Napredne postavke</string>
+    <string name="settings_map_max_heat_title">Najveća toplina nakon posjeta</string>
+    <string name="settings_map_quality_title">Razlučivost toplinske karte</string>
+    <string name="settings_map_visit_threshold_title">Prag vremena posjeta lokaciji</string>
+    <string name="settings_map_legacy_heatmap_title">Naslijeđena toplinska karta (pločice od 10 m)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Uskršnje jaje: dodaje sloj „Naslijeđena toplinska karta” koji gustoću lokacije crta kao zasebne mrežne pločice od 10 m, poput izvorne toplinske karte Signalsa prikazane na poslužitelju.</string>
+    <string name="settings_map_zoom_buttons_title">Gumbi za povećanje karte</string>
+    <string name="settings_map_zoom_buttons_subtitle">Prikažite gumbe + i − na zaslonu za povećanje karte, kada je teško koristiti povećanje prstima.</string>
+    <string name="tips_map_date_range_title">Raspon datuma</string>
+    <string name="tips_map_my_location_title">Moja lokacija</string>
+    <string name="tips_map_sheet_description">Dodirom ili povlačenjem ove trake prema gore otvorit ćete dodatne mogućnosti karte, uključujući odabir sloja i legendu.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Šir., duž. npr. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Pokušajte 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Očisti pretraživanje</string>
+    <string name="map_search_paste">Zalijepi iz međuspremnika u pretraživanje</string>
+    <string name="map_search_clipboard_empty">Međuspremnik još ne sadrži koordinate</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Odustani</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Podijeli kartu</string>
+    <string name="map_share_sheet_title">Podijeli kartu kao sliku</string>
+    <string name="map_share_sheet_subtitle">Prikazuje trenutačni prikaz i aktivni sloj kao statičnu sliku. Vaša lokacija uživo nikada nije uključena.</string>
+    <string name="map_share_resolution_standard">Standardno (1080p)</string>
+    <string name="map_share_resolution_high">Visoko (1440p)</string>
+    <string name="map_share_resolution_ultra">Vrlo visoko (4K)</string>
+    <string name="map_share_action">Podijeli</string>
+    <string name="map_share_preparing">Priprema slike…</string>
+    <string name="map_share_error">Nije moguće prikazati sliku karte. Pokušajte ponovno.</string>
+    <string name="map_date_range_all_time">Cijelo vrijeme</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Slojevi karte</string>
+    <string name="map_layer_load_error">Nije moguće učitati ovaj sloj. Pokušajte odabrati drugi.</string>
+    <string name="map_empty_subtitle_location">Nema podataka o lokaciji u ovom prikazu ili rasponu datuma. Funkcije ruta i karte zahtijevaju lokaciju prikupljenu tijekom praćenja.</string>
+    <string name="map_empty_subtitle_cell">Nema lociranih podataka o ćelijama u ovom prikazu ili rasponu datuma. Uzorci ćelija zabilježeni bez lokacije i dalje su spremljeni, ali ne mogu se prikazati na karti.</string>
+    <string name="map_empty_subtitle_wifi">Nema lociranih Wi-Fi podataka u ovom prikazu ili rasponu datuma. Wi-Fi opažanja zabilježena bez lokacije i dalje su spremljena, ali ne mogu se prikazati na karti.</string>
+    <string name="map_empty_subtitle_speed">Nema podataka o brzini u ovom prikazu ili rasponu datuma. Karte brzine zahtijevaju upotrebljive uzorke lokacije prikupljene tijekom praćenja.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Nema vožnji usklađenih s cestama za prikaz. Uvezite OpenStreetMap regiju (Postavke) i zabilježite malo vožnje da bismo mogli usporediti rutu sa stvarnim cestama.</string>
+    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Odbaci poruku o nedostatku podataka</string>
+    <string name="map_speed_probe_title">Brzina ovdje</string>
+    <string name="map_speed_probe_avg_label">Prosjek</string>
+    <string name="map_speed_probe_max_label">Najviše</string>
+    <string name="map_speed_probe_empty">Na ovom mjestu nema podataka o brzini. Dodirnite mjesto s toplinom da biste vidjeli brzine.</string>
+    <string name="map_speed_probe_hint">Dodirnite kartu da biste vidjeli brzine</string>
+    <string name="map_speed_probe_dismiss">Odbaci pojedinosti brzine</string>
+    <string name="map_place_callout_loading">Traženje mjesta…</string>
+    <string name="map_place_callout_empty">Ovdje nije pronađeno mjesto</string>
+    <string name="map_place_callout_dismiss">Odbaci pojedinosti mjesta</string>
+    <string name="map_zoom_in">Povećaj</string>
+    <string name="map_zoom_out">Smanji</string>
+    <string name="map_loading">Učitavanje karte…</string>
+    <string name="map_basemap_unavailable">Nije moguće pripremiti osnovnu kartu. Zatvorite i ponovno otvorite kartu da biste pokušali ponovno.</string>
+    <string name="map_a11y_map_overview">Pregled karte</string>
+    <string name="map_a11y_centered_on_location">Karta je centrirana na vašu lokaciju</string>
+    <string name="map_a11y_showing_location">Karta prikazuje vašu lokaciju</string>
+    <string name="map_a11y_loading_data">Učitavanje zabilježenih podataka karte</string>
+    <string name="map_a11y_no_recorded_data">Odabrani sloj nema podataka koji se mogu prikazati na karti u ovom prikazu ili rasponu datuma</string>
+    <string name="map_a11y_no_layer_selected">Nije odabran sloj karte</string>
+    <string name="map_a11y_search_result_visible">Oznaka rezultata pretraživanja je vidljiva</string>
+    <string name="map_a11y_active_recording_visible">Putanja aktivnog bilježenja je vidljiva</string>
+    <string name="map_a11y_recorded_route_history">Prikazuje se povijest zabilježene rute</string>
+    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Prikazuju se različita prihvaćena opažanja lokacije</string>
+    <string name="map_a11y_cell_heatmap">Prikazuju se polja mobilne pokrivenosti i približna središta poslužujućih lokacija</string>
+    <string name="map_a11y_wifi_heatmap">Prikazuju se Wi-Fi pojasevi, polja pokrivenosti i približna središta pristupnih točaka</string>
+    <string name="map_a11y_wifi_count_heatmap">Prikazuje se preklapanje različitih Wi-Fi pristupnih točaka</string>
+    <string name="map_a11y_speed_heatmap">Prikazuje se toplinska karta brzine</string>
+    <string name="map_a11y_saved_map_data">Prikazuju se spremljeni podaci karte</string>
+    <string name="map_location_permission_opening_settings">Potreban je pristup lokaciji. Otvaranje postavki…</string>
+    <string name="map_permission_banner_dismiss">Odbaci poruku o dozvoli za lokaciju</string>
+    <string name="map_loading_layer">Učitavanje sloja karte</string>
+    <string name="map_a11y_world_scale">Svjetsko mjerilo</string>
+    <string name="map_a11y_regional_scale">Regionalno mjerilo</string>
+    <string name="map_a11y_city_scale">Gradsko mjerilo</string>
+    <string name="map_a11y_neighborhood_scale">Mjerilo četvrti</string>
+    <string name="map_a11y_street_scale">Ulično mjerilo</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Množitelj pojedinosti prikaza. Veće vrijednosti prikazuju više pojedinosti, ali mogu usporiti učitavanje karte na starijim uređajima.</string>
+    <string name="help_max_heat_points">Najveći broj točaka lokacije prikazanih u toplinskoj karti. Veće vrijednosti znače više pojedinosti, ali sporiji prikaz.</string>
+    <string name="help_visit_threshold">Koliko dugo morate ostati na jednom mjestu prije nego što je na karti označeno kao „posjet”. Povećajte vrijednost da biste smanjili nered od kratkih zaustavljanja.</string>
+</resources>

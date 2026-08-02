@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Hodanje</string>
+    <string name="activity_running">Trčanje</string>
+    <string name="activity_bicycle">Bicikl</string>
+    <string name="activity_slope_sports">Skijaški sportovi</string>
+    <string name="activity_land_vehicle">Kopneno vozilo</string>
+    <string name="activity_water_vehicle">Vodeno plovilo</string>
+    <string name="activity_air_vehicle">Zrakoplov</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">U vozilu</string>
+    <string name="activity_on_foot">Pješice</string>
+    <string name="activity_name">Naziv aktivnosti</string>
+    <string name="activity_raw_still">Mirovanje</string>
+    <string name="activity_raw_tilting">Naginjanje</string>
+    <string name="activity_still">Mirovanje</string>
+    <string name="activity_unknown">Otkrivanje…</string>
+    <string name="activity_vehicle">Vozilo</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">Jeste li sigurni da želite %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Nema</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Nepoznato</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Kanal koji se koristi isključivo za uslugu praćenja aktivnosti, kako biste mogli jednostavno ukloniti trajnu obavijest.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Praćenje aktivnosti</string>
+    <string name="channel_achievements_description">Obavijesti povezane s postignućima.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Postignuće</string>
+    <string name="channel_other_description">Ostale obavijesti koje ne pripadaju ni jednoj drugoj kategoriji.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Ostalo</string>
+    <string name="channel_track_description">Obavijesti povezane s praćenjem.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Praćenje</string>
+    <string name="channel_goals_description">Upozorenja o dovršetku cilja.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Napredak cilja</string>
+    <string name="day_short">%d d</string>
+    <string name="generic_add">Dodaj</string>
+    <string name="generic_back">Natrag</string>
+    <string name="generic_cancel">Odustani</string>
+    <string name="generic_delete">Izbriši</string>
+    <string name="generic_edit">Uredi</string>
+    <string name="generic_ok">U redu</string>
+    <string name="generic_undo">poništi</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
+</resources>
