@@ -8,7 +8,7 @@ or moving default resources.
 
 The canonical source contains **1598** string-like Android resources
 (strings, plurals, string arrays, and integer arrays), of which
-**1558** are user-facing and eligible for translation. English is
+**1570** are user-facing and eligible for translation. English is
 the default resource set and is not duplicated as a locale bucket.
 
 | Qualifier | Language | Scope |
@@ -45,8 +45,9 @@ the default resource set and is not duplicated as a locale bucket.
 
 1. Use tools/prepare_locale_resources.py <qualifier> to create or refresh the
    locale's complete resource schema before translating.
-2. Translate every resource whose translatable field is true. Preserve the exact
-   default content of resources marked translatable="false".
+2. Translate every resource whose translatable field is true. Do not copy resources
+   marked translatable="false" into locale directories; Android falls back to the
+   default values definition for them.
 3. Preserve resource names, XML structure, formatted and tools:ignore attributes,
    positional placeholders (for example %1$s and %2$d), escaped apostrophes,
    markup, and literal %% characters.
@@ -79,43 +80,53 @@ the default resource set and is not duplicated as a locale bucket.
 | stats/data | 117 |
 | tracker/api-module | 183 |
 
-## Existing localization coverage before this translation pass
+## Current localization coverage
 
-The existing buckets are partial and should not be treated as complete. Counts are
-the number of resource definitions across all modules, not a translation-quality
-rating.
+Counts are localizable, user-facing resource definitions across all modules, not a
+translation-quality rating. The target locale qualifiers listed above are maintained
+as complete translations; other locale buckets may remain partial.
 
-| Qualifier | Resource definitions |
+| Qualifier | Localizable resource definitions |
 | --- | ---: |
 | values-af-rZA | 176 |
 | values-ar-rSA | 176 |
+| values-bg-rBG | 1570 |
 | values-ca-rES | 176 |
-| values-cs-rCZ | 924 |
-| values-da-rDK | 176 |
-| values-de-rDE | 176 |
-| values-el-rGR | 176 |
-| values-es-rES | 176 |
-| values-fi-rFI | 176 |
-| values-fr-rFR | 176 |
-| values-hu-rHU | 176 |
-| values-it-rIT | 176 |
+| values-cs-rCZ | 1570 |
+| values-da-rDK | 1570 |
+| values-de-rDE | 1570 |
+| values-el-rGR | 1570 |
+| values-es-rES | 1570 |
+| values-et-rEE | 1570 |
+| values-fi-rFI | 1570 |
+| values-fr-rFR | 1570 |
+| values-ga-rIE | 1570 |
+| values-hi-rIN | 1570 |
+| values-hr-rHR | 1570 |
+| values-hu-rHU | 1570 |
+| values-it-rIT | 1570 |
 | values-iw-rIL | 176 |
-| values-ja-rJP | 176 |
+| values-ja-rJP | 1570 |
 | values-ko-rKR | 176 |
-| values-nl-rNL | 176 |
+| values-lt-rLT | 1570 |
+| values-lv-rLV | 1570 |
+| values-mt-rMT | 1570 |
+| values-nl-rNL | 1570 |
 | values-no-rNO | 176 |
-| values-pl-rPL | 176 |
+| values-pl-rPL | 1570 |
 | values-pt-rBR | 176 |
-| values-pt-rPT | 176 |
-| values-ro-rRO | 176 |
+| values-pt-rPT | 1570 |
+| values-ro-rRO | 1570 |
 | values-ru-rRU | 176 |
+| values-sk-rSK | 1570 |
+| values-sl-rSI | 1570 |
 | values-sr-rSP | 176 |
-| values-sv-rSE | 176 |
+| values-sv-rSE | 1570 |
 | values-tr-rTR | 176 |
 | values-uk-rUA | 176 |
 | values-vi-rVN | 176 |
-| values-zh-rCN | 176 |
-| values-zh-rTW | 176 |
+| values-zh-rCN | 1570 |
+| values-zh-rTW | 1570 |
 
 ## JSON reference schema
 
