@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exportă</string>
+    <string name="export_default_file_name_range">Advention_exportă_date_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_exportă_date_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Nu s-au găsit locații în intervalul selectat.</string>
+    <string name="export_error_no_databases">Nu există baze de date ale aplicației disponibile pentru export.</string>
+    <string name="export_error_no_uri">Nu a fost selectat niciun dosar pentru export</string>
+    <string name="export_error_stream_failed">Fluxul către fișierul %s nu a putut fi creat</string>
+    <string name="export_error_unknown">Exportul a eșuat.</string>
+    <string name="export_error_with_reason">Exportul a eșuat: %s</string>
+    <string name="export_file_name">Numele fișierului</string>
+    <string name="export_file_name_error">Numele fișierelor nu pot conține \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Export de date de localizare de la %1$s la %2$s, urmărite cu Advention.</string>
+    <string name="export_gpx_error">Exportul GPX a eșuat cu eroarea: %s</string>
+    <string name="export_sensitivity_title">Exporți date de localizare precise?</string>
+    <string name="export_sensitivity_message">Acest export/partajare conține date de localizare cu precizie completă și poate include metadate radio brute în exporturile bazei de date. Continuă doar dacă ai încredere în destinație.</string>
+    <string name="export_sensitivity_confirm">Continuă</string>
+    <string name="export_share_button">Partajează</string>
+    <string name="export_in_progress">Se exportă…</string>
+    <string name="export_completed">Export finalizat.</string>
+    <string name="import_notification_error_failed_open_database">Fișierul bazei de date %s nu a putut fi deschis</string>
+    <string name="import_notification_error_file_not_supported">Fișierul %s nu este acceptat.</string>
+    <string name="import_notification_extracting">Se extrage %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import finalizat. S-a importat cu succes %d înregistrare.</item>
+        <item quantity="few">Import finalizat. S-au importat cu succes %d înregistrări.</item>
+        <item quantity="other">Import finalizat. S-au importat cu succes %d înregistrări.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import finalizat. S-au importat %1$d înregistrări (%2$d omise).</string>
+    <string name="import_notification_error_records_failed">%d înregistrări nu au putut fi importate din cauza încălcării constrângerilor.</string>
+    <string name="import_notification_importing">Se importă %s …</string>
+    <string name="import_notification_progress">Import în desfășurare …</string>
+    <string name="settings_export_dialog_from">De la</string>
+    <string name="settings_export_dialog_to">Până la</string>
+    <string name="settings_export_no_data">Nu există date de exportat</string>
+    <string name="settings_export_title">Export</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Copie de siguranță a bazei de date (ZIP)</string>
+    <string name="settings_import_summary">Importă date din tipurile acceptate (%1$s) și arhive (%2$s). Importurile bazei de date combină rândurile compatibile; nu înlocuiesc datele existente.</string>
+    <string name="settings_import_title">Importă</string>
+</resources>

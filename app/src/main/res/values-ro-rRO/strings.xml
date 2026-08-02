@@ -1,0 +1,476 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Joc</string>
+    <string name="module_map_title">Hartă</string>
+    <string name="module_statistics_title">Statistici</string>
+    <string name="main_nav_tracker">Acasă</string>
+    <string name="settings_clear_preferences_title">Șterge preferințele</string>
+    <string name="settings_clear_preferences_message">Această acțiune va reseta toate preferințele aplicației (comutatoare ale funcțiilor, setări ale interfeței). Datele tale de urmărire nu vor fi afectate. Continui?</string>
+    <string name="settings_data_title">Date</string>
+    <string name="settings_debug_group_title">Depanare</string>
+    <string name="settings_debug_title">Opțiuni pentru dezvoltatori</string>
+    <string name="settings_debug_developer_tools_section">Instrumente pentru dezvoltatori</string>
+    <string name="settings_debug_disable_developer_subtitle">Ascunde opțiunile pentru dezvoltatori din setări</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Modul dezvoltator a fost dezactivat</string>
+    <string name="settings_data_management_section">Gestionarea datelor</string>
+    <string name="settings_data_danger_zone_section">Zonă periculoasă</string>
+    <string name="settings_osm_import_section">Date de hartă (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Importă regiunea OSM</string>
+    <string name="settings_osm_import_action_summary">Alege un fișier .osm.pbf. Conformitatea vehiculelor va folosi apoi offline limitele reale de viteză ale drumurilor.</string>
+    <string name="settings_osm_import_unavailable_title">Importul hărții offline nu este disponibil</string>
+    <string name="settings_osm_import_action_unavailable">Importul hărții offline este temporar indisponibil până la finalizarea măsurilor de siguranță pentru fișiere.</string>
+    <string name="settings_osm_import_action_running">Se importă — atinge pentru a anula</string>
+    <string name="settings_osm_import_action_failed">Importul hărții offline nu a putut fi finalizat.</string>
+    <string name="settings_osm_import_action_source_unavailable">Fișierul de hartă selectat nu a putut fi deschis.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">S-a importat %1$d drum din %2$d noduri.</item>
+        <item quantity="few">S-au importat %1$d drumuri din %2$d noduri.</item>
+        <item quantity="other">S-au importat %1$d drumuri din %2$d noduri.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Nu a fost importată încă nicio regiune OpenStreetMap.</string>
+    <string name="settings_osm_imports_attribution">Date de hartă © contribuitorii OpenStreetMap (ODbL 1.0). Toată prelucrarea are loc pe dispozitiv.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d drum · importat %2$s</item>
+        <item quantity="few">%1$,d drumuri · importate %2$s</item>
+        <item quantity="other">%1$,d drumuri · importate %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Elimină regiunea importată</string>
+    <string name="settings_osm_import_remove_message">Elimini %1$s? Conformitatea vehiculelor va reveni la valoarea de referință fixă până când imporți din nou o regiune.</string>
+    <string name="settings_incremental_backups_title">Copii de siguranță incrementale</string>
+    <string name="settings_incremental_backups_summary">Exportă doar datele noi de la ultima copie de siguranță. Reduce timpul de export și dimensiunea fișierului.</string>
+    <string name="settings_reset_export_watermarks_title">Forțează exportul complet</string>
+    <string name="settings_reset_export_watermarks_summary">Următoarea copie de siguranță automată va include toate datele, nu doar modificările</string>
+    <string name="settings_reset_export_watermarks_done">Marcajele de export au fost resetate — următoarea copie de siguranță va fi un export complet</string>
+    <string name="settings_migration_backup_export_title">Exportă o copie de siguranță înainte de actualizare</string>
+    <string name="settings_migration_backup_export_summary" ns0:ignore="PluralsCandidate">Copie completă a bazei de date de la v%1$d, creată înaintea migrării la v%2$d și păstrată în mod privat până la 30 de zile</string>
+    <string name="settings_migration_backup_warning_title">Exporți copia de siguranță cu date sensibile?</string>
+    <string name="settings_migration_backup_warning_message">Această copie de siguranță poate conține locații precise, observații Wi-Fi și celulare, activități și alte date private dinaintea actualizării. Salveaz-o numai într-un loc în care ai încredere.</string>
+    <string name="settings_migration_backup_export_action">Exportă copia de siguranță</string>
+    <string name="settings_migration_backup_export_success">Copia de siguranță de dinaintea actualizării a fost exportată</string>
+    <string name="settings_migration_backup_export_failure">Copia de siguranță de dinaintea actualizării nu a putut fi exportată</string>
+    <string name="settings_migration_backup_export_cleanup_required">Exportul a eșuat. Șterge copia de siguranță exportată parțial din locația selectată.</string>
+    <string name="settings_delete_data_success">Toate datele colectate au fost șterse</string>
+    <string name="settings_delete_data_failure">Nu au putut fi șterse toate datele colectate</string>
+    <string name="settings_game_goals_title">Obiective</string>
+    <string name="settings_game_daily_target_title">Ținta zilnică de pași</string>
+    <string name="settings_game_weekly_target_title">Ținta săptămânală de pași</string>
+    <string name="settings_game_daily_contribution_title">Contribuția zilnică maximă</string>
+    <string name="settings_game_steps_unit">pași</string>
+    <string name="settings_game_notifications_title">Notificări</string>
+    <string name="settings_game_goal_notifications_title">Notificări privind progresul obiectivului</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Primește o reamintire locală la 75% și 90% din ținta zilnică.</string>
+    <string name="settings_game_during_games_title">În timpul jocurilor</string>
+    <string name="settings_game_haptics_title">Feedback haptic în joc</string>
+    <string name="settings_game_haptics_summary">Folosește vibrații subtile pentru feedbackul din joc.</string>
+    <string name="settings_game_quiet_coaching_title">Indicații discrete de ghidare</string>
+    <string name="settings_game_quiet_coaching_summary">Folosește îndrumări mai puțin frecvente în timp ce te joci.</string>
+    <string name="settings_game_remember_setup_title">Reține ultima configurare a jocului</string>
+    <string name="settings_game_remember_setup_summary">Reutilizează data viitoare ultimul obiectiv și ultima dificultate.</string>
+    <string name="settings_game_privacy_battery_title">Confidențialitate și baterie</string>
+    <string name="settings_game_privacy_battery_disclosure">Jocurile folosesc locația în timp real numai cât timp sunt active și reutilizează locația Tracker atunci când este disponibilă. Întreruperea jocului eliberează accesul său la locație. Pe acest dispozitiv se salvează doar scorul și punctele/XP; locațiile brute din joc nu sunt păstrate.</string>
+    <string name="settings_game_loading">Se încarcă setările jocului…</string>
+    <string name="settings_game_load_error">Setările jocului nu au putut fi încărcate. Încearcă din nou.</string>
+    <string name="settings_map_info_hint">Aceste setări controlează calitatea și performanța vizualizării hărții. Majoritatea utilizatorilor pot folosi valorile implicite.</string>
+    <string name="settings_map_online_tiles_section_title">Dale de hartă online</string>
+    <string name="settings_map_online_tiles_enable_title">Folosește dale de hartă online</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Dezactivat — este utilizată numai harta de bază offline inclusă. Fără solicitări de rețea.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Activat — se preiau dale de la %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Furnizor de dale</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (recomandat)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">URL personalizat</string>
+    <string name="settings_map_online_tiles_custom_url_label">URL-ul JSON al stilului</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Atribuire: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Dalele online sunt opționale. Cât timp sunt activate, furnizorul ales poate vedea adresa IP și dalele pe care le încarci (aproximativ zona hărții pe care o vizualizezi). Tracker nu trimite niciodată un cont, un identificator sau istoricul locațiilor.</string>
+    <string name="settings_developer_mode_enabled_toast">Modul dezvoltator a fost activat</string>
+    <string name="settings_developer_mode_disable">Dezactivează modul dezvoltator</string>
+    <string name="settings_developer_mode_subtitle">Modul dezvoltator este activ</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Mai atinge încă %d dată pentru a activa modul dezvoltator</item>
+        <item quantity="few">Mai atinge încă %d ori pentru a activa modul dezvoltator</item>
+        <item quantity="other">Mai atinge încă %d ori pentru a activa modul dezvoltator</item>
+    </plurals>
+    <string name="settings_version_info_title">Informații despre versiune</string>
+    <string name="settings_version_format">Versiune: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Limba curentă: %s</string>
+    <string name="settings_language_title">Limba aplicației</string>
+    <string name="settings_units_auto_summary_on">Adaptează sistemul de lungimi la activitățile detectate</string>
+    <string name="settings_units_auto_summary_off">Aplică peste tot sistemul de lungimi selectat</string>
+    <string-array name="settings_length_system_names">
+        <item>Metric</item>
+        <item>Imperial (USC)</item>
+        <item>Roman antic</item>
+        <item>Navigație</item>
+        <item>Zbor</item>
+    </string-array>
+    <string name="settings_length_system_title">Sistem de lungimi</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Licențe open-source</string>
+    <string name="settings_licenses_subtitle">Vezi notificările terților incluse în această versiune.</string>
+    <string name="settings_licenses_loading">Se încarcă licențele…</string>
+    <string name="settings_licenses_unavailable">Datele despre licențele terților incluse nu au putut fi încărcate.</string>
+    <string name="settings_licenses_text_at_url">Textul integral al licenței este disponibil la: %1$s</string>
+    <string name="settings_privacy_policy_title">Politica de confidențialitate</string>
+    <string name="settings_privacy_policy_unavailable">Politica de confidențialitate inclusă nu a putut fi deschisă. Încearcă din nou după repornirea aplicației.</string>
+    <string name="settings_about_header">Despre</string>
+    <string name="settings_about_app_title">Tracker de adsamcik</string>
+    <string name="settings_about_app_subtitle">Urmăritor de locație și activitate, cu confidențialitatea pe primul loc</string>
+    <string name="about_title">Despre</string>
+    <string name="about_app_name_label">Aplicație</string>
+    <string name="about_version_label">Versiune</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Commit de compilare</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Autor</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">E-mail</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Linkuri</string>
+    <string name="about_attributions_title">Atribuiri de date</string>
+    <string name="about_attribution_geonames_label">Nume de locuri</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Date despre hartă și străzi</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Setări de module</string>
+    <string name="settings_core_group_title">De bază</string>
+    <string name="settings_other_title">Unități și afișare</string>
+    <string name="settings_remove_all_collected_data_summary">Șterge datele tale de urmărire (activitățile personalizate și setările vor fi păstrate)</string>
+    <string name="settings_remove_all_collected_data_title">Șterge toate datele colectate</string>
+    <string-array name="settings_speed_format_names">
+        <item>Viteză pe secundă (m/s)</item>
+        <item>Ritm pe distanță (min/km, min/mi)</item>
+        <item>Viteză (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Formatul vitezei</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Setări</string>
+    <string name="switch_state_on">Pornit</string>
+    <string name="switch_state_off">Oprit</string>
+    <string name="onboarding_streamlined_title">Urmărește-ți călătoriile în mod privat</string>
+    <string name="onboarding_streamlined_subtitle">Toate datele rămân pe dispozitivul tău. Fără sincronizare în cloud sau urmărire de către terți.</string>
+    <string name="onboarding_benefit_privacy_title">Confidențialitatea pe primul loc</string>
+    <string name="onboarding_benefit_privacy_desc">Toate datele de urmărire rămân pe dispozitivul tău. Fără servere, fără sincronizare în cloud, control deplin.</string>
+    <string name="onboarding_benefit_insights_title">Informații despre activitate</string>
+    <string name="onboarding_benefit_insights_desc">Vezi rutele pe hărți, analizează statisticile și urmărește-ți progresul în timp.</string>
+    <string name="onboarding_benefit_gamification_title">Realizări</string>
+    <string name="onboarding_benefit_gamification_desc">Deblochează peste 150 de realizări pe măsură ce mergi, alergi, pedalezi și explorezi — toate sunt obținute local, pe dispozitivul tău.</string>
+    <string name="onboarding_get_started">ÎNCEPE</string>
+    <string name="onboarding_privacy_policy_button">Citește politica de confidențialitate</string>
+    <string name="onboarding_state_read_error_message">Nu am putut verifica dacă configurarea era deja finalizată, așa că o afișăm pentru a-ți păstra datele private. Poți continua în siguranță.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Curăță automat datele vechi</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Păstrează datele pentru totdeauna; curățarea automată nu va șterge datele vechi</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Elimină automat datele mai vechi de %1$d an</item>
+        <item quantity="few">Elimină automat datele mai vechi de %1$d ani</item>
+        <item quantity="other">Elimină automat datele mai vechi de %1$d ani</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">Păstrează datele timp de</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Păstrează pentru totdeauna</item>
+        <item>1 an</item>
+        <item>2 ani</item>
+        <item>3 ani</item>
+        <item>5 ani</item>
+        <item>10 ani</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">CONTINUĂ</string>
+    <string name="settings_export_data_title">Exportă datele</string>
+    <string name="settings_export_data_summary">Salvează datele de urmărire în diverse formate</string>
+    <string name="export_format_dialog_title">Alege formatul de export</string>
+    <string name="export_format_gpx_name">GPX (recomandat)</string>
+    <string name="export_format_gpx_desc">Puncte de rută cu precizie completă pentru dispozitive GPS, aplicații de fitness și compatibilitate universală</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Puncte de rută cu precizie completă pentru Google Earth și vizualizare geografică</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Locații transmise în flux și rezumate ale sesiunilor; importul combină datele și regenerează unele metadate</string>
+    <string name="export_format_db_name">Bază de date</string>
+    <string name="export_format_db_desc">Copie de siguranță SQLite brută cu toate datele și setările; importul combină rândurile compatibile, nu face o restaurare completă</string>
+    <string name="export_sensitivity_dialog_title">Exporți date de localizare precise?</string>
+    <string name="export_sensitivity_gpx_message">Acest export GPX conține puncte de rută cu precizie completă. Salvează-l sau partajează-l doar cu persoane și aplicații în care ai încredere.</string>
+    <string name="export_sensitivity_kml_message">Acest export KML conține puncte de rută cu precizie completă. Salvează-l sau partajează-l doar cu persoane și aplicații în care ai încredere.</string>
+    <string name="export_sensitivity_json_message">Acest export JSON conține locații precise și rezumate ale sesiunilor. Unele metadate derivate se pierd la import; salvează-l sau partajează-l doar cu destinații în care ai încredere.</string>
+    <string name="export_sensitivity_db_message">Această copie de siguranță brută a bazei de date poate include locații precise, date radio Wi-Fi/celulare, activitate și setări. Păstreaz-o privată și stocheaz-o doar într-un loc în care ai încredere.</string>
+    <string name="export_sensitivity_confirm">Continuă exportul</string>
+    <string name="settings_export_title">Export</string>
+    <string name="settings_import_summary">Importă date din tipurile acceptate (%1$s) și arhive (%2$s). Importurile bazei de date combină rândurile compatibile; nu înlocuiesc datele existente.</string>
+    <string name="settings_import_title">Importă</string>
+    <string name="got_it">Am înțeles</string>
+    <string name="battery_impact_low">Impact redus</string>
+    <string name="battery_impact_moderate">Impact moderat</string>
+    <string name="battery_impact_high">Impact ridicat</string>
+    <string name="precision_mode_title">Alege precizia locației</string>
+    <string name="precision_mode_approximate_title">Aproximativă</string>
+    <string name="precision_mode_approximate_description">Locație bazată pe rețea. Bună pentru urmărirea generală a unei zone, cu consum minim de baterie.</string>
+    <string name="precision_mode_precise_title">Precisă</string>
+    <string name="precision_mode_precise_description">Locație bazată pe GPS. Ideală pentru rute detaliate, hărți termice și provocări.</string>
+    <string name="upgrade_to_precise_title">Deblochează urmărirea precisă</string>
+    <string name="upgrade_to_precise_message_general">Folosești locația aproximativă. Treci la urmărirea GPS precisă pentru o acuratețe mai bună.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Locația precisă este recomandată pentru analiza exactă a rutelor și măsurarea distanțelor.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Locația precisă oferă o vizualizare detaliată a hărții termice, cu poziționare fină.</string>
+    <string name="upgrade_to_precise_message_challenges">Multe provocări necesită urmărire GPS precisă pentru a verifica exact finalizarea.</string>
+    <string name="upgrade_to_precise_benefits_title">Beneficii</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Forme exacte ale rutelor și detalii ale traseului viraj cu viraj</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Hartă termică detaliată și analiză spațială</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Măsurători precise ale distanței și vitezei</string>
+    <string name="upgrade_to_precise_battery_title">Consum de baterie</string>
+    <string name="upgrade_to_precise_battery_message">GPS-ul precis consumă mai multă baterie. Timp estimat de urmărire: 6–8 ore pe dispozitive obișnuite.</string>
+    <string name="upgrade_to_precise_button_upgrade">Activează locația precisă</string>
+    <string name="upgrade_to_precise_button_cancel">Poate mai târziu</string>
+    <string name="tracking_preset_high_accuracy_name">Acuratețe ridicată</string>
+    <string name="tracking_preset_high_accuracy_description">Cele mai bune detalii, cu actualizări rapide și toți senzorii principali activați</string>
+    <string name="tracking_preset_balanced_name">Echilibrat</string>
+    <string name="tracking_preset_balanced_description">Acuratețe bună și autonomie rezonabilă pentru urmărirea zilnică</string>
+    <string name="tracking_preset_power_save_name">Economisire energie</string>
+    <string name="tracking_preset_power_save_description">Consum mai mic de baterie, cu actualizări mai rare și mai puțini senzori</string>
+    <string name="tracking_preset_custom_name">Personalizat</string>
+    <string name="tracking_preset_custom_description">Reglează manual fiecare parametru de urmărire</string>
+    <string name="tracking_preset_selector_title">Profil de urmărire</string>
+    <string name="tracking_preset_selector_subtitle">Alege un profil de pornire, apoi reglează fin orice setare de mai jos.</string>
+    <string name="tracking_preset_custom_hint">Modificarea oricărei setări de mai jos creează un profil personalizat din profilul curent.</string>
+    <string name="tracking_preset_customized_summary">Ai reglat fin urmărirea. Alege un profil de mai sus pentru a reseta.</string>
+    <string name="settings_tracking_section_detection">Detectare și automatizare</string>
+    <string name="settings_tracking_section_sources">Surse de date</string>
+    <string name="settings_tracking_section_detail">Colectarea locației</string>
+    <string name="settings_tracking_section_notifications">Notificări</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">Politica de urmărire</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Urmărire estimată: %d oră</item>
+        <item quantity="few">Urmărire estimată: %d ore</item>
+        <item quantity="other">Urmărire estimată: %d ore</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Alege cât de precis înregistrează Tracker locația ta</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Precisă</string>
+    <string name="approximate">Aproximativă</string>
+    <string name="tracking_policy_selector_subtitle">Alege un profil de urmărire sau personalizează setările</string>
+    <string name="tracking_policy_custom_badge">Personalizat</string>
+    <string name="collapse_details">Ascunde detaliile</string>
+    <string name="expand_details">Arată detaliile</string>
+    <string name="settings_section_collapse">Restrânge</string>
+    <string name="settings_section_expand">Extinde</string>
+    <string name="tracking_policy_details_title">Detalii de configurare</string>
+    <string name="preset_detail_location_precision">Precizia locației</string>
+    <string name="preset_detail_min_distance">Distanța minimă</string>
+    <string name="preset_detail_min_time">Timpul minim</string>
+    <string name="preset_detail_accuracy">Precizia necesară</string>
+    <string name="preset_detail_sensors">Senzori</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">Schimbare automată a unităților</string>
+    <string name="settings_module_map_subtitle">Calitatea hărții termice și opțiunile de vizualizare</string>
+    <string name="settings_module_game_subtitle">Obiective, realizări și repere</string>
+    <string name="action_navigate_back">Navighează înapoi</string>
+    <string name="action_help">Ajutor</string>
+    <string name="widget_loading">Se încarcă…</string>
+    <string name="widget_quick_start_name">Pornire rapidă Tracker</string>
+    <string name="widget_quick_start_description">Pornește sau oprește urmărirea locației printr-o singură atingere.</string>
+    <string name="widget_start_tracking">Pornește urmărirea</string>
+    <string name="widget_stop_tracking">Oprește urmărirea</string>
+    <string name="widget_tracking_active">Urmărire activă</string>
+    <string name="widget_today_summary_name">Rezumatul de astăzi</string>
+    <string name="widget_today_summary_description">Vezi dintr-o privire statisticile de urmărire de astăzi.</string>
+    <string name="widget_today">Astăzi</string>
+    <string name="widget_distance">Distanță</string>
+    <string name="widget_steps">Pași</string>
+    <string name="widget_sessions">Sesiuni</string>
+    <string name="widget_duration">Durată</string>
+    <string name="widget_no_data_today">Nu există date de urmărire astăzi</string>
+    <string name="widget_active_session_name">Sesiune activă</string>
+    <string name="widget_active_session_description">Monitorizează în timp real sesiunea curentă de urmărire.</string>
+    <string name="widget_no_active_session">Nicio sesiune activă</string>
+    <string name="widget_tap_to_start">Atinge pentru a porni urmărirea</string>
+    <string name="widget_session_distance">Distanța sesiunii</string>
+    <string name="widget_session_steps">Pașii sesiunii</string>
+    <string name="widget_session_duration">Durata sesiunii</string>
+    <string name="widget_current_speed">Viteza curentă</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Colectări</string>
+    <string name="widget_path_preview">Previzualizarea traseului</string>
+    <string name="widget_activity_unknown">Activitatea nu este disponibilă</string>
+    <string name="widget_goal_label">Obiectiv:</string>
+    <string name="widget_goal_progress">%1$s / %2$s pași</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Oprit</string>
+    <string name="widget_tier_ambient">Ambient</string>
+    <string name="widget_tier_active">Activ</string>
+    <string name="widget_tier_precision">Precizie</string>
+    <string name="goal_notification_title_progress">Progres excelent!</string>
+    <string name="goal_notification_title_almost">Aproape ai reușit!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Mai este necesar %1$d pas pentru a atinge obiectivul zilnic</item>
+        <item quantity="few">Mai sunt necesari %1$d pași pentru a atinge obiectivul zilnic</item>
+        <item quantity="other">Mai sunt necesari %1$d pași pentru a atinge obiectivul zilnic</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Mai ai doar %1$d pas!</item>
+        <item quantity="few">Mai ai doar %1$d pași!</item>
+        <item quantity="other">Mai ai doar %1$d pași!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Notificări inteligente pentru obiective</string>
+    <string name="settings_smart_goal_notifications_summary">Primește o notificare când ești aproape de ținta ta zilnică de pași</string>
+    <string name="setup_how_to_track_title">Cum ar trebui să funcționeze urmărirea?</string>
+    <string name="setup_how_to_track_subtitle">Alege când începe urmărirea și cât de detaliată trebuie să fie.</string>
+    <string name="setup_auto_tracking_title">Urmărire automată</string>
+    <string name="setup_auto_tracking_disabled">Dezactivată</string>
+    <string name="setup_auto_tracking_disabled_desc">Pornește și oprește manual urmărirea.</string>
+    <string name="setup_auto_tracking_on_foot">Pe jos</string>
+    <string name="setup_auto_tracking_on_foot_desc">Urmărește automat mersul pe jos și alergarea.</string>
+    <string name="setup_auto_tracking_in_motion">În mișcare</string>
+    <string name="setup_auto_tracking_in_motion_desc">Urmărește automat orice deplasare, inclusiv condusul și ciclismul.</string>
+    <string name="setup_preset_title">Detaliile urmăririi</string>
+    <string name="setup_what_to_collect_title">Ce se colectează</string>
+    <string name="setup_what_to_collect_subtitle">Mai multe opțiuni mai jos. Începe să explorezi fără permisiuni sau acordă-le mai târziu. Datele rămân pe acest dispozitiv.</string>
+    <string name="setup_source_location">Locație</string>
+    <string name="setup_source_location_desc">Înregistrează rutele și pozițiile tale pe hartă.</string>
+    <string name="setup_source_activity">Activitate</string>
+    <string name="setup_source_activity_desc">Detectează dacă mergi pe jos, alergi, mergi cu bicicleta sau conduci.</string>
+    <string name="setup_source_steps">Pași</string>
+    <string name="setup_source_steps_desc">Numără pașii folosind pedometrul dispozitivului.</string>
+    <string name="setup_source_wifi">Rețele WiFi</string>
+    <string name="setup_source_wifi_desc">Înregistrează rețelele WiFi din apropiere pentru a îmbunătăți precizia locației.</string>
+    <string name="setup_source_cell">Turnuri celulare</string>
+    <string name="setup_source_cell_desc">Înregistrează informațiile despre turnurile celulare pentru contextul locației.</string>
+    <string name="setup_perm_location_why">Este necesară pentru a înregistra rutele și a le afișa pe hartă. Locația rămâne pe acest dispozitiv — nimic nu este trimis către un server.</string>
+    <string name="setup_perm_location_bg_why">Pentru a continua înregistrarea rutei când schimbi aplicațiile sau se stinge ecranul, Tracker are nevoie de acces la locație în fundal. Locația înregistrată rămâne pe acest dispozitiv — nimic nu este trimis către un server. La următorul mesaj de sistem, alege „Permite tot timpul” pentru a activa urmărirea automată; „Doar când folosești aplicația” face ca Tracker să funcționeze numai când ecranul său este deschis.</string>
+    <string name="setup_perm_activity_why">Permite Tracker să detecteze ce faci (mers pe jos, ciclism, condus, staționar), astfel încât urmărirea automată să se poată întrerupe când nu te miști și să economisească bateria. Datele despre activitate rămân pe acest dispozitiv — nimic nu este trimis către un server.</string>
+    <string name="setup_perm_notification_why">Tracker afișează o notificare de stare mică în timp ce înregistrează, pentru a vedea dintr-o privire că urmărirea este pornită și a o opri printr-o singură atingere. Fără notificări de marketing sau promoționale.</string>
+    <string name="setup_perm_wifi_why">Tracker poate înregistra punctele de acces Wi-Fi văzute de telefon în timpul unei călătorii, pentru a îmbunătăți precizia locației în locuri cu semnal GPS slab (în interior, subteran). Datele radio rămân pe acest dispozitiv — nimic nu este trimis către un server. Acordă permisiunea doar dacă dorești.</string>
+    <string name="setup_perm_cell_why">Tracker poate înregistra identificatorii turnurilor celulare de-a lungul rutei, astfel încât locația să poată fi estimată când GPS-ul nu este disponibil. Datele radio rămân pe acest dispozitiv — nimic nu este trimis către un server. Acordă acces la starea telefonului și la locația precisă doar dacă dorești.</string>
+    <string name="setup_perm_grant">Acordă</string>
+    <string name="setup_perm_grant_location_content_description">Acordă permisiunea de localizare</string>
+    <string name="setup_perm_grant_background_location_content_description">Acordă permisiunea de localizare în fundal</string>
+    <string name="setup_perm_grant_activity_content_description">Acordă permisiunea de recunoaștere a activității</string>
+    <string name="setup_perm_grant_notification_content_description">Acordă permisiunea pentru notificări</string>
+    <string name="setup_perm_grant_wifi_content_description">Acordă permisiunea Wi-Fi</string>
+    <string name="setup_perm_grant_cell_content_description">Acordă permisiunea pentru radio celular</string>
+    <string name="setup_perm_granted">Acordată ✓</string>
+    <string name="permission_grant_in_settings">Permite în Setări →</string>
+    <string name="permission_disabled_due_to_denial">%1$s este dezactivată deoarece permisiunea a fost refuzată. Acordă permisiunea din Setări pentru activare.</string>
+    <string name="settings_wifi_permission_required">Necesită permisiunea Wi-Fi/de localizare. Activează comutatorul pentru a o acorda — nu se înregistrează date Wi-Fi până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
+    <string name="settings_cell_permission_required">Necesită permisiunea pentru starea telefonului și locația precisă. Activează comutatorul pentru a o acorda — nu se înregistrează date celulare până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
+    <string name="settings_wifi_privacy_summary">Înregistrează rețelele Wi-Fi din apropiere pentru a îmbunătăți precizia locației. Datele rămân pe acest dispozitiv.</string>
+    <string name="settings_barometer_unavailable">Senzorul de presiune nu este disponibil pe acest dispozitiv.</string>
+    <string name="settings_activity_permission_required">Necesită permisiunea de recunoaștere a activității. Activează comutatorul pentru a o acorda.</string>
+    <string name="settings_steps_unavailable">Senzorul contorului de pași nu este disponibil pe acest dispozitiv.</string>
+    <string name="settings_cell_privacy_summary">Înregistrează identificatorii turnurilor celulare pentru a îmbunătăți precizia locației. Datele rămân pe acest dispozitiv.</string>
+    <string name="setup_start_exploring">Începe explorarea</string>
+    <string name="setup_continue">Continuă</string>
+    <string name="setup_step_indicator">Pasul %1$d din %2$d</string>
+    <string name="setup_online_tiles_title">Dale de hartă online?</string>
+    <string name="setup_online_tiles_subtitle">Tracker include o hartă de bază offline, astfel încât funcționează fără rețea. Dacă dorești hărți mai bogate, poți prelua dale de la un furnizor public.</string>
+    <string name="setup_online_tiles_off_title">Numai offline (recomandat)</string>
+    <string name="setup_online_tiles_off_desc">Fără solicitări de rețea. Este folosită numai harta de bază inclusă.</string>
+    <string name="setup_online_tiles_on_title">Folosește dale online</string>
+    <string name="setup_online_tiles_on_desc">Preia dale vectoriale mai detaliate de la OpenFreeMap (implicit). Poți schimba mai târziu furnizorul în Setări → Hartă.</string>
+    <string name="setup_online_tiles_privacy">Cât timp este activat, furnizorul poate vedea adresa ta IP și dalele pe care le încarci — aproximativ zona hărții pe care o privești. Tracker nu trimite niciodată un cont, un identificator sau istoricul locațiilor.</string>
+    <string name="setup_online_tiles_change_later">Poți schimba aceasta oricând din Setări → Hartă → Dale de hartă online.</string>
+    <string name="setup_background_access_subtitle">Pentru a înregistra călătorii când ecranul este stins sau aplicația este închisă, Tracker trebuie să continue să ruleze în fundal. Setările bateriei telefonului îl pot întrerupe — permite activitatea în fundal pentru ca urmărirea automată să rămână fiabilă.</string>
+    <string name="setup_background_access_optional">Opțional, dar recomandat. Poți schimba aceasta oricând din Setări → Urmărire.</string>
+    <string name="background_reliability_title">Urmărire fiabilă în fundal</string>
+    <string name="background_reliability_status_exempt">Activitatea în fundal este permisă</string>
+    <string name="background_reliability_status_optimized">Optimizarea bateriei este activă</string>
+    <string name="background_reliability_exempt_desc">Tracker este exclus din optimizarea bateriei, astfel încât urmărirea în fundal și cea automată pot funcționa fiabil.</string>
+    <string name="background_reliability_optimized_desc">Optimizarea bateriei poate întrerupe Tracker în fundal, oprind urmărirea automată. Permite activitatea în fundal pentru a-l menține în funcțiune.</string>
+    <string name="background_reliability_allow_action">Permite activitatea în fundal</string>
+    <string name="background_reliability_samsung_hint">Dispozitivele Samsung pot pune aplicațiile și în „Aplicații inactive”. Deschide setările bateriei, elimină apoi Tracker din Aplicații inactive și setează-l să nu fie pus în repaus.</string>
+    <string name="background_reliability_samsung_action">Deschide setările bateriei dispozitivului</string>
+    <string name="settings_tracebox_title">Diagnosticare a blocărilor</string>
+    <string name="settings_tracebox_root_summary">Diagnosticare locală pentru blocări, ANR și structură</string>
+    <string name="settings_tracebox_status_header">Starea capturii</string>
+    <string name="settings_tracebox_toggle_title">Înregistrează diagnosticarea blocărilor</string>
+    <string name="settings_tracebox_toggle_summary_off">Captura este dezactivată. Diagnosticarea locală existentă rămâne până când o ștergi.</string>
+    <string name="settings_tracebox_toggle_summary_on">Blocările, ANR-urile și diagnosticarea structurală fixă sunt înregistrate local.</string>
+    <string name="settings_tracebox_readiness_label">Pregătirea stocării</string>
+    <string name="settings_tracebox_readiness_volatile">Se pornește stocarea durabilă; captura volatilă este disponibilă</string>
+    <string name="settings_tracebox_readiness_durable">Captura durabilă este pregătită</string>
+    <string name="settings_tracebox_readiness_degraded">Captura este degradată; unele înregistrări pot fi indisponibile</string>
+    <string name="settings_tracebox_readiness_closed">Captura este închisă</string>
+    <string name="settings_tracebox_health_label">Starea de funcționare</string>
+    <string name="settings_tracebox_health_disabled">Dezactivată</string>
+    <string name="settings_tracebox_health_initializing">Se inițializează</string>
+    <string name="settings_tracebox_health_ready">Pregătită</string>
+    <string name="settings_tracebox_health_degraded">Degradată</string>
+    <string name="settings_tracebox_health_deleting">Se șterge diagnosticarea locală</string>
+    <string name="settings_tracebox_health_closed">Închisă</string>
+    <string name="settings_tracebox_package_header">Pachet de diagnosticare</string>
+    <string name="settings_tracebox_package_body">Tracebox afișează mai întâi informarea exactă pentru pachetul finalizat. Nimic nu este salvat sau partajat până nu îl aprobi și alegi destinația.</string>
+    <string name="settings_tracebox_package_review_action">Revizuiește și aprobă pachetul</string>
+    <string name="settings_tracebox_package_save_action">Salvează pachetul aprobat</string>
+    <string name="settings_tracebox_package_share_action">Partajează pachetul aprobat</string>
+    <string name="settings_tracebox_share_limit">Android poate confirma că s-a deschis selectorul, dar nu poate demonstra că o altă aplicație a primit pachetul.</string>
+    <string name="settings_tracebox_data_header">Date Tracebox</string>
+    <string name="settings_tracebox_data_body">Această acțiune șterge diagnosticarea deținută de Tracebox și pregătirea pachetului. Fișierele deja salvate sau trimise sunt gestionate de aplicațiile de destinație.</string>
+    <string name="settings_tracebox_delete_action">Șterge toate datele Tracebox</string>
+    <string name="settings_tracebox_delete_confirm_title">Ștergi toată diagnosticarea blocărilor?</string>
+    <string name="settings_tracebox_delete_confirm_body">Această acțiune elimină din Tracker toată diagnosticarea deținută de Tracebox și pregătirea pachetului. Acțiunea nu poate fi anulată.</string>
+    <string name="settings_tracebox_delete_confirm_action">Șterge</string>
+    <string name="settings_tracebox_result_header">Ultimul rezultat</string>
+    <string name="settings_tracebox_result_enabled">Diagnosticarea blocărilor este activată.</string>
+    <string name="settings_tracebox_result_disabled">Diagnosticarea blocărilor este dezactivată. Datele existente nu au fost șterse.</string>
+    <string name="settings_tracebox_result_policy_restricted">Politica restrictivă a fost salvată local, dar nu toate procesele au confirmat-o încă.</string>
+    <string name="settings_tracebox_result_policy_partial">Politica a fost salvată local, dar convergența la rulare a fost incompletă.</string>
+    <string name="settings_tracebox_result_failed">Operațiunea nu a atins pragul local de durabilitate.</string>
+    <string name="settings_tracebox_result_delete_complete">Toate datele deținute de Tracebox au fost șterse.</string>
+    <string name="settings_tracebox_result_delete_pending">Ștergerea s-a finalizat doar parțial. Unele date deținute de gestionatori încă așteaptă ștergerea.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox a respins cererea de ștergere.</string>
+    <string name="settings_tracebox_result_review_ready">Informarea este pregătită: %1$d valori incluse, care conțin %2$d octeți de date de diagnosticare.</string>
+    <string name="settings_tracebox_result_package_created">Pachetul de diagnosticare aprobat este gata de salvat sau partajat.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Aprobarea pachetului a fost anulată. Nu a fost creat niciun pachet.</string>
+    <string name="settings_tracebox_result_package_rejected">Crearea pachetului a fost respinsă deoarece aprobarea nu mai corespundea octeților finalizați.</string>
+    <string name="settings_tracebox_result_package_not_ready">Un pachet de diagnosticare nu este pregătit. Mai întâi revizuiește-l și aprobă-l.</string>
+    <string name="settings_tracebox_result_save_complete">Pachetul aprobat complet a fost salvat (%1$d octeți).</string>
+    <string name="settings_tracebox_result_save_partial">S-au copiat doar %1$d octeți. Destinația poate conține un pachet incomplet.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Salvarea a fost anulată după %1$d octeți. Destinația poate conține un pachet incomplet.</string>
+    <string name="settings_tracebox_result_save_failed">Pachetul aprobat nu a putut fi salvat.</string>
+    <string name="settings_tracebox_result_save_cancelled">Nu a fost aleasă nicio destinație de salvare.</string>
+    <string name="settings_tracebox_result_share_opened">S-a deschis selectorul de partajare Android.</string>
+    <string name="settings_tracebox_result_share_unknown">Selectorul s-a închis. Android nu poate demonstra dacă destinatarul a primit pachetul.</string>
+    <string name="settings_tracebox_records_header">Ce înregistrează</string>
+    <string name="settings_tracebox_records_body">Dovezi despre blocări și ANR, plus un set limitat de coduri predefinite despre structura aplicației și ordinea de execuție. Tracebox este singurul registrator de blocări și diagnosticare al Tracker.</string>
+    <string name="settings_tracebox_privacy_header">Ce nu include</string>
+    <string name="settings_tracebox_privacy_body">API-ul de înregistrare nu acceptă text arbitrar, locație, detalii despre cont, identificatori de dispozitiv sau citiri ale senzorilor. Pachetele standard exclud artefactele brute ale blocărilor și nu sunt încărcate niciodată automat.</string>
+</resources>

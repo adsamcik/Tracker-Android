@@ -1,0 +1,256 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Urmărește activitatea în cel puțin %2$d zile diferite pentru a o debloca.</string>
+    <string name="ach_title_distance_total">Parcurge %1$s</string>
+    <string name="ach_desc_distance_total">Parcurge în total %1$s de distanță înregistrată în toate sesiunile.</string>
+    <string name="ach_title_week_distance">%1$s în această săptămână</string>
+    <string name="ach_desc_week_distance">Parcurge %1$s într-o singură săptămână calendaristică.</string>
+    <string name="ach_title_best_day_distance">%1$s într-o zi</string>
+    <string name="ach_desc_best_day_distance">Parcurge %1$s într-o singură zi.</string>
+    <string name="ach_title_max_session_distance">%1$s într-o sesiune</string>
+    <string name="ach_desc_max_session_distance">Înregistrează o singură sesiune care acoperă %1$s fără oprire.</string>
+    <string name="ach_title_on_foot_distance">Mergi sau aleargă %1$s</string>
+    <string name="ach_desc_on_foot_distance">Parcurge %1$s pe jos (mers și alergare împreună).</string>
+    <string name="ach_title_cycling_distance">Pedalează %1$s</string>
+    <string name="ach_desc_cycling_distance">Pedalează în total %1$s.</string>
+    <string name="ach_title_vehicle_distance">Deplasează-te motorizat %1$s</string>
+    <string name="ach_desc_vehicle_distance">Parcurge %1$s cu mașina, autobuzul, trenul, barca sau avionul.</string>
+    <string name="ach_title_steps_total">Fă %1$s pași</string>
+    <string name="ach_desc_steps_total">Înregistrează %1$s pași în toate sesiunile.</string>
+    <string name="ach_title_best_daily_steps">%1$s pași într-o zi</string>
+    <string name="ach_desc_best_daily_steps">Fă %1$s pași într-o singură zi.</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Prima sesiune</item>
+        <item quantity="few">Înregistrează %1$s sesiuni</item>
+        <item quantity="other">Înregistrează %1$s sesiuni</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Înregistrează în total %1$s sesiuni de urmărire.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Descoperă prima celulă</item>
+        <item quantity="few">Descoperă %1$s celule de hartă</item>
+        <item quantity="other">Descoperă %1$s celule de hartă</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Explorează %1$s celule distincte ale grilei de pe hartă (fiecare are aprox. 1 km pătrat).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Vizitează %d țară</item>
+        <item quantity="few">Vizitează %d țări</item>
+        <item quantity="other">Vizitează %d țări</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Înregistrează cel puțin o sesiune în %1$d țări diferite.</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Prima zi activă</item>
+        <item quantity="few">%1$s zile active</item>
+        <item quantity="other">%1$s zile active</item>
+    </plurals>
+    <string name="ach_desc_active_days">Urmărește activitatea în total în %1$s zile diferite.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">Serie de %d zi</item>
+        <item quantity="few">Serie de %d zile</item>
+        <item quantity="other">Serie de %d zile</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Urmărește activitatea %1$d zile la rând.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Record personal: %d zi</item>
+        <item quantity="few">Record personal: %d zile</item>
+        <item quantity="other">Record personal: %d zile</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Atinge o serie personală record de urmărire de %1$d zile.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d lună cu Tracker</item>
+        <item quantity="few">%d luni cu Tracker</item>
+        <item quantity="other">%d luni cu Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Rămâi activ în Tracker timp de %1$d luni diferite.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d zi activă săptămâna aceasta</item>
+        <item quantity="few">%d zile active săptămâna aceasta</item>
+        <item quantity="other">%d zile active săptămâna aceasta</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Urmărește activitatea %1$d zile într-o singură săptămână.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Prima zi cu Tracker</item>
+        <item quantity="few">%1$s zile cu Tracker</item>
+        <item quantity="other">%1$s zile cu Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Păstrează Tracker instalat timp de %1$s zile.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Bine ai revenit</item>
+        <item quantity="few">Bine ai revenit după %d zile</item>
+        <item quantity="other">Bine ai revenit după %d zile</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Revino la urmărire după o pauză de %1$d zile.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Urmărește la ora %d</item>
+        <item quantity="few">Urmărește în %d ore diferite</item>
+        <item quantity="other">Urmărește în %d ore diferite</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Înregistrează activitate în %1$d ore diferite ale zilei, în toate sesiunile.</string>
+    <string name="ach_title_days_of_week">Toate cele șapte zile ale săptămânii</string>
+    <string name="ach_desc_days_of_week">Urmărește activitatea în fiecare zi a săptămânii cel puțin o dată.</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Încearcă %d tip de activitate</item>
+        <item quantity="few">Încearcă %d tipuri de activitate</item>
+        <item quantity="other">Încearcă %d tipuri de activitate</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Înregistrează sesiuni în %1$d tipuri de activitate diferite (mers, ciclism, condus, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d tip de activitate săptămâna aceasta</item>
+        <item quantity="few">%d tipuri de activitate săptămâna aceasta</item>
+        <item quantity="other">%d tipuri de activitate săptămâna aceasta</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Folosește %1$d tipuri de activitate diferite într-o singură săptămână.</string>
+    <string name="ach_title_week_all_days">Urmărește fiecare zi a unei săptămâni</string>
+    <string name="ach_desc_week_all_days">Înregistrează activitate în toate cele șapte zile ale unei săptămâni calendaristice.</string>
+    <string name="ach_title_walk_cycle_drive">Mergi, pedalează, condu</string>
+    <string name="ach_desc_walk_cycle_drive">Înregistrează cel puțin o sesiune pentru fiecare: mers, ciclism și condus.</string>
+    <string name="ach_title_max_session_duration">Sesiune de %1$s</string>
+    <string name="ach_desc_max_session_duration">Înregistrează o singură sesiune care durează cel puțin %1$s.</string>
+    <string name="ach_title_max_speed">Atinge %1$s</string>
+    <string name="ach_desc_max_speed">Atinge o viteză maximă de cel puțin %1$s în timpul unei sesiuni.</string>
+    <string name="ach_title_active_minutes">%1$s minute active</string>
+    <string name="ach_desc_active_minutes">Acumulează %1$s minute de timp activ de urmărire.</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Primul export</item>
+        <item quantity="few">%d exporturi</item>
+        <item quantity="other">%d exporturi</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Exportă datele de %1$d ori.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Urmărește pe parcursul unui anotimp</item>
+        <item quantity="few">Urmărește pe parcursul a %d anotimpuri</item>
+        <item quantity="other">Urmărește pe parcursul a %d anotimpuri</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Înregistrează activitate în %1$d anotimpuri distincte (primăvară/vară/toamnă/iarnă).</string>
+    <string name="ach_title_calendar_new_year">Urmăritor de Anul Nou</string>
+    <string name="ach_desc_calendar_new_year">Înregistrează o sesiune pe 1 ianuarie.</string>
+    <string name="ach_title_calendar_leap_day">Pionier al zilei bisecte</string>
+    <string name="ach_desc_calendar_leap_day">Înregistrează o sesiune pe 29 februarie.</string>
+    <string name="ach_title_calendar_summer_solstice">Solstițiul de vară</string>
+    <string name="ach_desc_calendar_summer_solstice">Înregistrează o sesiune în cea mai lungă zi a anului.</string>
+    <string name="ach_title_calendar_winter_solstice">Solstițiul de iarnă</string>
+    <string name="ach_desc_calendar_winter_solstice">Înregistrează o sesiune în cea mai scurtă zi a anului.</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Pasăre de noapte</item>
+        <item quantity="few">%1$s sesiuni de noapte</item>
+        <item quantity="other">%1$s sesiuni de noapte</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Înregistrează %1$d sesiuni care încep între miezul nopții și ora 5 dimineața.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Pasăre matinală</item>
+        <item quantity="few">%1$s sesiuni la răsărit</item>
+        <item quantity="other">%1$s sesiuni la răsărit</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Înregistrează %1$d sesiuni care încep între orele 5 și 8 dimineața.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Urmăritor implicat</item>
+        <item quantity="few">Pornește manual %1$s sesiuni</item>
+        <item quantity="other">Pornește manual %1$s sesiuni</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Pornește manual %1$d sesiuni de urmărire.</string>
+    <string name="ach_title_max_cycle_session">Pedalează %1$s într-o singură cursă</string>
+    <string name="ach_desc_max_cycle_session">Pedalează %1$s într-o singură cursă.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Zi multimodală</item>
+        <item quantity="few">%d zile multimodale</item>
+        <item quantity="other">%d zile multimodale</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Deplasează-te pe jos, cu bicicleta și cu transport motorizat în aceeași zi, în %1$d zile diferite.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Un loc pentru toate anotimpurile</item>
+        <item quantity="few">Toate cele patru anotimpuri în %d locuri</item>
+        <item quantity="other">Toate cele patru anotimpuri în %d locuri</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Vizitează %1$d celule de hartă în toate cele patru anotimpuri.</string>
+    <string name="ach_title_max_cell_visits">Vizitează un loc de %1$d ori</string>
+    <string name="ach_desc_max_cell_visits">Vizitează o singură celulă de hartă de %1$d ori.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Explorează temeinic o celulă</item>
+        <item quantity="few">Explorează temeinic %1$s celule</item>
+        <item quantity="other">Explorează temeinic %1$s celule</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Explorează temeinic %1$d celule de hartă distincte.</string>
+    <string name="ach_title_max_cell_span">Ajungi la distanță de %1$s</string>
+    <string name="ach_desc_max_cell_span">Descoperă două celule de hartă aflate la cel puțin %1$s una de alta.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Descoperă o celulă într-o zi</item>
+        <item quantity="few">Descoperă %d celule într-o zi</item>
+        <item quantity="other">Descoperă %d celule într-o zi</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Descoperă %1$d celule noi de hartă într-o singură zi.</string>
+    <string name="ach_title_max_cell_revisit_gap">Revino după %1$d zile</string>
+    <string name="ach_desc_max_cell_revisit_gap">Revizitează o celulă de hartă la %1$d zile după ce ai descoperit-o prima dată.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">O lună perfectă</item>
+        <item quantity="few">%d luni perfecte</item>
+        <item quantity="other">%d luni perfecte</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Urmărește activitatea în fiecare zi din %1$d luni calendaristice.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Folosește un format de export</item>
+        <item quantity="few">Folosește %d formate de export</item>
+        <item quantity="other">Folosește %d formate de export</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Exportă datele în %1$d formate de fișier diferite.</string>
+    <string name="ach_title_player_level">Ajungi la nivelul %1$d</string>
+    <string name="ach_desc_player_level">Ajungi la nivelul de jucător %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP într-o zi</string>
+    <string name="ach_desc_best_day_xp">Câștigă %1$d XP într-o singură zi.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Joacă primul mini-joc</item>
+        <item quantity="few">Joacă %1$s mini-jocuri</item>
+        <item quantity="other">Joacă %1$s mini-jocuri</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Finalizează %1$d alergări de mini-joc.</string>
+    <string name="ach_title_total_ascent">Urcă %1$s</string>
+    <string name="ach_desc_total_ascent">Acumulează %1$s de urcare totală (ascensiune) în toate sesiunile de urmărire.</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Câștigă dintr-o sursă de XP</item>
+        <item quantity="few">Câștigă din %d surse de XP</item>
+        <item quantity="other">Câștigă din %d surse de XP</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Câștigă XP din %1$d surse diferite — sesiuni de urmărire, mini-jocuri și obiective.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">O săptămână perfectă</item>
+        <item quantity="few">%d săptămâni perfecte</item>
+        <item quantity="other">%d săptămâni perfecte</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Îndeplinește obiectivul zilnic de pași în fiecare zi timp de %1$d săptămâni complete.</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">Serie de obiective de %d zi</item>
+        <item quantity="few">Serie de obiective de %d zile</item>
+        <item quantity="other">Serie de obiective de %d zile</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Îndeplinește obiectivul zilnic de pași %1$d zile la rând.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Deblochează o realizare</item>
+        <item quantity="few">Deblochează %d realizări</item>
+        <item quantity="other">Deblochează %d realizări</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Deblochează în total %1$d realizări.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Finalizează o categorie</item>
+        <item quantity="few">Finalizează %d categorii</item>
+        <item quantity="other">Finalizează %d categorii</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Deblochează fiecare realizare din %1$d categorii diferite.</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d secundă</item>
+        <item quantity="few">%d secunde</item>
+        <item quantity="other">%d secunde</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d minut</item>
+        <item quantity="few">%d minute</item>
+        <item quantity="other">%d minute</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d oră</item>
+        <item quantity="few">%d ore</item>
+        <item quantity="other">%d ore</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d zi</item>
+        <item quantity="few">%d zile</item>
+        <item quantity="other">%d zile</item>
+    </plurals>
+</resources>

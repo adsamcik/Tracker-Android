@@ -1,22 +1,218 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">Hartă</string>
+    <string name="description_map_search">Buton de căutare</string>
+    <string name="map_layer_cell_heatmap_description">Peisajul tău celular observat, după tehnologia radio. Câmpurile discrete arată unde au ajuns la tine celulele deservitoare; centrele luminoase sunt estimări prudente ale siturilor și devin mai precise numai când sunt înconjurate de observații.</string>
+    <string name="map_layer_cell_heatmap_title">Topologie celulară</string>
+    <string name="map_layer_location_heatmap_high">Densitate ridicată</string>
+    <string name="map_layer_location_heatmap_low">Densitate scăzută</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Densitate medie</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Vizite distincte</string>
+    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Vizite</string>
+    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densitatea relativă a pozițiilor acceptate. Aceasta arată observații distincte, nu timpul petrecut.</string>
+    <string name="map_layer_cell_radio_gsm">Acoperire GSM</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Zone fără semnal</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Evidențiază locurile în care semnalul celular a fost slab sau absent. Cu cât zona este mai roșie, cu atât acoperirea este mai slabă; zonele bine acoperite rămân clare.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora semnalului</string>
+    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Auroră</string>
+    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Semnal celular redat ca o auroră: un halou violet larg sub un nucleu luminos verde-cyan. Strălucirea pulsează fără reîncărcarea datelor și devine statică atunci când animațiile sistemului sunt dezactivate.</string>
+    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Semnal slab</string>
+    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Semnal puternic</string>
+    <string name="map_layer_speed_heatmap_description">Hartă termică ce reprezintă viteza de deplasare în diferite zone.</string>
+    <string name="map_layer_speed_very_slow">Foarte lent</string>
+    <string name="map_layer_speed_walking">Ritm de mers</string>
+    <string name="map_layer_speed_running">Ritm de alergare</string>
+    <string name="map_layer_speed_moderate">Viteză moderată</string>
+    <string name="map_layer_speed_fast">Deplasare rapidă</string>
+    <string name="map_layer_speed_very_fast">Foarte rapid</string>
+    <string name="map_layer_speed_heatmap_title">Hartă termică a vitezei</string>
+    <string name="map_layer_legacy_heatmap_title">Hartă termică veche</string>
+    <string name="map_layer_legacy_heatmap_chip">Dale vechi</string>
+    <string name="map_layer_legacy_heatmap_description">O revenire la aplicația Signals originală: densitatea locațiilor tale este desenată ca dale discrete ale grilei de 25 m, așa cum arăta harta termică atunci când dalele erau redate pe server. Mărește pentru a vedea pătratele.</string>
+    <string name="map_layer_seasonal_title">Explorator sezonier</string>
+    <string name="map_layer_seasonal_chip">Anotimpuri</string>
+    <string name="map_layer_seasonal_description">Un mozaic de amintiri sezoniere: fiecare zonă explorată este nuanțată după anotimpul în care ai vizitat-o prima dată. Găsește traseele pe care mergi numai vara sau străzile pe care le vezi doar iarna.</string>
+    <string name="map_layer_season_spring">Primăvară</string>
+    <string name="map_layer_season_summer">Vară</string>
+    <string name="map_layer_season_autumn">Toamnă</string>
+    <string name="map_layer_season_winter">Iarnă</string>
+    <string name="map_layer_terrain_title">Viața ca relief</string>
+    <string name="map_layer_terrain_chip">Relief</string>
+    <string name="map_layer_terrain_description">Densitatea locațiilor tale este ridicată în 3D: locurile unde petreci cel mai mult timp devin mese luminoase înalte, iar locurile vizitate o singură dată rămân joase. Înclină harta pentru a vedea relieful vieții tale.</string>
+    <string name="map_layer_terrain_low">Rar aici</string>
+    <string name="map_layer_terrain_mid">Uneori</string>
+    <string name="map_layer_terrain_high">Des aici</string>
+    <string name="map_layer_places_title">Locuri frecvente</string>
+    <string name="map_layer_places_chip">Locuri</string>
+    <string name="map_layer_places_description">Locurile tale importante apar ca marcatori, fiecare dimensionat și colorat după frecvența vizitelor. Acasă și serviciul devin puncte mari și calde; un loc vizitat o singură dată rămâne mic și rece.</string>
+    <string name="map_layer_places_rare">Rar</string>
+    <string name="map_layer_places_often">Uneori</string>
+    <string name="map_layer_places_anchor">Reperele tale</string>
+    <string name="map_layer_speed_ribbon_title">Bandă de viteză</string>
+    <string name="map_layer_speed_ribbon_chip">Bandă</string>
+    <string name="map_layer_speed_ribbon_description">Ruta ta este colorată după viteza de deplasare, de la o plimbare lentă violetă la un sprint sau condus roșu-aprins. Spre deosebire de harta termică a vitezei, banda păstrează traseul intact, pentru a vedea exact unde ai accelerat și ai încetinit.</string>
+    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Bandă de altitudine</string>
+    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitudine</string>
+    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Ruta ta este colorată după altitudinea absolută, de la câmpii albastru-închis prin dealuri cyan până la înălțimi montane calde. Scara rămâne fixă în timp ce deplasezi harta, astfel încât aceeași altitudine păstrează mereu aceeași culoare.</string>
+    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Câmpii</string>
+    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Dealuri</string>
+    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Munți înalți</string>
+    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Bandă de activitate</string>
+    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Activitate</string>
+    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Ruta ta este colorată după starea de mișcare fiabilă înregistrată la fiecare poziție: gri când starea era necunoscută, albastru în repaus și verde în mișcare.</string>
+    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Necunoscută</string>
+    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Staționar</string>
+    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">În mișcare</string>
+    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Radiografie schi</string>
+    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Radiografie schi</string>
+    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">O vizualizare de diagnosticare a segmentelor de schi detectate. Coborârile, instalațiile, mersul pe jos și pauzele sunt ancorate la cea mai apropiată locație înregistrată și etichetate cu indicatorii principali.</string>
+    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Coborâre</string>
+    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Instalație</string>
+    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Mers pe jos sau pauză</string>
+    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Constelații de călătorii</string>
+    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Călătorii</string>
+    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Călătoriile repetate între locurile frecvente devin constelații curbe. Un arc stabil arată fiecare rută, iar o cometă se deplasează de-a lungul lui; arcele mai groase înseamnă că ai făcut acea călătorie mai des.</string>
+    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Mers pe jos</string>
+    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Ciclism</string>
+    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Condus</string>
+    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Transport public</string>
+    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Altele</string>
+    <string name="map_layer_fog_title">Ceața exploratorului</string>
+    <string name="map_layer_fog_chip">Ceață</string>
+    <string name="map_layer_fog_description">Lumea iese din ceață: fiecare zonă atinsă de tine este dezvăluită și strălucește mai intens cu cât ai cunoscut-o mai bine. Locurile prin care doar ai trecut rămân o pâclă slabă; un loc explorat în profunzime strălucește auriu. Terenul neexplorat rămâne întunecat.</string>
+    <string name="map_layer_fog_faint">Doar în trecere</string>
+    <string name="map_layer_fog_known">Bine explorat</string>
+    <string name="map_layer_first_contact_title">Primul contact</string>
+    <string name="map_layer_first_contact_chip">Descoperire</string>
+    <string name="map_layer_first_contact_description">O cronologie a descoperirilor tale: fiecare zonă este colorată după cât de recent ai pășit acolo pentru prima dată. Locurile descoperite demult se estompează spre indigo închis, iar terenul explorat în această săptămână strălucește cyan intens — citește povestea explorării tale până la cele mai noi frontiere.</string>
+    <string name="map_layer_first_contact_old">Demult</string>
+    <string name="map_layer_first_contact_recent">Tocmai descoperit</string>
+    <string name="map_layer_vehicle_compliance_title">Conformitatea vitezei vehiculului</string>
+    <string name="map_layer_vehicle_compliance_description">Polilinie de eșantioane de condus colorate după compararea vitezei cu limita de referință configurată.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Mult sub limită</string>
+    <string name="map_layer_vehicle_compliance_slow">Sub limită</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Aproape de limită</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Ușor peste limită</string>
+    <string name="map_layer_vehicle_compliance_speeding">Depășire de viteză</string>
+    <string name="map_layer_location_polyline_description">Linie care conectează în timp locațiile tale înregistrate.</string>
+    <string name="map_layer_location_polyline_title">Polilinie de locație</string>
+    <string name="map_layer_location_polyline_chip">Polilinie</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Suprapunere Wi-Fi</string>
+    <string name="map_layer_vehicle_compliance_chip">Depășire de viteză</string>
+    <string name="map_layer_none_title">Fără suprapunere</string>
+    <string name="map_date_preset_week">Săptămâna trecută</string>
+    <string name="map_date_preset_month">Luna trecută</string>
+    <string name="map_date_preset_custom">Personalizat…</string>
+    <string name="map_date_today">Astăzi</string>
+    <string name="map_date_yesterday">Ieri</string>
+    <string name="map_date_this_week">Săptămâna aceasta</string>
+    <string name="map_layer_wifi_count_heatmap_title">Suprapunere Wi-Fi</string>
+    <string name="map_layer_wifi_count_heatmap_description">Arată câte puncte de acces distincte se suprapun în fiecare loc. Scanările repetate ale aceluiași punct de acces se numără o singură dată, astfel încât zonele mai fierbinți înseamnă o acoperire radio cu adevărat mai densă.</string>
+    <string name="map_layer_wifi_heatmap_description">O constelație Wi-Fi conștientă de benzi, din propriile observații. Câmpurile colorate arată acoperirea observată la 2,4, 5 și 6 GHz; centrele luminoase sunt poziții aproximative ale punctelor de acces, afișate numai când geometria eșantioanelor le susține.</string>
+    <string name="map_layer_wifi_heatmap_high">Multe puncte de acces suprapuse</string>
+    <string name="map_layer_wifi_heatmap_low">Puține puncte de acces suprapuse</string>
+    <string name="map_layer_wifi_heatmap_medium">Câteva puncte de acces suprapuse</string>
+    <string name="map_layer_wifi_heatmap_title">Constelație Wi-Fi</string>
+    <string name="map_layer_wifi_radio_24">Acoperire 2,4 GHz</string>
+    <string name="map_layer_wifi_radio_5">Acoperire 5 GHz</string>
+    <string name="map_layer_wifi_radio_6">Acoperire 6 GHz</string>
+    <string name="map_legend_label">Legendă</string>
+    <string name="map_chip_layers">Strat</string>
+    <string name="map_chip_dates">Date</string>
+    <string name="permission_rationale_location_map">Pentru a arăta locația ta pe hartă, Tracker are nevoie de acces la locație. Toate datele rămân pe dispozitivul tău.</string>
+    <string name="map_location_permission_denied">Este necesară permisiunea de localizare pentru a afișa poziția</string>
+    <string name="map_open_settings">Deschide setările</string>
+    <string name="settings_map_basemap_title">Hartă de bază</string>
+    <string name="settings_map_basemap_custom">Fișierul .pmtiles personalizat este activ (atinge pentru a elimina)</string>
+    <string name="settings_map_basemap_default">Harta de bază inclusă este activă. Atinge pentru a importa un fișier .pmtiles personalizat.</string>
+    <string name="basemap_import_error_source_open">Fișierul nu a putut fi deschis. Încearcă altul sau partajează-l din nou cu Tracker.</string>
+    <string name="basemap_import_error_copy">Fișierul hărții de bază nu a putut fi copiat. Verifică dacă există suficient spațiu liber și încearcă din nou.</string>
+    <string name="basemap_import_error_invalid_format">Nu este un fișier PMTiles valid: %1$s</string>
+    <string name="settings_map_advanced_section_title">Setări avansate</string>
+    <string name="settings_map_max_heat_title">Căldură maximă după vizite</string>
+    <string name="settings_map_quality_title">Rezoluția hărții termice</string>
+    <string name="settings_map_visit_threshold_title">Pragul de timp pentru vizitarea unui loc</string>
+    <string name="settings_map_legacy_heatmap_title">Hartă termică veche (dale de 10 m)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Easter egg: adaugă un strat „Hartă termică veche” care desenează densitatea locațiilor ca dale discrete ale grilei de 10 m, asemenea hărții termice Signals originale redate pe server.</string>
+    <string name="settings_map_zoom_buttons_title">Butoane de zoom pe hartă</string>
+    <string name="settings_map_zoom_buttons_subtitle">Afișează pe ecran butoanele + și − pentru a mări harta, când zoomul prin ciupire este greu de folosit.</string>
+    <string name="tips_map_date_range_title">Interval de date</string>
+    <string name="tips_map_my_location_title">Locația mea</string>
+    <string name="tips_map_sheet_description">Atingerea sau glisarea în sus a acestei bare deschide mai multe opțiuni pentru hartă, inclusiv selectarea straturilor și legenda.</string>
+    <string name="map_search_placeholder">Lat., Long. de ex. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Încearcă 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Șterge căutarea</string>
+    <string name="map_search_paste">Lipește din clipboard în căutare</string>
+    <string name="map_search_clipboard_empty">Clipboardul nu conține încă coordonate</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Anulează</string>
+    <string name="map_share_button">Partajează harta</string>
+    <string name="map_share_sheet_title">Partajează harta ca imagine</string>
+    <string name="map_share_sheet_subtitle">Redă vizualizarea curentă și stratul activ ca imagine statică. Locația ta în timp real nu este inclusă niciodată.</string>
+    <string name="map_share_resolution_standard">Standard (1080p)</string>
+    <string name="map_share_resolution_high">Ridicat (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Partajează</string>
+    <string name="map_share_preparing">Se pregătește imaginea…</string>
+    <string name="map_share_error">Imaginea hărții nu a putut fi redată. Încearcă din nou.</string>
+    <string name="map_date_range_all_time">Tot timpul</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Straturi de hartă</string>
+    <string name="map_layer_load_error">Acest strat nu a putut fi încărcat. Încearcă să alegi altul.</string>
+    <string name="map_empty_subtitle_location">Nu există date de localizare în această vizualizare sau în acest interval de date. Funcțiile de rute și hartă necesită locații colectate în timpul urmăririi.</string>
+    <string name="map_empty_subtitle_cell">Nu există date celulare localizate în această vizualizare sau în acest interval de date. Eșantioanele celulare înregistrate fără locație sunt păstrate, dar nu pot apărea pe hartă.</string>
+    <string name="map_empty_subtitle_wifi">Nu există date Wi-Fi localizate în această vizualizare sau în acest interval de date. Observațiile Wi-Fi înregistrate fără locație sunt păstrate, dar nu pot apărea pe hartă.</string>
+    <string name="map_empty_subtitle_speed">Nu există date de viteză în această vizualizare sau în acest interval de date. Hărțile vitezei necesită eșantioane de locație utilizabile colectate în timpul urmăririi.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Nu există deplasări corelate cu drumurile de afișat. Importă o regiune OpenStreetMap (Setări) și înregistrează câteva deplasări cu mașina pentru a potrivi ruta cu drumurile reale.</string>
+    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Închide mesajul fără date</string>
+    <string name="map_speed_probe_title">Viteza aici</string>
+    <string name="map_speed_probe_avg_label">Medie</string>
+    <string name="map_speed_probe_max_label">Max.</string>
+    <string name="map_speed_probe_empty">Nu există date de viteză în acest loc. Atinge o zonă fierbinte pentru a vedea vitezele.</string>
+    <string name="map_speed_probe_hint">Atinge harta pentru a vedea vitezele</string>
+    <string name="map_speed_probe_dismiss">Închide detaliile vitezei</string>
+    <string name="map_place_callout_loading">Se caută locul…</string>
+    <string name="map_place_callout_empty">Nu a fost găsit niciun loc aici</string>
+    <string name="map_place_callout_dismiss">Închide detaliile locului</string>
+    <string name="map_zoom_in">Mărește</string>
+    <string name="map_zoom_out">Micșorează</string>
+    <string name="map_loading">Se încarcă harta…</string>
+    <string name="map_basemap_unavailable">Harta de bază nu a putut fi pregătită. Închide și redeschide harta pentru a încerca din nou.</string>
+    <string name="map_a11y_map_overview">Prezentare generală a hărții</string>
+    <string name="map_a11y_centered_on_location">Hartă centrată pe locația ta</string>
+    <string name="map_a11y_showing_location">Harta afișează locația ta</string>
+    <string name="map_a11y_loading_data">Se încarcă datele de hartă înregistrate</string>
+    <string name="map_a11y_no_recorded_data">Stratul selectat nu are date cartografiabile în această vizualizare sau în acest interval de date</string>
+    <string name="map_a11y_no_layer_selected">Nu este selectat niciun strat de hartă</string>
+    <string name="map_a11y_search_result_visible">Marcatorul rezultatului căutării este vizibil</string>
+    <string name="map_a11y_active_recording_visible">Traseul înregistrării active este vizibil</string>
+    <string name="map_a11y_recorded_route_history">Se afișează istoricul rutelor înregistrate</string>
+    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Se afișează observațiile distincte ale locațiilor acceptate</string>
+    <string name="map_a11y_cell_heatmap">Se afișează câmpurile de acoperire celulară și centrele aproximative ale siturilor deservitoare</string>
+    <string name="map_a11y_wifi_heatmap">Se afișează benzile Wi-Fi, câmpurile de acoperire și centrele aproximative ale punctelor de acces</string>
+    <string name="map_a11y_wifi_count_heatmap">Se afișează suprapunerea punctelor de acces Wi-Fi distincte</string>
+    <string name="map_a11y_speed_heatmap">Se afișează o hartă termică a vitezei</string>
+    <string name="map_a11y_saved_map_data">Se afișează datele de hartă salvate</string>
+    <string name="map_location_permission_opening_settings">Este necesar accesul la locație. Se deschid setările…</string>
+    <string name="map_permission_banner_dismiss">Închide mesajul despre permisiunea de localizare</string>
+    <string name="map_loading_layer">Se încarcă stratul hărții</string>
+    <string name="map_a11y_world_scale">Scară mondială</string>
+    <string name="map_a11y_regional_scale">Scară regională</string>
+    <string name="map_a11y_city_scale">Scară de oraș</string>
+    <string name="map_a11y_neighborhood_scale">Scară de cartier</string>
+    <string name="map_a11y_street_scale">Scară de stradă</string>
+    <string name="help_map_quality">Multiplicator de detalii la redare. Valorile mai mari afișează mai multe detalii, dar pot încetini încărcarea hărții pe dispozitivele mai vechi.</string>
+    <string name="help_max_heat_points">Numărul maxim de puncte de localizare afișate în harta termică. Valori mai mari = mai multe detalii, dar redare mai lentă.</string>
+    <string name="help_visit_threshold">Cât timp trebuie să rămâi într-un loc înainte ca acesta să fie marcat ca „vizită” pe hartă. Mărește valoarea pentru a reduce aglomerarea creată de opririle scurte.</string>
 </resources>

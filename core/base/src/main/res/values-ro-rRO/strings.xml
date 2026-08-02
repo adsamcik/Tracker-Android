@@ -1,35 +1,51 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <string name="activity_walking">Mers pe jos</string>
+    <string name="activity_running">Alergare</string>
+    <string name="activity_bicycle">Bicicletă</string>
+    <string name="activity_slope_sports">Sporturi pe pârtie</string>
+    <string name="activity_land_vehicle">Vehicul terestru</string>
+    <string name="activity_water_vehicle">Vehicul acvatic</string>
+    <string name="activity_air_vehicle">Vehicul aerian</string>
+    <string name="activity_in_vehicle">În vehicul</string>
+    <string name="activity_on_foot">Pe jos</string>
+    <string name="activity_name">Numele activității</string>
+    <string name="activity_raw_still">Staționar</string>
+    <string name="activity_raw_tilting">Înclinare</string>
+    <string name="activity_still">Staționar</string>
+    <string name="activity_unknown">Se detectează…</string>
+    <string name="activity_vehicle">Vehicul</string>
+    <string name="alert_confirm">Sigur dorești să %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">Niciuna</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">Necunoscut</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
+    <string name="channel_activity_watcher_description">Canal utilizat exclusiv de serviciul Monitor activitate, pentru a putea elimina ușor acea notificare permanentă.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Monitor activitate</string>
+    <string name="channel_achievements_description">Notificări legate de realizări.</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Realizări</string>
+    <string name="channel_other_description">Alte notificări care nu aparțin niciunei alte categorii.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Altele</string>
+    <string name="channel_track_description">Notificări legate de urmărire.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Urmărire</string>
+    <string name="channel_goals_description">Alerte pentru finalizarea obiectivelor.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Progres obiectiv</string>
     <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="generic_add">Adaugă</string>
+    <string name="generic_back">Înapoi</string>
+    <string name="generic_cancel">Anulează</string>
+    <string name="generic_delete">Șterge</string>
+    <string name="generic_edit">Editează</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
+    <string name="generic_undo">Anulează</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
