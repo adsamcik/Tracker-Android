@@ -1,84 +1,211 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="activity_title">Activity</string>
+    <string name="activity_title">活动</string>
     <string name="activity_value">%s</string>
-    <string name="altitude_title">Altitude</string>
-    <string name="altitude_value">alt %s</string>
-    <string name="cell_count_title">Cell count</string>
-    <string name="cell_count_value">cells %d</string>
+    <string name="altitude_title">海拔</string>
+    <string name="altitude_value">海拔 %s</string>
+    <string name="cell_count_title">蜂窝小区数量</string>
+    <string name="cell_count_value">小区 %d</string>
     <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
-    <string name="cell_current_title">Current cell</string>
-    <string name="cell_current_value">active cells (%s)</string>
-    <string name="collection_count_title">Collection count</string>
-    <string name="collection_count_value">%d collections</string>
-    <string name="description_settings">Settings button</string>
-    <string name="description_tracking_start">Start tracking button</string>
-    <string name="description_tracking_stop">Stop tracking button</string>
-    <string name="distance_invehicle_title">Distance in vehicle</string>
-    <string name="distance_invehicle_value">in vehicle %s</string>
-    <string name="distance_onfoot_title">Distance on foot</string>
-    <string name="distance_onfoot_value">on foot %s</string>
-    <string name="distance_title">Distance</string>
-    <string name="distance_value">distance %s</string>
-    <string name="duration_title">Session duration</string>
-    <string name="duration_value">duration %s</string>
-    <string name="error_nothing_to_track">You need to track more than time</string>
-    <string name="hint_customize_notification_show_in_content">Show in notification content</string>
-    <string name="hint_customize_notification_show_in_title">Show in notification title</string>
-    <string name="horizontal_accuracy_title">Horizontal accuracy</string>
-    <string name="horizontal_accuracy_value">acc %s</string>
-    <string name="last_update_title">Last update time</string>
-    <string name="last_update_value">last %s</string>
-    <string name="latitude_title">Latitude</string>
-    <string name="latitude_value_north">%s N</string>
-    <string name="latitude_value_south">%s S</string>
-    <string name="longitude_title">Longitude</string>
-    <string name="longitude_value_east">%s E</string>
-    <string name="longitude_value_west">%s W</string>
+    <string name="cell_current_title">当前小区</string>
+    <string name="cell_current_value">活动小区（%s）</string>
+    <string name="collection_count_title">更新次数</string>
+    <string name="collection_count_value">%d 次更新</string>
+    <string name="coordinates_title">坐标</string>
+    <string name="description_settings">设置按钮</string>
+    <string name="description_tracking_start">开始跟踪按钮</string>
+    <string name="description_tracking_stop">停止跟踪按钮</string>
+    <string name="description_tracking_start_no_permission">开始跟踪 — 需要权限</string>
+    <string name="description_points_today">今日获得积分：%s</string>
+    <string name="description_copy">复制值</string>
+    <string name="description_copied">值已复制</string>
+    <string name="description_recharge_settings">充电恢复设置：点按以配置</string>
+    <string name="distance_invehicle_title">乘车距离</string>
+    <string name="distance_invehicle_value">乘车 %s</string>
+    <string name="distance_onfoot_title">步行距离</string>
+    <string name="distance_onfoot_value">步行 %s</string>
+    <string name="distance_title">距离</string>
+    <string name="distance_value">距离 %s</string>
+    <string name="duration_title">会话时长</string>
+    <string name="duration_value">时长 %s</string>
+    <string name="error_nothing_to_track">请启用至少一个跟踪选项（位置、步数或活动）</string>
+    <string name="hint_customize_notification_show_in_content">在通知内容中显示</string>
+    <string name="hint_customize_notification_show_in_title">在通知标题中显示</string>
+    <string name="horizontal_accuracy_title">水平精度</string>
+    <string name="horizontal_accuracy_value">精度 %s</string>
+    <string name="last_update_title">上次更新时间</string>
+    <string name="last_update_value">上次 %s</string>
+    <string name="latitude_title">纬度</string>
+    <string name="latitude_value_north">%s 北</string>
+    <string name="latitude_value_south">%s 南</string>
+    <string name="longitude_title">经度</string>
+    <string name="longitude_value_east">%s 东</string>
+    <string name="longitude_value_west">%s 西</string>
     <plurals name="notification_auto_tracking_lock">
-        <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
+        <item quantity="one">自动跟踪已锁定 %1$d 分钟。</item>
+        <item quantity="other">自动跟踪已锁定 %1$d 分钟。</item>
     </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS</string>
-    <string name="notification_starting">Starting Tracker service</string>
-    <string name="notification_stop">Stop</string>
-    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
-    <string name="notification_stop_til_recharge">Stop till recharge</string>
-    <string name="notification_tracker_active_ticker">Tracker is active</string>
-    <string name="notification_tracking_active">Tracking</string>
-    <string name="settings_activity_enabled_title">Activity</string>
-    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
-    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
-    <string name="settings_cell_enabled_title">Cell</string>
-    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
-    <string name="settings_disabled_recharge_title">Disabled until recharge</string>
-    <string name="settings_location_enabled_title">Location</string>
-    <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
-    <string name="settings_notification_customize_title">Customize notification</string>
-    <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
-    <string name="settings_notification_styled_title">Colored notifications</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Google Play location</string>
-    <string name="settings_tracker_timer_location">Android location</string>
-    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
-    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
-    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
-    <string name="settings_tracking_title">Tracking</string>
+    <string name="notification_looking_for_gps">正在寻找 GPS — 正在使用位置</string>
+    <string name="notification_starting">Tracker 正在启动 — 正在使用位置</string>
+    <string name="notification_starting_without_location">Tracker 正在启动</string>
+    <string name="notification_stop">停止</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">停止 %d 分钟</string>
+    <string name="notification_stop_til_recharge">停止至充电后</string>
+    <string name="stop_tracking_dialog_title">要停止跟踪吗？</string>
+    <string name="stop_tracking_dialog_message">自动跟踪已开启；如果您仅停止跟踪，它可能很快会再次开始新会话。</string>
+    <string name="notification_tracker_active_ticker">正在记录您的路线 — 正在使用位置</string>
+    <string name="notification_tracker_active_without_location">正在无位置跟踪</string>
+    <string name="notification_tracking_active">正在跟踪</string>
+    <string name="notification_tracking_start_failed_title">无法开始跟踪</string>
+    <string name="notification_tracking_start_failed_text">打开应用以查看权限并恢复跟踪。</string>
+    <string name="settings_activity_enabled_title">活动</string>
+    <string name="settings_auto_tracking_transition_summary">省电模式（活动检测稍慢）</string>
+    <string name="settings_auto_tracking_transition_title">使用活动转换</string>
+    <string name="settings_cell_enabled_title">蜂窝网络</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_summary">在手机连接充电器之前，自动跟踪将保持关闭</string>
+    <string name="settings_disabled_recharge_title">充电前保持关闭</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_location_enabled_title">位置</string>
+    <string name="settings_notification_customize_summary">更改跟踪通知中显示的内容及其顺序。</string>
+    <string name="settings_notification_customize_title">自定义通知</string>
+    <string name="settings_notification_styled_summary">对通知使用应用样式颜色。</string>
+    <string name="settings_notification_styled_title">彩色通知</string>
+    <string name="settings_ski_detection_title">滑雪检测</string>
+    <string name="settings_ski_detection_summary">根据气压计模式自动检测滑雪，并按滑雪阶段调整 GPS 跟踪。</string>
+    <string name="settings_sailing_detection_title">航海检测</string>
+    <string name="settings_sailing_detection_summary">根据 GPS 速度自动检测航海/划船，并相应调整 GPS 跟踪。仅基于速度 — 也可能因骑行等相近速度的活动而触发。</string>
+    <string name="settings_plane_detection_title">飞行检测</string>
+    <string name="settings_plane_detection_summary">根据气压海拔变化自动检测飞行，并按飞行阶段调整 GPS 跟踪。即使在巡航海拔没有 GPS 时也可工作。</string>
+    <string name="ski_notification_title">滑雪统计</string>
+    <string name="ski_notification_text">🎿 滑行 #%1$d | ↓%2$s | ⚡%3$s</string>
+    <string name="ski_notification_lift">%1$s 次乘坐</string>
+    <string name="settings_barometer_enabled_title">气压计</string>
+    <string name="settings_steps_enabled_title">步数</string>
+    <string name="settings_tracker_timer_ambient">环境计时器</string>
+    <string name="settings_tracker_timer_clock">基于间隔</string>
+    <string name="settings_tracker_timer_fused">Google Play 位置服务</string>
+    <string name="settings_tracker_timer_location">Android 位置服务</string>
+    <string name="settings_tracking_min_distance_title">更新之间的最小距离</string>
+    <string name="settings_tracking_min_time_title">更新之间的最短延迟</string>
+    <string name="settings_tracking_notice_summary">重新开始跟踪后更改才会生效</string>
+    <string name="settings_tracking_required_accuracy_title">所需位置精度</string>
+    <string name="settings_tracking_title">跟踪</string>
+    <string name="settings_vehicle_speed_limit_baseline_title">车辆限速基线</string>
+    <string name="help_vehicle_speed_limit_baseline">由“车辆速度合规性”地图图层使用。驾车样本按其速度与此基线的比较着色。请选择与您最常行驶地区限速相符的值（例如城市 50 km/h、高速公路 90 km/h）。</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
-    <string name="shortcut_start_tracking">Start tracking</string>
-    <string name="shortcut_start_tracking_long">Start tracking service</string>
-    <string name="shortcut_stop_tracking">Stop tracking</string>
-    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
-    <string name="speed_title">Speed</string>
-    <string name="speed_value">speed %s</string>
-    <string name="start_time_title">Session start time</string>
-    <string name="start_time_value">start %s</string>
-    <string name="tracker_activity_confidence">Confidence</string>
-    <string name="tracker_activity_title">Activity</string>
-    <string name="tracker_collections_title">Collections</string>
-    <string name="tracker_distance_title">Distance</string>
-    <string name="tracker_session_age">Session started</string>
-    <string name="tracker_session_card_title">Session</string>
-    <string name="wifi_count_title">Wi-Fi count</string>
-    <string name="wifi_count_value">Wi-Fi %d</string>
+    <string name="shortcut_start_tracking">开始跟踪</string>
+    <string name="shortcut_start_tracking_long">开始位置跟踪</string>
+    <string name="shortcut_stop_tracking">停止跟踪</string>
+    <string name="shortcut_stop_tracking_long">停止位置跟踪</string>
+    <string name="speed_title">速度</string>
+    <string name="speed_value">速度 %s</string>
+    <string name="battery_title">电量</string>
+    <string name="battery_low_warning">⚡ 电量低：%d%%</string>
+    <string name="start_time_title">会话开始时间</string>
+    <string name="start_time_value">开始 %s</string>
+    <string name="tracker_activity_confidence">置信度</string>
+    <string name="tracker_activity_title">活动</string>
+    <string name="tracker_collections_title">更新</string>
+    <string name="tracker_distance_title">距离</string>
+    <string name="tracker_steps_title">步数</string>
+    <string name="tracker_session_age">会话已开始</string>
+    <string name="tracker_session_card_title">会话</string>
+    <string name="tracker_component_waiting_data">正在等待实时数据</string>
+    <plurals name="tracker_wifi_networks_value">
+        <item quantity="one">%d 个网络</item>
+        <item quantity="other">%d 个网络</item>
+    </plurals>
+    <string name="tracker_signal_strength_title">信号</string>
+    <string name="tracker_signal_strength_value">%1$d dBm 峰值</string>
+    <string name="insight_distance_value_km">%1$.1f 千米</string>
+    <string name="insight_duration_title">值得的时间</string>
+    <plurals name="insight_duration_desc">
+        <item quantity="one">跟踪 %1$d 分钟</item>
+        <item quantity="other">跟踪 %1$d 分钟</item>
+    </plurals>
+    <string name="insight_exploration_title">探索者！</string>
+    <plurals name="insight_exploration_desc">
+        <item quantity="one">您发现了 %1$d 个新区域</item>
+        <item quantity="other">您发现了 %1$d 个新区域</item>
+    </plurals>
+    <string name="insight_comparison_title">高于平均水平</string>
+    <string name="insight_comparison_desc">此会话比您最近的平均水平长 %1$d%%</string>
+    <string name="wifi_count_title">Wi-Fi 数量</string>
+    <string name="wifi_count_value">Wi-Fi %d 个</string>
+    <!-- Soft hint when Wi‑Fi permission is missing -->
+    <string name="wifi_permission_hint_title">允许 Wi‑Fi 以获得更好的室内精度</string>
+    <string name="wifi_permission_hint_text">在应用设置中授予 Wi‑Fi 权限，以改善基于信号的室内定位。在您允许之前，不会收集 Wi‑Fi 无线电数据。</string>
+    <!-- Tracker Dashboard -->
+    <!-- Today Progress Card -->
+    <string name="dashboard_today_title">今天</string>
+    <string name="dashboard_today_empty_title">今天没有会话</string>
+    <string name="dashboard_today_distance">距离</string>
+    <string name="dashboard_today_steps">步数</string>
+    <string name="dashboard_today_duration">时长</string>
+    <!-- Tracking Presets -->
+    <string name="tracking_preset_title">跟踪模式</string>
+    <string name="tracking_preset_battery_saver_title">省电模式</string>
+    <string name="tracking_preset_battery_saver_desc">针对全天跟踪优化</string>
+    <string name="tracking_preset_balanced_title">均衡</string>
+    <string name="tracking_preset_balanced_desc">启用所有传感器，细节适中</string>
+    <string name="tracking_preset_high_precision_title">高精度</string>
+    <string name="tracking_preset_high_precision_desc">最高细节和准确性</string>
+    <string name="tracking_preset_custom_badge">已应用自定义设置</string>
+    <!-- Battery Impact Indicators -->
+    <string name="battery_impact_low">低电量影响</string>
+    <string name="battery_impact_moderate">中等电量影响</string>
+    <string name="battery_impact_high">较高电量使用</string>
+    <string name="battery_impact_high_warning">此配置可能显著缩短续航。若需全天跟踪，请考虑使用均衡模式。</string>
+    <!-- Advanced Settings Section -->
+    <!-- Help Text for Advanced Settings -->
+    <string name="help_min_distance">Tracker 会在您移动达到此距离后才记录下一个位置。较小的值 = 更详细的路线，但电量使用更高。</string>
+    <string name="help_min_time">Tracker 检查您位置的频率。较小的值 = 更新更频繁，但电量使用更高。</string>
+    <string name="help_required_accuracy">GPS 精度阈值。Tracker 会忽略精度低于此值的位置更新。值越低越精确，但在 GPS 条件较差时可能跳过更新。</string>
+    <string name="help_transition_detection">Tracker 根据您的移动自动开始/停止。比持续 GPS 更省电，但可能延迟检测活动变化。</string>
+    <!-- Policy Tier Indicator (Phase 4a) -->
+    <string name="policy_tier_ambient">环境</string>
+    <string name="policy_tier_active">活动</string>
+    <string name="policy_tier_precision">精确</string>
+    <!-- Recent Trips Card (Phase 4d) -->
+    <string name="dashboard_recent_trips">最近行程</string>
+    <!-- Hardcoded string extractions -->
+    <string name="tracker_hide_details">隐藏详情</string>
+    <string name="tracker_show_sensor_details">显示传感器详情</string>
+    <string name="tracker_view_map">查看地图</string>
+    <string name="tracker_average_label">平均</string>
+    <string name="tracker_accuracy_label">精度</string>
+    <string name="tracker_disabled">已禁用</string>
+    <!-- Content descriptions -->
+    <string name="tracker_lock_icon_desc">锁定状态</string>
+    <string name="tracker_settings_icon_desc">组件设置</string>
+    <string name="tracker_points_icon_desc">积分进度</string>
+    <!-- Hardcoded string extractions (HI-03) -->
+    <string name="tracker_start_button">开始</string>
+    <string name="tracker_duration_label">时长</string>
+    <string name="tracker_distance_label">距离</string>
+    <string name="tracker_wifi_label">Wi-Fi</string>
+    <string name="tracker_cell_label">蜂窝网络</string>
+    <string name="tracker_collapse">收起</string>
+    <string name="tracker_expand">展开</string>
+    <string name="tracker_go_to_map">前往地图</string>
+    <string name="tracker_session_summary_copied">会话摘要已复制</string>
+    <string name="tracker_share_session_summary">分享会话摘要</string>
+    <string name="tracker_long_press_to_copy">长按以复制</string>
+    <string name="tracker_copy_session_summary">复制会话摘要</string>
+    <string name="tracker_live_tab">实时</string>
+    <string name="tracker_route_tab">路线</string>
+    <string name="tracker_activity_tab">活动</string>
+    <string name="tracker_precision_mode_enabled">已启用高精度跟踪</string>
+    <string name="tracker_battery_mode_enabled">已启用省电跟踪</string>
+    <string name="policy_tier_status_prefix">GPS 策略：</string>
+    <string name="tracker_precision_chip_hint">点按以切换到 %1$s</string>
+    <string name="action_navigate_back">返回</string>
+    <!-- Session Insights (Task F) -->
+    <string name="insight_distance_title">已覆盖距离</string>
+    <string name="insight_distance_desc">您在此会话中覆盖了 %1$s。</string>
+    <string name="insight_steps_title">已记录步数</string>
+    <string name="insight_steps_desc">此会话共 %1$s 步 — 继续加油！</string>
 </resources>

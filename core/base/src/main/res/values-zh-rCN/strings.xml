@@ -1,36 +1,62 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">步行</string>
+    <string name="activity_running">跑步</string>
+    <string name="activity_bicycle">骑自行车</string>
+    <string name="activity_slope_sports">坡地运动</string>
+    <string name="activity_land_vehicle">陆地交通工具</string>
+    <string name="activity_water_vehicle">水上交通工具</string>
+    <string name="activity_air_vehicle">航空交通工具</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">乘车中</string>
+    <string name="activity_on_foot">步行中</string>
+    <string name="activity_name">活动名称</string>
+    <string name="activity_raw_still">静止</string>
+    <string name="activity_raw_tilting">倾斜</string>
+    <string name="activity_still">静止</string>
+    <string name="activity_unknown">正在检测…</string>
+    <string name="activity_vehicle">交通工具</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">确定要%1$s吗？</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">无</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">未知</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
-    <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
-    <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
-    <string name="hour_short">%d h</string>
-    <string name="minute_short">%d m</string>
-    <string name="second_short">%d s</string>
+    <string name="channel_activity_watcher_description">专供“活动监控器”服务使用的通知渠道，方便您关闭该永久通知。</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">活动监控器</string>
+    <string name="channel_achievements_description">与成就相关的通知。</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">成就</string>
+    <string name="channel_other_description">不属于其他类别的通知。</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">其他</string>
+    <string name="channel_track_description">与跟踪相关的通知。</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">跟踪</string>
+    <string name="channel_goals_description">目标完成提醒。</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">目标进度</string>
+    <string name="day_short">%d 天</string>
+    <string name="generic_add">添加</string>
+    <string name="generic_back">返回</string>
+    <string name="generic_cancel">取消</string>
+    <string name="generic_delete">删除</string>
+    <string name="generic_edit">编辑</string>
+    <string name="generic_ok">确定</string>
+    <string name="generic_undo">撤销</string>
+    <string name="hour_short">%d 小时</string>
+    <string name="minute_short">%d 分钟</string>
+    <string name="second_short">%d 秒</string>
 </resources>

@@ -1,8 +1,17 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
-  <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
-  <string name="settings_activity_snackbar_message">Removed %s</string>
-  <string name="settings_activity_title">Activities</string>
-  <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="notification_activity_watcher_info">当前活动 %1$s（%2$d%%）</string>
+    <string name="notification_activity_watcher_ticker">活动监控器服务已启用</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">已移除 %s</string>
+    <string name="settings_activity_title">活动</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">活动监控器</string>
+    <string name="settings_ski_infrastructure_title">滑雪缆车数据</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">已加载（点按以移除）</string>
+    <string name="settings_ski_infrastructure_subtitle_none">未加载。点按以导入 ski_infrastructure.db SQLite 文件。</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d 条缆车 · 生成于 %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">滑雪缆车数据 © OpenStreetMap 贡献者（ODbL）</string>
 </resources>

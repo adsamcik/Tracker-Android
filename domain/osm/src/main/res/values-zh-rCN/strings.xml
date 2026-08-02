@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">解析用户导入的 OpenStreetMap 区域时显示的前台通知。</string>
+    <string name="osm_import_notification_title">正在导入 OpenStreetMap 区域</string>
+    <string name="osm_import_notification_content">已解析 %1$d 条道路</string>
+    <string name="osm_import_complete_title">已导入 OSM 区域</string>
+    <string name="osm_import_complete_content">用于车辆合规性的离线道路数据已准备就绪。</string>
+    <string name="osm_import_failed_title">OSM 导入失败</string>
+    <string name="osm_import_failed_content">无法完成离线地图导入。</string>
+</resources>

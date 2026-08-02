@@ -1,0 +1,236 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s在至少 %2$d 个不同日期进行跟踪即可解锁。</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">行进 %1$s</string>
+    <string name="ach_desc_distance_total">在所有会话中累计记录 %1$s 的总距离。</string>
+    <string name="ach_title_week_distance">本周 %1$s</string>
+    <string name="ach_desc_week_distance">在单个日历周内行进 %1$s。</string>
+    <string name="ach_title_best_day_distance">单日 %1$s</string>
+    <string name="ach_desc_best_day_distance">在一天内达到 %1$s 的距离。</string>
+    <string name="ach_title_max_session_distance">单次会话 %1$s</string>
+    <string name="ach_desc_max_session_distance">记录一次不间断覆盖 %1$s 的会话。</string>
+    <string name="ach_title_on_foot_distance">步行或跑步 %1$s</string>
+    <string name="ach_desc_on_foot_distance">步行或跑步累计覆盖 %1$s。</string>
+    <string name="ach_title_cycling_distance">骑行 %1$s</string>
+    <string name="ach_desc_cycling_distance">累计骑行 %1$s。</string>
+    <string name="ach_title_vehicle_distance">机动出行 %1$s</string>
+    <string name="ach_desc_vehicle_distance">乘汽车、巴士、火车、船舶或飞机覆盖 %1$s。</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">行走 %1$s 步</string>
+    <string name="ach_desc_steps_total">在所有会话中记录 %1$s 步。</string>
+    <string name="ach_title_best_daily_steps">单日 %1$s 步</string>
+    <string name="ach_desc_best_daily_steps">在一天内行走 %1$s 步。</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">首次会话</item>
+        <item quantity="other">记录 %1$s 个会话</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">累计记录 %1$s 个跟踪会话。</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">发现首个网格单元</item>
+        <item quantity="other">发现 %1$s 个地图网格单元</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">在地图上探索 %1$s 个不同网格单元（每个约为 1 平方千米）。</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">访问 %d 个国家</item>
+        <item quantity="other">访问 %d 个国家</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">在 %1$d 个不同国家各记录至少一个会话。</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">首个活动日</item>
+        <item quantity="other">%1$s 个活动日</item>
+    </plurals>
+    <string name="ach_desc_active_days">总计在 %1$s 个不同日期跟踪活动。</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">连续 %d 天</item>
+        <item quantity="other">连续 %d 天</item>
+    </plurals>
+    <string name="ach_desc_current_streak">连续 %1$d 天跟踪活动。</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">个人最佳：%d 天</item>
+        <item quantity="other">个人最佳：%d 天</item>
+    </plurals>
+    <string name="ach_desc_best_streak">达到连续跟踪 %1$d 天的个人最佳。</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">与 Tracker 共度 %d 个月</item>
+        <item quantity="other">与 Tracker 共度 %d 个月</item>
+    </plurals>
+    <string name="ach_desc_months_active">在 %1$d 个不同月份中保持 Tracker 活跃。</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">本周 %d 个活动日</item>
+        <item quantity="other">本周 %d 个活动日</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">在单个周内的 %1$d 天跟踪活动。</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">与 Tracker 共度首日</item>
+        <item quantity="other">与 Tracker 共度 %1$s 天</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">安装 Tracker 已满 %1$s 天。</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">欢迎回来</item>
+        <item quantity="other">相隔 %d 天后欢迎回来</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">中断 %1$d 天后重新开始跟踪。</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">在一天中的 %d 个小时跟踪</item>
+        <item quantity="other">在不同的 %d 个小时跟踪</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">在所有会话中，于一天内 %1$d 个不同小时记录活动。</string>
+    <string name="ach_title_days_of_week">一周七天全勤</string>
+    <string name="ach_desc_days_of_week">在每个星期几至少跟踪一次活动。</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">尝试 %d 种活动类型</item>
+        <item quantity="other">尝试 %d 种活动类型</item>
+    </plurals>
+    <string name="ach_desc_activity_types">在 %1$d 种不同活动类型中记录会话（步行、骑行、驾车等）。</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">本周 %d 种活动类型</item>
+        <item quantity="other">本周 %d 种活动类型</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">在单个周内使用 %1$d 种不同活动类型。</string>
+    <string name="ach_title_week_all_days">一周每天跟踪</string>
+    <string name="ach_desc_week_all_days">在一个日历周的全部七天记录活动。</string>
+    <string name="ach_title_walk_cycle_drive">步行、骑行、驾车</string>
+    <string name="ach_desc_walk_cycle_drive">分别至少记录一次步行、骑行和驾车会话。</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">%1$s 会话</string>
+    <string name="ach_desc_max_session_duration">记录一次持续至少 %1$s 的会话。</string>
+    <string name="ach_title_max_speed">达到 %1$s</string>
+    <string name="ach_desc_max_speed">在一次会话中达到至少 %1$s 的最高速度。</string>
+    <string name="ach_title_active_minutes">活动 %1$s 分钟</string>
+    <string name="ach_desc_active_minutes">累计 %1$s 分钟的活动跟踪时间。</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">首次导出</item>
+        <item quantity="other">%d 次导出</item>
+    </plurals>
+    <string name="ach_desc_exports_total">导出数据 %1$d 次。</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">跨越一个季节跟踪</item>
+        <item quantity="other">跨越 %d 个季节跟踪</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">在 %1$d 个不同季节（春/夏/秋/冬）记录活动。</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">新年跟踪者</string>
+    <string name="ach_desc_calendar_new_year">在 1 月 1 日记录一次会话。</string>
+    <string name="ach_title_calendar_leap_day">闰日先行者</string>
+    <string name="ach_desc_calendar_leap_day">在 2 月 29 日记录一次会话。</string>
+    <string name="ach_title_calendar_summer_solstice">夏至</string>
+    <string name="ach_desc_calendar_summer_solstice">在一年中白昼最长的一天记录一次会话。</string>
+    <string name="ach_title_calendar_winter_solstice">冬至</string>
+    <string name="ach_desc_calendar_winter_solstice">在一年中白昼最短的一天记录一次会话。</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">夜猫子</item>
+        <item quantity="other">%1$s 次夜间会话</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">记录 %1$d 次在午夜至凌晨 5 点之间开始的会话。</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">早起鸟</item>
+        <item quantity="other">%1$s 次黎明会话</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">记录 %1$d 次在早晨 5 点至 8 点之间开始的会话。</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">亲手跟踪者</item>
+        <item quantity="other">手动开始 %1$s 个会话</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">亲自手动开始 %1$d 个跟踪会话。</string>
+    <string name="ach_title_max_cycle_session">单次骑行 %1$s</string>
+    <string name="ach_desc_max_cycle_session">在一次骑行中达到 %1$s。</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">多模式日</item>
+        <item quantity="other">%d 个多模式日</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">在同一天步行、骑自行车和使用机动交通出行，累计达 %1$d 个不同日期。</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">四季皆宜之地</item>
+        <item quantity="other">%d 个地点的四季</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">跨越全部四季访问 %1$d 个地图网格单元。</string>
+    <string name="ach_title_max_cell_visits">访问一处 %1$d 次</string>
+    <string name="ach_desc_max_cell_visits">访问同一地图网格单元 %1$d 次。</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">深入探索一个网格单元</item>
+        <item quantity="other">深入探索 %1$s 个网格单元</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">深入探索 %1$d 个不同地图网格单元。</string>
+    <string name="ach_title_max_cell_span">相距 %1$s</string>
+    <string name="ach_desc_max_cell_span">发现两个相距至少 %1$s 的地图网格单元。</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">一天发现一个网格单元</item>
+        <item quantity="other">一天发现 %d 个网格单元</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">在一天内发现 %1$d 个新的地图网格单元。</string>
+    <string name="ach_title_max_cell_revisit_gap">相隔 %1$d 天后重访</string>
+    <string name="ach_desc_max_cell_revisit_gap">首次发现后相隔 %1$d 天重访一个地图网格单元。</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">完美月份</item>
+        <item quantity="other">%d 个完美月份</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">在 %1$d 个日历月的每一天均跟踪活动。</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">使用一种导出格式</item>
+        <item quantity="other">使用 %d 种导出格式</item>
+    </plurals>
+    <string name="ach_desc_export_formats">以 %1$d 种不同文件格式导出数据。</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">达到等级 %1$d</string>
+    <string name="ach_desc_player_level">提升到玩家等级 %1$d。</string>
+    <string name="ach_title_best_day_xp">单日 %1$s XP</string>
+    <string name="ach_desc_best_day_xp">在一天内获得 %1$d XP。</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">游玩首个迷你游戏</item>
+        <item quantity="other">游玩 %1$s 个迷你游戏</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">完成 %1$d 次迷你游戏跑步。</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">爬升 %1$s</string>
+    <string name="ach_desc_total_ascent">在所有跟踪中累计 %1$s 的总爬升。</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">从一个 XP 来源获得经验</item>
+        <item quantity="other">从 %d 个 XP 来源获得经验</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">从 %1$d 个不同来源获得 XP — 跟踪会话、迷你游戏和目标。</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">完美周</item>
+        <item quantity="other">%d 个完美周</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">连续 %1$d 个完整周，每天均达成每日步数目标。</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">连续 %d 天达成目标</item>
+        <item quantity="other">连续 %d 天达成目标</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">连续 %1$d 天达成每日步数目标。</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">解锁一个成就</item>
+        <item quantity="other">解锁 %d 个成就</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">总计解锁 %1$d 个成就。</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">完成一个类别</item>
+        <item quantity="other">完成 %d 个类别</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">解锁 %1$d 个不同类别中的全部成就。</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d 秒</item>
+        <item quantity="other">%d 秒</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d 分钟</item>
+        <item quantity="other">%d 分钟</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d 小时</item>
+        <item quantity="other">%d 小时</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d 天</item>
+        <item quantity="other">%d 天</item>
+    </plurals>
+</resources>

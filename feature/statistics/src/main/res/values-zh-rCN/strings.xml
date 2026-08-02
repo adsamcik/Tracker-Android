@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_error_generic">出现问题</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">统计</string>
+    <string name="stats_cell_count">蜂窝基站数量</string>
+    <string name="stats_collections">更新次数</string>
+    <string name="stats_distance_in_vehicle">乘车距离</string>
+    <string name="stats_distance_on_foot">步行距离</string>
+    <string name="stats_distance_total">距离</string>
+    <string name="stats_format_unknown_activity">会话</string>
+    <string name="stats_location_count">位置数量</string>
+    <string name="stats_no_tracker_sessions">尚无跟踪会话</string>
+    <string name="stats_empty_subtitle">开始跟踪后可在此查看您的活动</string>
+    <string name="stats_session_count">会话数量</string>
+    <string name="stats_steps">步数</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_sum_title">摘要</string>
+    <string name="stats_time">跟踪耗时</string>
+    <string name="stats_weekly_title">最近 7 天</string>
+    <string name="stats_wifi_count">Wi-Fi 数量</string>
+    <string name="stats_wifi_chip_label">Wi-Fi 统计</string>
+    <string name="stats_cell_signal_chip_label">蜂窝信号</string>
+    <string name="stats_filter_dates">日期</string>
+    <string name="stats_filter_active_label">正在显示 %1$s</string>
+    <string name="stats_filter_clear">清除筛选</string>
+    <string name="stats_date_dialog_title">日期范围</string>
+    <string name="stats_date_summary_placeholder">选择时间范围以筛选会话</string>
+    <string name="stats_date_preset_today">今天</string>
+    <string name="stats_date_preset_yesterday">昨天</string>
+    <string name="stats_date_preset_last_7_days">最近 7 天</string>
+    <string name="stats_date_preset_last_30_days">最近 30 天</string>
+    <string name="stats_date_preset_this_month">本月</string>
+    <string name="stats_date_preset_last_month">上月</string>
+    <string name="stats_date_preset_this_year">今年</string>
+    <string name="stats_date_preset_all_time">全部时间</string>
+    <string name="stats_sparse_summary_title">本周概览</string>
+    <string name="stats_sparse_summary_active_days">活动天数</string>
+    <string name="stats_sparse_summary_week_label">每日活动</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">仅显示 %1$d 个会话，因此此紧凑摘要会补充您最近其余的活动。</item>
+        <item quantity="other">仅显示 %1$d 个会话，因此此紧凑摘要会补充您最近其余的活动。</item>
+    </plurals>
+    <string name="stats_error_generic">发生错误</string>
+    <string name="stats_loading">正在加载会话…</string>
     <string name="stats_append_error">加载更多失败</string>
     <string name="action_retry">重试</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">开始跟踪</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s 步</item>
+        <item quantity="other">%1$s 步</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">今天</string>
+    <string name="stats_date_yesterday">昨天</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">正在加载摘要…</string>
+    <string name="stats_summary_empty">没有可用的摘要统计数据</string>
+    <string name="stats_summary_empty_subtitle">开始跟踪后可查看您的活动摘要</string>
+    <string name="stats_summary_error">无法加载摘要</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">正在加载每周统计数据…</string>
+    <string name="stats_week_empty">没有可用的每周统计数据</string>
+    <string name="stats_week_empty_subtitle">跟踪满 7 天后可查看每周摘要</string>
+    <string name="stats_week_error">无法加载每周统计数据</string>
+    <string name="stats_wifi_dialog_title">Wi-Fi 统计</string>
+    <string name="stats_wifi_dialog_loading">正在加载 Wi-Fi 统计…</string>
+    <string name="stats_wifi_dialog_empty_title">没有可用的 Wi-Fi 数据</string>
+    <string name="stats_wifi_dialog_empty_subtitle">收集扫描数据后将显示 Wi-Fi 统计。</string>
+    <string name="stats_wifi_dialog_error">无法加载 Wi-Fi 统计</string>
+    <string name="stats_wifi_unique_networks">看到的唯一网络数</string>
+    <string name="stats_wifi_total_scans">扫描总数</string>
+    <string name="stats_wifi_average_per_scan">每次扫描的平均网络数</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">蜂窝信号报告</string>
+    <string name="stats_cell_signal_dialog_loading">正在加载蜂窝信号报告…</string>
+    <string name="stats_cell_signal_dialog_empty_title">没有可用的蜂窝数据</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">收集样本后将显示蜂窝信号统计。</string>
+    <string name="stats_cell_signal_dialog_error">无法加载蜂窝信号报告</string>
+    <string name="stats_cell_signal_total_samples">蜂窝样本</string>
+    <string name="stats_cell_signal_distinct_towers">不同基站数</string>
+    <string name="stats_cell_signal_section_networks">按网络类型</string>
+    <string name="stats_cell_signal_section_towers">最常见基站</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s 个样本 · %2$s 个基站</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">小区 %1$s · %2$s 个样本</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">运营商 %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">行程详情</string>
+    <string name="trip_detail_not_found">未找到行程</string>
+    <string name="trip_detail_not_found_subtitle">此行程可能已被删除</string>
+    <string name="trip_detail_error_title">无法加载行程</string>
+    <string name="trip_detail_retry">重试</string>
+    <string name="trip_detail_duration">时长</string>
+    <string name="trip_detail_distance">距离</string>
+    <string name="trip_detail_date">日期</string>
+    <string name="trip_detail_steps">步数</string>
+    <string name="trip_detail_samples">样本</string>
+    <string name="trip_detail_source">来源</string>
+    <string name="trip_detail_avg_speed">平均速度</string>
+    <string name="trip_detail_max_speed">最高速度</string>
+    <string name="trip_detail_pace">配速</string>
+    <string name="trip_detail_activity_type">活动类型</string>
+    <string name="trip_detail_start_time">开始时间</string>
+    <string name="trip_detail_end_time">结束时间</string>
+    <string name="trip_detail_elevation_gain">爬升</string>
+    <string name="trip_detail_elevation_loss">下降</string>
+    <string name="trip_detail_max_altitude">最高海拔</string>
+    <string name="trip_detail_route_map">路线地图</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">没有位置数据</string>
+    <string name="trip_detail_route_unavailable_legacy">旧版会话没有可用的路线地图</string>
+    <string name="trip_detail_route_no_gps_points">已记录距离，但没有可用的 GPS 路线</string>
+    <string name="trip_detail_delete">删除</string>
+    <string name="trip_detail_export_gpx">导出为 GPX</string>
+    <string name="trip_detail_delete_confirm_title">要删除行程吗？</string>
+    <string name="trip_detail_delete_confirm_message">此行程将被永久删除。</string>
+    <string name="trip_detail_delete_confirm">删除</string>
+    <string name="trip_detail_cancel">取消</string>
+    <string name="trip_detail_more_options">更多选项</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">滑雪会话</string>
+    <string name="ski_detail_runs">滑行次数</string>
+    <string name="ski_detail_vertical">垂直落差</string>
+    <string name="ski_detail_max_speed">最高速度</string>
+    <string name="ski_detail_time_skiing">滑雪时间</string>
+    <string name="ski_detail_time_lifts">乘缆车时间</string>
+    <string name="ski_detail_run_label">第 %1$d 次滑行</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">找到 %d 个与筛选条件匹配的 Wi-Fi</string>
+    <string name="wifilist_filter_bssid">BSSID（标识符）</string>
+    <string name="wifilist_filter_capabilities">功能</string>
+    <string name="wifilist_filter_count">显示数量</string>
+    <string name="wifilist_filter_frequency">频率</string>
+    <string name="wifilist_filter_ssid">SSID（名称）</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Wi-Fi 列表</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">功能</string>
+    <string name="wifilist_title_first_seen">首次发现</string>
+    <string name="wifilist_title_frequency">频率</string>
+    <string name="wifilist_title_last_seen">最近发现</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">时间线</string>
+    <string name="history_tab_trips">行程</string>
+    <string name="history_tab_calendar">日历</string>
+    <string name="history_screen_title">历史记录</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d 个行程</item>
+        <item quantity="other">%d 个行程</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">尚无活动</string>
+    <string name="history_timeline_empty_desc">开始跟踪后可在此查看您的移动历史</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">尚未记录行程</string>
+    <string name="history_trips_empty_desc">移动时，行程会显示在这里</string>
+    <string name="trip_gps_anomaly">检测到 GPS 异常 — 距离可能不准确</string>
+    <string name="trip_deleted_snackbar">行程已删除</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">上个月</string>
+    <string name="history_calendar_next_month">下个月</string>
+    <string name="history_calendar_distance">距离</string>
+    <string name="history_calendar_steps">步数</string>
+    <string name="history_calendar_trips">行程</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">探索</string>
+    <string name="history_exploration_cells">网格单元</string>
+    <string name="history_exploration_streak">连续记录</string>
+    <string name="history_exploration_best">最佳</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">返回</string>
+    <!-- History navigation -->
+    <string name="history_button_label">历史记录</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">活动</string>
 </resources>

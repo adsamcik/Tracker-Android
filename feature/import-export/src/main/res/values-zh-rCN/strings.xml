@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">导出</string>
+    <string name="export_default_file_name_range">Advention_导出数据_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_导出数据_%1$s</string>
+    <string name="export_error_no_locations_in_interval">所选时间范围内未找到位置数据。</string>
+    <string name="export_error_no_databases">没有可导出的应用数据库。</string>
+    <string name="export_error_no_uri">未选择导出文件夹</string>
+    <string name="export_error_stream_failed">无法为文件 %s 创建数据流</string>
+    <string name="export_error_unknown">导出失败。</string>
+    <string name="export_error_with_reason">导出失败：%s</string>
+    <string name="export_file_name">文件名</string>
+    <string name="export_file_name_error">文件名不能包含 \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">从 %1$s 到 %2$s 的位置数据导出，由 Advention 跟踪。</string>
+    <string name="export_gpx_error">GPX 导出失败，错误：%s</string>
+    <string name="export_sensitivity_title">要导出精确位置数据吗？</string>
+    <string name="export_sensitivity_message">此导出/分享包含全精度位置数据，数据库导出可能含有原始无线电元数据。仅当您信任目标位置时继续。</string>
+    <string name="export_sensitivity_confirm">继续</string>
+    <string name="export_share_button">分享</string>
+    <string name="export_in_progress">正在导出…</string>
+    <string name="export_completed">导出完成。</string>
+    <string name="import_notification_error_failed_open_database">无法打开数据库文件 %s</string>
+    <string name="import_notification_error_file_not_supported">不支持文件 %s。</string>
+    <string name="import_notification_extracting">正在提取 %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">导入完成。已成功导入 %d 条记录。</item>
+        <item quantity="other">导入完成。已成功导入 %d 条记录。</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">导入完成。已导入 %1$d 条记录（跳过 %2$d 条）。</string>
+    <string name="import_notification_error_records_failed">因约束冲突，%d 条记录导入失败。</string>
+    <string name="import_notification_importing">正在导入 %s …</string>
+    <string name="import_notification_progress">正在导入 …</string>
+    <string name="settings_export_dialog_from">从</string>
+    <string name="settings_export_dialog_to">到</string>
+    <string name="settings_export_no_data">没有可导出的数据</string>
+    <string name="settings_export_title">导出</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">数据库备份（ZIP）</string>
+    <string name="settings_import_summary">从支持的类型（%1$s）和归档文件（%2$s）导入数据。数据库导入会合并兼容行，不会替换现有数据。</string>
+    <string name="settings_import_title">导入</string>
+</resources>

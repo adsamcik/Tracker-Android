@@ -1,12 +1,26 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="passus">%s pace</string>
-    <string name="per_hour_abbr">%s/h</string>
-    <string name="per_minute_abbr">%s/m</string>
-    <string name="per_second_abbr">%s/s</string>
-    <string name="feet_abbr">%s ft</string>
-    <string name="kilometer_abbr">%s km</string>
-    <string name="meter_abbr">%s m</string>
-    <string name="mile_abbr">%s mi</string>
-    <string name="millepassus">%s roman mile</string>
+    <string name="passus">%s 配速</string>
+    <string name="per_hour_abbr">%s/小时</string>
+    <string name="per_minute_abbr">%s/分钟</string>
+    <string name="per_second_abbr">%s/秒</string>
+    <string name="feet_abbr">%s 英尺</string>
+    <string name="kilometer_abbr">%s 千米</string>
+    <string name="meter_abbr">%s 米</string>
+    <string name="mile_abbr">%s 英里</string>
+    <string name="millepassus">%s 罗马英里</string>
+    <!-- Sailing units -->
+    <string name="fathom_abbr">%s 英寻</string>
+    <string name="cable_abbr">%s 缆</string>
+    <string name="nautical_mile_abbr">%s 海里</string>
+    <string name="knot_abbr">%s 节</string>
+    <!-- Flying units -->
+    <string name="flight_level_abbr">FL%s</string>
+    <!-- Auto unit switch preference -->
+    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
+    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
+    <string name="settings_statistics_auto_unit_switch_title">自动切换单位制</string>
+    <string name="settings_statistics_auto_unit_switch_summary">查看具有航海或航空活动的会话时，自动切换为相应单位</string>
+    <!-- Location precision preference (Phase 2) -->
+    <!-- Precision upgrade tracking (Phase 2) -->
 </resources>

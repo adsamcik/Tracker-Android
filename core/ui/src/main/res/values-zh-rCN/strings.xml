@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">返回</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">位置访问权限</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker 需要位置访问权限才能记录路线并在地图上显示。位置数据保留在此设备上 — 不会发送到服务器。</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">活动识别</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker 使用活动识别来检测您的活动（步行、骑行、驾车、静止），从而在您不移动时暂停自动跟踪并节省电量。活动数据保留在此设备上 — 不会发送到服务器。</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">后台位置权限</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">当您切换应用或屏幕关闭时，要继续记录路线，Tracker 需要在后台访问您的位置。记录的位置保留在此设备上 — 不会发送到服务器。在下一个系统提示中，请选择“始终允许”；选择“仅在使用应用期间允许”时，Tracker 仅会在其界面打开时工作。</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">允许</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">暂不</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">开始跟踪需要位置权限</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">打开设置</string>
 </resources>

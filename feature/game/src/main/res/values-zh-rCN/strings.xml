@@ -1,4 +1,318 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="points_earned_today">points earned today</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">游戏</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">超越赛</string>
+    <string name="minigame_outrun_description">与幽灵竞速，保持领先！</string>
+    <string name="minigame_territory_name">领地</string>
+    <string name="minigame_territory_description">步行时占领新的网格单元</string>
+    <string name="minigame_zenwalk_name">禅行</string>
+    <string name="minigame_zenwalk_description">让配速稳定保持在目标区间</string>
+    <string name="minigame_fuserun_name">引信冲刺</string>
+    <string name="minigame_fuserun_description">在每个虚拟爆炸范围的引信到期前逃离</string>
+    <string name="minigame_switchback_name">急转弯</string>
+    <string name="minigame_switchback_description">连续做急转弯以建立流畅连击</string>
+    <string name="minigame_locked">在等级 %1$d 解锁</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">游玩</string>
+    <string name="game_progress_section_title">进度</string>
+    <string name="minigame_outrun_goal_line">保持领先幽灵 25–100 米</string>
+    <string name="minigame_territory_goal_line">步行占领 5–20 个不同网格单元</string>
+    <string name="minigame_zenwalk_goal_line">保持配速 5–20 分钟</string>
+    <string name="minigame_fuserun_goal_line">在引信到期前解除 3–8 个装置</string>
+    <string name="minigame_switchback_goal_line">步行完成 4–10 个急转弯</string>
+    <string name="minigame_play_action_play">游玩</string>
+    <string name="minigame_play_personal_best">个人最佳 %1$s</string>
+    <string name="minigame_play_personal_best_talkback">个人最佳 %1$s</string>
+    <string name="minigame_play_locked_summary">达到等级 %1$d 即可解锁</string>
+    <string name="minigame_play_locked_detail">游玩已解锁的游戏并跟踪活动可赚取经验值以升级。</string>
+    <string name="minigame_play_locked_expand_cta">双击查看解锁方法</string>
+    <string name="minigame_active_session_running">进行中 — 点按“游玩”返回</string>
+    <string name="minigame_active_session_paused">已暂停 — 点按“游玩”继续</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d 米</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d 个网格单元</item>
+        <item quantity="other">%1$d 个网格单元</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d 个装置</item>
+        <item quantity="other">%1$d 个装置</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d 个转弯</item>
+        <item quantity="other">%1$d 个转弯</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">查看过去得分</string>
+    <string name="minigame_session_close">关闭</string>
+    <string name="minigame_session_play_again">再玩一次</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">需要位置权限</string>
+    <string name="minigame_session_permission_body">迷你游戏使用实时位置来跟踪您的跑步。除最终得分外不会保存任何数据。</string>
+    <string name="minigame_session_permission_grant">授予访问权限</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">设置本次跑步</string>
+    <string name="minigame_setup_goal_title">目标</string>
+    <string name="minigame_setup_difficulty_title">难度</string>
+    <string name="minigame_setup_start_cta">开始跑步</string>
+    <string name="minigame_setup_remember">记住此设置</string>
+    <string name="minigame_setup_remember_description">以相同的目标和难度重新打开此游戏。</string>
+    <string name="minigame_setup_goal_meters">领先 %1$d 米</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d 个网格单元</item>
+        <item quantity="other">%1$d 个网格单元</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">在目标区间内 %1$d 分钟</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d 个装置</item>
+        <item quantity="other">%1$d 个装置</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d 个转弯</item>
+        <item quantity="other">%1$d 个转弯</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">简单</string>
+    <string name="minigame_difficulty_normal">普通</string>
+    <string name="minigame_difficulty_hard">困难</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">正在准备…</string>
+    <string name="minigame_session_finishing">正在保存本次跑步…</string>
+    <string name="minigame_session_paused_title">已暂停</string>
+    <string name="minigame_session_pause_cta">暂停</string>
+    <string name="minigame_session_resume_cta">继续</string>
+    <string name="minigame_session_finish_cta">结束</string>
+    <string name="minigame_session_background_note">离开此界面后，本次跑步仍会继续。从“游戏”重新打开以继续。</string>
+    <string name="minigame_session_elapsed_label">活动时间</string>
+    <string name="minigame_session_goal_progress">目标的 %1$d%%</string>
+    <string name="minigame_session_goal_reached">已达成目标</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">GPS 信号强</string>
+    <string name="minigame_signal_fair">GPS 信号一般</string>
+    <string name="minigame_signal_poor">GPS 信号弱</string>
+    <string name="minigame_signal_unavailable">没有 GPS 信号</string>
+    <string name="minigame_signal_unknown">正在定位…</string>
+    <string name="minigame_signal_stale">GPS 延迟</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">本次最佳</string>
+    <string name="minigame_outrun_personal_best">个人最佳</string>
+    <string name="minigame_outrun_warning">幽灵正在逼近</string>
+    <string name="minigame_outrun_move_to_start">移动以开始竞速</string>
+    <string name="minigame_outrun_gap_meters">%1$d 米</string>
+    <string name="minigame_outrun_rail_description">您领先幽灵 %1$d 米。本次最佳为 %2$d 米。</string>
+    <string name="minigame_outrun_you">您</string>
+    <string name="minigame_outrun_ghost">幽灵</string>
+    <string name="minigame_outrun_lead_value">领先 %1$d 米</string>
+    <string name="minigame_outrun_ghost_lead_value">幽灵领先 %1$d 米</string>
+    <string name="minigame_outrun_first_run">首次跑步</string>
+    <string name="minigame_outrun_keep_moving">扩大领先优势</string>
+    <string name="minigame_outrun_caught">被幽灵追上</string>
+    <string name="minigame_outrun_escaped">您逃脱了！</string>
+    <string name="minigame_outrun_escape_goal">逃脱目标</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d 米</string>
+    <string name="minigame_outrun_goal_description">逃脱目标完成度：%1$d</string>
+    <string name="minigame_outrun_description_waiting">超越赛已准备就绪。移动超过两米即可开始追逐。</string>
+    <string name="minigame_outrun_description_warning">危险。幽灵仅在您身后 %1$d 米。本次最佳为 %2$d 米。</string>
+    <string name="minigame_outrun_description_caught">被追上。幽灵超过您 %1$d 米。本次最佳为 %2$d 米。</string>
+    <string name="minigame_outrun_description_escaped">已达成目标。您以领先 %1$d 米的优势逃脱。本次最佳为 %2$d 米。</string>
+    <string name="minigame_outrun_description_finished">跑步完成。最终差距为 %1$d 米，最佳领先为 %2$d 米。</string>
+    <string name="minigame_outrun_ahead_of_best">领先您的个人最佳</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">领地地图。已占领附近 %1$d 个区域；已突出显示 %2$d 个边界区域。%3$s。%4$s。</string>
+    <string name="minigame_territory_current_highlighted">当前区域已突出显示</string>
+    <string name="minigame_territory_current_waiting">正在等待当前区域</string>
+    <string name="minigame_territory_goal_complete">目标完成</string>
+    <string name="minigame_territory_goal_in_progress">目标进行中</string>
+    <string name="minigame_territory_legend">光晕标记您当前的区域 • 边界提示：%1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">配速</string>
+    <string name="minigame_zen_pace_value">%1$s 千米/小时</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">目标 %1$s–%2$s 千米/小时</string>
+    <string name="minigame_zen_calibration_title">找到您的自然节奏</string>
+    <string name="minigame_zen_calibration_hint">自然步行，让配速逐渐稳定</string>
+    <string name="minigame_zen_calibration_settled">已稳定 %1$d%%</string>
+    <string name="minigame_zen_calibration_description">配速校准。稳定度为 %1$d。请保持自然步行。</string>
+    <string name="minigame_zen_flow_waiting">正在寻找您的节奏</string>
+    <string name="minigame_zen_flow_settled">已进入稳定节奏</string>
+    <string name="minigame_zen_flow_slower">正逐渐变慢</string>
+    <string name="minigame_zen_flow_faster">正逐渐变快</string>
+    <string name="minigame_zen_flow_time">流畅 %1$s</string>
+    <string name="minigame_zen_flow_description">禅行配速流。%1$s。%2$s。%3$s。%4$s。</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">幽灵正在逼近</string>
+    <string name="minigame_feedback_pb_crossed">新的个人最佳</string>
+    <string name="minigame_feedback_territory_claimed">已占领新区域</string>
+    <string name="minigame_feedback_fuse_critical">引信即将到期，立即移动</string>
+    <string name="minigame_feedback_fuse_defused">装置已解除</string>
+    <string name="minigame_feedback_turn_carved">急转弯已完成</string>
+    <string name="minigame_feedback_goal_reached">已达成目标</string>
+    <string name="minigame_feedback_zen_entered">您已进入配速区间</string>
+    <string name="minigame_feedback_zen_exited">您已离开配速区间</string>
+    <string name="minigame_feedback_completed">跑步完成</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">已记录首次跑步！</string>
+    <string name="minigame_completion_new_best_title">新的个人最佳！</string>
+    <string name="minigame_completion_tied_title">追平您的最佳成绩</string>
+    <string name="minigame_completion_behind_title">跑得不错</string>
+    <string name="minigame_completion_no_participation_title">会话已结束</string>
+    <string name="minigame_completion_result">结果：%1$s</string>
+    <string name="minigame_completion_improvement">比之前最佳成绩领先 %1$s</string>
+    <string name="minigame_completion_deficit">距最佳成绩还差 %1$s</string>
+    <string name="minigame_completion_goal_reached">已达成目标：%1$s</string>
+    <string name="minigame_completion_goal_incomplete">未达成目标：%1$s</string>
+    <string name="minigame_completion_points">+%1$d 分</string>
+    <string name="minigame_completion_points_zero">本次未获得积分</string>
+    <string name="minigame_completion_change_setup">更改设置</string>
+    <string name="minigame_completion_done">完成</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">跑步未完成</string>
+    <string name="minigame_failure_permission">游玩需要精确位置权限。请授予权限后重试。</string>
+    <string name="minigame_failure_location">无法获取可靠的位置定位。请前往天空较开阔的地方后重试。</string>
+    <string name="minigame_failure_persistence">无法保存本次跑步。请重试。</string>
+    <string name="minigame_failure_generic">发生错误，跑步已停止。</string>
+    <string name="minigame_session_try_again">重试</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">活动游戏</string>
+    <string name="game_session_channel_description">屏幕关闭时保持活动迷你游戏运行</string>
+    <string name="game_session_notification_title">Tracker 游戏</string>
+    <string name="game_session_notification_public">游戏进行中</string>
+    <string name="game_session_notification_starting">正在启动游戏…</string>
+    <string name="game_session_notification_preparing">正在准备 %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s 已暂停</string>
+    <string name="game_session_notification_finishing">正在保存结果…</string>
+    <string name="game_session_notification_finished">游戏完成</string>
+    <string name="game_session_notification_failed">游戏已停止</string>
+    <string name="game_session_action_pause">暂停</string>
+    <string name="game_session_action_resume">继续</string>
+    <string name="game_session_action_finish">结束</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">过去的迷你游戏跑步</string>
+    <string name="minigame_scores_back">返回</string>
+    <string name="minigame_scores_empty_title">您的首次跑步正在等待</string>
+    <string name="minigame_scores_empty_body">完成一次迷你游戏以设定个人最佳 — 每次超越自己的跑步都会显示在这里。</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">个人最佳</string>
+    <string name="minigame_scores_unknown_game">迷你游戏</string>
+    <string name="goals_reached_notification">%1$s！您已达成%2$s目标！</string>
+    <string name="goals_daily_goal">每日</string>
+    <string name="goals_weekly_goal">每周</string>
+    <string name="goals_monthly_goal">每月</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">步数目标</string>
+    <string name="game_step_sensor_unavailable">计步器传感器不可用</string>
+    <string name="game_step_sensor_unavailable_detail">此设备没有计步器传感器。无法跟踪步数目标。</string>
+    <string name="game_steps_today">今天</string>
+    <string name="game_steps_week">本周</string>
+    <!-- Game empty states -->
+    <string name="game_loading">正在加载…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">返回</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">打开设置</string>
+    <string name="game_close">关闭</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">探索</string>
+    <string name="exploration_cells_discovered">已发现网格单元</string>
+    <string name="exploration_current_streak">当前连续记录</string>
+    <string name="exploration_best_streak">最佳连续记录</string>
+    <string name="exploration_seasons_explored">已探索季节</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">天</item>
+        <item quantity="other">天</item>
+    </plurals>
+    <string name="exploration_of_four">共 4 个</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">成就</string>
+    <string name="achievements_bronze">青铜</string>
+    <string name="achievements_silver">白银</string>
+    <string name="achievements_gold">黄金</string>
+    <string name="achievements_diamond">钻石</string>
+    <string name="achievements_none_yet">尚未解锁成就。开始探索吧！</string>
+    <string name="achievement_unlocked_notification_title">已解锁成就：%1$s</string>
+    <string name="achievement_unlocked_notification_description">已达到 %1$s 等级</string>
+    <string-array name="goals_encouragement">
+        <item>做得好</item>
+        <item>干得漂亮</item>
+        <item>加油</item>
+        <item>就是这样</item>
+        <item>恭喜</item>
+        <item>继续保持</item>
+        <item>您真棒</item>
+        <item>太棒了</item>
+        <item>超乎想象</item>
+        <item>精彩</item>
+        <item>令人惊叹</item>
+        <item>出色</item>
+    </string-array>
+    <string name="points_earned_today">今日获得积分</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">新解锁！</string>
+    <string name="game_unlock_message">您已达到等级 %1$d！</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">每周挑战</string>
+    <string name="leaderboard_metric_distance">距离</string>
+    <string name="leaderboard_metric_steps">步数</string>
+    <string name="leaderboard_metric_active_time">活动时间</string>
+    <string name="leaderboard_metric_sessions">会话</string>
+    <string name="leaderboard_unit_km">千米</string>
+    <string name="leaderboard_unit_steps">步</string>
+    <string name="leaderboard_unit_hours">小时</string>
+    <string name="leaderboard_unit_sessions">行程</string>
+    <string name="leaderboard_ghost_best_week">最佳周</string>
+    <string name="leaderboard_ghost_last_4_weeks">最近 4 周平均</string>
+    <string name="leaderboard_ghost_same_week_last_year">去年同周</string>
+    <string name="leaderboard_ghost_average_week">平均周</string>
+    <string name="leaderboard_rank">第 %1$d 名，共 %2$d 名</string>
+    <string name="leaderboard_vs_top">目标 %3$s：%1$s，已完成 %2$s</string>
+    <string name="leaderboard_progress_description">%1$s / %2$s</string>
+    <string name="leaderboard_week_progress">本周进度</string>
+    <string name="leaderboard_monday">周一</string>
+    <string name="leaderboard_sunday">周日</string>
+    <string name="leaderboard_you">您</string>
+    <string name="leaderboard_current_week">本周</string>
+    <string name="leaderboard_empty_title">尚无可竞赛的历史记录</string>
+    <string name="leaderboard_empty_body">完成至少一个完整周后可解锁幽灵对手 — 它们由您过去各周的数据生成。</string>
+    <string name="leaderboard_error_title">排行榜不可用</string>
+    <string name="leaderboard_error_body">您的数据在此设备上很安全。请重新加载每周挑战。</string>
+    <string name="leaderboard_retry">重试</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">神话</string>
+    <string name="game_view_all_achievements">查看全部</string>
+    <string name="game_recent_achievements">最近解锁</string>
+    <string name="game_next_achievements">接下来</string>
+    <string name="achievement_show_locked">显示未解锁项</string>
+    <string name="achievement_show_locked_summary_off">开启后可查看您能解锁的成就目录。</string>
+    <string name="achievement_empty_state_title">尚未解锁成就</string>
+    <string name="achievement_empty_state_body">开始跟踪 — 您的首个成就正在等待。开启“显示未解锁项”可预览完整目录。</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">%1$s 等级 · +%2$d XP</string>
+    <string name="achievement_hero_title">您的奖杯陈列柜</string>
+    <string name="achievement_hero_points">已获得 %1$d XP</string>
+    <string name="achievement_hero_of_total">共 %1$d 个</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">探索</string>
+    <string name="achievement_category_distance">距离</string>
+    <string name="achievement_category_steps">步数</string>
+    <string name="achievement_category_streaks">连续记录</string>
+    <string name="achievement_category_milestones">里程碑</string>
+    <string name="achievement_category_modes">模式</string>
+    <string name="achievement_category_time">时间</string>
+    <string name="achievement_category_calendar">日历</string>
+    <string name="achievement_unlocked_content_description">已解锁</string>
+    <string name="achievement_locked_content_description">未解锁</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>
