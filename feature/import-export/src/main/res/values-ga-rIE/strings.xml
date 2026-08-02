@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="export_button">Easpórtáil</string>
+    <string name="export_default_file_name_range">Advention_easpórtáil_sonraí_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_easpórtáil_sonraí_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Níor aimsíodh aon suíomhanna san eatramh roghnaithe.</string>
+    <string name="export_error_no_databases">Níl aon bhunachair sonraí fheidhmchláir ar fáil le heaspórtáil.</string>
+    <string name="export_error_no_uri">Níor roghnaíodh fillteán easpórtála</string>
+    <string name="export_error_stream_failed">Níorbh fhéidir sruth a chruthú don chomhad %s</string>
+    <string name="export_error_unknown">Theip ar easpórtáil.</string>
+    <string name="export_error_with_reason">Theip ar easpórtáil: %s</string>
+    <string name="export_file_name">Ainm comhaid</string>
+    <string name="export_file_name_error">Ní cheadaítear \/:"*?&lt;&gt;| in ainmneacha comhaid</string>
+    <string name="export_gpx_description">Easpórtáil sonraí suímh ó %1$s go %2$s a rianaíodh le Advention.</string>
+    <string name="export_gpx_error">Theip ar easpórtáil GPX leis an earráid: %s</string>
+    <string name="export_sensitivity_title">Easpórtáil sonraí beachta suímh?</string>
+    <string name="export_sensitivity_message">Tá sonraí suímh lánbheachtais san easpórtáil/comhroinnt seo agus d’fhéadfadh meiteashonraí raidió amh a bheith i gcúltacaí bunachair sonraí. Lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_sensitivity_confirm">Lean ar aghaidh</string>
+    <string name="export_share_button">Comhroinn</string>
+    <string name="export_in_progress">Ag easpórtáil…</string>
+    <string name="export_completed">Easpórtáil críochnaithe.</string>
+    <string name="import_notification_error_failed_open_database">Theip ar chomhad bunachair sonraí %s a oscailt</string>
+    <string name="import_notification_error_file_not_supported">Ní thacaítear le comhad %s.</string>
+    <string name="import_notification_extracting">Ag baint %s amach …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Iompórtáil críochnaithe. Iompórtáladh %d taifead go rathúil.</item>
+        <item quantity="other">Iompórtáil críochnaithe. Iompórtáladh %d taifead go rathúil.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Iompórtáil críochnaithe. Iompórtáladh %1$d taifead (%2$d fágtha ar lár).</string>
+    <string name="import_notification_error_records_failed">Theip ar iompórtáil %d taifead mar gheall ar sháruithe srianta.</string>
+    <string name="import_notification_importing">Ag iompórtáil %s …</string>
+    <string name="import_notification_progress">Iompórtáil ar siúl …</string>
+    <string name="settings_export_dialog_from">Ó</string>
+    <string name="settings_export_dialog_to">Go</string>
+    <string name="settings_export_no_data">Níl sonraí le heaspórtáil</string>
+    <string name="settings_export_title">Easpórtáil</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Cúltaca bunachair sonraí (ZIP)</string>
+    <string name="settings_import_summary">Iompórtáil sonraí ó chineálacha tacaithe (%1$s) agus cartlanna (%2$s). Cumascann iompórtálacha bunachair sonraí sraitheanna comhoiriúnacha; ní chuireann siad sonraí reatha ina n-ionad.</string>
+    <string name="settings_import_title">Iompórtáil</string>
+</resources>

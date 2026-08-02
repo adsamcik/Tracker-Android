@@ -1,0 +1,211 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="activity_title">Gníomhaíocht</string>
+    <string name="activity_value">%s</string>
+    <string name="altitude_title">Airde</string>
+    <string name="altitude_value">airde %s</string>
+    <string name="cell_count_title">Líon na gceall</string>
+    <string name="cell_count_value">cealla %d</string>
+    <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
+    <string name="cell_current_title">Cill reatha</string>
+    <string name="cell_current_value">cealla gníomhacha (%s)</string>
+    <string name="collection_count_title">Líon nuashonruithe</string>
+    <string name="collection_count_value">%d nuashonrú</string>
+    <string name="coordinates_title">Comhordanáidí</string>
+    <string name="description_settings">Cnaipe socruithe</string>
+    <string name="description_tracking_start">Cnaipe tosaithe rianaithe</string>
+    <string name="description_tracking_stop">Cnaipe stoptha rianaithe</string>
+    <string name="description_tracking_start_no_permission">Tosaigh rianú — cead riachtanach</string>
+    <string name="description_points_today">Pointí tuillte inniu: %s</string>
+    <string name="description_copy">Cóipeáil luach</string>
+    <string name="description_copied">Cóipeáladh luach</string>
+    <string name="description_recharge_settings">Socruithe athluchtaithe: sconna chun cumrú</string>
+    <string name="distance_invehicle_title">Fad i bhfeithicil</string>
+    <string name="distance_invehicle_value">i bhfeithicil %s</string>
+    <string name="distance_onfoot_title">Fad ar shiúl na gcos</string>
+    <string name="distance_onfoot_value">ar shiúl na gcos %s</string>
+    <string name="distance_title">Fad</string>
+    <string name="distance_value">fad %s</string>
+    <string name="duration_title">Fad ama seisiúin</string>
+    <string name="duration_value">fad ama %s</string>
+    <string name="error_nothing_to_track">Cumasaigh rogha rianaithe amháin ar a laghad (suíomh, céimeanna nó gníomhaíocht)</string>
+    <string name="hint_customize_notification_show_in_content">Taispeáin in ábhar an fhógra</string>
+    <string name="hint_customize_notification_show_in_title">Taispeáin i dteideal an fhógra</string>
+    <string name="horizontal_accuracy_title">Cruinneas cothrománach</string>
+    <string name="horizontal_accuracy_value">cruinneas %s</string>
+    <string name="last_update_title">Am nuashonraithe deiridh</string>
+    <string name="last_update_value">deireanach %s</string>
+    <string name="latitude_title">Domhanleithead</string>
+    <string name="latitude_value_north">%s N</string>
+    <string name="latitude_value_south">%s S</string>
+    <string name="longitude_title">Domhanfhad</string>
+    <string name="longitude_value_east">%s E</string>
+    <string name="longitude_value_west">%s W</string>
+    <plurals name="notification_auto_tracking_lock">
+        <item quantity="one">Tá rianú uathoibríoch faoi ghlas ar feadh %1$d nóiméid.</item>
+        <item quantity="other">Tá rianú uathoibríoch faoi ghlas ar feadh %1$d nóiméad.</item>
+    </plurals>
+    <string name="notification_looking_for_gps">Ag lorg GPS — suíomh in úsáid</string>
+    <string name="notification_starting">Tá Tracker ag tosú — suíomh in úsáid</string>
+    <string name="notification_starting_without_location">Tá Tracker ag tosú</string>
+    <string name="notification_stop">Stad</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stad ar feadh %d nóiméad</string>
+    <string name="notification_stop_til_recharge">Stad go dtí athluchtú</string>
+    <string name="stop_tracking_dialog_title">Stad rianú?</string>
+    <string name="stop_tracking_dialog_message">Tá rianú uathoibríoch ar siúl agus d’fhéadfadh sé seisiún nua a thosú arís go luath mura ndéanann tú ach stopadh.</string>
+    <string name="notification_tracker_active_ticker">Ag taifeadadh do bhealaigh — suíomh in úsáid</string>
+    <string name="notification_tracker_active_without_location">Rianú gan suíomh</string>
+    <string name="notification_tracking_active">Rianú</string>
+    <string name="notification_tracking_start_failed_title">Níorbh fhéidir rianú a thosú</string>
+    <string name="notification_tracking_start_failed_text">Oscail an aip chun ceadanna a athbhreithniú agus rianú a atosú.</string>
+    <string name="settings_activity_enabled_title">Gníomhaíocht</string>
+    <string name="settings_auto_tracking_transition_summary">Mód éifeachtúil ó thaobh ceallra (braite gníomhaíochta beagán níos moille)</string>
+    <string name="settings_auto_tracking_transition_title">Úsáid aistrithe gníomhaíochta</string>
+    <string name="settings_cell_enabled_title">Cill</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_summary">Díchumasaítear rianú uathoibríoch go dtí go nascann do ghuthán le luchtóir</string>
+    <string name="settings_disabled_recharge_title">Díchumasaithe go dtí athluchtú</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_location_enabled_title">Suíomh</string>
+    <string name="settings_notification_customize_summary">Athraigh cad ba chóir a thaispeáint san fhógra rianaithe agus cén t-ord.</string>
+    <string name="settings_notification_customize_title">Saincheap fógra</string>
+    <string name="settings_notification_styled_summary">Úsáid dath stíle d’aip le haghaidh fógraí.</string>
+    <string name="settings_notification_styled_title">Fógraí daite</string>
+    <string name="settings_ski_detection_title">Braite sciála</string>
+    <string name="settings_ski_detection_summary">Braith sciáil go huathoibríoch ó phatrúin baraiméadair agus oiriúnaigh rianú GPS do gach céim sciála.</string>
+    <string name="settings_sailing_detection_title">Braite seoltóireachta</string>
+    <string name="settings_sailing_detection_summary">Braith seoltóireacht/bádóireacht go huathoibríoch ó luas GPS agus oiriúnaigh rianú GPS dá réir. Bunaithe ar luas amháin — d’fhéadfadh sé gníomhaíochtaí ar luas comhchosúil amhail rothaíocht a spreagadh freisin.</string>
+    <string name="settings_plane_detection_title">Braite eitilte</string>
+    <string name="settings_plane_detection_summary">Braith eitiltí go huathoibríoch ó athruithe airde baraiméadracha agus oiriúnaigh rianú GPS do gach céim eitilte. Oibríonn sé fiú gan GPS ag airde cúrsála.</string>
+    <string name="ski_notification_title">Staitisticí sciála</string>
+    <string name="ski_notification_text">🎿 Rith #%1$d | ↓%2$s | ⚡%3$s</string>
+    <string name="ski_notification_lift">Turas %1$s</string>
+    <string name="settings_barometer_enabled_title">Baraiméadar</string>
+    <string name="settings_steps_enabled_title">Líon céimeanna</string>
+    <string name="settings_tracker_timer_ambient">Amadóir comhthimpeallach</string>
+    <string name="settings_tracker_timer_clock">Bunaithe ar eatramh</string>
+    <string name="settings_tracker_timer_fused">Suíomh Google Play</string>
+    <string name="settings_tracker_timer_location">Suíomh Android</string>
+    <string name="settings_tracking_min_distance_title">Fad íosta idir nuashonruithe</string>
+    <string name="settings_tracking_min_time_title">Moill íosta idir nuashonruithe</string>
+    <string name="settings_tracking_notice_summary">Tiocfaidh athruithe i bhfeidhm nuair a atosóidh tú rianú</string>
+    <string name="settings_tracking_required_accuracy_title">Cruinneas suímh riachtanach</string>
+    <string name="settings_tracking_title">Rianú</string>
+    <string name="settings_vehicle_speed_limit_baseline_title">Bunlíne teorainn luais feithicle</string>
+    <string name="help_vehicle_speed_limit_baseline">Úsáideann an tsraith léarscáile Comhlíonadh luais feithicle í. Dathaítear samplaí tiomána de réir mar a chuirtear a luas i gcomparáid leis an mbunlíne seo. Roghnaigh luach a mheaitseálann na teorainneacha áit a dtiomáineann tú is minice (m.sh. 50 km/u i gcathracha, 90 km/u ar mhórbhealaí).</string>
+    <string name="settings_wifi_enabled_title">Wi‑Fi</string>
+    <string name="shortcut_start_tracking">Tosaigh rianú</string>
+    <string name="shortcut_start_tracking_long">Tosaigh rianú suímh</string>
+    <string name="shortcut_stop_tracking">Stad rianú</string>
+    <string name="shortcut_stop_tracking_long">Stad rianú suímh</string>
+    <string name="speed_title">Luas</string>
+    <string name="speed_value">luas %s</string>
+    <string name="battery_title">Ceallra</string>
+    <string name="battery_low_warning">⚡ Ceallra íseal: %d%%</string>
+    <string name="start_time_title">Am tosaithe seisiúin</string>
+    <string name="start_time_value">tosú %s</string>
+    <string name="tracker_activity_confidence">Muinín</string>
+    <string name="tracker_activity_title">Gníomhaíocht</string>
+    <string name="tracker_collections_title">Nuashonruithe</string>
+    <string name="tracker_distance_title">Fad</string>
+    <string name="tracker_steps_title">Céimeanna</string>
+    <string name="tracker_session_age">Seisiún tosaithe</string>
+    <string name="tracker_session_card_title">Seisiún</string>
+    <string name="tracker_component_waiting_data">Ag fanacht le sonraí beo</string>
+    <plurals name="tracker_wifi_networks_value">
+        <item quantity="one">%d líonra</item>
+        <item quantity="other">%d líonra</item>
+    </plurals>
+    <string name="tracker_signal_strength_title">Comhartha</string>
+    <string name="tracker_signal_strength_value">Buaic %1$d dBm</string>
+    <string name="insight_distance_value_km">%1$.1f km</string>
+    <string name="insight_duration_title">Am caite go maith</string>
+    <plurals name="insight_duration_desc">
+        <item quantity="one">%1$d nóiméad rianaithe</item>
+        <item quantity="other">%1$d nóiméad rianaithe</item>
+    </plurals>
+    <string name="insight_exploration_title">Taiscéalaí!</string>
+    <plurals name="insight_exploration_desc">
+        <item quantity="one">D’aimsigh tú %1$d limistéar nua</item>
+        <item quantity="other">D’aimsigh tú %1$d limistéar nua</item>
+    </plurals>
+    <string name="insight_comparison_title">Os cionn an mheáin</string>
+    <string name="insight_comparison_desc">Bhí an seisiún seo %1$d%% níos faide ná do mheán le déanaí</string>
+    <string name="wifi_count_title">Líon Wi‑Fi</string>
+    <string name="wifi_count_value">Wi‑Fi %d</string>
+    <!-- Soft hint when Wi‑Fi permission is missing -->
+    <string name="wifi_permission_hint_title">Ceadaigh Wi‑Fi chun cruinneas níos fearr laistigh a fháil</string>
+    <string name="wifi_permission_hint_text">Deonaigh cead Wi‑Fi i socruithe na haipe chun suíomh bunaithe ar chomhartha a fheabhsú laistigh. Ní bhailítear sonraí raidió Wi‑Fi go dtí go gceadaíonn tú é.</string>
+    <!-- Tracker Dashboard -->
+    <!-- Today Progress Card -->
+    <string name="dashboard_today_title">Inniu</string>
+    <string name="dashboard_today_empty_title">Gan seisiúin inniu</string>
+    <string name="dashboard_today_distance">Fad</string>
+    <string name="dashboard_today_steps">Céimeanna</string>
+    <string name="dashboard_today_duration">Fad ama</string>
+    <!-- Tracking Presets -->
+    <string name="tracking_preset_title">Mód rianaithe</string>
+    <string name="tracking_preset_battery_saver_title">Sábhálaí ceallra</string>
+    <string name="tracking_preset_battery_saver_desc">Barrfheabhsaithe do rianú an lae ar fad</string>
+    <string name="tracking_preset_balanced_title">Cothromaithe</string>
+    <string name="tracking_preset_balanced_desc">Gach braiteoir cumasaithe le mionsonraí measartha</string>
+    <string name="tracking_preset_high_precision_title">Ardbheachtas</string>
+    <string name="tracking_preset_high_precision_desc">Uasmhéid mionsonraí agus cruinnis</string>
+    <string name="tracking_preset_custom_badge">Socruithe saincheaptha curtha i bhfeidhm</string>
+    <!-- Battery Impact Indicators -->
+    <string name="battery_impact_low">Tionchar íseal ar cheallra</string>
+    <string name="battery_impact_moderate">Tionchar measartha ar cheallra</string>
+    <string name="battery_impact_high">Úsáid ceallra níos airde</string>
+    <string name="battery_impact_high_warning">D’fhéadfadh an chumraíocht seo saol ceallra a laghdú go mór. Smaoinigh ar mhód Cothromaithe le haghaidh rianú an lae ar fad.</string>
+    <!-- Advanced Settings Section -->
+    <!-- Help Text for Advanced Settings -->
+    <string name="help_min_distance">Fanann Tracker go dtí go mbogann tú an fad seo sula dtaifeadann sé do chéad suíomh eile. Ciallaíonn luachanna níos lú bealaí níos mionsonraithe ach úsáid ceallra níos airde.</string>
+    <string name="help_min_time">Cé chomh minic a sheiceálann Tracker do shuíomh. Ciallaíonn luachanna níos lú nuashonruithe níos minice ach úsáid ceallra níos airde.</string>
+    <string name="help_required_accuracy">Tairseach chruinneas GPS. Déanann Tracker neamhaird de nuashonruithe suímh a bhfuil cruinneas níos measa ná an luach seo acu. Is ionann luach níos ísle agus suíomh níos beaichte, ach d’fhéadfadh sé nuashonruithe a scipeáil i ndálaí laga GPS.</string>
+    <string name="help_transition_detection">Tosaíonn/stadann Tracker go huathoibríoch bunaithe ar do ghluaiseacht. Úsáideann sé níos lú ceallra ná GPS leanúnach ach d’fhéadfadh sé braite athruithe gníomhaíochta a mhoilliú.</string>
+    <!-- Policy Tier Indicator (Phase 4a) -->
+    <string name="policy_tier_ambient">Comhthimpeallach</string>
+    <string name="policy_tier_active">Gníomhach</string>
+    <string name="policy_tier_precision">Beachtas</string>
+    <!-- Recent Trips Card (Phase 4d) -->
+    <string name="dashboard_recent_trips">Turais le déanaí</string>
+    <!-- Hardcoded string extractions -->
+    <string name="tracker_hide_details">Folaigh sonraí</string>
+    <string name="tracker_show_sensor_details">Taispeáin sonraí braiteora</string>
+    <string name="tracker_view_map">Féach ar an léarscáil</string>
+    <string name="tracker_average_label">Meán</string>
+    <string name="tracker_accuracy_label">Cruinneas</string>
+    <string name="tracker_disabled">Díchumasaithe</string>
+    <!-- Content descriptions -->
+    <string name="tracker_lock_icon_desc">Stádas glasála</string>
+    <string name="tracker_settings_icon_desc">Socruithe comhpháirte</string>
+    <string name="tracker_points_icon_desc">Dul chun cinn pointí</string>
+    <!-- Hardcoded string extractions (HI-03) -->
+    <string name="tracker_start_button">TOSAIGH</string>
+    <string name="tracker_duration_label">Fad ama</string>
+    <string name="tracker_distance_label">Fad</string>
+    <string name="tracker_wifi_label">Wi‑Fi</string>
+    <string name="tracker_cell_label">Cill</string>
+    <string name="tracker_collapse">Laghdaigh</string>
+    <string name="tracker_expand">Leathnaigh</string>
+    <string name="tracker_go_to_map">Téigh go dtí an léarscáil</string>
+    <string name="tracker_session_summary_copied">Cóipeáladh achoimre seisiúin</string>
+    <string name="tracker_share_session_summary">Comhroinn achoimre seisiúin</string>
+    <string name="tracker_long_press_to_copy">Brúigh fada chun cóipeáil</string>
+    <string name="tracker_copy_session_summary">Cóipeáil achoimre seisiúin</string>
+    <string name="tracker_live_tab">Beo</string>
+    <string name="tracker_route_tab">Bealach</string>
+    <string name="tracker_activity_tab">Gníomhaíocht</string>
+    <string name="tracker_precision_mode_enabled">Cumasaíodh rianú ardbheachtais</string>
+    <string name="tracker_battery_mode_enabled">Cumasaíodh rianú sábhála ceallra</string>
+    <string name="policy_tier_status_prefix">Beartas GPS:</string>
+    <string name="tracker_precision_chip_hint">Sconna chun athrú go %1$s</string>
+    <string name="action_navigate_back">Téigh siar</string>
+    <!-- Session Insights (Task F) -->
+    <string name="insight_distance_title">Fad clúdaithe</string>
+    <string name="insight_distance_desc">Chlúdaigh tú %1$s sa seisiún seo.</string>
+    <string name="insight_steps_title">Céimeanna taifeadta</string>
+    <string name="insight_steps_desc">%1$s céimeanna sa seisiún seo — lean ort!</string>
+</resources>

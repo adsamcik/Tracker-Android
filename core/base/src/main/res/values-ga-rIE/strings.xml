@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Ag siúl</string>
+    <string name="activity_running">Ag rith</string>
+    <string name="activity_bicycle">Rothar</string>
+    <string name="activity_slope_sports">Spóirt fána</string>
+    <string name="activity_land_vehicle">Feithicil talún</string>
+    <string name="activity_water_vehicle">Feithicil uisce</string>
+    <string name="activity_air_vehicle">Feithicil aeir</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">I bhfeithicil</string>
+    <string name="activity_on_foot">Ar shiúl na gcos</string>
+    <string name="activity_name">Ainm na gníomhaíochta</string>
+    <string name="activity_raw_still">Gan ghluaiseacht</string>
+    <string name="activity_raw_tilting">Ag claonadh</string>
+    <string name="activity_still">Gan ghluaiseacht</string>
+    <string name="activity_unknown">Ag braite…</string>
+    <string name="activity_vehicle">Feithicil</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">An bhfuil tú cinnte gur mian leat %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Gan cheann</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Anaithnid</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Cainéal a úsáidtear don tseirbhís Faireoir Gníomhaíochta amháin, ionas gur féidir leat an fógra buan sin a bhaint go héasca.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Faireoir Gníomhaíochta</string>
+    <string name="channel_achievements_description">Fógraí a bhaineann le héachtaí.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Éacht</string>
+    <string name="channel_other_description">Fógraí eile nach mbaineann le catagóir ar bith eile.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Eile</string>
+    <string name="channel_track_description">Fógraí a bhaineann le rianú.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Rianú</string>
+    <string name="channel_goals_description">Foláirimh maidir le spriocanna a chur i gcrích.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Dul chun cinn na sprice</string>
+    <string name="day_short">%d l</string>
+    <string name="generic_add">Cuir leis</string>
+    <string name="generic_back">Ar ais</string>
+    <string name="generic_cancel">Cealaigh</string>
+    <string name="generic_delete">Scrios</string>
+    <string name="generic_edit">Cuir in eagar</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">Cealaigh</string>
+    <string name="hour_short">%d u</string>
+    <string name="minute_short">%d n</string>
+    <string name="second_short">%d s</string>
+</resources>

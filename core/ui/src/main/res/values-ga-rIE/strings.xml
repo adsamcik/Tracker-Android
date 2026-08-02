@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Téigh siar</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Rochtain ar shuíomh</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tá rochtain ar shuíomh de dhíth ar Tracker chun do bhealach a thaifeadadh agus a thaispeáint ar an léarscáil. Fanann sonraí suímh ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Aitheantas gníomhaíochta</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Úsáideann Tracker aithint gníomhaíochta chun a bhrath cad atá á dhéanamh agat (ag siúl, ag rothaíocht, ag tiomáint nó gan ghluaiseacht), ionas gur féidir le rianú uathoibríoch sos a ghlacadh agus ceallra a shábháil. Fanann sonraí gníomhaíochta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Suíomh sa chúlra</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Chun do bhealach a thaifeadadh agus tú ag athrú aipeanna nó nuair a mhúchann an scáileán, teastaíonn rochtain ar do shuíomh sa chúlra ó Tracker. Fanann an suíomh taifeadta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ag an gcéad leid chórais eile, roghnaigh "Ceadaigh an t-am ar fad"; coinníonn "Agus an aip in úsáid" Tracker ag obair ach amháin nuair atá a scáileán oscailte.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Ceadaigh</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ní anois</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Tá cead suímh riachtanach chun rianú a thosú</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Oscail Socruithe</string>
+</resources>

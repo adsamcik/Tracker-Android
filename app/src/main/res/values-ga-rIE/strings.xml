@@ -1,0 +1,490 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Cluiche</string>
+    <string name="module_map_title">Léarscáil</string>
+    <string name="module_statistics_title">Staitisticí</string>
+    <string name="main_nav_tracker">Baile</string>
+    <string name="settings_clear_preferences_title">Glan sainroghanna</string>
+    <string name="settings_clear_preferences_message">Athshocróidh sé seo gach sainrogha den aip (scoránaigh gnéithe agus socruithe an chomhéadain). Ní bheidh tionchar ar do shonraí rianaithe. Lean ar aghaidh?</string>
+    <string name="settings_data_title">Sonraí</string>
+    <string name="settings_debug_group_title">Dífhabhtú</string>
+    <string name="settings_debug_title">Roghanna forbróra</string>
+    <string name="settings_debug_developer_tools_section">Uirlisí forbróra</string>
+    <string name="settings_debug_disable_developer_subtitle">Folaigh roghanna forbróra ó shocruithe</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Díchumasaíodh mód forbróra</string>
+    <string name="settings_data_management_section">Bainistiú sonraí</string>
+    <string name="settings_data_danger_zone_section">Crios contúirte</string>
+    <string name="settings_osm_import_section">Sonraí léarscáile (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Iompórtáil réigiún OSM</string>
+    <string name="settings_osm_import_action_summary">Roghnaigh comhad .osm.pbf. Úsáidfidh comhlíonadh feithicle fíortheorainneacha bóthair as líne ansin.</string>
+    <string name="settings_osm_import_unavailable_title">Níl iompórtáil léarscáile as líne ar fáil</string>
+    <string name="settings_osm_import_action_unavailable">Níl iompórtáil léarscáile as líne ar fáil go sealadach agus cosaintí sábháilteachta comhaid á gcur i gcrích.</string>
+    <string name="settings_osm_import_action_running">Ag iompórtáil — sconna chun cealú</string>
+    <string name="settings_osm_import_action_failed">Níorbh fhéidir iompórtáil na léarscáile as líne a chur i gcrích.</string>
+    <string name="settings_osm_import_action_source_unavailable">Níorbh fhéidir an comhad léarscáile roghnaithe a oscailt.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Iompórtáladh %1$d bóthar ó %2$d nód.</item>
+        <item quantity="other">Iompórtáladh %1$d bóthar ó %2$d nód.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Níor iompórtáladh réigiún OpenStreetMap fós.</string>
+    <string name="settings_osm_imports_attribution">Sonraí léarscáile © rannpháirtithe OpenStreetMap (ODbL 1.0). Déantar gach próiseáil ar an ngléas.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d bóthar · iompórtáilte %2$s</item>
+        <item quantity="other">%1$,d bóthar · iompórtáilte %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Bain an réigiún iompórtáilte</string>
+    <string name="settings_osm_import_remove_message">Bain %1$s? Fillfidh comhlíonadh feithicle ar an mbunlíne sheasta go dtí go n-iompórtálfaidh tú réigiún arís.</string>
+    <string name="settings_incremental_backups_title">Cúltacaí incriminteacha</string>
+    <string name="settings_incremental_backups_summary">Ná heaspórtáil ach sonraí nua ón gcúltaca deireanach. Laghdaíonn sé seo an t-am easpórtála agus méid an chomhaid.</string>
+    <string name="settings_reset_export_watermarks_title">Cuir easpórtáil iomlán i bhfeidhm</string>
+    <string name="settings_reset_export_watermarks_summary">Cuimseoidh an chéad chúltaca uathoibrithe eile gach sonraí in ionad athruithe amháin</string>
+    <string name="settings_reset_export_watermarks_done">Athshocraíodh comharthaí uisce easpórtála — beidh an chéad chúltaca ina easpórtáil iomlán</string>
+    <string name="settings_migration_backup_export_title">Easpórtáil cúltaca sábháilteachta réamh-uasghrádaithe</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Cóip iomlán den bhunachar sonraí ó v%1$d, cruthaithe roimh imirce go v%2$d agus coinnithe go príobháideach ar feadh suas le 30 lá</string>
+    <string name="settings_migration_backup_warning_title">Easpórtáil cúltaca íogair bunachair sonraí?</string>
+    <string name="settings_migration_backup_warning_message">D’fhéadfadh suíomhanna beachta, breathnuithe Wi‑Fi agus cille, gníomhaíochtaí agus sonraí príobháideacha eile ón tréimhse roimh an uasghrádú a bheith sa chúltaca seo. Ná sábháil é ach in áit a bhfuil muinín agat aisti.</string>
+    <string name="settings_migration_backup_export_action">Easpórtáil cúltaca</string>
+    <string name="settings_migration_backup_export_success">Easpórtáladh cúltaca réamh-uasghrádaithe</string>
+    <string name="settings_migration_backup_export_failure">Níorbh fhéidir an cúltaca réamh-uasghrádaithe a easpórtáil</string>
+    <string name="settings_migration_backup_export_cleanup_required">Theip ar easpórtáil. Scrios an cúltaca páirteach easpórtáilte ón suíomh roghnaithe.</string>
+    <string name="settings_delete_data_success">Scriosadh na sonraí bailithe uile</string>
+    <string name="settings_delete_data_failure">Níorbh fhéidir na sonraí bailithe uile a scriosadh</string>
+    <string name="settings_game_goals_title">Spriocanna</string>
+    <string name="settings_game_daily_target_title">Sprioc chéimeanna laethúil</string>
+    <string name="settings_game_weekly_target_title">Sprioc chéimeanna seachtainiúil</string>
+    <string name="settings_game_daily_contribution_title">Uasranníocaíocht laethúil</string>
+    <string name="settings_game_steps_unit">céimeanna</string>
+    <string name="settings_game_notifications_title">Fógraí</string>
+    <string name="settings_game_goal_notifications_title">Fógraí dul chun cinn sprice</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Faigh meabhrúchán áitiúil ag 75% agus 90% de do sprioc laethúil.</string>
+    <string name="settings_game_during_games_title">Le linn cluichí</string>
+    <string name="settings_game_haptics_title">Haptaic cluichí</string>
+    <string name="settings_game_haptics_summary">Úsáid creathadh caolchúiseach le haghaidh aiseolas cluiche.</string>
+    <string name="settings_game_quiet_coaching_title">Leideanna treorach ciúine</string>
+    <string name="settings_game_quiet_coaching_summary">Úsáid treoir nach bhfuil chomh minic agus tú ag imirt.</string>
+    <string name="settings_game_remember_setup_title">Cuimhnigh socrú an chluiche deiridh</string>
+    <string name="settings_game_remember_setup_summary">Athúsáid do sprioc agus do dheacracht dheireanach an chéad uair eile.</string>
+    <string name="settings_game_privacy_battery_title">Príobháideachas agus ceallra</string>
+    <string name="settings_game_privacy_battery_disclosure">Ní úsáideann cluichí suíomh beo ach nuair atá siad gníomhach agus athúsáideann siad suíomh Tracker nuair atá sé ar fáil. Nuair a chuirtear ar sos iad, scaoiltear úsáid suímh an chluiche. Ní shábháiltear ach do scór agus pointí/XP ar an ngléas seo; ní choimeádtar suíomhanna cluiche amha.</string>
+    <string name="settings_game_loading">Ag lódáil socruithe cluiche…</string>
+    <string name="settings_game_load_error">Níorbh fhéidir socruithe an chluiche a luchtú. Bain triail eile as.</string>
+    <string name="settings_map_info_hint">Rialaíonn na socruithe seo cáilíocht agus feidhmíocht léirshamhlú na léarscáile. Is féidir le formhór na n-úsáideoirí na luachanna réamhshocraithe a úsáid.</string>
+    <string name="settings_map_online_tiles_section_title">Tíleanna léarscáile ar líne</string>
+    <string name="settings_map_online_tiles_enable_title">Úsáid tíleanna léarscáile ar líne</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">As — ní úsáidtear ach an bhunléarscáil as líne atá cuachta. Gan iarratais líonra.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Air — ag fáil tíleanna ó %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Soláthraí tíleanna</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (molta)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">URL saincheaptha</string>
+    <string name="settings_map_online_tiles_custom_url_label">URL JSON stíle</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Cur síos ar fhoinse: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Is rogha deonach iad tíleanna ar líne. Nuair atá siad cumasaithe, is féidir leis an soláthraí roghnaithe do sheoladh IP agus na tíleanna a lódálann tú a fheiceáil (go garbh, cén limistéar den léarscáil a bhfuil tú ag féachaint air). Ní sheolann Tracker cuntas, aitheantas ná stair suímh riamh.</string>
+    <string name="settings_developer_mode_enabled_toast">Cumasíodh mód forbróra</string>
+    <string name="settings_developer_mode_disable">Díchumasaigh mód forbróra</string>
+    <string name="settings_developer_mode_subtitle">Tá mód forbróra gníomhach</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Sconna %d uair eile chun mód forbróra a chumasú</item>
+        <item quantity="other">Sconna %d uair eile chun mód forbróra a chumasú</item>
+    </plurals>
+    <string name="settings_version_info_title">Faisnéis faoin leagan</string>
+    <string name="settings_version_format">Leagan: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Teanga reatha: %s</string>
+    <string name="settings_language_title">Teanga an fheidhmchláir</string>
+    <string name="settings_units_auto_summary_on">Oiriúnaíonn sé an córas faid do ghníomhaíochtaí braite</string>
+    <string name="settings_units_auto_summary_off">Cuireann sé an córas faid roghnaithe i bhfeidhm i ngach áit</string>
+    <string-array name="settings_length_system_names">
+        <item>Méadrach</item>
+        <item>Impiriúil (USC)</item>
+        <item>Sean-Rómhánach</item>
+        <item>Seoltóireacht</item>
+        <item>Eitilt</item>
+    </string-array>
+    <string name="settings_length_system_title">Córas faid</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Ceadúnais foinse oscailte</string>
+    <string name="settings_licenses_subtitle">Féach ar fhógraí tríú páirtí atá cuachta sa tógáil seo.</string>
+    <string name="settings_licenses_loading">Ag lódáil ceadúnas…</string>
+    <string name="settings_licenses_unavailable">Níorbh fhéidir sonraí ceadúnais tríú páirtí cuachta a luchtú.</string>
+    <string name="settings_licenses_text_at_url">Tá téacs iomlán an cheadúnais ar fáil ag: %1$s</string>
+    <string name="settings_privacy_policy_title">Beartas Príobháideachais</string>
+    <string name="settings_privacy_policy_unavailable">Níorbh fhéidir an beartas príobháideachais cuachta a oscailt. Bain triail eile as tar éis an aip a atosú.</string>
+    <string name="settings_about_header">Maidir leis</string>
+    <string name="settings_about_app_title">Tracker le adsamcik</string>
+    <string name="settings_about_app_subtitle">Rianaire suímh agus gníomhaíochta a chuireann príobháideachas ar dtús</string>
+    <string name="about_title">Maidir leis</string>
+    <string name="about_app_name_label">Aip</string>
+    <string name="about_version_label">Leagan</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Tiomantas tógála</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Údar</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Ríomhphost</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Naisc</string>
+    <string name="about_attributions_title">Cur síos ar fhoinsí sonraí</string>
+    <string name="about_attribution_geonames_label">Ainmneacha áite</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Sonraí léarscáile agus sráide</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Socruithe modúil</string>
+    <string name="settings_core_group_title">Croílár</string>
+    <string name="settings_other_title">Aonaid agus taispeáint</string>
+    <string name="settings_remove_all_collected_data_summary">Scriosann sé do shonraí rianaithe (coinneofar gníomhaíochtaí saincheaptha agus socruithe)</string>
+    <string name="settings_remove_all_collected_data_title">Scrios na sonraí bailithe uile</string>
+    <string-array name="settings_speed_format_names">
+        <item>Luas in aghaidh an tsoicind (m/s)</item>
+        <item>Luas in aghaidh an fhaid (min/km, min/mi)</item>
+        <item>Luas (km/u, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Formáid luais</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Socruithe</string>
+    <string name="switch_state_on">Air</string>
+    <string name="switch_state_off">As</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Rianaigh do thurais go príobháideach</string>
+    <string name="onboarding_streamlined_subtitle">Fanann na sonraí uile ar do ghléas. Níl sioncronú néil ná rianú tríú páirtí ann.</string>
+    <string name="onboarding_benefit_privacy_title">Príobháideachas ar dtús</string>
+    <string name="onboarding_benefit_privacy_desc">Fanann na sonraí rianaithe uile ar do ghléas. Gan freastalaithe, gan sioncronú néil, smacht iomlán.</string>
+    <string name="onboarding_benefit_insights_title">Léargais ghníomhaíochta</string>
+    <string name="onboarding_benefit_insights_desc">Féach ar do bhealaí ar léarscáileanna, déan anailís ar staitisticí agus rianaigh do dhul chun cinn le himeacht ama.</string>
+    <string name="onboarding_benefit_gamification_title">Éachtaí</string>
+    <string name="onboarding_benefit_gamification_desc">Díghlasáil breis is 150 éacht agus tú ag siúl, ag rith, ag rothaíocht agus ag taiscéaladh — tuilltear iad uile go háitiúil ar do ghléas.</string>
+    <string name="onboarding_get_started">TOSAIGH</string>
+    <string name="onboarding_privacy_policy_button">Léigh an Beartas Príobháideachais</string>
+    <string name="onboarding_state_read_error_message">Níorbh fhéidir linn a fhíorú an raibh an socrú críochnaithe cheana, mar sin taispeántar é chun do shonraí a choimeád príobháideach. Is féidir leat leanúint ar aghaidh go sábháilte.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Glan seanshonraí go huathoibríoch</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Coinnigh sonraí go deo; ní scriosfaidh glanadh uathoibríoch seanshonraí</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Bain sonraí atá níos sine ná %1$d bhliain go huathoibríoch</item>
+        <item quantity="other">Bain sonraí atá níos sine ná %1$d bliain go huathoibríoch</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Coinnigh sonraí ar feadh</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Coinnigh go deo</item>
+        <item>1 bhliain</item>
+        <item>2 bhliain</item>
+        <item>3 bliana</item>
+        <item>5 bliana</item>
+        <item>10 mbliana</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">LEAN AR AGHAIDH</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Easpórtáil sonraí</string>
+    <string name="settings_export_data_summary">Sábháil do shonraí rianaithe i bhformáidí éagsúla</string>
+    <string name="export_format_dialog_title">Roghnaigh formáid easpórtála</string>
+    <string name="export_format_gpx_name">GPX (molta)</string>
+    <string name="export_format_gpx_desc">Pointí bealaigh lánbheachtais do ghléasanna GPS, aipeanna aclaíochta agus comhoiriúnacht uilíoch</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Pointí bealaigh lánbheachtais do Google Earth agus léirshamhlú geografach</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Suíomhanna sruthaithe agus achoimrí seisiúin; cumascann an iompórtáil sonraí agus athghineann sé roinnt meiteashonraí</string>
+    <string name="export_format_db_name">Bunachar sonraí</string>
+    <string name="export_format_db_desc">Cúltaca amh SQLite leis na sonraí agus socruithe uile; cumascann iompórtáil sraitheanna comhoiriúnacha, ní athchóiriú iomlán é</string>
+    <string name="export_sensitivity_dialog_title">Easpórtáil sonraí beachta suímh?</string>
+    <string name="export_sensitivity_gpx_message">Tá pointí bealaigh lánbheachtais san easpórtáil GPX seo. Ná sábháil ná comhroinn í ach le daoine agus aipeanna a bhfuil muinín agat astu.</string>
+    <string name="export_sensitivity_kml_message">Tá pointí bealaigh lánbheachtais san easpórtáil KML seo. Ná sábháil ná comhroinn í ach le daoine agus aipeanna a bhfuil muinín agat astu.</string>
+    <string name="export_sensitivity_json_message">Tá suíomhanna lánbheachtais agus achoimrí seisiúin san easpórtáil JSON seo. Cailltear roinnt meiteashonraí díorthaithe ag iompórtáil; ná sábháil ná comhroinn í ach le cinn scríbe a bhfuil muinín agat astu.</string>
+    <string name="export_sensitivity_db_message">D’fhéadfadh suíomhanna beachta, sonraí raidió Wi‑Fi/cille, gníomhaíocht agus socruithe a bheith sa chúltaca amh bunachair sonraí seo. Coinnigh príobháideach é agus ná stóráil é ach in áit a bhfuil muinín agat aisti.</string>
+    <string name="export_sensitivity_confirm">Lean leis an easpórtáil</string>
+    <string name="settings_export_title">Easpórtáil</string>
+    <string name="settings_import_summary">Iompórtáil sonraí ó chineálacha tacaithe (%1$s) agus cartlanna (%2$s). Cumascann iompórtálacha bunachair sonraí sraitheanna comhoiriúnacha; ní chuireann siad sonraí reatha ina n-ionad.</string>
+    <string name="settings_import_title">Iompórtáil</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Tuigim</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Tionchar íseal</string>
+    <string name="battery_impact_moderate">Tionchar measartha</string>
+    <string name="battery_impact_high">Tionchar ard</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Roghnaigh cruinneas suímh</string>
+    <string name="precision_mode_approximate_title">Garbh</string>
+    <string name="precision_mode_approximate_description">Suíomh bunaithe ar líonra. Go maith chun limistéar ginearálta a rianú gan mórán ceallra a úsáid.</string>
+    <string name="precision_mode_precise_title">Beacht</string>
+    <string name="precision_mode_precise_description">Suíomh bunaithe ar GPS. Is fearr le haghaidh bealaí mionsonraithe, léarscáileanna teasa agus dúshláin.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Díghlasáil rianú beacht</string>
+    <string name="upgrade_to_precise_message_general">Tá suíomh garbh á úsáid agat. Athraigh go rianú beacht GPS chun cruinneas níos fearr a fháil.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Moltar suíomh beacht le haghaidh anailís chruinn ar bhealaí agus tomhais faid.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Soláthraíonn suíomh beacht léirshamhlú mionsonraithe léarscáile teasa le suíomh grinn.</string>
+    <string name="upgrade_to_precise_message_challenges">Teastaíonn rianú beacht GPS ó go leor dúshlán chun críochnú a fhíorú go cruinn.</string>
+    <string name="upgrade_to_precise_benefits_title">Buntáistí</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Cruthanna bealaigh cruinne agus sonraí cosáin cas ar chas</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Léarscáil teasa mhionsonraithe agus anailís spásúil</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Tomhais bheachta faid agus luais</string>
+    <string name="upgrade_to_precise_battery_title">Úsáid ceallra</string>
+    <string name="upgrade_to_precise_battery_message">Úsáideann GPS beacht níos mó ceallra. Am rianaithe measta: 6–8 n-uaire ar ghnáthghléasanna.</string>
+    <string name="upgrade_to_precise_button_upgrade">Cumasaigh suíomh beacht</string>
+    <string name="upgrade_to_precise_button_cancel">B’fhéidir níos déanaí</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Cruinneas ard</string>
+    <string name="tracking_preset_high_accuracy_description">An leibhéal is fearr mionsonraí le nuashonruithe tapa agus gach mórbhraiteoir cumasaithe</string>
+    <string name="tracking_preset_balanced_name">Cothromaithe</string>
+    <string name="tracking_preset_balanced_description">Cruinneas maith agus saol ceallra réasúnta le haghaidh rianú laethúil</string>
+    <string name="tracking_preset_power_save_name">Sábháil ceallra</string>
+    <string name="tracking_preset_power_save_description">Úsáid níos lú ceallra le nuashonruithe nach bhfuil chomh minic agus braiteoirí laghdaithe</string>
+    <string name="tracking_preset_custom_name">Saincheaptha</string>
+    <string name="tracking_preset_custom_description">Coigeartaigh gach paraiméadar rianaithe de láimh</string>
+    <string name="tracking_preset_selector_title">Réamhshocrú rianaithe</string>
+    <string name="tracking_preset_selector_subtitle">Roghnaigh próifíl le tosú uaithi, ansin déan aon socrú thíos a mhionchoigeartú.</string>
+    <string name="tracking_preset_custom_hint">Trí aon socrú thíos a choigeartú, cruthaítear próifíl Shaincheaptha ón réamhshocrú reatha.</string>
+    <string name="tracking_preset_customized_summary">Tá an rianú mionchoigeartaithe agat. Roghnaigh réamhshocrú thuas chun athshocrú.</string>
+    <string name="settings_tracking_section_detection">Braite agus uathoibriú</string>
+    <string name="settings_tracking_section_sources">Foinsí sonraí</string>
+    <string name="settings_tracking_section_detail">Bailiú suímh</string>
+    <string name="settings_tracking_section_notifications">Fógraí</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Beartas rianaithe</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Rianú measta: %d uair</item>
+        <item quantity="other">Rianú measta: %d uair</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Roghnaigh cé chomh cruinn is a thaifeadann Tracker do shuíomh</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Beacht</string>
+    <string name="approximate">Garbh</string>
+    <string name="tracking_policy_selector_subtitle">Roghnaigh réamhshocrú rianaithe nó saincheap socruithe</string>
+    <string name="tracking_policy_custom_badge">Saincheaptha</string>
+    <string name="collapse_details">Folaigh sonraí</string>
+    <string name="expand_details">Taispeáin sonraí</string>
+    <string name="settings_section_collapse">Laghdaigh</string>
+    <string name="settings_section_expand">Leathnaigh</string>
+    <string name="tracking_policy_details_title">Sonraí cumraíochta</string>
+    <string name="preset_detail_location_precision">Cruinneas suímh</string>
+    <string name="preset_detail_min_distance">Fad íosta</string>
+    <string name="preset_detail_min_time">Am íosta</string>
+    <string name="preset_detail_accuracy">Cruinneas riachtanach</string>
+    <string name="preset_detail_sensors">Braiteoirí</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Athrú aonad uathoibríoch</string>
+    <string name="settings_module_map_subtitle">Cáilíocht léarscáile teasa agus roghanna léirshamhlaithe</string>
+    <string name="settings_module_game_subtitle">Spriocanna, éachtaí agus clocha míle</string>
+    <string name="action_navigate_back">Téigh siar</string>
+    <string name="action_help">Cabhair</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Ag lódáil…</string>
+    <string name="widget_quick_start_name">Tús tapa Tracker</string>
+    <string name="widget_quick_start_description">Tosaigh nó stad rianú suímh le sconna amháin.</string>
+    <string name="widget_start_tracking">Tosaigh rianú</string>
+    <string name="widget_stop_tracking">Stad rianú</string>
+    <string name="widget_tracking_active">Rianú gníomhach</string>
+    <string name="widget_today_summary_name">Achoimre an lae inniu</string>
+    <string name="widget_today_summary_description">Féach ar do staitisticí rianaithe don lá inniu go sciobtha.</string>
+    <string name="widget_today">Inniu</string>
+    <string name="widget_distance">Fad</string>
+    <string name="widget_steps">Céimeanna</string>
+    <string name="widget_sessions">Seisiúin</string>
+    <string name="widget_duration">Fad ama</string>
+    <string name="widget_no_data_today">Gan sonraí rianaithe inniu</string>
+    <string name="widget_active_session_name">Seisiún gníomhach</string>
+    <string name="widget_active_session_description">Déan monatóireacht ar do sheisiún rianaithe reatha i bhfíor-am.</string>
+    <string name="widget_no_active_session">Níl seisiún gníomhach ann</string>
+    <string name="widget_tap_to_start">Sconna chun rianú a thosú</string>
+    <string name="widget_session_distance">Fad an tseisiúin</string>
+    <string name="widget_session_steps">Céimeanna an tseisiúin</string>
+    <string name="widget_session_duration">Fad ama an tseisiúin</string>
+    <string name="widget_current_speed">Luas reatha</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Bailiúcháin</string>
+    <string name="widget_path_preview">Réamhamharc cosáin</string>
+    <string name="widget_activity_unknown">Níl gníomhaíocht ar fáil</string>
+    <string name="widget_goal_label">Sprioc:</string>
+    <string name="widget_goal_progress">%1$s / %2$s céimeanna</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">As</string>
+    <string name="widget_tier_ambient">Comhthimpeallach</string>
+    <string name="widget_tier_active">Gníomhach</string>
+    <string name="widget_tier_precision">Beachtas</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Dul chun cinn iontach!</string>
+    <string name="goal_notification_title_almost">Beagnach ann!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">%1$d chéim fágtha chun do sprioc laethúil a bhaint amach</item>
+        <item quantity="other">%1$d chéim fágtha chun do sprioc laethúil a bhaint amach</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Níl ach %1$d chéim amháin fágtha!</item>
+        <item quantity="other">Níl ach %1$d chéim fágtha!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Fógraí cliste sprice</string>
+    <string name="settings_smart_goal_notifications_summary">Faigh fógra nuair atá tú gar do do sprioc chéimeanna laethúil</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Conas ar chóir don rianú oibriú?</string>
+    <string name="setup_how_to_track_subtitle">Roghnaigh cathain a thosaíonn rianú agus cé chomh mionsonraithe is a bheidh sé.</string>
+    <string name="setup_auto_tracking_title">Rianú uathoibríoch</string>
+    <string name="setup_auto_tracking_disabled">Díchumasaithe</string>
+    <string name="setup_auto_tracking_disabled_desc">Tosaigh agus stad rianú de láimh.</string>
+    <string name="setup_auto_tracking_on_foot">Ar shiúl na gcos</string>
+    <string name="setup_auto_tracking_on_foot_desc">Rianaigh siúl agus rith go huathoibríoch.</string>
+    <string name="setup_auto_tracking_in_motion">Ag gluaiseacht</string>
+    <string name="setup_auto_tracking_in_motion_desc">Rianaigh gach gluaiseacht go huathoibríoch, lena n-áirítear tiomáint agus rothaíocht.</string>
+    <string name="setup_preset_title">Sonraí rianaithe</string>
+    <string name="setup_what_to_collect_title">Cad atá le bailiú</string>
+    <string name="setup_what_to_collect_subtitle">Tá tuilleadh roghanna thíos. Tosaigh ag taiscéaladh gan cheadanna nó deonaigh iad níos déanaí. Fanann na sonraí ar an ngléas seo.</string>
+    <string name="setup_source_location">Suíomh</string>
+    <string name="setup_source_location_desc">Taifead do bhealaí agus do shuímh ar léarscáil.</string>
+    <string name="setup_source_activity">Gníomhaíocht</string>
+    <string name="setup_source_activity_desc">Braith an bhfuil tú ag siúl, ag rith, ag rothaíocht nó ag tiomáint.</string>
+    <string name="setup_source_steps">Céimeanna</string>
+    <string name="setup_source_steps_desc">Comhair do chéimeanna le céimiméadar an ghléis.</string>
+    <string name="setup_source_wifi">Líonraí Wi‑Fi</string>
+    <string name="setup_source_wifi_desc">Taifead líonraí Wi‑Fi in aice láimhe chun cruinneas suímh a fheabhsú.</string>
+    <string name="setup_source_cell">Túir cheallacha</string>
+    <string name="setup_source_cell_desc">Taifead faisnéis túir cheallaigh le haghaidh comhthéacs suímh.</string>
+    <string name="setup_perm_location_why">Riachtanach chun do bhealaí a thaifeadadh agus iad a thaispeáint ar an léarscáil. Fanann an suíomh ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
+    <string name="setup_perm_location_bg_why">Chun do bhealach a thaifeadadh nuair a athraíonn tú aipeanna nó nuair a mhúchann an scáileán, teastaíonn rochtain ar do shuíomh sa chúlra ó Tracker. Fanann an suíomh taifeadta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ag an gcéad leid chórais eile, roghnaigh "Ceadaigh an t-am ar fad" chun rianú uathoibríoch a chumasú; coinníonn "Agus an aip in úsáid" Tracker ag obair ach nuair atá a scáileán oscailte.</string>
+    <string name="setup_perm_activity_why">Ligeann sé do Tracker a bhrath cad atá á dhéanamh agat (ag siúl, ag rothaíocht, ag tiomáint nó gan ghluaiseacht) ionas gur féidir le rianú uathoibríoch sos a ghlacadh nuair nach bhfuil tú ag gluaiseacht agus ceallra a shábháil. Fanann sonraí gníomhaíochta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
+    <string name="setup_perm_notification_why">Taispeánann Tracker fógra stádais beag agus é ag taifeadadh ionas go bhfeicfidh tú go sciobtha go bhfuil rianú ar siúl agus go stopfaidh tú é le sconna amháin. Gan fhógraí margaíochta ná bolscaireachta.</string>
+    <string name="setup_perm_wifi_why">Is féidir le Tracker pointí rochtana Wi‑Fi a fheiceann do ghuthán le linn turais a thaifeadadh chun cruinneas suímh a fheabhsú in áiteanna ina bhfuil GPS lag (laistigh nó faoi thalamh). Fanann na sonraí raidió ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ná deonaigh ach más mian leat é seo.</string>
+    <string name="setup_perm_cell_why">Is féidir le Tracker aitheantais túir cheallaigh a thaifeadadh feadh do bhealaigh ionas gur féidir suíomh a thuiscint nuair nach bhfuil GPS ar fáil. Fanann na sonraí raidió ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ná deonaigh staid ghutháin agus suíomh beacht ach más mian leat é seo.</string>
+    <string name="setup_perm_grant">Deonaigh</string>
+    <string name="setup_perm_grant_location_content_description">Deonaigh cead suímh</string>
+    <string name="setup_perm_grant_background_location_content_description">Deonaigh cead suímh sa chúlra</string>
+    <string name="setup_perm_grant_activity_content_description">Deonaigh cead aithinte gníomhaíochta</string>
+    <string name="setup_perm_grant_notification_content_description">Deonaigh cead fógruithe</string>
+    <string name="setup_perm_grant_wifi_content_description">Deonaigh cead Wi‑Fi</string>
+    <string name="setup_perm_grant_cell_content_description">Deonaigh cead raidió cille</string>
+    <string name="setup_perm_granted">Deonaithe ✓</string>
+    <string name="permission_grant_in_settings">Ceadaigh i Socruithe →</string>
+    <string name="permission_disabled_due_to_denial">Díchumasaíodh %1$s mar diúltaíodh cead. Deonaigh i Socruithe chun é a chumasú.</string>
+    <string name="settings_wifi_permission_required">Teastaíonn cead Wi‑Fi/suímh. Cas air chun é a dheonú — ní thaifeadtar sonraí Wi‑Fi go dtí sin, agus fanann sonraí taifeadta ar an ngléas seo.</string>
+    <string name="settings_cell_permission_required">Teastaíonn cead staid ghutháin agus suímh bheachta. Cas air chun é a dheonú — ní thaifeadtar sonraí cille go dtí sin, agus fanann sonraí taifeadta ar an ngléas seo.</string>
+    <string name="settings_wifi_privacy_summary">Taifeadann sé líonraí Wi‑Fi in aice láimhe chun cruinneas suímh a fheabhsú. Fanann na sonraí ar an ngléas seo.</string>
+    <string name="settings_barometer_unavailable">Níl braiteoir brú ar fáil ar an ngléas seo.</string>
+    <string name="settings_activity_permission_required">Teastaíonn cead aithinte gníomhaíochta. Cas air chun é a dheonú.</string>
+    <string name="settings_steps_unavailable">Níl braiteoir comhairimh céimeanna ar fáil ar an ngléas seo.</string>
+    <string name="settings_cell_privacy_summary">Taifeadann sé aitheantais túir cheallaigh chun cruinneas suímh a fheabhsú. Fanann na sonraí ar an ngléas seo.</string>
+    <string name="setup_start_exploring">Tosaigh ag taiscéaladh</string>
+    <string name="setup_continue">Lean ar aghaidh</string>
+    <string name="setup_step_indicator">Céim %1$d de %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Tíleanna léarscáile ar líne?</string>
+    <string name="setup_online_tiles_subtitle">Tagann bunléarscáil as líne le Tracker, mar sin oibríonn sé gan líonra. Más mian leat léarscáileanna níos saibhre, is féidir leat tíleanna a shruthú ó sholáthraí poiblí.</string>
+    <string name="setup_online_tiles_off_title">As líne amháin (molta)</string>
+    <string name="setup_online_tiles_off_desc">Gan iarratais líonra. Ní úsáidtear ach an bhunléarscáil chuachta.</string>
+    <string name="setup_online_tiles_on_title">Úsáid tíleanna ar líne</string>
+    <string name="setup_online_tiles_on_desc">Sruthaigh tíleanna veicteora níos mionsonraithe ó OpenFreeMap (réamhshocrú). Is féidir leat an soláthraí a athrú níos déanaí i Socruithe → Léarscáil.</string>
+    <string name="setup_online_tiles_privacy">Nuair atá sé cumasaithe, is féidir leis an soláthraí do sheoladh IP agus na tíleanna a lódálann tú a fheiceáil — go garbh, cén limistéar den léarscáil atá á fheiceáil agat. Ní sheolann Tracker cuntas, aitheantas ná stair suímh riamh.</string>
+    <string name="setup_online_tiles_change_later">Is féidir leat é seo a athrú am ar bith i Socruithe → Léarscáil → Tíleanna léarscáile ar líne.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Chun turais a thaifeadadh nuair atá an scáileán as nó an aip dúnta, ní mór do Tracker leanúint sa chúlra. Is féidir le socruithe ceallra an fhóin é a chur ar sos — ceadaigh gníomhaíocht sa chúlra ionas go bhfanfaidh rianú uathoibríoch iontaofa.</string>
+    <string name="setup_background_access_optional">Roghnach, ach molta. Is féidir leat é seo a athrú am ar bith i Socruithe → Rianú.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Rianú iontaofa sa chúlra</string>
+    <string name="background_reliability_status_exempt">Ceadaítear gníomhaíocht sa chúlra</string>
+    <string name="background_reliability_status_optimized">Tá barrfheabhsú ceallra ar siúl</string>
+    <string name="background_reliability_exempt_desc">Tá Tracker eisiata ó bharrfheabhsú ceallra, mar sin is féidir le rianú sa chúlra agus uathoibríoch oibriú go hiontaofa.</string>
+    <string name="background_reliability_optimized_desc">Is féidir le barrfheabhsú ceallra Tracker a chur ar sos sa chúlra, rud a stopann rianú uathoibríoch. Ceadaigh gníomhaíocht sa chúlra chun é a choinneáil ar siúl.</string>
+    <string name="background_reliability_allow_action">Ceadaigh gníomhaíocht sa chúlra</string>
+    <string name="background_reliability_samsung_hint">D’fhéadfadh gléasanna Samsung aipeanna a chur i "Aipeanna codlata" freisin. Oscail socruithe ceallra, bain Tracker ó Aipeanna codlata agus socraigh gan é a chur a chodladh.</string>
+    <string name="background_reliability_samsung_action">Oscail socruithe ceallra an ghléis</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Diagnóisic tuairteála</string>
+    <string name="settings_tracebox_root_summary">Diagnóisic áitiúil maidir le tuairteanna, ANR agus struchtúr</string>
+    <string name="settings_tracebox_status_header">Stádas gabhála</string>
+    <string name="settings_tracebox_toggle_title">Taifead diagnóisic tuairteála</string>
+    <string name="settings_tracebox_toggle_summary_off">Tá gabháil as. Fanann diagnóisic áitiúil atá ann go dtí go scriosann tú iad.</string>
+    <string name="settings_tracebox_toggle_summary_on">Taifeadtar diagnóisic tuairteála, ANR agus struchtúir sheasta go háitiúil.</string>
+    <string name="settings_tracebox_readiness_label">Ullmhacht stórála</string>
+    <string name="settings_tracebox_readiness_volatile">Ag tosú stórála buaine; tá gabháil luaineach ar fáil</string>
+    <string name="settings_tracebox_readiness_durable">Tá gabháil bhuan réidh</string>
+    <string name="settings_tracebox_readiness_degraded">Tá gabháil díghrádaithe; b’fhéidir nach mbeidh roinnt taifead ar fáil</string>
+    <string name="settings_tracebox_readiness_closed">Tá gabháil dúnta</string>
+    <string name="settings_tracebox_health_label">Sláinte ama rite</string>
+    <string name="settings_tracebox_health_disabled">Díchumasaithe</string>
+    <string name="settings_tracebox_health_initializing">Ag tosú</string>
+    <string name="settings_tracebox_health_ready">Réidh</string>
+    <string name="settings_tracebox_health_degraded">Díghrádaithe</string>
+    <string name="settings_tracebox_health_deleting">Ag scriosadh diagnóisic áitiúla</string>
+    <string name="settings_tracebox_health_closed">Dúnta</string>
+    <string name="settings_tracebox_package_header">Pacáiste diagnóiseach</string>
+    <string name="settings_tracebox_package_body">Taispeánann Tracebox an nochtadh cruinn don phacáiste críochnaithe ar dtús. Ní shábháiltear ná ní chomhroinntear aon ní go dtí go gceadaíonn tú é agus go roghnaíonn tú an ceann scríbe.</string>
+    <string name="settings_tracebox_package_review_action">Déan athbhreithniú agus ceadaigh an pacáiste</string>
+    <string name="settings_tracebox_package_save_action">Sábháil an pacáiste ceadaithe</string>
+    <string name="settings_tracebox_package_share_action">Comhroinn an pacáiste ceadaithe</string>
+    <string name="settings_tracebox_share_limit">Is féidir le Android a dheimhniú gur osclaíodh an roghnóir, ach ní féidir leis a chruthú go bhfuair aip eile an pacáiste.</string>
+    <string name="settings_tracebox_data_header">Sonraí Tracebox</string>
+    <string name="settings_tracebox_data_body">Scriosann sé seo diagnóisic faoi úinéireacht Tracebox agus stáitsiú pacáiste. Rialaíonn na haipí cinn scríbe comhaid a shábháil nó a sheol tú cheana.</string>
+    <string name="settings_tracebox_delete_action">Scrios sonraí Tracebox uile</string>
+    <string name="settings_tracebox_delete_confirm_title">Scrios gach diagnóisic tuairteála?</string>
+    <string name="settings_tracebox_delete_confirm_body">Bainfidh sé seo gach diagnóisic faoi úinéireacht Tracebox agus stáitsiú pacáiste ó Tracker. Ní féidir an gníomh a chealú.</string>
+    <string name="settings_tracebox_delete_confirm_action">Scrios</string>
+    <string name="settings_tracebox_result_header">An toradh deireanach</string>
+    <string name="settings_tracebox_result_enabled">Cumasíodh diagnóisic tuairteála.</string>
+    <string name="settings_tracebox_result_disabled">Díchumasaíodh diagnóisic tuairteála. Níor scriosadh sonraí atá ann.</string>
+    <string name="settings_tracebox_result_policy_restricted">Sábháladh an beartas sriantach go háitiúil, ach níor dheimhnigh gach próiseas é fós.</string>
+    <string name="settings_tracebox_result_policy_partial">Sábháladh an beartas go háitiúil, ach níor críochnaíodh cóineasú ama rite.</string>
+    <string name="settings_tracebox_result_failed">Níor shroich an oibríocht an teorainn buaine áitiúil.</string>
+    <string name="settings_tracebox_result_delete_complete">Scriosadh gach sonra faoi úinéireacht Tracebox.</string>
+    <string name="settings_tracebox_result_delete_pending">Níor críochnaíodh an scriosadh ach go páirteach. Tá roinnt sonraí faoi úinéireacht láimhseálaí fós le scriosadh.</string>
+    <string name="settings_tracebox_result_delete_rejected">Dhiúltaigh Tracebox don iarratas scriosta.</string>
+    <string name="settings_tracebox_result_review_ready">Nochtadh réidh: %1$d luach san áireamh ina bhfuil %2$d beart de shonraí diagnóiseacha.</string>
+    <string name="settings_tracebox_result_package_created">Tá an pacáiste diagnóiseach ceadaithe réidh le sábháil nó le comhroinnt.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Cealaíodh ceadú an phacáiste. Níor cruthaíodh pacáiste.</string>
+    <string name="settings_tracebox_result_package_rejected">Diúltaíodh cruthú an phacáiste mar ní raibh an ceadú ag teacht leis na bearta críochnaithe a thuilleadh.</string>
+    <string name="settings_tracebox_result_package_not_ready">Níl pacáiste diagnóiseach réidh. Déan athbhreithniú agus ceadaigh é ar dtús.</string>
+    <string name="settings_tracebox_result_save_complete">Sábháladh an pacáiste ceadaithe iomlán (%1$d beart).</string>
+    <string name="settings_tracebox_result_save_partial">Níor cóipeáladh ach %1$d beart. D’fhéadfadh pacáiste neamhiomlán a bheith sa cheann scríbe.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Cealaíodh an sábháil tar éis %1$d beart. D’fhéadfadh pacáiste neamhiomlán a bheith sa cheann scríbe.</string>
+    <string name="settings_tracebox_result_save_failed">Níorbh fhéidir an pacáiste ceadaithe a shábháil.</string>
+    <string name="settings_tracebox_result_save_cancelled">Níor roghnaíodh ceann scríbe sábhála.</string>
+    <string name="settings_tracebox_result_share_opened">Osclaíodh roghnóir comhroinnte Android.</string>
+    <string name="settings_tracebox_result_share_unknown">D’fhill an roghnóir. Ní féidir le Android a chruthú ar fuair an faighteoir an pacáiste.</string>
+    <string name="settings_tracebox_records_header">A dtaifeadann sé</string>
+    <string name="settings_tracebox_records_body">Fianaise ar thuairteanna agus ANR, chomh maith le sraith theoranta cóid réamhshainithe faoi struchtúr na haipe agus ord forghníomhaithe. Is é Tracebox an t-aon taifeadán tuairteála agus diagnóiseach atá ag Tracker.</string>
+    <string name="settings_tracebox_privacy_header">A fhágann sé ar lár</string>
+    <string name="settings_tracebox_privacy_body">Ní ghlacann an API taifeadta le téacs treallach, suíomh, sonraí cuntais, aitheantóirí gléis ná léamha braiteora. Ní chuimsíonn pacáistí caighdeánacha déantáin tuairteála amha agus ní uaslódáiltear go huathoibríoch iad riamh.</string>
+</resources>

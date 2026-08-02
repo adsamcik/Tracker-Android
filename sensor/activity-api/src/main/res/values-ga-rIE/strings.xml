@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="notification_activity_watcher_info">Gníomhaíocht reatha %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Tá seirbhís Faireoir Gníomhaíochta gníomhach</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Baineadh %s</string>
+    <string name="settings_activity_title">Gníomhaíochtaí</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Faireoir gníomhaíochta</string>
+    <string name="settings_ski_infrastructure_title">Sonraí ardaitheoirí sciála</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Luchtaithe (sconna chun baint)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">Níl sé luchtaithe. Sconna chun comhad SQLite ski_infrastructure.db a iompórtáil.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d ardaitheoir · Ginte %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Sonraí ardaitheoirí sciála © rannpháirtithe OpenStreetMap (ODbL)</string>
+</resources>
