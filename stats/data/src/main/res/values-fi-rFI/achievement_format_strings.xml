@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Seuraa vähintään %2$d eri päivänä avataksesi sen.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Kulje %1$s</string>
     <string name="ach_desc_distance_total">Kulje yhteensä %1$s tallennettua matkaa kaikkien istuntojesi aikana.</string>
     <string name="ach_title_week_distance">%1$s tällä viikolla</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Pyöräile yhteensä %1$s.</string>
     <string name="ach_title_vehicle_distance">Kulje moottoriajoneuvolla %1$s</string>
     <string name="ach_desc_vehicle_distance">Kulje %1$s autolla, bussilla, junalla, veneellä tai lentokoneella.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Ota %1$s askelta</string>
     <string name="ach_desc_steps_total">Tallenna %1$s askelta kaikkien istuntojesi aikana.</string>
     <string name="ach_title_best_daily_steps">%1$s askelta päivässä</string>
     <string name="ach_desc_best_daily_steps">Ota %1$s askelta yhden päivän aikana.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Ensimmäinen istunto</item>
         <item quantity="other">Tallenna %1$s istuntoa</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Vieraile %d maassa</item>
     </plurals>
     <string name="ach_desc_countries_visited">Tallenna vähintään yksi istunto %1$d eri maassa.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Ensimmäinen aktiivinen päivä</item>
         <item quantity="other">%1$s aktiivista päivää</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Tallenna aktiivisuutta %1$d eri vuorokauden tuntina kaikkien istuntojen aikana.</string>
     <string name="ach_title_days_of_week">Kaikki viikon seitsemän päivää</string>
     <string name="ach_desc_days_of_week">Seuraa aktiivisuutta jokaisena viikonpäivänä vähintään kerran.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Kokeile %d aktiviteettityyppiä</item>
         <item quantity="other">Kokeile %d aktiviteettityyppiä</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Tallenna aktiivisuutta kalenteriviikon kaikina seitsemänä päivänä.</string>
     <string name="ach_title_walk_cycle_drive">Kävele, pyöräile, aja</string>
     <string name="ach_desc_walk_cycle_drive">Tallenna vähintään yksi istunto kustakin: kävely, pyöräily ja ajo.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">%1$s:n istunto</string>
     <string name="ach_desc_max_session_duration">Tallenna yksi vähintään %1$s:n kestävä istunto.</string>
     <string name="ach_title_max_speed">Saavuta %1$s</string>
     <string name="ach_desc_max_speed">Saavuta istunnon aikana vähintään %1$s:n huippunopeus.</string>
     <string name="ach_title_active_minutes">%1$s aktiivista minuuttia</string>
     <string name="ach_desc_active_minutes">Kerrytä %1$s minuuttia aktiivista seuranta-aikaa.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Ensimmäinen vienti</item>
         <item quantity="other">%d vientiä</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Seuraa %d vuodenajan läpi</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Tallenna aktiivisuutta %1$d eri vuodenaikana (kevät/kesä/syksy/talvi).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Uudenvuoden seuraaja</string>
     <string name="ach_desc_calendar_new_year">Tallenna istunto 1. tammikuuta.</string>
     <string name="ach_title_calendar_leap_day">Karkauspäivän pioneeri</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Tallenna istunto vuoden pisimpänä päivänä.</string>
     <string name="ach_title_calendar_winter_solstice">Talvipäivänseisaus</string>
     <string name="ach_desc_calendar_winter_solstice">Tallenna istunto vuoden lyhimpänä päivänä.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Yökyöpeli</item>
         <item quantity="other">%1$s yöistuntoa</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Käytä %d vientimuotoa</item>
     </plurals>
     <string name="ach_desc_export_formats">Vie tietosi %1$d eri tiedostomuodossa.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Saavuta pelaajataso %1$d</string>
     <string name="ach_desc_player_level">Nouse pelaajatasolle %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP:tä päivässä</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Pelaa %1$s minipeliä</item>
     </plurals>
     <string name="ach_desc_minigames_played">Suorita %1$d minipelisuoritusta.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Nouse %1$s</string>
     <string name="ach_desc_total_ascent">Kerrytä yhteensä %1$s nousua kaikkien seurantojesi aikana.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Ansaitse yhdestä XP-lähteestä</item>
         <item quantity="other">Ansaitse %d XP-lähteestä</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d täydellistä viikkoa</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Saavuta päivittäinen askeltavoitteesi jokaisena päivänä %1$d kokonaisen viikon ajan.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d päivän tavoiteputki</item>
         <item quantity="other">%d päivän tavoiteputki</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Suorita %d luokkaa</item>
     </plurals>
     <string name="ach_desc_categories_completed">Avaa jokainen saavutus %1$d eri luokassa.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d sekunti</item>
         <item quantity="other">%d sekuntia</item>

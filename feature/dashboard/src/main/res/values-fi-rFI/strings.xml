@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Yhteenveto</string>
     <string name="dashboard_tracking_title">Seuranta</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Sijaintilupa ei ole käytettävissä</string>
     <string name="dashboard_permission_banner_subtitle">Tracker ei voi tallentaa reittejä, ennen kuin myönnät sijainnin käyttöoikeuden. Napauta myöntääksesi sen.</string>
     <string name="dashboard_permission_banner_cd">Sijaintilupailmoitus ei käytettävissä, napauta myöntääksesi sijainnin käyttöoikeuden</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Aktiviteetin tyyppi</string>
     <string name="dashboard_cd_explore_icon">Tutkiminen</string>
     <string name="dashboard_cd_forward_arrow">Näytä tiedot</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Näytä putken tiedot</string>
     <string name="dashboard_action_open_tracking_settings">Asetukset</string>
     <string name="dashboard_action_restart_tracking">Käynnistä uudelleen</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Korkeusprofiili, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Odotetaan GPS-signaalia…</string>
     <string name="dashboard_tracking_recording_route">Tallennetaan reittiä…</string>
     <string name="dashboard_milestone_distance">km saavutettu!</string>
     <string name="dashboard_milestone_steps">askelta saavutettu!</string>
     <string name="dashboard_milestone_time">min seurattu!</string>
     <string name="dashboard_milestone_points">+10 pistettä</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Tänään</string>
     <string name="dashboard_today_no_activity">Ei aktiviteettia vielä tänään</string>
     <string name="dashboard_today_distance">Matka</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Uutta tänään</string>
     <string name="dashboard_exploration_total_cells">Ruutuja yhteensä</string>
     <string name="dashboard_exploration_seasons">Vuodenajat</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Nopeus</string>
     <string name="dashboard_live_charts_altitude">Korkeus</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Anturin tiedot</string>
     <string name="dashboard_sensor_expand">Laajenna anturitiedot</string>
     <string name="dashboard_sensor_collapse">Kutista anturitiedot</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Nopeus</string>
     <string name="dashboard_sensor_cell_types">Mobiiliverkon tyypit</string>
     <string name="dashboard_sensor_raw_coords">Koordinaatit (virheenkorjaus)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Nousussa</string>
     <string name="dashboard_trend_down">Laskussa</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Vasta aloittelemassa…</string>
     <string name="dashboard_motivational_keep_going">Jatka samaan malliin! 💪</string>
     <string name="dashboard_motivational_impressive">Vaikuttava istunto!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Hyvää iltaa! Käydäänkö päiväsi läpi?</string>
     <string name="dashboard_motivational_night">Yökyöpeli-tila 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d päivän putki!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Matkasi alkaa tästä</string>
     <string name="dashboard_empty_subtitle">Käytä alla olevaa Valmiina kun olet -korttia myöntääksesi sijainnin käyttöoikeuden tarvittaessa ja aloita ensimmäinen seikkailusi</string>
     <string name="dashboard_empty_feature_explore">Tutki</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Valmiina kun olet</string>
     <string name="dashboard_empty_fab_hint_desc">Napauta tästä aloittaaksesi ensimmäisen seurantaistuntosi.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Napauta tästä myöntääksesi sijainnin käyttöoikeuden ja aloita sitten ensimmäinen seurantaistuntosi.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Tämän päivän edistyminen</string>
     <string name="widget_streak">Putki</string>
     <string name="widget_last_session">Viimeisin istunto</string>
     <string name="widget_recent_trips">Viimeisimmät matkat</string>
     <string name="widget_exploration">Tutkiminen</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Mukauta yhteenvetoa</string>
     <string name="dashboard_customize_reset">Palauta oletukset</string>
     <string name="dashboard_customize_cd_toggle">Vaihda kohteen %1$s näkyvyyttä</string>
     <string name="dashboard_customize_cd_drag_handle">Järjestä %1$s uudelleen</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Ei korkeustietoja</string>
     <string name="dashboard_cd_no_altitude_data">Korkeustietoja ei ole saatavilla</string>
     <string name="dashboard_cd_speed_sparkline">Nopeuskäyrä, jossa on %1$d datapistettä</string>
     <string name="dashboard_cd_session_path">Istunnon reitin esikatselu, jossa on %1$d pistettä</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Nopeus</string>
     <string name="dashboard_metric_distance">Matka</string>
     <string name="dashboard_metric_duration">Kesto</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">WiFi</string>
     <string name="dashboard_metric_cell">Tukiasema</string>
     <string name="dashboard_metric_coordinates">Koordinaatit</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Aloita seuranta</string>
     <string name="dashboard_ring_enable_location">Ota sijainti käyttöön</string>
     <string name="dashboard_pill_start">Aloita</string>
     <string name="dashboard_pill_stop">Lopeta</string>
     <string name="dashboard_pill_enable_location">Ota sijainti käyttöön</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Istunnon havainnot</string>
     <string name="dashboard_cd_insight_item">Havainto: %1$s</string>
     <string name="widget_latest_achievement">Viimeisin saavutus</string>

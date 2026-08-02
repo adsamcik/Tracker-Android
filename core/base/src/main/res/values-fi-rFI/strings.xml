@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Core activity types for location-based tracking -->
     <string name="activity_walking">Kävely</string>
     <string name="activity_running">Juoksu</string>
     <string name="activity_bicycle">Pyöräily</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Maakulkuväline</string>
     <string name="activity_water_vehicle">Vesikulkuneuvo</string>
     <string name="activity_air_vehicle">Ilma-alus</string>
-    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">Ajoneuvossa</string>
     <string name="activity_on_foot">Jalan</string>
     <string name="activity_name">Aktiivisuuden nimi</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Paikallaan</string>
     <string name="activity_unknown">Tunnistetaan…</string>
     <string name="activity_vehicle">Ajoneuvo</string>
-    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Haluatko varmasti %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,26 +24,14 @@
     <string name="cell_unknown">Tuntematon</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanavaa käytetään vain aktiivisuuden seurantapalvelulle, joten voit helposti poistaa tämän pysyvän ilmoituksen.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Aktiivisuuden seuranta</string>
     <string name="channel_achievements_description">Saavutuksiin liittyvät ilmoitukset.</string>
-    <!--
-        channel_achievements_id value is intentionally kept as "challenge_channel_id"
-        (the original on-device channel identifier from the pre-Phase-13 challenge era)
-        so existing installs keep their user-configured channel settings on upgrade.
-        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
-        rework; resource VALUE must not change.
-    -->
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Saavutus</string>
     <string name="channel_other_description">Muut ilmoitukset, jotka eivät kuulu mihinkään muuhun luokkaan.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Muut</string>
     <string name="channel_track_description">Seurantaan liittyvät ilmoitukset.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Seuranta</string>
     <string name="channel_goals_description">Tavoitteen täyttymistä koskevat ilmoitukset.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Tavoitteen edistyminen</string>
     <string name="day_short">%d pv</string>
     <string name="generic_add">Lisää</string>

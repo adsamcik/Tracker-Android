@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Tilastot</string>
     <string name="stats_cell_count">Tukiasemien määrä</string>
     <string name="stats_collections">Päivitysten määrä</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Ladataan istuntoja…</string>
     <string name="stats_append_error">Lisälataus epäonnistui</string>
     <string name="action_retry">Yritä uudelleen</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Aloita seuranta</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s askel</item>
         <item quantity="other">%1$s askelta</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Tänään</string>
     <string name="stats_date_yesterday">Eilen</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Ladataan yhteenvetoa…</string>
     <string name="stats_summary_empty">Yhteenvetotilastoja ei ole saatavilla</string>
     <string name="stats_summary_empty_subtitle">Aloita seuranta nähdäksesi aktiivisuusyhteenvedon</string>
     <string name="stats_summary_error">Yhteenvedon lataus epäonnistui</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Ladataan viikkotilastoja…</string>
     <string name="stats_week_empty">Viikkotilastoja ei ole saatavilla</string>
     <string name="stats_week_empty_subtitle">Seuraa 7 päivän ajan nähdäksesi viikkoyhteenvedon</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Havaitut yksilölliset verkot</string>
     <string name="stats_wifi_total_scans">Skannauksia yhteensä</string>
     <string name="stats_wifi_average_per_scan">Verkkoja keskimäärin skannausta kohti</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Mobiilisignaaliraportti</string>
     <string name="stats_cell_signal_dialog_loading">Ladataan mobiilisignaaliraporttia…</string>
     <string name="stats_cell_signal_dialog_empty_title">Mobiilitietoja ei ole saatavilla</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Erilliset tukiasemat</string>
     <string name="stats_cell_signal_section_networks">Verkkotyypeittäin</string>
     <string name="stats_cell_signal_section_towers">Useimmin havaitut tukiasemat</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s näytteistä · %2$s tukiasemaa</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Solu %1$s · %2$s näytettä</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operaattori %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Matkan tiedot</string>
     <string name="trip_detail_not_found">Matkaa ei löytynyt</string>
     <string name="trip_detail_not_found_subtitle">Tämä matka on ehkä poistettu</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Lasku</string>
     <string name="trip_detail_max_altitude">Suurin korkeus</string>
     <string name="trip_detail_route_map">Reittikartta</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Näytä kartalla</string>
     <string name="trip_detail_no_location_data">Ei sijaintitietoja</string>
     <string name="trip_detail_route_unavailable_legacy">Reittikartta ei ole saatavilla vanhoille istunnoille</string>
     <string name="trip_detail_route_no_gps_points">Matka tallennettiin, mutta GPS-reittiä ei ole saatavilla</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Poista</string>
     <string name="trip_detail_cancel">Peruuta</string>
     <string name="trip_detail_more_options">Lisää vaihtoehtoja</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Hiihtoistunto</string>
     <string name="ski_detail_runs">Laskut</string>
     <string name="ski_detail_vertical">Pystyero</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Taajuus</string>
     <string name="wifilist_title_last_seen">Viimeksi nähty</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Aikajana</string>
     <string name="history_tab_trips">Matkat</string>
     <string name="history_tab_calendar">Kalenteri</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d matka</item>
         <item quantity="other">%d matkaa</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Ei aktiviteettia vielä</string>
     <string name="history_timeline_empty_desc">Aloita seuranta nähdäksesi liikehistoriasi täällä</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Ei tallennettuja matkoja</string>
     <string name="history_trips_empty_desc">Matkat näkyvät täällä liikkuessasi</string>
     <string name="trip_gps_anomaly">GPS-poikkeama havaittu — matka voi olla epätarkka</string>
     <string name="trip_deleted_snackbar">Matka poistettu</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Edellinen kuukausi</string>
     <string name="history_calendar_next_month">Seuraava kuukausi</string>
     <string name="history_calendar_distance">Matka</string>
     <string name="history_calendar_steps">Askeleet</string>
     <string name="history_calendar_trips">Matkat</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Tutkiminen</string>
     <string name="history_exploration_cells">Ruudut</string>
     <string name="history_exploration_streak">Putki</string>
     <string name="history_exploration_best">Paras</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Siirry takaisin</string>
-    <!-- History navigation -->
     <string name="history_button_label">Historia</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Näytä matka kartalla</string>
     <string name="stats_heatmap_title">Aktiivisuus</string>
 </resources>

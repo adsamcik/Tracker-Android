@@ -1,13 +1,9 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="notification_activity_watcher_info">Nykyinen aktiivisuus %1$s (%2$d%%)</string>
     <string name="notification_activity_watcher_ticker">Aktiivisuusseurantapalvelu aktiivinen</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_snackbar_message">Poistettu %s</string>
     <string name="settings_activity_title">Aktiviteetit</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
     <string name="settings_activity_watcher_title">Aktiivisuuden seuranta</string>
     <string name="settings_ski_infrastructure_title">Hissitiedot</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Ladattu (poista napauttamalla)</string>

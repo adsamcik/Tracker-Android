@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Peli</string>
     <string name="module_map_title">Kartta</string>
     <string name="module_statistics_title">Tilastot</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Seuraava automaattinen varmuuskopio sisältää kaikki tiedot pelkkien muutosten sijaan</string>
     <string name="settings_reset_export_watermarks_done">Viennin vesileimat nollattu — seuraava varmuuskopio on täydellinen vienti</string>
     <string name="settings_migration_backup_export_title">Vie päivitystä edeltävä turvavarmuuskopio</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Täysi tietokantakopio versiosta v%1$d, luotu ennen siirtoa versioon v%2$d ja säilytetty yksityisesti enintään 30 päivää</string>
     <string name="settings_migration_backup_warning_title">Viedäänkö arkaluonteinen tietokantavarmuuskopio?</string>
     <string name="settings_migration_backup_warning_message">Tämä varmuuskopio voi sisältää tarkkoja sijainteja, Wi-Fi- ja soluhavaintoja, aktiviteetteja ja muita yksityisiä tietoja ennen päivitystä. Tallenna se vain paikkaan, johon luotat.</string>
@@ -105,13 +102,6 @@
         <item>Lentäminen</item>
     </string-array>
     <string name="settings_length_system_title">Pituusyksikköjärjestelmä</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Avoimen lähdekoodin lisenssit</string>
     <string name="settings_licenses_subtitle">Näytä tähän koontiversioon sisältyvät kolmannen osapuolen ilmoitukset.</string>
     <string name="settings_licenses_loading">Ladataan lisenssejä…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Versio</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Koontiversion commit</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Tekijä</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">Sähköposti</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Linkit</string>
     <string name="about_attributions_title">Tietolähteet</string>
     <string name="about_attribution_geonames_label">Paikannimet</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Kartta- ja katutiedot</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Moduuliasetukset</string>
     <string name="settings_core_group_title">Ydin</string>
     <string name="settings_other_title">Yksiköt ja näyttö</string>
@@ -151,16 +135,9 @@
         <item>Nopeus (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Nopeusmuoto</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Asetukset</string>
     <string name="switch_state_on">Päällä</string>
     <string name="switch_state_off">Pois</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Seuraa matkojasi yksityisesti</string>
     <string name="onboarding_streamlined_subtitle">Kaikki tiedot pysyvät laitteellasi. Ei pilvisynkronointia tai kolmannen osapuolen seurantaa.</string>
     <string name="onboarding_benefit_privacy_title">Yksityisyys ensin</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">ALOITA</string>
     <string name="onboarding_privacy_policy_button">Lue tietosuojakäytäntö</string>
     <string name="onboarding_state_read_error_message">Emme voineet varmistaa, oliko käyttöönotto jo valmis, joten käyttöönotto näytetään tietojesi suojaamiseksi. Voit jatkaa turvallisesti.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Poista vanhat tiedot automaattisesti</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Säilytä tiedot ikuisesti; automaattinen siivous ei poista vanhoja tietoja</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Poista automaattisesti yli %1$d vuoden vanhat tiedot</item>
         <item quantity="other">Poista automaattisesti yli %1$d vuotta vanhat tiedot</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Säilytä tietoja</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Säilytä ikuisesti</item>
@@ -189,17 +164,7 @@
         <item>5 vuotta</item>
         <item>10 vuotta</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">JATKA</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Vie tiedot</string>
     <string name="settings_export_data_summary">Tallenna seurantatietosi useissa muodoissa</string>
     <string name="export_format_dialog_title">Valitse vientimuoto</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Vienti</string>
     <string name="settings_import_summary">Tuo tietoja tuetuista tyypeistä (%1$s) ja arkistoista (%2$s). Tietokantatuonnit yhdistävät yhteensopivat rivit eivätkä korvaa olemassa olevia tietoja.</string>
     <string name="settings_import_title">Tuonti</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Selvä</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Pieni vaikutus</string>
     <string name="battery_impact_moderate">Kohtalainen vaikutus</string>
     <string name="battery_impact_high">Suuri vaikutus</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Valitse sijainnin tarkkuus</string>
     <string name="precision_mode_approximate_title">Likimääräinen</string>
     <string name="precision_mode_approximate_description">Verkkopohjainen sijainti. Sopii yleisalueen seurantaan vähäisellä akunkulutuksella.</string>
     <string name="precision_mode_precise_title">Tarkka</string>
     <string name="precision_mode_precise_description">GPS-pohjainen sijainti. Paras yksityiskohtaisille reiteille, lämpökartoille ja haasteille.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Ota tarkka seuranta käyttöön</string>
     <string name="upgrade_to_precise_message_general">Käytät likimääräistä sijaintia. Vaihda tarkkaan GPS-seurantaan saadaksesi paremman tarkkuuden.</string>
     <string name="upgrade_to_precise_message_route_analysis">Tarkkaa sijaintia suositellaan täsmälliseen reittianalyysiin ja etäisyysmittauksiin.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Tarkka GPS kuluttaa enemmän akkua. Arvioitu seuranta-aika: 6–8 tuntia tavallisilla laitteilla.</string>
     <string name="upgrade_to_precise_button_upgrade">Ota tarkka sijainti käyttöön</string>
     <string name="upgrade_to_precise_button_cancel">Ehkä myöhemmin</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Korkea tarkkuus</string>
     <string name="tracking_preset_high_accuracy_description">Parhaat yksityiskohdat nopeimmilla päivityksillä ja kaikki tärkeimmät anturit käytössä</string>
     <string name="tracking_preset_balanced_name">Tasapainotettu</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Seurantakäytäntö</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Arvioitu seuranta: %d tunti</item>
         <item quantity="other">Arvioitu seuranta: %d tuntia</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Valitse, kuinka tarkasti Tracker tallentaa sijaintisi</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Automaattinen yksikön vaihto</string>
     <string name="settings_module_map_subtitle">Lämpökartan laatu- ja visualisointiasetukset</string>
     <string name="settings_module_game_subtitle">Tavoitteet, saavutukset ja virstanpylväät</string>
     <string name="action_navigate_back">Siirry takaisin</string>
     <string name="action_help">Ohje</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Ladataan…</string>
     <string name="widget_quick_start_name">Trackerin pika-aloitus</string>
     <string name="widget_quick_start_description">Aloita tai lopeta sijainninseuranta yhdellä napautuksella.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Ympäristö</string>
     <string name="widget_tier_active">Aktiivinen</string>
     <string name="widget_tier_precision">Tarkkuus</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Hienoa edistymistä!</string>
     <string name="goal_notification_title_almost">Melkein perillä!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Älykkäät tavoiteilmoitukset</string>
     <string name="settings_smart_goal_notifications_summary">Saat ilmoituksen, kun olet lähellä päivittäistä askeltavoitettasi</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Miten seurannan pitäisi toimia?</string>
     <string name="setup_how_to_track_subtitle">Valitse, milloin seuranta alkaa ja kuinka yksityiskohtaista sen tulee olla.</string>
     <string name="setup_auto_tracking_title">Automaattinen seuranta</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Aloita tutkiminen</string>
     <string name="setup_continue">Jatka</string>
     <string name="setup_step_indicator">Vaihe %1$d / %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Verkkokarttalaatat?</string>
     <string name="setup_online_tiles_subtitle">Trackerissa on offline-taustakartta, joten se toimii ilman verkkoyhteyttä. Jos haluat monipuolisempia karttoja, voit käyttää julkisen tarjoajan karttalaattavirtaa.</string>
     <string name="setup_online_tiles_off_title">Vain offline (suositeltu)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Käytä yksityiskohtaisempia vektorikarttalaattoja OpenFreeMapista (oletus). Voit vaihtaa tarjoajaa myöhemmin kohdassa Asetukset → Kartta.</string>
     <string name="setup_online_tiles_privacy">Kun toiminto on käytössä, tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat — suurin piirtein katsomasi kartta-alueen. Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaasi.</string>
     <string name="setup_online_tiles_change_later">Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Kartta → Verkkokarttalaatat.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Jotta matkoja voidaan tallentaa näytön ollessa pois päältä tai sovelluksen ollessa suljettuna, Trackerin on jatkettava toimintaa taustalla. Puhelimen akkuasetukset voivat keskeyttää sen — salli taustatoiminta, jotta automaattinen seuranta pysyy luotettavana.</string>
     <string name="setup_background_access_optional">Valinnainen, mutta suositeltu. Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Seuranta.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Luotettava taustaseuranta</string>
     <string name="background_reliability_status_exempt">Taustatoiminta sallittu</string>
     <string name="background_reliability_status_optimized">Akun optimointi on käytössä</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Salli taustatoiminta</string>
     <string name="background_reliability_samsung_hint">Samsung-laitteet voivat myös siirtää sovelluksia Nukkuvat sovellukset -luokkaan. Avaa akkuasetukset, poista Tracker Nukkuvat sovellukset -luokasta ja määritä, ettei sitä aseteta nukkumaan.</string>
     <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
     <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
     <string name="settings_tracebox_status_header">Tallennuksen tila</string>

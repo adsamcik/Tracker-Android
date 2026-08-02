@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Aktiivisuus</string>
     <string name="activity_value">%s</string>
@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">Akkutehokas tila (aktiivisuuden tunnistus on hieman hitaampi)</string>
     <string name="settings_auto_tracking_transition_title">Käytä aktiivisuussiirtymiä</string>
     <string name="settings_cell_enabled_title">Solu</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Automaattinen seuranta on poistettu käytöstä, kunnes puhelin yhdistetään laturiin</string>
     <string name="settings_disabled_recharge_title">Poistettu käytöstä lataukseen asti</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Sijainti</string>
     <string name="settings_notification_customize_summary">Muuta, mitä ja missä järjestyksessä seurantailmoituksessa näytetään.</string>
     <string name="settings_notification_customize_title">Mukauta ilmoitusta</string>
@@ -135,17 +131,13 @@
     <string name="insight_comparison_desc">Tämä istunto oli %1$d%% pidempi kuin viimeaikainen keskiarvosi</string>
     <string name="wifi_count_title">Wi-Fi-määrä</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
-    <!-- Soft hint when Wi‑Fi permission is missing -->
     <string name="wifi_permission_hint_title">Salli Wi‑Fi parempaa sisätarkkuutta varten</string>
     <string name="wifi_permission_hint_text">Myönnä Wi‑Fi-lupa sovelluksen asetuksissa parantaaksesi signaalipohjaista sisäpaikannusta. Wi‑Fi-radiotietoja ei kerätä ennen luvan myöntämistä.</string>
-    <!-- Tracker Dashboard -->
-    <!-- Today Progress Card -->
     <string name="dashboard_today_title">Tänään</string>
     <string name="dashboard_today_empty_title">Ei istuntoja tänään</string>
     <string name="dashboard_today_distance">Matka</string>
     <string name="dashboard_today_steps">Askeleet</string>
     <string name="dashboard_today_duration">Kesto</string>
-    <!-- Tracking Presets -->
     <string name="tracking_preset_title">Seurantatila</string>
     <string name="tracking_preset_battery_saver_title">Virransäästö</string>
     <string name="tracking_preset_battery_saver_desc">Optimoitu koko päivän seurantaan</string>
@@ -154,35 +146,27 @@
     <string name="tracking_preset_high_precision_title">Korkea tarkkuus</string>
     <string name="tracking_preset_high_precision_desc">Enimmäisyksityiskohdat ja -tarkkuus</string>
     <string name="tracking_preset_custom_badge">Mukautetut asetukset käytössä</string>
-    <!-- Battery Impact Indicators -->
     <string name="battery_impact_low">Pieni vaikutus akkuun</string>
     <string name="battery_impact_moderate">Kohtalainen vaikutus akkuun</string>
     <string name="battery_impact_high">Suurempi akunkulutus</string>
     <string name="battery_impact_high_warning">Tämä määritys voi lyhentää akun kestoa merkittävästi. Harkitse Tasapainotettu-tilaa koko päivän seurantaan.</string>
-    <!-- Advanced Settings Section -->
-    <!-- Help Text for Advanced Settings -->
     <string name="help_min_distance">Tracker odottaa, kunnes olet liikkunut näin pitkälle ennen seuraavan sijainnin tallentamista. Pienemmät arvot tarkoittavat yksityiskohtaisempia reittejä mutta suurempaa akunkulutusta.</string>
     <string name="help_min_time">Kuinka usein Tracker tarkistaa sijaintisi. Pienemmät arvot tarkoittavat tiheämpiä päivityksiä mutta suurempaa akunkulutusta.</string>
     <string name="help_required_accuracy">GPS-tarkkuuskynnys. Tracker ohittaa sijaintipäivitykset, joiden tarkkuus on tätä arvoa huonompi. Pienempi arvo on tarkempi, mutta päivityksiä voi jäädä väliin heikoissa GPS-olosuhteissa.</string>
     <string name="help_transition_detection">Tracker käynnistyy ja pysähtyy automaattisesti liikkeesi perusteella. Se käyttää vähemmän akkua kuin jatkuva GPS, mutta voi viivästyttää aktiviteetin muutosten tunnistamista.</string>
-    <!-- Policy Tier Indicator (Phase 4a) -->
     <string name="policy_tier_ambient">Ympäristö</string>
     <string name="policy_tier_active">Aktiivinen</string>
     <string name="policy_tier_precision">Tarkkuus</string>
-    <!-- Recent Trips Card (Phase 4d) -->
     <string name="dashboard_recent_trips">Viimeisimmät matkat</string>
-    <!-- Hardcoded string extractions -->
     <string name="tracker_hide_details">Piilota tiedot</string>
     <string name="tracker_show_sensor_details">Näytä anturitiedot</string>
     <string name="tracker_view_map">Näytä kartta</string>
     <string name="tracker_average_label">Keskiarvo</string>
     <string name="tracker_accuracy_label">Tarkkuus</string>
     <string name="tracker_disabled">Poistettu käytöstä</string>
-    <!-- Content descriptions -->
     <string name="tracker_lock_icon_desc">Lukituksen tila</string>
     <string name="tracker_settings_icon_desc">Komponentin asetukset</string>
     <string name="tracker_points_icon_desc">Pisteiden edistyminen</string>
-    <!-- Hardcoded string extractions (HI-03) -->
     <string name="tracker_start_button">ALOITA</string>
     <string name="tracker_duration_label">Kesto</string>
     <string name="tracker_distance_label">Matka</string>
@@ -203,7 +187,6 @@
     <string name="policy_tier_status_prefix">GPS-käytäntö:</string>
     <string name="tracker_precision_chip_hint">Vaihda tilaan %1$s napauttamalla</string>
     <string name="action_navigate_back">Siirry takaisin</string>
-    <!-- Session Insights (Task F) -->
     <string name="insight_distance_title">Kuljettu matka</string>
     <string name="insight_distance_desc">Kuljit tällä istunnolla %1$s.</string>
     <string name="insight_steps_title">Tallennetut askeleet</string>
