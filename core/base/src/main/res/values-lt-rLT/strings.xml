@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Core activity types for location-based tracking -->
     <string name="activity_walking">Ėjimas pėsčiomis</string>
     <string name="activity_running">Bėgimas</string>
     <string name="activity_bicycle">Dviratis</string>
@@ -8,7 +7,6 @@
     <string name="activity_land_vehicle">Sausumos transporto priemonė</string>
     <string name="activity_water_vehicle">Vandens transporto priemonė</string>
     <string name="activity_air_vehicle">Oro transporto priemonė</string>
-    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">Transporto priemonėje</string>
     <string name="activity_on_foot">Pėsčiomis</string>
     <string name="activity_name">Veiklos pavadinimas</string>
@@ -17,7 +15,6 @@
     <string name="activity_still">Nejudama</string>
     <string name="activity_unknown">Aptinkama…</string>
     <string name="activity_vehicle">Transporto priemonė</string>
-    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Ar tikrai norite %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -27,26 +24,14 @@
     <string name="cell_unknown">Nežinoma</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanalas, naudojamas tik veiklos stebėjimo paslaugai, kad galėtumėte lengvai pašalinti šį nuolatinį pranešimą.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Veiklos stebėjimas</string>
     <string name="channel_achievements_description">Su pasiekimais susiję pranešimai.</string>
-    <!--
-        channel_achievements_id value is intentionally kept as "challenge_channel_id"
-        (the original on-device channel identifier from the pre-Phase-13 challenge era)
-        so existing installs keep their user-configured channel settings on upgrade.
-        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
-        rework; resource VALUE must not change.
-    -->
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Pasiekimai</string>
     <string name="channel_other_description">Kiti pranešimai, nepriskirti jokiai kitai kategorijai.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Kita</string>
     <string name="channel_track_description">Su sekimu susiję pranešimai.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Sekimas</string>
     <string name="channel_goals_description">Pranešimai apie tikslo įvykdymą.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Tikslo eiga</string>
     <string name="day_short">%d d.</string>
     <string name="generic_add">Pridėti</string>

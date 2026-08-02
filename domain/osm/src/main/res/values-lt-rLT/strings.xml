@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">OSM žemėlapio importavimas</string>
     <string name="osm_import_notification_channel_description">Pirmame plane rodomas pranešimas, kol analizuojamas naudotojo importuotas „OpenStreetMap“ regionas.</string>
     <string name="osm_import_notification_title">Importuojamas „OpenStreetMap“ regionas</string>
     <string name="osm_import_notification_content">Išanalizuota kelių: %1$d</string>

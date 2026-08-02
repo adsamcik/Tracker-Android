@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Vietos leidimas nepasiekiamas</string>
     <string name="dashboard_permission_banner_subtitle">„Tracker“ negali įrašyti maršrutų, kol nesuteiksite prieigos prie vietos. Palieskite, kad suteiktumėte.</string>
     <string name="dashboard_permission_banner_cd">Vietos leidimo nepasiekiamumo juosta, palieskite, kad suteiktumėte prieigą prie vietos</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Veiklos tipas</string>
     <string name="dashboard_cd_explore_icon">Tyrinėjimas</string>
     <string name="dashboard_cd_forward_arrow">Peržiūrėti išsamią informaciją</string>
@@ -29,18 +28,15 @@
     <string name="dashboard_action_view_streak_details">Peržiūrėti serijos informaciją</string>
     <string name="dashboard_action_open_tracking_settings">Nustatymai</string>
     <string name="dashboard_action_restart_tracking">Paleisti iš naujo</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Aukščio profilis, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Laukiama GPS signalo…</string>
     <string name="dashboard_tracking_recording_route">Įrašomas maršrutas…</string>
     <string name="dashboard_milestone_distance">km pasiekta!</string>
     <string name="dashboard_milestone_steps">žingsnių pasiekta!</string>
     <string name="dashboard_milestone_time">min. sekimo!</string>
     <string name="dashboard_milestone_points">+10 tšk.</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Šiandien</string>
     <string name="dashboard_today_no_activity">Šiandien dar nėra veiklos</string>
     <string name="dashboard_today_distance">Atstumas</string>
@@ -66,10 +62,8 @@
     <string name="dashboard_exploration_new_today">Nauja šiandien</string>
     <string name="dashboard_exploration_total_cells">Iš viso langelių</string>
     <string name="dashboard_exploration_seasons">Metų laikai</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Greitis</string>
     <string name="dashboard_live_charts_altitude">Aukštis</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Jutiklių informacija</string>
     <string name="dashboard_sensor_expand">Išskleisti jutiklių informaciją</string>
     <string name="dashboard_sensor_collapse">Suskleisti jutiklių informaciją</string>
@@ -81,10 +75,8 @@
     <string name="dashboard_sensor_speed">Greitis</string>
     <string name="dashboard_sensor_cell_types">Ląstelių tipai</string>
     <string name="dashboard_sensor_raw_coords">Koordinatės (derinimas)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Didėjanti tendencija</string>
     <string name="dashboard_trend_down">Mažėjanti tendencija</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Tik pradedate…</string>
     <string name="dashboard_motivational_keep_going">Nesustokite! 💪</string>
     <string name="dashboard_motivational_impressive">Įspūdinga sesija!</string>
@@ -94,7 +86,6 @@
     <string name="dashboard_motivational_evening">Labas vakaras! Peržiūrėti dieną?</string>
     <string name="dashboard_motivational_night">Naktinės pelėdos režimas 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d dienų serija!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Jūsų kelionė prasideda čia</string>
     <string name="dashboard_empty_subtitle">Naudokite žemiau esančią kortelę „Pasiruošę, kai būsite jūs“, kad prireikus suteiktumėte prieigą prie vietos ir pradėtumėte pirmą nuotykį</string>
     <string name="dashboard_empty_feature_explore">Tyrinėkite</string>
@@ -117,23 +108,19 @@
     <string name="dashboard_empty_fab_hint_title">Pasiruošę, kai būsite jūs</string>
     <string name="dashboard_empty_fab_hint_desc">Palieskite čia, kad pradėtumėte pirmą sekimo sesiją.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Palieskite čia, kad suteiktumėte prieigą prie vietos, tada pradėkite pirmą sekimo sesiją.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Šiandienos pažanga</string>
     <string name="widget_streak">Serija</string>
     <string name="widget_last_session">Paskutinė sesija</string>
     <string name="widget_recent_trips">Naujausios kelionės</string>
     <string name="widget_exploration">Tyrinėjimas</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Tinkinti skydelį</string>
     <string name="dashboard_customize_reset">Atstatyti numatytuosius</string>
     <string name="dashboard_customize_cd_toggle">Perjungti %1$s matomumą</string>
     <string name="dashboard_customize_cd_drag_handle">Keisti %1$s tvarką</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Nėra aukščio duomenų</string>
     <string name="dashboard_cd_no_altitude_data">Aukščio duomenų nėra</string>
     <string name="dashboard_cd_speed_sparkline">Greičio kibirkštinė diagrama su %1$d duomenų taškų</string>
     <string name="dashboard_cd_session_path">Sesijos maršruto peržiūra su %1$d taškų</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Greitis</string>
     <string name="dashboard_metric_distance">Atstumas</string>
     <string name="dashboard_metric_duration">Trukmė</string>
@@ -145,13 +132,11 @@
     <string name="dashboard_metric_wifi">Wi‑Fi</string>
     <string name="dashboard_metric_cell">Ląstelė</string>
     <string name="dashboard_metric_coordinates">Koordinatės</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Pradėti sekimą</string>
     <string name="dashboard_ring_enable_location">Įjungti vietą</string>
     <string name="dashboard_pill_start">Pradėti</string>
     <string name="dashboard_pill_stop">Sustabdyti</string>
     <string name="dashboard_pill_enable_location">Įjungti vietą</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Sesijos įžvalgos</string>
     <string name="dashboard_cd_insight_item">Įžvalga: %1$s</string>
     <string name="widget_latest_achievement">Naujausias pasiekimas</string>

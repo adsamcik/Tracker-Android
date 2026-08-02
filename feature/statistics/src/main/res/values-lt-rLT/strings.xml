@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Ląstelių skaičius</string>
     <string name="stats_collections">Atnaujinimų skaičius</string>
@@ -45,22 +44,18 @@
     <string name="stats_loading">Įkeliamos sesijos…</string>
     <string name="stats_append_error">Nepavyko įkelti daugiau</string>
     <string name="action_retry">Bandyti dar kartą</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Pradėti sekimą</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s žingsnis</item>
         <item quantity="few">%1$s žingsniai</item>
         <item quantity="other">%1$s žingsnių</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Šiandien</string>
     <string name="stats_date_yesterday">Vakar</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Įkeliama suvestinė…</string>
     <string name="stats_summary_empty">Suvestinės statistikos nėra</string>
     <string name="stats_summary_empty_subtitle">Pradėkite sekti, kad matytumėte veiklos suvestinę</string>
     <string name="stats_summary_error">Nepavyko įkelti suvestinės</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Įkeliama savaitinė statistika…</string>
     <string name="stats_week_empty">Savaitinės statistikos nėra</string>
     <string name="stats_week_empty_subtitle">Sekite 7 dienas, kad matytumėte savaitės suvestinę</string>
@@ -73,7 +68,6 @@
     <string name="stats_wifi_unique_networks">Matyti unikalūs tinklai</string>
     <string name="stats_wifi_total_scans">Iš viso nuskaitymų</string>
     <string name="stats_wifi_average_per_scan">Vidutinis tinklų skaičius per nuskaitymą</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Ląstelės signalo ataskaita</string>
     <string name="stats_cell_signal_dialog_loading">Įkeliama ląstelės signalo ataskaita…</string>
     <string name="stats_cell_signal_dialog_empty_title">Nėra ląstelių duomenų</string>
@@ -83,13 +77,9 @@
     <string name="stats_cell_signal_distinct_towers">Skirtingi bokštai</string>
     <string name="stats_cell_signal_section_networks">Pagal tinklo tipą</string>
     <string name="stats_cell_signal_section_towers">Dažniausiai matyti bokštai</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s pavyzdžių · %2$s bokštų</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Ląstelė %1$s · %2$s pavyzdžių</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operatorius %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Kelionės informacija</string>
     <string name="trip_detail_not_found">Kelionė nerasta</string>
     <string name="trip_detail_not_found_subtitle">Ši kelionė galėjo būti ištrinta</string>
@@ -111,7 +101,7 @@
     <string name="trip_detail_elevation_loss">Aukščio nuostolis</string>
     <string name="trip_detail_max_altitude">Didžiausias aukštis</string>
     <string name="trip_detail_route_map">Maršruto žemėlapis</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Rodyti žemėlapyje</string>
     <string name="trip_detail_no_location_data">Nėra vietos duomenų</string>
     <string name="trip_detail_route_unavailable_legacy">Maršruto žemėlapis nepasiekiamas senesnėms sesijoms</string>
     <string name="trip_detail_route_no_gps_points">Atstumas įrašytas, bet GPS maršrutas nepasiekiamas</string>
@@ -122,7 +112,6 @@
     <string name="trip_detail_delete_confirm">Ištrinti</string>
     <string name="trip_detail_cancel">Atšaukti</string>
     <string name="trip_detail_more_options">Daugiau parinkčių</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Slidinėjimo sesija</string>
     <string name="ski_detail_runs">Nusileidimai</string>
     <string name="ski_detail_vertical">Vertikalus kritimas</string>
@@ -146,7 +135,6 @@
     <string name="wifilist_title_frequency">Dažnis</string>
     <string name="wifilist_title_last_seen">Paskutinį kartą matyta</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Laiko juosta</string>
     <string name="history_tab_trips">Kelionės</string>
     <string name="history_tab_calendar">Kalendorius</string>
@@ -156,30 +144,23 @@
         <item quantity="few">%d kelionės</item>
         <item quantity="other">%d kelionių</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Dar nėra veiklos</string>
     <string name="history_timeline_empty_desc">Pradėkite sekti, kad čia matytumėte judėjimo istoriją</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Nėra įrašytų kelionių</string>
     <string name="history_trips_empty_desc">Keliaujant čia bus rodomos kelionės</string>
     <string name="trip_gps_anomaly">Aptikta GPS anomalija – atstumas gali būti netikslus</string>
     <string name="trip_deleted_snackbar">Kelionė ištrinta</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Ankstesnis mėnuo</string>
     <string name="history_calendar_next_month">Kitas mėnuo</string>
     <string name="history_calendar_distance">Atstumas</string>
     <string name="history_calendar_steps">Žingsniai</string>
     <string name="history_calendar_trips">Kelionės</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Tyrinėjimas</string>
     <string name="history_exploration_cells">Langeliai</string>
     <string name="history_exploration_streak">Serija</string>
     <string name="history_exploration_best">Geriausia</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Grįžti atgal</string>
-    <!-- History navigation -->
     <string name="history_button_label">Istorija</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Rodyti kelionę žemėlapyje</string>
     <string name="stats_heatmap_title">Veikla</string>
 </resources>
