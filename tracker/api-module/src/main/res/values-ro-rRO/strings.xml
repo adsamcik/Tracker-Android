@@ -63,12 +63,8 @@
     <string name="settings_auto_tracking_transition_summary">Mod eficient pentru baterie (detectarea activității este puțin mai lentă)</string>
     <string name="settings_auto_tracking_transition_title">Folosește tranzițiile activității</string>
     <string name="settings_cell_enabled_title">Celulă</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Urmărirea automată este dezactivată până când telefonul este conectat la încărcător</string>
     <string name="settings_disabled_recharge_title">Dezactivată până la reîncărcare</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Locație</string>
     <string name="settings_notification_customize_summary">Schimbă ce elemente apar și în ce ordine în notificarea de urmărire.</string>
     <string name="settings_notification_customize_title">Personalizează notificarea</string>

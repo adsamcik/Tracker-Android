@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Joc</string>
     <string name="module_map_title">Hartă</string>
     <string name="module_statistics_title">Statistici</string>
@@ -107,13 +105,6 @@
         <item>Zbor</item>
     </string-array>
     <string name="settings_length_system_title">Sistem de lungimi</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Licențe open-source</string>
     <string name="settings_licenses_subtitle">Vezi notificările terților incluse în această versiune.</string>
     <string name="settings_licenses_loading">Se încarcă licențele…</string>
@@ -129,19 +120,13 @@
     <string name="about_version_label">Versiune</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Commit de compilare</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-mail</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Linkuri</string>
     <string name="about_attributions_title">Atribuiri de date</string>
     <string name="about_attribution_geonames_label">Nume de locuri</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Date despre hartă și străzi</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Setări de module</string>
     <string name="settings_core_group_title">De bază</string>
     <string name="settings_other_title">Unități și afișare</string>
@@ -153,11 +138,6 @@
         <item>Viteză (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Formatul vitezei</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Setări</string>
     <string name="switch_state_on">Pornit</string>
     <string name="switch_state_off">Oprit</string>
@@ -172,7 +152,6 @@
     <string name="onboarding_get_started">ÎNCEPE</string>
     <string name="onboarding_privacy_policy_button">Citește politica de confidențialitate</string>
     <string name="onboarding_state_read_error_message">Nu am putut verifica dacă configurarea era deja finalizată, așa că o afișăm pentru a-ți păstra datele private. Poți continua în siguranță.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Curăță automat datele vechi</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Păstrează datele pentru totdeauna; curățarea automată nu va șterge datele vechi</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
@@ -188,14 +167,6 @@
         <item>3 ani</item>
         <item>5 ani</item>
         <item>10 ani</item>
-    </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
     </string-array>
     <string name="button_continue">CONTINUĂ</string>
     <string name="settings_export_data_title">Exportă datele</string>

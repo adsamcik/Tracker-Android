@@ -101,7 +101,7 @@
     <string name="trip_detail_elevation_loss">Coborâre totală</string>
     <string name="trip_detail_max_altitude">Altitudine maximă</string>
     <string name="trip_detail_route_map">Harta rutei</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Vezi pe hartă</string>
     <string name="trip_detail_no_location_data">Nu există date de localizare</string>
     <string name="trip_detail_route_unavailable_legacy">Harta rutei nu este disponibilă pentru sesiunile vechi</string>
     <string name="trip_detail_route_no_gps_points">Distanța a fost înregistrată, dar nu există rută GPS disponibilă</string>
@@ -161,6 +161,6 @@
     <string name="history_exploration_best">Cel mai bun</string>
     <string name="action_navigate_back">Navighează înapoi</string>
     <string name="history_button_label">Istoric</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">Vezi călătoria pe hartă</string>
     <string name="stats_heatmap_title">Activitate</string>
 </resources>

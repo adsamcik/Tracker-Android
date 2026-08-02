@@ -24,19 +24,14 @@
     <string name="cell_unknown">Necunoscut</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Canal utilizat exclusiv de serviciul Monitor activitate, pentru a putea elimina ușor acea notificare permanentă.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Monitor activitate</string>
     <string name="channel_achievements_description">Notificări legate de realizări.</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Realizări</string>
     <string name="channel_other_description">Alte notificări care nu aparțin niciunei alte categorii.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Altele</string>
     <string name="channel_track_description">Notificări legate de urmărire.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Urmărire</string>
     <string name="channel_goals_description">Alerte pentru finalizarea obiectivelor.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Progres obiectiv</string>
     <string name="day_short">%d d</string>
     <string name="generic_add">Adaugă</string>

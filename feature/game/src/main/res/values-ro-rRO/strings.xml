@@ -165,7 +165,6 @@
     <string name="minigame_failure_persistence">Nu am putut salva această alergare. Încearcă din nou.</string>
     <string name="minigame_failure_generic">Ceva nu a mers bine și alergarea s-a oprit.</string>
     <string name="minigame_session_try_again">Încearcă din nou</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Joc activ</string>
     <string name="game_session_channel_description">Menține activ un mini-joc când ecranul este stins</string>
     <string name="game_session_notification_title">Joc Tracker</string>
