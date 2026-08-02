@@ -180,6 +180,8 @@ def locale_index(
         if info.qualifier == "values":
             continue
         for node in read_resource_nodes(info):
+            if node.get("translatable") == "false":
+                continue
             key = (info.module, info.filename, node.tag, node.get("name", ""))
             index[key].append(info.qualifier)
     return {key: sorted(qualifiers) for key, qualifiers in index.items()}
@@ -272,8 +274,9 @@ the default resource set and is not duplicated as a locale bucket.
 
 1. Use tools/prepare_locale_resources.py <qualifier> to create or refresh the
    locale's complete resource schema before translating.
-2. Translate every resource whose translatable field is true. Preserve the exact
-   default content of resources marked translatable="false".
+2. Translate every resource whose translatable field is true. Do not copy resources
+   marked translatable="false" into locale directories; Android falls back to the
+   default values definition for them.
 3. Preserve resource names, XML structure, formatted and tools:ignore attributes,
    positional placeholders (for example %1$s and %2$d), escaped apostrophes,
    markup, and literal %% characters.
@@ -294,13 +297,13 @@ the default resource set and is not duplicated as a locale bucket.
 | --- | ---: |
 {module_rows}
 
-## Existing localization coverage before this translation pass
+## Current localization coverage
 
-The existing buckets are partial and should not be treated as complete. Counts are
-the number of resource definitions across all modules, not a translation-quality
-rating.
+Counts are localizable, user-facing resource definitions across all modules, not a
+translation-quality rating. The target locale qualifiers listed above are maintained
+as complete translations; other locale buckets may remain partial.
 
-| Qualifier | Resource definitions |
+| Qualifier | Localizable resource definitions |
 | --- | ---: |
 {existing_rows}
 
@@ -325,8 +328,8 @@ def main() -> None:
     existing_locale_counts = Counter(
         info.qualifier
         for info in infos
-        for _ in read_resource_nodes(info)
-        if info.qualifier != "values"
+        for node in read_resource_nodes(info)
+        if info.qualifier != "values" and node.get("translatable") != "false"
     )
     payload = {
         "schema_version": 1,
