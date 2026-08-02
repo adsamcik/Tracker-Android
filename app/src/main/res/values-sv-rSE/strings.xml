@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Spel</string>
+    <string name="module_map_title">Karta</string>
+    <string name="module_statistics_title">Statistik</string>
+    <string name="main_nav_tracker">Hem</string>
+    <string name="settings_clear_preferences_title">Rensa inställningar</string>
+    <string name="settings_clear_preferences_message">Detta återställer alla appinställningar (funktionsväxlar och gränssnittsinställningar). Dina spårningsdata påverkas inte. Fortsätta?</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_debug_group_title">Felsökning</string>
+    <string name="settings_debug_title">Utvecklaralternativ</string>
+    <string name="settings_debug_developer_tools_section">Utvecklarverktyg</string>
+    <string name="settings_debug_disable_developer_subtitle">Dölj utvecklaralternativ från inställningarna</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Utvecklarläget är avstängt</string>
+    <string name="settings_data_management_section">Datahantering</string>
+    <string name="settings_data_danger_zone_section">Riskzon</string>
+    <string name="settings_osm_import_section">Kartdata (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Importera OSM-region</string>
+    <string name="settings_osm_import_action_summary">Välj en .osm.pbf-fil. Fordonsefterlevnad använder sedan verkliga vägbegränsningar offline.</string>
+    <string name="settings_osm_import_unavailable_title">Offlineimport av karta är inte tillgänglig</string>
+    <string name="settings_osm_import_action_unavailable">Offlineimport av karta är tillfälligt otillgänglig medan filskyddet färdigställs.</string>
+    <string name="settings_osm_import_action_running">Importerar — tryck för att avbryta</string>
+    <string name="settings_osm_import_action_failed">Offlineimporten av kartan kunde inte slutföras.</string>
+    <string name="settings_osm_import_action_source_unavailable">Den valda kartfilen kunde inte öppnas.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Importerade %1$d väg från %2$d noder.</item>
+        <item quantity="other">Importerade %1$d vägar från %2$d noder.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Ingen OpenStreetMap-region har importerats ännu.</string>
+    <string name="settings_osm_imports_attribution">Kartdata © OpenStreetMap-bidragsgivare (ODbL 1.0). All bearbetning sker på enheten.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d väg · importerad %2$s</item>
+        <item quantity="other">%1$,d vägar · importerade %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Ta bort importerad region</string>
+    <string name="settings_osm_import_remove_message">Ta bort %1$s? Fordonsefterlevnad återgår till den fasta baslinjen tills du importerar en region igen.</string>
+    <string name="settings_incremental_backups_title">Inkrementella säkerhetskopior</string>
+    <string name="settings_incremental_backups_summary">Exportera bara nya data sedan senaste säkerhetskopian. Minskar exporttiden och filstorleken.</string>
+    <string name="settings_reset_export_watermarks_title">Tvinga fullständig export</string>
+    <string name="settings_reset_export_watermarks_summary">Nästa automatiska säkerhetskopia inkluderar alla data i stället för bara ändringar</string>
+    <string name="settings_reset_export_watermarks_done">Exportmarkeringarna återställdes — nästa säkerhetskopia blir en fullständig export</string>
+    <string name="settings_migration_backup_export_title">Exportera säkerhetskopia före uppgradering</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Fullständig databaskopia från v%1$d, skapad före migrering till v%2$d och lagrad privat i upp till 30 dagar</string>
+    <string name="settings_migration_backup_warning_title">Exportera känslig databassäkerhetskopia?</string>
+    <string name="settings_migration_backup_warning_message">Den här säkerhetskopian kan innehålla exakta platser, Wi-Fi- och cellobservationer, aktiviteter och andra privata data från före uppgraderingen. Spara den bara på en plats du litar på.</string>
+    <string name="settings_migration_backup_export_action">Exportera säkerhetskopia</string>
+    <string name="settings_migration_backup_export_success">Säkerhetskopian före uppgraderingen har exporterats</string>
+    <string name="settings_migration_backup_export_failure">Kunde inte exportera säkerhetskopian före uppgraderingen</string>
+    <string name="settings_migration_backup_export_cleanup_required">Exporten misslyckades. Ta bort den delvis exporterade säkerhetskopian från den valda platsen.</string>
+    <string name="settings_delete_data_success">Alla insamlade data har raderats</string>
+    <string name="settings_delete_data_failure">Kunde inte radera alla insamlade data</string>
+    <string name="settings_game_goals_title">Mål</string>
+    <string name="settings_game_daily_target_title">Dagligt stegmål</string>
+    <string name="settings_game_weekly_target_title">Veckovis stegmål</string>
+    <string name="settings_game_daily_contribution_title">Maximalt dagligt bidrag</string>
+    <string name="settings_game_steps_unit">steg</string>
+    <string name="settings_game_notifications_title">Aviseringar</string>
+    <string name="settings_game_goal_notifications_title">Aviseringar om målförlopp</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Få en lokal påminnelse vid 75% och 90% av ditt dagliga mål.</string>
+    <string name="settings_game_during_games_title">Under spel</string>
+    <string name="settings_game_haptics_title">Haptik i spel</string>
+    <string name="settings_game_haptics_summary">Använd diskreta vibrationer som återkoppling i spel.</string>
+    <string name="settings_game_quiet_coaching_title">Tysta coachningssignaler</string>
+    <string name="settings_game_quiet_coaching_summary">Använd mindre frekvent vägledning medan du spelar.</string>
+    <string name="settings_game_remember_setup_title">Kom ihåg senaste spelinställningen</string>
+    <string name="settings_game_remember_setup_summary">Återanvänd ditt senaste mål och din senaste svårighetsgrad nästa gång.</string>
+    <string name="settings_game_privacy_battery_title">Integritet och batteri</string>
+    <string name="settings_game_privacy_battery_disclosure">Spel använder plats i realtid endast medan de är aktiva och återanvänder Trackers plats när den är tillgänglig. När du pausar frisläpps spelets platsanvändning. Endast din poäng och dina poäng/XP sparas på enheten; råa spelplatser sparas inte permanent.</string>
+    <string name="settings_game_loading">Läser in spelinställningar…</string>
+    <string name="settings_game_load_error">Spelinställningarna kunde inte läsas in. Försök igen.</string>
+    <string name="settings_map_info_hint">De här inställningarna styr kartans visualiseringskvalitet och prestanda. De flesta användare kan använda standardvärdena.</string>
+    <string name="settings_map_online_tiles_section_title">Onlinekartbrickor</string>
+    <string name="settings_map_online_tiles_enable_title">Använd onlinekartbrickor</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Av — endast den medföljande offlinebaskartan används. Inga nätverksförfrågningar.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">På — hämtar kartbrickor från %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Leverantör av kartbrickor</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (rekommenderas)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Anpassad URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">URL för stil-JSON</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Erkännande: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Onlinekartbrickor är frivilliga. När de är aktiverade kan den valda leverantören se din IP-adress och vilka kartbrickor du läser in (ungefär vilket område på kartan du visar). Tracker skickar aldrig ett konto, en identifierare eller platshistorik.</string>
+    <string name="settings_developer_mode_enabled_toast">Utvecklarläget är aktiverat</string>
+    <string name="settings_developer_mode_disable">Inaktivera utvecklarläget</string>
+    <string name="settings_developer_mode_subtitle">Utvecklarläget är aktivt</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Tryck %d gång till för att aktivera utvecklarläget</item>
+        <item quantity="other">Tryck %d gånger till för att aktivera utvecklarläget</item>
+    </plurals>
+    <string name="settings_version_info_title">Versionsinformation</string>
+    <string name="settings_version_format">Version: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Aktuellt språk: %s</string>
+    <string name="settings_language_title">Appens språk</string>
+    <string name="settings_units_auto_summary_on">Anpassar längdsystemet till identifierade aktiviteter</string>
+    <string name="settings_units_auto_summary_off">Tillämpar det valda längdsystemet överallt</string>
+    <string-array name="settings_length_system_names">
+        <item>Metriskt</item>
+        <item>Imperialt (USC)</item>
+        <item>Antik romersk</item>
+        <item>Segling</item>
+        <item>Flygning</item>
+    </string-array>
+    <string name="settings_length_system_title">Längdsystem</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Licenser för öppen källkod</string>
+    <string name="settings_licenses_subtitle">Visa medföljande tredjepartsmeddelanden som ingår i denna version.</string>
+    <string name="settings_licenses_loading">Läser in licenser…</string>
+    <string name="settings_licenses_unavailable">Kunde inte läsa in licensdata för medföljande tredjepartskomponenter.</string>
+    <string name="settings_licenses_text_at_url">Fullständig licenstext finns på: %1$s</string>
+    <string name="settings_privacy_policy_title">Integritetspolicy</string>
+    <string name="settings_privacy_policy_unavailable">Den medföljande integritetspolicyn kunde inte öppnas. Försök igen efter att du har startat om appen.</string>
+    <string name="settings_about_header">Om</string>
+    <string name="settings_about_app_title">Tracker av adsamcik</string>
+    <string name="settings_about_app_subtitle">Integritetsfokuserad plats- och aktivitetsspårare</string>
+    <string name="about_title">Om</string>
+    <string name="about_app_name_label">App</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Byggcommit</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Författare</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">E-post</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Länkar</string>
+    <string name="about_attributions_title">Dataerkännanden</string>
+    <string name="about_attribution_geonames_label">Ortnamn</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Kart- och gatadata</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Modulinställningar</string>
+    <string name="settings_core_group_title">Kärna</string>
+    <string name="settings_other_title">Enheter och visning</string>
+    <string name="settings_remove_all_collected_data_summary">Raderar dina spårningsdata (anpassade aktiviteter och inställningar behålls)</string>
+    <string name="settings_remove_all_collected_data_title">Radera alla insamlade data</string>
+    <string-array name="settings_speed_format_names">
+        <item>Hastighet per sekund (m/s)</item>
+        <item>Tempo per sträcka (min/km, min/mi)</item>
+        <item>Hastighet (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Hastighetsformat</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Inställningar</string>
+    <string name="switch_state_on">På</string>
+    <string name="switch_state_off">Av</string>
+    <string name="onboarding_streamlined_title">Spåra dina resor privat</string>
+    <string name="onboarding_streamlined_subtitle">Alla data stannar på enheten. Ingen molnsynkronisering eller spårning från tredje part.</string>
+    <string name="onboarding_benefit_privacy_title">Integriteten först</string>
+    <string name="onboarding_benefit_privacy_desc">Alla spårningsdata stannar på enheten. Inga servrar, ingen molnsynkronisering, full kontroll.</string>
+    <string name="onboarding_benefit_insights_title">Aktivitetsinsikter</string>
+    <string name="onboarding_benefit_insights_desc">Visa dina rutter på kartor, analysera statistik och följ dina framsteg över tid.</string>
+    <string name="onboarding_benefit_gamification_title">Prestationer</string>
+    <string name="onboarding_benefit_gamification_desc">Lås upp över 150 prestationer när du går, springer, cyklar och utforskar — allt tjänas in lokalt på din enhet.</string>
+    <string name="onboarding_get_started">KOM I GÅNG</string>
+    <string name="onboarding_privacy_policy_button">Läs integritetspolicyn</string>
+    <string name="onboarding_state_read_error_message">Vi kunde inte verifiera om installationen redan var klar, så installationen visas för att hålla dina data privata. Du kan fortsätta utan risk.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Rensa gamla data automatiskt</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Behåll data för alltid; den automatiska rensningen tar inte bort gamla data</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Ta automatiskt bort data som är äldre än %1$d år</item>
+        <item quantity="other">Ta automatiskt bort data som är äldre än %1$d år</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">Behåll data i</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Behåll för alltid</item>
+        <item>1 år</item>
+        <item>2 år</item>
+        <item>3 år</item>
+        <item>5 år</item>
+        <item>10 år</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">FORTSÄTT</string>
+    <string name="settings_export_data_title">Exportera data</string>
+    <string name="settings_export_data_summary">Spara dina spårningsdata i olika format</string>
+    <string name="export_format_dialog_title">Välj exportformat</string>
+    <string name="export_format_gpx_name">GPX (rekommenderas)</string>
+    <string name="export_format_gpx_desc">Ruttpunkter med full precision för GPS-enheter, träningsappar och universell kompatibilitet</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Ruttpunkter med full precision för Google Earth och geografisk visualisering</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Strömmande platser och sessionssammanfattningar; import sammanfogar data och återskapar viss metadata</string>
+    <string name="export_format_db_name">Databas</string>
+    <string name="export_format_db_desc">Rå SQLite-säkerhetskopia med alla data och inställningar; import sammanfogar kompatibla rader, inte en fullständig återställning</string>
+    <string name="export_sensitivity_dialog_title">Exportera exakta platsdata?</string>
+    <string name="export_sensitivity_gpx_message">Den här GPX-exporten innehåller ruttpunkter med full precision. Spara eller dela den bara med personer och appar du litar på.</string>
+    <string name="export_sensitivity_kml_message">Den här KML-exporten innehåller ruttpunkter med full precision. Spara eller dela den bara med personer och appar du litar på.</string>
+    <string name="export_sensitivity_json_message">Den här JSON-exporten innehåller platser med full precision och sessionssammanfattningar. Viss härledd metadata förlorar information vid import; spara eller dela den bara med mottagare du litar på.</string>
+    <string name="export_sensitivity_db_message">Den här råa databassäkerhetskopian kan innehålla exakta platser, Wi-Fi-/cellradiodata, aktivitet och inställningar. Håll den privat och lagra den bara på en plats du litar på.</string>
+    <string name="export_sensitivity_confirm">Fortsätt exporten</string>
+    <string name="settings_export_title">Exportera</string>
+    <string name="settings_import_summary">Importera data från format som stöds (%1$s) och arkiv (%2$s). Databasimporter sammanfogar kompatibla rader; de ersätter inte befintliga data.</string>
+    <string name="settings_import_title">Importera</string>
+    <string name="got_it">Jag förstår</string>
+    <string name="battery_impact_low">Liten påverkan</string>
+    <string name="battery_impact_moderate">Måttlig påverkan</string>
+    <string name="battery_impact_high">Stor påverkan</string>
+    <string name="precision_mode_title">Välj platsnoggrannhet</string>
+    <string name="precision_mode_approximate_title">Ungefärlig</string>
+    <string name="precision_mode_approximate_description">Nätverksbaserad plats. Bra för spårning av allmänna områden med minimal batterianvändning.</string>
+    <string name="precision_mode_precise_title">Exakt</string>
+    <string name="precision_mode_precise_description">GPS-baserad plats. Bäst för detaljerade rutter, värmekartor och utmaningar.</string>
+    <string name="upgrade_to_precise_title">Lås upp exakt spårning</string>
+    <string name="upgrade_to_precise_message_general">Du använder ungefärlig plats. Byt till exakt GPS-spårning för bättre noggrannhet.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Exakt plats rekommenderas för korrekt ruttanalys och avståndsmätningar.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Exakt plats ger en detaljerad värmekartsvisualisering med finkornig positionering.</string>
+    <string name="upgrade_to_precise_message_challenges">Många utmaningar kräver exakt GPS-spårning för att slutförandet ska kunna verifieras korrekt.</string>
+    <string name="upgrade_to_precise_benefits_title">Fördelar</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Korrekta ruttformer och detaljer om vägen sväng för sväng</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Detaljerad värmekarta och rumslig analys</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Exakta mätningar av avstånd och hastighet</string>
+    <string name="upgrade_to_precise_battery_title">Batterianvändning</string>
+    <string name="upgrade_to_precise_battery_message">Exakt GPS använder mer batteri. Beräknad spårningstid: 6–8 timmar på vanliga enheter.</string>
+    <string name="upgrade_to_precise_button_upgrade">Aktivera exakt plats</string>
+    <string name="upgrade_to_precise_button_cancel">Kanske senare</string>
+    <string name="tracking_preset_high_accuracy_name">Hög noggrannhet</string>
+    <string name="tracking_preset_high_accuracy_description">Bästa detaljnivå med de snabbaste uppdateringarna och alla viktiga sensorer aktiverade</string>
+    <string name="tracking_preset_balanced_name">Balanserad</string>
+    <string name="tracking_preset_balanced_description">Bra noggrannhet och rimlig batteritid för daglig spårning</string>
+    <string name="tracking_preset_power_save_name">Strömsparläge</string>
+    <string name="tracking_preset_power_save_description">Lägre batterianvändning med mer sällsynta uppdateringar och färre sensorer</string>
+    <string name="tracking_preset_custom_name">Anpassad</string>
+    <string name="tracking_preset_custom_description">Justera varje spårningsparameter manuellt</string>
+    <string name="tracking_preset_selector_title">Spårningsprofil</string>
+    <string name="tracking_preset_selector_subtitle">Välj en profil att börja med och finjustera sedan valfri inställning nedan.</string>
+    <string name="tracking_preset_custom_hint">Om du justerar någon inställning nedan skapas en anpassad profil från den aktuella förinställningen.</string>
+    <string name="tracking_preset_customized_summary">Du har finjusterat spårningen. Välj en förinställning ovan för att återställa.</string>
+    <string name="settings_tracking_section_detection">Identifiering och automatisering</string>
+    <string name="settings_tracking_section_sources">Datakällor</string>
+    <string name="settings_tracking_section_detail">Platsinsamling</string>
+    <string name="settings_tracking_section_notifications">Aviseringar</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">Spårningspolicy</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Beräknad spårning: %d timme</item>
+        <item quantity="other">Beräknad spårning: %d timmar</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Välj hur exakt Tracker registrerar din plats</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Exakt</string>
+    <string name="approximate">Ungefärlig</string>
+    <string name="tracking_policy_selector_subtitle">Välj en spårningsförinställning eller anpassa inställningarna</string>
+    <string name="tracking_policy_custom_badge">Anpassad</string>
+    <string name="collapse_details">Dölj detaljer</string>
+    <string name="expand_details">Visa detaljer</string>
+    <string name="settings_section_collapse">Fäll ihop</string>
+    <string name="settings_section_expand">Fäll ut</string>
+    <string name="tracking_policy_details_title">Konfigurationsdetaljer</string>
+    <string name="preset_detail_location_precision">Platsnoggrannhet</string>
+    <string name="preset_detail_min_distance">Minsta avstånd</string>
+    <string name="preset_detail_min_time">Minsta tid</string>
+    <string name="preset_detail_accuracy">Krävd noggrannhet</string>
+    <string name="preset_detail_sensors">Sensorer</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">Automatiskt enhetsbyte</string>
+    <string name="settings_module_map_subtitle">Värmekartans kvalitet och visualiseringsalternativ</string>
+    <string name="settings_module_game_subtitle">Mål, prestationer och milstolpar</string>
+    <string name="action_navigate_back">Navigera tillbaka</string>
+    <string name="action_help">Hjälp</string>
+    <string name="widget_loading">Läser in…</string>
+    <string name="widget_quick_start_name">Tracker snabbstart</string>
+    <string name="widget_quick_start_description">Starta eller stoppa platsspårning med ett tryck.</string>
+    <string name="widget_start_tracking">Starta spårning</string>
+    <string name="widget_stop_tracking">Stoppa spårning</string>
+    <string name="widget_tracking_active">Spårning aktiv</string>
+    <string name="widget_today_summary_name">Dagens sammanfattning</string>
+    <string name="widget_today_summary_description">Se dagens spårningsstatistik med en blick.</string>
+    <string name="widget_today">I dag</string>
+    <string name="widget_distance">Avstånd</string>
+    <string name="widget_steps">Steg</string>
+    <string name="widget_sessions">Sessioner</string>
+    <string name="widget_duration">Varaktighet</string>
+    <string name="widget_no_data_today">Inga spårningsdata i dag</string>
+    <string name="widget_active_session_name">Aktiv session</string>
+    <string name="widget_active_session_description">Övervaka din aktuella spårningssession i realtid.</string>
+    <string name="widget_no_active_session">Ingen aktiv session</string>
+    <string name="widget_tap_to_start">Tryck för att starta spårningen</string>
+    <string name="widget_session_distance">Sessionsavstånd</string>
+    <string name="widget_session_steps">Sessionssteg</string>
+    <string name="widget_session_duration">Sessionslängd</string>
+    <string name="widget_current_speed">Aktuell hastighet</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Samlingar</string>
+    <string name="widget_path_preview">Förhandsvisning av rutt</string>
+    <string name="widget_activity_unknown">Aktivitet är inte tillgänglig</string>
+    <string name="widget_goal_label">Mål:</string>
+    <string name="widget_goal_progress">%1$s / %2$s steg</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Av</string>
+    <string name="widget_tier_ambient">Omgivande</string>
+    <string name="widget_tier_active">Aktiv</string>
+    <string name="widget_tier_precision">Precision</string>
+    <string name="goal_notification_title_progress">Bra framsteg!</string>
+    <string name="goal_notification_title_almost">Nästan framme!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">%1$d steg kvar till ditt dagliga mål</item>
+        <item quantity="other">%1$d steg kvar till ditt dagliga mål</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Bara %1$d steg kvar!</item>
+        <item quantity="other">Bara %1$d steg kvar!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Smarta målnotiser</string>
+    <string name="settings_smart_goal_notifications_summary">Få en avisering när du är nära ditt dagliga stegmål</string>
+    <string name="setup_how_to_track_title">Hur ska spårningen fungera?</string>
+    <string name="setup_how_to_track_subtitle">Välj när spårningen startar och hur detaljerad den ska vara.</string>
+    <string name="setup_auto_tracking_title">Automatisk spårning</string>
+    <string name="setup_auto_tracking_disabled">Inaktiverad</string>
+    <string name="setup_auto_tracking_disabled_desc">Starta och stoppa spårningen manuellt.</string>
+    <string name="setup_auto_tracking_on_foot">Till fots</string>
+    <string name="setup_auto_tracking_on_foot_desc">Spåra promenader och löpning automatiskt.</string>
+    <string name="setup_auto_tracking_in_motion">I rörelse</string>
+    <string name="setup_auto_tracking_in_motion_desc">Spåra alla rörelser automatiskt, inklusive bilkörning och cykling.</string>
+    <string name="setup_preset_title">Spårningsdetaljer</string>
+    <string name="setup_what_to_collect_title">Vad ska samlas in</string>
+    <string name="setup_what_to_collect_subtitle">Fler alternativ finns nedan. Börja utforska utan behörigheter eller bevilja dem senare. Data stannar på enheten.</string>
+    <string name="setup_source_location">Plats</string>
+    <string name="setup_source_location_desc">Registrera dina rutter och positioner på en karta.</string>
+    <string name="setup_source_activity">Aktivitet</string>
+    <string name="setup_source_activity_desc">Upptäck om du går, springer, cyklar eller kör.</string>
+    <string name="setup_source_steps">Steg</string>
+    <string name="setup_source_steps_desc">Räkna dina steg med enhetens stegräknare.</string>
+    <string name="setup_source_wifi">Wi-Fi-nätverk</string>
+    <string name="setup_source_wifi_desc">Logga närliggande Wi-Fi-nätverk för att förbättra platsnoggrannheten.</string>
+    <string name="setup_source_cell">Mobilmaster</string>
+    <string name="setup_source_cell_desc">Logga information om mobilmaster för platskontext.</string>
+    <string name="setup_perm_location_why">Krävs för att registrera dina rutter och visa dem på kartan. Platsen stannar på enheten — inget skickas till en server.</string>
+    <string name="setup_perm_location_bg_why">För att fortsätta registrera din rutt när du byter app eller skärmen släcks behöver Tracker komma åt din plats i bakgrunden. Den registrerade platsen stannar på enheten — inget skickas till en server. Välj ”Tillåt alltid” i nästa systemdialog för att aktivera automatisk spårning; ”Tillåt endast medan appen används” gör att Tracker bara fungerar när skärmen är öppen.</string>
+    <string name="setup_perm_activity_why">Låter Tracker upptäcka vad du gör (går, cyklar, kör eller är stilla) så att automatisk spårning kan pausas när du inte rör dig och spara batteri. Aktivitetsdata stannar på enheten — inget skickas till en server.</string>
+    <string name="setup_perm_notification_why">Tracker visar en liten statusavisering medan den registrerar så att du direkt ser att spårningen är på och kan stoppa den med ett tryck. Inga marknadsförings- eller reklamaviseringar.</string>
+    <string name="setup_perm_wifi_why">Tracker kan registrera Wi-Fi-åtkomstpunkter som telefonen ser under en resa för att förbättra platsnoggrannheten på platser där GPS är svag (inomhus, under jord). Radiodata stannar på enheten — inget skickas till en server. Bevilja bara om du vill ha detta.</string>
+    <string name="setup_perm_cell_why">Tracker kan logga mobilmast-ID:n längs din rutt så att plats kan härledas när GPS inte är tillgänglig. Radiodata stannar på enheten — inget skickas till en server. Bevilja telefonstatus och exakt plats endast om du vill ha detta.</string>
+    <string name="setup_perm_grant">Bevilja</string>
+    <string name="setup_perm_grant_location_content_description">Bevilja platsbehörighet</string>
+    <string name="setup_perm_grant_background_location_content_description">Bevilja platsbehörighet i bakgrunden</string>
+    <string name="setup_perm_grant_activity_content_description">Bevilja behörighet för aktivitetsigenkänning</string>
+    <string name="setup_perm_grant_notification_content_description">Bevilja aviseringsbehörighet</string>
+    <string name="setup_perm_grant_wifi_content_description">Bevilja Wi-Fi-behörighet</string>
+    <string name="setup_perm_grant_cell_content_description">Bevilja behörighet för mobilradio</string>
+    <string name="setup_perm_granted">Beviljad ✓</string>
+    <string name="permission_grant_in_settings">Tillåt i Inställningar →</string>
+    <string name="permission_disabled_due_to_denial">%1$s är inaktiverad eftersom behörigheten nekades. Bevilja den i Inställningar för att aktivera.</string>
+    <string name="settings_wifi_permission_required">Kräver Wi-Fi-/platsbehörighet. Slå på för att bevilja — inga Wi-Fi-data registreras förrän dess, och registrerade data stannar på enheten.</string>
+    <string name="settings_cell_permission_required">Kräver behörighet för telefonstatus och exakt plats. Slå på för att bevilja — inga celldata registreras förrän dess, och registrerade data stannar på enheten.</string>
+    <string name="settings_wifi_privacy_summary">Registrerar närliggande Wi-Fi-nätverk för att förbättra platsnoggrannheten. Data stannar på enheten.</string>
+    <string name="settings_barometer_unavailable">Trycksensorn är inte tillgänglig på den här enheten.</string>
+    <string name="settings_activity_permission_required">Kräver behörighet för aktivitetsigenkänning. Slå på för att bevilja.</string>
+    <string name="settings_steps_unavailable">Stegräknarsensorn är inte tillgänglig på den här enheten.</string>
+    <string name="settings_cell_privacy_summary">Registrerar mobilmast-ID:n för att förbättra platsnoggrannheten. Data stannar på enheten.</string>
+    <string name="setup_start_exploring">Börja utforska</string>
+    <string name="setup_continue">Fortsätt</string>
+    <string name="setup_step_indicator">Steg %1$d av %2$d</string>
+    <string name="setup_online_tiles_title">Onlinekartbrickor?</string>
+    <string name="setup_online_tiles_subtitle">Tracker levereras med en offlinebaskarta och fungerar därför utan nätverk. Om du vill ha rikare kartor kan du i stället strömma kartbrickor från en offentlig leverantör.</string>
+    <string name="setup_online_tiles_off_title">Endast offline (rekommenderas)</string>
+    <string name="setup_online_tiles_off_desc">Inga nätverksförfrågningar. Endast den medföljande baskartan används.</string>
+    <string name="setup_online_tiles_on_title">Använd onlinekartbrickor</string>
+    <string name="setup_online_tiles_on_desc">Strömma vektorkartbrickor med högre detaljnivå från OpenFreeMap (standard). Du kan byta leverantör senare i Inställningar → Karta.</string>
+    <string name="setup_online_tiles_privacy">När detta är aktiverat kan leverantören se din IP-adress och vilka kartbrickor du läser in — ungefär vilket område på kartan du tittar på. Tracker skickar aldrig ett konto, en identifierare eller din platshistorik.</string>
+    <string name="setup_online_tiles_change_later">Du kan ändra detta när som helst i Inställningar → Karta → Onlinekartbrickor.</string>
+    <string name="setup_background_access_subtitle">För att registrera resor när skärmen är avstängd eller appen är stängd behöver Tracker fortsätta köras i bakgrunden. Telefonens batteriinställningar kan pausa den — tillåt bakgrundsaktivitet så att automatisk spårning förblir tillförlitlig.</string>
+    <string name="setup_background_access_optional">Valfritt, men rekommenderas. Du kan ändra detta när som helst i Inställningar → Spårning.</string>
+    <string name="background_reliability_title">Tillförlitlig spårning i bakgrunden</string>
+    <string name="background_reliability_status_exempt">Bakgrundsaktivitet tillåten</string>
+    <string name="background_reliability_status_optimized">Batterioptimering är på</string>
+    <string name="background_reliability_exempt_desc">Tracker undantas från batterioptimering, så bakgrunds- och automatisk spårning kan fungera tillförlitligt.</string>
+    <string name="background_reliability_optimized_desc">Batterioptimering kan pausa Tracker i bakgrunden och stoppa automatisk spårning. Tillåt bakgrundsaktivitet för att hålla den igång.</string>
+    <string name="background_reliability_allow_action">Tillåt bakgrundsaktivitet</string>
+    <string name="background_reliability_samsung_hint">Samsung-enheter kan också placera appar i ”Sovande appar”. Öppna batteriinställningarna, ta bort Tracker från Sovande appar och ange att den inte ska försättas i viloläge.</string>
+    <string name="background_reliability_samsung_action">Öppna enhetens batteriinställningar</string>
+    <string name="settings_tracebox_title">Kraschdiagnostik</string>
+    <string name="settings_tracebox_root_summary">Lokal krasch-, ANR- och strukturdiagnostik</string>
+    <string name="settings_tracebox_status_header">Insamlingsstatus</string>
+    <string name="settings_tracebox_toggle_title">Registrera kraschdiagnostik</string>
+    <string name="settings_tracebox_toggle_summary_off">Insamlingen är av. Befintlig lokal diagnostik finns kvar tills du raderar den.</string>
+    <string name="settings_tracebox_toggle_summary_on">Krascher, ANR och fast strukturdiagnostik registreras lokalt.</string>
+    <string name="settings_tracebox_readiness_label">Lagringsberedskap</string>
+    <string name="settings_tracebox_readiness_volatile">Beständig lagring startas; flyktig insamling är tillgänglig</string>
+    <string name="settings_tracebox_readiness_durable">Beständig insamling är klar</string>
+    <string name="settings_tracebox_readiness_degraded">Insamlingen är försämrad; vissa poster kan vara otillgängliga</string>
+    <string name="settings_tracebox_readiness_closed">Insamlingen är stängd</string>
+    <string name="settings_tracebox_health_label">Körningshälsa</string>
+    <string name="settings_tracebox_health_disabled">Inaktiverad</string>
+    <string name="settings_tracebox_health_initializing">Initierar</string>
+    <string name="settings_tracebox_health_ready">Klar</string>
+    <string name="settings_tracebox_health_degraded">Försämrad</string>
+    <string name="settings_tracebox_health_deleting">Raderar lokal diagnostik</string>
+    <string name="settings_tracebox_health_closed">Stängd</string>
+    <string name="settings_tracebox_package_header">Diagnostikpaket</string>
+    <string name="settings_tracebox_package_body">Tracebox visar först den exakta informationen för det färdigställda paketet. Inget sparas eller delas förrän du godkänner det och väljer en destination.</string>
+    <string name="settings_tracebox_package_review_action">Granska och godkänn paket</string>
+    <string name="settings_tracebox_package_save_action">Spara godkänt paket</string>
+    <string name="settings_tracebox_package_share_action">Dela godkänt paket</string>
+    <string name="settings_tracebox_share_limit">Android kan bekräfta att väljaren öppnades, men kan inte bevisa att en annan app tog emot paketet.</string>
+    <string name="settings_tracebox_data_header">Tracebox-data</string>
+    <string name="settings_tracebox_data_body">Detta raderar Tracebox-ägd diagnostik och paketförberedelser. Filer som du redan har sparat eller skickat styrs av sina mottagarappar.</string>
+    <string name="settings_tracebox_delete_action">Radera alla Tracebox-data</string>
+    <string name="settings_tracebox_delete_confirm_title">Radera all kraschdiagnostik?</string>
+    <string name="settings_tracebox_delete_confirm_body">Detta tar bort all Tracebox-ägd diagnostik och paketförberedelser från Tracker. Åtgärden kan inte ångras.</string>
+    <string name="settings_tracebox_delete_confirm_action">Radera</string>
+    <string name="settings_tracebox_result_header">Senaste resultat</string>
+    <string name="settings_tracebox_result_enabled">Kraschdiagnostik aktiverad.</string>
+    <string name="settings_tracebox_result_disabled">Kraschdiagnostik inaktiverad. Befintliga data raderades inte.</string>
+    <string name="settings_tracebox_result_policy_restricted">Den restriktiva policyn sparades lokalt, men alla processer har inte bekräftat den ännu.</string>
+    <string name="settings_tracebox_result_policy_partial">Policyn sparades lokalt, men körningens konvergens var inte fullständig.</string>
+    <string name="settings_tracebox_result_failed">Åtgärden nådde inte gränsen för lokal beständighet.</string>
+    <string name="settings_tracebox_result_delete_complete">Alla Tracebox-ägda data raderades.</string>
+    <string name="settings_tracebox_result_delete_pending">Raderingen slutfördes bara delvis. Vissa hanterarägda data väntar fortfarande på radering.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox avvisade raderingsbegäran.</string>
+    <string name="settings_tracebox_result_review_ready">Information klar: %1$d inkluderade värden med %2$d byte diagnostikdata.</string>
+    <string name="settings_tracebox_result_package_created">Det godkända diagnostikpaketet är klart att sparas eller delas.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Paketgodkännandet avbröts. Inget paket skapades.</string>
+    <string name="settings_tracebox_result_package_rejected">Paketskapandet avvisades eftersom godkännandet inte längre matchade de färdigställda byten.</string>
+    <string name="settings_tracebox_result_package_not_ready">Ett diagnostikpaket är inte klart. Granska och godkänn det först.</string>
+    <string name="settings_tracebox_result_save_complete">Det fullständiga godkända paketet sparades (%1$d byte).</string>
+    <string name="settings_tracebox_result_save_partial">Endast %1$d byte kopierades. Destinationen kan innehålla ett ofullständigt paket.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Sparandet avbröts efter %1$d byte. Destinationen kan innehålla ett ofullständigt paket.</string>
+    <string name="settings_tracebox_result_save_failed">Det godkända paketet kunde inte sparas.</string>
+    <string name="settings_tracebox_result_save_cancelled">Ingen sparplats valdes.</string>
+    <string name="settings_tracebox_result_share_opened">Androids delningsväljare öppnades.</string>
+    <string name="settings_tracebox_result_share_unknown">Väljaren återvände. Android kan inte bevisa om mottagaren tog emot paketet.</string>
+    <string name="settings_tracebox_records_header">Vad den registrerar</string>
+    <string name="settings_tracebox_records_body">Krasch- och ANR-underlag samt en avgränsad uppsättning fördefinierade koder om appens struktur och körningsordning. Tracebox är Trackers enda registrerare för krasch och diagnostik.</string>
+    <string name="settings_tracebox_privacy_header">Vad den lämnar utanför</string>
+    <string name="settings_tracebox_privacy_body">Registrerings-API:t accepterar ingen godtycklig text, plats, kontouppgifter, enhetsidentifierare eller sensoravläsningar. Standardpaket utesluter råa kraschartefakter och laddas aldrig upp automatiskt.</string>
+</resources>

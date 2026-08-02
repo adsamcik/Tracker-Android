@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Navigera tillbaka</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Platsåtkomst</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker behöver platsåtkomst för att registrera din rutt och visa den på kartan. Platsdata stannar på enheten — inget skickas till en server.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Aktivitetsigenkänning</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker använder aktivitetsigenkänning för att upptäcka vad du gör (går, cyklar, kör eller är stilla) så att automatisk spårning kan pausas när du inte rör dig och spara batteri. Aktivitetsdata stannar på enheten — inget skickas till en server.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Plats i bakgrunden</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">För att fortsätta registrera din rutt när du byter app eller skärmen släcks behöver Tracker komma åt din plats i bakgrunden. Den registrerade platsen stannar på enheten — inget skickas till en server. Välj ”Tillåt alltid” i nästa systemdialog; ”Tillåt endast medan appen används” gör att Tracker bara fungerar när skärmen är öppen.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Tillåt</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Inte nu</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Platsbehörighet krävs för att starta spårning</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Öppna Inställningar</string>
 </resources>

@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exportera</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Inga platser hittades i det valda intervallet.</string>
+    <string name="export_error_no_databases">Inga appdatabaser är tillgängliga för export.</string>
+    <string name="export_error_no_uri">Ingen exportmapp har valts</string>
+    <string name="export_error_stream_failed">Kunde inte skapa dataström till filen %s</string>
+    <string name="export_error_unknown">Exporten misslyckades.</string>
+    <string name="export_error_with_reason">Exporten misslyckades: %s</string>
+    <string name="export_file_name">Filnamn</string>
+    <string name="export_file_name_error">Filnamn får inte innehålla \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Export av platsdata från %1$s till %2$s som spårats med Advention.</string>
+    <string name="export_gpx_error">GPX-exporten misslyckades med felet: %s</string>
+    <string name="export_sensitivity_title">Exportera exakta platsdata?</string>
+    <string name="export_sensitivity_message">Den här exporten/delningen innehåller platsdata med full precision och kan inkludera rå radiometadata i databasexporter. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_sensitivity_confirm">Fortsätt</string>
+    <string name="export_share_button">Dela</string>
+    <string name="export_in_progress">Exporterar…</string>
+    <string name="export_completed">Exporten är klar.</string>
+    <string name="import_notification_error_failed_open_database">Kunde inte öppna databasfilen %s</string>
+    <string name="import_notification_error_file_not_supported">Filen %s stöds inte.</string>
+    <string name="import_notification_extracting">Extraherar %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Importen är klar. %d post importerades.</item>
+        <item quantity="other">Importen är klar. %d poster importerades.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Importen är klar. %1$d poster importerades (%2$d hoppades över).</string>
+    <string name="import_notification_error_records_failed">%d poster kunde inte importeras på grund av begränsningsbrott.</string>
+    <string name="import_notification_importing">Importerar %s …</string>
+    <string name="import_notification_progress">Import pågår …</string>
+    <string name="settings_export_dialog_from">Från</string>
+    <string name="settings_export_dialog_to">Till</string>
+    <string name="settings_export_no_data">Inga data att exportera</string>
+    <string name="settings_export_title">Exportera</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Databassäkerhetskopia (ZIP)</string>
+    <string name="settings_import_summary">Importera data från format som stöds (%1$s) och arkiv (%2$s). Databasimporter sammanfogar kompatibla rader; de ersätter inte befintliga data.</string>
+    <string name="settings_import_title">Importera</string>
+</resources>

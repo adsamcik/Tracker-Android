@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Spåra minst %2$d olika dagar för att låsa upp den.</string>
+    <string name="ach_title_distance_total">Res %1$s</string>
+    <string name="ach_desc_distance_total">Tillryggalägg %1$s av totalt registrerat avstånd i alla dina sessioner.</string>
+    <string name="ach_title_week_distance">%1$s denna vecka</string>
+    <string name="ach_desc_week_distance">Res %1$s under en och samma kalendervecka.</string>
+    <string name="ach_title_best_day_distance">%1$s på en dag</string>
+    <string name="ach_desc_best_day_distance">Tillryggalägg %1$s under en och samma dag.</string>
+    <string name="ach_title_max_session_distance">%1$s i en session</string>
+    <string name="ach_desc_max_session_distance">Registrera en enskild session som täcker %1$s utan att stanna.</string>
+    <string name="ach_title_on_foot_distance">Gå eller spring %1$s</string>
+    <string name="ach_desc_on_foot_distance">Tillryggalägg %1$s till fots (gång och löpning tillsammans).</string>
+    <string name="ach_title_cycling_distance">Cykla %1$s</string>
+    <string name="ach_desc_cycling_distance">Cykla totalt %1$s.</string>
+    <string name="ach_title_vehicle_distance">Motoriserad resa %1$s</string>
+    <string name="ach_desc_vehicle_distance">Tillryggalägg %1$s med bil, buss, tåg, båt eller flyg.</string>
+    <string name="ach_title_steps_total">Ta %1$s steg</string>
+    <string name="ach_desc_steps_total">Registrera %1$s steg i alla dina sessioner.</string>
+    <string name="ach_title_best_daily_steps">%1$s steg på en dag</string>
+    <string name="ach_desc_best_daily_steps">Ta %1$s steg under en och samma dag.</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Första sessionen</item>
+        <item quantity="other">Registrera %1$s sessioner</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Registrera totalt %1$s spårningssessioner.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Upptäck din första cell</item>
+        <item quantity="other">Upptäck %1$s kartceller</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Utforska %1$s olika rutnätsceller på kartan (var och en ungefär 1 km²).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Besök %d land</item>
+        <item quantity="other">Besök %d länder</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Registrera minst en session i %1$d olika länder.</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Första aktiva dagen</item>
+        <item quantity="other">%1$s aktiva dagar</item>
+    </plurals>
+    <string name="ach_desc_active_days">Spåra aktivitet totalt %1$s olika dagar.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d dagars svit</item>
+        <item quantity="other">%d dagars svit</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Spåra aktivitet %1$d dagar i rad.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Personbästa: %d dag</item>
+        <item quantity="other">Personbästa: %d dagar</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Nå en svit med personbästa på %1$d spårningsdagar.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d månad med Tracker</item>
+        <item quantity="other">%d månader med Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Var aktiv i Tracker under %1$d olika månader.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d aktiv dag denna vecka</item>
+        <item quantity="other">%d aktiva dagar denna vecka</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Spåra aktivitet %1$d dagar under en och samma vecka.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Första dagen med Tracker</item>
+        <item quantity="other">%1$s dagar med Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Ha Tracker installerat i %1$s dagar.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Välkommen tillbaka</item>
+        <item quantity="other">Välkommen tillbaka efter %d dagar</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Återvänd till spårning efter ett uppehåll på %1$d dagar.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Spåra under %d timme på dagen</item>
+        <item quantity="other">Spåra under %d olika timmar</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Registrera aktivitet under %1$d olika timmar på dygnet i alla sessioner.</string>
+    <string name="ach_title_days_of_week">Alla veckans sju dagar</string>
+    <string name="ach_desc_days_of_week">Spåra aktivitet minst en gång varje veckodag.</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Prova %d aktivitetstyp</item>
+        <item quantity="other">Prova %d aktivitetstyper</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Registrera sessioner i %1$d olika aktivitetstyper (gång, cykling, bilkörning, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d aktivitetstyp denna vecka</item>
+        <item quantity="other">%d aktivitetstyper denna vecka</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Använd %1$d olika aktivitetstyper under en och samma vecka.</string>
+    <string name="ach_title_week_all_days">Spåra varje dag under en vecka</string>
+    <string name="ach_desc_week_all_days">Registrera aktivitet alla sju dagar i en kalendervecka.</string>
+    <string name="ach_title_walk_cycle_drive">Gå, cykla, kör</string>
+    <string name="ach_desc_walk_cycle_drive">Registrera minst en session av varje: gång, cykling och bilkörning.</string>
+    <string name="ach_title_max_session_duration">%1$s session</string>
+    <string name="ach_desc_max_session_duration">Registrera en enskild session som varar minst %1$s.</string>
+    <string name="ach_title_max_speed">Nå %1$s</string>
+    <string name="ach_desc_max_speed">Nå en topphastighet på minst %1$s under en session.</string>
+    <string name="ach_title_active_minutes">%1$s aktiva minuter</string>
+    <string name="ach_desc_active_minutes">Samla %1$s minuter av aktiv spårningstid.</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Första exporten</item>
+        <item quantity="other">%d exporter</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Exportera dina data %1$d gånger.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Spåra genom en årstid</item>
+        <item quantity="other">Spåra genom %d årstider</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Registrera aktivitet under %1$d olika årstider (vår/sommar/höst/vinter).</string>
+    <string name="ach_title_calendar_new_year">Nyårsspårare</string>
+    <string name="ach_desc_calendar_new_year">Registrera en session den 1 januari.</string>
+    <string name="ach_title_calendar_leap_day">Pionjär på skottdagen</string>
+    <string name="ach_desc_calendar_leap_day">Registrera en session den 29 februari.</string>
+    <string name="ach_title_calendar_summer_solstice">Sommarsolståndet</string>
+    <string name="ach_desc_calendar_summer_solstice">Registrera en session på årets längsta dag.</string>
+    <string name="ach_title_calendar_winter_solstice">Vintersolståndet</string>
+    <string name="ach_desc_calendar_winter_solstice">Registrera en session på årets kortaste dag.</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Nattuggla</item>
+        <item quantity="other">%1$s nattsessioner</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Registrera %1$d sessioner som börjar mellan midnatt och kl. 05.00.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Morgonpigg</item>
+        <item quantity="other">%1$s gryningssessioner</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Registrera %1$d sessioner som börjar mellan kl. 05.00 och 08.00.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Praktisk spårare</item>
+        <item quantity="other">Starta %1$s sessioner manuellt</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Starta själv %1$d spårningssessioner manuellt.</string>
+    <string name="ach_title_max_cycle_session">Cykla %1$s på en tur</string>
+    <string name="ach_desc_max_cycle_session">Cykla %1$s under en och samma tur.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Multimodal dag</item>
+        <item quantity="other">%d multimodala dagar</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Res till fots, med cykel och med motoriserat färdmedel under samma dag, på %1$d olika dagar.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">En plats för alla årstider</item>
+        <item quantity="other">Alla fyra årstider på %d platser</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Besök %1$d kartceller under alla fyra årstider.</string>
+    <string name="ach_title_max_cell_visits">Besök en plats %1$d gånger</string>
+    <string name="ach_desc_max_cell_visits">Besök en enskild kartcell %1$d gånger.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Utforska en cell grundligt</item>
+        <item quantity="other">Utforska %1$s celler grundligt</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Utforska %1$d olika kartceller grundligt.</string>
+    <string name="ach_title_max_cell_span">Nå %1$s isär</string>
+    <string name="ach_desc_max_cell_span">Upptäck två kartceller minst %1$s från varandra.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Upptäck en cell på en dag</item>
+        <item quantity="other">Upptäck %d celler på en dag</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Upptäck %1$d nya kartceller under en och samma dag.</string>
+    <string name="ach_title_max_cell_revisit_gap">Återvänd efter %1$d dagar</string>
+    <string name="ach_desc_max_cell_revisit_gap">Återbesök en kartcell %1$d dagar efter att du först upptäckte den.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">En perfekt månad</item>
+        <item quantity="other">%d perfekta månader</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Spåra aktivitet varje dag under %1$d kalendermånader.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Använd ett exportformat</item>
+        <item quantity="other">Använd %d exportformat</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Exportera dina data i %1$d olika filformat.</string>
+    <string name="ach_title_player_level">Nå nivå %1$d</string>
+    <string name="ach_desc_player_level">Klättra till spelarnivå %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP på en dag</string>
+    <string name="ach_desc_best_day_xp">Tjäna %1$d XP under en och samma dag.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Spela ditt första minispel</item>
+        <item quantity="other">Spela %1$s minispel</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Slutför %1$d minispelsrundor.</string>
+    <string name="ach_title_total_ascent">Klättra %1$s</string>
+    <string name="ach_desc_total_ascent">Samla %1$s av total höjdvinst (stigning) under all din spårning.</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Tjäna från en XP-källa</item>
+        <item quantity="other">Tjäna från %d XP-källor</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Tjäna XP från %1$d olika källor — spårningssessioner, minispel och mål.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">En perfekt vecka</item>
+        <item quantity="other">%d perfekta veckor</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Nå ditt dagliga stegmål varje dag under %1$d hela veckor.</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d dagars målsvit</item>
+        <item quantity="other">%d dagars målsvit</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Nå ditt dagliga stegmål %1$d dagar i rad.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Lås upp en prestation</item>
+        <item quantity="other">Lås upp %d prestationer</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Lås upp totalt %1$d prestationer.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Slutför en kategori</item>
+        <item quantity="other">Slutför %d kategorier</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Lås upp alla prestationer i %1$d olika kategorier.</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d sekund</item>
+        <item quantity="other">%d sekunder</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minuts</item>
+        <item quantity="other">%d-minuters</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-timmes</item>
+        <item quantity="other">%d-timmars</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-dagars</item>
+        <item quantity="other">%d-dagars</item>
+    </plurals>
+</resources>

@@ -1,22 +1,218 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">Karta</string>
+    <string name="description_map_search">Sökknapp</string>
+    <string name="map_layer_cell_heatmap_description">Ditt observerade mobillandskap efter radioteknik. Mjuka fält visar var betjänande celler nådde dig; lysande centrum är försiktiga uppskattningar av mastplatser och blir skarpare först när observationer omger dem.</string>
+    <string name="map_layer_cell_heatmap_title">Mobil topologi</string>
+    <string name="map_layer_location_heatmap_high">Hög täthet</string>
+    <string name="map_layer_location_heatmap_low">Låg täthet</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Medelhög täthet</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Skilda besök</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Besök</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativ täthet av godtagna platspositioner. Detta visar skilda observationer, inte spenderad tid.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-täckning</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Döda zoner för signal</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Markerar var din mobilsignal var svag eller saknades. Ju rödare området är, desto sämre är täckningen; väl täckta områden förblir klara.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalnorrsken</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Norrsken</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobilsignal återgiven som ett norrskensliknande sken: en bred violett halo under en ljus cyan-grön kärna. Skimret pulserar utan att data läses in igen och blir stilla när systemanimationer är avstängda.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Svag signal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Stark signal</string>
+    <string name="map_layer_speed_heatmap_description">Värmekarta som visar rörelsehastigheten i olika områden.</string>
+    <string name="map_layer_speed_very_slow">Mycket långsam</string>
+    <string name="map_layer_speed_walking">Gångtempo</string>
+    <string name="map_layer_speed_running">Löpningstempo</string>
+    <string name="map_layer_speed_moderate">Måttlig hastighet</string>
+    <string name="map_layer_speed_fast">Snabb rörelse</string>
+    <string name="map_layer_speed_very_fast">Mycket snabb</string>
+    <string name="map_layer_speed_heatmap_title">Hastighetsvärmekarta</string>
+    <string name="map_layer_legacy_heatmap_title">Äldre värmekarta</string>
+    <string name="map_layer_legacy_heatmap_chip">Äldre brickor</string>
+    <string name="map_layer_legacy_heatmap_description">En hyllning till den ursprungliga Signals-appen: din platstäthet ritad som diskreta 25 m-rutbrickor, så som värmekartan såg ut när brickorna återgavs på servern. Zooma in för att se rutorna.</string>
+    <string name="map_layer_seasonal_title">Säsongsutforskare</string>
+    <string name="map_layer_seasonal_chip">Säsonger</string>
+    <string name="map_layer_seasonal_description">Ett lapptäcke av säsongsminnen: varje område du har utforskat färgas av den säsong då du först besökte det. Hitta stigarna du bara går på på sommaren eller gatorna du bara ser på vintern.</string>
+    <string name="map_layer_season_spring">Vår</string>
+    <string name="map_layer_season_summer">Sommar</string>
+    <string name="map_layer_season_autumn">Höst</string>
+    <string name="map_layer_season_winter">Vinter</string>
+    <string name="map_layer_terrain_title">Livet som terräng</string>
+    <string name="map_layer_terrain_chip">Terräng</string>
+    <string name="map_layer_terrain_description">Din platstäthet upphöjd till 3D: platser där du tillbringar mest tid reser sig som höga lysande platåer, medan platser du bara besöker en gång ligger lågt. Luta kartan för att se ditt livs relief.</string>
+    <string name="map_layer_terrain_low">Sällan här</string>
+    <string name="map_layer_terrain_mid">Ibland</string>
+    <string name="map_layer_terrain_high">Ofta här</string>
+    <string name="map_layer_places_title">Vanliga platser</string>
+    <string name="map_layer_places_chip">Platser</string>
+    <string name="map_layer_places_description">Dina viktiga platser som markörer, där storlek och färg visar hur ofta du besöker dem. Hem och arbete blir stora varma punkter; en plats du besökt en gång förblir liten och sval.</string>
+    <string name="map_layer_places_rare">Sällan</string>
+    <string name="map_layer_places_often">Ibland</string>
+    <string name="map_layer_places_anchor">Dina ankare</string>
+    <string name="map_layer_speed_ribbon_title">Hastighetsband</string>
+    <string name="map_layer_speed_ribbon_chip">Band</string>
+    <string name="map_layer_speed_ribbon_description">Din rutt målad efter hur snabbt du rörde dig, med flytande färg från en långsam violett promenad till en rödglödande sprint eller bilfärd. Till skillnad från hastighetsvärmekartan håller bandet din väg samman så att du ser exakt var du ökade och minskade farten.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Höjdband</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Höjd</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Din rutt målad efter absolut höjd, från djupblå lågland via cyanblå fotberg till varma bergshöjder. Skalan förblir fast när du panorerar, så samma höjd behåller alltid samma färg.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Lågland</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Fotberg</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Höga berg</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Aktivitetsband</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktivitet</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Din rutt målad efter det tillförlitliga rörelsetillstånd som registrerades med varje position: grå där tillståndet var okänt, blå när du stod stilla och grön medan du rörde dig.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Okänd</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Stilla</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Rör sig</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Skid-röntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Skid-röntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">En diagnostisk vy av identifierade skidsegment. Utförsåk, liftar, promenader och pauser förankras vid närmaste registrerade plats och märks med sina viktigaste mått.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Utförsåk</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Promenad eller paus</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Resekonstellationer</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Resor</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Återkommande resor mellan dina vanliga platser blir böjda konstellationer. En stabil båge visar varje rutt medan en komet färdas längs den; tjockare bågar betyder att du gjorde resan oftare.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gång</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Bilresa</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Kollektivtrafik</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Övrigt</string>
+    <string name="map_layer_fog_title">Utforskarens dimma</string>
+    <string name="map_layer_fog_chip">Dimma</string>
+    <string name="map_layer_fog_description">Världen träder fram ur dimman: varje område du har rört vid avslöjas och lyser starkare ju mer ingående du har lärt känna det. Platser du bara passerat förbi förblir en svag dis; platser du utforskat djupt brinner i rent guld. Outforskad mark förblir mörk.</string>
+    <string name="map_layer_fog_faint">Passerade förbi</string>
+    <string name="map_layer_fog_known">Väl utforskat</string>
+    <string name="map_layer_first_contact_title">Första kontakt</string>
+    <string name="map_layer_first_contact_chip">Upptäckt</string>
+    <string name="map_layer_first_contact_description">En tidslinje över dina upptäckter: varje område färgas av hur nyligen du först satte din fot där. Platser du hittade för länge sedan tonar mot djup indigo, medan mark du bröt ny på denna vecka lyser klart cyan — läs din utforskningshistoria ut mot de nyaste gränserna.</string>
+    <string name="map_layer_first_contact_old">Länge sedan</string>
+    <string name="map_layer_first_contact_recent">Just upptäckt</string>
+    <string name="map_layer_vehicle_compliance_title">Efterlevnad av fordonshastighet</string>
+    <string name="map_layer_vehicle_compliance_description">Polylinje med körprov färgad efter hur hastigheten förhåller sig till din konfigurerade basgräns.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Långt under gränsen</string>
+    <string name="map_layer_vehicle_compliance_slow">Under gränsen</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Nära gränsen</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Något över</string>
+    <string name="map_layer_vehicle_compliance_speeding">Fortkörning</string>
+    <string name="map_layer_location_polyline_description">Linje som ansluter dina registrerade platser över tid.</string>
+    <string name="map_layer_location_polyline_title">Platslinje</string>
+    <string name="map_layer_location_polyline_chip">Linje</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-överlappning</string>
+    <string name="map_layer_vehicle_compliance_chip">Fortkörning</string>
+    <string name="map_layer_none_title">Ingen överlagring</string>
+    <string name="map_date_preset_week">Förra veckan</string>
+    <string name="map_date_preset_month">Förra månaden</string>
+    <string name="map_date_preset_custom">Anpassad…</string>
+    <string name="map_date_today">I dag</string>
+    <string name="map_date_yesterday">I går</string>
+    <string name="map_date_this_week">Den här veckan</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi-överlappning</string>
+    <string name="map_layer_wifi_count_heatmap_description">Visar hur många olika åtkomstpunkter som överlappar på varje plats. Upprepade skanningar av samma AP räknas en gång, så varmare områden betyder verkligt tätare radiotäckning.</string>
+    <string name="map_layer_wifi_heatmap_description">En bandmedveten Wi-Fi-konstellation från dina egna observationer. Färgade fält visar observerad täckning på 2,4, 5 och 6 GHz; lysande centrum är ungefärliga AP-positioner som visas endast när provgeometrin stöder dem.</string>
+    <string name="map_layer_wifi_heatmap_high">Många överlappande AP:er</string>
+    <string name="map_layer_wifi_heatmap_low">Få överlappande AP:er</string>
+    <string name="map_layer_wifi_heatmap_medium">Flera överlappande AP:er</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi-konstellation</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz-räckvidd</string>
+    <string name="map_layer_wifi_radio_5">5 GHz-räckvidd</string>
+    <string name="map_layer_wifi_radio_6">6 GHz-räckvidd</string>
+    <string name="map_legend_label">Teckenförklaring</string>
+    <string name="map_chip_layers">Lager</string>
+    <string name="map_chip_dates">Datum</string>
+    <string name="permission_rationale_location_map">För att visa din plats på kartan behöver Tracker platsåtkomst. Alla data stannar på enheten.</string>
+    <string name="map_location_permission_denied">Platsbehörighet krävs för att visa din position</string>
+    <string name="map_open_settings">Öppna Inställningar</string>
+    <string name="settings_map_basemap_title">Baskarta</string>
+    <string name="settings_map_basemap_custom">Anpassad .pmtiles-fil är aktiv (tryck för att ta bort)</string>
+    <string name="settings_map_basemap_default">Den inbyggda baskartan är aktiv. Tryck för att importera en anpassad .pmtiles-fil.</string>
+    <string name="basemap_import_error_source_open">Kunde inte öppna filen. Försök med en annan eller dela den med Tracker igen.</string>
+    <string name="basemap_import_error_copy">Kunde inte kopiera baskartsfilen. Kontrollera att det finns tillräckligt med ledigt utrymme och försök igen.</string>
+    <string name="basemap_import_error_invalid_format">Inte en giltig PMTiles-fil: %1$s</string>
+    <string name="settings_map_advanced_section_title">Avancerade inställningar</string>
+    <string name="settings_map_max_heat_title">Maximal värme efter besök</string>
+    <string name="settings_map_quality_title">Värmekartans upplösning</string>
+    <string name="settings_map_visit_threshold_title">Tröskelvärde för platsbesökstid</string>
+    <string name="settings_map_legacy_heatmap_title">Äldre värmekarta (10 m-rutor)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Påskägg: lägger till lagret ”Äldre värmekarta” som ritar platstäthet som diskreta 10 m-rutbrickor, likt den ursprungliga serveråtergivna Signals-värmekartan.</string>
+    <string name="settings_map_zoom_buttons_title">Zoomknappar på kartan</string>
+    <string name="settings_map_zoom_buttons_subtitle">Visa + och −-knappar på skärmen för att zooma kartan när nypzoomning är svår att använda.</string>
+    <string name="tips_map_date_range_title">Datumintervall</string>
+    <string name="tips_map_my_location_title">Min plats</string>
+    <string name="tips_map_sheet_description">Tryck på eller dra upp den här raden för att öppna fler kartalternativ, inklusive val av lager och teckenförklaring.</string>
+    <string name="map_search_placeholder">Lat, lon t.ex. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Försök med 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
+    <string name="map_search_clear">Rensa sökning</string>
+    <string name="map_search_paste">Klistra in från urklipp i sökningen</string>
+    <string name="map_search_clipboard_empty">Urklippet innehåller inga koordinater ännu</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Avbryt</string>
+    <string name="map_share_button">Dela karta</string>
+    <string name="map_share_sheet_title">Dela karta som bild</string>
+    <string name="map_share_sheet_subtitle">Återger aktuell vy och aktivt lager som en statisk bild. Din plats i realtid inkluderas aldrig.</string>
+    <string name="map_share_resolution_standard">Standard (1080p)</string>
+    <string name="map_share_resolution_high">Hög (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Dela</string>
+    <string name="map_share_preparing">Förbereder bild…</string>
+    <string name="map_share_error">Kunde inte återge kartbilden. Försök igen.</string>
+    <string name="map_date_range_all_time">Hela tiden</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Kartlager</string>
+    <string name="map_layer_load_error">Kunde inte läsa in detta lager. Försök välja ett annat.</string>
+    <string name="map_empty_subtitle_location">Inga platsdata i denna vy eller detta datumintervall. Rutt- och kartfunktioner kräver platsdata som samlats in under spårning.</string>
+    <string name="map_empty_subtitle_cell">Inga platsbestämda celldata i denna vy eller detta datumintervall. Cellprov som registrerats utan plats sparas fortfarande, men kan inte visas på kartan.</string>
+    <string name="map_empty_subtitle_wifi">Inga platsbestämda Wi-Fi-data i denna vy eller detta datumintervall. Wi-Fi-observationer som registrerats utan plats sparas fortfarande, men kan inte visas på kartan.</string>
+    <string name="map_empty_subtitle_speed">Inga hastighetsdata i denna vy eller detta datumintervall. Hastighetskartor kräver användbara platsprov som samlats in under spårning.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Inga vägmatchade körningar att visa. Importera en OpenStreetMap-region (Inställningar) och registrera lite körning så att vi kan matcha din rutt med verkliga vägar.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Stäng meddelandet om inga data</string>
+    <string name="map_speed_probe_title">Hastighet här</string>
+    <string name="map_speed_probe_avg_label">Genomsnitt</string>
+    <string name="map_speed_probe_max_label">Max</string>
+    <string name="map_speed_probe_empty">Inga hastighetsdata på denna plats. Tryck någonstans med värme för att se hastigheter.</string>
+    <string name="map_speed_probe_hint">Tryck på kartan för att se hastigheter</string>
+    <string name="map_speed_probe_dismiss">Stäng hastighetsdetaljer</string>
+    <string name="map_place_callout_loading">Hittar plats…</string>
+    <string name="map_place_callout_empty">Ingen plats hittades här</string>
+    <string name="map_place_callout_dismiss">Stäng platsdetaljer</string>
+    <string name="map_zoom_in">Zooma in</string>
+    <string name="map_zoom_out">Zooma ut</string>
+    <string name="map_loading">Läser in karta…</string>
+    <string name="map_basemap_unavailable">Kartans baskarta kunde inte förberedas. Stäng och öppna kartan igen för att försöka på nytt.</string>
+    <string name="map_a11y_map_overview">Kartöversikt</string>
+    <string name="map_a11y_centered_on_location">Kartan centrerad på din plats</string>
+    <string name="map_a11y_showing_location">Kartan visar din plats</string>
+    <string name="map_a11y_loading_data">Läser in registrerade kartdata</string>
+    <string name="map_a11y_no_recorded_data">Det valda lagret har inga kartbara data i denna vy eller detta datumintervall</string>
+    <string name="map_a11y_no_layer_selected">Inget kartlager valt</string>
+    <string name="map_a11y_search_result_visible">Markör för sökresultat synlig</string>
+    <string name="map_a11y_active_recording_visible">Aktiv registreringsväg synlig</string>
+    <string name="map_a11y_recorded_route_history">Visar registrerad rutthistorik</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Visar skilda godtagna platsobservationer</string>
+    <string name="map_a11y_cell_heatmap">Visar mobiltäckningsfält och ungefärliga centra för tjänsteplatser</string>
+    <string name="map_a11y_wifi_heatmap">Visar Wi-Fi-band, täckningsfält och ungefärliga centra för åtkomstpunkter</string>
+    <string name="map_a11y_wifi_count_heatmap">Visar överlappning av olika Wi-Fi-åtkomstpunkter</string>
+    <string name="map_a11y_speed_heatmap">Visar en hastighetsvärmekarta</string>
+    <string name="map_a11y_saved_map_data">Visar sparade kartdata</string>
+    <string name="map_location_permission_opening_settings">Platsåtkomst krävs. Öppnar Inställningar…</string>
+    <string name="map_permission_banner_dismiss">Stäng meddelandet om platsbehörighet</string>
+    <string name="map_loading_layer">Läser in kartlager</string>
+    <string name="map_a11y_world_scale">Världsskala</string>
+    <string name="map_a11y_regional_scale">Regional skala</string>
+    <string name="map_a11y_city_scale">Stadsskala</string>
+    <string name="map_a11y_neighborhood_scale">Kvartersskala</string>
+    <string name="map_a11y_street_scale">Gatuskala</string>
+    <string name="help_map_quality">Multiplikator för återgivningsdetaljer. Högre värden visar mer detalj men kan göra att kartan läses in långsammare på äldre enheter.</string>
+    <string name="help_max_heat_points">Maximalt antal platspunkter som visas i värmekartvyn. Högre värden = mer detalj men långsammare återgivning.</string>
+    <string name="help_visit_threshold">Hur länge du måste stanna på en plats innan den markeras som ett ”besök” på kartan. Öka detta för att minska röran från korta stopp.</string>
 </resources>

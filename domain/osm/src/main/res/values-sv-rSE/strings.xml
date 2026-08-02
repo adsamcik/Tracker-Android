@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Förgrundsavisering som visas medan en användarimporterad OpenStreetMap-region tolkas.</string>
+    <string name="osm_import_notification_title">Importerar OpenStreetMap-region</string>
+    <string name="osm_import_notification_content">%1$d vägar har tolkats</string>
+    <string name="osm_import_complete_title">OSM-region importerad</string>
+    <string name="osm_import_complete_content">Offlinedata om vägar är klara för fordonsefterlevnad.</string>
+    <string name="osm_import_failed_title">OSM-import misslyckades</string>
+    <string name="osm_import_failed_content">Offlineimporten av kartan kunde inte slutföras.</string>
+</resources>

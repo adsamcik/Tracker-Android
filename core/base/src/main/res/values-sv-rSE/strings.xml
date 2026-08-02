@@ -1,35 +1,51 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <string name="activity_walking">Gång</string>
+    <string name="activity_running">Löpning</string>
+    <string name="activity_bicycle">Cykel</string>
+    <string name="activity_slope_sports">Utförsåkning</string>
+    <string name="activity_land_vehicle">Landfordon</string>
+    <string name="activity_water_vehicle">Vattenfordon</string>
+    <string name="activity_air_vehicle">Luftfarkost</string>
+    <string name="activity_in_vehicle">I fordon</string>
+    <string name="activity_on_foot">Till fots</string>
+    <string name="activity_name">Aktivitetsnamn</string>
+    <string name="activity_raw_still">Stilla</string>
+    <string name="activity_raw_tilting">Lutande</string>
+    <string name="activity_still">Stilla</string>
+    <string name="activity_unknown">Identifierar…</string>
+    <string name="activity_vehicle">Fordon</string>
+    <string name="alert_confirm">Är du säker på att du vill %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">Ingen</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">Okänd</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
+    <string name="channel_activity_watcher_description">Kanal som endast används för tjänsten Aktivitetsövervakare så att du enkelt kan ta bort den permanenta aviseringen.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Aktivitetsövervakare</string>
+    <string name="channel_achievements_description">Aviseringar kopplade till prestationer.</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Prestation</string>
+    <string name="channel_other_description">Andra aviseringar som inte tillhör någon annan kategori.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Övrigt</string>
+    <string name="channel_track_description">Aviseringar kopplade till spårning.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Spårning</string>
+    <string name="channel_goals_description">Aviseringar om att mål har uppnåtts.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Målförlopp</string>
     <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="generic_add">Lägg till</string>
+    <string name="generic_back">Tillbaka</string>
+    <string name="generic_cancel">Avbryt</string>
+    <string name="generic_delete">Radera</string>
+    <string name="generic_edit">Redigera</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
+    <string name="generic_undo">ångra</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
