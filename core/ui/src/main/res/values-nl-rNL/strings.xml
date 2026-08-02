@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Terug navigeren</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Locatietoegang</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker heeft locatietoegang nodig om je route vast te leggen en op de kaart te tonen. Locatiegegevens blijven op dit apparaat — er wordt niets naar een server verzonden.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Activiteitsherkenning</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker gebruikt activiteitsherkenning om te detecteren wat je doet (wandelen, fietsen, autorijden, stilstaan), zodat automatisch volgen kan pauzeren wanneer je niet beweegt en batterij bespaart. Activiteitsgegevens blijven op dit apparaat — er wordt niets naar een server verzonden.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Locatie op de achtergrond</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Om je route te blijven vastleggen wanneer je van app wisselt of het scherm uitgaat, heeft Tracker toegang nodig tot je locatie op de achtergrond. De vastgelegde locatie blijft op dit apparaat — er wordt niets naar een server verzonden. Kies bij de volgende systeemprompt "Altijd toestaan"; "Alleen toestaan tijdens gebruik van de app" laat Tracker alleen werken wanneer het scherm geopend is.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Toestaan</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Nu niet</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Locatiemachtiging is vereist om tracking te starten</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Instellingen openen</string>
 </resources>

@@ -1,35 +1,61 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Wandelen</string>
+    <string name="activity_running">Hardlopen</string>
+    <string name="activity_bicycle">Fietsen</string>
+    <string name="activity_slope_sports">Bergsporten</string>
+    <string name="activity_land_vehicle">Voertuig op land</string>
+    <string name="activity_water_vehicle">Vaartuig</string>
+    <string name="activity_air_vehicle">Luchtvaartuig</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">In voertuig</string>
+    <string name="activity_on_foot">Te voet</string>
+    <string name="activity_name">Activiteitsnaam</string>
+    <string name="activity_raw_still">Stilstaand</string>
+    <string name="activity_raw_tilting">Kantelen</string>
+    <string name="activity_still">Stilstaand</string>
+    <string name="activity_unknown">Onbekend</string>
+    <string name="activity_vehicle">voertuig</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">Weet je zeker dat je %1$s wilt?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">Geen</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">Onbekend</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
+    <string name="channel_activity_watcher_description">Kanaal dat uitsluitend wordt gebruikt voor de service Activiteitsmonitor, zodat je die permanente melding eenvoudig kunt verwijderen.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Activiteitsmonitor</string>
+    <string name="channel_achievements_description">Meldingen over prestaties.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Prestatie</string>
+    <string name="channel_other_description">Overige meldingen die niet in een andere categorie vallen.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Overige</string>
+    <string name="channel_track_description">Meldingen over tracking.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Bijhouden</string>
+    <string name="channel_goals_description">Meldingen over het voltooien van doelen.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Doelvoortgang</string>
     <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="generic_add">Toevoegen</string>
+    <string name="generic_back">Terug</string>
+    <string name="generic_cancel">Annuleren</string>
+    <string name="generic_delete">Verwijderen</string>
+    <string name="generic_edit">Bewerken</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
+    <string name="generic_undo">Ongedaan maken</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

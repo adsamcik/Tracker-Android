@@ -1,22 +1,228 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Kaart</string>
+    <string name="description_map_search">Zoekknop</string>
+    <string name="map_layer_cell_heatmap_description">Warmtekaart van het celsignaal. De warmte verandert op basis van de beschikbare technologie.</string>
+    <string name="map_layer_cell_heatmap_title">Warmtekaart van cellen</string>
+    <string name="map_layer_location_heatmap_high">Hoge dichtheid</string>
+    <string name="map_layer_location_heatmap_low">Lage dichtheid</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Gemiddelde dichtheid</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Afzonderlijke bezoeken</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Bezoeken</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relatieve dichtheid van geaccepteerde locatiebepalingen. Dit toont afzonderlijke waarnemingen, niet de bestede tijd.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-dekking</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Zones zonder signaal</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Markeert waar je mobiele signaal zwak was of ontbrak. Hoe roder het gebied, hoe slechter de dekking; goed gedekte gebieden blijven helder.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signaalaurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Poollicht</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobiel signaal weergegeven als aurora-achtige gloed: een brede violette halo onder een heldere cyaangroene kern. De gloed ademt zonder gegevens opnieuw te laden en wordt statisch wanneer systeemanimaties zijn uitgeschakeld.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Zwak signaal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Sterk signaal</string>
+    <string name="map_layer_speed_heatmap_description">Warmtekaart die de bewegingssnelheid in verschillende gebieden weergeeft.</string>
+    <string name="map_layer_speed_very_slow">Zeer langzaam</string>
+    <string name="map_layer_speed_walking">Wandeltempo</string>
+    <string name="map_layer_speed_running">Hardlooptempo</string>
+    <string name="map_layer_speed_moderate">Gemiddelde snelheid</string>
+    <string name="map_layer_speed_fast">Snelle beweging</string>
+    <string name="map_layer_speed_very_fast">Zeer snel</string>
+    <string name="map_layer_speed_heatmap_title">Snelheidswarmtekaart</string>
+    <string name="map_layer_legacy_heatmap_title">Klassieke warmtekaart</string>
+    <string name="map_layer_legacy_heatmap_chip">Klassieke tegels</string>
+    <string name="map_layer_legacy_heatmap_description">Terugblik op de oorspronkelijke Signals-app: je locatiedichtheid getekend als afzonderlijke rastertegels van 25 m, zoals de warmtekaart eruitzag toen tegels op de server werden gerenderd. Zoom in om de vierkanten te zien.</string>
+    <string name="map_layer_seasonal_title">Seizoensverkenner</string>
+    <string name="map_layer_seasonal_chip">Seizoenen</string>
+    <string name="map_layer_seasonal_description">Een lappendeken van seizoensherinneringen: elk gebied dat je hebt verkend krijgt de tint van het seizoen waarin je het voor het eerst bezocht. Vind de paden die je alleen in de zomer bewandelt, of de straten die je alleen in de winter ziet.</string>
+    <string name="map_layer_season_spring">Lente</string>
+    <string name="map_layer_season_summer">Zomer</string>
+    <string name="map_layer_season_autumn">Herfst</string>
+    <string name="map_layer_season_winter">Winter</string>
+    <string name="map_layer_terrain_title">Leven als terrein</string>
+    <string name="map_layer_terrain_chip">Terrein</string>
+    <string name="map_layer_terrain_description">Je locatiedichtheid opgetild in 3D: plekken waar je de meeste tijd doorbrengt rijzen op als hoge gloeiende mesa’s, terwijl eenmalige plekken laag blijven. Kantel de kaart om het reliëf van je leven te zien.</string>
+    <string name="map_layer_terrain_low">Zelden hier</string>
+    <string name="map_layer_terrain_mid">Soms</string>
+    <string name="map_layer_terrain_high">Vaak hier</string>
+    <string name="map_layer_places_title">Veelbezochte plaatsen</string>
+    <string name="map_layer_places_chip">Plaatsen</string>
+    <string name="map_layer_places_description">Je belangrijke plaatsen als markeringen, elk zo groot en gekleurd op basis van hoe vaak je er komt. Thuis en werk worden grote warme stippen; een plek die je één keer bezocht blijft klein en koel.</string>
+    <string name="map_layer_places_rare">Zelden</string>
+    <string name="map_layer_places_often">Soms</string>
+    <string name="map_layer_places_anchor">Je ankerpunten</string>
+    <string name="map_layer_speed_ribbon_title">Snelheidslint</string>
+    <string name="map_layer_speed_ribbon_chip">Lint</string>
+    <string name="map_layer_speed_ribbon_description">Je route gekleurd naar hoe snel je bewoog, met vloeiende kleuren van een trage violette wandeling naar een roodgloeiende sprint of autorit. Anders dan de snelheidswarmtekaart houdt het lint je pad intact, zodat je precies ziet waar je versnelde en vertraagde.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Hoogtelint</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Hoogte</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Je route gekleurd naar absolute hoogte, van diepblauwe laaglanden via cyaan uitlopers tot warme bergtoppen. De schaal blijft vast terwijl je de kaart verplaatst, zodat dezelfde hoogte altijd dezelfde kleur houdt.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Laaglanden</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Uitlopers</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Hoge bergen</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Activiteitenlint</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Activiteit</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Je route gekleurd naar de betrouwbare bewegingsstatus die bij elke locatiebepaling is vastgelegd: grijs waar de status onbekend was, blauw wanneer je stilstond en groen wanneer je bewoog.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Onbekend</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Stilstaand</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">In beweging</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Ski-röntgenfoto</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski-röntgenfoto</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Een diagnostische weergave van gedetecteerde skisegmenten. Afdalingen, liften, wandelingen en pauzes zijn verankerd aan de dichtstbijzijnde vastgelegde locatie en voorzien van hun belangrijkste statistieken.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Afdaling</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Wandelen of pauzeren</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Ritconstellaties</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Ritten</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Herhaalde reizen tussen je vaak bezochte plaatsen worden gebogen sterrenbeelden. Een stabiele boog toont elke route terwijl een komeet erlangs beweegt; dikkere bogen betekenen dat je die reis vaker hebt gemaakt.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Wandelen</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Fietsen</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autorijden</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Openbaar vervoer</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Overig</string>
+    <string name="map_layer_fog_title">Verkennersmist</string>
+    <string name="map_layer_fog_chip">Mist</string>
+    <string name="map_layer_fog_description">De wereld die uit de mist opdoemt: elk gebied dat je hebt aangeraakt wordt onthuld en gloeit helderder naarmate je het beter hebt leren kennen. Plekken waar je alleen langs kwam blijven een lichte waas; een plek die je grondig verkende brandt goudgeel. Onverkende grond blijft donker.</string>
+    <string name="map_layer_fog_faint">Doorgekomen</string>
+    <string name="map_layer_fog_known">Goed verkend</string>
+    <string name="map_layer_first_contact_title">Eerste contact</string>
+    <string name="map_layer_first_contact_chip">Ontdekking</string>
+    <string name="map_layer_first_contact_description">Een tijdlijn van je ontdekkingen: elk gebied is gekleurd naar hoe recent je er voor het eerst kwam. Plekken die je lang geleden vond vervagen naar diep indigo, terwijl grond die je deze week betrad helder cyaan oplicht—lees het verhaal van je verkenning naar je nieuwste grenzen.</string>
+    <string name="map_layer_first_contact_old">Lang geleden</string>
+    <string name="map_layer_first_contact_recent">Net ontdekt</string>
+    <string name="map_layer_vehicle_compliance_title">Naleving van voertuigsnelheid</string>
+    <string name="map_layer_vehicle_compliance_description">Polylijn van rijmonsters, gekleurd naar de vergelijking van de snelheid met je geconfigureerde basislimiet.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Ruim onder limiet</string>
+    <string name="map_layer_vehicle_compliance_slow">Onder limiet</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Rond limiet</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Iets boven limiet</string>
+    <string name="map_layer_vehicle_compliance_speeding">Te hard rijden</string>
+    <string name="map_layer_location_polyline_description">Lijn die je vastgelegde locaties in de tijd verbindt.</string>
+    <string name="map_layer_location_polyline_title">Locatiepolylijn</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polylijn</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wifi-overlap</string>
+    <string name="map_layer_vehicle_compliance_chip">Te hard rijden</string>
+    <string name="map_layer_none_title">Geen overlay</string>
+    <string name="map_date_preset_week">Vorige week</string>
+    <string name="map_date_preset_month">Vorige maand</string>
+    <string name="map_date_preset_custom">Aangepast…</string>
+    <string name="map_date_today">Vandaag</string>
+    <string name="map_date_yesterday">Gisteren</string>
+    <string name="map_date_this_week">Deze week</string>
+    <string name="map_layer_wifi_count_heatmap_title">Warmtekaart aantal wifi-netwerken</string>
+    <string name="map_layer_wifi_count_heatmap_description">Toont hoeveel verschillende toegangspunten op elke plek overlappen. Herhaalde scans van hetzelfde AP tellen één keer, dus warmere gebieden betekenen echt dichtere radiodekking.</string>
+    <string name="map_layer_wifi_heatmap_description">Warmtekaart op basis van het geschatte aantal wifi-netwerken in een gebied.</string>
+    <string name="map_layer_wifi_heatmap_high">hoge dichtheid</string>
+    <string name="map_layer_wifi_heatmap_low">lage dichtheid</string>
+    <string name="map_layer_wifi_heatmap_medium">gemiddelde dichtheid</string>
+    <string name="map_layer_wifi_heatmap_title">Wifi-warmtekaart</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz-bereik</string>
+    <string name="map_layer_wifi_radio_5">5 GHz-bereik</string>
+    <string name="map_layer_wifi_radio_6">6 GHz-bereik</string>
+    <string name="map_legend_label">Legenda</string>
+    <string name="map_chip_layers">Laag</string>
+    <string name="map_chip_dates">Datums</string>
+    <string name="permission_rationale_location_map">Nauwkeurige locatietoegang is nodig om je locatie op de kaart weer te geven.</string>
+    <string name="map_location_permission_denied">Locatiemachtiging vereist om je positie te tonen</string>
+    <string name="map_open_settings">Instellingen openen</string>
+    <string name="settings_map_basemap_title">Basiskaart</string>
+    <string name="settings_map_basemap_custom">Aangepast .pmtiles-bestand actief (tik om te verwijderen)</string>
+    <string name="settings_map_basemap_default">Ingebouwde basiskaart actief. Tik om een aangepast .pmtiles-bestand te importeren.</string>
+    <string name="basemap_import_error_source_open">Kon dat bestand niet openen. Probeer een ander bestand of deel het opnieuw met Tracker.</string>
+    <string name="basemap_import_error_copy">Kon het basiskaartbestand niet kopiëren. Controleer of er genoeg vrije ruimte is en probeer het opnieuw.</string>
+    <string name="basemap_import_error_invalid_format">Geen geldig PMTiles-bestand: %1$s</string>
+    <string name="settings_map_advanced_section_title">Geavanceerde instellingen</string>
+    <string name="settings_map_max_heat_title">Maximale warmte na bezoeken</string>
+    <string name="settings_map_quality_title">Warmtekaartresolutie</string>
+    <string name="settings_map_visit_threshold_title">Tijdsdrempel voor locatiebezoek</string>
+    <string name="settings_map_legacy_heatmap_title">Klassieke warmtekaart (tegels van 10 m)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Paasei: voegt een laag "Klassieke warmtekaart" toe die locatiedichtheid tekent als afzonderlijke rastertegels van 10 m, zoals de oorspronkelijke door server gerenderde Signals-warmtekaart.</string>
+    <string name="settings_map_zoom_buttons_title">Zoomknoppen op kaart</string>
+    <string name="settings_map_zoom_buttons_subtitle">Toon + en − knoppen op het scherm om op de kaart te zoomen, voor situaties waarin knijpen om te zoomen lastig is.</string>
+    <string name="tips_map_date_range_title">Datumbereik</string>
+    <string name="tips_map_my_location_title">Mijn locatie</string>
+    <string name="tips_map_sheet_description">Tikken op of omhoog trekken aan deze balk opent meer opties voor de kaart, waaronder laagselectie en legenda.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Lat, lng bijv. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Probeer 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
+    <string name="map_search_clear">Zoeken wissen</string>
+    <string name="map_search_paste">Plak vanuit klembord in zoeken</string>
+    <string name="map_search_clipboard_empty">Klembord bevat nog geen coördinaten</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Annuleren</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Kaart delen</string>
+    <string name="map_share_sheet_title">Kaart als afbeelding delen</string>
+    <string name="map_share_sheet_subtitle">Rendert de huidige weergave en actieve laag als statische afbeelding. Je live locatie wordt nooit opgenomen.</string>
+    <string name="map_share_resolution_standard">Standaard (1080p)</string>
+    <string name="map_share_resolution_high">Hoog (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Delen</string>
+    <string name="map_share_preparing">Afbeelding voorbereiden…</string>
+    <string name="map_share_error">Kon de kaartafbeelding niet renderen. Probeer het opnieuw.</string>
+    <string name="map_date_range_all_time">Altijd</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Kaartlagen</string>
+    <string name="map_layer_load_error">Kon deze laag niet laden. Probeer een andere te selecteren.</string>
+    <string name="map_empty_subtitle_location">Geen locatiegegevens in deze weergave of dit datumbereik. Route- en kaartfuncties vereisen locatie die tijdens tracking is verzameld.</string>
+    <string name="map_empty_subtitle_cell">Geen gelokaliseerde celgegevens in deze weergave of dit datumbereik. Celmonsters die zonder locatie zijn vastgelegd worden nog steeds opgeslagen, maar kunnen niet op de kaart verschijnen.</string>
+    <string name="map_empty_subtitle_wifi">Geen gelokaliseerde wifi-gegevens in deze weergave of dit datumbereik. Wifi-waarnemingen die zonder locatie zijn vastgelegd worden nog steeds opgeslagen, maar kunnen niet op de kaart verschijnen.</string>
+    <string name="map_empty_subtitle_speed">Geen snelheidsgegevens in deze weergave of dit datumbereik. Snelheidskaarten vereisen bruikbare locatiemonsters die tijdens tracking zijn verzameld.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Geen aan wegen gekoppelde ritten om te tonen. Importeer een OpenStreetMap-regio (Instellingen) en leg wat autoritten vast zodat we je route aan echte wegen kunnen koppelen.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Bericht over geen gegevens sluiten</string>
+    <string name="map_speed_probe_title">Snelheid hier</string>
+    <string name="map_speed_probe_avg_label">Gemiddelde</string>
+    <string name="map_speed_probe_max_label">Max</string>
+    <string name="map_speed_probe_empty">Geen snelheidsgegevens op deze plek. Tik ergens met warmte om snelheden te zien.</string>
+    <string name="map_speed_probe_hint">Tik op de kaart om snelheden te zien</string>
+    <string name="map_speed_probe_dismiss">Snelheidsdetails sluiten</string>
+    <string name="map_place_callout_loading">Plaats zoeken…</string>
+    <string name="map_place_callout_empty">Hier is geen plaats gevonden</string>
+    <string name="map_place_callout_dismiss">Plaatsdetails sluiten</string>
+    <string name="map_zoom_in">Inzoomen</string>
+    <string name="map_zoom_out">Uitzoomen</string>
+    <string name="map_loading">Kaart laden…</string>
+    <string name="map_basemap_unavailable">Basiskaart kon niet worden voorbereid. Sluit de kaart en open deze opnieuw om het opnieuw te proberen.</string>
+    <string name="map_a11y_map_overview">Kaartoverzicht</string>
+    <string name="map_a11y_centered_on_location">Kaart gecentreerd op je locatie</string>
+    <string name="map_a11y_showing_location">Kaart toont je locatie</string>
+    <string name="map_a11y_loading_data">Vastgelegde kaartgegevens laden</string>
+    <string name="map_a11y_no_recorded_data">Geselecteerde laag heeft geen kaartbare gegevens in deze weergave of dit datumbereik</string>
+    <string name="map_a11y_no_layer_selected">Geen kaartlaag geselecteerd</string>
+    <string name="map_a11y_search_result_visible">Markering van zoekresultaat zichtbaar</string>
+    <string name="map_a11y_active_recording_visible">Pad van actieve opname zichtbaar</string>
+    <string name="map_a11y_recorded_route_history">Vastgelegde routegeschiedenis wordt getoond</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Afzonderlijke geaccepteerde locatiewaarnemingen worden getoond</string>
+    <string name="map_a11y_cell_heatmap">Mobiele-dekkingsvelden en geschatte centra van servende sites worden getoond</string>
+    <string name="map_a11y_wifi_heatmap">Wifi-banden, dekkingsvelden en geschatte centra van toegangspunten worden getoond</string>
+    <string name="map_a11y_wifi_count_heatmap">Overlap van afzonderlijke wifi-toegangspunten wordt getoond</string>
+    <string name="map_a11y_speed_heatmap">Snelheidswarmtekaart wordt getoond</string>
+    <string name="map_a11y_saved_map_data">Opgeslagen kaartgegevens worden getoond</string>
+    <string name="map_location_permission_opening_settings">Locatietoegang vereist. Instellingen openen…</string>
+    <string name="map_permission_banner_dismiss">Bericht over locatiemachtiging sluiten</string>
+    <string name="map_loading_layer">Kaartlaag laden</string>
+    <string name="map_a11y_world_scale">Wereldschaal</string>
+    <string name="map_a11y_regional_scale">Regionale schaal</string>
+    <string name="map_a11y_city_scale">Stadsschaal</string>
+    <string name="map_a11y_neighborhood_scale">Buurtschaal</string>
+    <string name="map_a11y_street_scale">Straatschaal</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Vermenigvuldiger voor renderdetail. Hogere waarden tonen meer detail maar kunnen het laden van kaarten op oudere apparaten vertragen.</string>
+    <string name="help_max_heat_points">Maximumaantal locatiepunten in de warmtekaartweergave. Hogere waarden = meer detail maar langzamere rendering.</string>
+    <string name="help_visit_threshold">Hoe lang je op één plek moet blijven voordat deze als een ‘bezoek’ op de kaart wordt gemarkeerd. Verhoog dit om rommel door korte stops te verminderen.</string>
 </resources>

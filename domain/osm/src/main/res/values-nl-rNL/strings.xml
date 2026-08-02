@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Voorgrondmelding die wordt getoond terwijl een door de gebruiker geïmporteerde OpenStreetMap-regio wordt geparseerd.</string>
+    <string name="osm_import_notification_title">OpenStreetMap-regio importeren</string>
+    <string name="osm_import_notification_content">%1$d wegen geparseerd</string>
+    <string name="osm_import_complete_title">OSM-regio geïmporteerd</string>
+    <string name="osm_import_complete_content">Offline weggegevens zijn klaar voor controle op voertuignaleving.</string>
+    <string name="osm_import_failed_title">OSM-import mislukt</string>
+    <string name="osm_import_failed_content">Offline kaartimport kon niet worden voltooid.</string>
+</resources>

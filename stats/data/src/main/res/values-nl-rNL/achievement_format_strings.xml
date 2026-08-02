@@ -1,0 +1,236 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Houd op minstens %2$d verschillende dagen tracking bij om deze vrij te spelen.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Leg %1$s af</string>
+    <string name="ach_desc_distance_total">Leg in totaal %1$s vastgelegde afstand af in al je sessies.</string>
+    <string name="ach_title_week_distance">%1$s deze week</string>
+    <string name="ach_desc_week_distance">Leg %1$s af binnen één kalenderweek.</string>
+    <string name="ach_title_best_day_distance">%1$s op één dag</string>
+    <string name="ach_desc_best_day_distance">Leg %1$s afstand af op één dag.</string>
+    <string name="ach_title_max_session_distance">%1$s in één sessie</string>
+    <string name="ach_desc_max_session_distance">Leg één sessie vast waarin je zonder te stoppen %1$s aflegt.</string>
+    <string name="ach_title_on_foot_distance">Wandel of ren %1$s</string>
+    <string name="ach_desc_on_foot_distance">Leg %1$s te voet af (wandelen en hardlopen samen).</string>
+    <string name="ach_title_cycling_distance">Fiets %1$s</string>
+    <string name="ach_desc_cycling_distance">Fiets in totaal %1$s.</string>
+    <string name="ach_title_vehicle_distance">Reis gemotoriseerd %1$s</string>
+    <string name="ach_desc_vehicle_distance">Leg %1$s af met de auto, bus, trein, boot of het vliegtuig.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Zet %1$s stappen</string>
+    <string name="ach_desc_steps_total">Leg %1$s stappen vast in al je sessies.</string>
+    <string name="ach_title_best_daily_steps">%1$s stappen op één dag</string>
+    <string name="ach_desc_best_daily_steps">Zet %1$s stappen binnen één dag.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Eerste sessie</item>
+        <item quantity="other">Leg %1$s sessies vast</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Leg in totaal %1$s trackingsessies vast.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Ontdek je eerste cel</item>
+        <item quantity="other">Ontdek %1$s kaartcellen</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Verken %1$s afzonderlijke rastercellen op de kaart (elk ongeveer 1 km²).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Bezoek %d land</item>
+        <item quantity="other">Bezoek %d landen</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Leg minstens één sessie vast in %1$d verschillende landen.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Eerste actieve dag</item>
+        <item quantity="other">%1$s actieve dagen</item>
+    </plurals>
+    <string name="ach_desc_active_days">Houd in totaal op %1$s verschillende dagen activiteit bij.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">Reeks van %d dag</item>
+        <item quantity="other">Reeks van %d dagen</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Houd %1$d dagen achter elkaar activiteit bij.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Persoonlijk record: %d dag</item>
+        <item quantity="other">Persoonlijk record: %d dagen</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Bereik een persoonlijke recordreeks van %1$d trackingdagen.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d maand met Tracker</item>
+        <item quantity="other">%d maanden met Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Blijf %1$d verschillende maanden actief in Tracker.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d actieve dag deze week</item>
+        <item quantity="other">%d actieve dagen deze week</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Houd activiteit bij op %1$d dagen binnen één week.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Eerste dag met Tracker</item>
+        <item quantity="other">%1$s dagen met Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Heb Tracker %1$s dagen geïnstalleerd.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Welkom terug</item>
+        <item quantity="other">Welkom terug na %d dagen</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Keer terug naar tracking na een pauze van %1$d dagen.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Track om %d uur</item>
+        <item quantity="other">Track op %d verschillende uren</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Leg in al je sessies activiteit vast tijdens %1$d verschillende uren van de dag.</string>
+    <string name="ach_title_days_of_week">Alle zeven dagen van de week</string>
+    <string name="ach_desc_days_of_week">Houd minstens één keer activiteit bij op elke weekdag.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Probeer %d activiteitstype</item>
+        <item quantity="other">Probeer %d activiteitstypen</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Leg sessies vast in %1$d verschillende activiteitstypen (wandelen, fietsen, autorijden, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d activiteitstype deze week</item>
+        <item quantity="other">%d activiteitstypen deze week</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Gebruik %1$d verschillende activiteitstypen binnen één week.</string>
+    <string name="ach_title_week_all_days">Houd elke dag van een week tracking bij</string>
+    <string name="ach_desc_week_all_days">Leg activiteit vast op alle zeven dagen van een kalenderweek.</string>
+    <string name="ach_title_walk_cycle_drive">Wandelen, fietsen, rijden</string>
+    <string name="ach_desc_walk_cycle_drive">Leg minstens één sessie van elk type vast: wandelen, fietsen en autorijden.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">Sessie van %1$s</string>
+    <string name="ach_desc_max_session_duration">Leg één sessie vast die minstens %1$s duurt.</string>
+    <string name="ach_title_max_speed">Bereik %1$s</string>
+    <string name="ach_desc_max_speed">Bereik tijdens een sessie een topsnelheid van minstens %1$s.</string>
+    <string name="ach_title_active_minutes">%1$s actieve minuten</string>
+    <string name="ach_desc_active_minutes">Verzamel %1$s minuten actieve trackingtijd.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Eerste export</item>
+        <item quantity="other">%d exporten</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Exporteer je gegevens %1$d keer.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Houd tracking bij in één seizoen</item>
+        <item quantity="other">Houd tracking bij in %d seizoenen</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Leg activiteit vast tijdens %1$d verschillende seizoenen (lente/zomer/herfst/winter).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Nieuwjaarstracker</string>
+    <string name="ach_desc_calendar_new_year">Leg een sessie vast op 1 januari.</string>
+    <string name="ach_title_calendar_leap_day">Schrikkeldagpionier</string>
+    <string name="ach_desc_calendar_leap_day">Leg een sessie vast op 29 februari.</string>
+    <string name="ach_title_calendar_summer_solstice">Zomerzonnewende</string>
+    <string name="ach_desc_calendar_summer_solstice">Leg een sessie vast op de langste dag van het jaar.</string>
+    <string name="ach_title_calendar_winter_solstice">Winterzonnewende</string>
+    <string name="ach_desc_calendar_winter_solstice">Leg een sessie vast op de kortste dag van het jaar.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Nachtuil</item>
+        <item quantity="other">%1$s nachtsessies</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Leg %1$d sessies vast die tussen middernacht en 5.00 uur beginnen.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Vroege vogel</item>
+        <item quantity="other">%1$s sessies bij zonsopkomst</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Leg %1$d sessies vast die tussen 5.00 en 8.00 uur beginnen.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Handmatige tracker</item>
+        <item quantity="other">Start %1$s sessies handmatig</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Start zelf %1$d trackingsessies handmatig.</string>
+    <string name="ach_title_max_cycle_session">Fiets %1$s in één rit</string>
+    <string name="ach_desc_max_cycle_session">Fiets %1$s binnen één rit.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Multimodale dag</item>
+        <item quantity="other">%d multimodale dagen</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Reis te voet, per fiets en met gemotoriseerd vervoer op dezelfde dag, op %1$d verschillende dagen.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Een plek voor alle seizoenen</item>
+        <item quantity="other">Alle vier de seizoenen op %d plekken</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Bezoek %1$d kaartcellen in alle vier de seizoenen.</string>
+    <string name="ach_title_max_cell_visits">Bezoek één plek %1$d keer</string>
+    <string name="ach_desc_max_cell_visits">Bezoek één kaartcel %1$d keer.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Verken een cel grondig</item>
+        <item quantity="other">Verken %1$s cellen grondig</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Verken %1$d afzonderlijke kaartcellen grondig.</string>
+    <string name="ach_title_max_cell_span">Bereik een afstand van %1$s</string>
+    <string name="ach_desc_max_cell_span">Ontdek twee kaartcellen die minstens %1$s uit elkaar liggen.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Ontdek een cel op één dag</item>
+        <item quantity="other">Ontdek %d cellen op één dag</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Ontdek %1$d nieuwe kaartcellen op één dag.</string>
+    <string name="ach_title_max_cell_revisit_gap">Keer terug na %1$d dagen</string>
+    <string name="ach_desc_max_cell_revisit_gap">Bezoek een kaartcel opnieuw %1$d dagen nadat je deze voor het eerst ontdekte.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Een perfecte maand</item>
+        <item quantity="other">%d perfecte maanden</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Houd op elke dag activiteit bij gedurende %1$d kalendermaanden.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Gebruik één exportformaat</item>
+        <item quantity="other">Gebruik %d exportformaten</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Exporteer je gegevens in %1$d verschillende bestandsformaten.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Bereik niveau %1$d</string>
+    <string name="ach_desc_player_level">Bereik spelersniveau %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP op één dag</string>
+    <string name="ach_desc_best_day_xp">Verdien %1$d XP binnen één dag.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Speel je eerste minispel</item>
+        <item quantity="other">Speel %1$s minispellen</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Voltooi %1$d minispelruns.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Beklim %1$s</string>
+    <string name="ach_desc_total_ascent">Verzamel %1$s totale hoogtestijging in al je tracking.</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Verdien uit één XP-bron</item>
+        <item quantity="other">Verdien uit %d XP-bronnen</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Verdien XP uit %1$d verschillende bronnen — trackingsessies, minispellen en doelen.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Een perfecte week</item>
+        <item quantity="other">%d perfecte weken</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Behaal je dagelijkse stappendoel elke dag gedurende %1$d volledige weken.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">Doelreeks van %d dag</item>
+        <item quantity="other">Doelreeks van %d dagen</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Behaal je dagelijkse stappendoel %1$d dagen achter elkaar.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Speel één prestatie vrij</item>
+        <item quantity="other">Speel %d prestaties vrij</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Speel in totaal %1$d prestaties vrij.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Voltooi een categorie</item>
+        <item quantity="other">Voltooi %d categorieën</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Speel elke prestatie vrij in %1$d verschillende categorieën.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d seconde</item>
+        <item quantity="other">%d seconden</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d minuut</item>
+        <item quantity="other">%d minuten</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d uur</item>
+        <item quantity="other">%d uur</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d dag</item>
+        <item quantity="other">%d dagen</item>
+    </plurals>
+</resources>

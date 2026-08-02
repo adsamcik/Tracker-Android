@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="export_button">Exporteren</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Geen locaties gevonden in het geselecteerde interval.</string>
+    <string name="export_error_no_databases">Er zijn geen toepassingsdatabases beschikbaar om te exporteren.</string>
+    <string name="export_error_no_uri">Er is geen exportmap geselecteerd</string>
+    <string name="export_error_stream_failed">Kon geen stream maken naar bestand %s</string>
+    <string name="export_error_unknown">Export mislukt.</string>
+    <string name="export_error_with_reason">Export mislukt: %s</string>
+    <string name="export_file_name">Bestandsnaam</string>
+    <string name="export_file_name_error">Bestandsnamen mogen de tekens \/:"*?&lt;&gt;| niet bevatten</string>
+    <string name="export_gpx_description">Export van locatiegegevens van %1$s tot %2$s die met Advention zijn bijgehouden.</string>
+    <string name="export_gpx_error">GPX-export mislukt met fout: %s</string>
+    <string name="export_sensitivity_title">Nauwkeurige locatiegegevens exporteren?</string>
+    <string name="export_sensitivity_message">Deze export/deelactie bevat locatiegegevens met volledige precisie en kan bij database-exports ruwe radiometagegevens bevatten. Ga alleen door als je de bestemming vertrouwt.</string>
+    <string name="export_sensitivity_confirm">Doorgaan</string>
+    <string name="export_share_button">Delen</string>
+    <string name="export_in_progress">Exporteren…</string>
+    <string name="export_completed">Export voltooid.</string>
+    <string name="import_notification_error_failed_open_database">Kan databasebestand %s niet openen</string>
+    <string name="import_notification_error_file_not_supported">Bestand %s wordt niet ondersteund.</string>
+    <string name="import_notification_extracting">%s uitpakken …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import voltooid. %d record succesvol geïmporteerd.</item>
+        <item quantity="other">Import voltooid. %d records succesvol geïmporteerd.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import voltooid. %1$d records geïmporteerd (%2$d overgeslagen).</string>
+    <string name="import_notification_error_records_failed">%d records konden niet worden geïmporteerd vanwege schendingen van integriteitsbeperkingen.</string>
+    <string name="import_notification_importing">%s importeren …</string>
+    <string name="import_notification_progress">Import bezig …</string>
+    <string name="settings_export_dialog_from">Van</string>
+    <string name="settings_export_dialog_to">Tot</string>
+    <string name="settings_export_no_data">Geen gegevens om te exporteren</string>
+    <string name="settings_export_title">Exporteren</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Databaseback-up (ZIP)</string>
+    <string name="settings_import_summary">Importeer gegevens uit ondersteunde typen (%1$s) en archieven (%2$s). Database-imports voegen compatibele rijen samen; bestaande gegevens worden niet vervangen.</string>
+    <string name="settings_import_title">Importeren</string>
+</resources>
