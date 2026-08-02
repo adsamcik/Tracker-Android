@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Jälgi vähemalt %2$d erineval päeval, et see avada.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Läbi %1$s</string>
     <string name="ach_desc_distance_total">Läbi kõigi seansside jooksul kokku %1$s.</string>
     <string name="ach_title_week_distance">Sel nädalal %1$s</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Sõida jalgrattaga kokku %1$s.</string>
     <string name="ach_title_vehicle_distance">Mootorsõiduga %1$s</string>
     <string name="ach_desc_vehicle_distance">Läbi %1$s auto, bussi, rongi, paadi või lennukiga.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Tee %1$s sammu</string>
     <string name="ach_desc_steps_total">Salvesta kõigi seansside jooksul %1$s sammu.</string>
     <string name="ach_title_best_daily_steps">%1$s sammu ühe päevaga</string>
     <string name="ach_desc_best_daily_steps">Tee ühe päeva jooksul %1$s sammu.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Esimene seanss</item>
         <item quantity="other">Salvesta %1$s seanssi</item>
@@ -37,7 +34,6 @@
         <item quantity="other">Külasta %d riiki</item>
     </plurals>
     <string name="ach_desc_countries_visited">Salvesta vähemalt üks seanss %1$d erinevas riigis.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Esimene aktiivne päev</item>
         <item quantity="other">%1$s aktiivset päeva</item>
@@ -80,7 +76,6 @@
     <string name="ach_desc_hours_of_day">Salvesta tegevust kõigi seansside jooksul %1$d erineval kellaajal.</string>
     <string name="ach_title_days_of_week">Kõik seitse nädalapäeva</string>
     <string name="ach_desc_days_of_week">Jälgi tegevust vähemalt üks kord igal nädalapäeval.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Proovi %d tegevusetüüpi</item>
         <item quantity="other">Proovi %d tegevusetüüpi</item>
@@ -95,14 +90,12 @@
     <string name="ach_desc_week_all_days">Salvesta tegevust kalendrinädala kõigil seitsmel päeval.</string>
     <string name="ach_title_walk_cycle_drive">Kõnni, sõida jalgrattaga, sõida autoga</string>
     <string name="ach_desc_walk_cycle_drive">Salvesta vähemalt üks seanss iga tegevusega: kõndimise, jalgrattasõidu ja autoga sõitmisega.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">%1$s seanss</string>
     <string name="ach_desc_max_session_duration">Salvesta vähemalt %1$s kestev seanss.</string>
     <string name="ach_title_max_speed">Saavuta %1$s</string>
     <string name="ach_desc_max_speed">Saavuta seansi jooksul tippkiirus vähemalt %1$s.</string>
     <string name="ach_title_active_minutes">%1$s aktiivset minutit</string>
     <string name="ach_desc_active_minutes">Kogu %1$s minutit aktiivset jälgimisaega.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Esimene eksport</item>
         <item quantity="other">%d eksporti</item>
@@ -113,7 +106,6 @@
         <item quantity="other">Jälgi %d aastaaja jooksul</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Salvesta tegevust %1$d eri aastaajal (kevad/suvi/sügis/talv).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Uusaasta jälgija</string>
     <string name="ach_desc_calendar_new_year">Salvesta seanss 1. jaanuaril.</string>
     <string name="ach_title_calendar_leap_day">Liigpäeva teerajaja</string>
@@ -122,7 +114,6 @@
     <string name="ach_desc_calendar_summer_solstice">Salvesta seanss aasta kõige pikemal päeval.</string>
     <string name="ach_title_calendar_winter_solstice">Talvine pööripäev</string>
     <string name="ach_desc_calendar_winter_solstice">Salvesta seanss aasta kõige lühemal päeval.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Öökull</item>
         <item quantity="other">%1$s öist seanssi</item>
@@ -176,7 +167,6 @@
         <item quantity="other">Kasuta %d ekspordivormingut</item>
     </plurals>
     <string name="ach_desc_export_formats">Ekspordi oma andmed %1$d eri failivormingus.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Saavuta tase %1$d</string>
     <string name="ach_desc_player_level">Tõuse mängijatasemele %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP ühe päevaga</string>
@@ -186,10 +176,8 @@
         <item quantity="other">Mängi %1$s minimängu</item>
     </plurals>
     <string name="ach_desc_minigames_played">Lõpeta %1$d minimänguringi.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Tõuse %1$s</string>
     <string name="ach_desc_total_ascent">Kogu kõigi jälgimiste jooksul %1$s tõusu (kõrguse suurenemist).</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Teeni XP-d ühest allikast</item>
         <item quantity="other">Teeni XP-d %d allikast</item>
@@ -200,7 +188,6 @@
         <item quantity="other">%d täiuslikku nädalat</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Täida oma igapäevane sammueesmärk iga päev %1$d terve nädala jooksul.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d-päevane eesmärkide jada</item>
         <item quantity="other">%d-päevane eesmärkide jada</item>
@@ -216,7 +203,6 @@
         <item quantity="other">Lõpeta %d kategooriat</item>
     </plurals>
     <string name="ach_desc_categories_completed">Ava kõik saavutused %1$d erinevas kategoorias.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d sekund</item>
         <item quantity="other">%d sekundit</item>

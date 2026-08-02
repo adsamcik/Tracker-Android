@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Mäng</string>
     <string name="module_map_title">Kaart</string>
     <string name="module_statistics_title">Statistika</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">Järgmine automaatne varukoopia sisaldab muudatuste asemel kõiki andmeid</string>
     <string name="settings_reset_export_watermarks_done">Ekspordi veemärgid lähtestati — järgmine varukoopia on täielik eksport</string>
     <string name="settings_migration_backup_export_title">Ekspordi versiooniuuenduse-eelne turvavarukoopia</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Täielik andmebaasikoopia versioonist v%1$d, loodud enne üleviimist versioonile v%2$d ja säilitatakse privaatselt kuni 30 päeva</string>
     <string name="settings_migration_backup_warning_title">Kas eksportida tundlik andmebaasi varukoopia?</string>
     <string name="settings_migration_backup_warning_message">See varukoopia võib sisaldada täpseid asukohti, Wi‑Fi- ja mobiilirakkude vaatlusi, tegevusi ning muid enne versiooniuuendust kogutud eraandmeid. Salvestage see ainult usaldusväärsesse kohta.</string>
@@ -105,13 +102,6 @@
         <item>Lendamine</item>
     </string-array>
     <string name="settings_length_system_title">Pikkusühikute süsteem</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Avatud lähtekoodiga litsentsid</string>
     <string name="settings_licenses_subtitle">Vaadake selles järgus sisalduvaid kaasatud kolmanda osapoole teateid.</string>
     <string name="settings_licenses_loading">Litsentside laadimine…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">Versioon</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Järgu kommit</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Autor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-post</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Lingid</string>
     <string name="about_attributions_title">Andmeviited</string>
     <string name="about_attribution_geonames_label">Kohanimed</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Kaardi- ja tänavaandmed</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Mooduli seaded</string>
     <string name="settings_core_group_title">Tuumik</string>
     <string name="settings_other_title">Ühikud ja kuva</string>
@@ -151,16 +135,9 @@
         <item>Kiirus (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Kiiruse vorming</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Seaded</string>
     <string name="switch_state_on">Sees</string>
     <string name="switch_state_off">Väljas</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Jälgige oma teekondi privaatselt</string>
     <string name="onboarding_streamlined_subtitle">Kõik andmed jäävad teie seadmesse. Puudub pilvesünkroonimine ja kolmanda osapoole jälgimine.</string>
     <string name="onboarding_benefit_privacy_title">Privaatsus esikohal</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">ALUSTA</string>
     <string name="onboarding_privacy_policy_button">Loe privaatsuspoliitikat</string>
     <string name="onboarding_state_read_error_message">Me ei saanud kinnitada, kas seadistus on juba lõpetatud, seega kuvatakse seadistus teie andmete privaatsuse säilitamiseks. Võite turvaliselt jätkata.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Vanade andmete automaatne puhastamine</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Säilita andmeid igavesti; automaatne puhastamine ei kustuta vanu andmeid</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">Eemalda automaatselt andmed, mis on vanemad kui %1$d aasta</item>
         <item quantity="other">Eemalda automaatselt andmed, mis on vanemad kui %1$d aastat</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Säilita andmeid</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Säilita igavesti</item>
@@ -189,17 +164,7 @@
         <item>5 aastat</item>
         <item>10 aastat</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">JÄTKA</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Ekspordi andmed</string>
     <string name="settings_export_data_summary">Salvesta oma jälgimisandmed mitmes vormingus</string>
     <string name="export_format_dialog_title">Valige ekspordivorming</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">Ekspordi</string>
     <string name="settings_import_summary">Impordi andmeid toetatud tüüpidest (%1$s) ja arhiividest (%2$s). Andmebaasi import ühendab ühilduvad read ega asenda olemasolevaid andmeid.</string>
     <string name="settings_import_title">Impordi</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Selge</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Väike mõju</string>
     <string name="battery_impact_moderate">Mõõdukas mõju</string>
     <string name="battery_impact_high">Suur mõju</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Valige asukoha täpsus</string>
     <string name="precision_mode_approximate_title">Ligikaudne</string>
     <string name="precision_mode_approximate_description">Võrgupõhine asukoht. Sobib üldise piirkonna jälgimiseks väikese akukuluga.</string>
     <string name="precision_mode_precise_title">Täpne</string>
     <string name="precision_mode_precise_description">GPS-põhine asukoht. Parim detailsete marsruutide, soojuskaartide ja väljakutsete jaoks.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Avage täpne jälgimine</string>
     <string name="upgrade_to_precise_message_general">Kasutate ligikaudset asukohta. Parema täpsuse jaoks lülituge täpsele GPS-jälgimisele.</string>
     <string name="upgrade_to_precise_message_route_analysis">Täpne asukoht on soovitatav marsruudi täpseks analüüsiks ja vahemaa mõõtmiseks.</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">Täpne GPS kasutab rohkem akut. Hinnanguline jälgimisaeg: tavaseadmetes 6–8 tundi.</string>
     <string name="upgrade_to_precise_button_upgrade">Luba täpne asukoht</string>
     <string name="upgrade_to_precise_button_cancel">Võib-olla hiljem</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Suur täpsus</string>
     <string name="tracking_preset_high_accuracy_description">Parim detailsus kiireimate uuenduste ja kõigi põhianduritega</string>
     <string name="tracking_preset_balanced_name">Tasakaalustatud</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Jälgimispoliitika</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Hinnanguline jälgimine: %d tund</item>
         <item quantity="other">Hinnanguline jälgimine: %d tundi</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Valige, kui täpselt Tracker teie asukohta salvestab</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Ühikute automaatne vahetamine</string>
     <string name="settings_module_map_subtitle">Soojuskaardi kvaliteedi ja visualiseerimise valikud</string>
     <string name="settings_module_game_subtitle">Eesmärgid, saavutused ja verstapostid</string>
     <string name="action_navigate_back">Liigu tagasi</string>
     <string name="action_help">Abi</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Laadimine…</string>
     <string name="widget_quick_start_name">Trackeri kiirstart</string>
     <string name="widget_quick_start_description">Alustage või peatage asukoha jälgimine ühe puudutusega.</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">Taust</string>
     <string name="widget_tier_active">Aktiivne</string>
     <string name="widget_tier_precision">Täpne</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Hea edenemine!</string>
     <string name="goal_notification_title_almost">Peaaegu kohal!</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Nutikad eesmärgi märguanded</string>
     <string name="settings_smart_goal_notifications_summary">Saage märguanne, kui olete päevase sammueesmärgi lähedal</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Kuidas peaks jälgimine toimima?</string>
     <string name="setup_how_to_track_subtitle">Valige, millal jälgimine algab ja kui detailne see on.</string>
     <string name="setup_auto_tracking_title">Automaatne jälgimine</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">Alusta avastamist</string>
     <string name="setup_continue">Jätka</string>
     <string name="setup_step_indicator">Samm %1$d/%2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Veebipõhised kaardipaanid?</string>
     <string name="setup_online_tiles_subtitle">Tracker sisaldab võrguühenduseta aluskaarti, nii et see töötab ilma võrguta. Kui soovite rikkalikumaid kaarte, saate selle asemel voogedastada paane avalikult pakkujalt.</string>
     <string name="setup_online_tiles_off_title">Ainult võrguühenduseta (soovitatav)</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">Voogedasta detailsemaid vektorpaneele OpenFreeMapist (vaikimisi). Pakkujat saate hiljem muuta menüüs Seaded → Kaart.</string>
     <string name="setup_online_tiles_privacy">Kui see on lubatud, näeb pakkuja teie IP-aadressi ja laaditavaid paane — ligikaudu seda kaardiala, mida vaatate. Tracker ei saada kunagi kontot, tunnust ega teie asukohaajalugu.</string>
     <string name="setup_online_tiles_change_later">Saate seda igal ajal muuta menüüs Seaded → Kaart → Veebipõhised kaardipaanid.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Reiside salvestamiseks, kui ekraan on väljas või rakendus on suletud, peab Tracker töötama taustal. Telefoni akuseaded võivad selle peatada — lubage taustategevus, et automaatne jälgimine püsiks töökindel.</string>
     <string name="setup_background_access_optional">Valikuline, kuid soovitatav. Saate seda igal ajal muuta menüüs Seaded → Jälgimine.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Töökindel taustajälgimine</string>
     <string name="background_reliability_status_exempt">Taustategevus on lubatud</string>
     <string name="background_reliability_status_optimized">Aku optimeerimine on sees</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">Luba taustategevus</string>
     <string name="background_reliability_samsung_hint">Samsungi seadmed võivad rakendusi paigutada ka jaotisse „Uinuvad rakendused”. Avage akuseaded, eemaldage Tracker uinuvatest rakendustest ja määrake, et seda ei pandaks unerežiimi.</string>
     <string name="background_reliability_samsung_action">Ava seadme akuseaded</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Krahhi diagnostika</string>
     <string name="settings_tracebox_root_summary">Kohalikud krahhi-, ANR-i ja struktuursed diagnostikaandmed</string>
     <string name="settings_tracebox_status_header">Salvestuse olek</string>

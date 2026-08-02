@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="passus">%s tempo</string>
     <string name="per_hour_abbr">%s/h</string>
@@ -9,18 +9,11 @@
     <string name="meter_abbr">%s m</string>
     <string name="mile_abbr">%s mi</string>
     <string name="millepassus">%s Rooma miil</string>
-    <!-- Sailing units -->
     <string name="fathom_abbr">%s süld</string>
     <string name="cable_abbr">%s kaabel</string>
     <string name="nautical_mile_abbr">%s meremiil</string>
     <string name="knot_abbr">%s sõlm</string>
-    <!-- Flying units -->
     <string name="flight_level_abbr">FL%s</string>
-    <!-- Auto unit switch preference -->
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">Ühikute süsteemi automaatne vahetamine</string>
     <string name="settings_statistics_auto_unit_switch_summary">Vaheta automaatselt purjetamis- või lennuühikutele, kui vaatate nende tegevustega seansse</string>
-    <!-- Location precision preference (Phase 2) -->
-    <!-- Precision upgrade tracking (Phase 2) -->
 </resources>

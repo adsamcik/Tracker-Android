@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Ülevaade</string>
     <string name="dashboard_tracking_title">Jälgimine</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Asukohaluba pole saadaval</string>
     <string name="dashboard_permission_banner_subtitle">Tracker ei saa marsruute salvestada, kuni annate asukohale juurdepääsu. Puudutage loa andmiseks.</string>
     <string name="dashboard_permission_banner_cd">Asukohaloa puudumise teade, puudutage asukohale juurdepääsu andmiseks</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Tegevuse tüüp</string>
     <string name="dashboard_cd_explore_icon">Avastamine</string>
     <string name="dashboard_cd_forward_arrow">Kuva üksikasjad</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Kuva jada üksikasjad</string>
     <string name="dashboard_action_open_tracking_settings">Seaded</string>
     <string name="dashboard_action_restart_tracking">Taaskäivita</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Kõrgusprofiil, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">GPS-signaali ootamine…</string>
     <string name="dashboard_tracking_recording_route">Marsruudi salvestamine…</string>
     <string name="dashboard_milestone_distance">km saavutatud!</string>
     <string name="dashboard_milestone_steps">sammu saavutatud!</string>
     <string name="dashboard_milestone_time">min jälgitud!</string>
     <string name="dashboard_milestone_points">+10 punkti</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Täna</string>
     <string name="dashboard_today_no_activity">Täna pole veel tegevust</string>
     <string name="dashboard_today_distance">Vahemaa</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Täna uus</string>
     <string name="dashboard_exploration_total_cells">Rakke kokku</string>
     <string name="dashboard_exploration_seasons">Aastaajad</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Kiirus</string>
     <string name="dashboard_live_charts_altitude">Kõrgus</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Andurite üksikasjad</string>
     <string name="dashboard_sensor_expand">Laienda andurite üksikasju</string>
     <string name="dashboard_sensor_collapse">Ahenda andurite üksikasju</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Kiirus</string>
     <string name="dashboard_sensor_cell_types">Mobiilirakkude tüübid</string>
     <string name="dashboard_sensor_raw_coords">Koordinaadid (silumine)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Tõusutrendis</string>
     <string name="dashboard_trend_down">Langustrendis</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Alles alustate…</string>
     <string name="dashboard_motivational_keep_going">Jätkake samas vaimus! 💪</string>
     <string name="dashboard_motivational_impressive">Muljetavaldav seanss!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Tere õhtust! Kas vaatate oma päeva üle?</string>
     <string name="dashboard_motivational_night">Öökulli režiim 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d-päevane jada!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Teie teekond algab siit</string>
     <string name="dashboard_empty_subtitle">Kasutage allolevat kaarti Valmis, kui olete, et vajadusel anda asukohale juurdepääs ja alustada oma esimest seiklust</string>
     <string name="dashboard_empty_feature_explore">Avasta</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Valmis, kui olete</string>
     <string name="dashboard_empty_fab_hint_desc">Puudutage siin, et alustada oma esimest jälgimisseanssi.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Puudutage siin, et anda asukohale juurdepääs, seejärel alustada oma esimest jälgimisseanssi.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Tänane edenemine</string>
     <string name="widget_streak">Jada</string>
     <string name="widget_last_session">Viimane seanss</string>
     <string name="widget_recent_trips">Hiljutised reisid</string>
     <string name="widget_exploration">Avastamine</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Kohanda ülevaadet</string>
     <string name="dashboard_customize_reset">Taasta vaikimisi seaded</string>
     <string name="dashboard_customize_cd_toggle">Lülita %1$s nähtavust</string>
     <string name="dashboard_customize_cd_drag_handle">Muuda %1$s järjekorda</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Kõrguse andmed puuduvad</string>
     <string name="dashboard_cd_no_altitude_data">Kõrguse andmed pole saadaval</string>
     <string name="dashboard_cd_speed_sparkline">Kiiruse minigraafik %1$d andmepunktiga</string>
     <string name="dashboard_cd_session_path">Seansi marsruudi eelvaade %1$d punktiga</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Kiirus</string>
     <string name="dashboard_metric_distance">Vahemaa</string>
     <string name="dashboard_metric_duration">Kestus</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi‑Fi</string>
     <string name="dashboard_metric_cell">Mobiilirakk</string>
     <string name="dashboard_metric_coordinates">Koordinaadid</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Alusta jälgimist</string>
     <string name="dashboard_ring_enable_location">Luba asukoht</string>
     <string name="dashboard_pill_start">Alusta</string>
     <string name="dashboard_pill_stop">Peata</string>
     <string name="dashboard_pill_enable_location">Luba asukoht</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Seansi ülevaated</string>
     <string name="dashboard_cd_insight_item">Ülevaade: %1$s</string>
     <string name="widget_latest_achievement">Viimane saavutus</string>

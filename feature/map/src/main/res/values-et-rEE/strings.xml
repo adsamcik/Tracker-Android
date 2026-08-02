@@ -1,16 +1,15 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-    <!-- Module title for distribution manifest -->
+    <string name="trip_route_preview_unavailable">Marsruudikaardi eelvaadet ei õnnestunud koostada</string>
     <string name="module_map_title">Kaart</string>
     <string name="description_map_search">Otsingunupp</string>
     <string name="map_layer_cell_heatmap_description">Teie vaadeldud mobiilside maastik raadiosidetehnoloogia järgi. Pehmed väljad näitavad, kus teenindavad rakud teieni ulatusid; helendavad keskpunktid on ettevaatlikud mastiasukoha hinnangud ja muutuvad teravamaks alles siis, kui vaatlused neid ümbritsevad.</string>
     <string name="map_layer_cell_heatmap_title">Mobiilside topoloogia</string>
     <string name="map_layer_location_heatmap_high">Suur tihedus</string>
     <string name="map_layer_location_heatmap_low">Väike tihedus</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Väike kuni keskmine tihedus</string>
     <string name="map_layer_location_heatmap_medium">Keskmine tihedus</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Maksimaalne tihedus</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Eraldi külastused</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Külastused</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Vastuvõetud asukohamäärangute suhteline tihedus. See näitab eraldi vaatlusi, mitte kohapeal veedetud aega.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Signaali surnud tsoonid</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Surnud tsoonid</string>
     <string name="map_layer_signal_coverage_description">Tõstab esile kohad, kus mobiilsignaal oli nõrk või puudus. Mida punasem ala, seda halvem leviala; hea leviga alad jäävad selgeks.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Nõrk</string>
+    <string name="map_layer_signal_coverage_poor">Halb</string>
+    <string name="map_layer_signal_coverage_very_poor">Väga halb</string>
+    <string name="map_layer_signal_coverage_dead">Surnud tsoon</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signaaliaurora</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Virmalised</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobiilsignaal on kujutatud aurora-laadse helendusena: ere tsüaanroheline tuum laia violetse haloga. Helendus pulseerib andmeid uuesti laadimata ning jääb staatiliseks, kui süsteemianimatsioonid on keelatud.</string>
@@ -108,10 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">Kiiruseületus</string>
     <string name="map_layer_location_polyline_description">Joon, mis ühendab teie aja jooksul salvestatud asukohad.</string>
     <string name="map_layer_location_polyline_title">Asukoha murdjoon</string>
-    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
-         layer chip on the map control bar (~360dp). Each chip label fits in
-         ~12 characters at typical font sizes. Fall back to titleRes for layers
-         whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Murdjoon</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi‑Fi kattuvus</string>
     <string name="map_layer_vehicle_compliance_chip">Kiiruseületus</string>
@@ -155,9 +150,6 @@
     <string name="tips_map_date_range_title">Kuupäevavahemik</string>
     <string name="tips_map_my_location_title">Minu asukoht</string>
     <string name="tips_map_sheet_description">Selle riba puudutamine või üles tõmbamine avab kaardi jaoks rohkem valikuid, sealhulgas kihi valiku ja legendi.</string>
-    <!-- Map Sheet Controls -->
-    <!-- Keep short so it fits the search field at typical 360dp widths;
-         the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Laius, pikkus, nt 50.075, 14.437</string>
     <string name="map_search_invalid_format">Proovige 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
     <string name="map_search_clear">Tühjenda otsing</string>
@@ -165,7 +157,6 @@
     <string name="map_search_clipboard_empty">Lõikelaual pole veel koordinaate</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Tühista</string>
-    <!-- Share map as image -->
     <string name="map_share_button">Jaga kaarti</string>
     <string name="map_share_sheet_title">Jaga kaarti pildina</string>
     <string name="map_share_sheet_subtitle">Renderdab praeguse vaate ja aktiivse kihi staatilise pildina. Teie reaalajas asukohta ei kaasata kunagi.</string>
@@ -176,7 +167,7 @@
     <string name="map_share_preparing">Pildi ettevalmistamine…</string>
     <string name="map_share_error">Kaardipilti ei saanud renderdada. Proovige uuesti.</string>
     <string name="map_date_range_all_time">Kogu aeg</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Valitud reis</string>
     <string name="map_layers_title">Kaardikihid</string>
     <string name="map_layer_load_error">Seda kihti ei saanud laadida. Proovige valida mõni muu.</string>
     <string name="map_empty_subtitle_location">Selles vaates või kuupäevavahemikus pole asukohaandmeid. Marsruudi- ja kaardifunktsioonid vajavad jälgimise ajal kogutud asukohta.</string>
@@ -221,7 +212,6 @@
     <string name="map_a11y_city_scale">Linna mõõtkava</string>
     <string name="map_a11y_neighborhood_scale">Naabruskonna mõõtkava</string>
     <string name="map_a11y_street_scale">Tänava mõõtkava</string>
-    <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Renderduse detailsuse kordaja. Suuremad väärtused näitavad rohkem üksikasju, kuid võivad vanemates seadmetes kaardi laadimist aeglustada.</string>
     <string name="help_max_heat_points">Soojuskaardivaates kuvatavate asukohapunktide maksimaalne arv. Suuremad väärtused = rohkem üksikasju, kuid aeglasem renderdus.</string>
     <string name="help_visit_threshold">Kui kaua peate ühes kohas viibima, enne kui see kaardil külastuseks märgitakse. Suurendage väärtust, et vähendada lühikestest peatustest tulenevat segadust.</string>

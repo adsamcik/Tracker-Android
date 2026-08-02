@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="action_navigate_back">Liigu tagasi</string>
     <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Juurdepääs asukohale</string>
