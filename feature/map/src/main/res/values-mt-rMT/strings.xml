@@ -1,15 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="trip_route_preview_unavailable">Ma setgħetx titħejja l-previżjoni tal-mappa tar-rotta</string>
     <string name="module_map_title">Mappa</string>
     <string name="description_map_search">Buttuna tat-tiftix</string>
     <string name="map_layer_cell_heatmap_description">Il-pajsaġġ ċellulari osservat tiegħek skont it-teknoloġija tar-radju. Oqsma rotob juru fejn iċ-ċelloli tas-servizz laħquk; ċentri jleqqu huma stimi konservattivi tas-siti u jidhru aktar preċiżi biss meta l-osservazzjonijiet idawruhom.</string>
     <string name="map_layer_cell_heatmap_title">Topoloġija ċellulari</string>
     <string name="map_layer_location_heatmap_high">Densità għolja</string>
     <string name="map_layer_location_heatmap_low">Densità baxxa</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Densità baxxa sa medja</string>
     <string name="map_layer_location_heatmap_medium">Densità medja</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Densità massima</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Żjarat distinti</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Żjarat</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densità relattiva ta’ fissazzjonijiet tal-post aċċettati. Dan juri osservazzjonijiet distinti, mhux ħin imqatta’.</string>
@@ -18,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Żoni bla sinjal</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Żoni bla sinjal</string>
     <string name="map_layer_signal_coverage_description">Jenfasizza fejn is-sinjal ċellulari tiegħek kien dgħajjef jew nieqes. Aktar ma ż-żona tkun ħamra, agħar tkun il-kopertura; iż-żoni b’kopertura tajba jibqgħu ċari.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Dgħajjef</string>
+    <string name="map_layer_signal_coverage_poor">Ħażin</string>
+    <string name="map_layer_signal_coverage_very_poor">Ħażin ħafna</string>
+    <string name="map_layer_signal_coverage_dead">Żona bla sinjal</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora tas-sinjal</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Sinjal ċellulari muri bħala dawl bħal aurora: halo vjola wiesa’ taħt qalba qawwija ċjan-ħadra. Id-dawl jiċċaqlaq mingħajr ma jerġa’ jgħabbi d-dejta u jsir wieqaf meta l-animazzjonijiet tas-sistema jkunu diżattivati.</string>
@@ -167,7 +167,7 @@
     <string name="map_share_preparing">Qed titħejja l-immaġni…</string>
     <string name="map_share_error">Ma setgħetx tiġi rrenduta l-immaġni tal-mappa. Erġa’ pprova.</string>
     <string name="map_date_range_all_time">Kull żmien</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Vjaġġ magħżul</string>
     <string name="map_layers_title">Saffi tal-mappa</string>
     <string name="map_layer_load_error">Ma setax jitgħabba dan is-saff. Ipprova agħżel ieħor.</string>
     <string name="map_empty_subtitle_location">Ebda dejta tal-post f’din il-veduta jew firxa tad-dati. Il-karatteristiċi tar-rotta u tal-mappa jeħtieġu post miġbur waqt it-traċċar.</string>

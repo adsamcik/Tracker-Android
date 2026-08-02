@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">Importazzjoni tal-mappa OSM</string>
     <string name="osm_import_notification_channel_description">Notifika fl-ewwel pjan murija waqt li jiġi analizzat reġjun OpenStreetMap importat mill-utent.</string>
     <string name="osm_import_notification_title">Qed jiġi importat reġjun OpenStreetMap</string>
     <string name="osm_import_notification_content">%1$d toroq analizzati</string>

@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">Modalità effiċjenti għall-batterija (sejbien tal-attività kemxejn aktar bil-mod)</string>
     <string name="settings_auto_tracking_transition_title">Uża tranżizzjonijiet tal-attività</string>
     <string name="settings_cell_enabled_title">Ċellola</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">It-traċċar awtomatiku hu diżattivat sakemm it-telefon tiegħek ikun konness ma’ ċarġer</string>
     <string name="settings_disabled_recharge_title">Diżattivat sal-iċċarġjar</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Post</string>
     <string name="settings_notification_customize_summary">Ibdel x’għandu jidher u f’liema ordni fin-notifika tat-traċċar.</string>
     <string name="settings_notification_customize_title">Ippersonalizza n-notifika</string>

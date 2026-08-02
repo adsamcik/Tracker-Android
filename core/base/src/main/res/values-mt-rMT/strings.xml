@@ -24,19 +24,14 @@
     <string name="cell_unknown">Mhux magħruf</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanal użat biss għas-servizz ta’ monitoraġġ tal-attività sabiex tkun tista’ tneħħi faċilment dik in-notifika permanenti.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Monitoraġġ tal-attività</string>
     <string name="channel_achievements_description">Notifiki relatati mal-kisbiet.</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Kisba</string>
     <string name="channel_other_description">Notifiki oħra li ma jappartjenux għal ebda kategorija oħra.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Oħrajn</string>
     <string name="channel_track_description">Notifiki relatati mat-traċċar.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Traċċar</string>
     <string name="channel_goals_description">Twissijiet meta jintlaħqu l-miri.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Avvanz tal-mira</string>
     <string name="day_short">%d ġ</string>
     <string name="generic_add">Żid</string>

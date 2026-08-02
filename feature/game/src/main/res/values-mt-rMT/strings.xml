@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">Ma stajniex insalvaw din il-ġirja. Erġa’ pprova.</string>
     <string name="minigame_failure_generic">Xi ħaġa marret ħażin u l-ġirja waqfet.</string>
     <string name="minigame_session_try_again">Erġa’ pprova</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Logħba attiva</string>
     <string name="game_session_channel_description">Iżomm logħba żgħira attiva meta l-iskrin ikun mitfi</string>
     <string name="game_session_notification_title">Logħba Tracker</string>

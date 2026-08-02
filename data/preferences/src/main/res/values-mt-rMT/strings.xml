@@ -14,8 +14,6 @@
     <string name="nautical_mile_abbr">%s nm</string>
     <string name="knot_abbr">%s kn</string>
     <string name="flight_level_abbr">FL%s</string>
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">Ibdel awtomatikament is-sistema tal-unitajiet</string>
     <string name="settings_statistics_auto_unit_switch_summary">Ibdel awtomatikament għal unitajiet tat-tbaħħir/titjir meta tara sessjonijiet b’dawk l-attivitajiet</string>
 </resources>

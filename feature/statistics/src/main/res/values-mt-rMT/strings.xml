@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Telf fl-elevazzjoni</string>
     <string name="trip_detail_max_altitude">Altitudni massima</string>
     <string name="trip_detail_route_map">Mappa tar-rotta</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Ara fuq il-mappa</string>
     <string name="trip_detail_no_location_data">Ebda dejta tal-post</string>
     <string name="trip_detail_route_unavailable_legacy">Il-mappa tar-rotta mhix disponibbli għal sessjonijiet klassiċi</string>
     <string name="trip_detail_route_no_gps_points">Id-distanza rreġistrata imma ebda rotta GPS disponibbli</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">L-aħjar</string>
     <string name="action_navigate_back">Mur lura</string>
     <string name="history_button_label">Storja</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">Ara l-vjaġġ fuq il-mappa</string>
     <string name="stats_heatmap_title">Attività</string>
 </resources>
