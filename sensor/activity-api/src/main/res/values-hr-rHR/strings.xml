@@ -2,12 +2,8 @@
 <resources>
     <string name="notification_activity_watcher_info">Trenutačna aktivnost %1$s (%2$d%%)</string>
     <string name="notification_activity_watcher_ticker">Usluga praćenja aktivnosti aktivna</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
     <string name="settings_activity_snackbar_message">Uklonjeno: %s</string>
     <string name="settings_activity_title">Aktivnosti</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
     <string name="settings_activity_watcher_title">Praćenje aktivnosti</string>
     <string name="settings_ski_infrastructure_title">Podaci o žičarama</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Učitano (dodirnite za uklanjanje)</string>

@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">Uvoz OSM karte</string>
     <string name="osm_import_notification_channel_description">Obavijest u prvom planu koja se prikazuje dok se obrađuje OpenStreetMap regija koju je korisnik uvezao.</string>
     <string name="osm_import_notification_title">Uvoz OpenStreetMap regije</string>
     <string name="osm_import_notification_content">%1$d obrađenih cesta</string>
