@@ -119,7 +119,7 @@
     <string name="trip_detail_elevation_loss">Elevation loss</string>
     <string name="trip_detail_max_altitude">Max altitude</string>
     <string name="trip_detail_route_map">Route map</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">View on map</string>
     <string name="trip_detail_no_location_data">No location data</string>
     <string name="trip_detail_route_unavailable_legacy">Route map not available for legacy sessions</string>
     <string name="trip_detail_route_no_gps_points">Distance recorded but no GPS route available</string>
@@ -195,7 +195,7 @@
 
     <!-- History navigation -->
     <string name="history_button_label">History</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">View trip on map</string>
 
     <!-- Calendar heatmap -->
     <string name="stats_heatmap_title">Activity</string>

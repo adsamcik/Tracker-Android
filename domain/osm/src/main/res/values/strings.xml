@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">OSM map import</string>
     <string name="osm_import_notification_channel_description">Foreground notification shown while a user-imported OpenStreetMap region is being parsed.</string>
     <string name="osm_import_notification_title">Importing OpenStreetMap region</string>
     <string name="osm_import_notification_content">%1$d roads parsed</string>

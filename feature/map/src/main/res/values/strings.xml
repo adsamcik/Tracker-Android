@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="trip_route_preview_unavailable">Route map preview could not be prepared</string>
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Map</string>
 
@@ -12,9 +12,9 @@
     <string name="map_layer_cell_heatmap_title">Cellular topology</string>
     <string name="map_layer_location_heatmap_high">High density</string>
     <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Peak density</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Distinct visits</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visits</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relative density of accepted location fixes. This shows distinct observations, not time spent.</string>
@@ -23,12 +23,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Signal dead zones</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Dead zones</string>
     <string name="map_layer_signal_coverage_description">Highlights where your cell signal was weak or missing. The redder the area, the worse the coverage; well-covered areas stay clear.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Weak</string>
+    <string name="map_layer_signal_coverage_poor">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor">Very poor</string>
+    <string name="map_layer_signal_coverage_dead">Dead zone</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signal aurora</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Cell signal rendered as an aurora-like glow: a broad violet halo beneath a bright cyan-green core. The glow breathes without reloading data and becomes static when system animations are disabled.</string>
@@ -186,7 +186,7 @@
     <string name="map_share_preparing">Preparing image…</string>
     <string name="map_share_error">Couldn\'t render the map image. Please try again.</string>
     <string name="map_date_range_all_time">All time</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Selected trip</string>
     <string name="map_layers_title">Map Layers</string>
     <string name="map_layer_load_error">Couldn\'t load this layer. Try selecting a different one.</string>
     <string name="map_empty_subtitle_location">No location data in this view or date range. Route and map features require location collected while tracking.</string>
