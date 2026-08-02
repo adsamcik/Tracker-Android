@@ -103,7 +103,7 @@
     <string name="trip_detail_elevation_loss">Klesanie</string>
     <string name="trip_detail_max_altitude">Max. nadmorská výška</string>
     <string name="trip_detail_route_map">Mapa trasy</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Zobraziť na mape</string>
     <string name="trip_detail_no_location_data">Žiadne údaje o polohe</string>
     <string name="trip_detail_route_unavailable_legacy">Mapa trasy nie je k dispozícii pre staršie relácie</string>
     <string name="trip_detail_route_no_gps_points">Vzdialenosť je zaznamenaná, ale trasa GPS nie je k dispozícii</string>
@@ -164,6 +164,6 @@
     <string name="history_exploration_best">Najlepšie</string>
     <string name="action_navigate_back">Späť</string>
     <string name="history_button_label">História</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">Zobraziť cestu na mape</string>
     <string name="stats_heatmap_title">Aktivita</string>
 </resources>

@@ -171,7 +171,6 @@
     <string name="minigame_failure_persistence">Tento beh sa nepodarilo uložiť. Skúste to znova.</string>
     <string name="minigame_failure_generic">Niečo sa pokazilo a beh sa zastavil.</string>
     <string name="minigame_session_try_again">Skúsiť znova</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Aktívna hra</string>
     <string name="game_session_channel_description">Udržiava aktívnu minihru spustenú aj pri vypnutej obrazovke</string>
     <string name="game_session_notification_title">Hra Trackera</string>

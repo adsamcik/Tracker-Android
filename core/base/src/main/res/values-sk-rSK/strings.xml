@@ -24,19 +24,14 @@
     <string name="cell_unknown">Neznáme</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanál používaný výlučne službou Sledovanie aktivity, aby ste sa mohli jednoducho zbaviť tohto trvalého oznámenia.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Sledovanie aktivity</string>
     <string name="channel_achievements_description">Oznámenia súvisiace s úspechmi.</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Úspech</string>
     <string name="channel_other_description">Ostatné oznámenia, ktoré nepatria do žiadnej inej kategórie.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Ostatné</string>
     <string name="channel_track_description">Oznámenia súvisiace so sledovaním.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Sledovanie</string>
     <string name="channel_goals_description">Upozornenia na splnenie cieľa.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Postup cieľa</string>
     <string name="day_short">%d d</string>
     <string name="generic_add">Pridať</string>
