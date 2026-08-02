@@ -1,0 +1,182 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+
+    <string name="module_statistics_title">Statistika</string>
+    <string name="stats_cell_count">Šūnu skaits</string>
+    <string name="stats_collections">Atjauninājumu skaits</string>
+    <string name="stats_distance_in_vehicle">Attālums transportlīdzeklī</string>
+    <string name="stats_distance_on_foot">Attālums kājām</string>
+    <string name="stats_distance_total">Attālums</string>
+    <string name="stats_format_unknown_activity">sesija</string>
+    <string name="stats_location_count">Atrašanās vietu skaits</string>
+    <string name="stats_no_tracker_sessions">Vēl nav izsekošanas sesiju</string>
+    <string name="stats_empty_subtitle">Sāciet izsekošanu, lai šeit redzētu savu aktivitāti</string>
+    <string name="stats_session_count">Sesiju skaits</string>
+    <string name="stats_steps">Soļu skaits</string>
+    <string name="stats_metric_not_available_short">Nav</string>
+    <string name="stats_sum_title">Kopsavilkums</string>
+    <string name="stats_time">Izsekošanai pavadītais laiks</string>
+    <string name="stats_weekly_title">Pēdējās 7 dienas</string>
+    <string name="stats_wifi_count">Wi-Fi skaits</string>
+    <string name="stats_wifi_chip_label">Wi-Fi statistika</string>
+    <string name="stats_cell_signal_chip_label">Šūnu signāls</string>
+    <string name="stats_filter_dates">Datumi</string>
+    <string name="stats_filter_active_label">Tiek rādīts: %1$s</string>
+    <string name="stats_filter_clear">Notīrīt filtru</string>
+    <string name="stats_date_dialog_title">Datumu diapazons</string>
+    <string name="stats_date_summary_placeholder">Izvēlieties periodu sesiju filtrēšanai</string>
+    <string name="stats_date_preset_today">Šodien</string>
+    <string name="stats_date_preset_yesterday">Vakar</string>
+    <string name="stats_date_preset_last_7_days">Pēdējās 7 dienas</string>
+    <string name="stats_date_preset_last_30_days">Pēdējās 30 dienas</string>
+    <string name="stats_date_preset_this_month">Šis mēnesis</string>
+    <string name="stats_date_preset_last_month">Pagājušais mēnesis</string>
+    <string name="stats_date_preset_this_year">Šis gads</string>
+    <string name="stats_date_preset_all_time">Viss laiks</string>
+    <string name="stats_sparse_summary_title">Šī nedēļa īsumā</string>
+    <string name="stats_sparse_summary_active_days">Aktīvās dienas</string>
+    <string name="stats_sparse_summary_week_label">Dienas aktivitāte</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Redzama tikai %1$d sesija, tāpēc šis kompaktais kopsavilkums papildina pārējo neseno aktivitāti.</item>
+        <item quantity="other">Redzamas tikai %1$d sesijas, tāpēc šis kompaktais kopsavilkums papildina pārējo neseno aktivitāti.</item>
+    </plurals>
+    <string name="stats_error_generic">Kaut kas nogāja greizi</string>
+    <string name="stats_loading">Notiek sesiju ielāde…</string>
+    <string name="stats_append_error">Neizdevās ielādēt vairāk</string>
+    <string name="action_retry">Mēģināt vēlreiz</string>
+
+    <string name="stats_start_tracking_cta">Sākt izsekošanu</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s solis</item>
+        <item quantity="other">%1$s soļi</item>
+    </plurals>
+
+    <string name="stats_date_today">Šodien</string>
+    <string name="stats_date_yesterday">Vakar</string>
+
+    <string name="stats_summary_loading">Notiek kopsavilkuma ielāde…</string>
+    <string name="stats_summary_empty">Nav pieejamas kopsavilkuma statistikas</string>
+    <string name="stats_summary_empty_subtitle">Sāciet izsekošanu, lai redzētu aktivitātes kopsavilkumu</string>
+    <string name="stats_summary_error">Neizdevās ielādēt kopsavilkumu</string>
+
+    <string name="stats_week_loading">Notiek nedēļas statistikas ielāde…</string>
+    <string name="stats_week_empty">Nav pieejamas nedēļas statistikas</string>
+    <string name="stats_week_empty_subtitle">Izsekojiet 7 dienas, lai skatītu nedēļas kopsavilkumu</string>
+    <string name="stats_week_error">Neizdevās ielādēt nedēļas statistiku</string>
+    <string name="stats_wifi_dialog_title">Wi-Fi statistika</string>
+    <string name="stats_wifi_dialog_loading">Notiek Wi-Fi statistikas ielāde…</string>
+    <string name="stats_wifi_dialog_empty_title">Nav pieejamu Wi-Fi datu</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Wi-Fi statistika tiks parādīta pēc skenējumu savākšanas.</string>
+    <string name="stats_wifi_dialog_error">Neizdevās ielādēt Wi-Fi statistiku</string>
+    <string name="stats_wifi_unique_networks">Redzētie unikālie tīkli</string>
+    <string name="stats_wifi_total_scans">Kopējais skenējumu skaits</string>
+    <string name="stats_wifi_average_per_scan">Vidējais tīklu skaits vienā skenējumā</string>
+
+    <string name="stats_cell_signal_dialog_title">Šūnu signāla pārskats</string>
+    <string name="stats_cell_signal_dialog_loading">Notiek šūnu signāla pārskata ielāde…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Nav pieejamu šūnu datu</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Šūnu signāla statistika tiks parādīta pēc paraugu savākšanas.</string>
+    <string name="stats_cell_signal_dialog_error">Neizdevās ielādēt šūnu signāla pārskatu</string>
+    <string name="stats_cell_signal_total_samples">Šūnu paraugi</string>
+    <string name="stats_cell_signal_distinct_towers">Dažādi torņi</string>
+    <string name="stats_cell_signal_section_networks">Pēc tīkla veida</string>
+    <string name="stats_cell_signal_section_towers">Biežāk redzētie torņi</string>
+
+    <string name="stats_cell_signal_network_secondary">%1$s paraugu · %2$s torņi</string>
+
+    <string name="stats_cell_signal_tower_detail">Šūna %1$s · %2$s paraugi</string>
+
+    <string name="stats_cell_signal_carrier">Operators %1$s‑%2$s</string>
+
+    <string name="trip_detail_title">Brauciena informācija</string>
+    <string name="trip_detail_not_found">Brauciens nav atrasts</string>
+    <string name="trip_detail_not_found_subtitle">Iespējams, šis brauciens ir dzēsts</string>
+    <string name="trip_detail_error_title">Neizdevās ielādēt braucienu</string>
+    <string name="trip_detail_retry">Mēģināt vēlreiz</string>
+    <string name="trip_detail_duration">Ilgums</string>
+    <string name="trip_detail_distance">Attālums</string>
+    <string name="trip_detail_date">Datums</string>
+    <string name="trip_detail_steps">Soļi</string>
+    <string name="trip_detail_samples">Paraugi</string>
+    <string name="trip_detail_source">Avots</string>
+    <string name="trip_detail_avg_speed">Vid. ātrums</string>
+    <string name="trip_detail_max_speed">Maks. ātrums</string>
+    <string name="trip_detail_pace">Temps</string>
+    <string name="trip_detail_activity_type">Aktivitātes veids</string>
+    <string name="trip_detail_start_time">Sākuma laiks</string>
+    <string name="trip_detail_end_time">Beigu laiks</string>
+    <string name="trip_detail_elevation_gain">Augstuma pieaugums</string>
+    <string name="trip_detail_elevation_loss">Augstuma samazinājums</string>
+    <string name="trip_detail_max_altitude">Maks. augstums</string>
+    <string name="trip_detail_route_map">Maršruta karte</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Nav atrašanās vietas datu</string>
+    <string name="trip_detail_route_unavailable_legacy">Maršruta karte nav pieejama mantotajām sesijām</string>
+    <string name="trip_detail_route_no_gps_points">Attālums ir ierakstīts, taču nav pieejams GPS maršruts</string>
+    <string name="trip_detail_delete">Dzēst</string>
+    <string name="trip_detail_export_gpx">Eksportēt kā GPX</string>
+    <string name="trip_detail_delete_confirm_title">Dzēst braucienu?</string>
+    <string name="trip_detail_delete_confirm_message">Šis brauciens tiks neatgriezeniski dzēsts.</string>
+    <string name="trip_detail_delete_confirm">Dzēst</string>
+    <string name="trip_detail_cancel">Atcelt</string>
+    <string name="trip_detail_more_options">Vairāk opciju</string>
+
+    <string name="ski_detail_header">Slēpošanas sesija</string>
+    <string name="ski_detail_runs">Nobraucieni</string>
+    <string name="ski_detail_vertical">Vertikālais kritums</string>
+    <string name="ski_detail_max_speed">Maks. ātrums</string>
+    <string name="ski_detail_time_skiing">Slēpošana</string>
+    <string name="ski_detail_time_lifts">Uz pacēlājiem</string>
+    <string name="ski_detail_run_label">Nobrauciens #%1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Atrasti %d Wi-Fi tīkli, kas atbilst filtram</string>
+    <string name="wifilist_filter_bssid">BSSID (identifikators)</string>
+    <string name="wifilist_filter_capabilities">Iespējas</string>
+    <string name="wifilist_filter_count">Cik daudz rādīt</string>
+    <string name="wifilist_filter_frequency">Frekvence</string>
+    <string name="wifilist_filter_ssid">SSID (nosaukums)</string>
+    <string name="wifilist_item_frequency">%d MHz</string>
+    <string name="wifilist_title">Wi-Fi saraksts</string>
+    <string name="wifilist_title_bssid">BSSID</string>
+    <string name="wifilist_title_capabilities">Iespējas</string>
+    <string name="wifilist_title_first_seen">Pirmoreiz redzēts</string>
+    <string name="wifilist_title_frequency">Frekvence</string>
+    <string name="wifilist_title_last_seen">Pēdējo reizi redzēts</string>
+    <string name="wifilist_title_ssid">SSID</string>
+
+    <string name="history_tab_timeline">Laika skala</string>
+    <string name="history_tab_trips">Braucieni</string>
+    <string name="history_tab_calendar">Kalendārs</string>
+    <string name="history_screen_title">Vēsture</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d brauciens</item>
+        <item quantity="other">%d braucieni</item>
+    </plurals>
+
+    <string name="history_timeline_empty_title">Vēl nav aktivitāšu</string>
+    <string name="history_timeline_empty_desc">Sāciet izsekošanu, lai šeit redzētu savu pārvietošanās vēsturi</string>
+
+    <string name="history_trips_empty_title">Nav ierakstītu braucienu</string>
+    <string name="history_trips_empty_desc">Braucieni šeit parādīsies, kad pārvietosieties</string>
+    <string name="trip_gps_anomaly">Konstatēta GPS anomālija — attālums var būt neprecīzs</string>
+    <string name="trip_deleted_snackbar">Brauciens dzēsts</string>
+
+    <string name="history_calendar_previous_month">Iepriekšējais mēnesis</string>
+    <string name="history_calendar_next_month">Nākamais mēnesis</string>
+    <string name="history_calendar_distance">Attālums</string>
+    <string name="history_calendar_steps">Soļi</string>
+    <string name="history_calendar_trips">Braucieni</string>
+
+    <string name="history_exploration_title">Izpēte</string>
+    <string name="history_exploration_cells">Šūnas</string>
+    <string name="history_exploration_streak">Sērija</string>
+    <string name="history_exploration_best">Labākais</string>
+
+    <string name="action_navigate_back">Doties atpakaļ</string>
+
+    <string name="history_button_label">Vēsture</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+
+    <string name="stats_heatmap_title">Aktivitāte</string>
+</resources>

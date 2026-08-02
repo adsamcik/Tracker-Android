@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Pārskats</string>
+    <string name="dashboard_tracking_title">Izsekošana</string>
+    <string name="dashboard_recording">Ierakstīšana</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Izsekošana negaidīti apstājās</string>
+    <string name="dashboard_permission_banner_title">Atrašanās vietas atļauja nav pieejama</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker nevar ierakstīt maršrutus, līdz piešķirsiet atrašanās vietas piekļuvi. Pieskarieties, lai to piešķirtu.</string>
+    <string name="dashboard_permission_banner_cd">Atrašanās vietas atļaujas nepieejamības reklāmkarogs; pieskarieties, lai piešķirtu atrašanās vietas piekļuvi</string>
+
+    <string name="dashboard_cd_activity_icon">Aktivitātes veids</string>
+    <string name="dashboard_cd_explore_icon">Izpēte</string>
+    <string name="dashboard_cd_forward_arrow">Skatīt informāciju</string>
+    <string name="dashboard_cd_last_session">Pēdējā sesija: ilgums %1$s, attālums %2$s. Pieskarieties, lai skatītu informāciju</string>
+    <string name="dashboard_cd_locked_badge">Izsekošana bloķēta</string>
+    <string name="dashboard_cd_open_settings">Atvērt iestatījumus</string>
+    <string name="dashboard_cd_start_tracking">Sākt izsekošanu</string>
+    <string name="dashboard_cd_start_tracking_permission">Sākt izsekošanu; nepieciešama atļauja</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Sērija: %1$d diena. Pieskarieties, lai skatītu sērijas informāciju</item>
+        <item quantity="other">Sērija: %1$d dienas. Pieskarieties, lai skatītu sērijas informāciju</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Sāciet sēriju. Pieskarieties, lai skatītu sērijas informāciju</string>
+    <string name="dashboard_cd_stop_tracking">Apturēt izsekošanu</string>
+    <string name="dashboard_action_enable_location">Iespējot atrašanās vietas piekļuvi</string>
+    <string name="dashboard_action_view_details">Skatīt informāciju</string>
+    <string name="dashboard_action_view_map">Skatīt karti</string>
+    <string name="dashboard_action_view_streak_details">Skatīt sērijas informāciju</string>
+    <string name="dashboard_action_open_tracking_settings">Iestatījumi</string>
+    <string name="dashboard_action_restart_tracking">Restartēt</string>
+
+    <string name="dashboard_format_altitude_range">Augstuma profils, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+
+    <string name="dashboard_tracking_awaiting_gps">Gaida GPS signālu…</string>
+    <string name="dashboard_tracking_recording_route">Ieraksta maršrutu…</string>
+    <string name="dashboard_milestone_distance">km sasniegti!</string>
+    <string name="dashboard_milestone_steps">soļi sasniegti!</string>
+    <string name="dashboard_milestone_time">min. izsekotas!</string>
+    <string name="dashboard_milestone_points">+10 punkti</string>
+
+    <string name="dashboard_today_title">Šodien</string>
+    <string name="dashboard_today_no_activity">Šodien vēl nav aktivitāšu</string>
+    <string name="dashboard_today_distance">Attālums</string>
+    <string name="dashboard_today_duration">Ilgums</string>
+    <string name="dashboard_today_steps">Soļi</string>
+    <string name="dashboard_today_trips">Braucieni</string>
+    <string name="dashboard_goal_get_started">Sāciet</string>
+    <string name="dashboard_goal_on_track">Pēc plāna</string>
+    <string name="dashboard_goal_ahead">Priekšā</string>
+    <string name="dashboard_goal_behind">Atpaliek</string>
+    <string name="dashboard_streak_day_streak">dienu sērija</string>
+    <string name="dashboard_streak_start">Sāciet sēriju!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% salīdzinājumā ar iepriekšējo nedēļu</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% salīdzinājumā ar iepriekšējo nedēļu</string>
+    <string name="dashboard_last_session_title">Pēdējā sesija</string>
+    <string name="dashboard_last_session_duration">Ilgums</string>
+    <string name="dashboard_last_session_distance">Attālums</string>
+    <string name="dashboard_last_session_steps">Soļi</string>
+    <string name="dashboard_last_session_view_map">Skatīt karti</string>
+    <string name="dashboard_recent_trips_title">Nesenie braucieni</string>
+    <string name="dashboard_recent_trips_empty">Nav nesenu braucienu. Sāciet izsekošanu, lai šeit redzētu savus ceļojumus.</string>
+    <string name="dashboard_exploration_title">Izpēte</string>
+    <string name="dashboard_exploration_new_today">Jauns šodien</string>
+    <string name="dashboard_exploration_total_cells">Kopējais šūnu skaits</string>
+    <string name="dashboard_exploration_seasons">Gadalaiki</string>
+
+    <string name="dashboard_live_charts_speed">Ātrums</string>
+    <string name="dashboard_live_charts_altitude">Augstums</string>
+
+    <string name="dashboard_sensor_details_title">Sensora informācija</string>
+    <string name="dashboard_sensor_expand">Izvērst sensora informāciju</string>
+    <string name="dashboard_sensor_collapse">Sakļaut sensora informāciju</string>
+    <string name="dashboard_sensor_location_accuracy">Atrašanās vietas precizitāte</string>
+    <string name="dashboard_sensor_activity">Aktivitāte</string>
+    <string name="dashboard_sensor_wifi">Wi-Fi tīkli</string>
+    <string name="dashboard_sensor_cell">Mobilo sakaru torņi</string>
+    <string name="dashboard_sensor_altitude">Augstums</string>
+    <string name="dashboard_sensor_speed">Ātrums</string>
+    <string name="dashboard_sensor_cell_types">Šūnu veidi</string>
+    <string name="dashboard_sensor_raw_coords">Koordinātas (atkļūdošana)</string>
+
+    <string name="dashboard_trend_up">Augoša tendence</string>
+    <string name="dashboard_trend_down">Krītoša tendence</string>
+
+    <string name="dashboard_motivational_getting_started">Tikko sākat…</string>
+    <string name="dashboard_motivational_keep_going">Turpiniet! 💪</string>
+    <string name="dashboard_motivational_impressive">Iespaidīga sesija!</string>
+    <string name="dashboard_motivational_marathon">Maratona pētnieks! 🏆</string>
+    <string name="dashboard_motivational_morning">Labrīt! Vai esat gatavs izpētīt?</string>
+    <string name="dashboard_motivational_afternoon">Labdien! Turpinām kustēties?</string>
+    <string name="dashboard_motivational_evening">Labvakar! Pārskatīt savu dienu?</string>
+    <string name="dashboard_motivational_night">Nakts pūces režīms 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d dienu sērija!</string>
+
+    <string name="dashboard_empty_title">Jūsu ceļojums sākas šeit</string>
+    <string name="dashboard_empty_subtitle">Izmantojiet tālāk redzamo kartīti “Kad esat gatavs”, lai nepieciešamības gadījumā piešķirtu atrašanās vietas piekļuvi un sāktu savu pirmo piedzīvojumu</string>
+    <string name="dashboard_empty_feature_explore">Izpētiet</string>
+    <string name="dashboard_empty_feature_explore_desc">Atklājiet jaunas vietas un maršrutus</string>
+    <string name="dashboard_empty_feature_achieve">Sasniedziet</string>
+    <string name="dashboard_empty_feature_achieve_desc">Iestatiet mērķus un pelniet punktus</string>
+    <string name="dashboard_empty_feature_track">Izsekojiet</string>
+    <string name="dashboard_empty_feature_track_desc">Ierakstiet pastaigas, skrējienus un braucienus</string>
+    <string name="dashboard_empty_feature_privacy">Privātums</string>
+    <string name="dashboard_empty_feature_privacy_desc">Visi dati paliek jūsu ierīcē</string>
+    <string name="dashboard_empty_icon_desc">Atrašanās vietas izsekošanas ilustrācija</string>
+    <string name="dashboard_empty_quick_start_title">Ātrā sākšana</string>
+    <string name="dashboard_empty_quick_start_subtitle">Lūk, ātrākais veids, kā šo tukšo pārskatu pārvērst noderīgās kartēs, sesijās un dienas progresā.</string>
+    <string name="dashboard_empty_step_customize_title">Izvēlieties savu izsekošanas stilu</string>
+    <string name="dashboard_empty_step_customize_desc">Jebkurā laikā atveriet iestatījumus, lai pielāgotu priekšiestatījumus, akumulatora patēriņu un ierakstāmos sensorus.</string>
+    <string name="dashboard_empty_step_start_title">Sāciet pirmo maršrutu</string>
+    <string name="dashboard_empty_step_start_desc">Iepriekš pieskarieties “Kad esat gatavs”, lai vajadzības gadījumā piešķirtu atrašanās vietas piekļuvi, pēc tam sāciet pastaigu, skrējienu, braucienu vai fona izsekošanas sesiju.</string>
+    <string name="dashboard_empty_step_review_title">Pārskatiet kartes un statistiku</string>
+    <string name="dashboard_empty_step_review_desc">Pēc pirmās sesijas cilnes Pārskats, Karte un Statistika piepildīsies ar neseno aktivitāti un ieskatiem.</string>
+    <string name="dashboard_empty_fab_hint_title">Kad esat gatavs</string>
+    <string name="dashboard_empty_fab_hint_desc">Pieskarieties šeit, lai sāktu pirmo izsekošanas sesiju.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Pieskarieties šeit, lai piešķirtu atrašanās vietas piekļuvi, pēc tam sāciet pirmo izsekošanas sesiju.</string>
+
+    <string name="widget_today_progress">Šodienas progress</string>
+    <string name="widget_streak">Sērija</string>
+    <string name="widget_last_session">Pēdējā sesija</string>
+    <string name="widget_recent_trips">Nesenie braucieni</string>
+    <string name="widget_exploration">Izpēte</string>
+
+    <string name="dashboard_customize_title">Pielāgot pārskatu</string>
+    <string name="dashboard_customize_reset">Atiestatīt uz noklusējuma vērtībām</string>
+    <string name="dashboard_customize_cd_toggle">Pārslēgt %1$s redzamību</string>
+    <string name="dashboard_customize_cd_drag_handle">Mainīt %1$s secību</string>
+
+    <string name="dashboard_no_altitude_data">Nav augstuma datu</string>
+    <string name="dashboard_cd_no_altitude_data">Nav pieejamu augstuma datu</string>
+    <string name="dashboard_cd_speed_sparkline">Ātruma dzirksteles līnija ar %1$d datu punktiem</string>
+    <string name="dashboard_cd_session_path">Sesijas maršruta priekšskatījums ar %1$d punktiem</string>
+
+    <string name="dashboard_metric_speed">Ātrums</string>
+    <string name="dashboard_metric_distance">Attālums</string>
+    <string name="dashboard_metric_duration">Ilgums</string>
+    <string name="dashboard_metric_steps">Soļi</string>
+    <string name="dashboard_metric_altitude">Augstums</string>
+    <string name="dashboard_metric_activity">Aktivitāte</string>
+    <string name="dashboard_metric_accuracy">Precizitāte</string>
+    <string name="dashboard_metric_avg_speed">Vid. ātrums</string>
+    <string name="dashboard_metric_wifi">Wi-Fi</string>
+    <string name="dashboard_metric_cell">Šūna</string>
+    <string name="dashboard_metric_coordinates">Koordinātas</string>
+
+    <string name="dashboard_ring_start_tracking">Sākt izsekošanu</string>
+    <string name="dashboard_ring_enable_location">Iespējot atrašanās vietu</string>
+    <string name="dashboard_pill_start">Sākt</string>
+    <string name="dashboard_pill_stop">Apturēt</string>
+    <string name="dashboard_pill_enable_location">Iespējot atrašanās vietu</string>
+
+    <string name="dashboard_insights_title">Sesijas ieskati</string>
+    <string name="dashboard_cd_insight_item">Ieskats: %1$s</string>
+    <string name="widget_latest_achievement">Pēdējais sasniegums</string>
+    <string name="dashboard_latest_achievement_title">Pēdējais sasniegums</string>
+    <string name="dashboard_latest_achievement_empty">Turpiniet izsekošanu, lai atbloķētu pirmo sasniegumu</string>
+</resources>

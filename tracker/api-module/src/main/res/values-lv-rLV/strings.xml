@@ -1,0 +1,211 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="activity_title">Aktivitāte</string>
+    <string name="activity_value">%s</string>
+    <string name="altitude_title">Augstums</string>
+    <string name="altitude_value">augst. %s</string>
+    <string name="cell_count_title">Šūnu skaits</string>
+    <string name="cell_count_value">šūnas %d</string>
+    <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
+    <string name="cell_current_title">Pašreizējā šūna</string>
+    <string name="cell_current_value">aktīvās šūnas (%s)</string>
+    <string name="collection_count_title">Atjauninājumu skaits</string>
+    <string name="collection_count_value">%d atjauninājumi</string>
+    <string name="coordinates_title">Koordinātas</string>
+    <string name="description_settings">Iestatījumu poga</string>
+    <string name="description_tracking_start">Izsekošanas sākšanas poga</string>
+    <string name="description_tracking_stop">Izsekošanas apturēšanas poga</string>
+    <string name="description_tracking_start_no_permission">Sākt izsekošanu — nepieciešama atļauja</string>
+    <string name="description_points_today">Šodien nopelnītie punkti: %s</string>
+    <string name="description_copy">Kopēt vērtību</string>
+    <string name="description_copied">Vērtība nokopēta</string>
+    <string name="description_recharge_settings">Uzlādes iestatījumi: pieskarieties, lai konfigurētu</string>
+    <string name="distance_invehicle_title">Attālums transportlīdzeklī</string>
+    <string name="distance_invehicle_value">transportlīdzeklī %s</string>
+    <string name="distance_onfoot_title">Attālums kājām</string>
+    <string name="distance_onfoot_value">kājām %s</string>
+    <string name="distance_title">Attālums</string>
+    <string name="distance_value">attālums %s</string>
+    <string name="duration_title">Sesijas ilgums</string>
+    <string name="duration_value">ilgums %s</string>
+    <string name="error_nothing_to_track">Iespējojiet vismaz vienu izsekošanas opciju (atrašanās vietu, soļus vai aktivitāti)</string>
+    <string name="hint_customize_notification_show_in_content">Rādīt paziņojuma saturā</string>
+    <string name="hint_customize_notification_show_in_title">Rādīt paziņojuma virsrakstā</string>
+    <string name="horizontal_accuracy_title">Horizontālā precizitāte</string>
+    <string name="horizontal_accuracy_value">prec. %s</string>
+    <string name="last_update_title">Pēdējā atjauninājuma laiks</string>
+    <string name="last_update_value">pēdējais %s</string>
+    <string name="latitude_title">Platums</string>
+    <string name="latitude_value_north">%s Z</string>
+    <string name="latitude_value_south">%s D</string>
+    <string name="longitude_title">Garums</string>
+    <string name="longitude_value_east">%s A</string>
+    <string name="longitude_value_west">%s R</string>
+    <plurals name="notification_auto_tracking_lock">
+        <item quantity="one">Automātiskā izsekošana ir bloķēta uz %1$d minūti.</item>
+        <item quantity="other">Automātiskā izsekošana ir bloķēta uz %1$d minūtēm.</item>
+    </plurals>
+    <string name="notification_looking_for_gps">Meklē GPS — tiek izmantota atrašanās vieta</string>
+    <string name="notification_starting">Tracker tiek palaists — tiek izmantota atrašanās vieta</string>
+    <string name="notification_starting_without_location">Tracker tiek palaists</string>
+    <string name="notification_stop">Apturēt</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Apturēt uz %d minūtēm</string>
+    <string name="notification_stop_til_recharge">Apturēt līdz uzlādei</string>
+    <string name="stop_tracking_dialog_title">Apturēt izsekošanu?</string>
+    <string name="stop_tracking_dialog_message">Automātiskā izsekošana ir ieslēgta un drīz var sākt jaunu sesiju, ja to tikai apturēsiet.</string>
+    <string name="notification_tracker_active_ticker">Ieraksta jūsu maršrutu — tiek izmantota atrašanās vieta</string>
+    <string name="notification_tracker_active_without_location">Izsekošana bez atrašanās vietas</string>
+    <string name="notification_tracking_active">Izsekošana</string>
+    <string name="notification_tracking_start_failed_title">Neizdevās sākt izsekošanu</string>
+    <string name="notification_tracking_start_failed_text">Atveriet lietotni, lai pārskatītu atļaujas un atsāktu izsekošanu.</string>
+    <string name="settings_activity_enabled_title">Aktivitāte</string>
+    <string name="settings_auto_tracking_transition_summary">Akumulatoru saudzējošs režīms (nedaudz lēnāka aktivitātes noteikšana)</string>
+    <string name="settings_auto_tracking_transition_title">Izmantot aktivitāšu pārejas</string>
+    <string name="settings_cell_enabled_title">Šūna</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_summary">Automātiskā izsekošana ir atspējota, līdz tālrunis tiek pievienots lādētājam</string>
+    <string name="settings_disabled_recharge_title">Atspējota līdz uzlādei</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_location_enabled_title">Atrašanās vieta</string>
+    <string name="settings_notification_customize_summary">Mainiet, kas un kādā secībā jāparādās izsekošanas paziņojumā.</string>
+    <string name="settings_notification_customize_title">Pielāgot paziņojumu</string>
+    <string name="settings_notification_styled_summary">Paziņojumiem izmantojiet lietotnes stila krāsu.</string>
+    <string name="settings_notification_styled_title">Krāsaini paziņojumi</string>
+    <string name="settings_ski_detection_title">Slēpošanas noteikšana</string>
+    <string name="settings_ski_detection_summary">Automātiski noteikt slēpošanu pēc barometra modeļiem un pielāgot GPS izsekošanu katrai slēpošanas fāzei.</string>
+    <string name="settings_sailing_detection_title">Burāšanas noteikšana</string>
+    <string name="settings_sailing_detection_summary">Automātiski noteikt burāšanu vai laivošanu pēc GPS ātruma un atbilstoši pielāgot GPS izsekošanu. Tikai pēc ātruma — var aktivizēties arī līdzīga ātruma aktivitātēm, piemēram, braukšanai ar velosipēdu.</string>
+    <string name="settings_plane_detection_title">Lidojuma noteikšana</string>
+    <string name="settings_plane_detection_summary">Automātiski noteikt lidojumus pēc barometriskā augstuma izmaiņām un pielāgot GPS izsekošanu katrai lidojuma fāzei. Darbojas arī bez GPS kruīza augstumā.</string>
+    <string name="ski_notification_title">Slēpošanas statistika</string>
+    <string name="ski_notification_text">🎿 Nobrauciens #%1$d | ↓%2$s | ⚡%3$s</string>
+    <string name="ski_notification_lift">%1$s brauciens</string>
+    <string name="settings_barometer_enabled_title">Barometrs</string>
+    <string name="settings_steps_enabled_title">Soļu skaits</string>
+    <string name="settings_tracker_timer_ambient">Fona taimeris</string>
+    <string name="settings_tracker_timer_clock">Pēc intervāla</string>
+    <string name="settings_tracker_timer_fused">Google Play atrašanās vieta</string>
+    <string name="settings_tracker_timer_location">Android atrašanās vieta</string>
+    <string name="settings_tracking_min_distance_title">Minimālais attālums starp atjauninājumiem</string>
+    <string name="settings_tracking_min_time_title">Minimālā aizkave starp atjauninājumiem</string>
+    <string name="settings_tracking_notice_summary">Izmaiņas stājas spēkā, kad restartējat izsekošanu</string>
+    <string name="settings_tracking_required_accuracy_title">Nepieciešamā atrašanās vietas precizitāte</string>
+    <string name="settings_tracking_title">Izsekošana</string>
+    <string name="settings_vehicle_speed_limit_baseline_title">Transportlīdzekļu ātruma ierobežojuma pamats</string>
+    <string name="help_vehicle_speed_limit_baseline">Izmanto kartes slānis Transportlīdzekļu ātruma atbilstība. Braukšanas paraugi ir iekrāsoti pēc to ātruma salīdzinājuma ar šo pamatu. Izvēlieties vērtību, kas atbilst ierobežojumiem vietās, kur braucat visbiežāk (piemēram, 50 km/h pilsētās, 90 km/h uz šosejām).</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi</string>
+    <string name="shortcut_start_tracking">Sākt izsekošanu</string>
+    <string name="shortcut_start_tracking_long">Sākt atrašanās vietas izsekošanu</string>
+    <string name="shortcut_stop_tracking">Apturēt izsekošanu</string>
+    <string name="shortcut_stop_tracking_long">Apturēt atrašanās vietas izsekošanu</string>
+    <string name="speed_title">Ātrums</string>
+    <string name="speed_value">ātrums %s</string>
+    <string name="battery_title">Akumulators</string>
+    <string name="battery_low_warning">⚡ Zems akumulatora līmenis: %d%%</string>
+    <string name="start_time_title">Sesijas sākuma laiks</string>
+    <string name="start_time_value">sākums %s</string>
+    <string name="tracker_activity_confidence">Pārliecība</string>
+    <string name="tracker_activity_title">Aktivitāte</string>
+    <string name="tracker_collections_title">Atjauninājumi</string>
+    <string name="tracker_distance_title">Attālums</string>
+    <string name="tracker_steps_title">Soļi</string>
+    <string name="tracker_session_age">Sesija sākta</string>
+    <string name="tracker_session_card_title">Sesija</string>
+    <string name="tracker_component_waiting_data">Gaida tiešos datus</string>
+    <plurals name="tracker_wifi_networks_value">
+        <item quantity="one">%d tīkls</item>
+        <item quantity="other">%d tīkli</item>
+    </plurals>
+    <string name="tracker_signal_strength_title">Signāls</string>
+    <string name="tracker_signal_strength_value">%1$d dBm maksimums</string>
+    <string name="insight_distance_value_km">%1$.1f km</string>
+    <string name="insight_duration_title">Lietderīgi pavadīts laiks</string>
+    <plurals name="insight_duration_desc">
+        <item quantity="one">%1$d izsekošanas minūte</item>
+        <item quantity="other">%1$d izsekošanas minūtes</item>
+    </plurals>
+    <string name="insight_exploration_title">Pētnieks!</string>
+    <plurals name="insight_exploration_desc">
+        <item quantity="one">Jūs atklājāt %1$d jaunu apgabalu</item>
+        <item quantity="other">Jūs atklājāt %1$d jaunus apgabalus</item>
+    </plurals>
+    <string name="insight_comparison_title">Virs vidējā</string>
+    <string name="insight_comparison_desc">Šī sesija bija par %1$d%% garāka nekā jūsu nesenais vidējais</string>
+    <string name="wifi_count_title">Wi-Fi skaits</string>
+    <string name="wifi_count_value">Wi-Fi %d</string>
+
+    <string name="wifi_permission_hint_title">Atļaujiet Wi-Fi labākai iekštelpu precizitātei</string>
+    <string name="wifi_permission_hint_text">Piešķiriet Wi-Fi atļauju lietotnes iestatījumos, lai uzlabotu uz signālu balstītu atrašanās vietu telpās. Wi-Fi radio dati netiek vākti, līdz to atļaujat.</string>
+
+
+    <string name="dashboard_today_title">Šodien</string>
+    <string name="dashboard_today_empty_title">Šodien nav sesiju</string>
+    <string name="dashboard_today_distance">Attālums</string>
+    <string name="dashboard_today_steps">Soļi</string>
+    <string name="dashboard_today_duration">Ilgums</string>
+
+    <string name="tracking_preset_title">Izsekošanas režīms</string>
+    <string name="tracking_preset_battery_saver_title">Akumulatora taupīšana</string>
+    <string name="tracking_preset_battery_saver_desc">Optimizēts visas dienas izsekošanai</string>
+    <string name="tracking_preset_balanced_title">Līdzsvarots</string>
+    <string name="tracking_preset_balanced_desc">Iespējoti visi sensori ar mērenu detalizāciju</string>
+    <string name="tracking_preset_high_precision_title">Augsta precizitāte</string>
+    <string name="tracking_preset_high_precision_desc">Maksimāla detalizācija un precizitāte</string>
+    <string name="tracking_preset_custom_badge">Pielāgoti iestatījumi piemēroti</string>
+
+    <string name="battery_impact_low">Neliela ietekme uz akumulatoru</string>
+    <string name="battery_impact_moderate">Mērena ietekme uz akumulatoru</string>
+    <string name="battery_impact_high">Lielāks akumulatora patēriņš</string>
+    <string name="battery_impact_high_warning">Šī konfigurācija var ievērojami samazināt akumulatora darbības laiku. Visas dienas izsekošanai apsveriet līdzsvaroto režīmu.</string>
+
+
+    <string name="help_min_distance">Tracker gaida, līdz būsiet pārvietojies tik tālu, pirms ieraksta nākamo atrašanās vietu. Mazākas vērtības = detalizētāki maršruti, bet lielāks akumulatora patēriņš.</string>
+    <string name="help_min_time">Cik bieži Tracker pārbauda jūsu atrašanās vietu. Mazākas vērtības = biežāki atjauninājumi, bet lielāks akumulatora patēriņš.</string>
+    <string name="help_required_accuracy">GPS precizitātes slieksnis. Tracker ignorē atrašanās vietas atjauninājumus, kuru precizitāte ir sliktāka par šo vērtību. Mazāka vērtība = lielāka precizitāte, taču vājā GPS signālā atjauninājumi var tikt izlaisti.</string>
+    <string name="help_transition_detection">Tracker sāk un aptur darbību automātiski atbilstoši jūsu kustībai. Tas patērē mazāk akumulatora nekā pastāvīgs GPS, bet var aizkavēt aktivitātes izmaiņu noteikšanu.</string>
+
+    <string name="policy_tier_ambient">Fona</string>
+    <string name="policy_tier_active">Aktīvs</string>
+    <string name="policy_tier_precision">Precizitāte</string>
+
+    <string name="dashboard_recent_trips">Nesenie braucieni</string>
+
+    <string name="tracker_hide_details">Paslēpt detalizētu informāciju</string>
+    <string name="tracker_show_sensor_details">Rādīt sensora informāciju</string>
+    <string name="tracker_view_map">Skatīt karti</string>
+    <string name="tracker_average_label">Vid.</string>
+    <string name="tracker_accuracy_label">Precizitāte</string>
+    <string name="tracker_disabled">Atspējots</string>
+
+    <string name="tracker_lock_icon_desc">Bloķēšanas statuss</string>
+    <string name="tracker_settings_icon_desc">Komponenta iestatījumi</string>
+    <string name="tracker_points_icon_desc">Punktu progress</string>
+
+    <string name="tracker_start_button">SĀKT</string>
+    <string name="tracker_duration_label">Ilgums</string>
+    <string name="tracker_distance_label">Attālums</string>
+    <string name="tracker_wifi_label">Wi-Fi</string>
+    <string name="tracker_cell_label">Šūna</string>
+    <string name="tracker_collapse">Sakļaut</string>
+    <string name="tracker_expand">Izvērst</string>
+    <string name="tracker_go_to_map">Doties uz karti</string>
+    <string name="tracker_session_summary_copied">Sesijas kopsavilkums nokopēts</string>
+    <string name="tracker_share_session_summary">Kopīgot sesijas kopsavilkumu</string>
+    <string name="tracker_long_press_to_copy">Turiet nospiestu, lai kopētu</string>
+    <string name="tracker_copy_session_summary">Kopēt sesijas kopsavilkumu</string>
+    <string name="tracker_live_tab">Tiešraide</string>
+    <string name="tracker_route_tab">Maršruts</string>
+    <string name="tracker_activity_tab">Aktivitāte</string>
+    <string name="tracker_precision_mode_enabled">Iespējota augstas precizitātes izsekošana</string>
+    <string name="tracker_battery_mode_enabled">Iespējota akumulatoru taupoša izsekošana</string>
+    <string name="policy_tier_status_prefix">GPS politika:</string>
+    <string name="tracker_precision_chip_hint">Pieskarieties, lai pārslēgtos uz %1$s</string>
+    <string name="action_navigate_back">Doties atpakaļ</string>
+
+    <string name="insight_distance_title">Veiktais attālums</string>
+    <string name="insight_distance_desc">Šajā sesijā veicāt %1$s.</string>
+    <string name="insight_steps_title">Ierakstītie soļi</string>
+    <string name="insight_steps_desc">Šajā sesijā %1$s soļi — turpiniet tā!</string>
+</resources>

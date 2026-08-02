@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Eksportēt</string>
+    <string name="export_default_file_name_range">Advention_eksporta_dati_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_eksporta_dati_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Atlasītajā intervālā netika atrasta neviena atrašanās vieta.</string>
+    <string name="export_error_no_databases">Eksportēšanai nav pieejama neviena lietotnes datu bāze.</string>
+    <string name="export_error_no_uri">Nav atlasīta eksporta mape</string>
+    <string name="export_error_stream_failed">Neizdevās izveidot faila %s straumi</string>
+    <string name="export_error_unknown">Eksportēšana neizdevās.</string>
+    <string name="export_error_with_reason">Eksportēšana neizdevās: %s</string>
+    <string name="export_file_name">Faila nosaukums</string>
+    <string name="export_file_name_error">Failu nosaukumos nedrīkst būt \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Ar Advention izsekoto atrašanās vietas datu eksports no %1$s līdz %2$s.</string>
+    <string name="export_gpx_error">GPX eksportēšana neizdevās ar kļūdu: %s</string>
+    <string name="export_sensitivity_title">Eksportēt precīzus atrašanās vietas datus?</string>
+    <string name="export_sensitivity_message">Šajā eksportā vai kopīgojamajā saturā ir pilnas precizitātes atrašanās vietas dati, un datu bāzes eksportā var būt neapstrādāti radio metadati. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_sensitivity_confirm">Turpināt</string>
+    <string name="export_share_button">Kopīgot</string>
+    <string name="export_in_progress">Notiek eksportēšana…</string>
+    <string name="export_completed">Eksportēšana pabeigta.</string>
+    <string name="import_notification_error_failed_open_database">Neizdevās atvērt datu bāzes failu %s</string>
+    <string name="import_notification_error_file_not_supported">Fails %s netiek atbalstīts.</string>
+    <string name="import_notification_extracting">Tiek izvilkts %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Importēšana pabeigta. Veiksmīgi importēts %d ieraksts.</item>
+        <item quantity="other">Importēšana pabeigta. Veiksmīgi importēti %d ieraksti.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Importēšana pabeigta. Importēti %1$d ieraksti (%2$d izlaisti).</string>
+    <string name="import_notification_error_records_failed">%d ierakstus neizdevās importēt ierobežojumu pārkāpumu dēļ.</string>
+    <string name="import_notification_importing">Tiek importēts %s …</string>
+    <string name="import_notification_progress">Notiek importēšana …</string>
+    <string name="settings_export_dialog_from">No</string>
+    <string name="settings_export_dialog_to">Līdz</string>
+    <string name="settings_export_no_data">Nav datu eksportēšanai</string>
+    <string name="settings_export_title">Eksportēšana</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Datu bāzes dublējums (ZIP)</string>
+    <string name="settings_import_summary">Importējiet datus no atbalstītajiem tipiem (%1$s) un arhīviem (%2$s). Datu bāzes imports apvieno saderīgās rindas; tas neaizstāj esošos datus.</string>
+    <string name="settings_import_title">Importēšana</string>
+</resources>

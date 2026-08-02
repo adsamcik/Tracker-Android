@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Doties atpakaļ</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Piekļuve atrašanās vietai</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker nepieciešama piekļuve atrašanās vietai, lai ierakstītu jūsu maršrutu un parādītu to kartē. Atrašanās vietas dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Aktivitāšu atpazīšana</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker izmanto aktivitāšu atpazīšanu, lai noteiktu, ko jūs darāt (ejat, braucat ar velosipēdu, vadāt auto, nekustaties), lai automātiskā izsekošana varētu apstāties, kad nekustaties, un taupīt akumulatoru. Aktivitāšu dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Atrašanās vieta fonā</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Lai turpinātu ierakstīt maršrutu, kad pārslēdzaties uz citu lietotni vai ekrāns izslēdzas, Tracker fonā nepieciešama piekļuve atrašanās vietai. Ierakstītā atrašanās vieta paliek šajā ierīcē — nekas netiek nosūtīts uz serveri. Nākamajā sistēmas uzvednē izvēlieties "Atļaut vienmēr"; opcija "Lietojot lietotni" ļauj Tracker darboties tikai tad, kad tā ekrāns ir atvērts.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Atļaut</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ne tagad</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Lai sāktu izsekošanu, nepieciešama atrašanās vietas atļauja</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Atvērt iestatījumus</string>
+</resources>

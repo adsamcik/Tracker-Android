@@ -1,0 +1,56 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+
+    <string name="activity_walking">Iešana</string>
+    <string name="activity_running">Skriešana</string>
+    <string name="activity_bicycle">Braukšana ar velosipēdu</string>
+    <string name="activity_slope_sports">Kalnu sporta veidi</string>
+    <string name="activity_land_vehicle">Sauszemes transportlīdzeklis</string>
+    <string name="activity_water_vehicle">Ūdens transportlīdzeklis</string>
+    <string name="activity_air_vehicle">Gaisa transportlīdzeklis</string>
+
+    <string name="activity_in_vehicle">Transportlīdzeklī</string>
+    <string name="activity_on_foot">Kājām</string>
+    <string name="activity_name">Aktivitātes nosaukums</string>
+    <string name="activity_raw_still">Nekustīgs</string>
+    <string name="activity_raw_tilting">Sasvērts</string>
+    <string name="activity_still">Nekustīgs</string>
+    <string name="activity_unknown">Nosaka…</string>
+    <string name="activity_vehicle">Transportlīdzeklis</string>
+
+    <string name="alert_confirm">Vai tiešām vēlaties %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Nav</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Nezināms</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Kanāls, ko izmanto tikai Aktivitātes pārrauga pakalpojums, lai varētu viegli atbrīvoties no šī pastāvīgā paziņojuma.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Aktivitātes pārraugs</string>
+    <string name="channel_achievements_description">Paziņojumi par sasniegumiem.</string>
+
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Sasniegums</string>
+    <string name="channel_other_description">Citi paziņojumi, kas nepieder nevienai citai kategorijai.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Citi</string>
+    <string name="channel_track_description">Paziņojumi par izsekošanu.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Izsekošana</string>
+    <string name="channel_goals_description">Paziņojumi par mērķa sasniegšanu.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Mērķa progress</string>
+    <string name="day_short">%d d</string>
+    <string name="generic_add">Pievienot</string>
+    <string name="generic_back">Atpakaļ</string>
+    <string name="generic_cancel">Atcelt</string>
+    <string name="generic_delete">Dzēst</string>
+    <string name="generic_edit">Rediģēt</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">atsaukt</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
+</resources>
