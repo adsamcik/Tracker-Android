@@ -1,0 +1,236 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Καταγράψτε δραστηριότητα σε τουλάχιστον %2$d διαφορετικές ημέρες για να το ξεκλειδώσετε.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Διανύστε %1$s</string>
+    <string name="ach_desc_distance_total">Καλύψτε συνολική καταγεγραμμένη απόσταση %1$s σε όλες τις συνεδρίες σας.</string>
+    <string name="ach_title_week_distance">%1$s αυτή την εβδομάδα</string>
+    <string name="ach_desc_week_distance">Διανύστε %1$s μέσα σε μία ημερολογιακή εβδομάδα.</string>
+    <string name="ach_title_best_day_distance">%1$s σε μία ημέρα</string>
+    <string name="ach_desc_best_day_distance">Καλύψτε απόσταση %1$s σε μία ημέρα.</string>
+    <string name="ach_title_max_session_distance">%1$s σε μία συνεδρία</string>
+    <string name="ach_desc_max_session_distance">Καταγράψτε μία συνεδρία που καλύπτει %1$s χωρίς διακοπή.</string>
+    <string name="ach_title_on_foot_distance">Περπατήστε ή τρέξτε %1$s</string>
+    <string name="ach_desc_on_foot_distance">Καλύψτε %1$s με τα πόδια (περπάτημα ή τρέξιμο μαζί).</string>
+    <string name="ach_title_cycling_distance">Κάντε ποδήλατο %1$s</string>
+    <string name="ach_desc_cycling_distance">Κάντε συνολικά ποδήλατο %1$s.</string>
+    <string name="ach_title_vehicle_distance">Μηχανοκίνητη διαδρομή %1$s</string>
+    <string name="ach_desc_vehicle_distance">Καλύψτε %1$s με αυτοκίνητο, λεωφορείο, τρένο, σκάφος ή αεροπλάνο.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Κάντε %1$s βήματα</string>
+    <string name="ach_desc_steps_total">Καταγράψτε %1$s βήματα σε όλες τις συνεδρίες σας.</string>
+    <string name="ach_title_best_daily_steps">%1$s βήματα σε μία ημέρα</string>
+    <string name="ach_desc_best_daily_steps">Κάντε %1$s βήματα μέσα σε μία ημέρα.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Πρώτη συνεδρία</item>
+        <item quantity="other">Καταγράψτε %1$s συνεδρίες</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Καταγράψτε συνολικά %1$s συνεδρίες καταγραφής.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Ανακαλύψτε το πρώτο σας κελί</item>
+        <item quantity="other">Ανακαλύψτε %1$s κελιά χάρτη</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Εξερευνήστε %1$s διαφορετικά κελιά πλέγματος στον χάρτη (το καθένα περίπου τετράγωνο 1 km).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Επισκεφθείτε %d χώρα</item>
+        <item quantity="other">Επισκεφθείτε %d χώρες</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Καταγράψτε τουλάχιστον μία συνεδρία σε %1$d διαφορετικές χώρες.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Πρώτη ενεργή ημέρα</item>
+        <item quantity="other">%1$s ενεργές ημέρες</item>
+    </plurals>
+    <string name="ach_desc_active_days">Καταγράψτε δραστηριότητα συνολικά σε %1$s διαφορετικές ημέρες.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">Σειρά %d ημέρας</item>
+        <item quantity="other">Σειρά %d ημερών</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Καταγράψτε δραστηριότητα %1$d ημέρες στη σειρά.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Προσωπικό ρεκόρ: %d ημέρα</item>
+        <item quantity="other">Προσωπικό ρεκόρ: %d ημέρες</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Φτάστε σε προσωπικό ρεκόρ συνεχόμενης καταγραφής %1$d ημερών.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d μήνας με το Tracker</item>
+        <item quantity="other">%d μήνες με το Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Παραμείνετε ενεργοί στο Tracker για %1$d διαφορετικούς μήνες.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d ενεργή ημέρα αυτή την εβδομάδα</item>
+        <item quantity="other">%d ενεργές ημέρες αυτή την εβδομάδα</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Καταγράψτε δραστηριότητα %1$d ημέρες μέσα σε μία εβδομάδα.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Πρώτη ημέρα με το Tracker</item>
+        <item quantity="other">%1$s ημέρες με το Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Έχετε εγκατεστημένο το Tracker για %1$s ημέρες.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Καλώς επιστρέψατε</item>
+        <item quantity="other">Καλώς επιστρέψατε μετά από %d ημέρες</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Επιστρέψτε στην καταγραφή μετά από διάλειμμα %1$d ημερών.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Καταγράψτε σε %d ώρα της ημέρας</item>
+        <item quantity="other">Καταγράψτε σε %d διαφορετικές ώρες</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Καταγράψτε δραστηριότητα κατά τη διάρκεια %1$d διαφορετικών ωρών της ημέρας σε όλες τις συνεδρίες.</string>
+    <string name="ach_title_days_of_week">Και οι επτά ημέρες της εβδομάδας</string>
+    <string name="ach_desc_days_of_week">Καταγράψτε δραστηριότητα σε κάθε ημέρα της εβδομάδας τουλάχιστον μία φορά.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Δοκιμάστε %d τύπο δραστηριότητας</item>
+        <item quantity="other">Δοκιμάστε %d τύπους δραστηριότητας</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Καταγράψτε συνεδρίες σε %1$d διαφορετικούς τύπους δραστηριότητας (περπάτημα, ποδήλατο, οδήγηση, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d τύπος δραστηριότητας αυτή την εβδομάδα</item>
+        <item quantity="other">%d τύποι δραστηριότητας αυτή την εβδομάδα</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Χρησιμοποιήστε %1$d διαφορετικούς τύπους δραστηριότητας μέσα σε μία εβδομάδα.</string>
+    <string name="ach_title_week_all_days">Καταγράψτε κάθε ημέρα μιας εβδομάδας</string>
+    <string name="ach_desc_week_all_days">Καταγράψτε δραστηριότητα και τις επτά ημέρες μιας ημερολογιακής εβδομάδας.</string>
+    <string name="ach_title_walk_cycle_drive">Περπατήστε, κάντε ποδήλατο, οδηγήστε</string>
+    <string name="ach_desc_walk_cycle_drive">Καταγράψτε τουλάχιστον μία συνεδρία από καθεμία: περπάτημα, ποδηλασία και οδήγηση.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">Συνεδρία %1$s</string>
+    <string name="ach_desc_max_session_duration">Καταγράψτε μία συνεδρία διάρκειας τουλάχιστον %1$s.</string>
+    <string name="ach_title_max_speed">Φτάστε τα %1$s</string>
+    <string name="ach_desc_max_speed">Φτάστε μέγιστη ταχύτητα τουλάχιστον %1$s κατά τη διάρκεια μιας συνεδρίας.</string>
+    <string name="ach_title_active_minutes">%1$s ενεργά λεπτά</string>
+    <string name="ach_desc_active_minutes">Συγκεντρώστε %1$s λεπτά ενεργού χρόνου καταγραφής.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Πρώτη εξαγωγή</item>
+        <item quantity="other">%d εξαγωγές</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Εξαγάγετε τα δεδομένα σας %1$d φορές.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Καταγράψτε σε μία εποχή</item>
+        <item quantity="other">Καταγράψτε σε %d εποχές</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Καταγράψτε δραστηριότητα σε %1$d διαφορετικές εποχές (άνοιξη/καλοκαίρι/φθινόπωρο/χειμώνας).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Καταγραφέας Πρωτοχρονιάς</string>
+    <string name="ach_desc_calendar_new_year">Καταγράψτε μία συνεδρία την 1η Ιανουαρίου.</string>
+    <string name="ach_title_calendar_leap_day">Πρωτοπόρος της δίσεκτης ημέρας</string>
+    <string name="ach_desc_calendar_leap_day">Καταγράψτε μία συνεδρία στις 29 Φεβρουαρίου.</string>
+    <string name="ach_title_calendar_summer_solstice">Θερινό ηλιοστάσιο</string>
+    <string name="ach_desc_calendar_summer_solstice">Καταγράψτε μία συνεδρία στη μεγαλύτερη ημέρα του έτους.</string>
+    <string name="ach_title_calendar_winter_solstice">Χειμερινό ηλιοστάσιο</string>
+    <string name="ach_desc_calendar_winter_solstice">Καταγράψτε μία συνεδρία στη μικρότερη ημέρα του έτους.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Νυχτοπούλι</item>
+        <item quantity="other">%1$s νυχτερινές συνεδρίες</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Καταγράψτε %1$d συνεδρίες που αρχίζουν μεταξύ μεσάνυχτων και 5 π.μ.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Πρωινό πουλί</item>
+        <item quantity="other">%1$s συνεδρίες την αυγή</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Καταγράψτε %1$d συνεδρίες που αρχίζουν μεταξύ 5 και 8 π.μ.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Καταγραφέας με πρωτοβουλία</item>
+        <item quantity="other">Ξεκινήστε χειροκίνητα %1$s συνεδρίες</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Ξεκινήστε χειροκίνητα %1$d συνεδρίες καταγραφής.</string>
+    <string name="ach_title_max_cycle_session">Κάντε ποδήλατο %1$s σε μία διαδρομή</string>
+    <string name="ach_desc_max_cycle_session">Κάντε ποδήλατο %1$s μέσα σε μία διαδρομή.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Ημέρα πολλαπλών τρόπων</item>
+        <item quantity="other">%d ημέρες πολλαπλών τρόπων</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Μετακινηθείτε με τα πόδια, με ποδήλατο και με μηχανοκίνητο μέσο την ίδια ημέρα, σε %1$d διαφορετικές ημέρες.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Ένα μέρος για όλες τις εποχές</item>
+        <item quantity="other">Και οι τέσσερις εποχές σε %d μέρη</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Επισκεφθείτε %1$d κελιά χάρτη σε όλες τις τέσσερις εποχές.</string>
+    <string name="ach_title_max_cell_visits">Επισκεφθείτε ένα μέρος %1$d φορές</string>
+    <string name="ach_desc_max_cell_visits">Επισκεφθείτε ένα κελί χάρτη %1$d φορές.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Εξερευνήστε διεξοδικά ένα κελί</item>
+        <item quantity="other">Εξερευνήστε διεξοδικά %1$s κελιά</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Εξερευνήστε διεξοδικά %1$d διαφορετικά κελιά χάρτη.</string>
+    <string name="ach_title_max_cell_span">Φτάστε σε απόσταση %1$s</string>
+    <string name="ach_desc_max_cell_span">Ανακαλύψτε δύο κελιά χάρτη σε απόσταση τουλάχιστον %1$s μεταξύ τους.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Ανακαλύψτε ένα κελί σε μία ημέρα</item>
+        <item quantity="other">Ανακαλύψτε %d κελιά σε μία ημέρα</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Ανακαλύψτε %1$d νέα κελιά χάρτη σε μία ημέρα.</string>
+    <string name="ach_title_max_cell_revisit_gap">Επιστρέψτε μετά από %1$d ημέρες</string>
+    <string name="ach_desc_max_cell_revisit_gap">Επισκεφθείτε ξανά ένα κελί χάρτη %1$d ημέρες αφού το ανακαλύψατε για πρώτη φορά.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Ένας τέλειος μήνας</item>
+        <item quantity="other">%d τέλειοι μήνες</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Καταγράψτε δραστηριότητα κάθε ημέρα σε %1$d ημερολογιακούς μήνες.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Χρησιμοποιήστε μία μορφή εξαγωγής</item>
+        <item quantity="other">Χρησιμοποιήστε %d μορφές εξαγωγής</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Εξαγάγετε τα δεδομένα σας σε %1$d διαφορετικές μορφές αρχείων.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Φτάστε στο επίπεδο %1$d</string>
+    <string name="ach_desc_player_level">Ανεβείτε στο επίπεδο παίκτη %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP σε μία ημέρα</string>
+    <string name="ach_desc_best_day_xp">Κερδίστε %1$d XP μέσα σε μία ημέρα.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Παίξτε το πρώτο σας μίνι παιχνίδι</item>
+        <item quantity="other">Παίξτε %1$s μίνι παιχνίδια</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Ολοκληρώστε %1$d γύρους μίνι παιχνιδιών.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Ανεβείτε %1$s</string>
+    <string name="ach_desc_total_ascent">Συγκεντρώστε συνολική υψομετρική ανάβαση %1$s σε όλες τις καταγραφές σας.</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Κερδίστε από μία πηγή XP</item>
+        <item quantity="other">Κερδίστε από %d πηγές XP</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Κερδίστε XP από %1$d διαφορετικές πηγές — συνεδρίες καταγραφής, μίνι παιχνίδια και στόχους.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Μία τέλεια εβδομάδα</item>
+        <item quantity="other">%d τέλειες εβδομάδες</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Πετυχαίνετε τον ημερήσιο στόχο βημάτων σας κάθε ημέρα για %1$d πλήρεις εβδομάδες.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">Σειρά στόχου %d ημέρας</item>
+        <item quantity="other">Σειρά στόχου %d ημερών</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Πετυχαίνετε τον ημερήσιο στόχο βημάτων σας %1$d ημέρες στη σειρά.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Ξεκλειδώστε ένα επίτευγμα</item>
+        <item quantity="other">Ξεκλειδώστε %d επιτεύγματα</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Ξεκλειδώστε συνολικά %1$d επιτεύγματα.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Ολοκληρώστε μία κατηγορία</item>
+        <item quantity="other">Ολοκληρώστε %d κατηγορίες</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Ξεκλειδώστε κάθε επίτευγμα σε %1$d διαφορετικές κατηγορίες.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d δευτερόλεπτο</item>
+        <item quantity="other">%d δευτερόλεπτα</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d λεπτού</item>
+        <item quantity="other">%d λεπτών</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d ώρας</item>
+        <item quantity="other">%d ωρών</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d ημέρας</item>
+        <item quantity="other">%d ημερών</item>
+    </plurals>
+</resources>

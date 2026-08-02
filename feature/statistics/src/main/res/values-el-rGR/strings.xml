@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_error_generic">Something went wrong</string>
-    <string name="stats_append_error">Load more failed</string>
-    <string name="action_retry">Retry</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Στατιστικά</string>
+    <string name="stats_cell_count">Αριθμός κελιών</string>
+    <string name="stats_collections">Αριθμός συλλογών</string>
+    <string name="stats_distance_in_vehicle">Απόσταση με όχημα</string>
+    <string name="stats_distance_on_foot">Απόσταση με τα πόδια</string>
+    <string name="stats_distance_total">Απόσταση</string>
+    <string name="stats_format_unknown_activity">συνεδρία</string>
+    <string name="stats_location_count">Αριθμός τοποθεσιών</string>
+    <string name="stats_no_tracker_sessions">Δεν υπάρχουν ακόμη συνεδρίες καταγραφής</string>
+    <string name="stats_empty_subtitle">Ξεκινήστε καταγραφή για να δείτε εδώ τη δραστηριότητά σας</string>
+    <string name="stats_session_count">Αριθμός συνεδριών</string>
+    <string name="stats_steps">Αριθμός βημάτων</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_sum_title">Σύνοψη</string>
+    <string name="stats_time">Χρόνος καταγραφής</string>
+    <string name="stats_weekly_title">Τελευταίες 7 ημέρες</string>
+    <string name="stats_wifi_count">Αριθμός Wi‑Fi</string>
+    <string name="stats_wifi_chip_label">Στατιστικά Wi‑Fi</string>
+    <string name="stats_cell_signal_chip_label">Σήμα κινητής</string>
+    <string name="stats_filter_dates">Ημερομηνίες</string>
+    <string name="stats_filter_active_label">Εμφανίζεται: %1$s</string>
+    <string name="stats_filter_clear">Εκκαθάριση φίλτρου</string>
+    <string name="stats_date_dialog_title">Εύρος ημερομηνιών</string>
+    <string name="stats_date_summary_placeholder">Επιλέξτε ένα διάστημα για φιλτράρισμα συνεδριών</string>
+    <string name="stats_date_preset_today">Σήμερα</string>
+    <string name="stats_date_preset_yesterday">Χθες</string>
+    <string name="stats_date_preset_last_7_days">Τελευταίες 7 ημέρες</string>
+    <string name="stats_date_preset_last_30_days">Τελευταίες 30 ημέρες</string>
+    <string name="stats_date_preset_this_month">Αυτόν τον μήνα</string>
+    <string name="stats_date_preset_last_month">Τον προηγούμενο μήνα</string>
+    <string name="stats_date_preset_this_year">Αυτό το έτος</string>
+    <string name="stats_date_preset_all_time">Όλο το διάστημα</string>
+    <string name="stats_sparse_summary_title">Αυτή η εβδομάδα με μια ματιά</string>
+    <string name="stats_sparse_summary_active_days">Ενεργές ημέρες</string>
+    <string name="stats_sparse_summary_week_label">Ημερήσια δραστηριότητα</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Εμφανίζεται μόνο %1$d συνεδρία, επομένως αυτή η σύντομη σύνοψη συμπληρώνει την υπόλοιπη πρόσφατη δραστηριότητά σας.</item>
+        <item quantity="other">Εμφανίζονται μόνο %1$d συνεδρίες, επομένως αυτή η σύντομη σύνοψη συμπληρώνει την υπόλοιπη πρόσφατη δραστηριότητά σας.</item>
+    </plurals>
+    <string name="stats_error_generic">Κάτι πήγε στραβά</string>
+    <string name="stats_loading">Φόρτωση συνεδριών…</string>
+    <string name="stats_append_error">Αποτυχία φόρτωσης περισσότερων</string>
+    <string name="action_retry">Δοκιμή ξανά</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Έναρξη καταγραφής</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s βήμα</item>
+        <item quantity="other">%1$s βήματα</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Σήμερα</string>
+    <string name="stats_date_yesterday">Χθες</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Φόρτωση σύνοψης…</string>
+    <string name="stats_summary_empty">Δεν υπάρχουν διαθέσιμα συνοπτικά στατιστικά</string>
+    <string name="stats_summary_empty_subtitle">Ξεκινήστε καταγραφή για να δείτε τη σύνοψη της δραστηριότητάς σας</string>
+    <string name="stats_summary_error">Αποτυχία φόρτωσης σύνοψης</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Φόρτωση εβδομαδιαίων στατιστικών…</string>
+    <string name="stats_week_empty">Δεν υπάρχουν διαθέσιμα εβδομαδιαία στατιστικά</string>
+    <string name="stats_week_empty_subtitle">Καταγράψτε για 7 ημέρες για να δείτε την εβδομαδιαία σύνοψή σας</string>
+    <string name="stats_week_error">Αποτυχία φόρτωσης εβδομαδιαίων στατιστικών</string>
+    <string name="stats_wifi_dialog_title">Στατιστικά Wi‑Fi</string>
+    <string name="stats_wifi_dialog_loading">Φόρτωση στατιστικών Wi‑Fi…</string>
+    <string name="stats_wifi_dialog_empty_title">Δεν υπάρχουν διαθέσιμα δεδομένα Wi‑Fi</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Τα στατιστικά Wi‑Fi θα εμφανιστούν αφού συλλεχθούν σαρώσεις.</string>
+    <string name="stats_wifi_dialog_error">Αποτυχία φόρτωσης στατιστικών Wi‑Fi</string>
+    <string name="stats_wifi_unique_networks">Μοναδικά δίκτυα που εντοπίστηκαν</string>
+    <string name="stats_wifi_total_scans">Συνολικές σαρώσεις</string>
+    <string name="stats_wifi_average_per_scan">Μέσος αριθμός δικτύων ανά σάρωση</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Αναφορά σήματος κινητής</string>
+    <string name="stats_cell_signal_dialog_loading">Φόρτωση αναφοράς σήματος κινητής…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Δεν υπάρχουν διαθέσιμα δεδομένα κινητής</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Τα στατιστικά σήματος κινητής θα εμφανιστούν αφού συλλεχθούν δείγματα.</string>
+    <string name="stats_cell_signal_dialog_error">Αποτυχία φόρτωσης αναφοράς σήματος κινητής</string>
+    <string name="stats_cell_signal_total_samples">Δείγματα κινητής</string>
+    <string name="stats_cell_signal_distinct_towers">Διαφορετικοί πύργοι</string>
+    <string name="stats_cell_signal_section_networks">Ανά τύπο δικτύου</string>
+    <string name="stats_cell_signal_section_towers">Πύργοι που εμφανίζονται συχνότερα</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s των δειγμάτων · %2$s πύργοι</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Κελί %1$s · %2$s δείγματα</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Πάροχος %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Λεπτομέρειες διαδρομής</string>
+    <string name="trip_detail_not_found">Η διαδρομή δεν βρέθηκε</string>
+    <string name="trip_detail_not_found_subtitle">Αυτή η διαδρομή ίσως έχει διαγραφεί</string>
+    <string name="trip_detail_error_title">Αποτυχία φόρτωσης διαδρομής</string>
+    <string name="trip_detail_retry">Δοκιμή ξανά</string>
+    <string name="trip_detail_duration">Διάρκεια</string>
+    <string name="trip_detail_distance">Απόσταση</string>
+    <string name="trip_detail_date">Ημερομηνία</string>
+    <string name="trip_detail_steps">Βήματα</string>
+    <string name="trip_detail_samples">Δείγματα</string>
+    <string name="trip_detail_source">Πηγή</string>
+    <string name="trip_detail_avg_speed">Μέση ταχύτητα</string>
+    <string name="trip_detail_max_speed">Μέγιστη ταχύτητα</string>
+    <string name="trip_detail_pace">Ρυθμός</string>
+    <string name="trip_detail_activity_type">Τύπος δραστηριότητας</string>
+    <string name="trip_detail_start_time">Ώρα έναρξης</string>
+    <string name="trip_detail_end_time">Ώρα λήξης</string>
+    <string name="trip_detail_elevation_gain">Υψομετρική άνοδος</string>
+    <string name="trip_detail_elevation_loss">Υψομετρική απώλεια</string>
+    <string name="trip_detail_max_altitude">Μέγιστο υψόμετρο</string>
+    <string name="trip_detail_route_map">Χάρτης διαδρομής</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Δεν υπάρχουν δεδομένα τοποθεσίας</string>
+    <string name="trip_detail_route_unavailable_legacy">Ο χάρτης διαδρομής δεν είναι διαθέσιμος για παλαιές συνεδρίες</string>
+    <string name="trip_detail_route_no_gps_points">Καταγράφηκε απόσταση, αλλά δεν υπάρχει διαθέσιμη διαδρομή GPS</string>
+    <string name="trip_detail_delete">Διαγραφή</string>
+    <string name="trip_detail_export_gpx">Εξαγωγή ως GPX</string>
+    <string name="trip_detail_delete_confirm_title">Διαγραφή διαδρομής;</string>
+    <string name="trip_detail_delete_confirm_message">Αυτή η διαδρομή θα διαγραφεί οριστικά.</string>
+    <string name="trip_detail_delete_confirm">Διαγραφή</string>
+    <string name="trip_detail_cancel">Ακύρωση</string>
+    <string name="trip_detail_more_options">Περισσότερες επιλογές</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Συνεδρία σκι</string>
+    <string name="ski_detail_runs">Διαδρομές</string>
+    <string name="ski_detail_vertical">Υψομετρική</string>
+    <string name="ski_detail_max_speed">Μέγιστη ταχύτητα</string>
+    <string name="ski_detail_time_skiing">Σκι</string>
+    <string name="ski_detail_time_lifts">Σε αναβατήρες</string>
+    <string name="ski_detail_run_label">Διαδρομή #%1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Βρέθηκαν %d δίκτυα Wi‑Fi που ταιριάζουν στο φίλτρο</string>
+    <string name="wifilist_filter_bssid">BSSID (αναγνωριστικό)</string>
+    <string name="wifilist_filter_capabilities">Δυνατότητες</string>
+    <string name="wifilist_filter_count">Πόσα θα εμφανίζονται</string>
+    <string name="wifilist_filter_frequency">Συχνότητα</string>
+    <string name="wifilist_filter_ssid">SSID (όνομα)</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Λίστα Wi‑Fi</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">Δυνατότητες</string>
+    <string name="wifilist_title_first_seen">Εντοπίστηκε για πρώτη φορά</string>
+    <string name="wifilist_title_frequency">Συχνότητα</string>
+    <string name="wifilist_title_last_seen">Εντοπίστηκε τελευταία φορά</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Χρονολόγιο</string>
+    <string name="history_tab_trips">Διαδρομές</string>
+    <string name="history_tab_calendar">Ημερολόγιο</string>
+    <string name="history_screen_title">Ιστορικό</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d διαδρομή</item>
+        <item quantity="other">%d διαδρομές</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Δεν υπάρχει ακόμη δραστηριότητα</string>
+    <string name="history_timeline_empty_desc">Ξεκινήστε καταγραφή για να δείτε εδώ το ιστορικό κινήσεών σας</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Δεν έχουν καταγραφεί διαδρομές</string>
+    <string name="history_trips_empty_desc">Οι διαδρομές θα εμφανιστούν εδώ καθώς μετακινείστε</string>
+    <string name="trip_gps_anomaly">Εντοπίστηκε ανωμαλία GPS — η απόσταση μπορεί να μην είναι ακριβής</string>
+    <string name="trip_deleted_snackbar">Η διαδρομή διαγράφηκε</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Προηγούμενος μήνας</string>
+    <string name="history_calendar_next_month">Επόμενος μήνας</string>
+    <string name="history_calendar_distance">Απόσταση</string>
+    <string name="history_calendar_steps">Βήματα</string>
+    <string name="history_calendar_trips">Διαδρομές</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Εξερεύνηση</string>
+    <string name="history_exploration_cells">Κελιά</string>
+    <string name="history_exploration_streak">Σειρά</string>
+    <string name="history_exploration_best">Καλύτερο</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Επιστροφή</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Ιστορικό</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Δραστηριότητα</string>
 </resources>

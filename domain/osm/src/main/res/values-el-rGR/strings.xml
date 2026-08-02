@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Ειδοποίηση προσκηνίου που εμφανίζεται κατά την ανάλυση μιας περιοχής OpenStreetMap που εισήγαγε ο χρήστης.</string>
+    <string name="osm_import_notification_title">Εισαγωγή περιοχής OpenStreetMap</string>
+    <string name="osm_import_notification_content">Αναλύθηκαν %1$d δρόμοι</string>
+    <string name="osm_import_complete_title">Η περιοχή OSM εισήχθη</string>
+    <string name="osm_import_complete_content">Τα δεδομένα δρόμων εκτός σύνδεσης είναι έτοιμα για τη συμμόρφωση οχημάτων.</string>
+    <string name="osm_import_failed_title">Η εισαγωγή OSM απέτυχε</string>
+    <string name="osm_import_failed_content">Δεν ήταν δυνατή η ολοκλήρωση της εισαγωγής χάρτη εκτός σύνδεσης.</string>
+</resources>

@@ -1,0 +1,490 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Παιχνίδι</string>
+    <string name="module_map_title">Χάρτης</string>
+    <string name="module_statistics_title">Στατιστικά</string>
+    <string name="main_nav_tracker">Αρχική</string>
+    <string name="settings_clear_preferences_title">Εκκαθάριση προτιμήσεων</string>
+    <string name="settings_clear_preferences_message">Αυτό θα επαναφέρει όλες τις προτιμήσεις της εφαρμογής (εναλλαγές λειτουργιών, ρυθμίσεις διεπαφής). Τα δεδομένα καταγραφής σας δεν θα επηρεαστούν. Συνέχεια;</string>
+    <string name="settings_data_title">Δεδομένα</string>
+    <string name="settings_debug_group_title">Εντοπισμός σφαλμάτων</string>
+    <string name="settings_debug_title">Επιλογές προγραμματιστή</string>
+    <string name="settings_debug_developer_tools_section">Εργαλεία προγραμματιστή</string>
+    <string name="settings_debug_disable_developer_subtitle">Απόκρυψη επιλογών προγραμματιστή από τις ρυθμίσεις</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Η λειτουργία προγραμματιστή απενεργοποιήθηκε</string>
+    <string name="settings_data_management_section">Διαχείριση δεδομένων</string>
+    <string name="settings_data_danger_zone_section">Επικίνδυνη ζώνη</string>
+    <string name="settings_osm_import_section">Δεδομένα χάρτη (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Εισαγωγή περιοχής OSM</string>
+    <string name="settings_osm_import_action_summary">Επιλέξτε ένα αρχείο .osm.pbf. Η συμμόρφωση οχήματος θα χρησιμοποιεί τότε πραγματικά όρια δρόμων εκτός σύνδεσης.</string>
+    <string name="settings_osm_import_unavailable_title">Η εισαγωγή χάρτη εκτός σύνδεσης δεν είναι διαθέσιμη</string>
+    <string name="settings_osm_import_action_unavailable">Η εισαγωγή χάρτη εκτός σύνδεσης δεν είναι προσωρινά διαθέσιμη μέχρι να ολοκληρωθούν οι προστασίες ασφάλειας αρχείων.</string>
+    <string name="settings_osm_import_action_running">Γίνεται εισαγωγή — πατήστε για ακύρωση</string>
+    <string name="settings_osm_import_action_failed">Δεν ήταν δυνατή η ολοκλήρωση της εισαγωγής χάρτη εκτός σύνδεσης.</string>
+    <string name="settings_osm_import_action_source_unavailable">Δεν ήταν δυνατό το άνοιγμα του επιλεγμένου αρχείου χάρτη.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Εισήχθη %1$d δρόμος από %2$d κόμβους.</item>
+        <item quantity="other">Εισήχθησαν %1$d δρόμοι από %2$d κόμβους.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Δεν έχει εισαχθεί ακόμη περιοχή OpenStreetMap.</string>
+    <string name="settings_osm_imports_attribution">Δεδομένα χάρτη © συνεισφέροντες του OpenStreetMap (ODbL 1.0). Όλη η επεξεργασία γίνεται στη συσκευή.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d δρόμος · εισήχθη %2$s</item>
+        <item quantity="other">%1$,d δρόμοι · εισήχθησαν %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Αφαίρεση εισαγμένης περιοχής</string>
+    <string name="settings_osm_import_remove_message">Να αφαιρεθεί το %1$s; Η συμμόρφωση οχήματος θα επιστρέψει στο σταθερό βασικό όριο μέχρι να εισαγάγετε ξανά μια περιοχή.</string>
+    <string name="settings_incremental_backups_title">Αυξητικά αντίγραφα ασφαλείας</string>
+    <string name="settings_incremental_backups_summary">Εξαγωγή μόνο νέων δεδομένων από το τελευταίο αντίγραφο ασφαλείας. Μειώνει τον χρόνο εξαγωγής και το μέγεθος αρχείου.</string>
+    <string name="settings_reset_export_watermarks_title">Επιβολή πλήρους εξαγωγής</string>
+    <string name="settings_reset_export_watermarks_summary">Το επόμενο αυτόματο αντίγραφο ασφαλείας θα περιλαμβάνει όλα τα δεδομένα αντί για μόνο τις αλλαγές</string>
+    <string name="settings_reset_export_watermarks_done">Οι δείκτες εξαγωγής επαναφέρθηκαν — το επόμενο αντίγραφο ασφαλείας θα είναι πλήρης εξαγωγή</string>
+    <string name="settings_migration_backup_export_title">Εξαγωγή αντιγράφου ασφαλείας πριν από αναβάθμιση</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Πλήρες αντίγραφο βάσης δεδομένων από v%1$d, που δημιουργήθηκε πριν από τη μετεγκατάσταση σε v%2$d και διατηρείται ιδιωτικά έως 30 ημέρες</string>
+    <string name="settings_migration_backup_warning_title">Εξαγωγή αντιγράφου ασφαλείας ευαίσθητης βάσης δεδομένων;</string>
+    <string name="settings_migration_backup_warning_message">Αυτό το αντίγραφο ασφαλείας μπορεί να περιέχει ακριβείς τοποθεσίες, παρατηρήσεις Wi‑Fi και κινητής, δραστηριότητες και άλλα ιδιωτικά δεδομένα πριν από την αναβάθμιση. Αποθηκεύστε το μόνο κάπου που εμπιστεύεστε.</string>
+    <string name="settings_migration_backup_export_action">Εξαγωγή αντιγράφου ασφαλείας</string>
+    <string name="settings_migration_backup_export_success">Το αντίγραφο ασφαλείας πριν από την αναβάθμιση εξήχθη</string>
+    <string name="settings_migration_backup_export_failure">Δεν ήταν δυνατή η εξαγωγή του αντιγράφου ασφαλείας πριν από την αναβάθμιση</string>
+    <string name="settings_migration_backup_export_cleanup_required">Η εξαγωγή απέτυχε. Διαγράψτε το μερικώς εξαγμένο αντίγραφο ασφαλείας από την επιλεγμένη τοποθεσία.</string>
+    <string name="settings_delete_data_success">Όλα τα συλλεγμένα δεδομένα διαγράφηκαν</string>
+    <string name="settings_delete_data_failure">Δεν ήταν δυνατή η διαγραφή όλων των συλλεγμένων δεδομένων</string>
+    <string name="settings_game_goals_title">Στόχοι</string>
+    <string name="settings_game_daily_target_title">Ημερήσιος στόχος βημάτων</string>
+    <string name="settings_game_weekly_target_title">Εβδομαδιαίος στόχος βημάτων</string>
+    <string name="settings_game_daily_contribution_title">Μέγιστη ημερήσια συνεισφορά</string>
+    <string name="settings_game_steps_unit">βήματα</string>
+    <string name="settings_game_notifications_title">Ειδοποιήσεις</string>
+    <string name="settings_game_goal_notifications_title">Ειδοποιήσεις προόδου στόχου</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Λάβετε τοπική υπενθύμιση στο 75% και 90% του ημερήσιου στόχου σας.</string>
+    <string name="settings_game_during_games_title">Κατά τη διάρκεια παιχνιδιών</string>
+    <string name="settings_game_haptics_title">Απτική ανάδραση παιχνιδιού</string>
+    <string name="settings_game_haptics_summary">Χρήση διακριτικής δόνησης για ανάδραση παιχνιδιού.</string>
+    <string name="settings_game_quiet_coaching_title">Ήσυχες υποδείξεις καθοδήγησης</string>
+    <string name="settings_game_quiet_coaching_summary">Χρήση λιγότερο συχνής καθοδήγησης ενώ παίζετε.</string>
+    <string name="settings_game_remember_setup_title">Απομνημόνευση τελευταίας ρύθμισης παιχνιδιού</string>
+    <string name="settings_game_remember_setup_summary">Χρησιμοποιήστε ξανά τον τελευταίο στόχο και τη δυσκολία την επόμενη φορά.</string>
+    <string name="settings_game_privacy_battery_title">Απόρρητο &amp; μπαταρία</string>
+    <string name="settings_game_privacy_battery_disclosure">Τα παιχνίδια χρησιμοποιούν ζωντανή τοποθεσία μόνο όσο είναι ενεργά και επαναχρησιμοποιούν την τοποθεσία του Tracker όταν είναι διαθέσιμη. Η παύση απελευθερώνει τη χρήση τοποθεσίας του παιχνιδιού. Μόνο η βαθμολογία και οι πόντοι/XP αποθηκεύονται σε αυτή τη συσκευή· οι ακατέργαστες τοποθεσίες παιχνιδιού δεν διατηρούνται.</string>
+    <string name="settings_game_loading">Φόρτωση ρυθμίσεων παιχνιδιού…</string>
+    <string name="settings_game_load_error">Δεν ήταν δυνατή η φόρτωση των ρυθμίσεων παιχνιδιού. Δοκιμάστε ξανά.</string>
+    <string name="settings_map_info_hint">Αυτές οι ρυθμίσεις ελέγχουν την ποιότητα οπτικοποίησης και την απόδοση του χάρτη. Οι περισσότεροι χρήστες μπορούν να χρησιμοποιούν τις προεπιλεγμένες τιμές.</string>
+    <string name="settings_map_online_tiles_section_title">Διαδικτυακές ψηφίδες χάρτη</string>
+    <string name="settings_map_online_tiles_enable_title">Χρήση διαδικτυακών ψηφίδων χάρτη</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Απενεργοποιημένο — χρησιμοποιείται μόνο ο ενσωματωμένος βασικός χάρτης εκτός σύνδεσης. Χωρίς αιτήματα δικτύου.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Ενεργοποιημένο — λήψη ψηφίδων από %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Πάροχος ψηφίδων</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (συνιστάται)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Προσαρμοσμένο URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">URL JSON στυλ</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Αναφορά: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Οι διαδικτυακές ψηφίδες είναι προαιρετικές. Όταν είναι ενεργές, ο επιλεγμένος πάροχος μπορεί να δει τη διεύθυνση IP σας και ποιες ψηφίδες φορτώνετε (κατά προσέγγιση ποια περιοχή του χάρτη βλέπετε). Το Tracker δεν στέλνει ποτέ λογαριασμό, αναγνωριστικό ή ιστορικό τοποθεσίας.</string>
+    <string name="settings_developer_mode_enabled_toast">Η λειτουργία προγραμματιστή ενεργοποιήθηκε</string>
+    <string name="settings_developer_mode_disable">Απενεργοποίηση λειτουργίας προγραμματιστή</string>
+    <string name="settings_developer_mode_subtitle">Ενεργή λειτουργία προγραμματιστή</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Πατήστε %d ακόμη μία φορά για ενεργοποίηση της λειτουργίας προγραμματιστή</item>
+        <item quantity="other">Πατήστε %d ακόμη φορές για ενεργοποίηση της λειτουργίας προγραμματιστή</item>
+    </plurals>
+    <string name="settings_version_info_title">Πληροφορίες έκδοσης</string>
+    <string name="settings_version_format">Έκδοση: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Τρέχουσα γλώσσα: %s</string>
+    <string name="settings_language_title">Γλώσσα εφαρμογής</string>
+    <string name="settings_units_auto_summary_on">Προσαρμόζει το σύστημα μήκους στις ανιχνευμένες δραστηριότητες</string>
+    <string name="settings_units_auto_summary_off">Εφαρμόζει το επιλεγμένο σύστημα μήκους παντού</string>
+    <string-array name="settings_length_system_names">
+        <item>Μετρικό</item>
+        <item>Αυτοκρατορικό (USC)</item>
+        <item>Αρχαίο ρωμαϊκό</item>
+        <item>Ναυσιπλοΐα</item>
+        <item>Πτήση</item>
+    </string-array>
+    <string name="settings_length_system_title">Σύστημα μήκους</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Άδειες ανοικτού κώδικα</string>
+    <string name="settings_licenses_subtitle">Προβολή ενσωματωμένων ειδοποιήσεων τρίτων που περιλαμβάνονται σε αυτή την έκδοση.</string>
+    <string name="settings_licenses_loading">Φόρτωση αδειών…</string>
+    <string name="settings_licenses_unavailable">Δεν ήταν δυνατή η φόρτωση ενσωματωμένων δεδομένων αδειών τρίτων.</string>
+    <string name="settings_licenses_text_at_url">Το πλήρες κείμενο της άδειας είναι διαθέσιμο στο: %1$s</string>
+    <string name="settings_privacy_policy_title">Πολιτική απορρήτου</string>
+    <string name="settings_privacy_policy_unavailable">Δεν ήταν δυνατό το άνοιγμα της ενσωματωμένης πολιτικής απορρήτου. Δοκιμάστε ξανά μετά την επανεκκίνηση της εφαρμογής.</string>
+    <string name="settings_about_header">Σχετικά</string>
+    <string name="settings_about_app_title">Tracker από τον adsamcik</string>
+    <string name="settings_about_app_subtitle">Πρόγραμμα καταγραφής τοποθεσίας και δραστηριότητας με προτεραιότητα στο απόρρητο</string>
+    <string name="about_title">Σχετικά</string>
+    <string name="about_app_name_label">Εφαρμογή</string>
+    <string name="about_version_label">Έκδοση</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Δέσμευση έκδοσης</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Δημιουργός</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Ηλεκτρονικό ταχυδρομείο</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Σύνδεσμοι</string>
+    <string name="about_attributions_title">Αναφορές δεδομένων</string>
+    <string name="about_attribution_geonames_label">Ονόματα τοποθεσιών</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Δεδομένα χάρτη &amp; δρόμων</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Ρυθμίσεις ενοτήτων</string>
+    <string name="settings_core_group_title">Βασικά</string>
+    <string name="settings_other_title">Μονάδες &amp; εμφάνιση</string>
+    <string name="settings_remove_all_collected_data_summary">Διαγράφει τα δεδομένα καταγραφής σας (θα διατηρηθούν οι προσαρμοσμένες δραστηριότητες και οι ρυθμίσεις)</string>
+    <string name="settings_remove_all_collected_data_title">Διαγραφή όλων των συλλεγμένων δεδομένων</string>
+    <string-array name="settings_speed_format_names">
+        <item>Ταχύτητα ανά δευτερόλεπτο (m/s)</item>
+        <item>Ρυθμός ανά απόσταση (min/km, min/mi)</item>
+        <item>Ταχύτητα (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Μορφή ταχύτητας</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Ρυθμίσεις</string>
+    <string name="switch_state_on">Ενεργό</string>
+    <string name="switch_state_off">Ανενεργό</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Καταγράψτε τα ταξίδια σας ιδιωτικά</string>
+    <string name="onboarding_streamlined_subtitle">Όλα τα δεδομένα παραμένουν στη συσκευή σας. Χωρίς συγχρονισμό στο cloud ή παρακολούθηση από τρίτους.</string>
+    <string name="onboarding_benefit_privacy_title">Πρώτα το απόρρητο</string>
+    <string name="onboarding_benefit_privacy_desc">Όλα τα δεδομένα καταγραφής παραμένουν στη συσκευή σας. Χωρίς διακομιστές, χωρίς συγχρονισμό στο cloud, πλήρης έλεγχος.</string>
+    <string name="onboarding_benefit_insights_title">Πληροφορίες δραστηριότητας</string>
+    <string name="onboarding_benefit_insights_desc">Δείτε τις διαδρομές σας σε χάρτες, αναλύστε στατιστικά και παρακολουθήστε την πρόοδό σας με την πάροδο του χρόνου.</string>
+    <string name="onboarding_benefit_gamification_title">Επιτεύγματα</string>
+    <string name="onboarding_benefit_gamification_desc">Ξεκλειδώστε 150+ επιτεύγματα καθώς περπατάτε, τρέχετε, κάνετε ποδήλατο και εξερευνάτε — όλα κερδισμένα τοπικά στη συσκευή σας.</string>
+    <string name="onboarding_get_started">ΕΝΑΡΞΗ</string>
+    <string name="onboarding_privacy_policy_button">Ανάγνωση πολιτικής απορρήτου</string>
+    <string name="onboarding_state_read_error_message">Δεν μπορέσαμε να επαληθεύσουμε αν η ρύθμιση είχε ήδη ολοκληρωθεί, οπότε εμφανίζεται για να διατηρηθούν ιδιωτικά τα δεδομένα σας. Μπορείτε να συνεχίσετε με ασφάλεια.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Αυτόματος καθαρισμός παλιών δεδομένων</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Διατήρηση δεδομένων για πάντα· ο αυτόματος καθαρισμός δεν θα διαγράψει παλιά δεδομένα</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Αυτόματη αφαίρεση δεδομένων παλαιότερων από %1$d έτος</item>
+        <item quantity="other">Αυτόματη αφαίρεση δεδομένων παλαιότερων από %1$d έτη</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Διατήρηση δεδομένων για</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Διατήρηση για πάντα</item>
+        <item>1 έτος</item>
+        <item>2 έτη</item>
+        <item>3 έτη</item>
+        <item>5 έτη</item>
+        <item>10 έτη</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">ΣΥΝΕΧΕΙΑ</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Εξαγωγή δεδομένων</string>
+    <string name="settings_export_data_summary">Αποθήκευση των δεδομένων καταγραφής σας σε διάφορες μορφές</string>
+    <string name="export_format_dialog_title">Επιλογή μορφής εξαγωγής</string>
+    <string name="export_format_gpx_name">GPX (συνιστάται)</string>
+    <string name="export_format_gpx_desc">Σημεία διαδρομής πλήρους ακρίβειας για συσκευές GPS, εφαρμογές γυμναστικής και καθολική συμβατότητα</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Σημεία διαδρομής πλήρους ακρίβειας για Google Earth και γεωγραφική οπτικοποίηση</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Τοποθεσίες συνεχούς ροής και συνόψεις συνεδριών· η εισαγωγή συγχωνεύει δεδομένα και αναδημιουργεί ορισμένα μεταδεδομένα</string>
+    <string name="export_format_db_name">Βάση δεδομένων</string>
+    <string name="export_format_db_desc">Ακατέργαστο αντίγραφο ασφαλείας SQLite με όλα τα δεδομένα και ρυθμίσεις· η εισαγωγή συγχωνεύει συμβατές γραμμές, όχι πλήρη επαναφορά</string>
+    <string name="export_sensitivity_dialog_title">Εξαγωγή ακριβών δεδομένων τοποθεσίας;</string>
+    <string name="export_sensitivity_gpx_message">Αυτή η εξαγωγή GPX περιέχει σημεία διαδρομής πλήρους ακρίβειας. Αποθηκεύστε ή κοινοποιήστε την μόνο με άτομα και εφαρμογές που εμπιστεύεστε.</string>
+    <string name="export_sensitivity_kml_message">Αυτή η εξαγωγή KML περιέχει σημεία διαδρομής πλήρους ακρίβειας. Αποθηκεύστε ή κοινοποιήστε την μόνο με άτομα και εφαρμογές που εμπιστεύεστε.</string>
+    <string name="export_sensitivity_json_message">Αυτή η εξαγωγή JSON περιέχει τοποθεσίες πλήρους ακρίβειας και συνόψεις συνεδριών. Ορισμένα παράγωγα μεταδεδομένα χάνονται κατά την εισαγωγή· αποθηκεύστε ή κοινοποιήστε την μόνο με προορισμούς που εμπιστεύεστε.</string>
+    <string name="export_sensitivity_db_message">Αυτό το ακατέργαστο αντίγραφο ασφαλείας βάσης δεδομένων μπορεί να περιλαμβάνει ακριβείς τοποθεσίες, δεδομένα ραδιοεπικοινωνίας Wi‑Fi/κινητής, δραστηριότητα και ρυθμίσεις. Διατηρήστε το ιδιωτικό και αποθηκεύστε το μόνο κάπου που εμπιστεύεστε.</string>
+    <string name="export_sensitivity_confirm">Συνέχεια εξαγωγής</string>
+    <string name="settings_export_title">Εξαγωγή</string>
+    <string name="settings_import_summary">Εισαγωγή δεδομένων από υποστηριζόμενους τύπους (%1$s) και αρχεία (%2$s). Οι εισαγωγές βάσης δεδομένων συγχωνεύουν συμβατές γραμμές· δεν αντικαθιστούν υπάρχοντα δεδομένα.</string>
+    <string name="settings_import_title">Εισαγωγή</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Εντάξει</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Μικρή επίδραση</string>
+    <string name="battery_impact_moderate">Μέτρια επίδραση</string>
+    <string name="battery_impact_high">Μεγάλη επίδραση</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Επιλογή ακρίβειας τοποθεσίας</string>
+    <string name="precision_mode_approximate_title">Κατά προσέγγιση</string>
+    <string name="precision_mode_approximate_description">Τοποθεσία βάσει δικτύου. Κατάλληλη για γενική καταγραφή περιοχής με ελάχιστη χρήση μπαταρίας.</string>
+    <string name="precision_mode_precise_title">Ακριβής</string>
+    <string name="precision_mode_precise_description">Τοποθεσία βάσει GPS. Ιδανική για λεπτομερείς διαδρομές, θερμικούς χάρτες και προκλήσεις.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Ξεκλειδώστε ακριβή καταγραφή</string>
+    <string name="upgrade_to_precise_message_general">Χρησιμοποιείτε κατά προσέγγιση τοποθεσία. Μεταβείτε σε ακριβή καταγραφή GPS για καλύτερη ακρίβεια.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Συνιστάται ακριβής τοποθεσία για ακριβή ανάλυση διαδρομής και μετρήσεις απόστασης.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Η ακριβής τοποθεσία παρέχει λεπτομερή οπτικοποίηση θερμικού χάρτη με λεπτομερή τοποθέτηση.</string>
+    <string name="upgrade_to_precise_message_challenges">Πολλές προκλήσεις απαιτούν ακριβή καταγραφή GPS για ακριβή επαλήθευση ολοκλήρωσης.</string>
+    <string name="upgrade_to_precise_benefits_title">Οφέλη</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Ακριβή σχήματα διαδρομής και λεπτομέρειες πορείας στροφή προς στροφή</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Λεπτομερής θερμικός χάρτης και χωρική ανάλυση</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Ακριβείς μετρήσεις απόστασης και ταχύτητας</string>
+    <string name="upgrade_to_precise_battery_title">Χρήση μπαταρίας</string>
+    <string name="upgrade_to_precise_battery_message">Το ακριβές GPS χρησιμοποιεί περισσότερη μπαταρία. Εκτιμώμενος χρόνος καταγραφής: 6–8 ώρες σε τυπικές συσκευές.</string>
+    <string name="upgrade_to_precise_button_upgrade">Ενεργοποίηση ακριβούς τοποθεσίας</string>
+    <string name="upgrade_to_precise_button_cancel">Ίσως αργότερα</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Υψηλή ακρίβεια</string>
+    <string name="tracking_preset_high_accuracy_description">Καλύτερη λεπτομέρεια με τις ταχύτερες ενημερώσεις και όλους τους βασικούς αισθητήρες ενεργούς</string>
+    <string name="tracking_preset_balanced_name">Ισορροπημένη</string>
+    <string name="tracking_preset_balanced_description">Καλή ακρίβεια και λογική διάρκεια μπαταρίας για καθημερινή καταγραφή</string>
+    <string name="tracking_preset_power_save_name">Εξοικονόμηση ενέργειας</string>
+    <string name="tracking_preset_power_save_description">Χαμηλότερη χρήση μπαταρίας με λιγότερο συχνές ενημερώσεις και μειωμένους αισθητήρες</string>
+    <string name="tracking_preset_custom_name">Προσαρμοσμένη</string>
+    <string name="tracking_preset_custom_description">Ρυθμίστε χειροκίνητα κάθε παράμετρο καταγραφής</string>
+    <string name="tracking_preset_selector_title">Προεπιλογή καταγραφής</string>
+    <string name="tracking_preset_selector_subtitle">Επιλέξτε ένα προφίλ ως αφετηρία και έπειτα ρυθμίστε λεπτομερώς οποιαδήποτε ρύθμιση παρακάτω.</string>
+    <string name="tracking_preset_custom_hint">Η προσαρμογή οποιασδήποτε ρύθμισης παρακάτω δημιουργεί ένα προσαρμοσμένο προφίλ από την τρέχουσα προεπιλογή.</string>
+    <string name="tracking_preset_customized_summary">Έχετε ρυθμίσει λεπτομερώς την καταγραφή. Επιλέξτε μια προεπιλογή παραπάνω για επαναφορά.</string>
+    <string name="settings_tracking_section_detection">Ανίχνευση &amp; αυτοματοποίηση</string>
+    <string name="settings_tracking_section_sources">Πηγές δεδομένων</string>
+    <string name="settings_tracking_section_detail">Συλλογή τοποθεσίας</string>
+    <string name="settings_tracking_section_notifications">Ειδοποιήσεις</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Πολιτική καταγραφής</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Εκτιμώμενη καταγραφή: %d ώρα</item>
+        <item quantity="other">Εκτιμώμενη καταγραφή: %d ώρες</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Επιλέξτε πόσο ακριβώς καταγράφει το Tracker την τοποθεσία σας</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Ακριβής</string>
+    <string name="approximate">Κατά προσέγγιση</string>
+    <string name="tracking_policy_selector_subtitle">Επιλέξτε προεπιλογή καταγραφής ή προσαρμόστε τις ρυθμίσεις</string>
+    <string name="tracking_policy_custom_badge">Προσαρμοσμένη</string>
+    <string name="collapse_details">Απόκρυψη λεπτομερειών</string>
+    <string name="expand_details">Εμφάνιση λεπτομερειών</string>
+    <string name="settings_section_collapse">Σύμπτυξη</string>
+    <string name="settings_section_expand">Ανάπτυξη</string>
+    <string name="tracking_policy_details_title">Λεπτομέρειες διαμόρφωσης</string>
+    <string name="preset_detail_location_precision">Ακρίβεια τοποθεσίας</string>
+    <string name="preset_detail_min_distance">Ελάχιστη απόσταση</string>
+    <string name="preset_detail_min_time">Ελάχιστος χρόνος</string>
+    <string name="preset_detail_accuracy">Απαιτούμενη ακρίβεια</string>
+    <string name="preset_detail_sensors">Αισθητήρες</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Αυτόματη εναλλαγή μονάδων</string>
+    <string name="settings_module_map_subtitle">Ποιότητα θερμικού χάρτη και επιλογές οπτικοποίησης</string>
+    <string name="settings_module_game_subtitle">Στόχοι, επιτεύγματα και ορόσημα</string>
+    <string name="action_navigate_back">Επιστροφή</string>
+    <string name="action_help">Βοήθεια</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Φόρτωση…</string>
+    <string name="widget_quick_start_name">Γρήγορη εκκίνηση Tracker</string>
+    <string name="widget_quick_start_description">Έναρξη ή διακοπή καταγραφής τοποθεσίας με ένα πάτημα.</string>
+    <string name="widget_start_tracking">Έναρξη καταγραφής</string>
+    <string name="widget_stop_tracking">Διακοπή καταγραφής</string>
+    <string name="widget_tracking_active">Ενεργή καταγραφή</string>
+    <string name="widget_today_summary_name">Η σημερινή σύνοψη</string>
+    <string name="widget_today_summary_description">Δείτε με μια ματιά τα σημερινά στατιστικά καταγραφής.</string>
+    <string name="widget_today">Σήμερα</string>
+    <string name="widget_distance">Απόσταση</string>
+    <string name="widget_steps">Βήματα</string>
+    <string name="widget_sessions">Συνεδρίες</string>
+    <string name="widget_duration">Διάρκεια</string>
+    <string name="widget_no_data_today">Δεν υπάρχουν δεδομένα καταγραφής σήμερα</string>
+    <string name="widget_active_session_name">Ενεργή συνεδρία</string>
+    <string name="widget_active_session_description">Παρακολουθήστε την τρέχουσα συνεδρία καταγραφής σε πραγματικό χρόνο.</string>
+    <string name="widget_no_active_session">Δεν υπάρχει ενεργή συνεδρία</string>
+    <string name="widget_tap_to_start">Πατήστε για έναρξη καταγραφής</string>
+    <string name="widget_session_distance">Απόσταση συνεδρίας</string>
+    <string name="widget_session_steps">Βήματα συνεδρίας</string>
+    <string name="widget_session_duration">Διάρκεια συνεδρίας</string>
+    <string name="widget_current_speed">Τρέχουσα ταχύτητα</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Συλλογές</string>
+    <string name="widget_path_preview">Προεπισκόπηση πορείας</string>
+    <string name="widget_activity_unknown">Η δραστηριότητα δεν είναι διαθέσιμη</string>
+    <string name="widget_goal_label">Στόχος:</string>
+    <string name="widget_goal_progress">%1$s / %2$s βήματα</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Ανενεργό</string>
+    <string name="widget_tier_ambient">Περιβάλλον</string>
+    <string name="widget_tier_active">Ενεργό</string>
+    <string name="widget_tier_precision">Ακρίβεια</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Εξαιρετική πρόοδος!</string>
+    <string name="goal_notification_title_almost">Σχεδόν φτάσατε!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Απομένει %1$d βήμα για να πετύχετε τον ημερήσιο στόχο σας</item>
+        <item quantity="other">Απομένουν %1$d βήματα για να πετύχετε τον ημερήσιο στόχο σας</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Απομένει μόνο %1$d βήμα!</item>
+        <item quantity="other">Απομένουν μόνο %1$d βήματα!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Έξυπνες ειδοποιήσεις στόχου</string>
+    <string name="settings_smart_goal_notifications_summary">Λάβετε ειδοποίηση όταν είστε κοντά στον ημερήσιο στόχο βημάτων σας</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Πώς θα λειτουργεί η καταγραφή;</string>
+    <string name="setup_how_to_track_subtitle">Επιλέξτε πότε αρχίζει η καταγραφή και πόσο λεπτομερής θα είναι.</string>
+    <string name="setup_auto_tracking_title">Αυτόματη καταγραφή</string>
+    <string name="setup_auto_tracking_disabled">Απενεργοποιημένη</string>
+    <string name="setup_auto_tracking_disabled_desc">Ξεκινήστε και σταματήστε την καταγραφή χειροκίνητα.</string>
+    <string name="setup_auto_tracking_on_foot">Με τα πόδια</string>
+    <string name="setup_auto_tracking_on_foot_desc">Αυτόματη καταγραφή περπατήματος και τρεξίματος.</string>
+    <string name="setup_auto_tracking_in_motion">Σε κίνηση</string>
+    <string name="setup_auto_tracking_in_motion_desc">Αυτόματη καταγραφή κάθε κίνησης, συμπεριλαμβανομένης της οδήγησης και της ποδηλασίας.</string>
+    <string name="setup_preset_title">Λεπτομέρεια καταγραφής</string>
+    <string name="setup_what_to_collect_title">Τι θα συλλέγεται</string>
+    <string name="setup_what_to_collect_subtitle">Περισσότερες επιλογές παρακάτω. Ξεκινήστε την εξερεύνηση χωρίς άδειες ή παραχωρήστε τες αργότερα. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="setup_source_location">Τοποθεσία</string>
+    <string name="setup_source_location_desc">Καταγράψτε τις διαδρομές και τις θέσεις σας σε χάρτη.</string>
+    <string name="setup_source_activity">Δραστηριότητα</string>
+    <string name="setup_source_activity_desc">Ανίχνευση αν περπατάτε, τρέχετε, κάνετε ποδήλατο ή οδηγείτε.</string>
+    <string name="setup_source_steps">Βήματα</string>
+    <string name="setup_source_steps_desc">Μετρήστε τα βήματά σας με το βηματόμετρο της συσκευής.</string>
+    <string name="setup_source_wifi">Δίκτυα Wi‑Fi</string>
+    <string name="setup_source_wifi_desc">Καταγράψτε κοντινά δίκτυα Wi‑Fi για βελτίωση της ακρίβειας τοποθεσίας.</string>
+    <string name="setup_source_cell">Πύργοι κινητής</string>
+    <string name="setup_source_cell_desc">Καταγράψτε πληροφορίες πύργων κινητής για το πλαίσιο τοποθεσίας.</string>
+    <string name="setup_perm_location_why">Απαιτείται για καταγραφή των διαδρομών σας και εμφάνισή τους στον χάρτη. Η τοποθεσία παραμένει σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
+    <string name="setup_perm_location_bg_why">Για να συνεχίσει να καταγράφει τη διαδρομή σας όταν αλλάζετε εφαρμογή ή κλείνει η οθόνη, το Tracker χρειάζεται πρόσβαση στην τοποθεσία σας στο παρασκήνιο. Η καταγεγραμμένη τοποθεσία παραμένει σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή. Στο επόμενο μήνυμα του συστήματος επιλέξτε «Να επιτρέπεται πάντα» για ενεργοποίηση της αυτόματης καταγραφής· η επιλογή «Κατά τη χρήση της εφαρμογής» επιτρέπει στο Tracker να λειτουργεί μόνο όταν η οθόνη του είναι ανοιχτή.</string>
+    <string name="setup_perm_activity_why">Επιτρέπει στο Tracker να ανιχνεύει τι κάνετε (περπάτημα, ποδήλατο, οδήγηση, ακινησία), ώστε η αυτόματη καταγραφή να μπορεί να διακόπτεται όταν δεν κινείστε και να εξοικονομεί μπαταρία. Τα δεδομένα δραστηριότητας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
+    <string name="setup_perm_notification_why">Το Tracker εμφανίζει μια μικρή ειδοποίηση κατάστασης ενώ καταγράφει, ώστε να βλέπετε με μια ματιά ότι η καταγραφή είναι ενεργή και να τη σταματάτε με ένα πάτημα. Δεν υπάρχουν ειδοποιήσεις μάρκετινγκ ή προώθησης.</string>
+    <string name="setup_perm_wifi_why">Το Tracker μπορεί να καταγράφει σημεία πρόσβασης Wi‑Fi που βλέπει το τηλέφωνό σας κατά τη διάρκεια μιας διαδρομής για βελτίωση της ακρίβειας τοποθεσίας σε μέρη όπου το GPS είναι αδύναμο (σε εσωτερικούς χώρους, υπόγεια). Τα δεδομένα ραδιοεπικοινωνίας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή. Παραχωρήστε την άδεια μόνο αν το θέλετε.</string>
+    <string name="setup_perm_cell_why">Το Tracker μπορεί να καταγράφει αναγνωριστικά πύργων κινητής κατά μήκος της διαδρομής σας ώστε να συναχθεί η τοποθεσία όταν το GPS δεν είναι διαθέσιμο. Τα δεδομένα ραδιοεπικοινωνίας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή. Παραχωρήστε την κατάσταση τηλεφώνου και ακριβή τοποθεσία μόνο αν το θέλετε.</string>
+    <string name="setup_perm_grant">Παραχώρηση</string>
+    <string name="setup_perm_grant_location_content_description">Παραχώρηση άδειας τοποθεσίας</string>
+    <string name="setup_perm_grant_background_location_content_description">Παραχώρηση άδειας τοποθεσίας στο παρασκήνιο</string>
+    <string name="setup_perm_grant_activity_content_description">Παραχώρηση άδειας αναγνώρισης δραστηριότητας</string>
+    <string name="setup_perm_grant_notification_content_description">Παραχώρηση άδειας ειδοποιήσεων</string>
+    <string name="setup_perm_grant_wifi_content_description">Παραχώρηση άδειας Wi‑Fi</string>
+    <string name="setup_perm_grant_cell_content_description">Παραχώρηση άδειας ραδιοεπικοινωνίας κινητής</string>
+    <string name="setup_perm_granted">Παραχωρήθηκε ✓</string>
+    <string name="permission_grant_in_settings">Να επιτρέπεται στις Ρυθμίσεις →</string>
+    <string name="permission_disabled_due_to_denial">Το %1$s απενεργοποιήθηκε επειδή απορρίφθηκε η άδεια. Παραχωρήστε την στις Ρυθμίσεις για ενεργοποίηση.</string>
+    <string name="settings_wifi_permission_required">Απαιτείται άδεια Wi‑Fi/τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα Wi‑Fi έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_cell_permission_required">Απαιτείται άδεια κατάστασης τηλεφώνου και ακριβούς τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα κινητής έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_wifi_privacy_summary">Καταγράφει κοντινά δίκτυα Wi‑Fi για βελτίωση της ακρίβειας τοποθεσίας. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_barometer_unavailable">Ο αισθητήρας πίεσης δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
+    <string name="settings_activity_permission_required">Απαιτείται άδεια αναγνώρισης δραστηριότητας. Ενεργοποιήστε το για παραχώρηση.</string>
+    <string name="settings_steps_unavailable">Ο αισθητήρας μετρητή βημάτων δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
+    <string name="settings_cell_privacy_summary">Καταγράφει αναγνωριστικά πύργων κινητής για βελτίωση της ακρίβειας τοποθεσίας. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="setup_start_exploring">Έναρξη εξερεύνησης</string>
+    <string name="setup_continue">Συνέχεια</string>
+    <string name="setup_step_indicator">Βήμα %1$d από %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Διαδικτυακές ψηφίδες χάρτη;</string>
+    <string name="setup_online_tiles_subtitle">Το Tracker διαθέτει βασικό χάρτη εκτός σύνδεσης, ώστε να λειτουργεί χωρίς δίκτυο. Αν θέλετε πλουσιότερους χάρτες, μπορείτε αντί γι’ αυτό να μεταδίδετε ψηφίδες από δημόσιο πάροχο.</string>
+    <string name="setup_online_tiles_off_title">Μόνο εκτός σύνδεσης (συνιστάται)</string>
+    <string name="setup_online_tiles_off_desc">Χωρίς αιτήματα δικτύου. Χρησιμοποιείται μόνο ο ενσωματωμένος βασικός χάρτης.</string>
+    <string name="setup_online_tiles_on_title">Χρήση διαδικτυακών ψηφίδων</string>
+    <string name="setup_online_tiles_on_desc">Μεταδώστε διανυσματικές ψηφίδες υψηλότερης λεπτομέρειας από το OpenFreeMap (προεπιλογή). Μπορείτε να αλλάξετε πάροχο αργότερα στις Ρυθμίσεις → Χάρτης.</string>
+    <string name="setup_online_tiles_privacy">Όταν είναι ενεργό, ο πάροχος μπορεί να δει τη διεύθυνση IP σας και ποιες ψηφίδες φορτώνετε — κατά προσέγγιση ποια περιοχή του χάρτη κοιτάζετε. Το Tracker δεν στέλνει ποτέ λογαριασμό, αναγνωριστικό ή ιστορικό τοποθεσίας.</string>
+    <string name="setup_online_tiles_change_later">Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Χάρτης → Διαδικτυακές ψηφίδες χάρτη.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Για να καταγράφει διαδρομές ενώ η οθόνη είναι σβηστή ή η εφαρμογή κλειστή, το Tracker πρέπει να συνεχίσει να εκτελείται στο παρασκήνιο. Οι ρυθμίσεις μπαταρίας του τηλεφώνου μπορεί να το διακόψουν — επιτρέψτε δραστηριότητα στο παρασκήνιο ώστε η αυτόματη καταγραφή να παραμένει αξιόπιστη.</string>
+    <string name="setup_background_access_optional">Προαιρετικό, αλλά συνιστάται. Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Καταγραφή.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Αξιόπιστη καταγραφή στο παρασκήνιο</string>
+    <string name="background_reliability_status_exempt">Επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
+    <string name="background_reliability_status_optimized">Η βελτιστοποίηση μπαταρίας είναι ενεργή</string>
+    <string name="background_reliability_exempt_desc">Το Tracker εξαιρείται από τη βελτιστοποίηση μπαταρίας, ώστε η καταγραφή στο παρασκήνιο και η αυτόματη καταγραφή να λειτουργούν αξιόπιστα.</string>
+    <string name="background_reliability_optimized_desc">Η βελτιστοποίηση μπαταρίας μπορεί να διακόψει το Tracker στο παρασκήνιο, σταματώντας την αυτόματη καταγραφή. Επιτρέψτε δραστηριότητα στο παρασκήνιο για να συνεχίσει να λειτουργεί.</string>
+    <string name="background_reliability_allow_action">Να επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
+    <string name="background_reliability_samsung_hint">Οι συσκευές Samsung μπορεί επίσης να τοποθετούν εφαρμογές στις «Εφαρμογές σε αδράνεια». Ανοίξτε τις ρυθμίσεις μπαταρίας, αφαιρέστε το Tracker από τις εφαρμογές σε αδράνεια και ρυθμίστε το να μην τίθεται σε αναστολή.</string>
+    <string name="background_reliability_samsung_action">Άνοιγμα ρυθμίσεων μπαταρίας συσκευής</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Διαγνωστικά σφαλμάτων</string>
+    <string name="settings_tracebox_root_summary">Τοπικά διαγνωστικά σφαλμάτων, ANR και δομής</string>
+    <string name="settings_tracebox_status_header">Κατάσταση καταγραφής</string>
+    <string name="settings_tracebox_toggle_title">Καταγραφή διαγνωστικών σφαλμάτων</string>
+    <string name="settings_tracebox_toggle_summary_off">Η καταγραφή είναι απενεργοποιημένη. Τα υπάρχοντα τοπικά διαγνωστικά παραμένουν μέχρι να τα διαγράψετε.</string>
+    <string name="settings_tracebox_toggle_summary_on">Τα διαγνωστικά σφαλμάτων, ANR και σταθερής δομής καταγράφονται τοπικά.</string>
+    <string name="settings_tracebox_readiness_label">Ετοιμότητα αποθήκευσης</string>
+    <string name="settings_tracebox_readiness_volatile">Εκκίνηση μόνιμης αποθήκευσης· είναι διαθέσιμη πτητική καταγραφή</string>
+    <string name="settings_tracebox_readiness_durable">Η μόνιμη καταγραφή είναι έτοιμη</string>
+    <string name="settings_tracebox_readiness_degraded">Η καταγραφή είναι υποβαθμισμένη· ορισμένες εγγραφές ενδέχεται να μην είναι διαθέσιμες</string>
+    <string name="settings_tracebox_readiness_closed">Η καταγραφή είναι κλειστή</string>
+    <string name="settings_tracebox_health_label">Υγεία χρόνου εκτέλεσης</string>
+    <string name="settings_tracebox_health_disabled">Απενεργοποιημένο</string>
+    <string name="settings_tracebox_health_initializing">Αρχικοποίηση</string>
+    <string name="settings_tracebox_health_ready">Έτοιμο</string>
+    <string name="settings_tracebox_health_degraded">Υποβαθμισμένο</string>
+    <string name="settings_tracebox_health_deleting">Διαγραφή τοπικών διαγνωστικών</string>
+    <string name="settings_tracebox_health_closed">Κλειστό</string>
+    <string name="settings_tracebox_package_header">Πακέτο διαγνωστικών</string>
+    <string name="settings_tracebox_package_body">Το Tracebox δείχνει πρώτα την ακριβή ενημέρωση για το οριστικοποιημένο πακέτο. Δεν αποθηκεύεται ή κοινοποιείται τίποτα μέχρι να το εγκρίνετε και να επιλέξετε προορισμό.</string>
+    <string name="settings_tracebox_package_review_action">Έλεγχος και έγκριση πακέτου</string>
+    <string name="settings_tracebox_package_save_action">Αποθήκευση εγκεκριμένου πακέτου</string>
+    <string name="settings_tracebox_package_share_action">Κοινοποίηση εγκεκριμένου πακέτου</string>
+    <string name="settings_tracebox_share_limit">Το Android μπορεί να επιβεβαιώσει ότι άνοιξε ο επιλογέας, αλλά δεν μπορεί να αποδείξει ότι άλλη εφαρμογή έλαβε το πακέτο.</string>
+    <string name="settings_tracebox_data_header">Δεδομένα Tracebox</string>
+    <string name="settings_tracebox_data_body">Αυτό διαγράφει τα διαγνωστικά που ανήκουν στο Tracebox και την προετοιμασία πακέτου. Τα αρχεία που έχετε ήδη αποθηκεύσει ή στείλει ελέγχονται από τις εφαρμογές προορισμού τους.</string>
+    <string name="settings_tracebox_delete_action">Διαγραφή όλων των δεδομένων Tracebox</string>
+    <string name="settings_tracebox_delete_confirm_title">Διαγραφή όλων των διαγνωστικών σφαλμάτων;</string>
+    <string name="settings_tracebox_delete_confirm_body">Αυτό αφαιρεί όλα τα διαγνωστικά που ανήκουν στο Tracebox και την προετοιμασία πακέτου από το Tracker. Η ενέργεια δεν αναιρείται.</string>
+    <string name="settings_tracebox_delete_confirm_action">Διαγραφή</string>
+    <string name="settings_tracebox_result_header">Τελευταίο αποτέλεσμα</string>
+    <string name="settings_tracebox_result_enabled">Τα διαγνωστικά σφαλμάτων ενεργοποιήθηκαν.</string>
+    <string name="settings_tracebox_result_disabled">Τα διαγνωστικά σφαλμάτων απενεργοποιήθηκαν. Τα υπάρχοντα δεδομένα δεν διαγράφηκαν.</string>
+    <string name="settings_tracebox_result_policy_restricted">Η περιοριστική πολιτική αποθηκεύτηκε τοπικά, αλλά δεν την έχουν επιβεβαιώσει ακόμη όλες οι διεργασίες.</string>
+    <string name="settings_tracebox_result_policy_partial">Η πολιτική αποθηκεύτηκε τοπικά, αλλά η σύγκλιση χρόνου εκτέλεσης ήταν ελλιπής.</string>
+    <string name="settings_tracebox_result_failed">Η ενέργεια δεν έφτασε στο τοπικό όριο ανθεκτικότητας.</string>
+    <string name="settings_tracebox_result_delete_complete">Όλα τα δεδομένα που ανήκουν στο Tracebox διαγράφηκαν.</string>
+    <string name="settings_tracebox_result_delete_pending">Η διαγραφή ολοκληρώθηκε μόνο μερικώς. Ορισμένα δεδομένα που ανήκουν σε χειριστές εκκρεμούν ακόμη για διαγραφή.</string>
+    <string name="settings_tracebox_result_delete_rejected">Το Tracebox απέρριψε το αίτημα διαγραφής.</string>
+    <string name="settings_tracebox_result_review_ready">Η ενημέρωση είναι έτοιμη: %1$d συμπεριλαμβανόμενες τιμές που περιέχουν %2$d byte διαγνωστικών δεδομένων.</string>
+    <string name="settings_tracebox_result_package_created">Το εγκεκριμένο πακέτο διαγνωστικών είναι έτοιμο για αποθήκευση ή κοινοποίηση.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Η έγκριση πακέτου ακυρώθηκε. Δεν δημιουργήθηκε πακέτο.</string>
+    <string name="settings_tracebox_result_package_rejected">Η δημιουργία πακέτου απορρίφθηκε επειδή η έγκριση δεν αντιστοιχούσε πλέον στα οριστικοποιημένα byte.</string>
+    <string name="settings_tracebox_result_package_not_ready">Δεν είναι έτοιμο πακέτο διαγνωστικών. Ελέγξτε και εγκρίνετέ το πρώτα.</string>
+    <string name="settings_tracebox_result_save_complete">Αποθηκεύτηκε το πλήρες εγκεκριμένο πακέτο (%1$d byte).</string>
+    <string name="settings_tracebox_result_save_partial">Αντιγράφηκαν μόνο %1$d byte. Ο προορισμός μπορεί να περιέχει ελλιπές πακέτο.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Η αποθήκευση ακυρώθηκε μετά από %1$d byte. Ο προορισμός μπορεί να περιέχει ελλιπές πακέτο.</string>
+    <string name="settings_tracebox_result_save_failed">Δεν ήταν δυνατή η αποθήκευση του εγκεκριμένου πακέτου.</string>
+    <string name="settings_tracebox_result_save_cancelled">Δεν επιλέχθηκε προορισμός αποθήκευσης.</string>
+    <string name="settings_tracebox_result_share_opened">Άνοιξε ο επιλογέας κοινοποίησης Android.</string>
+    <string name="settings_tracebox_result_share_unknown">Ο επιλογέας επέστρεψε. Το Android δεν μπορεί να αποδείξει αν ο παραλήπτης έλαβε το πακέτο.</string>
+    <string name="settings_tracebox_records_header">Τι καταγράφει</string>
+    <string name="settings_tracebox_records_body">Στοιχεία σφαλμάτων και ANR μαζί με ένα περιορισμένο σύνολο προκαθορισμένων κωδικών για τη δομή της εφαρμογής και τη σειρά εκτέλεσης. Το Tracebox είναι ο μόνος καταγραφέας σφαλμάτων και διαγνωστικών του Tracker.</string>
+    <string name="settings_tracebox_privacy_header">Τι εξαιρεί</string>
+    <string name="settings_tracebox_privacy_body">Το API καταγραφής δεν δέχεται αυθαίρετο κείμενο, τοποθεσία, λεπτομέρειες λογαριασμού, αναγνωριστικά συσκευής ή ενδείξεις αισθητήρων. Τα τυπικά πακέτα εξαιρούν ακατέργαστα τεχνουργήματα σφαλμάτων και δεν μεταφορτώνονται ποτέ αυτόματα.</string>
+</resources>

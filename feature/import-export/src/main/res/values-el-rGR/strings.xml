@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Εξαγωγή</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Δεν βρέθηκαν τοποθεσίες στο επιλεγμένο διάστημα.</string>
+    <string name="export_error_no_databases">Δεν υπάρχουν διαθέσιμες βάσεις δεδομένων της εφαρμογής για εξαγωγή.</string>
+    <string name="export_error_no_uri">Δεν επιλέχθηκε φάκελος εξαγωγής</string>
+    <string name="export_error_stream_failed">Δεν ήταν δυνατή η δημιουργία ροής για το αρχείο %s</string>
+    <string name="export_error_unknown">Η εξαγωγή απέτυχε.</string>
+    <string name="export_error_with_reason">Η εξαγωγή απέτυχε: %s</string>
+    <string name="export_file_name">Όνομα αρχείου</string>
+    <string name="export_file_name_error">Τα ονόματα αρχείων δεν μπορούν να περιέχουν \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Εξαγωγή δεδομένων τοποθεσίας από %1$s έως %2$s που καταγράφηκαν με το Advention.</string>
+    <string name="export_gpx_error">Η εξαγωγή GPX απέτυχε με σφάλμα: %s</string>
+    <string name="export_sensitivity_title">Εξαγωγή ακριβών δεδομένων τοποθεσίας;</string>
+    <string name="export_sensitivity_message">Αυτή η εξαγωγή/κοινοποίηση περιέχει δεδομένα τοποθεσίας πλήρους ακρίβειας και μπορεί να περιλαμβάνει ακατέργαστα μεταδεδομένα ραδιοεπικοινωνίας σε εξαγωγές βάσης δεδομένων. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
+    <string name="export_sensitivity_confirm">Συνέχεια</string>
+    <string name="export_share_button">Κοινοποίηση</string>
+    <string name="export_in_progress">Γίνεται εξαγωγή…</string>
+    <string name="export_completed">Η εξαγωγή ολοκληρώθηκε.</string>
+    <string name="import_notification_error_failed_open_database">Αποτυχία ανοίγματος αρχείου βάσης δεδομένων %s</string>
+    <string name="import_notification_error_file_not_supported">Το αρχείο %s δεν υποστηρίζεται.</string>
+    <string name="import_notification_extracting">Γίνεται εξαγωγή του %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Η εισαγωγή ολοκληρώθηκε. Εισήχθη με επιτυχία %d εγγραφή.</item>
+        <item quantity="other">Η εισαγωγή ολοκληρώθηκε. Εισήχθησαν με επιτυχία %d εγγραφές.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Η εισαγωγή ολοκληρώθηκε. Εισήχθησαν %1$d εγγραφές (%2$d παραλείφθηκαν).</string>
+    <string name="import_notification_error_records_failed">Αποτυχία εισαγωγής %d εγγραφών λόγω παραβιάσεων περιορισμών.</string>
+    <string name="import_notification_importing">Γίνεται εισαγωγή του %s …</string>
+    <string name="import_notification_progress">Η εισαγωγή βρίσκεται σε εξέλιξη …</string>
+    <string name="settings_export_dialog_from">Από</string>
+    <string name="settings_export_dialog_to">Έως</string>
+    <string name="settings_export_no_data">Δεν υπάρχουν δεδομένα για εξαγωγή</string>
+    <string name="settings_export_title">Εξαγωγή</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Αντίγραφο ασφαλείας βάσης δεδομένων (ZIP)</string>
+    <string name="settings_import_summary">Εισαγωγή δεδομένων από υποστηριζόμενους τύπους (%1$s) και αρχεία (%2$s). Οι εισαγωγές βάσης δεδομένων συγχωνεύουν συμβατές γραμμές· δεν αντικαθιστούν υπάρχοντα δεδομένα.</string>
+    <string name="settings_import_title">Εισαγωγή</string>
+</resources>

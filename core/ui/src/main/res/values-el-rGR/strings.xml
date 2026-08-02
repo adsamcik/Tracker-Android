@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Επιστροφή</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Πρόσβαση στην τοποθεσία</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Το Tracker χρειάζεται πρόσβαση στην τοποθεσία για να καταγράφει τη διαδρομή σας και να τη δείχνει στον χάρτη. Τα δεδομένα τοποθεσίας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Αναγνώριση δραστηριότητας</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Το Tracker χρησιμοποιεί αναγνώριση δραστηριότητας για να εντοπίζει τι κάνετε (περπάτημα, ποδήλατο, οδήγηση, ακινησία), ώστε η αυτόματη καταγραφή να μπορεί να διακόπτεται όταν δεν κινείστε και να εξοικονομεί μπαταρία. Τα δεδομένα δραστηριότητας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Τοποθεσία στο παρασκήνιο</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Για να συνεχίσει να καταγράφει τη διαδρομή σας όταν αλλάζετε εφαρμογή ή κλείνει η οθόνη, το Tracker χρειάζεται πρόσβαση στην τοποθεσία σας στο παρασκήνιο. Η καταγεγραμμένη τοποθεσία παραμένει σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή. Στο επόμενο μήνυμα του συστήματος επιλέξτε «Να επιτρέπεται πάντα»· η επιλογή «Κατά τη χρήση της εφαρμογής» επιτρέπει στο Tracker να λειτουργεί μόνο όταν η οθόνη του είναι ανοιχτή.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Να επιτρέπεται</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Όχι τώρα</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Απαιτείται άδεια τοποθεσίας για την έναρξη της καταγραφής</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Άνοιγμα ρυθμίσεων</string>
 </resources>
