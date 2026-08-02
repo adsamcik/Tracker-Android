@@ -1,15 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="trip_route_preview_unavailable">Förhandsvisning av ruttkarta kunde inte förberedas</string>
     <string name="module_map_title">Karta</string>
     <string name="description_map_search">Sökknapp</string>
     <string name="map_layer_cell_heatmap_description">Ditt observerade mobillandskap efter radioteknik. Mjuka fält visar var betjänande celler nådde dig; lysande centrum är försiktiga uppskattningar av mastplatser och blir skarpare först när observationer omger dem.</string>
     <string name="map_layer_cell_heatmap_title">Mobil topologi</string>
     <string name="map_layer_location_heatmap_high">Hög täthet</string>
     <string name="map_layer_location_heatmap_low">Låg täthet</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Låg till medelhög täthet</string>
     <string name="map_layer_location_heatmap_medium">Medelhög täthet</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Högsta täthet</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Skilda besök</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Besök</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativ täthet av godtagna platspositioner. Detta visar skilda observationer, inte spenderad tid.</string>
@@ -18,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Döda zoner för signal</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Döda zoner</string>
     <string name="map_layer_signal_coverage_description">Markerar var din mobilsignal var svag eller saknades. Ju rödare området är, desto sämre är täckningen; väl täckta områden förblir klara.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Svag</string>
+    <string name="map_layer_signal_coverage_poor">Dålig</string>
+    <string name="map_layer_signal_coverage_very_poor">Mycket dålig</string>
+    <string name="map_layer_signal_coverage_dead">Död zon</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalnorrsken</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Norrsken</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobilsignal återgiven som ett norrskensliknande sken: en bred violett halo under en ljus cyan-grön kärna. Skimret pulserar utan att data läses in igen och blir stilla när systemanimationer är avstängda.</string>
@@ -167,7 +167,7 @@
     <string name="map_share_preparing">Förbereder bild…</string>
     <string name="map_share_error">Kunde inte återge kartbilden. Försök igen.</string>
     <string name="map_date_range_all_time">Hela tiden</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Vald resa</string>
     <string name="map_layers_title">Kartlager</string>
     <string name="map_layer_load_error">Kunde inte läsa in detta lager. Försök välja ett annat.</string>
     <string name="map_empty_subtitle_location">Inga platsdata i denna vy eller detta datumintervall. Rutt- och kartfunktioner kräver platsdata som samlats in under spårning.</string>

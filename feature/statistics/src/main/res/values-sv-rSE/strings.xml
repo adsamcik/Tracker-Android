@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Höjdförlust</string>
     <string name="trip_detail_max_altitude">Maxhöjd</string>
     <string name="trip_detail_route_map">Ruttkarta</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Visa på karta</string>
     <string name="trip_detail_no_location_data">Inga platsdata</string>
     <string name="trip_detail_route_unavailable_legacy">Ruttkarta är inte tillgänglig för äldre sessioner</string>
     <string name="trip_detail_route_no_gps_points">Avståndet registrerades, men ingen GPS-rutt är tillgänglig</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">Bäst</string>
     <string name="action_navigate_back">Navigera tillbaka</string>
     <string name="history_button_label">Historik</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">Visa resan på karta</string>
     <string name="stats_heatmap_title">Aktivitet</string>
 </resources>

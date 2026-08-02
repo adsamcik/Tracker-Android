@@ -24,19 +24,14 @@
     <string name="cell_unknown">Okänd</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanal som endast används för tjänsten Aktivitetsövervakare så att du enkelt kan ta bort den permanenta aviseringen.</string>
-    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Aktivitetsövervakare</string>
     <string name="channel_achievements_description">Aviseringar kopplade till prestationer.</string>
-    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Prestation</string>
     <string name="channel_other_description">Andra aviseringar som inte tillhör någon annan kategori.</string>
-    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Övrigt</string>
     <string name="channel_track_description">Aviseringar kopplade till spårning.</string>
-    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Spårning</string>
     <string name="channel_goals_description">Aviseringar om att mål har uppnåtts.</string>
-    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Målförlopp</string>
     <string name="day_short">%d d</string>
     <string name="generic_add">Lägg till</string>

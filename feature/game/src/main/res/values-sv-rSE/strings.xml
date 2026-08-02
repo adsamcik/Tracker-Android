@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">Vi kunde inte spara den här rundan. Försök igen.</string>
     <string name="minigame_failure_generic">Något gick fel och rundan stoppades.</string>
     <string name="minigame_session_try_again">Försök igen</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Aktivt spel</string>
     <string name="game_session_channel_description">Håller ett aktivt minispel igång när skärmen är avstängd</string>
     <string name="game_session_notification_title">Tracker-spel</string>

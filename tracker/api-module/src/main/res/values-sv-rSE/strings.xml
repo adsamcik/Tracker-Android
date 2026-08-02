@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">Batterisnålt läge (något långsammare aktivitetsidentifiering)</string>
     <string name="settings_auto_tracking_transition_title">Använd aktivitetsövergångar</string>
     <string name="settings_cell_enabled_title">Cell</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Automatisk spårning är inaktiverad tills telefonen ansluts till en laddare</string>
     <string name="settings_disabled_recharge_title">Inaktiverad tills laddning</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Plats</string>
     <string name="settings_notification_customize_summary">Ändra vad som ska visas och i vilken ordning i spårningsaviseringen.</string>
     <string name="settings_notification_customize_title">Anpassa avisering</string>
