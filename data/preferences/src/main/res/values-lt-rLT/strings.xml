@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="passus">%s tempas</string>
+    <string name="per_hour_abbr">%s/h</string>
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_second_abbr">%s/s</string>
+    <string name="feet_abbr">%s pėd.</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="meter_abbr">%s m</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="millepassus">%s romėniška mylia</string>
+    <!-- Sailing units -->
+    <string name="fathom_abbr">%s sieksnis</string>
+    <string name="cable_abbr">%s kabelis</string>
+    <string name="nautical_mile_abbr">%s jūrmylė</string>
+    <string name="knot_abbr">%s mazg.</string>
+    <!-- Flying units -->
+    <string name="flight_level_abbr">FL%s</string>
+    <!-- Auto unit switch preference -->
+    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
+    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
+    <string name="settings_statistics_auto_unit_switch_title">Automatiškai perjungti vienetų sistemą</string>
+    <string name="settings_statistics_auto_unit_switch_summary">Automatiškai perjungti į buriavimo ar skrydžių vienetus, kai peržiūrimos veiklos su šiomis veiklomis</string>
+    <!-- Location precision preference (Phase 2) -->
+    <!-- Precision upgrade tracking (Phase 2) -->
+</resources>

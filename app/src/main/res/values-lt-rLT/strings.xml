@@ -1,0 +1,497 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Žaidimas</string>
+    <string name="module_map_title">Žemėlapis</string>
+    <string name="module_statistics_title">Statistika</string>
+    <string name="main_nav_tracker">Pagrindinis</string>
+    <string name="settings_clear_preferences_title">Išvalyti nuostatas</string>
+    <string name="settings_clear_preferences_message">Bus atstatytos visos programos nuostatos (funkcijų jungikliai ir sąsajos nustatymai). Sekimo duomenims tai neturės įtakos. Tęsti?</string>
+    <string name="settings_data_title">Duomenys</string>
+    <string name="settings_debug_group_title">Derinimas</string>
+    <string name="settings_debug_title">Kūrėjo parinktys</string>
+    <string name="settings_debug_developer_tools_section">Kūrėjo įrankiai</string>
+    <string name="settings_debug_disable_developer_subtitle">Slėpti kūrėjo parinktis nustatymuose</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Kūrėjo režimas išjungtas</string>
+    <string name="settings_data_management_section">Duomenų tvarkymas</string>
+    <string name="settings_data_danger_zone_section">Pavojinga zona</string>
+    <string name="settings_osm_import_section">Žemėlapio duomenys („OpenStreetMap“)</string>
+    <string name="settings_osm_import_action_title">Importuoti OSM regioną</string>
+    <string name="settings_osm_import_action_summary">Pasirinkite .osm.pbf failą. Tada transporto priemonių atitiktis neprisijungus naudos tikrus kelių apribojimus.</string>
+    <string name="settings_osm_import_unavailable_title">Neprisijungus naudojamo žemėlapio importas nepasiekiamas</string>
+    <string name="settings_osm_import_action_unavailable">Neprisijungus naudojamo žemėlapio importas laikinai nepasiekiamas, kol baigiamos failų saugos priemonės.</string>
+    <string name="settings_osm_import_action_running">Importuojama – palieskite, kad atšauktumėte</string>
+    <string name="settings_osm_import_action_failed">Nepavyko užbaigti neprisijungus naudojamo žemėlapio importo.</string>
+    <string name="settings_osm_import_action_source_unavailable">Nepavyko atidaryti pasirinkto žemėlapio failo.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Importuotas %1$d kelias iš %2$d mazgų.</item>
+        <item quantity="few">Importuoti %1$d keliai iš %2$d mazgų.</item>
+        <item quantity="other">Importuota %1$d kelių iš %2$d mazgų.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Dar neimportuotas joks „OpenStreetMap“ regionas.</string>
+    <string name="settings_osm_imports_attribution">Žemėlapio duomenys © „OpenStreetMap“ bendradarbiai (ODbL 1.0). Visi duomenys apdorojami įrenginyje.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d kelias · importuota %2$s</item>
+        <item quantity="few">%1$,d keliai · importuota %2$s</item>
+        <item quantity="other">%1$,d kelių · importuota %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Pašalinti importuotą regioną</string>
+    <string name="settings_osm_import_remove_message">Pašalinti %1$s? Kol iš naujo neimportuosite regiono, transporto priemonių atitiktis naudos fiksuotą etaloną.</string>
+    <string name="settings_incremental_backups_title">Laipsniškos atsarginės kopijos</string>
+    <string name="settings_incremental_backups_summary">Eksportuoti tik naujus duomenis nuo paskutinės atsarginės kopijos. Taip sutrumpėja eksportavimo laikas ir sumažėja failo dydis.</string>
+    <string name="settings_reset_export_watermarks_title">Priverstinai eksportuoti visus duomenis</string>
+    <string name="settings_reset_export_watermarks_summary">Į kitą automatinę atsarginę kopiją bus įtraukti visi duomenys, o ne tik pakeitimai</string>
+    <string name="settings_reset_export_watermarks_done">Eksportavimo žymės atstatytos – kita atsarginė kopija bus visiškas eksportas</string>
+    <string name="settings_migration_backup_export_title">Eksportuoti saugos atsarginę kopiją prieš naujinimą</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Visa duomenų bazės kopija iš v%1$d, sukurta prieš perkeliant į v%2$d ir privačiai laikoma iki 30 dienų</string>
+    <string name="settings_migration_backup_warning_title">Eksportuoti neskelbtiną duomenų bazės atsarginę kopiją?</string>
+    <string name="settings_migration_backup_warning_message">Šioje atsarginėje kopijoje gali būti tikslių vietų, Wi‑Fi ir ląstelių stebėjimų, veiklų ir kitų privačių duomenų iš laikotarpio iki naujinimo. Išsaugokite ją tik patikimoje vietoje.</string>
+    <string name="settings_migration_backup_export_action">Eksportuoti atsarginę kopiją</string>
+    <string name="settings_migration_backup_export_success">Atsarginė kopija prieš naujinimą eksportuota</string>
+    <string name="settings_migration_backup_export_failure">Nepavyko eksportuoti atsarginės kopijos prieš naujinimą</string>
+    <string name="settings_migration_backup_export_cleanup_required">Eksportuoti nepavyko. Ištrinkite iš dalies eksportuotą atsarginę kopiją iš pasirinktos vietos.</string>
+    <string name="settings_delete_data_success">Visi surinkti duomenys ištrinti</string>
+    <string name="settings_delete_data_failure">Nepavyko ištrinti visų surinktų duomenų</string>
+    <string name="settings_game_goals_title">Tikslai</string>
+    <string name="settings_game_daily_target_title">Kasdienis žingsnių tikslas</string>
+    <string name="settings_game_weekly_target_title">Savaitinis žingsnių tikslas</string>
+    <string name="settings_game_daily_contribution_title">Didžiausias dienos indėlis</string>
+    <string name="settings_game_steps_unit">žingsniai</string>
+    <string name="settings_game_notifications_title">Pranešimai</string>
+    <string name="settings_game_goal_notifications_title">Pranešimai apie tikslo eigą</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Gaukite vietinį priminimą pasiekę 75 % ir 90 % kasdienio tikslo.</string>
+    <string name="settings_game_during_games_title">Žaidimo metu</string>
+    <string name="settings_game_haptics_title">Žaidimo haptika</string>
+    <string name="settings_game_haptics_summary">Naudoti subtilią vibraciją žaidimo atsiliepimui.</string>
+    <string name="settings_game_quiet_coaching_title">Ramesni patarimai</string>
+    <string name="settings_game_quiet_coaching_summary">Žaisdami gaukite retesnius nurodymus.</string>
+    <string name="settings_game_remember_setup_title">Prisiminti paskutinę žaidimo sąranką</string>
+    <string name="settings_game_remember_setup_summary">Kitą kartą pakartotinai naudoti paskutinį tikslą ir sunkumą.</string>
+    <string name="settings_game_privacy_battery_title">Privatumas ir akumuliatorius</string>
+    <string name="settings_game_privacy_battery_disclosure">Žaidimai naudoja tiesioginę vietą tik būdami aktyvūs ir, kai galima, pakartotinai naudoja „Tracker“ vietą. Pristabdžius žaidimą, jo naudojama vieta atlaisvinama. Šiame įrenginyje išsaugomi tik rezultatas ir taškai / XP; neapdorotos žaidimo vietos neišsaugomos.</string>
+    <string name="settings_game_loading">Įkeliami žaidimo nustatymai…</string>
+    <string name="settings_game_load_error">Nepavyko įkelti žaidimo nustatymų. Bandykite dar kartą.</string>
+    <string name="settings_map_info_hint">Šie nustatymai valdo žemėlapio vaizdavimo kokybę ir našumą. Daugumai naudotojų tinka numatytosios reikšmės.</string>
+    <string name="settings_map_online_tiles_section_title">Internetinės žemėlapio plytelės</string>
+    <string name="settings_map_online_tiles_enable_title">Naudoti internetines žemėlapio plyteles</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Išjungta – naudojamas tik pridėtas neprisijungus veikiantis pagrindinis žemėlapis. Tinklo užklausų nėra.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Įjungta – plytelės gaunamos iš %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Plytelių teikėjas</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (rekomenduojama)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Pasirinktinis URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Stiliaus JSON URL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Priskyrimas: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Internetinės plytelės pasirenkamos savanoriškai. Kai jos įjungtos, pasirinktas teikėjas gali matyti jūsų IP adresą ir įkeliamas plyteles (apytiksliai – kurią žemėlapio sritį peržiūrite). „Tracker“ niekada nesiunčia paskyros, identifikatoriaus ar vietos istorijos.</string>
+    <string name="settings_developer_mode_enabled_toast">Kūrėjo režimas įjungtas</string>
+    <string name="settings_developer_mode_disable">Išjungti kūrėjo režimą</string>
+    <string name="settings_developer_mode_subtitle">Kūrėjo režimas aktyvus</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Palieskite dar %d kartą, kad įjungtumėte kūrėjo režimą</item>
+        <item quantity="few">Palieskite dar %d kartus, kad įjungtumėte kūrėjo režimą</item>
+        <item quantity="other">Palieskite dar %d kartų, kad įjungtumėte kūrėjo režimą</item>
+    </plurals>
+    <string name="settings_version_info_title">Versijos informacija</string>
+    <string name="settings_version_format">Versija: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Dabartinė kalba: %s</string>
+    <string name="settings_language_title">Programos kalba</string>
+    <string name="settings_units_auto_summary_on">Pritaiko ilgio vienetų sistemą prie aptiktų veiklų</string>
+    <string name="settings_units_auto_summary_off">Taiko pasirinktą ilgio vienetų sistemą visur</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrinė</item>
+        <item>Imperinė (JAV)</item>
+        <item>Senovės romėnų</item>
+        <item>Buriavimo</item>
+        <item>Skrydžių</item>
+    </string-array>
+    <string name="settings_length_system_title">Ilgio vienetų sistema</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Atvirojo kodo licencijos</string>
+    <string name="settings_licenses_subtitle">Peržiūrėkite su šia versija pateikiamus trečiųjų šalių pranešimus.</string>
+    <string name="settings_licenses_loading">Įkeliamos licencijos…</string>
+    <string name="settings_licenses_unavailable">Nepavyko įkelti pridėtų trečiųjų šalių licencijų duomenų.</string>
+    <string name="settings_licenses_text_at_url">Visas licencijos tekstas pasiekiamas adresu: %1$s</string>
+    <string name="settings_privacy_policy_title">Privatumo politika</string>
+    <string name="settings_privacy_policy_unavailable">Nepavyko atidaryti pridėtos privatumo politikos. Paleidę programą iš naujo bandykite dar kartą.</string>
+    <string name="settings_about_header">Apie</string>
+    <string name="settings_about_app_title">„Tracker“, sukūrė adsamcik</string>
+    <string name="settings_about_app_subtitle">Į privatumą orientuotas vietos ir veiklos sekiklis</string>
+    <string name="about_title">Apie</string>
+    <string name="about_app_name_label">Programa</string>
+    <string name="about_version_label">Versija</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Versijos kūrimo įrašas</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Autorius</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">El. paštas</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Nuorodos</string>
+    <string name="about_attributions_title">Duomenų priskyrimai</string>
+    <string name="about_attribution_geonames_label">Vietovardžiai</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Žemėlapio ir gatvių duomenys</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Modulių nustatymai</string>
+    <string name="settings_core_group_title">Pagrindiniai</string>
+    <string name="settings_other_title">Vienetai ir rodinys</string>
+    <string name="settings_remove_all_collected_data_summary">Ištrina sekimo duomenis (pasirinktinės veiklos ir nustatymai bus palikti)</string>
+    <string name="settings_remove_all_collected_data_title">Ištrinti visus surinktus duomenis</string>
+    <string-array name="settings_speed_format_names">
+        <item>Greitis per sekundę (m/s)</item>
+        <item>Tempas pagal atstumą (min/km, min/mi)</item>
+        <item>Greitis (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Greičio formatas</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Nustatymai</string>
+    <string name="switch_state_on">Įjungta</string>
+    <string name="switch_state_off">Išjungta</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Sekite keliones privačiai</string>
+    <string name="onboarding_streamlined_subtitle">Visi duomenys lieka jūsų įrenginyje. Nėra sinchronizavimo su debesija ar trečiųjų šalių sekimo.</string>
+    <string name="onboarding_benefit_privacy_title">Privatumas svarbiausia</string>
+    <string name="onboarding_benefit_privacy_desc">Visi sekimo duomenys lieka jūsų įrenginyje. Jokių serverių, jokio sinchronizavimo su debesija, visiška kontrolė.</string>
+    <string name="onboarding_benefit_insights_title">Veiklos įžvalgos</string>
+    <string name="onboarding_benefit_insights_desc">Peržiūrėkite maršrutus žemėlapiuose, analizuokite statistiką ir stebėkite pažangą laikui bėgant.</string>
+    <string name="onboarding_benefit_gamification_title">Pasiekimai</string>
+    <string name="onboarding_benefit_gamification_desc">Atrakinkite daugiau nei 150 pasiekimų eidami, bėgdami, važiuodami dviračiu ir tyrinėdami – visi jie pasiekiami vietoje jūsų įrenginyje.</string>
+    <string name="onboarding_get_started">PRADĖTI</string>
+    <string name="onboarding_privacy_policy_button">Skaityti privatumo politiką</string>
+    <string name="onboarding_state_read_error_message">Nepavyko patikrinti, ar sąranka jau baigta, todėl ji rodoma siekiant apsaugoti jūsų duomenis. Galite saugiai tęsti.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Automatiškai valyti senus duomenis</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Laikyti duomenis visam laikui; automatinis valymas senų duomenų neištrins</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Automatiškai pašalinti senesnius nei %1$d metų duomenis</item>
+        <item quantity="few">Automatiškai pašalinti senesnius nei %1$d metų duomenis</item>
+        <item quantity="other">Automatiškai pašalinti senesnius nei %1$d metų duomenis</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Laikyti duomenis</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Laikyti visam laikui</item>
+        <item>1 metai</item>
+        <item>2 metai</item>
+        <item>3 metai</item>
+        <item>5 metai</item>
+        <item>10 metų</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">TĘSTI</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Eksportuoti duomenis</string>
+    <string name="settings_export_data_summary">Išsaugokite sekimo duomenis įvairiais formatais</string>
+    <string name="export_format_dialog_title">Pasirinkite eksporto formatą</string>
+    <string name="export_format_gpx_name">GPX (rekomenduojama)</string>
+    <string name="export_format_gpx_desc">Viso tikslumo maršruto taškai GPS įrenginiams, sporto programoms ir universaliam suderinamumui</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Viso tikslumo maršruto taškai „Google Earth“ ir geografiniam vaizdavimui</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Nuolat gaunamos vietos ir sesijų suvestinės; importuojant duomenys sujungiami ir atkuriama dalis metaduomenų</string>
+    <string name="export_format_db_name">Duomenų bazė</string>
+    <string name="export_format_db_desc">Neapdorota SQLite atsarginė kopija su visais duomenimis ir nustatymais; importavimas sujungia suderinamas eilutes, bet neatkuria visko</string>
+    <string name="export_sensitivity_dialog_title">Eksportuoti tikslius vietos duomenis?</string>
+    <string name="export_sensitivity_gpx_message">Šiame GPX eksporte yra viso tikslumo maršruto taškų. Išsaugokite arba bendrinkite jį tik su žmonėmis ir programomis, kuriais pasitikite.</string>
+    <string name="export_sensitivity_kml_message">Šiame KML eksporte yra viso tikslumo maršruto taškų. Išsaugokite arba bendrinkite jį tik su žmonėmis ir programomis, kuriais pasitikite.</string>
+    <string name="export_sensitivity_json_message">Šiame JSON eksporte yra viso tikslumo vietų ir sesijų suvestinių. Importuojant kai kurie išvestiniai metaduomenys prarandami; išsaugokite arba bendrinkite tik patikimose vietose.</string>
+    <string name="export_sensitivity_db_message">Šioje neapdorotoje duomenų bazės atsarginėje kopijoje gali būti tikslių vietų, Wi‑Fi / ląstelių radijo duomenų, veiklos ir nustatymų. Laikykite ją privačiai ir saugokite tik patikimoje vietoje.</string>
+    <string name="export_sensitivity_confirm">Tęsti eksportavimą</string>
+    <string name="settings_export_title">Eksportavimas</string>
+    <string name="settings_import_summary">Importuokite duomenis iš palaikomų tipų (%1$s) ir archyvų (%2$s). Duomenų bazės importavimas sujungia suderinamas eilutes; esami duomenys nepakeičiami.</string>
+    <string name="settings_import_title">Importavimas</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Supratau</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Mažas poveikis</string>
+    <string name="battery_impact_moderate">Vidutinis poveikis</string>
+    <string name="battery_impact_high">Didelis poveikis</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Pasirinkite vietos tikslumą</string>
+    <string name="precision_mode_approximate_title">Apytikslis</string>
+    <string name="precision_mode_approximate_description">Vieta pagal tinklą. Tinka bendram vietovės sekimui, naudojant mažai akumuliatoriaus energijos.</string>
+    <string name="precision_mode_precise_title">Tikslus</string>
+    <string name="precision_mode_precise_description">Vieta pagal GPS. Geriausia detaliems maršrutams, šilumos žemėlapiams ir iššūkiams.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Atrakinkite tikslų sekimą</string>
+    <string name="upgrade_to_precise_message_general">Naudojate apytikslę vietą. Perjunkite į tikslų GPS sekimą, kad tikslumas būtų didesnis.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Tiksli vieta rekomenduojama tikslinei maršrutų analizei ir atstumo matavimams.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Tiksli vieta leidžia detaliai vaizduoti šilumos žemėlapį su tiksliomis padėtimis.</string>
+    <string name="upgrade_to_precise_message_challenges">Daugeliui iššūkių reikia tikslaus GPS sekimo, kad įvykdymas būtų patikimai patvirtintas.</string>
+    <string name="upgrade_to_precise_benefits_title">Privalumai</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Tikslios maršruto formos ir posūkių kelio detalės</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Detalus šilumos žemėlapis ir erdvinė analizė</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Tikslūs atstumo ir greičio matavimai</string>
+    <string name="upgrade_to_precise_battery_title">Akumuliatoriaus naudojimas</string>
+    <string name="upgrade_to_precise_battery_message">Tikslus GPS naudoja daugiau akumuliatoriaus energijos. Numatyta sekimo trukmė: 6–8 valandos įprastuose įrenginiuose.</string>
+    <string name="upgrade_to_precise_button_upgrade">Įjungti tikslią vietą</string>
+    <string name="upgrade_to_precise_button_cancel">Gal vėliau</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Didelis tikslumas</string>
+    <string name="tracking_preset_high_accuracy_description">Didžiausias detalumas, greičiausi atnaujinimai ir įjungti visi pagrindiniai jutikliai</string>
+    <string name="tracking_preset_balanced_name">Subalansuotas</string>
+    <string name="tracking_preset_balanced_description">Geras tikslumas ir priimtina akumuliatoriaus veikimo trukmė kasdieniam sekimui</string>
+    <string name="tracking_preset_power_save_name">Energijos taupymas</string>
+    <string name="tracking_preset_power_save_description">Mažesnės akumuliatoriaus sąnaudos, retesni atnaujinimai ir mažiau jutiklių</string>
+    <string name="tracking_preset_custom_name">Pasirinktinis</string>
+    <string name="tracking_preset_custom_description">Rankiniu būdu koreguokite kiekvieną sekimo parametrą</string>
+    <string name="tracking_preset_selector_title">Sekimo išankstinis nustatymas</string>
+    <string name="tracking_preset_selector_subtitle">Pasirinkite pradinį profilį, tada tiksliai pakoreguokite bet kurį nustatymą žemiau.</string>
+    <string name="tracking_preset_custom_hint">Pakoregavus bet kurį nustatymą žemiau, pagal esamą išankstinį nustatymą sukuriamas pasirinktinį profilis.</string>
+    <string name="tracking_preset_customized_summary">Tiksliai sureguliavote sekimą. Norėdami atstatyti, pasirinkite aukščiau esantį išankstinį nustatymą.</string>
+    <string name="settings_tracking_section_detection">Aptikimas ir automatizavimas</string>
+    <string name="settings_tracking_section_sources">Duomenų šaltiniai</string>
+    <string name="settings_tracking_section_detail">Vietos rinkimas</string>
+    <string name="settings_tracking_section_notifications">Pranešimai</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Sekimo politika</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Numatoma sekimo trukmė: %d valanda</item>
+        <item quantity="few">Numatoma sekimo trukmė: %d valandos</item>
+        <item quantity="other">Numatoma sekimo trukmė: %d valandų</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Pasirinkite, kokiu tikslumu „Tracker“ įrašo jūsų vietą</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Tikslus</string>
+    <string name="approximate">Apytikslis</string>
+    <string name="tracking_policy_selector_subtitle">Pasirinkite sekimo išankstinį nustatymą arba tinkinkite nustatymus</string>
+    <string name="tracking_policy_custom_badge">Pasirinktinis</string>
+    <string name="collapse_details">Slėpti išsamią informaciją</string>
+    <string name="expand_details">Rodyti išsamią informaciją</string>
+    <string name="settings_section_collapse">Suskleisti</string>
+    <string name="settings_section_expand">Išskleisti</string>
+    <string name="tracking_policy_details_title">Konfigūracijos informacija</string>
+    <string name="preset_detail_location_precision">Vietos tikslumas</string>
+    <string name="preset_detail_min_distance">Mažiausias atstumas</string>
+    <string name="preset_detail_min_time">Mažiausias laiko intervalas</string>
+    <string name="preset_detail_accuracy">Reikalingas tikslumas</string>
+    <string name="preset_detail_sensors">Jutikliai</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Automatinis vienetų perjungimas</string>
+    <string name="settings_module_map_subtitle">Šilumos žemėlapio kokybės ir vaizdavimo parinktys</string>
+    <string name="settings_module_game_subtitle">Tikslai, pasiekimai ir svarbūs etapai</string>
+    <string name="action_navigate_back">Grįžti atgal</string>
+    <string name="action_help">Pagalba</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Įkeliama…</string>
+    <string name="widget_quick_start_name">Greitas „Tracker“ paleidimas</string>
+    <string name="widget_quick_start_description">Vienu palietimu pradėkite arba sustabdykite vietos sekimą.</string>
+    <string name="widget_start_tracking">Pradėti sekimą</string>
+    <string name="widget_stop_tracking">Sustabdyti sekimą</string>
+    <string name="widget_tracking_active">Sekimas aktyvus</string>
+    <string name="widget_today_summary_name">Šiandienos suvestinė</string>
+    <string name="widget_today_summary_description">Vienu žvilgsniu peržiūrėkite šiandienos sekimo statistiką.</string>
+    <string name="widget_today">Šiandien</string>
+    <string name="widget_distance">Atstumas</string>
+    <string name="widget_steps">Žingsniai</string>
+    <string name="widget_sessions">Sesijos</string>
+    <string name="widget_duration">Trukmė</string>
+    <string name="widget_no_data_today">Šiandien nėra sekimo duomenų</string>
+    <string name="widget_active_session_name">Aktyvi sesija</string>
+    <string name="widget_active_session_description">Stebėkite dabartinę sekimo sesiją realiuoju laiku.</string>
+    <string name="widget_no_active_session">Nėra aktyvios sesijos</string>
+    <string name="widget_tap_to_start">Palieskite, kad pradėtumėte sekti</string>
+    <string name="widget_session_distance">Sesijos atstumas</string>
+    <string name="widget_session_steps">Sesijos žingsniai</string>
+    <string name="widget_session_duration">Sesijos trukmė</string>
+    <string name="widget_current_speed">Dabartinis greitis</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Rinkiniai</string>
+    <string name="widget_path_preview">Kelio peržiūra</string>
+    <string name="widget_activity_unknown">Veikla nepasiekiama</string>
+    <string name="widget_goal_label">Tikslas:</string>
+    <string name="widget_goal_progress">%1$s / %2$s žingsnių</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Išjungta</string>
+    <string name="widget_tier_ambient">Aplinkos</string>
+    <string name="widget_tier_active">Aktyvus</string>
+    <string name="widget_tier_precision">Tikslus</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Puiki pažanga!</string>
+    <string name="goal_notification_title_almost">Jau beveik!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Iki kasdienio tikslo liko %1$d žingsnis</item>
+        <item quantity="few">Iki kasdienio tikslo liko %1$d žingsniai</item>
+        <item quantity="other">Iki kasdienio tikslo liko %1$d žingsnių</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Liko tik %1$d žingsnis!</item>
+        <item quantity="few">Liko tik %1$d žingsniai!</item>
+        <item quantity="other">Liko tik %1$d žingsnių!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Išmanieji tikslo pranešimai</string>
+    <string name="settings_smart_goal_notifications_summary">Gaukite pranešimą, kai priartėsite prie kasdienio žingsnių tikslo</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Kaip turi veikti sekimas?</string>
+    <string name="setup_how_to_track_subtitle">Pasirinkite, kada pradedamas sekimas ir koks jis turi būti detalus.</string>
+    <string name="setup_auto_tracking_title">Automatinis sekimas</string>
+    <string name="setup_auto_tracking_disabled">Išjungta</string>
+    <string name="setup_auto_tracking_disabled_desc">Pradėkite ir sustabdykite sekimą rankiniu būdu.</string>
+    <string name="setup_auto_tracking_on_foot">Pėsčiomis</string>
+    <string name="setup_auto_tracking_on_foot_desc">Automatiškai sekti ėjimą ir bėgimą.</string>
+    <string name="setup_auto_tracking_in_motion">Judant</string>
+    <string name="setup_auto_tracking_in_motion_desc">Automatiškai sekti bet kokį judėjimą, įskaitant vairavimą ir važiavimą dviračiu.</string>
+    <string name="setup_preset_title">Sekimo detalumas</string>
+    <string name="setup_what_to_collect_title">Ką rinkti</string>
+    <string name="setup_what_to_collect_subtitle">Daugiau parinkčių rasite žemiau. Pradėkite tyrinėti be leidimų arba suteikite juos vėliau. Duomenys lieka šiame įrenginyje.</string>
+    <string name="setup_source_location">Vieta</string>
+    <string name="setup_source_location_desc">Įrašykite maršrutus ir padėtis žemėlapyje.</string>
+    <string name="setup_source_activity">Veikla</string>
+    <string name="setup_source_activity_desc">Nustatykite, ar einate, bėgate, važiuojate dviračiu ar vairuojate.</string>
+    <string name="setup_source_steps">Žingsniai</string>
+    <string name="setup_source_steps_desc">Skaičiuokite žingsnius naudodami įrenginio žingsniamatį.</string>
+    <string name="setup_source_wifi">Wi‑Fi tinklai</string>
+    <string name="setup_source_wifi_desc">Registruokite netoliese esančius Wi‑Fi tinklus, kad pagerintumėte vietos tikslumą.</string>
+    <string name="setup_source_cell">Ryšio bokštai</string>
+    <string name="setup_source_cell_desc">Registruokite ryšio bokštų informaciją vietos kontekstui.</string>
+    <string name="setup_perm_location_why">Būtina, kad galėtumėte įrašyti maršrutus ir rodyti juos žemėlapyje. Vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
+    <string name="setup_perm_location_bg_why">Kad maršrutas būtų įrašomas, kai perjungiate programas arba ekranas išsijungia, „Tracker“ reikia prieigos prie jūsų vietos fone. Įrašyta vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį. Kitame sistemos lange pasirinkite „Leisti visada“, kad įjungtumėte automatinį sekimą; pasirinkus „Leisti naudojant programą“, „Tracker“ veiks tik tada, kai jo ekranas atidarytas.</string>
+    <string name="setup_perm_activity_why">Leidžia „Tracker“ nustatyti, ką veikiate (einate, važiuojate dviračiu, vairuojate, nejudate), todėl automatinis sekimas gali būti pristabdytas, kai nejudate, ir taupyti akumuliatoriaus energiją. Veiklos duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
+    <string name="setup_perm_notification_why">Kol „Tracker“ įrašo, jis rodo mažą būsenos pranešimą, todėl vienu žvilgsniu matote, kad sekimas įjungtas, ir galite jį sustabdyti vienu palietimu. Jokių rinkodaros ar reklaminių pranešimų.</string>
+    <string name="setup_perm_wifi_why">„Tracker“ gali įrašyti Wi‑Fi prieigos taškus, kuriuos telefonas mato kelionės metu, kad pagerintų vietos tikslumą vietose, kur GPS silpnas (patalpose, po žeme). Radijo duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį. Suteikite tik jei to norite.</string>
+    <string name="setup_perm_cell_why">„Tracker“ gali registruoti ryšio bokštų ID jūsų maršrute, kad vietą būtų galima nustatyti, kai GPS nepasiekiamas. Radijo duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį. Suteikite telefono būsenos ir tikslios vietos leidimus tik jei to norite.</string>
+    <string name="setup_perm_grant">Leisti</string>
+    <string name="setup_perm_grant_location_content_description">Suteikti vietos leidimą</string>
+    <string name="setup_perm_grant_background_location_content_description">Suteikti vietos fone leidimą</string>
+    <string name="setup_perm_grant_activity_content_description">Suteikti veiklos atpažinimo leidimą</string>
+    <string name="setup_perm_grant_notification_content_description">Suteikti pranešimų leidimą</string>
+    <string name="setup_perm_grant_wifi_content_description">Suteikti Wi‑Fi leidimą</string>
+    <string name="setup_perm_grant_cell_content_description">Suteikti mobiliojo ryšio leidimą</string>
+    <string name="setup_perm_granted">Leista ✓</string>
+    <string name="permission_grant_in_settings">Leisti nustatymuose →</string>
+    <string name="permission_disabled_due_to_denial">%1$s išjungta, nes leidimas nebuvo suteiktas. Suteikite jį nustatymuose, kad įjungtumėte.</string>
+    <string name="settings_wifi_permission_required">Reikalingas Wi‑Fi / vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol Wi‑Fi duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_cell_permission_required">Reikalingas telefono būsenos ir tikslios vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol ląstelių duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_wifi_privacy_summary">Registruoja netoliese esančius Wi‑Fi tinklus vietos tikslumui pagerinti. Duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_barometer_unavailable">Šiame įrenginyje slėgio jutiklis nepasiekiamas.</string>
+    <string name="settings_activity_permission_required">Reikalingas veiklos atpažinimo leidimas. Įjunkite jungiklį, kad suteiktumėte.</string>
+    <string name="settings_steps_unavailable">Šiame įrenginyje žingsnių skaitiklio jutiklis nepasiekiamas.</string>
+    <string name="settings_cell_privacy_summary">Registruoja ryšio bokštų ID vietos tikslumui pagerinti. Duomenys lieka šiame įrenginyje.</string>
+    <string name="setup_start_exploring">Pradėti tyrinėti</string>
+    <string name="setup_continue">Tęsti</string>
+    <string name="setup_step_indicator">%1$d veiksmas iš %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Internetinės žemėlapio plytelės?</string>
+    <string name="setup_online_tiles_subtitle">„Tracker“ pateikiamas su neprisijungus veikiančiu pagrindiniu žemėlapiu, todėl veikia be tinklo. Jei norite turtingesnių žemėlapių, galite vietoj to gauti plyteles iš viešo teikėjo.</string>
+    <string name="setup_online_tiles_off_title">Tik neprisijungus (rekomenduojama)</string>
+    <string name="setup_online_tiles_off_desc">Tinklo užklausų nėra. Naudojamas tik pridėtas pagrindinis žemėlapis.</string>
+    <string name="setup_online_tiles_on_title">Naudoti internetines plyteles</string>
+    <string name="setup_online_tiles_on_desc">Gaukite detalesnes vektorines plyteles iš „OpenFreeMap“ (numatyta). Teikėją vėliau galėsite pakeisti pasirinkę Nustatymai → Žemėlapis.</string>
+    <string name="setup_online_tiles_privacy">Kai ši parinktis įjungta, teikėjas gali matyti jūsų IP adresą ir įkeliamas plyteles – apytiksliai, kurią žemėlapio sritį peržiūrite. „Tracker“ niekada nesiunčia paskyros, identifikatoriaus ar vietos istorijos.</string>
+    <string name="setup_online_tiles_change_later">Tai bet kada galite pakeisti pasirinkę Nustatymai → Žemėlapis → Internetinės žemėlapio plytelės.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Kad būtų įrašomos kelionės, kai ekranas išjungtas ar programa uždaryta, „Tracker“ turi toliau veikti fone. Telefono akumuliatoriaus nustatymai gali jį pristabdyti – leiskite veiklą fone, kad automatinis sekimas būtų patikimas.</string>
+    <string name="setup_background_access_optional">Nebūtina, bet rekomenduojama. Tai bet kada galite pakeisti pasirinkę Nustatymai → Sekimas.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Patikimas sekimas fone</string>
+    <string name="background_reliability_status_exempt">Veikla fone leidžiama</string>
+    <string name="background_reliability_status_optimized">Įjungtas akumuliatoriaus optimizavimas</string>
+    <string name="background_reliability_exempt_desc">„Tracker“ netaikomas akumuliatoriaus optimizavimas, todėl veikla fone ir automatinis sekimas gali veikti patikimai.</string>
+    <string name="background_reliability_optimized_desc">Akumuliatoriaus optimizavimas gali pristabdyti „Tracker“ fone ir sustabdyti automatinį sekimą. Leiskite veiklą fone, kad jis veiktų toliau.</string>
+    <string name="background_reliability_allow_action">Leisti veiklą fone</string>
+    <string name="background_reliability_samsung_hint">„Samsung“ įrenginiai programas taip pat gali perkelti į „Miegančias programas“. Atidarykite akumuliatoriaus nustatymus, pašalinkite „Tracker“ iš miegančių programų ir nustatykite, kad jis nebūtų užmigdomas.</string>
+    <string name="background_reliability_samsung_action">Atidaryti įrenginio akumuliatoriaus nustatymus</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Strigčių diagnostika</string>
+    <string name="settings_tracebox_root_summary">Vietinė strigčių, ANR ir struktūrinė diagnostika</string>
+    <string name="settings_tracebox_status_header">Fiksavimo būsena</string>
+    <string name="settings_tracebox_toggle_title">Įrašyti strigčių diagnostiką</string>
+    <string name="settings_tracebox_toggle_summary_off">Fiksavimas išjungtas. Esama vietinė diagnostika liks, kol ją ištrinsite.</string>
+    <string name="settings_tracebox_toggle_summary_on">Strigčių, ANR ir fiksuota struktūrinė diagnostika įrašoma vietoje.</string>
+    <string name="settings_tracebox_readiness_label">Saugyklos parengtis</string>
+    <string name="settings_tracebox_readiness_volatile">Pradedama patvari saugykla; galimas laikinas fiksavimas</string>
+    <string name="settings_tracebox_readiness_durable">Patvarus fiksavimas parengtas</string>
+    <string name="settings_tracebox_readiness_degraded">Fiksavimas sutrikęs; kai kurie įrašai gali būti nepasiekiami</string>
+    <string name="settings_tracebox_readiness_closed">Fiksavimas uždarytas</string>
+    <string name="settings_tracebox_health_label">Vykdymo aplinkos būklė</string>
+    <string name="settings_tracebox_health_disabled">Išjungta</string>
+    <string name="settings_tracebox_health_initializing">Inicijuojama</string>
+    <string name="settings_tracebox_health_ready">Parengta</string>
+    <string name="settings_tracebox_health_degraded">Sutrikusi</string>
+    <string name="settings_tracebox_health_deleting">Trinama vietinė diagnostika</string>
+    <string name="settings_tracebox_health_closed">Uždaryta</string>
+    <string name="settings_tracebox_package_header">Diagnostikos paketas</string>
+    <string name="settings_tracebox_package_body">„Tracebox“ pirmiausia parodo tikslią baigto paketo informaciją. Kol jo nepatvirtinsite ir nepasirinksite paskirties vietos, niekas neišsaugoma ir nebendrinama.</string>
+    <string name="settings_tracebox_package_review_action">Peržiūrėti ir patvirtinti paketą</string>
+    <string name="settings_tracebox_package_save_action">Išsaugoti patvirtintą paketą</string>
+    <string name="settings_tracebox_package_share_action">Bendrinti patvirtintą paketą</string>
+    <string name="settings_tracebox_share_limit">„Android“ gali patvirtinti, kad atidarytas bendrinimo pasirinkiklis, bet negali įrodyti, kad kita programa gavo paketą.</string>
+    <string name="settings_tracebox_data_header">„Tracebox“ duomenys</string>
+    <string name="settings_tracebox_data_body">Taip ištrinama „Tracebox“ priklausanti diagnostika ir paketo parengimo duomenys. Jau išsaugotus ar išsiųstus failus valdo jų paskirties programos.</string>
+    <string name="settings_tracebox_delete_action">Ištrinti visus „Tracebox“ duomenis</string>
+    <string name="settings_tracebox_delete_confirm_title">Ištrinti visą strigčių diagnostiką?</string>
+    <string name="settings_tracebox_delete_confirm_body">Taip iš „Tracker“ pašalinama visa „Tracebox“ priklausanti diagnostika ir paketo parengimo duomenys. Veiksmo atšaukti negalima.</string>
+    <string name="settings_tracebox_delete_confirm_action">Ištrinti</string>
+    <string name="settings_tracebox_result_header">Paskutinis rezultatas</string>
+    <string name="settings_tracebox_result_enabled">Strigčių diagnostika įjungta.</string>
+    <string name="settings_tracebox_result_disabled">Strigčių diagnostika išjungta. Esami duomenys neištrinti.</string>
+    <string name="settings_tracebox_result_policy_restricted">Ribojanti politika išsaugota vietoje, bet dar ne kiekvienas procesas ją patvirtino.</string>
+    <string name="settings_tracebox_result_policy_partial">Politika išsaugota vietoje, bet vykdymo aplinkos suvienodinimas nebaigtas.</string>
+    <string name="settings_tracebox_result_failed">Operacija nepasiekė vietinės patvarumo ribos.</string>
+    <string name="settings_tracebox_result_delete_complete">Visi „Tracebox“ priklausantys duomenys ištrinti.</string>
+    <string name="settings_tracebox_result_delete_pending">Ištrynimas baigtas tik iš dalies. Kai kuriuos tvarkytuvo valdomus duomenis dar reikia ištrinti.</string>
+    <string name="settings_tracebox_result_delete_rejected">„Tracebox“ atmetė trynimo užklausą.</string>
+    <string name="settings_tracebox_result_review_ready">Parengta informacija: %1$d įtrauktos reikšmės, kuriose yra %2$d baitų diagnostikos duomenų.</string>
+    <string name="settings_tracebox_result_package_created">Patvirtintas diagnostikos paketas parengtas išsaugoti ar bendrinti.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Paketo patvirtinimas atšauktas. Paketas nesukurtas.</string>
+    <string name="settings_tracebox_result_package_rejected">Paketo kūrimas atmestas, nes patvirtinimas nebeatitiko galutinių baitų.</string>
+    <string name="settings_tracebox_result_package_not_ready">Diagnostikos paketas neparengtas. Pirmiausia jį peržiūrėkite ir patvirtinkite.</string>
+    <string name="settings_tracebox_result_save_complete">Išsaugotas visas patvirtintas paketas (%1$d baitų).</string>
+    <string name="settings_tracebox_result_save_partial">Nukopijuota tik %1$d baitų. Paskirties vietoje gali būti nebaigtas paketas.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Išsaugojimas atšauktas nukopijavus %1$d baitų. Paskirties vietoje gali būti nebaigtas paketas.</string>
+    <string name="settings_tracebox_result_save_failed">Nepavyko išsaugoti patvirtinto paketo.</string>
+    <string name="settings_tracebox_result_save_cancelled">Nepasirinkta išsaugojimo paskirties vieta.</string>
+    <string name="settings_tracebox_result_share_opened">Atidarytas „Android“ bendrinimo pasirinkiklis.</string>
+    <string name="settings_tracebox_result_share_unknown">Pasirinkiklis grįžo. „Android“ negali įrodyti, ar gavėjas gavo paketą.</string>
+    <string name="settings_tracebox_records_header">Kas įrašoma</string>
+    <string name="settings_tracebox_records_body">Strigčių ir ANR įrodymai bei ribotas iš anksto nustatytų kodų rinkinys apie programos struktūrą ir vykdymo tvarką. „Tracebox“ yra vienintelis „Tracker“ strigčių ir diagnostikos įrašymo įrankis.</string>
+    <string name="settings_tracebox_privacy_header">Kas neįtraukiama</string>
+    <string name="settings_tracebox_privacy_body">Įrašymo API nepriima jokio savavališko teksto, vietos, paskyros informacijos, įrenginio identifikatorių ar jutiklių rodmenų. Standartiniuose paketuose neįtraukiami neapdoroti strigčių artefaktai ir jie niekada automatiškai neįkeliami.</string>
+</resources>

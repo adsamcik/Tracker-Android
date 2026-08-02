@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Eksportuoti</string>
+    <string name="export_default_file_name_range">Advention_eksportuoti_duomenys_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_eksportuoti_duomenys_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Pasirinktame intervale vietų nerasta.</string>
+    <string name="export_error_no_databases">Nėra programos duomenų bazių, kurias būtų galima eksportuoti.</string>
+    <string name="export_error_no_uri">Nepasirinktas eksporto aplankas</string>
+    <string name="export_error_stream_failed">Nepavyko sukurti srauto į failą %s</string>
+    <string name="export_error_unknown">Eksportuoti nepavyko.</string>
+    <string name="export_error_with_reason">Eksportuoti nepavyko: %s</string>
+    <string name="export_file_name">Failo pavadinimas</string>
+    <string name="export_file_name_error">Failų pavadinimuose negali būti \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Vietos duomenų eksportas nuo %1$s iki %2$s, užfiksuotas naudojant „Advention“.</string>
+    <string name="export_gpx_error">GPX eksportuoti nepavyko: %s</string>
+    <string name="export_sensitivity_title">Eksportuoti tikslius vietos duomenis?</string>
+    <string name="export_sensitivity_message">Šiame eksporte ar bendrinamame faile yra viso tikslumo vietos duomenų, o duomenų bazės eksportuose gali būti neapdorotų radijo metaduomenų. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_sensitivity_confirm">Tęsti</string>
+    <string name="export_share_button">Bendrinti</string>
+    <string name="export_in_progress">Eksportuojama…</string>
+    <string name="export_completed">Eksportavimas baigtas.</string>
+    <string name="import_notification_error_failed_open_database">Nepavyko atidaryti duomenų bazės failo %s</string>
+    <string name="import_notification_error_file_not_supported">Failas %s nepalaikomas.</string>
+    <string name="import_notification_extracting">Išskleidžiamas %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Importavimas baigtas. Sėkmingai importuotas %d įrašas.</item>
+        <item quantity="few">Importavimas baigtas. Sėkmingai importuoti %d įrašai.</item>
+        <item quantity="other">Importavimas baigtas. Sėkmingai importuota %d įrašų.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Importavimas baigtas. Importuota įrašų: %1$d (praleista: %2$d).</string>
+    <string name="import_notification_error_records_failed">Dėl apribojimų pažeidimų nepavyko importuoti %d įrašų.</string>
+    <string name="import_notification_importing">Importuojamas %s …</string>
+    <string name="import_notification_progress">Vyksta importavimas …</string>
+    <string name="settings_export_dialog_from">Nuo</string>
+    <string name="settings_export_dialog_to">Iki</string>
+    <string name="settings_export_no_data">Nėra eksportuotinų duomenų</string>
+    <string name="settings_export_title">Eksportavimas</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Duomenų bazės atsarginė kopija (ZIP)</string>
+    <string name="settings_import_summary">Importuokite duomenis iš palaikomų tipų (%1$s) ir archyvų (%2$s). Duomenų bazės importavimas sujungia suderinamas eilutes; esami duomenys nepakeičiami.</string>
+    <string name="settings_import_title">Importavimas</string>
+</resources>

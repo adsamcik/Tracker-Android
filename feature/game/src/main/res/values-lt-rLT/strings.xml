@@ -1,0 +1,325 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Žaidimas</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Pabėgimas</string>
+    <string name="minigame_outrun_description">Lenktyniaukite su vaiduokliu. Išlikite priekyje!</string>
+    <string name="minigame_territory_name">Teritorija</string>
+    <string name="minigame_territory_description">Eidami užimkite naujus tinklelio langelius</string>
+    <string name="minigame_zenwalk_name">Zen ėjimas</string>
+    <string name="minigame_zenwalk_description">Išlaikykite pastovų tempą zonoje</string>
+    <string name="minigame_fuserun_name">Saugiklio bėgimas</string>
+    <string name="minigame_fuserun_description">Pabėkite iš kiekvieno virtualaus sprogimo spindulio, kol nesibaigė saugiklis</string>
+    <string name="minigame_switchback_name">Zigzagas</string>
+    <string name="minigame_switchback_description">Darykite staigius kintamus posūkius, kad sukurtumėte srauto kombinaciją</string>
+    <string name="minigame_locked">Atsirakina pasiekus %1$d lygį</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Žaisti</string>
+    <string name="game_progress_section_title">Pažanga</string>
+    <string name="minigame_outrun_goal_line">Išlaikykite 25–100 m atstumą prieš vaiduoklį</string>
+    <string name="minigame_territory_goal_line">Pėsčiomis užimkite 5–20 unikalių langelių</string>
+    <string name="minigame_zenwalk_goal_line">Išlaikykite tempą 5–20 minučių</string>
+    <string name="minigame_fuserun_goal_line">Nukenksminkite 3–8 užtaisus, kol nepasibaigė saugikliai</string>
+    <string name="minigame_switchback_goal_line">Pėsčiomis atlikite 4–10 staigių posūkių</string>
+    <string name="minigame_play_action_play">Žaisti</string>
+    <string name="minigame_play_personal_best">AR %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Asmeninis rekordas: %1$s</string>
+    <string name="minigame_play_locked_summary">Pasiekite %1$d lygį, kad atrakintumėte</string>
+    <string name="minigame_play_locked_detail">Gaukite XP žaisdami atrakintus žaidimus ir sekdami veiklą, kad pakiltumėte lygiu.</string>
+    <string name="minigame_play_locked_expand_cta">Dukart palieskite, kad pamatytumėte, kaip atrakinti</string>
+    <string name="minigame_active_session_running">Vyksta – palieskite „Žaisti“, kad grįžtumėte</string>
+    <string name="minigame_active_session_paused">Pristabdyta – palieskite „Žaisti“, kad tęstumėte</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d langelis</item>
+        <item quantity="few">%1$d langeliai</item>
+        <item quantity="other">%1$d langelių</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d užtaisas</item>
+        <item quantity="few">%1$d užtaisai</item>
+        <item quantity="other">%1$d užtaisų</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d posūkis</item>
+        <item quantity="few">%1$d posūkiai</item>
+        <item quantity="other">%1$d posūkių</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Peržiūrėti ankstesnius rezultatus</string>
+    <string name="minigame_session_close">Uždaryti</string>
+    <string name="minigame_session_play_again">Žaisti dar kartą</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Reikalinga vieta</string>
+    <string name="minigame_session_permission_body">Mini žaidimai naudoja tiesioginę vietą, kad sektų bėgimą. Neišsaugoma nieko, išskyrus galutinį rezultatą.</string>
+    <string name="minigame_session_permission_grant">Suteikti prieigą</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Nustatykite bėgimą</string>
+    <string name="minigame_setup_goal_title">Tikslas</string>
+    <string name="minigame_setup_difficulty_title">Sunkumas</string>
+    <string name="minigame_setup_start_cta">Pradėti bėgimą</string>
+    <string name="minigame_setup_remember">Prisiminti šią sąranką</string>
+    <string name="minigame_setup_remember_description">Iš naujo atidarykite šį žaidimą su tuo pačiu tikslu ir sunkumu.</string>
+    <string name="minigame_setup_goal_meters">%1$d m atstumas priekyje</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d langelis</item>
+        <item quantity="few">%1$d langeliai</item>
+        <item quantity="other">%1$d langelių</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min. zonoje</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d užtaisas</item>
+        <item quantity="few">%1$d užtaisai</item>
+        <item quantity="other">%1$d užtaisų</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d posūkis</item>
+        <item quantity="few">%1$d posūkiai</item>
+        <item quantity="other">%1$d posūkių</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Lengva</string>
+    <string name="minigame_difficulty_normal">Įprasta</string>
+    <string name="minigame_difficulty_hard">Sunku</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Ruošiamasi…</string>
+    <string name="minigame_session_finishing">Išsaugomas bėgimas…</string>
+    <string name="minigame_session_paused_title">Pristabdyta</string>
+    <string name="minigame_session_pause_cta">Pristabdyti</string>
+    <string name="minigame_session_resume_cta">Tęsti</string>
+    <string name="minigame_session_finish_cta">Baigti</string>
+    <string name="minigame_session_background_note">Bėgimas tęsiamas, jei paliekate šį ekraną. Tęskite vėl atidarę per Žaidimus.</string>
+    <string name="minigame_session_elapsed_label">Aktyvus laikas</string>
+    <string name="minigame_session_goal_progress">%1$d%% tikslo</string>
+    <string name="minigame_session_goal_reached">Tikslas pasiektas</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Stiprus GPS</string>
+    <string name="minigame_signal_fair">Pakankamas GPS</string>
+    <string name="minigame_signal_poor">Silpnas GPS</string>
+    <string name="minigame_signal_unavailable">Nėra GPS signalo</string>
+    <string name="minigame_signal_unknown">Nustatoma vieta…</string>
+    <string name="minigame_signal_stale">GPS vėluoja</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Geriausias šio bėgimo rezultatas</string>
+    <string name="minigame_outrun_personal_best">Asmeninis rekordas</string>
+    <string name="minigame_outrun_warning">Vaiduoklis artėja</string>
+    <string name="minigame_outrun_move_to_start">Pajudėkite, kad pradėtumėte lenktynes</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Esate %1$d metrų priekyje vaiduoklio. Geriausia šiame bėgime: %2$d metrai.</string>
+    <string name="minigame_outrun_you">Jūs</string>
+    <string name="minigame_outrun_ghost">Vaiduoklis</string>
+    <string name="minigame_outrun_lead_value">%1$d m priekyje</string>
+    <string name="minigame_outrun_ghost_lead_value">Vaiduoklis pirmauja %1$d m</string>
+    <string name="minigame_outrun_first_run">Pirmas bėgimas</string>
+    <string name="minigame_outrun_keep_moving">Didinkite atstumą</string>
+    <string name="minigame_outrun_caught">Vaiduoklis jus pagavo</string>
+    <string name="minigame_outrun_escaped">Pabėgote!</string>
+    <string name="minigame_outrun_escape_goal">Pabėgimo tikslas</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Pabėgimo tikslas įvykdytas %1$d procentų.</string>
+    <string name="minigame_outrun_description_waiting">„Pabėgimas“ parengtas. Pajudėkite daugiau nei du metrus, kad prasidėtų gaudynės.</string>
+    <string name="minigame_outrun_description_warning">Pavojus. Vaiduoklis yra tik %1$d metrų už jūsų. Geriausia šiame bėgime: %2$d metrai.</string>
+    <string name="minigame_outrun_description_caught">Pagauti. Vaiduoklis jus aplenkė %1$d metrais. Geriausia šiame bėgime: %2$d metrai.</string>
+    <string name="minigame_outrun_description_escaped">Tikslas pasiektas. Pabėgote turėdami %1$d metrų pranašumą. Geriausia šiame bėgime: %2$d metrai.</string>
+    <string name="minigame_outrun_description_finished">Bėgimas baigtas. Galutinis atstumas buvo %1$d metrų, o didžiausias pranašumas – %2$d metrai.</string>
+    <string name="minigame_outrun_ahead_of_best">Lenkiate savo asmeninį rekordą</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Teritorijos žemėlapis. Užimta netoliese esančių sričių: %1$d; pažymėta pasienio sričių: %2$d. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Pažymėta dabartinė sritis</string>
+    <string name="minigame_territory_current_waiting">Laukiama dabartinės srities</string>
+    <string name="minigame_territory_goal_complete">Tikslas baigtas</string>
+    <string name="minigame_territory_goal_in_progress">Tikslas vykdomas</string>
+    <string name="minigame_territory_legend">Švytėjimas žymi dabartinę sritį • pasienio užuominos: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tempas</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Tikslas: %1$s–%2$s km/h</string>
+    <string name="minigame_zen_calibration_title">Raskite natūralų ritmą</string>
+    <string name="minigame_zen_calibration_hint">Eikite natūraliai, kol tempas švelniai nusistovi</string>
+    <string name="minigame_zen_calibration_settled">%1$d%% nusistovėjęs</string>
+    <string name="minigame_zen_calibration_description">Tempo kalibravimas. Nusistovėjo %1$d procentų. Eikite natūraliai.</string>
+    <string name="minigame_zen_flow_waiting">Ieškomas jūsų ritmas</string>
+    <string name="minigame_zen_flow_settled">Ritmas nusistovėjo</string>
+    <string name="minigame_zen_flow_slower">Švelniai lėtėjate</string>
+    <string name="minigame_zen_flow_faster">Švelniai greitėjate</string>
+    <string name="minigame_zen_flow_time">Srautas %1$s</string>
+    <string name="minigame_zen_flow_description">Zen tempo srautas. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Vaiduoklis artėja</string>
+    <string name="minigame_feedback_pb_crossed">Naujas asmeninis rekordas</string>
+    <string name="minigame_feedback_territory_claimed">Užimta nauja sritis</string>
+    <string name="minigame_feedback_fuse_critical">Saugiklis kritinis, judėkite dabar</string>
+    <string name="minigame_feedback_fuse_defused">Užtaisas nukenksmintas</string>
+    <string name="minigame_feedback_turn_carved">Posūkis atliktas</string>
+    <string name="minigame_feedback_goal_reached">Tikslas pasiektas</string>
+    <string name="minigame_feedback_zen_entered">Esate tempo zonoje</string>
+    <string name="minigame_feedback_zen_exited">Palikote tempo zoną</string>
+    <string name="minigame_feedback_completed">Bėgimas baigtas</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">Pirmas bėgimas užregistruotas!</string>
+    <string name="minigame_completion_new_best_title">Naujas asmeninis rekordas!</string>
+    <string name="minigame_completion_tied_title">Pakartojote geriausią rezultatą</string>
+    <string name="minigame_completion_behind_title">Geras bėgimas</string>
+    <string name="minigame_completion_no_participation_title">Sesija baigta</string>
+    <string name="minigame_completion_result">Rezultatas: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s geriau nei ankstesnis rekordas</string>
+    <string name="minigame_completion_deficit">%1$s trūksta iki geriausio rezultato</string>
+    <string name="minigame_completion_goal_reached">Tikslas pasiektas: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Tikslas nepasiektas: %1$s</string>
+    <string name="minigame_completion_points">+%1$d taškų</string>
+    <string name="minigame_completion_points_zero">Šiame bėgime taškų nėra</string>
+    <string name="minigame_completion_change_setup">Keisti sąranką</string>
+    <string name="minigame_completion_done">Atlikta</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Bėgimas nebaigtas</string>
+    <string name="minigame_failure_permission">Norint žaisti būtina tiksli vieta. Suteikite ją ir bandykite dar kartą.</string>
+    <string name="minigame_failure_location">Nepavyko gauti patikimo vietos nustatymo. Eikite į vietą su atviresniu dangumi ir bandykite dar kartą.</string>
+    <string name="minigame_failure_persistence">Nepavyko išsaugoti šio bėgimo. Bandykite dar kartą.</string>
+    <string name="minigame_failure_generic">Kažkas nutiko ir bėgimas sustabdytas.</string>
+    <string name="minigame_session_try_again">Bandyti dar kartą</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktyvus žaidimas</string>
+    <string name="game_session_channel_description">Išlaiko aktyvų mini žaidimą veikiantį, kai ekranas išjungtas</string>
+    <string name="game_session_notification_title">„Tracker“ žaidimas</string>
+    <string name="game_session_notification_public">Žaidimas vyksta</string>
+    <string name="game_session_notification_starting">Pradedamas žaidimas…</string>
+    <string name="game_session_notification_preparing">Ruošiamas %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s pristabdytas</string>
+    <string name="game_session_notification_finishing">Išsaugomas rezultatas…</string>
+    <string name="game_session_notification_finished">Žaidimas baigtas</string>
+    <string name="game_session_notification_failed">Žaidimas sustabdytas</string>
+    <string name="game_session_action_pause">Pristabdyti</string>
+    <string name="game_session_action_resume">Tęsti</string>
+    <string name="game_session_action_finish">Baigti</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Ankstesni mini žaidimų bėgimai</string>
+    <string name="minigame_scores_back">Atgal</string>
+    <string name="minigame_scores_empty_title">Laukia pirmas bėgimas</string>
+    <string name="minigame_scores_empty_body">Užbaikite mini žaidimą, kad pasiektumėte asmeninį rekordą – kiekvienas įveiktas rezultatas bus rodomas čia.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Asmeninis rekordas</string>
+    <string name="minigame_scores_unknown_game">Mini žaidimas</string>
+    <string name="goals_reached_notification">%1$s! Pasiekėte %2$s tikslą!</string>
+    <string name="goals_daily_goal">kasdienį</string>
+    <string name="goals_weekly_goal">savaitinį</string>
+    <string name="goals_monthly_goal">mėnesinį</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Žingsnių tikslai</string>
+    <string name="game_step_sensor_unavailable">Žingsnių jutiklis nepasiekiamas</string>
+    <string name="game_step_sensor_unavailable_detail">Šiame įrenginyje nėra žingsnių skaitiklio jutiklio. Žingsnių tikslų sekti negalima.</string>
+    <string name="game_steps_today">Šiandien</string>
+    <string name="game_steps_week">Savaitė</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Įkeliama…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Grįžti atgal</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Atidaryti nustatymus</string>
+    <string name="game_close">Uždaryti</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Tyrinėjimas</string>
+    <string name="exploration_cells_discovered">Atrasti langeliai</string>
+    <string name="exploration_current_streak">Dabartinė serija</string>
+    <string name="exploration_best_streak">Geriausia serija</string>
+    <string name="exploration_seasons_explored">Ištirti metų laikai</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">diena</item>
+        <item quantity="few">dienos</item>
+        <item quantity="other">dienų</item>
+    </plurals>
+    <string name="exploration_of_four">iš 4</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Pasiekimai</string>
+    <string name="achievements_bronze">Bronza</string>
+    <string name="achievements_silver">Sidabras</string>
+    <string name="achievements_gold">Auksas</string>
+    <string name="achievements_diamond">Deimantas</string>
+    <string name="achievements_none_yet">Dar neatrakinta pasiekimų. Pradėkite tyrinėti!</string>
+    <string name="achievement_unlocked_notification_title">Pasiekimas atrakintas: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Pasiektas %1$s lygis</string>
+    <string-array name="goals_encouragement">
+        <item>Puikus darbas</item>
+        <item>Šaunu</item>
+        <item>Valio</item>
+        <item>Taip ir toliau</item>
+        <item>Sveikiname</item>
+        <item>Nesustokite</item>
+        <item>Jūs nuostabūs</item>
+        <item>Nuostabu</item>
+        <item>Dar daugiau nei nuostabu</item>
+        <item>Fantastiška</item>
+        <item>Gniaužia kvapą</item>
+        <item>Puiku</item>
+    </string-array>
+    <string name="points_earned_today">šiandien gauti taškai</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Naujas atrakinimas!</string>
+    <string name="game_unlock_message">Pasiekėte %1$d lygį!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Savaitės iššūkis</string>
+    <string name="leaderboard_metric_distance">Atstumas</string>
+    <string name="leaderboard_metric_steps">Žingsniai</string>
+    <string name="leaderboard_metric_active_time">Aktyvu</string>
+    <string name="leaderboard_metric_sessions">Sesijos</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">žingsniai</string>
+    <string name="leaderboard_unit_hours">val.</string>
+    <string name="leaderboard_unit_sessions">kelionės</string>
+    <string name="leaderboard_ghost_best_week">Geriausia savaitė</string>
+    <string name="leaderboard_ghost_last_4_weeks">Paskutinių 4 savaičių vidurkis</string>
+    <string name="leaderboard_ghost_same_week_last_year">Ta pati praėjusių metų savaitė</string>
+    <string name="leaderboard_ghost_average_week">Vidutinė savaitė</string>
+    <string name="leaderboard_rank">#%1$d iš %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s iš %3$s tikslo</string>
+    <string name="leaderboard_progress_description">%1$s iš %2$s</string>
+    <string name="leaderboard_week_progress">Savaitės pažanga</string>
+    <string name="leaderboard_monday">Pr</string>
+    <string name="leaderboard_sunday">Sk</string>
+    <string name="leaderboard_you">Jūs</string>
+    <string name="leaderboard_current_week">Ši savaitė</string>
+    <string name="leaderboard_empty_title">Dar nėra istorijos lenktynėms</string>
+    <string name="leaderboard_empty_body">Užbaikite bent vieną pilną savaitę, kad atrakintumėte varžovus vaiduoklius – jie sukurti iš jūsų pačių ankstesnių savaičių.</string>
+    <string name="leaderboard_error_title">Lyderių lentelė nepasiekiama</string>
+    <string name="leaderboard_error_body">Jūsų duomenys saugūs šiame įrenginyje. Pabandykite dar kartą įkelti savaitės iššūkį.</string>
+    <string name="leaderboard_retry">Bandyti dar kartą</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Mitinis</string>
+    <string name="game_view_all_achievements">Peržiūrėti visus</string>
+    <string name="game_recent_achievements">Naujausi atrakinimai</string>
+    <string name="game_next_achievements">Kiti</string>
+    <string name="achievement_show_locked">Rodyti užrakintus</string>
+    <string name="achievement_show_locked_summary_off">Įjunkite, kad matytumėte pasiekimų, kuriuos galite atrakinti, katalogą.</string>
+    <string name="achievement_empty_state_title">Dar neatrakinta pasiekimų</string>
+    <string name="achievement_empty_state_body">Pradėkite sekti – laukia pirmas pasiekimas. Įjunkite „Rodyti užrakintus“, kad peržiūrėtumėte visą katalogą.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">%1$s pakopa · +%2$d XP</string>
+    <string name="achievement_hero_title">Jūsų trofėjų spinta</string>
+    <string name="achievement_hero_points">Gauta %1$d XP</string>
+    <string name="achievement_hero_of_total">iš %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Tyrinėjimas</string>
+    <string name="achievement_category_distance">Atstumas</string>
+    <string name="achievement_category_steps">Žingsniai</string>
+    <string name="achievement_category_streaks">Serijos</string>
+    <string name="achievement_category_milestones">Svarbūs etapai</string>
+    <string name="achievement_category_modes">Režimai</string>
+    <string name="achievement_category_time">Laikas</string>
+    <string name="achievement_category_calendar">Kalendorius</string>
+    <string name="achievement_unlocked_content_description">Atrakinta</string>
+    <string name="achievement_locked_content_description">Užrakinta</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
+</resources>

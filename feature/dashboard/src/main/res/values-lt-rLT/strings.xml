@@ -1,0 +1,160 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Skydelis</string>
+    <string name="dashboard_tracking_title">Sekimas</string>
+    <string name="dashboard_recording">Įrašoma</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Sekimas netikėtai sustabdytas</string>
+    <string name="dashboard_permission_banner_title">Vietos leidimas nepasiekiamas</string>
+    <string name="dashboard_permission_banner_subtitle">„Tracker“ negali įrašyti maršrutų, kol nesuteiksite prieigos prie vietos. Palieskite, kad suteiktumėte.</string>
+    <string name="dashboard_permission_banner_cd">Vietos leidimo nepasiekiamumo juosta, palieskite, kad suteiktumėte prieigą prie vietos</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Veiklos tipas</string>
+    <string name="dashboard_cd_explore_icon">Tyrinėjimas</string>
+    <string name="dashboard_cd_forward_arrow">Peržiūrėti išsamią informaciją</string>
+    <string name="dashboard_cd_last_session">Paskutinė sesija: trukmė %1$s, atstumas %2$s. Palieskite, jei norite peržiūrėti išsamią informaciją</string>
+    <string name="dashboard_cd_locked_badge">Sekimas užrakintas</string>
+    <string name="dashboard_cd_open_settings">Atidaryti nustatymus</string>
+    <string name="dashboard_cd_start_tracking">Pradėti sekimą</string>
+    <string name="dashboard_cd_start_tracking_permission">Pradėti sekimą, būtinas leidimas</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Serija: %1$d diena. Palieskite, kad peržiūrėtumėte serijos informaciją</item>
+        <item quantity="few">Serija: %1$d dienos. Palieskite, kad peržiūrėtumėte serijos informaciją</item>
+        <item quantity="other">Serija: %1$d dienų. Palieskite, kad peržiūrėtumėte serijos informaciją</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Pradėkite seriją. Palieskite, jei norite peržiūrėti serijos informaciją</string>
+    <string name="dashboard_cd_stop_tracking">Sustabdyti sekimą</string>
+    <string name="dashboard_action_enable_location">Įjungti prieigą prie vietos</string>
+    <string name="dashboard_action_view_details">Peržiūrėti išsamią informaciją</string>
+    <string name="dashboard_action_view_map">Peržiūrėti žemėlapį</string>
+    <string name="dashboard_action_view_streak_details">Peržiūrėti serijos informaciją</string>
+    <string name="dashboard_action_open_tracking_settings">Nustatymai</string>
+    <string name="dashboard_action_restart_tracking">Paleisti iš naujo</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Aukščio profilis, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Laukiama GPS signalo…</string>
+    <string name="dashboard_tracking_recording_route">Įrašomas maršrutas…</string>
+    <string name="dashboard_milestone_distance">km pasiekta!</string>
+    <string name="dashboard_milestone_steps">žingsnių pasiekta!</string>
+    <string name="dashboard_milestone_time">min. sekimo!</string>
+    <string name="dashboard_milestone_points">+10 tšk.</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Šiandien</string>
+    <string name="dashboard_today_no_activity">Šiandien dar nėra veiklos</string>
+    <string name="dashboard_today_distance">Atstumas</string>
+    <string name="dashboard_today_duration">Trukmė</string>
+    <string name="dashboard_today_steps">Žingsniai</string>
+    <string name="dashboard_today_trips">Kelionės</string>
+    <string name="dashboard_goal_get_started">Pradėkite</string>
+    <string name="dashboard_goal_on_track">Vykdoma pagal planą</string>
+    <string name="dashboard_goal_ahead">Lenkiate planą</string>
+    <string name="dashboard_goal_behind">Atsiliekate</string>
+    <string name="dashboard_streak_day_streak">dienų serija</string>
+    <string name="dashboard_streak_start">Pradėkite seriją!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% palyginti su praėjusia sav.</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% palyginti su praėjusia sav.</string>
+    <string name="dashboard_last_session_title">Paskutinė sesija</string>
+    <string name="dashboard_last_session_duration">Trukmė</string>
+    <string name="dashboard_last_session_distance">Atstumas</string>
+    <string name="dashboard_last_session_steps">Žingsniai</string>
+    <string name="dashboard_last_session_view_map">Peržiūrėti žemėlapį</string>
+    <string name="dashboard_recent_trips_title">Naujausios kelionės</string>
+    <string name="dashboard_recent_trips_empty">Nėra naujausių kelionių. Pradėkite sekti, kad čia matytumėte savo keliones.</string>
+    <string name="dashboard_exploration_title">Tyrinėjimas</string>
+    <string name="dashboard_exploration_new_today">Nauja šiandien</string>
+    <string name="dashboard_exploration_total_cells">Iš viso langelių</string>
+    <string name="dashboard_exploration_seasons">Metų laikai</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Greitis</string>
+    <string name="dashboard_live_charts_altitude">Aukštis</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Jutiklių informacija</string>
+    <string name="dashboard_sensor_expand">Išskleisti jutiklių informaciją</string>
+    <string name="dashboard_sensor_collapse">Suskleisti jutiklių informaciją</string>
+    <string name="dashboard_sensor_location_accuracy">Vietos tikslumas</string>
+    <string name="dashboard_sensor_activity">Veikla</string>
+    <string name="dashboard_sensor_wifi">Wi‑Fi tinklai</string>
+    <string name="dashboard_sensor_cell">Ryšio bokštai</string>
+    <string name="dashboard_sensor_altitude">Aukštis</string>
+    <string name="dashboard_sensor_speed">Greitis</string>
+    <string name="dashboard_sensor_cell_types">Ląstelių tipai</string>
+    <string name="dashboard_sensor_raw_coords">Koordinatės (derinimas)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Didėjanti tendencija</string>
+    <string name="dashboard_trend_down">Mažėjanti tendencija</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Tik pradedate…</string>
+    <string name="dashboard_motivational_keep_going">Nesustokite! 💪</string>
+    <string name="dashboard_motivational_impressive">Įspūdinga sesija!</string>
+    <string name="dashboard_motivational_marathon">Maratono tyrinėtojas! 🏆</string>
+    <string name="dashboard_motivational_morning">Labas rytas! Pasiruošę tyrinėti?</string>
+    <string name="dashboard_motivational_afternoon">Laba diena! Tęskite judėjimą?</string>
+    <string name="dashboard_motivational_evening">Labas vakaras! Peržiūrėti dieną?</string>
+    <string name="dashboard_motivational_night">Naktinės pelėdos režimas 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d dienų serija!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Jūsų kelionė prasideda čia</string>
+    <string name="dashboard_empty_subtitle">Naudokite žemiau esančią kortelę „Pasiruošę, kai būsite jūs“, kad prireikus suteiktumėte prieigą prie vietos ir pradėtumėte pirmą nuotykį</string>
+    <string name="dashboard_empty_feature_explore">Tyrinėkite</string>
+    <string name="dashboard_empty_feature_explore_desc">Atraskite naujas vietas ir maršrutus</string>
+    <string name="dashboard_empty_feature_achieve">Pasiekite</string>
+    <string name="dashboard_empty_feature_achieve_desc">Nustatykite tikslus ir gaukite taškų</string>
+    <string name="dashboard_empty_feature_track">Sekite</string>
+    <string name="dashboard_empty_feature_track_desc">Įrašykite pasivaikščiojimus, bėgimus ir važiavimus</string>
+    <string name="dashboard_empty_feature_privacy">Privatumas</string>
+    <string name="dashboard_empty_feature_privacy_desc">Visi duomenys lieka jūsų įrenginyje</string>
+    <string name="dashboard_empty_icon_desc">Vietos sekimo iliustracija</string>
+    <string name="dashboard_empty_quick_start_title">Greita pradžia</string>
+    <string name="dashboard_empty_quick_start_subtitle">Tai greičiausias būdas šį tuščią skydelį paversti naudingais žemėlapiais, sesijomis ir dienos pažanga.</string>
+    <string name="dashboard_empty_step_customize_title">Pasirinkite sekimo stilių</string>
+    <string name="dashboard_empty_step_customize_desc">Bet kada atidarykite Nustatymus ir pakeiskite išankstinius nustatymus, akumuliatoriaus naudojimą bei norimus įrašyti jutiklius.</string>
+    <string name="dashboard_empty_step_start_title">Pradėkite pirmą sekimą</string>
+    <string name="dashboard_empty_step_start_desc">Aukščiau palieskite „Pasiruošę, kai būsite jūs“, kad prireikus suteiktumėte prieigą prie vietos, tada pradėkite ėjimo, bėgimo, važiavimo ar sekimo fone sesiją.</string>
+    <string name="dashboard_empty_step_review_title">Peržiūrėkite žemėlapius ir statistiką</string>
+    <string name="dashboard_empty_step_review_desc">Po pirmos sesijos skydelio, žemėlapio ir statistikos skirtukai užsipildys naujausia veikla bei įžvalgomis.</string>
+    <string name="dashboard_empty_fab_hint_title">Pasiruošę, kai būsite jūs</string>
+    <string name="dashboard_empty_fab_hint_desc">Palieskite čia, kad pradėtumėte pirmą sekimo sesiją.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Palieskite čia, kad suteiktumėte prieigą prie vietos, tada pradėkite pirmą sekimo sesiją.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Šiandienos pažanga</string>
+    <string name="widget_streak">Serija</string>
+    <string name="widget_last_session">Paskutinė sesija</string>
+    <string name="widget_recent_trips">Naujausios kelionės</string>
+    <string name="widget_exploration">Tyrinėjimas</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Tinkinti skydelį</string>
+    <string name="dashboard_customize_reset">Atstatyti numatytuosius</string>
+    <string name="dashboard_customize_cd_toggle">Perjungti %1$s matomumą</string>
+    <string name="dashboard_customize_cd_drag_handle">Keisti %1$s tvarką</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Nėra aukščio duomenų</string>
+    <string name="dashboard_cd_no_altitude_data">Aukščio duomenų nėra</string>
+    <string name="dashboard_cd_speed_sparkline">Greičio kibirkštinė diagrama su %1$d duomenų taškų</string>
+    <string name="dashboard_cd_session_path">Sesijos maršruto peržiūra su %1$d taškų</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Greitis</string>
+    <string name="dashboard_metric_distance">Atstumas</string>
+    <string name="dashboard_metric_duration">Trukmė</string>
+    <string name="dashboard_metric_steps">Žingsniai</string>
+    <string name="dashboard_metric_altitude">Aukštis</string>
+    <string name="dashboard_metric_activity">Veikla</string>
+    <string name="dashboard_metric_accuracy">Tikslumas</string>
+    <string name="dashboard_metric_avg_speed">Vidutinis greitis</string>
+    <string name="dashboard_metric_wifi">Wi‑Fi</string>
+    <string name="dashboard_metric_cell">Ląstelė</string>
+    <string name="dashboard_metric_coordinates">Koordinatės</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Pradėti sekimą</string>
+    <string name="dashboard_ring_enable_location">Įjungti vietą</string>
+    <string name="dashboard_pill_start">Pradėti</string>
+    <string name="dashboard_pill_stop">Sustabdyti</string>
+    <string name="dashboard_pill_enable_location">Įjungti vietą</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Sesijos įžvalgos</string>
+    <string name="dashboard_cd_insight_item">Įžvalga: %1$s</string>
+    <string name="widget_latest_achievement">Naujausias pasiekimas</string>
+    <string name="dashboard_latest_achievement_title">Naujausias pasiekimas</string>
+    <string name="dashboard_latest_achievement_empty">Tęskite sekimą, kad atrakintumėte pirmą pasiekimą</string>
+</resources>

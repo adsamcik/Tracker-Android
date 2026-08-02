@@ -1,0 +1,228 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Žemėlapis</string>
+    <string name="description_map_search">Paieškos mygtukas</string>
+    <string name="map_layer_cell_heatmap_description">Jūsų stebimas mobiliojo ryšio kraštovaizdis pagal radijo technologiją. Švelnūs laukai rodo, kur jus pasiekė aptarnaujančios ląstelės; švytintys centrai yra atsargūs vietų įverčiai ir ryškėja tik tada, kai stebėjimai juos supa.</string>
+    <string name="map_layer_cell_heatmap_title">Mobiliojo ryšio topologija</string>
+    <string name="map_layer_location_heatmap_high">Didelis tankis</string>
+    <string name="map_layer_location_heatmap_low">Mažas tankis</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Vidutinis tankis</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Skirtingi apsilankymai</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Apsilankymai</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Santykinis priimtų vietos nustatymų tankis. Rodomi skirtingi stebėjimai, o ne praleistas laikas.</string>
+    <string name="map_layer_cell_radio_gsm">GSM aprėptis</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Signalo aklosios zonos</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Pažymi vietas, kur mobiliojo ryšio signalas buvo silpnas arba jo nebuvo. Kuo sritis raudonesnė, tuo blogesnė aprėptis; gerai padengtos sritys lieka skaidrios.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalo pašvaistė</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Pašvaistė</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobiliojo ryšio signalas pateikiamas kaip pašvaistės spindesys: plati violetinė aureolė po ryškiu žydrai žaliu branduoliu. Spindesys pulsuoja neperkeliant duomenų ir tampa nejudrus, kai sistemos animacijos išjungtos.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Silpnas signalas</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Stiprus signalas</string>
+    <string name="map_layer_speed_heatmap_description">Šilumos žemėlapis, rodantis judėjimo greitį skirtingose vietose.</string>
+    <string name="map_layer_speed_very_slow">Labai lėtai</string>
+    <string name="map_layer_speed_walking">Ėjimo tempas</string>
+    <string name="map_layer_speed_running">Bėgimo tempas</string>
+    <string name="map_layer_speed_moderate">Vidutinis greitis</string>
+    <string name="map_layer_speed_fast">Greitas judėjimas</string>
+    <string name="map_layer_speed_very_fast">Labai greitai</string>
+    <string name="map_layer_speed_heatmap_title">Greičio šilumos žemėlapis</string>
+    <string name="map_layer_legacy_heatmap_title">Senasis šilumos žemėlapis</string>
+    <string name="map_layer_legacy_heatmap_chip">Senosios plytelės</string>
+    <string name="map_layer_legacy_heatmap_description">Grįžimas prie pirminės „Signals“ programos: jūsų vietos tankis rodomas atskiromis 25 m tinklelio plytelėmis, kaip šilumos žemėlapis atrodė, kai plytelės buvo piešiamos serveryje. Priartinkite, kad pamatytumėte kvadratus.</string>
+    <string name="map_layer_seasonal_title">Metų laikų tyrinėtojas</string>
+    <string name="map_layer_seasonal_chip">Metų laikai</string>
+    <string name="map_layer_seasonal_description">Metų laikų atminties mozaika: kiekviena jūsų ištirta sritis nuspalvinta metų laiku, kuriuo joje lankėtės pirmą kartą. Raskite takus, kuriais vaikštote tik vasarą, ar gatves, kurias matote tik žiemą.</string>
+    <string name="map_layer_season_spring">Pavasaris</string>
+    <string name="map_layer_season_summer">Vasara</string>
+    <string name="map_layer_season_autumn">Ruduo</string>
+    <string name="map_layer_season_winter">Žiema</string>
+    <string name="map_layer_terrain_title">Gyvenimas kaip reljefas</string>
+    <string name="map_layer_terrain_chip">Reljefas</string>
+    <string name="map_layer_terrain_description">Jūsų vietos tankis pakeltas į 3D: vietos, kur praleidžiate daugiausia laiko, iškyla kaip aukštos švytinčios plynaukštės, o vienkartiniai taškai lieka žemi. Pakreipkite žemėlapį ir pamatykite savo gyvenimo reljefą.</string>
+    <string name="map_layer_terrain_low">Retai čia</string>
+    <string name="map_layer_terrain_mid">Kartais</string>
+    <string name="map_layer_terrain_high">Dažnai čia</string>
+    <string name="map_layer_places_title">Dažnos vietos</string>
+    <string name="map_layer_places_chip">Vietos</string>
+    <string name="map_layer_places_description">Svarbios vietos žymimos ženklais, kurių dydis ir spalva priklauso nuo apsilankymo dažnio. Namai ir darbas tampa dideliais šiltais taškais, o vieną kartą aplankyta vieta lieka maža ir vėsi.</string>
+    <string name="map_layer_places_rare">Retai</string>
+    <string name="map_layer_places_often">Kartais</string>
+    <string name="map_layer_places_anchor">Jūsų atramos</string>
+    <string name="map_layer_speed_ribbon_title">Greičio juosta</string>
+    <string name="map_layer_speed_ribbon_chip">Juosta</string>
+    <string name="map_layer_speed_ribbon_description">Maršrutas nuspalvintas pagal judėjimo greitį: spalva teka nuo lėto violetinio pasivaikščiojimo iki raudonai karšto sprinto ar važiavimo. Kitaip nei greičio šilumos žemėlapis, juosta išlaiko maršrutą nepažeistą, todėl tiksliai matote, kur pagreitėjote ir sulėtėjote.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Aukščio juosta</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Aukštis</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Maršrutas nuspalvintas pagal absoliutų aukštį: nuo gilių mėlynų žemumų per žydras priekalnes iki šiltų kalnų aukštumų. Mastelis lieka fiksuotas slenkant žemėlapį, todėl tas pats aukštis visada turi tą pačią spalvą.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Žemumos</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Priekalnės</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Aukšti kalnai</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Veiklos juosta</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Veikla</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Maršrutas nuspalvintas pagal patikimą judėjimo būseną, užfiksuotą su kiekvienu vietos nustatymu: pilka, kai būsena nežinoma, mėlyna nejudant ir žalia judant.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Nežinoma</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Nejudama</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Juda</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Slidinėjimo rentgenas</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Slidinėjimo rentgenas</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Diagnostinis aptiktų slidinėjimo segmentų rodinys. Nusileidimai, keltuvai, ėjimas ir pauzės susiejami su artimiausia įrašyta vieta ir pažymimi pagrindiniais rodikliais.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nusileidimas</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Keltuvas</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ėjimas arba pauzė</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Kelionių žvaigždynai</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Kelionės</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Pasikartojančios kelionės tarp dažnų vietų tampa lenktais žvaigždynais. Stabili arka rodo kiekvieną maršrutą, o juo keliauja kometa; storesnės arkos reiškia, kad šią kelionę atlikote dažniau.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ėjimas</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Važiavimas dviračiu</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vairavimas</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Viešasis transportas</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Kita</string>
+    <string name="map_layer_fog_title">Tyrinėtojo rūkas</string>
+    <string name="map_layer_fog_chip">Rūkas</string>
+    <string name="map_layer_fog_description">Pasaulis išnyra iš rūko: kiekviena jūsų aplankyta sritis atskleidžiama ir švyti ryškiau, kuo geriau ją pažįstate. Vietos, pro kurias tik praėjote, lieka blankioje migloje; giliai ištirta vieta dega sodriu auksu. Neištirta žemė lieka tamsi.</string>
+    <string name="map_layer_fog_faint">Praeita pro šalį</string>
+    <string name="map_layer_fog_known">Gerai ištirta</string>
+    <string name="map_layer_first_contact_title">Pirmasis kontaktas</string>
+    <string name="map_layer_first_contact_chip">Atradimas</string>
+    <string name="map_layer_first_contact_description">Jūsų atradimų laiko juosta: kiekviena sritis nuspalvinta pagal tai, kaip neseniai pirmą kartą joje apsilankėte. Seniai atrastos vietos blunka iki sodrios indigo spalvos, o šią savaitę atrasta žemė švyti ryškia žydra – perskaitykite savo tyrinėjimo istoriją iki naujausių pakraščių.</string>
+    <string name="map_layer_first_contact_old">Seniai</string>
+    <string name="map_layer_first_contact_recent">Ką tik atrasta</string>
+    <string name="map_layer_vehicle_compliance_title">Transporto priemonės greičio atitiktis</string>
+    <string name="map_layer_vehicle_compliance_description">Vairavimo pavyzdžių polilinija nuspalvinta pagal greičio palyginimą su sukonfigūruota ribine verte.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Gerokai žemiau ribos</string>
+    <string name="map_layer_vehicle_compliance_slow">Žemiau ribos</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Prie ribos</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Šiek tiek virš ribos</string>
+    <string name="map_layer_vehicle_compliance_speeding">Greičio viršijimas</string>
+    <string name="map_layer_location_polyline_description">Linija, laikui bėgant jungianti įrašytas vietas.</string>
+    <string name="map_layer_location_polyline_title">Vietos polilinija</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polilinija</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi‑Fi persidengimas</string>
+    <string name="map_layer_vehicle_compliance_chip">Greičio viršijimas</string>
+    <string name="map_layer_none_title">Be perdangos</string>
+    <string name="map_date_preset_week">Praėjusi savaitė</string>
+    <string name="map_date_preset_month">Praėjęs mėnuo</string>
+    <string name="map_date_preset_custom">Pasirinktinis…</string>
+    <string name="map_date_today">Šiandien</string>
+    <string name="map_date_yesterday">Vakar</string>
+    <string name="map_date_this_week">Ši savaitė</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi‑Fi persidengimas</string>
+    <string name="map_layer_wifi_count_heatmap_description">Rodo, kiek skirtingų prieigos taškų persidengia kiekvienoje vietoje. Pasikartojantys to paties AP nuskaitymai skaičiuojami vieną kartą, todėl karštesnės sritys reiškia iš tiesų tankesnę radijo aprėptį.</string>
+    <string name="map_layer_wifi_heatmap_description">Juostoms jautrus Wi‑Fi žvaigždynas iš jūsų stebėjimų. Spalvoti laukai rodo stebėtą 2,4, 5 ir 6 GHz aprėptį; švytintys centrai yra apytikslės AP vietos, rodomos tik tada, kai tai pagrindžia pavyzdžių geometrija.</string>
+    <string name="map_layer_wifi_heatmap_high">Daug persidengiančių AP</string>
+    <string name="map_layer_wifi_heatmap_low">Mažai persidengiančių AP</string>
+    <string name="map_layer_wifi_heatmap_medium">Keletas persidengiančių AP</string>
+    <string name="map_layer_wifi_heatmap_title">Wi‑Fi žvaigždynas</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz aprėptis</string>
+    <string name="map_layer_wifi_radio_5">5 GHz aprėptis</string>
+    <string name="map_layer_wifi_radio_6">6 GHz aprėptis</string>
+    <string name="map_legend_label">Legenda</string>
+    <string name="map_chip_layers">Sluoksnis</string>
+    <string name="map_chip_dates">Datos</string>
+    <string name="permission_rationale_location_map">Kad žemėlapyje būtų rodoma jūsų vieta, „Tracker“ reikia prieigos prie vietos. Visi duomenys lieka jūsų įrenginyje.</string>
+    <string name="map_location_permission_denied">Norint rodyti jūsų padėtį, būtinas vietos leidimas</string>
+    <string name="map_open_settings">Atidaryti nustatymus</string>
+    <string name="settings_map_basemap_title">Pagrindinis žemėlapis</string>
+    <string name="settings_map_basemap_custom">Aktyvus pasirinktinio .pmtiles failo pagrindinis žemėlapis (palieskite, kad pašalintumėte)</string>
+    <string name="settings_map_basemap_default">Aktyvus integruotas pagrindinis žemėlapis. Palieskite, kad importuotumėte pasirinktinį .pmtiles failą.</string>
+    <string name="basemap_import_error_source_open">Nepavyko atidaryti šio failo. Pabandykite kitą arba dar kartą bendrinkite jį su „Tracker“.</string>
+    <string name="basemap_import_error_copy">Nepavyko nukopijuoti pagrindinio žemėlapio failo. Patikrinkite, ar yra pakankamai laisvos vietos, ir bandykite dar kartą.</string>
+    <string name="basemap_import_error_invalid_format">Netinkamas PMTiles failas: %1$s</string>
+    <string name="settings_map_advanced_section_title">Išplėstiniai nustatymai</string>
+    <string name="settings_map_max_heat_title">Didžiausias šilumos kiekis po apsilankymų</string>
+    <string name="settings_map_quality_title">Šilumos žemėlapio raiška</string>
+    <string name="settings_map_visit_threshold_title">Vietos apsilankymo laiko riba</string>
+    <string name="settings_map_legacy_heatmap_title">Senasis šilumos žemėlapis (10 m plytelės)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Velykinis kiaušinis: prideda sluoksnį „Senasis šilumos žemėlapis“, kuris vietos tankį piešia atskiromis 10 m tinklelio plytelėmis, kaip pradinis serveryje pieštas „Signals“ šilumos žemėlapis.</string>
+    <string name="settings_map_zoom_buttons_title">Žemėlapio mastelio mygtukai</string>
+    <string name="settings_map_zoom_buttons_subtitle">Rodyti ekrane esančius mygtukus + ir − masteliui keisti, kai naudoti suglaudimą pirštais sunku.</string>
+    <string name="tips_map_date_range_title">Datų intervalas</string>
+    <string name="tips_map_my_location_title">Mano vieta</string>
+    <string name="tips_map_sheet_description">Palietus arba patraukus šią juostą aukštyn, bus atidaryta daugiau žemėlapio parinkčių, įskaitant sluoksnių pasirinkimą ir legendą.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Plt., ilg. pvz. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Bandykite 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Išvalyti paiešką</string>
+    <string name="map_search_paste">Įklijuoti iš mainų srities į paiešką</string>
+    <string name="map_search_clipboard_empty">Mainų srityje dar nėra koordinačių</string>
+    <string name="map_date_range_dialog_ok">Gerai</string>
+    <string name="map_date_range_dialog_cancel">Atšaukti</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Bendrinti žemėlapį</string>
+    <string name="map_share_sheet_title">Bendrinti žemėlapį kaip vaizdą</string>
+    <string name="map_share_sheet_subtitle">Atvaizduoja dabartinį vaizdą ir aktyvų sluoksnį kaip statinį vaizdą. Jūsų tiesioginė vieta niekada neįtraukiama.</string>
+    <string name="map_share_resolution_standard">Standartinė (1080p)</string>
+    <string name="map_share_resolution_high">Aukšta (1440p)</string>
+    <string name="map_share_resolution_ultra">Itin aukšta (4K)</string>
+    <string name="map_share_action">Bendrinti</string>
+    <string name="map_share_preparing">Ruošiamas vaizdas…</string>
+    <string name="map_share_error">Nepavyko atvaizduoti žemėlapio vaizdo. Bandykite dar kartą.</string>
+    <string name="map_date_range_all_time">Visas laikas</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Žemėlapio sluoksniai</string>
+    <string name="map_layer_load_error">Nepavyko įkelti šio sluoksnio. Pabandykite pasirinkti kitą.</string>
+    <string name="map_empty_subtitle_location">Šiame rodinyje ar datų intervale nėra vietos duomenų. Maršruto ir žemėlapio funkcijoms reikia sekimo metu surinktų vietos duomenų.</string>
+    <string name="map_empty_subtitle_cell">Šiame rodinyje ar datų intervale nėra su vieta susietų ląstelių duomenų. Ląstelių pavyzdžiai, įrašyti be vietos, vis tiek išsaugomi, bet negali būti rodomi žemėlapyje.</string>
+    <string name="map_empty_subtitle_wifi">Šiame rodinyje ar datų intervale nėra su vieta susietų Wi‑Fi duomenų. Wi‑Fi stebėjimai, įrašyti be vietos, vis tiek išsaugomi, bet negali būti rodomi žemėlapyje.</string>
+    <string name="map_empty_subtitle_speed">Šiame rodinyje ar datų intervale nėra greičio duomenų. Greičio žemėlapiams reikia tinkamų sekimo metu surinktų vietos pavyzdžių.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Nėra su keliais susietų važiavimų, kuriuos būtų galima rodyti. Importuokite „OpenStreetMap“ regioną (Nustatymai) ir užfiksuokite važiavimo duomenų, kad maršrutas būtų susietas su tikrais keliais.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Atmesti pranešimą, kad nėra duomenų</string>
+    <string name="map_speed_probe_title">Greitis čia</string>
+    <string name="map_speed_probe_avg_label">Vidurkis</string>
+    <string name="map_speed_probe_max_label">Didž.</string>
+    <string name="map_speed_probe_empty">Šioje vietoje nėra greičio duomenų. Palieskite vietą su šiluma, kad pamatytumėte greitį.</string>
+    <string name="map_speed_probe_hint">Palieskite žemėlapį, kad pamatytumėte greitį</string>
+    <string name="map_speed_probe_dismiss">Atmesti greičio informaciją</string>
+    <string name="map_place_callout_loading">Ieškoma vietos…</string>
+    <string name="map_place_callout_empty">Čia vieta nerasta</string>
+    <string name="map_place_callout_dismiss">Atmesti vietos informaciją</string>
+    <string name="map_zoom_in">Didinti mastelį</string>
+    <string name="map_zoom_out">Mažinti mastelį</string>
+    <string name="map_loading">Įkeliamas žemėlapis…</string>
+    <string name="map_basemap_unavailable">Nepavyko parengti pagrindinio žemėlapio. Uždarykite ir vėl atidarykite žemėlapį, kad bandytumėte dar kartą.</string>
+    <string name="map_a11y_map_overview">Žemėlapio apžvalga</string>
+    <string name="map_a11y_centered_on_location">Žemėlapis sutelktas į jūsų vietą</string>
+    <string name="map_a11y_showing_location">Žemėlapyje rodoma jūsų vieta</string>
+    <string name="map_a11y_loading_data">Įkeliami įrašyti žemėlapio duomenys</string>
+    <string name="map_a11y_no_recorded_data">Pasirinktame sluoksnyje šiame rodinyje ar datų intervale nėra rodomų duomenų</string>
+    <string name="map_a11y_no_layer_selected">Nepasirinktas žemėlapio sluoksnis</string>
+    <string name="map_a11y_search_result_visible">Matomas paieškos rezultato žymeklis</string>
+    <string name="map_a11y_active_recording_visible">Matomas aktyvaus įrašymo kelias</string>
+    <string name="map_a11y_recorded_route_history">Rodoma įrašytų maršrutų istorija</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Rodyti skirtingi priimti vietos stebėjimai</string>
+    <string name="map_a11y_cell_heatmap">Rodomi mobiliojo ryšio aprėpties laukai ir apytiksliai aptarnaujančių vietų centrai</string>
+    <string name="map_a11y_wifi_heatmap">Rodomos Wi‑Fi juostos, aprėpties laukai ir apytiksliai prieigos taškų centrai</string>
+    <string name="map_a11y_wifi_count_heatmap">Rodyti skirtingų Wi‑Fi prieigos taškų persidengimai</string>
+    <string name="map_a11y_speed_heatmap">Rodomas greičio šilumos žemėlapis</string>
+    <string name="map_a11y_saved_map_data">Rodyti išsaugoti žemėlapio duomenys</string>
+    <string name="map_location_permission_opening_settings">Būtina prieiga prie vietos. Atidaromi nustatymai…</string>
+    <string name="map_permission_banner_dismiss">Atmesti pranešimą apie vietos leidimą</string>
+    <string name="map_loading_layer">Įkeliamas žemėlapio sluoksnis</string>
+    <string name="map_a11y_world_scale">Pasaulio mastelis</string>
+    <string name="map_a11y_regional_scale">Regiono mastelis</string>
+    <string name="map_a11y_city_scale">Miesto mastelis</string>
+    <string name="map_a11y_neighborhood_scale">Rajono mastelis</string>
+    <string name="map_a11y_street_scale">Gatvės mastelis</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Vaizdavimo detalumo daugiklis. Didesnės reikšmės rodo daugiau detalių, bet senesniuose įrenginiuose gali sulėtinti žemėlapio įkėlimą.</string>
+    <string name="help_max_heat_points">Didžiausias šilumos žemėlapio rodinyje rodomų vietos taškų skaičius. Didesnės reikšmės reiškia daugiau detalių, bet lėtesnį atvaizdavimą.</string>
+    <string name="help_visit_threshold">Kiek laiko turite būti vienoje vietoje, kad ji būtų pažymėta kaip „apsilankymas“ žemėlapyje. Padidinkite šią reikšmę, kad sumažintumėte trumpų sustojimų netvarką.</string>
+</resources>

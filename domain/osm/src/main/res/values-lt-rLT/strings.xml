@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Pirmame plane rodomas pranešimas, kol analizuojamas naudotojo importuotas „OpenStreetMap“ regionas.</string>
+    <string name="osm_import_notification_title">Importuojamas „OpenStreetMap“ regionas</string>
+    <string name="osm_import_notification_content">Išanalizuota kelių: %1$d</string>
+    <string name="osm_import_complete_title">OSM regionas importuotas</string>
+    <string name="osm_import_complete_content">Neprisijungus naudojami kelių duomenys parengti transporto priemonių atitikties tikrinimui.</string>
+    <string name="osm_import_failed_title">OSM importuoti nepavyko</string>
+    <string name="osm_import_failed_content">Nepavyko užbaigti neprisijungus naudojamo žemėlapio importo.</string>
+</resources>

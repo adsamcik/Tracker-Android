@@ -1,0 +1,270 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Sekite bent %2$d skirtingas dienas, kad atrakintumėte.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Nukeliaukite %1$s</string>
+    <string name="ach_desc_distance_total">Per visas sesijas įveikite bendrą %1$s užfiksuotą atstumą.</string>
+    <string name="ach_title_week_distance">%1$s šią savaitę</string>
+    <string name="ach_desc_week_distance">Per vieną kalendorinę savaitę nukeliaukite %1$s.</string>
+    <string name="ach_title_best_day_distance">%1$s per dieną</string>
+    <string name="ach_desc_best_day_distance">Per vieną dieną įveikite %1$s atstumą.</string>
+    <string name="ach_title_max_session_distance">%1$s per vieną sesiją</string>
+    <string name="ach_desc_max_session_distance">Užfiksuokite vieną sesiją, per kurią be sustojimo įveiksite %1$s.</string>
+    <string name="ach_title_on_foot_distance">Nueikite arba nubėkite %1$s</string>
+    <string name="ach_desc_on_foot_distance">Pėsčiomis įveikite %1$s (ėjimas ir bėgimas kartu).</string>
+    <string name="ach_title_cycling_distance">Nuvažiuokite dviračiu %1$s</string>
+    <string name="ach_desc_cycling_distance">Iš viso nuvažiuokite dviračiu %1$s.</string>
+    <string name="ach_title_vehicle_distance">Motorine transporto priemone nukeliaukite %1$s</string>
+    <string name="ach_desc_vehicle_distance">Automobiliu, autobusu, traukiniu, laivu ar lėktuvu įveikite %1$s.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Ženkite %1$s žingsnių</string>
+    <string name="ach_desc_steps_total">Per visas sesijas užfiksuokite %1$s žingsnių.</string>
+    <string name="ach_title_best_daily_steps">%1$s žingsnių per dieną</string>
+    <string name="ach_desc_best_daily_steps">Per vieną dieną ženkite %1$s žingsnių.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Pirma sesija</item>
+        <item quantity="few">Užfiksuokite %1$s sesijas</item>
+        <item quantity="other">Užfiksuokite %1$s sesijų</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Iš viso užfiksuokite %1$s sekimo sesijų.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Atraskite pirmąjį langelį</item>
+        <item quantity="few">Atraskite %1$s žemėlapio langelius</item>
+        <item quantity="other">Atraskite %1$s žemėlapio langelių</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Ištirkite %1$s skirtingų žemėlapio tinklelio langelių (kiekvienas maždaug 1 km kvadrato).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Aplankykite %d šalį</item>
+        <item quantity="few">Aplankykite %d šalis</item>
+        <item quantity="other">Aplankykite %d šalių</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Užfiksuokite bent po vieną sesiją %1$d skirtingose šalyse.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Pirma aktyvi diena</item>
+        <item quantity="few">%1$s aktyvios dienos</item>
+        <item quantity="other">%1$s aktyvių dienų</item>
+    </plurals>
+    <string name="ach_desc_active_days">Iš viso sekite veiklą %1$s skirtingomis dienomis.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d diena iš eilės</item>
+        <item quantity="few">%d dienos iš eilės</item>
+        <item quantity="other">%d dienų iš eilės</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Sekite veiklą %1$d dienas iš eilės.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Asmeninis rekordas: %d diena</item>
+        <item quantity="few">Asmeninis rekordas: %d dienos</item>
+        <item quantity="other">Asmeninis rekordas: %d dienų</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Pasiekite asmeninį %1$d dienų sekimo serijos rekordą.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d mėnuo su „Tracker“</item>
+        <item quantity="few">%d mėnesiai su „Tracker“</item>
+        <item quantity="other">%d mėnesių su „Tracker“</item>
+    </plurals>
+    <string name="ach_desc_months_active">Būkite aktyvūs „Tracker“ %1$d skirtingus mėnesius.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d aktyvi diena šią savaitę</item>
+        <item quantity="few">%d aktyvios dienos šią savaitę</item>
+        <item quantity="other">%d aktyvių dienų šią savaitę</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Sekite veiklą %1$d dienas per vieną savaitę.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Pirma diena su „Tracker“</item>
+        <item quantity="few">%1$s dienos su „Tracker“</item>
+        <item quantity="other">%1$s dienų su „Tracker“</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Turėkite „Tracker“ įdiegtą %1$s dienas.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Sveiki sugrįžę</item>
+        <item quantity="few">Sugrįžote po %d dienų</item>
+        <item quantity="other">Sugrįžote po %d dienų</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Grįžkite prie sekimo po %1$d dienų pertraukos.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Sekite per %d paros valandą</item>
+        <item quantity="few">Sekite per %d skirtingas valandas</item>
+        <item quantity="other">Sekite per %d skirtingų valandų</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Per visas sesijas užfiksuokite veiklą %1$d skirtingomis paros valandomis.</string>
+    <string name="ach_title_days_of_week">Visos septynios savaitės dienos</string>
+    <string name="ach_desc_days_of_week">Sekite veiklą bent kartą kiekvieną savaitės dieną.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Išbandykite %d veiklos tipą</item>
+        <item quantity="few">Išbandykite %d veiklos tipus</item>
+        <item quantity="other">Išbandykite %d veiklos tipų</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Užfiksuokite sesijas su %1$d skirtingų tipų veikla (ėjimas, važiavimas dviračiu, vairavimas ir kt.).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d veiklos tipas šią savaitę</item>
+        <item quantity="few">%d veiklos tipai šią savaitę</item>
+        <item quantity="other">%d veiklos tipų šią savaitę</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Per vieną savaitę naudokite %1$d skirtingus veiklos tipus.</string>
+    <string name="ach_title_week_all_days">Sekite kiekvieną savaitės dieną</string>
+    <string name="ach_desc_week_all_days">Užfiksuokite veiklą visas septynias kalendorinės savaitės dienas.</string>
+    <string name="ach_title_walk_cycle_drive">Eikite, važiuokite dviračiu, vairuokite</string>
+    <string name="ach_desc_walk_cycle_drive">Užfiksuokite bent po vieną ėjimo, važiavimo dviračiu ir vairavimo sesiją.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">%1$s sesija</string>
+    <string name="ach_desc_max_session_duration">Užfiksuokite vieną sesiją, trunkančią bent %1$s.</string>
+    <string name="ach_title_max_speed">Pasiekite %1$s</string>
+    <string name="ach_desc_max_speed">Per sesiją pasiekite bent %1$s didžiausią greitį.</string>
+    <string name="ach_title_active_minutes">%1$s aktyvios minutės</string>
+    <string name="ach_desc_active_minutes">Sukaupkite %1$s aktyvaus sekimo minučių.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Pirmasis eksportavimas</item>
+        <item quantity="few">%d eksportavimai</item>
+        <item quantity="other">%d eksportavimų</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Eksportuokite savo duomenis %1$d kartų.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Sekite per vieną metų laiką</item>
+        <item quantity="few">Sekite per %d metų laikus</item>
+        <item quantity="other">Sekite per %d metų laikų</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Užfiksuokite veiklą %1$d skirtingais metų laikais (pavasarį, vasarą, rudenį, žiemą).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Naujųjų metų sekėjas</string>
+    <string name="ach_desc_calendar_new_year">Užfiksuokite sesiją sausio 1 d.</string>
+    <string name="ach_title_calendar_leap_day">Keliamųjų metų dienos pradininkas</string>
+    <string name="ach_desc_calendar_leap_day">Užfiksuokite sesiją vasario 29 d.</string>
+    <string name="ach_title_calendar_summer_solstice">Vasaros saulėgrįža</string>
+    <string name="ach_desc_calendar_summer_solstice">Užfiksuokite sesiją ilgiausią metų dieną.</string>
+    <string name="ach_title_calendar_winter_solstice">Žiemos saulėgrįža</string>
+    <string name="ach_desc_calendar_winter_solstice">Užfiksuokite sesiją trumpiausią metų dieną.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Naktinė pelėda</item>
+        <item quantity="few">%1$s naktinės sesijos</item>
+        <item quantity="other">%1$s naktinių sesijų</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Užfiksuokite %1$d sesijų, prasidedančių nuo vidurnakčio iki 5 val. ryto.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Ankstyvas paukštis</item>
+        <item quantity="few">%1$s aušros sesijos</item>
+        <item quantity="other">%1$s aušros sesijų</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Užfiksuokite %1$d sesijų, prasidedančių nuo 5 iki 8 val. ryto.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Praktinis sekėjas</item>
+        <item quantity="few">Rankiniu būdu pradėkite %1$s sesijas</item>
+        <item quantity="other">Rankiniu būdu pradėkite %1$s sesijų</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Patys rankiniu būdu pradėkite %1$d sekimo sesijų.</string>
+    <string name="ach_title_max_cycle_session">Per vieną važiavimą dviračiu įveikite %1$s</string>
+    <string name="ach_desc_max_cycle_session">Per vieną važiavimą dviračiu įveikite %1$s.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Kelių rūšių veiklos diena</item>
+        <item quantity="few">%d kelių rūšių veiklos dienos</item>
+        <item quantity="other">%d kelių rūšių veiklos dienų</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Tą pačią dieną keliaukite pėsčiomis, dviračiu ir motorine transporto priemone %1$d skirtingas dienas.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Vieta visiems metų laikams</item>
+        <item quantity="few">Visi keturi metų laikai %d vietose</item>
+        <item quantity="other">Visi keturi metų laikai %d vietų</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Aplankykite %1$d žemėlapio langelių per visus keturis metų laikus.</string>
+    <string name="ach_title_max_cell_visits">Aplankykite vieną vietą %1$d kartų</string>
+    <string name="ach_desc_max_cell_visits">Aplankykite vieną žemėlapio langelį %1$d kartų.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Išsamiai ištirkite langelį</item>
+        <item quantity="few">Išsamiai ištirkite %1$s langelius</item>
+        <item quantity="other">Išsamiai ištirkite %1$s langelių</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Išsamiai ištirkite %1$d skirtingų žemėlapio langelių.</string>
+    <string name="ach_title_max_cell_span">Pasiekite vietas, nutolusias %1$s</string>
+    <string name="ach_desc_max_cell_span">Atraskite du žemėlapio langelius, nutolusius bent %1$s vienas nuo kito.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Per dieną atraskite langelį</item>
+        <item quantity="few">Per dieną atraskite %d langelius</item>
+        <item quantity="other">Per dieną atraskite %d langelių</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Per vieną dieną atraskite %1$d naujų žemėlapio langelių.</string>
+    <string name="ach_title_max_cell_revisit_gap">Sugrįžkite po %1$d dienų</string>
+    <string name="ach_desc_max_cell_revisit_gap">Vėl aplankykite žemėlapio langelį po %1$d dienų nuo jo pirmojo atradimo.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">Tobulas mėnuo</item>
+        <item quantity="few">%d tobuli mėnesiai</item>
+        <item quantity="other">%d tobulų mėnesių</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Sekite veiklą kiekvieną %1$d kalendorinių mėnesių dieną.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Naudokite vieną eksporto formatą</item>
+        <item quantity="few">Naudokite %d eksporto formatus</item>
+        <item quantity="other">Naudokite %d eksporto formatų</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Eksportuokite savo duomenis %1$d skirtingais failų formatais.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Pasiekite %1$d lygį</string>
+    <string name="ach_desc_player_level">Pakilkite iki žaidėjo %1$d lygio.</string>
+    <string name="ach_title_best_day_xp">%1$s XP per dieną</string>
+    <string name="ach_desc_best_day_xp">Per vieną dieną gaukite %1$d XP.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Sužaiskite pirmą mini žaidimą</item>
+        <item quantity="few">Sužaiskite %1$s mini žaidimus</item>
+        <item quantity="other">Sužaiskite %1$s mini žaidimų</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Užbaikite %1$d mini žaidimų bandymų.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Pakilkite %1$s</string>
+    <string name="ach_desc_total_ascent">Per visą sekimą sukaupkite %1$s bendro aukščio prieaugio (kilimo).</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Gaukite iš vieno XP šaltinio</item>
+        <item quantity="few">Gaukite iš %d XP šaltinių</item>
+        <item quantity="other">Gaukite iš %d XP šaltinių</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Gaukite XP iš %1$d skirtingų šaltinių – sekimo sesijų, mini žaidimų ir tikslų.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">Tobula savaitė</item>
+        <item quantity="few">%d tobulos savaitės</item>
+        <item quantity="other">%d tobulų savaičių</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Pasiekite kasdienį žingsnių tikslą kiekvieną dieną %1$d pilnas savaites.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d dienos tikslo serija</item>
+        <item quantity="few">%d dienų tikslo serija</item>
+        <item quantity="other">%d dienų tikslo serija</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Pasiekite kasdienį žingsnių tikslą %1$d dienas iš eilės.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Atrakinkite vieną pasiekimą</item>
+        <item quantity="few">Atrakinkite %d pasiekimus</item>
+        <item quantity="other">Atrakinkite %d pasiekimų</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Iš viso atrakinkite %1$d pasiekimų.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Užbaikite kategoriją</item>
+        <item quantity="few">Užbaikite %d kategorijas</item>
+        <item quantity="other">Užbaikite %d kategorijų</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Atrakinkite kiekvieną pasiekimą %1$d skirtingose kategorijose.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d sekundės</item>
+        <item quantity="few">%d sekundžių</item>
+        <item quantity="other">%d sekundžių</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d minutės</item>
+        <item quantity="few">%d minučių</item>
+        <item quantity="other">%d minučių</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d valandos</item>
+        <item quantity="few">%d valandų</item>
+        <item quantity="other">%d valandų</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d dienos</item>
+        <item quantity="few">%d dienų</item>
+        <item quantity="other">%d dienų</item>
+    </plurals>
+</resources>

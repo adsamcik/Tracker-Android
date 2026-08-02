@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="notification_activity_watcher_info">Dabartinė veikla: %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Veiklos stebėjimo paslauga aktyvi</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">Pašalinta: %s</string>
+    <string name="settings_activity_title">Veiklos</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">Veiklos stebėjimas</string>
+    <string name="settings_ski_infrastructure_title">Slidinėjimo keltuvų duomenys</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">Įkelta (palieskite, kad pašalintumėte)</string>
+    <string name="settings_ski_infrastructure_subtitle_none">Neįkelta. Palieskite, kad importuotumėte ski_infrastructure.db SQLite failą.</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d keltuvų · Sugeneruota: %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">Slidinėjimo keltuvų duomenys © „OpenStreetMap“ bendradarbiai (ODbL)</string>
+</resources>

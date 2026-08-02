@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Grįžti atgal</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Prieiga prie vietos</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">„Tracker“ reikia prieigos prie vietos, kad galėtų įrašyti jūsų maršrutą ir rodyti jį žemėlapyje. Vietos duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Veiklos atpažinimas</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">„Tracker“ naudoja veiklos atpažinimą, kad nustatytų, ką veikiate (einate, važiuojate dviračiu, vairuojate, nejudate), todėl automatinis sekimas gali būti pristabdytas, kai nejudate, ir taupyti akumuliatoriaus energiją. Veiklos duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Vieta fone</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Kad maršrutas būtų įrašomas, kai perjungiate programas arba ekranas išsijungia, „Tracker“ reikia prieigos prie jūsų vietos fone. Įrašyta vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį. Kitame sistemos lange pasirinkite „Leisti visada“; pasirinkus „Leisti naudojant programą“, „Tracker“ veiks tik tada, kai jo ekranas atidarytas.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Leisti</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ne dabar</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Norint pradėti sekti, būtinas vietos leidimas</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Atidaryti nustatymus</string>
+</resources>
