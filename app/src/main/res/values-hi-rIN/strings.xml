@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">खेल</string>
     <string name="module_map_title">मानचित्र</string>
     <string name="module_statistics_title">आँकड़े</string>
@@ -104,13 +102,6 @@
         <item>उड़ान</item>
     </string-array>
     <string name="settings_length_system_title">लंबाई प्रणाली</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">ओपन सोर्स लाइसेंस</string>
     <string name="settings_licenses_subtitle">इस बिल्ड में शामिल तृतीय-पक्ष सूचनाएँ देखें।</string>
     <string name="settings_licenses_loading">लाइसेंस लोड हो रहे हैं…</string>
@@ -126,19 +117,13 @@
     <string name="about_version_label">संस्करण</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">बिल्ड कमिट</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">लेखक</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">ईमेल</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">लिंक</string>
     <string name="about_attributions_title">डेटा श्रेय</string>
     <string name="about_attribution_geonames_label">स्थान के नाम</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">मानचित्र और सड़क डेटा</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">मॉड्यूल सेटिंग</string>
     <string name="settings_core_group_title">मूल</string>
     <string name="settings_other_title">इकाइयाँ और प्रदर्शन</string>
@@ -150,11 +135,6 @@
         <item>गति (किमी/घं, मील/घं)</item>
     </string-array>
     <string name="settings_speed_format_title">गति प्रारूप</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">सेटिंग</string>
     <string name="switch_state_on">चालू</string>
     <string name="switch_state_off">बंद</string>
@@ -169,7 +149,6 @@
     <string name="onboarding_get_started">शुरू करें</string>
     <string name="onboarding_privacy_policy_button">गोपनीयता नीति पढ़ें</string>
     <string name="onboarding_state_read_error_message">हम सत्यापित नहीं कर सके कि सेटअप पहले पूरा हुआ था या नहीं, इसलिए आपका डेटा निजी रखने के लिए सेटअप दिखाया गया है। आप सुरक्षित रूप से जारी रख सकते हैं।</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">पुराना डेटा स्वतः साफ़ करें</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">डेटा हमेशा रखें; स्वतः सफ़ाई पुराना डेटा नहीं हटाएगी</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
@@ -184,14 +163,6 @@
         <item>3 वर्ष</item>
         <item>5 वर्ष</item>
         <item>10 वर्ष</item>
-    </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
     </string-array>
     <string name="button_continue">जारी रखें</string>
     <string name="settings_export_data_title">डेटा निर्यात करें</string>

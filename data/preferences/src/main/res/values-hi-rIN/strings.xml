@@ -14,8 +14,6 @@
     <string name="nautical_mile_abbr">%s समुद्री मील</string>
     <string name="knot_abbr">%s नॉट</string>
     <string name="flight_level_abbr">FL%s</string>
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">इकाई प्रणाली स्वतः बदलें</string>
     <string name="settings_statistics_auto_unit_switch_summary">इन गतिविधियों वाले सत्र देखने पर नौकायन/उड़ान इकाइयों पर स्वतः बदलें</string>
 </resources>

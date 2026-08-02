@@ -159,7 +159,6 @@
     <string name="minigame_failure_persistence">हम यह दौड़ सहेज नहीं सके। कृपया फिर कोशिश करें।</string>
     <string name="minigame_failure_generic">कुछ गलत हुआ और दौड़ रुक गई।</string>
     <string name="minigame_session_try_again">फिर कोशिश करें</string>
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">सक्रिय खेल</string>
     <string name="game_session_channel_description">स्क्रीन बंद होने पर सक्रिय मिनी-गेम को चलता रखता है</string>
     <string name="game_session_notification_title">Tracker खेल</string>

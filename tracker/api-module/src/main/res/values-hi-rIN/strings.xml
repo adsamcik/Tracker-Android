@@ -62,12 +62,8 @@
     <string name="settings_auto_tracking_transition_summary">बैटरी-कुशल मोड (गतिविधि पहचान थोड़ी धीमी)</string>
     <string name="settings_auto_tracking_transition_title">गतिविधि बदलाव उपयोग करें</string>
     <string name="settings_cell_enabled_title">सेल</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">आपका फ़ोन चार्जर से जुड़ने तक स्वचालित ट्रैकिंग अक्षम है</string>
     <string name="settings_disabled_recharge_title">रीचार्ज तक अक्षम</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">स्थान</string>
     <string name="settings_notification_customize_summary">ट्रैकिंग सूचना में क्या और किस क्रम में दिखे, बदलें।</string>
     <string name="settings_notification_customize_title">सूचना अनुकूलित करें</string>

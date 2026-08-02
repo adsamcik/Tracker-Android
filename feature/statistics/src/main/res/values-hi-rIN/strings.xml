@@ -99,7 +99,7 @@
     <string name="trip_detail_elevation_loss">ऊँचाई हानि</string>
     <string name="trip_detail_max_altitude">अधिकतम ऊँचाई</string>
     <string name="trip_detail_route_map">मार्ग मानचित्र</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">मानचित्र पर देखें</string>
     <string name="trip_detail_no_location_data">कोई स्थान डेटा नहीं</string>
     <string name="trip_detail_route_unavailable_legacy">पुराने सत्रों के लिए मार्ग मानचित्र उपलब्ध नहीं</string>
     <string name="trip_detail_route_no_gps_points">दूरी रिकॉर्ड हुई, पर GPS मार्ग उपलब्ध नहीं</string>
@@ -158,6 +158,6 @@
     <string name="history_exploration_best">सर्वश्रेष्ठ</string>
     <string name="action_navigate_back">पीछे जाएँ</string>
     <string name="history_button_label">इतिहास</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <string name="history_view_trip_on_map">यात्रा को मानचित्र पर देखें</string>
     <string name="stats_heatmap_title">गतिविधि</string>
 </resources>
