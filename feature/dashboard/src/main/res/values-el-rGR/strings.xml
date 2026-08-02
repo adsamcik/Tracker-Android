@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Η άδεια τοποθεσίας δεν είναι διαθέσιμη</string>
     <string name="dashboard_permission_banner_subtitle">Το Tracker δεν μπορεί να καταγράψει διαδρομές μέχρι να δώσετε πρόσβαση στην τοποθεσία. Πατήστε για παραχώρηση.</string>
     <string name="dashboard_permission_banner_cd">Πλαίσιο μη διαθέσιμης άδειας τοποθεσίας, πατήστε για παραχώρηση πρόσβασης τοποθεσίας</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Τύπος δραστηριότητας</string>
     <string name="dashboard_cd_explore_icon">Εξερεύνηση</string>
     <string name="dashboard_cd_forward_arrow">Προβολή λεπτομερειών</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">Προβολή λεπτομερειών σειράς</string>
     <string name="dashboard_action_open_tracking_settings">Ρυθμίσεις</string>
     <string name="dashboard_action_restart_tracking">Επανεκκίνηση</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Προφίλ υψομέτρου, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Αναμονή για σήμα GPS…</string>
     <string name="dashboard_tracking_recording_route">Γίνεται καταγραφή διαδρομής…</string>
     <string name="dashboard_milestone_distance">km συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_steps">βήματα συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_time">λεπτά καταγραφής!</string>
     <string name="dashboard_milestone_points">+10 πόντοι</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Σήμερα</string>
     <string name="dashboard_today_no_activity">Δεν υπάρχει ακόμη δραστηριότητα σήμερα</string>
     <string name="dashboard_today_distance">Απόσταση</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">Νέα σήμερα</string>
     <string name="dashboard_exploration_total_cells">Συνολικά κελιά</string>
     <string name="dashboard_exploration_seasons">Εποχές</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Ταχύτητα</string>
     <string name="dashboard_live_charts_altitude">Υψόμετρο</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Λεπτομέρειες αισθητήρων</string>
     <string name="dashboard_sensor_expand">Ανάπτυξη λεπτομερειών αισθητήρων</string>
     <string name="dashboard_sensor_collapse">Σύμπτυξη λεπτομερειών αισθητήρων</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">Ταχύτητα</string>
     <string name="dashboard_sensor_cell_types">Τύποι κελιών</string>
     <string name="dashboard_sensor_raw_coords">Συντεταγμένες (εντοπισμός σφαλμάτων)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Ανοδική τάση</string>
     <string name="dashboard_trend_down">Καθοδική τάση</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Μόλις ξεκινάτε…</string>
     <string name="dashboard_motivational_keep_going">Συνεχίστε! 💪</string>
     <string name="dashboard_motivational_impressive">Εντυπωσιακή συνεδρία!</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">Καλησπέρα! Να δείτε την ημέρα σας;</string>
     <string name="dashboard_motivational_night">Λειτουργία νυχτοπουλιού 🦉</string>
     <string name="dashboard_motivational_streak">🔥 Σειρά %1$d ημερών!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Το ταξίδι σας ξεκινά εδώ</string>
     <string name="dashboard_empty_subtitle">Χρησιμοποιήστε την κάρτα «Έτοιμοι» παρακάτω για να δώσετε πρόσβαση στην τοποθεσία όταν χρειάζεται και να ξεκινήσετε την πρώτη σας περιπέτεια</string>
     <string name="dashboard_empty_feature_explore">Εξερεύνηση</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">Έτοιμοι όταν είστε</string>
     <string name="dashboard_empty_fab_hint_desc">Πατήστε εδώ για να ξεκινήσετε την πρώτη σας συνεδρία καταγραφής.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Πατήστε εδώ για να δώσετε πρόσβαση στην τοποθεσία και μετά να ξεκινήσετε την πρώτη σας συνεδρία καταγραφής.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Η σημερινή πρόοδος</string>
     <string name="widget_streak">Σειρά</string>
     <string name="widget_last_session">Τελευταία συνεδρία</string>
     <string name="widget_recent_trips">Πρόσφατες διαδρομές</string>
     <string name="widget_exploration">Εξερεύνηση</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Προσαρμογή πίνακα ελέγχου</string>
     <string name="dashboard_customize_reset">Επαναφορά στις προεπιλογές</string>
     <string name="dashboard_customize_cd_toggle">Εναλλαγή ορατότητας του %1$s</string>
     <string name="dashboard_customize_cd_drag_handle">Αλλαγή σειράς του %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Δεν υπάρχουν δεδομένα υψομέτρου</string>
     <string name="dashboard_cd_no_altitude_data">Δεν υπάρχουν διαθέσιμα δεδομένα υψομέτρου</string>
     <string name="dashboard_cd_speed_sparkline">Μικρογράφημα ταχύτητας με %1$d σημεία δεδομένων</string>
     <string name="dashboard_cd_session_path">Προεπισκόπηση διαδρομής συνεδρίας με %1$d σημεία</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Ταχύτητα</string>
     <string name="dashboard_metric_distance">Απόσταση</string>
     <string name="dashboard_metric_duration">Διάρκεια</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi‑Fi</string>
     <string name="dashboard_metric_cell">Κελί</string>
     <string name="dashboard_metric_coordinates">Συντεταγμένες</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Έναρξη καταγραφής</string>
     <string name="dashboard_ring_enable_location">Ενεργοποίηση τοποθεσίας</string>
     <string name="dashboard_pill_start">Έναρξη</string>
     <string name="dashboard_pill_stop">Διακοπή</string>
     <string name="dashboard_pill_enable_location">Ενεργοποίηση τοποθεσίας</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Πληροφορίες συνεδρίας</string>
     <string name="dashboard_cd_insight_item">Πληροφορία: %1$s</string>
     <string name="widget_latest_achievement">Τελευταίο επίτευγμα</string>

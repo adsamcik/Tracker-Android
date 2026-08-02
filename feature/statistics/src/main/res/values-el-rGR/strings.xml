@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Στατιστικά</string>
     <string name="stats_cell_count">Αριθμός κελιών</string>
     <string name="stats_collections">Αριθμός συλλογών</string>
@@ -44,21 +43,17 @@
     <string name="stats_loading">Φόρτωση συνεδριών…</string>
     <string name="stats_append_error">Αποτυχία φόρτωσης περισσότερων</string>
     <string name="action_retry">Δοκιμή ξανά</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Έναρξη καταγραφής</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s βήμα</item>
         <item quantity="other">%1$s βήματα</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Σήμερα</string>
     <string name="stats_date_yesterday">Χθες</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Φόρτωση σύνοψης…</string>
     <string name="stats_summary_empty">Δεν υπάρχουν διαθέσιμα συνοπτικά στατιστικά</string>
     <string name="stats_summary_empty_subtitle">Ξεκινήστε καταγραφή για να δείτε τη σύνοψη της δραστηριότητάς σας</string>
     <string name="stats_summary_error">Αποτυχία φόρτωσης σύνοψης</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Φόρτωση εβδομαδιαίων στατιστικών…</string>
     <string name="stats_week_empty">Δεν υπάρχουν διαθέσιμα εβδομαδιαία στατιστικά</string>
     <string name="stats_week_empty_subtitle">Καταγράψτε για 7 ημέρες για να δείτε την εβδομαδιαία σύνοψή σας</string>
@@ -71,7 +66,6 @@
     <string name="stats_wifi_unique_networks">Μοναδικά δίκτυα που εντοπίστηκαν</string>
     <string name="stats_wifi_total_scans">Συνολικές σαρώσεις</string>
     <string name="stats_wifi_average_per_scan">Μέσος αριθμός δικτύων ανά σάρωση</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Αναφορά σήματος κινητής</string>
     <string name="stats_cell_signal_dialog_loading">Φόρτωση αναφοράς σήματος κινητής…</string>
     <string name="stats_cell_signal_dialog_empty_title">Δεν υπάρχουν διαθέσιμα δεδομένα κινητής</string>
@@ -81,13 +75,9 @@
     <string name="stats_cell_signal_distinct_towers">Διαφορετικοί πύργοι</string>
     <string name="stats_cell_signal_section_networks">Ανά τύπο δικτύου</string>
     <string name="stats_cell_signal_section_towers">Πύργοι που εμφανίζονται συχνότερα</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s των δειγμάτων · %2$s πύργοι</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Κελί %1$s · %2$s δείγματα</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Πάροχος %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Λεπτομέρειες διαδρομής</string>
     <string name="trip_detail_not_found">Η διαδρομή δεν βρέθηκε</string>
     <string name="trip_detail_not_found_subtitle">Αυτή η διαδρομή ίσως έχει διαγραφεί</string>
@@ -109,7 +99,7 @@
     <string name="trip_detail_elevation_loss">Υψομετρική απώλεια</string>
     <string name="trip_detail_max_altitude">Μέγιστο υψόμετρο</string>
     <string name="trip_detail_route_map">Χάρτης διαδρομής</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Προβολή στον χάρτη</string>
     <string name="trip_detail_no_location_data">Δεν υπάρχουν δεδομένα τοποθεσίας</string>
     <string name="trip_detail_route_unavailable_legacy">Ο χάρτης διαδρομής δεν είναι διαθέσιμος για παλαιές συνεδρίες</string>
     <string name="trip_detail_route_no_gps_points">Καταγράφηκε απόσταση, αλλά δεν υπάρχει διαθέσιμη διαδρομή GPS</string>
@@ -120,7 +110,6 @@
     <string name="trip_detail_delete_confirm">Διαγραφή</string>
     <string name="trip_detail_cancel">Ακύρωση</string>
     <string name="trip_detail_more_options">Περισσότερες επιλογές</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Συνεδρία σκι</string>
     <string name="ski_detail_runs">Διαδρομές</string>
     <string name="ski_detail_vertical">Υψομετρική</string>
@@ -144,7 +133,6 @@
     <string name="wifilist_title_frequency">Συχνότητα</string>
     <string name="wifilist_title_last_seen">Εντοπίστηκε τελευταία φορά</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Χρονολόγιο</string>
     <string name="history_tab_trips">Διαδρομές</string>
     <string name="history_tab_calendar">Ημερολόγιο</string>
@@ -153,30 +141,23 @@
         <item quantity="one">%d διαδρομή</item>
         <item quantity="other">%d διαδρομές</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Δεν υπάρχει ακόμη δραστηριότητα</string>
     <string name="history_timeline_empty_desc">Ξεκινήστε καταγραφή για να δείτε εδώ το ιστορικό κινήσεών σας</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Δεν έχουν καταγραφεί διαδρομές</string>
     <string name="history_trips_empty_desc">Οι διαδρομές θα εμφανιστούν εδώ καθώς μετακινείστε</string>
     <string name="trip_gps_anomaly">Εντοπίστηκε ανωμαλία GPS — η απόσταση μπορεί να μην είναι ακριβής</string>
     <string name="trip_deleted_snackbar">Η διαδρομή διαγράφηκε</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Προηγούμενος μήνας</string>
     <string name="history_calendar_next_month">Επόμενος μήνας</string>
     <string name="history_calendar_distance">Απόσταση</string>
     <string name="history_calendar_steps">Βήματα</string>
     <string name="history_calendar_trips">Διαδρομές</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Εξερεύνηση</string>
     <string name="history_exploration_cells">Κελιά</string>
     <string name="history_exploration_streak">Σειρά</string>
     <string name="history_exploration_best">Καλύτερο</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Επιστροφή</string>
-    <!-- History navigation -->
     <string name="history_button_label">Ιστορικό</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Προβολή διαδρομής στον χάρτη</string>
     <string name="stats_heatmap_title">Δραστηριότητα</string>
 </resources>

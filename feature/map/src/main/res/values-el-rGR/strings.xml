@@ -1,16 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
-    <!-- Module title for distribution manifest -->
+    <string name="trip_route_preview_unavailable">Δεν ήταν δυνατή η προετοιμασία της προεπισκόπησης χάρτη διαδρομής</string>
     <string name="module_map_title">Χάρτης</string>
     <string name="description_map_search">Κουμπί αναζήτησης</string>
     <string name="map_layer_cell_heatmap_description">Θερμικός χάρτης σήματος κινητής. Η ένταση της θερμότητας αλλάζει ανάλογα με τη διαθέσιμη τεχνολογία.</string>
     <string name="map_layer_cell_heatmap_title">Θερμικός χάρτης κινητής</string>
     <string name="map_layer_location_heatmap_high">Υψηλή πυκνότητα</string>
     <string name="map_layer_location_heatmap_low">Χαμηλή πυκνότητα</string>
-    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_low_medium">Χαμηλή έως μέση πυκνότητα</string>
     <string name="map_layer_location_heatmap_medium">Μέση πυκνότητα</string>
-    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_location_heatmap_peak">Μέγιστη πυκνότητα</string>
     <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Διακριτές επισκέψεις</string>
     <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Επισκέψεις</string>
     <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Σχετική πυκνότητα αποδεκτών διορθώσεων τοποθεσίας. Εμφανίζει διακριτές παρατηρήσεις, όχι χρόνο παραμονής.</string>
@@ -19,12 +18,12 @@
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
     <string name="map_layer_signal_coverage_title">Νεκρές ζώνες σήματος</string>
-    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_chip">Νεκρές ζώνες</string>
     <string name="map_layer_signal_coverage_description">Επισημαίνει πού το σήμα κινητής ήταν αδύναμο ή ανύπαρκτο. Όσο πιο κόκκινη η περιοχή, τόσο χειρότερη η κάλυψη· οι περιοχές με καλή κάλυψη παραμένουν καθαρές.</string>
-    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
-    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
-    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
-    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_coverage_weak">Αδύναμο</string>
+    <string name="map_layer_signal_coverage_poor">Κακό</string>
+    <string name="map_layer_signal_coverage_very_poor">Πολύ κακό</string>
+    <string name="map_layer_signal_coverage_dead">Νεκρή ζώνη</string>
     <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Αύρα σήματος</string>
     <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Αύρα</string>
     <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Το σήμα κινητής αποδίδεται ως λάμψη σαν αύρα: ένα πλατύ ιώδες φωτοστέφανο κάτω από έναν φωτεινό κυανοπράσινο πυρήνα. Η λάμψη πάλλεται χωρίς επαναφόρτωση δεδομένων και γίνεται στατική όταν οι κινούμενες εικόνες συστήματος είναι απενεργοποιημένες.</string>
@@ -108,10 +107,6 @@
     <string name="map_layer_vehicle_compliance_speeding">Υπέρβαση ταχύτητας</string>
     <string name="map_layer_location_polyline_description">Γραμμή που συνδέει τις καταγεγραμμένες τοποθεσίες σας με την πάροδο του χρόνου.</string>
     <string name="map_layer_location_polyline_title">Πολυγραμμή τοποθεσίας</string>
-    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
-         layer chip on the map control bar (~360dp). Each chip label fits in
-         ~12 characters at typical font sizes. Fall back to titleRes for layers
-         whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Πολυγραμμή</string>
     <string name="map_layer_wifi_count_heatmap_chip">Επικάλυψη Wi‑Fi</string>
     <string name="map_layer_vehicle_compliance_chip">Υπέρβαση</string>
@@ -155,9 +150,6 @@
     <string name="tips_map_date_range_title">Εύρος ημερομηνιών</string>
     <string name="tips_map_my_location_title">Η τοποθεσία μου</string>
     <string name="tips_map_sheet_description">Πατώντας ή σύροντας προς τα πάνω αυτή τη γραμμή ανοίγετε περισσότερες επιλογές χάρτη, όπως επιλογή επιπέδου και υπόμνημα.</string>
-    <!-- Map Sheet Controls -->
-    <!-- Keep short so it fits the search field at typical 360dp widths;
-         the full coordinate-format reference lives in map_search_invalid_format. -->
     <string name="map_search_placeholder">Γεωγρ. πλάτος, μήκος π.χ. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Δοκιμάστε 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Εκκαθάριση αναζήτησης</string>
@@ -165,7 +157,6 @@
     <string name="map_search_clipboard_empty">Το πρόχειρο δεν περιέχει ακόμη συντεταγμένες</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Ακύρωση</string>
-    <!-- Share map as image -->
     <string name="map_share_button">Κοινοποίηση χάρτη</string>
     <string name="map_share_sheet_title">Κοινοποίηση χάρτη ως εικόνας</string>
     <string name="map_share_sheet_subtitle">Αποδίδει την τρέχουσα προβολή και το ενεργό επίπεδο ως στατική εικόνα. Η ζωντανή τοποθεσία σας δεν περιλαμβάνεται ποτέ.</string>
@@ -176,7 +167,7 @@
     <string name="map_share_preparing">Προετοιμασία εικόνας…</string>
     <string name="map_share_error">Δεν ήταν δυνατή η απόδοση της εικόνας χάρτη. Δοκιμάστε ξανά.</string>
     <string name="map_date_range_all_time">Όλο το διάστημα</string>
-    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_date_range_selected_trip">Επιλεγμένη διαδρομή</string>
     <string name="map_layers_title">Επίπεδα χάρτη</string>
     <string name="map_layer_load_error">Δεν ήταν δυνατή η φόρτωση αυτού του επιπέδου. Δοκιμάστε να επιλέξετε διαφορετικό.</string>
     <string name="map_empty_subtitle_location">Δεν υπάρχουν δεδομένα τοποθεσίας σε αυτή την προβολή ή το εύρος ημερομηνιών. Οι λειτουργίες διαδρομής και χάρτη απαιτούν τοποθεσία που συλλέχθηκε κατά την καταγραφή.</string>
@@ -221,7 +212,6 @@
     <string name="map_a11y_city_scale">Κλίμακα πόλης</string>
     <string name="map_a11y_neighborhood_scale">Κλίμακα γειτονιάς</string>
     <string name="map_a11y_street_scale">Κλίμακα δρόμου</string>
-    <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Πολλαπλασιαστής λεπτομέρειας απόδοσης. Οι υψηλότερες τιμές εμφανίζουν περισσότερη λεπτομέρεια, αλλά μπορεί να επιβραδύνουν τη φόρτωση του χάρτη σε παλαιότερες συσκευές.</string>
     <string name="help_max_heat_points">Μέγιστος αριθμός σημείων τοποθεσίας που εμφανίζονται στην προβολή θερμικού χάρτη. Υψηλότερες τιμές = περισσότερη λεπτομέρεια αλλά πιο αργή απόδοση.</string>
     <string name="help_visit_threshold">Πόσο χρόνο πρέπει να μείνετε σε ένα μέρος προτού επισημανθεί ως «επίσκεψη» στον χάρτη. Αυξήστε το για να μειώσετε τον θόρυβο από σύντομες στάσεις.</string>

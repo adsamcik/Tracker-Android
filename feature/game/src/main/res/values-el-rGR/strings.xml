@@ -1,8 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Παιχνίδι</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Προβάδισμα</string>
     <string name="minigame_outrun_description">Αγωνιστείτε με ένα φάντασμα. Μείνετε μπροστά!</string>
     <string name="minigame_territory_name">Επικράτεια</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Εναλλασσόμενες στροφές</string>
     <string name="minigame_switchback_description">Κάντε απότομες εναλλασσόμενες στροφές για να δημιουργήσετε συνδυασμό ροής</string>
     <string name="minigame_locked">Ξεκλειδώνει στο επίπεδο %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Παίξτε</string>
     <string name="game_progress_section_title">Πρόοδος</string>
     <string name="minigame_outrun_goal_line">Κρατήστε προβάδισμα 25–100 m από το φάντασμα</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Διπλό πάτημα για να δείτε πώς ξεκλειδώνει</string>
     <string name="minigame_active_session_running">Σε εξέλιξη — πατήστε Παίξτε για επιστροφή</string>
     <string name="minigame_active_session_paused">Σε παύση — πατήστε Παίξτε για συνέχιση</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d κελί</item>
@@ -44,7 +40,6 @@
         <item quantity="one">%1$d στροφή</item>
         <item quantity="other">%1$d στροφές</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Προβολή προηγούμενων βαθμολογιών</string>
     <string name="minigame_session_close">Κλείσιμο</string>
     <string name="minigame_session_play_again">Παίξτε ξανά</string>
@@ -52,7 +47,6 @@
     <string name="minigame_session_permission_title">Απαιτείται τοποθεσία</string>
     <string name="minigame_session_permission_body">Τα μίνι παιχνίδια χρησιμοποιούν ζωντανή τοποθεσία για να καταγράψουν τη διαδρομή σας. Δεν αποθηκεύεται τίποτα πέρα από την τελική βαθμολογία.</string>
     <string name="minigame_session_permission_grant">Παραχώρηση πρόσβασης</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Ρυθμίστε τη διαδρομή σας</string>
     <string name="minigame_setup_goal_title">Στόχος</string>
     <string name="minigame_setup_difficulty_title">Δυσκολία</string>
@@ -76,7 +70,6 @@
     <string name="minigame_difficulty_easy">Εύκολη</string>
     <string name="minigame_difficulty_normal">Κανονική</string>
     <string name="minigame_difficulty_hard">Δύσκολη</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Προετοιμασία…</string>
     <string name="minigame_session_finishing">Αποθήκευση της διαδρομής σας…</string>
     <string name="minigame_session_paused_title">Σε παύση</string>
@@ -87,15 +80,12 @@
     <string name="minigame_session_elapsed_label">Ενεργός χρόνος</string>
     <string name="minigame_session_goal_progress">%1$d%% του στόχου</string>
     <string name="minigame_session_goal_reached">Ο στόχος επιτεύχθηκε</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">Ισχυρό GPS</string>
     <string name="minigame_signal_fair">Μέτριο GPS</string>
     <string name="minigame_signal_poor">Αδύναμο GPS</string>
     <string name="minigame_signal_unavailable">Χωρίς σήμα GPS</string>
     <string name="minigame_signal_unknown">Εντοπισμός…</string>
     <string name="minigame_signal_stale">Καθυστερημένο GPS</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Καλύτερο σε αυτή τη διαδρομή</string>
     <string name="minigame_outrun_personal_best">Προσωπικό ρεκόρ</string>
     <string name="minigame_outrun_warning">Το φάντασμα πλησιάζει</string>
@@ -119,14 +109,12 @@
     <string name="minigame_outrun_description_escaped">Ο στόχος επιτεύχθηκε. Ξεφύγατε με προβάδισμα %1$d μέτρων. Καλύτερο σε αυτή τη διαδρομή: %2$d μέτρα.</string>
     <string name="minigame_outrun_description_finished">Η διαδρομή ολοκληρώθηκε. Η τελική σας διαφορά ήταν %1$d μέτρα και το καλύτερο προβάδισμά σας ήταν %2$d μέτρα.</string>
     <string name="minigame_outrun_ahead_of_best">Μπροστά από το προσωπικό σας ρεκόρ</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Χάρτης επικράτειας. Κατακτήθηκαν %1$d κοντινές περιοχές· επισημάνθηκαν %2$d περιοχές συνόρων. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Η τρέχουσα περιοχή επισημαίνεται</string>
     <string name="minigame_territory_current_waiting">Αναμονή για τρέχουσα περιοχή</string>
     <string name="minigame_territory_goal_complete">Ο στόχος ολοκληρώθηκε</string>
     <string name="minigame_territory_goal_in_progress">Ο στόχος είναι σε εξέλιξη</string>
     <string name="minigame_territory_legend">Η λάμψη επισημαίνει την τρέχουσα περιοχή σας • Υπόδειξη συνόρων: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Ρυθμός</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -141,7 +129,6 @@
     <string name="minigame_zen_flow_faster">Γίνεστε σταδιακά πιο γρήγοροι</string>
     <string name="minigame_zen_flow_time">Ροή %1$s</string>
     <string name="minigame_zen_flow_description">Ροή ρυθμού Ζεν. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">Το φάντασμα πλησιάζει</string>
     <string name="minigame_feedback_pb_crossed">Νέο προσωπικό ρεκόρ</string>
     <string name="minigame_feedback_territory_claimed">Κατακτήθηκε νέα περιοχή</string>
@@ -152,7 +139,6 @@
     <string name="minigame_feedback_zen_entered">Βρίσκεστε στη ζώνη ρυθμού</string>
     <string name="minigame_feedback_zen_exited">Βγήκατε από τη ζώνη ρυθμού</string>
     <string name="minigame_feedback_completed">Η διαδρομή ολοκληρώθηκε</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">Καταγράφηκε η πρώτη διαδρομή!</string>
     <string name="minigame_completion_new_best_title">Νέο προσωπικό ρεκόρ!</string>
     <string name="minigame_completion_tied_title">Ισοφαρίσατε το καλύτερό σας</string>
@@ -167,15 +153,12 @@
     <string name="minigame_completion_points_zero">Χωρίς πόντους σε αυτή τη διαδρομή</string>
     <string name="minigame_completion_change_setup">Αλλαγή ρύθμισης</string>
     <string name="minigame_completion_done">Έτοιμο</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">Η διαδρομή δεν ολοκληρώθηκε</string>
     <string name="minigame_failure_permission">Απαιτείται ακριβής τοποθεσία για να παίξετε. Παραχωρήστε την και δοκιμάστε ξανά.</string>
     <string name="minigame_failure_location">Δεν ήταν δυνατή η αξιόπιστη εύρεση τοποθεσίας. Πηγαίνετε κάπου με καθαρότερο ουρανό και δοκιμάστε ξανά.</string>
     <string name="minigame_failure_persistence">Δεν ήταν δυνατή η αποθήκευση αυτής της διαδρομής. Δοκιμάστε ξανά.</string>
     <string name="minigame_failure_generic">Κάτι πήγε στραβά και η διαδρομή σταμάτησε.</string>
     <string name="minigame_session_try_again">Δοκιμάστε ξανά</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Ενεργό παιχνίδι</string>
     <string name="game_session_channel_description">Διατηρεί ένα ενεργό μίνι παιχνίδι σε λειτουργία όταν η οθόνη είναι σβηστή</string>
     <string name="game_session_notification_title">Παιχνίδι Tracker</string>
@@ -190,7 +173,6 @@
     <string name="game_session_action_pause">Παύση</string>
     <string name="game_session_action_resume">Συνέχιση</string>
     <string name="game_session_action_finish">Τερματισμός</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Προηγούμενες διαδρομές μίνι παιχνιδιών</string>
     <string name="minigame_scores_back">Πίσω</string>
     <string name="minigame_scores_empty_title">Η πρώτη σας διαδρομή σας περιμένει</string>
@@ -203,22 +185,15 @@
     <string name="goals_daily_goal">ημερήσιο</string>
     <string name="goals_weekly_goal">εβδομαδιαίο</string>
     <string name="goals_monthly_goal">μηνιαίο</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Στόχοι βημάτων</string>
     <string name="game_step_sensor_unavailable">Ο αισθητήρας βημάτων δεν είναι διαθέσιμος</string>
     <string name="game_step_sensor_unavailable_detail">Αυτή η συσκευή δεν διαθέτει αισθητήρα μετρητή βημάτων. Δεν είναι δυνατή η παρακολούθηση στόχων βημάτων.</string>
     <string name="game_steps_today">Σήμερα</string>
     <string name="game_steps_week">Εβδομάδα</string>
-    <!-- Game empty states -->
     <string name="game_loading">Φόρτωση…</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Επιστροφή</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Άνοιγμα ρυθμίσεων</string>
     <string name="game_close">Κλείσιμο</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Εξερεύνηση</string>
     <string name="exploration_cells_discovered">Κελιά που ανακαλύφθηκαν</string>
     <string name="exploration_current_streak">Τρέχουσα σειρά</string>
@@ -229,7 +204,6 @@
         <item quantity="other">ημέρες</item>
     </plurals>
     <string name="exploration_of_four">από 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Επιτεύγματα</string>
     <string name="achievements_bronze">Χάλκινο</string>
     <string name="achievements_silver">Ασημένιο</string>
@@ -253,12 +227,8 @@
         <item>Εξαιρετικά</item>
     </string-array>
     <string name="points_earned_today">πόντοι που κερδίσατε σήμερα</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Νέο ξεκλείδωμα!</string>
     <string name="game_unlock_message">Φτάσατε στο επίπεδο %1$d!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Εβδομαδιαία πρόκληση</string>
     <string name="leaderboard_metric_distance">Απόσταση</string>
     <string name="leaderboard_metric_steps">Βήματα</string>
@@ -285,7 +255,6 @@
     <string name="leaderboard_error_title">Ο πίνακας κατάταξης δεν είναι διαθέσιμος</string>
     <string name="leaderboard_error_body">Τα δεδομένα σας είναι ασφαλή σε αυτή τη συσκευή. Δοκιμάστε να φορτώσετε ξανά την εβδομαδιαία πρόκληση.</string>
     <string name="leaderboard_retry">Δοκιμάστε ξανά</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Μυθικό</string>
     <string name="game_view_all_achievements">Προβολή όλων</string>
     <string name="game_recent_achievements">Πρόσφατα ξεκλειδώματα</string>
@@ -310,9 +279,4 @@
     <string name="achievement_category_calendar">Ημερολόγιο</string>
     <string name="achievement_unlocked_content_description">Ξεκλειδωμένο</string>
     <string name="achievement_locked_content_description">Κλειδωμένο</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>
