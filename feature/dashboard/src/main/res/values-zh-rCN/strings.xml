@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">位置权限不可用</string>
     <string name="dashboard_permission_banner_subtitle">授予位置访问权限后，Tracker 才能记录路线。点按以授予。</string>
     <string name="dashboard_permission_banner_cd">位置权限不可用横幅，点按以授予位置访问权限</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">活动类型</string>
     <string name="dashboard_cd_explore_icon">探索</string>
     <string name="dashboard_cd_forward_arrow">查看详情</string>
@@ -28,18 +27,15 @@
     <string name="dashboard_action_view_streak_details">查看连续记录详情</string>
     <string name="dashboard_action_open_tracking_settings">设置</string>
     <string name="dashboard_action_restart_tracking">重新开始</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">海拔剖面：%1$.0f–%2$.0f 米</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f 米/秒</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">正在等待 GPS 信号…</string>
     <string name="dashboard_tracking_recording_route">正在记录路线…</string>
     <string name="dashboard_milestone_distance">千米已达成！</string>
     <string name="dashboard_milestone_steps">步数已达成！</string>
     <string name="dashboard_milestone_time">分钟已跟踪！</string>
     <string name="dashboard_milestone_points">+10 分</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">今天</string>
     <string name="dashboard_today_no_activity">今天尚无活动</string>
     <string name="dashboard_today_distance">距离</string>
@@ -65,10 +61,8 @@
     <string name="dashboard_exploration_new_today">今日新增</string>
     <string name="dashboard_exploration_total_cells">网格单元总数</string>
     <string name="dashboard_exploration_seasons">季节</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">速度</string>
     <string name="dashboard_live_charts_altitude">海拔</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">传感器详情</string>
     <string name="dashboard_sensor_expand">展开传感器详情</string>
     <string name="dashboard_sensor_collapse">收起传感器详情</string>
@@ -80,10 +74,8 @@
     <string name="dashboard_sensor_speed">速度</string>
     <string name="dashboard_sensor_cell_types">蜂窝网络类型</string>
     <string name="dashboard_sensor_raw_coords">坐标（调试）</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">呈上升趋势</string>
     <string name="dashboard_trend_down">呈下降趋势</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">刚刚开始…</string>
     <string name="dashboard_motivational_keep_going">继续加油！💪</string>
     <string name="dashboard_motivational_impressive">出色的会话！</string>
@@ -93,7 +85,6 @@
     <string name="dashboard_motivational_evening">晚上好！回顾一下今天？</string>
     <string name="dashboard_motivational_night">夜猫子模式 🦉</string>
     <string name="dashboard_motivational_streak">🔥 连续 %1$d 天！</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">您的旅程从这里开始</string>
     <string name="dashboard_empty_subtitle">需要时使用下方“准备好了”卡片授予位置访问权限，然后开始您的首次探索。</string>
     <string name="dashboard_empty_feature_explore">探索</string>
@@ -116,23 +107,19 @@
     <string name="dashboard_empty_fab_hint_title">准备好了就开始</string>
     <string name="dashboard_empty_fab_hint_desc">点按此处开始您的首次跟踪会话。</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">点按此处授予位置访问权限，然后开始首次跟踪会话。</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">今日进度</string>
     <string name="widget_streak">连续记录</string>
     <string name="widget_last_session">上次会话</string>
     <string name="widget_recent_trips">最近行程</string>
     <string name="widget_exploration">探索</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">自定义仪表板</string>
     <string name="dashboard_customize_reset">恢复默认设置</string>
     <string name="dashboard_customize_cd_toggle">切换 %1$s 的可见性</string>
     <string name="dashboard_customize_cd_drag_handle">重新排序 %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">没有海拔数据</string>
     <string name="dashboard_cd_no_altitude_data">没有可用的海拔数据</string>
     <string name="dashboard_cd_speed_sparkline">包含 %1$d 个数据点的速度迷你图</string>
     <string name="dashboard_cd_session_path">包含 %1$d 个点的会话路线预览</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">速度</string>
     <string name="dashboard_metric_distance">距离</string>
     <string name="dashboard_metric_duration">时长</string>
@@ -144,13 +131,11 @@
     <string name="dashboard_metric_wifi">Wi-Fi</string>
     <string name="dashboard_metric_cell">蜂窝网络</string>
     <string name="dashboard_metric_coordinates">坐标</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">开始跟踪</string>
     <string name="dashboard_ring_enable_location">启用位置</string>
     <string name="dashboard_pill_start">开始</string>
     <string name="dashboard_pill_stop">停止</string>
     <string name="dashboard_pill_enable_location">启用位置</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">会话洞察</string>
     <string name="dashboard_cd_insight_item">洞察：%1$s</string>
     <string name="widget_latest_achievement">最新成就</string>

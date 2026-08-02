@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel">OSM 地图导入</string>
     <string name="osm_import_notification_channel_description">解析用户导入的 OpenStreetMap 区域时显示的前台通知。</string>
     <string name="osm_import_notification_title">正在导入 OpenStreetMap 区域</string>
     <string name="osm_import_notification_content">已解析 %1$d 条道路</string>

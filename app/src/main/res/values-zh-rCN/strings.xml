@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">游戏</string>
     <string name="module_map_title">地图</string>
     <string name="module_statistics_title">统计</string>
@@ -42,7 +40,6 @@
     <string name="settings_reset_export_watermarks_summary">下一次自动备份将包含所有数据，而非仅包含变更。</string>
     <string name="settings_reset_export_watermarks_done">导出水位标记已重置 — 下次备份将进行完整导出</string>
     <string name="settings_migration_backup_export_title">导出升级前安全备份</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">数据库 v%1$d 的完整副本，在迁移到 v%2$d 前创建，并私密保留最多 30 天</string>
     <string name="settings_migration_backup_warning_title">要导出敏感数据库备份吗？</string>
     <string name="settings_migration_backup_warning_message">此备份可能包含升级前的精确位置、Wi-Fi 和蜂窝网络观测、活动及其他私密数据。请仅将其保存到可信位置。</string>
@@ -105,13 +102,6 @@
         <item>航空</item>
     </string-array>
     <string name="settings_length_system_title">长度单位制</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">开源许可证</string>
     <string name="settings_licenses_subtitle">查看此构建随附的第三方声明。</string>
     <string name="settings_licenses_loading">正在加载许可证…</string>
@@ -127,19 +117,13 @@
     <string name="about_version_label">版本</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">构建提交</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">作者</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">电子邮件</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">链接</string>
     <string name="about_attributions_title">数据署名</string>
     <string name="about_attribution_geonames_label">地名</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">地图和街道数据</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">模块设置</string>
     <string name="settings_core_group_title">核心</string>
     <string name="settings_other_title">单位与显示</string>
@@ -151,16 +135,9 @@
         <item>速度（km/h、mph）</item>
     </string-array>
     <string name="settings_speed_format_title">速度格式</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">设置</string>
     <string name="switch_state_on">开启</string>
     <string name="switch_state_off">关闭</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">私密记录您的旅程</string>
     <string name="onboarding_streamlined_subtitle">所有数据均保留在您的设备上。没有云同步，也没有第三方跟踪。</string>
     <string name="onboarding_benefit_privacy_title">隐私优先</string>
@@ -172,14 +149,12 @@
     <string name="onboarding_get_started">开始使用</string>
     <string name="onboarding_privacy_policy_button">阅读隐私政策</string>
     <string name="onboarding_state_read_error_message">我们无法确认设置是否已完成，因此显示设置以保护您的数据。您可以放心继续。</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">自动清理旧数据</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">永久保留数据；自动清理不会删除旧数据</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
         <item quantity="one">自动移除超过 %1$d 年的数据</item>
         <item quantity="other">自动移除超过 %1$d 年的数据</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">数据保留时长</string>
     <string-array name="settings_data_retention_years_titles">
         <item>永久保留</item>
@@ -189,17 +164,7 @@
         <item>5 年</item>
         <item>10 年</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">继续</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">导出数据</string>
     <string name="settings_export_data_summary">以多种格式保存您的跟踪数据</string>
     <string name="export_format_dialog_title">选择导出格式</string>
@@ -220,19 +185,15 @@
     <string name="settings_export_title">导出</string>
     <string name="settings_import_summary">从支持的类型（%1$s）和归档文件（%2$s）导入数据。数据库导入会合并兼容行，不会替换现有数据。</string>
     <string name="settings_import_title">导入</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">知道了</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">低影响</string>
     <string name="battery_impact_moderate">中等影响</string>
     <string name="battery_impact_high">高影响</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">选择位置精度</string>
     <string name="precision_mode_approximate_title">大致位置</string>
     <string name="precision_mode_approximate_description">基于网络的位置。适合以最低电量消耗跟踪大致区域。</string>
     <string name="precision_mode_precise_title">精确位置</string>
     <string name="precision_mode_precise_description">基于 GPS 的位置。最适合详细路线、热力图和挑战。</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">解锁精确跟踪</string>
     <string name="upgrade_to_precise_message_general">您正在使用大致位置。切换到精确 GPS 跟踪以获得更高准确性。</string>
     <string name="upgrade_to_precise_message_route_analysis">建议使用精确位置进行准确的路线分析和距离测量。</string>
@@ -246,7 +207,6 @@
     <string name="upgrade_to_precise_battery_message">精确 GPS 会使用更多电量。典型设备上的预计跟踪时长：6–8 小时。</string>
     <string name="upgrade_to_precise_button_upgrade">启用精确位置</string>
     <string name="upgrade_to_precise_button_cancel">以后再说</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">高精度</string>
     <string name="tracking_preset_high_accuracy_description">提供最佳细节，使用最快更新频率并启用所有主要传感器</string>
     <string name="tracking_preset_balanced_name">均衡</string>
@@ -267,13 +227,11 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">跟踪策略</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">预计跟踪：%d 小时</item>
         <item quantity="other">预计跟踪：%d 小时</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">选择 Tracker 记录位置的精确程度</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -305,13 +263,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">自动切换单位</string>
     <string name="settings_module_map_subtitle">热力图质量和可视化选项</string>
     <string name="settings_module_game_subtitle">目标、成就和里程碑</string>
     <string name="action_navigate_back">返回</string>
     <string name="action_help">帮助</string>
-    <!-- App Widgets -->
     <string name="widget_loading">正在加载…</string>
     <string name="widget_quick_start_name">Tracker 快速开始</string>
     <string name="widget_quick_start_description">点按一次即可开始或停止位置跟踪。</string>
@@ -348,7 +304,6 @@
     <string name="widget_tier_ambient">环境</string>
     <string name="widget_tier_active">活动</string>
     <string name="widget_tier_precision">精确</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">进度不错！</string>
     <string name="goal_notification_title_almost">快完成了！</string>
     <plurals name="goal_notification_body_75">
@@ -361,7 +316,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">智能目标通知</string>
     <string name="settings_smart_goal_notifications_summary">接近每日步数目标时接收通知</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">如何进行跟踪？</string>
     <string name="setup_how_to_track_subtitle">选择何时开始跟踪以及所需的细节程度。</string>
     <string name="setup_auto_tracking_title">自动跟踪</string>
@@ -410,7 +364,6 @@
     <string name="setup_start_exploring">开始探索</string>
     <string name="setup_continue">继续</string>
     <string name="setup_step_indicator">第 %1$d 步，共 %2$d 步</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">在线地图瓦片？</string>
     <string name="setup_online_tiles_subtitle">Tracker 随附离线底图，因此无需网络也可工作。若需要更丰富的地图，可改为从公共提供商流式加载瓦片。</string>
     <string name="setup_online_tiles_off_title">仅离线（推荐）</string>
@@ -419,10 +372,8 @@
     <string name="setup_online_tiles_on_desc">从 OpenFreeMap（默认）流式加载更高细节的矢量瓦片。您可以稍后在“设置 → 地图”中更改提供商。</string>
     <string name="setup_online_tiles_privacy">启用后，提供商可看到您的 IP 地址及您加载的瓦片 — 即您正在查看的大致地图区域。Tracker 绝不会发送帐户、标识符或您的位置历史记录。</string>
     <string name="setup_online_tiles_change_later">您可随时在“设置 → 地图 → 在线地图瓦片”中更改此设置。</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">要在屏幕关闭或应用关闭时记录行程，Tracker 需要持续在后台运行。手机的电池设置可能会暂停它 — 请允许后台活动以确保自动跟踪可靠运行。</string>
     <string name="setup_background_access_optional">此项可选，但建议开启。您可随时在“设置 → 跟踪”中更改。</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">可靠的后台跟踪</string>
     <string name="background_reliability_status_exempt">已允许后台活动</string>
     <string name="background_reliability_status_optimized">已开启电池优化</string>
@@ -431,7 +382,6 @@
     <string name="background_reliability_allow_action">允许后台活动</string>
     <string name="background_reliability_samsung_hint">Samsung 设备还可能将应用放入“休眠应用”。请打开电池设置，将 Tracker 从休眠应用中移除，并将其设为不休眠。</string>
     <string name="background_reliability_samsung_action">打开设备电池设置</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">崩溃诊断</string>
     <string name="settings_tracebox_root_summary">本地崩溃、ANR 和结构诊断</string>
     <string name="settings_tracebox_status_header">捕获状态</string>
