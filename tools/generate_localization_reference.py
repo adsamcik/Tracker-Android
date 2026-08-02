@@ -278,7 +278,9 @@ the default resource set and is not duplicated as a locale bucket.
    quantities when Android expects them.
 5. Retain reviewed existing translations where they are still accurate. The JSON
    inventory records which locale qualifiers already define each resource.
-6. Do not change Kotlin or Java call sites while translating. The usage_files field
+6. Run tools/validate_locale_resources.py <qualifier> before handing the locale
+   back. It checks XML, resource parity, attributes, and format tokens.
+7. Do not change Kotlin or Java call sites while translating. The usage_files field
    is a usage map for context only; a resource name may appear in more than one
    module.
 
