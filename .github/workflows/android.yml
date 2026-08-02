@@ -18,6 +18,39 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check unused string resources
         run: python3 tools/check_unused_string_resources.py
+      - name: Validate completed locale resources
+        run: |
+          for qualifier in \
+            values-bg-rBG \
+            values-hr-rHR \
+            values-cs-rCZ \
+            values-da-rDK \
+            values-nl-rNL \
+            values-et-rEE \
+            values-fi-rFI \
+            values-fr-rFR \
+            values-de-rDE \
+            values-el-rGR \
+            values-ga-rIE \
+            values-hu-rHU \
+            values-it-rIT \
+            values-lv-rLV \
+            values-lt-rLT \
+            values-mt-rMT \
+            values-pl-rPL \
+            values-pt-rPT \
+            values-ro-rRO \
+            values-sk-rSK \
+            values-sl-rSI \
+            values-es-rES \
+            values-sv-rSE \
+            values-ja-rJP \
+            values-zh-rCN \
+            values-zh-rTW \
+            values-hi-rIN
+          do
+            python3 tools/validate_locale_resources.py "$qualifier"
+          done
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
