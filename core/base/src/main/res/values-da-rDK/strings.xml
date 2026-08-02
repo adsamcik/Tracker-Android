@@ -1,36 +1,62 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Gang</string>
+    <string name="activity_running">Løb</string>
     <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
+    <string name="activity_slope_sports">Pistesport</string>
+    <string name="activity_land_vehicle">Landkøretøj</string>
+    <string name="activity_water_vehicle">Vandfartøj</string>
+    <string name="activity_air_vehicle">Luftfartøj</string>
+    <!-- Legacy/system activities -->
+    <string name="activity_in_vehicle">I køretøj</string>
+    <string name="activity_on_foot">Til fods</string>
+    <string name="activity_name">Aktivitetsnavn</string>
+    <string name="activity_raw_still">Står stille</string>
+    <string name="activity_raw_tilting">Vipper</string>
+    <string name="activity_still">Står stille</string>
     <string name="activity_unknown">Unknown</string>
     <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
+    <string name="alert_confirm">Er du sikker på, at du vil %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">Ingen</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">Ukendt</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
+    <string name="channel_activity_watcher_description">Denne kanal bruges kun til Aktivitetsovervågningstjenesten, så du nemt kan slå den permanente notifikation fra.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Aktivitetsovervågning</string>
+    <string name="channel_achievements_description">Notifikationer om præstationer.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Præstation</string>
+    <string name="channel_other_description">Andre notifikationer, der ikke hører til nogen anden kategori.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Andet</string>
+    <string name="channel_track_description">Notifikationer om sporing.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Sporing</string>
+    <string name="channel_goals_description">Advarsler om gennemførte mål.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Målfremskridt</string>
     <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="generic_add">Tilføj</string>
+    <string name="generic_back">Tilbage</string>
+    <string name="generic_cancel">Annuller</string>
+    <string name="generic_delete">Slet</string>
+    <string name="generic_edit">Rediger</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
-    <string name="hour_short">%d h</string>
+    <string name="generic_undo">fortryd</string>
+    <string name="hour_short">%d t</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>
 </resources>

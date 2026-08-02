@@ -1,0 +1,236 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">%1$s Spor på mindst %2$d forskellige dage for at låse den op.</string>
+    <!-- Distance-based -->
+    <string name="ach_title_distance_total">Tilbagelæg %1$s</string>
+    <string name="ach_desc_distance_total">Tilbagelæg i alt %1$s registreret afstand på tværs af alle dine sessioner.</string>
+    <string name="ach_title_week_distance">%1$s i denne uge</string>
+    <string name="ach_desc_week_distance">Tilbagelæg %1$s i en enkelt kalenderuge.</string>
+    <string name="ach_title_best_day_distance">%1$s på én dag</string>
+    <string name="ach_desc_best_day_distance">Tilbagelæg %1$s på en enkelt dag.</string>
+    <string name="ach_title_max_session_distance">%1$s i én session</string>
+    <string name="ach_desc_max_session_distance">Registrér en enkelt session, der dækker %1$s uden at stoppe.</string>
+    <string name="ach_title_on_foot_distance">Gå eller løb %1$s</string>
+    <string name="ach_desc_on_foot_distance">Tilbagelæg %1$s til fods (gang og løb tilsammen).</string>
+    <string name="ach_title_cycling_distance">Cykel %1$s</string>
+    <string name="ach_desc_cycling_distance">Cykel %1$s i alt.</string>
+    <string name="ach_title_vehicle_distance">Motordrevet rejse på %1$s</string>
+    <string name="ach_desc_vehicle_distance">Tilbagelæg %1$s med bil, bus, tog, båd eller fly.</string>
+    <!-- Steps -->
+    <string name="ach_title_steps_total">Tag %1$s skridt</string>
+    <string name="ach_desc_steps_total">Registrér %1$s skridt på tværs af alle dine sessioner.</string>
+    <string name="ach_title_best_daily_steps">%1$s skridt på én dag</string>
+    <string name="ach_desc_best_daily_steps">Tag %1$s skridt på en enkelt dag.</string>
+    <!-- Counts (plurals) -->
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">Første session</item>
+        <item quantity="other">Registrér %1$s sessioner</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">Registrér i alt %1$s sporingssessioner.</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">Opdag din første celle</item>
+        <item quantity="other">Opdag %1$s kortfelter</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">Udforsk %1$s forskellige gitterfelter på kortet (hver ca. 1 km²).</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">Besøg %d land</item>
+        <item quantity="other">Besøg %d lande</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">Registrér mindst én session i %1$d forskellige lande.</string>
+    <!-- Days / streaks (plurals) -->
+    <plurals name="ach_title_active_days">
+        <item quantity="one">Første aktive dag</item>
+        <item quantity="other">%1$s aktive dage</item>
+    </plurals>
+    <string name="ach_desc_active_days">Spor aktivitet på i alt %1$s forskellige dage.</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d-dags serie</item>
+        <item quantity="other">%d-dages serie</item>
+    </plurals>
+    <string name="ach_desc_current_streak">Spor aktivitet %1$d dage i træk.</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">Personlig rekord: %d dag</item>
+        <item quantity="other">Personlig rekord: %d dage</item>
+    </plurals>
+    <string name="ach_desc_best_streak">Opnå en personlig rekord med %1$d dages sporing i træk.</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">%d måned med Tracker</item>
+        <item quantity="other">%d måneder med Tracker</item>
+    </plurals>
+    <string name="ach_desc_months_active">Vær aktiv i Tracker i %1$d forskellige måneder.</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">%d aktiv dag i denne uge</item>
+        <item quantity="other">%d aktive dage i denne uge</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">Spor aktivitet på %1$d dage i en enkelt uge.</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Første dag med Tracker</item>
+        <item quantity="other">%1$s dage med Tracker</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Hav Tracker installeret i %1$s dage.</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">Velkommen tilbage</item>
+        <item quantity="other">Velkommen tilbage efter %d dage</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">Vend tilbage til sporing efter en pause på %1$d dage.</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">Spor i %d time af døgnet</item>
+        <item quantity="other">Spor i %d forskellige timer</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">Registrér aktivitet i %1$d forskellige timer af døgnet på tværs af alle sessioner.</string>
+    <string name="ach_title_days_of_week">Alle ugens syv dage</string>
+    <string name="ach_desc_days_of_week">Spor aktivitet på hver ugedag mindst én gang.</string>
+    <!-- Activity diversity -->
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">Prøv %d aktivitetstype</item>
+        <item quantity="other">Prøv %d aktivitetstyper</item>
+    </plurals>
+    <string name="ach_desc_activity_types">Registrér sessioner i %1$d forskellige aktivitetstyper (gå, cykle, køre, …).</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">%d aktivitetstype i denne uge</item>
+        <item quantity="other">%d aktivitetstyper i denne uge</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">Brug %1$d forskellige aktivitetstyper i en enkelt uge.</string>
+    <string name="ach_title_week_all_days">Spor hver dag i en uge</string>
+    <string name="ach_desc_week_all_days">Registrér aktivitet på alle syv dage i en kalenderuge.</string>
+    <string name="ach_title_walk_cycle_drive">Gå, cykl, kør</string>
+    <string name="ach_desc_walk_cycle_drive">Registrér mindst én session af hver: gang, cykling og kørsel.</string>
+    <!-- Time / speed -->
+    <string name="ach_title_max_session_duration">Session på %1$s</string>
+    <string name="ach_desc_max_session_duration">Registrér en enkelt session, der varer mindst %1$s.</string>
+    <string name="ach_title_max_speed">Nå %1$s</string>
+    <string name="ach_desc_max_speed">Opnå en tophastighed på mindst %1$s under en session.</string>
+    <string name="ach_title_active_minutes">%1$s aktive minutter</string>
+    <string name="ach_desc_active_minutes">Saml %1$s minutters aktiv sporingstid.</string>
+    <!-- Other -->
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">Første eksport</item>
+        <item quantity="other">%d eksporter</item>
+    </plurals>
+    <string name="ach_desc_exports_total">Eksportér dine data %1$d gange.</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">Spor gennem én årstid</item>
+        <item quantity="other">Spor gennem %d årstider</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">Registrér aktivitet i %1$d forskellige årstider (forår/sommer/efterår/vinter).</string>
+    <!-- Calendar specials -->
+    <string name="ach_title_calendar_new_year">Nytårssporer</string>
+    <string name="ach_desc_calendar_new_year">Registrér en session den 1. januar.</string>
+    <string name="ach_title_calendar_leap_day">Skuddags-pioner</string>
+    <string name="ach_desc_calendar_leap_day">Registrér en session den 29. februar.</string>
+    <string name="ach_title_calendar_summer_solstice">Sommersolhverv</string>
+    <string name="ach_desc_calendar_summer_solstice">Registrér en session på årets længste dag.</string>
+    <string name="ach_title_calendar_winter_solstice">Vintersolhverv</string>
+    <string name="ach_desc_calendar_winter_solstice">Registrér en session på årets korteste dag.</string>
+    <!-- Batch A: new metric families -->
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">Natteravn</item>
+        <item quantity="other">%1$s natlige sessioner</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">Registrér %1$d sessioner, der starter mellem midnat og kl. 5.</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">Morgenfugl</item>
+        <item quantity="other">%1$s sessioner ved daggry</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">Registrér %1$d sessioner, der starter mellem kl. 5 og 8.</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">Manuel sporing</item>
+        <item quantity="other">Start %1$s sessioner manuelt</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">Start selv %1$d sporingssessioner manuelt.</string>
+    <string name="ach_title_max_cycle_session">Cykel %1$s på én tur</string>
+    <string name="ach_desc_max_cycle_session">Cykel %1$s på en enkelt tur.</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">Multimodal dag</item>
+        <item quantity="other">%d multimodale dage</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">Rejs til fods, på cykel og med motoriseret transport på samme dag, på %1$d forskellige dage.</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">Et sted for alle årstider</item>
+        <item quantity="other">Alle fire årstider på %d steder</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">Besøg %1$d kortfelter gennem alle fire årstider.</string>
+    <string name="ach_title_max_cell_visits">Besøg ét sted %1$d gange</string>
+    <string name="ach_desc_max_cell_visits">Besøg et enkelt kortfelt %1$d gange.</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">Udforsk et felt grundigt</item>
+        <item quantity="other">Udforsk %1$s felter grundigt</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">Udforsk %1$d forskellige kortfelter grundigt.</string>
+    <string name="ach_title_max_cell_span">Nå %1$s fra hinanden</string>
+    <string name="ach_desc_max_cell_span">Opdag to kortfelter med mindst %1$s imellem.</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">Opdag et felt på én dag</item>
+        <item quantity="other">Opdag %d felter på én dag</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">Opdag %1$d nye kortfelter på en enkelt dag.</string>
+    <string name="ach_title_max_cell_revisit_gap">Vend tilbage efter %1$d dage</string>
+    <string name="ach_desc_max_cell_revisit_gap">Besøg et kortfelt igen %1$d dage efter, du først opdagede det.</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">En perfekt måned</item>
+        <item quantity="other">%d perfekte måneder</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">Spor aktivitet hver eneste dag i %1$d kalendermåneder.</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">Brug ét eksportformat</item>
+        <item quantity="other">Brug %d eksportformater</item>
+    </plurals>
+    <string name="ach_desc_export_formats">Eksportér dine data i %1$d forskellige filformater.</string>
+    <!-- Batch B: progression / mini-games -->
+    <string name="ach_title_player_level">Nå niveau %1$d</string>
+    <string name="ach_desc_player_level">Klatr til spillerniveau %1$d.</string>
+    <string name="ach_title_best_day_xp">%1$s XP på én dag</string>
+    <string name="ach_desc_best_day_xp">Optjen %1$d XP på en enkelt dag.</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">Spil dit første minispil</item>
+        <item quantity="other">Spil %1$s minispil</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">Gennemfør %1$d gennemspilninger af minispil.</string>
+    <!-- Elevation (#27) -->
+    <string name="ach_title_total_ascent">Klatr %1$s</string>
+    <string name="ach_desc_total_ascent">Saml i alt %1$s højdestigning på tværs af al din sporing.</string>
+    <!-- Goals / points loop (#7, #11) -->
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">Optjen fra én XP-kilde</item>
+        <item quantity="other">Optjen fra %d XP-kilder</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">Optjen XP fra %1$d forskellige kilder — sporingssessioner, minispil og mål.</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">En perfekt uge</item>
+        <item quantity="other">%d perfekte uger</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">Opfyld dit daglige skridtmål hver dag i %1$d hele uger.</string>
+    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d-dags målserie</item>
+        <item quantity="other">%d-dages målserie</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">Opfyld dit daglige skridtmål %1$d dage i træk.</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">Lås én præstation op</item>
+        <item quantity="other">Lås %d præstationer op</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">Lås i alt %1$d præstationer op.</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">Fuldfør en kategori</item>
+        <item quantity="other">Fuldfør %d kategorier</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">Lås alle præstationer op i %1$d forskellige kategorier.</string>
+    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d-sekunds</item>
+        <item quantity="other">%d-sekunders</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d-minuts</item>
+        <item quantity="other">%d-minutters</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d-times</item>
+        <item quantity="other">%d-timers</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d-dags</item>
+        <item quantity="other">%d-dages</item>
+    </plurals>
+</resources>

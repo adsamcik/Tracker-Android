@@ -1,22 +1,228 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
+<?xml version='1.0' encoding='UTF-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Kort</string>
+    <string name="description_map_search">Søgeknap</string>
+    <string name="map_layer_cell_heatmap_description">Varmekort over mobilsignal. Varmen ændrer sig efter den tilgængelige teknologi.</string>
     <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
+    <string name="map_layer_location_heatmap_high">Høj tæthed</string>
+    <string name="map_layer_location_heatmap_low">Lav tæthed</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Middeltæthed</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Unikke besøg</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Besøg</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativ tæthed af accepterede positionsmålinger. Dette viser separate observationer, ikke tidsforbrug.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-dækning</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Signalblinde zoner</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Fremhæver steder, hvor dit mobilsignal var svagt eller manglede. Jo rødere området er, desto dårligere er dækningen; områder med god dækning forbliver klare.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Signalnordlys</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Nordlys</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Mobilsignal gengivet som et nordlyslignende skær: en bred violet glorie under en lys cyan-grøn kerne. Skæret pulserer uden at genindlæse data og bliver statisk, når systemanimationer er deaktiveret.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Svagt signal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Stærkt signal</string>
+    <string name="map_layer_speed_heatmap_description">Varmekort, der viser bevægelseshastigheden på tværs af forskellige områder.</string>
+    <string name="map_layer_speed_very_slow">Meget langsom</string>
+    <string name="map_layer_speed_walking">Gangtempo</string>
+    <string name="map_layer_speed_running">Løbetempo</string>
+    <string name="map_layer_speed_moderate">Moderat hastighed</string>
+    <string name="map_layer_speed_fast">Hurtig bevægelse</string>
+    <string name="map_layer_speed_very_fast">Meget hurtig</string>
+    <string name="map_layer_speed_heatmap_title">Hastighedsvarmekort</string>
+    <string name="map_layer_legacy_heatmap_title">Klassisk varmekort</string>
+    <string name="map_layer_legacy_heatmap_chip">Klassiske fliser</string>
+    <string name="map_layer_legacy_heatmap_description">En hyldest til den oprindelige Signals-app: din placeringstæthed tegnet som separate 25 m-gitterfliser, sådan som varmekortet så ud, da fliser blev gengivet på serveren. Zoom ind for at se kvadraterne.</string>
+    <string name="map_layer_seasonal_title">Sæsonudforsker</string>
+    <string name="map_layer_seasonal_chip">Sæsoner</string>
+    <string name="map_layer_seasonal_description">Et tæppe af sæsonminder: hvert område, du har udforsket, tones efter den sæson, du først besøgte det i. Find stier, du kun går om sommeren, eller gader du kun ser om vinteren.</string>
+    <string name="map_layer_season_spring">Forår</string>
+    <string name="map_layer_season_summer">Sommer</string>
+    <string name="map_layer_season_autumn">Efterår</string>
+    <string name="map_layer_season_winter">Vinter</string>
+    <string name="map_layer_terrain_title">Livet som terræn</string>
+    <string name="map_layer_terrain_chip">Terræn</string>
+    <string name="map_layer_terrain_description">Din placeringstæthed løftet til 3D: stederne, hvor du bruger mest tid, rejser sig som høje lysende plateauer, mens enkeltstående steder forbliver lave. Vip kortet for at se dit livs relief.</string>
+    <string name="map_layer_terrain_low">Sjældent her</string>
+    <string name="map_layer_terrain_mid">Af og til</string>
+    <string name="map_layer_terrain_high">Ofte her</string>
+    <string name="map_layer_places_title">Hyppige steder</string>
+    <string name="map_layer_places_chip">Steder</string>
+    <string name="map_layer_places_description">Dine vigtige steder som markører, hver med størrelse og farve efter hvor ofte du besøger dem. Hjem og arbejde bliver store, varme prikker; et sted, du kun har været ét enkelt gang, forbliver en lille, kølig prik.</string>
+    <string name="map_layer_places_rare">Sjældent</string>
+    <string name="map_layer_places_often">Af og til</string>
+    <string name="map_layer_places_anchor">Dine holdepunkter</string>
+    <string name="map_layer_speed_ribbon_title">Hastighedsbånd</string>
+    <string name="map_layer_speed_ribbon_chip">Bånd</string>
+    <string name="map_layer_speed_ribbon_description">Din rute farvelægges efter, hvor hurtigt du bevægede dig, med flydende farver fra en langsom violet spadseretur til en rødglødende sprint eller køretur. I modsætning til hastighedsvarmekortet bevarer båndet din sti, så du kan se præcis, hvor du satte farten op og sænkede den.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Højdebånd</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Højde</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Din rute farvelægges efter absolut højde, fra dybblåt lavland over cyanfarvede forbjerge til varme bjerghøjder. Skalaen forbliver fast, mens du flytter kortet, så den samme højde altid har den samme farve.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Lavland</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Forbjerge</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Høje bjerge</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Aktivitetsbånd</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktivitet</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Din rute farvelægges efter den pålidelige bevægelsestilstand, der er registreret ved hver måling: grå, når tilstanden var ukendt, blå når du stod stille, og grøn når du bevægede dig.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Ukendt</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Står stille</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">I bevægelse</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Ski-røntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski-røntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">En diagnostisk visning af registrerede skisegmenter. Nedfarter, lifter, gåture og pauser forankres ved den nærmeste registrerede placering og mærkes med deres vigtigste målinger.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nedfart</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gåtur eller pause</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Rute-konstellationer</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Ture</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Gentagne rejser mellem dine hyppige steder bliver til buede konstellationer. En stabil bue viser hver rute, mens en komet bevæger sig langs den; tykkere buer betyder, at du foretog den rejse oftere.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gang</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Kørsel</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Offentlig transport</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Andet</string>
+    <string name="map_layer_fog_title">Udforskerens tåge</string>
+    <string name="map_layer_fog_chip">Tåge</string>
+    <string name="map_layer_fog_description">Verden, der træder frem af tågen: hvert område, du har berørt, afsløres og lyser klarere, jo grundigere du har lært det at kende. Steder, du kun passerede, forbliver en svag dis; et sted, du udforskede dybt, brænder gyldent. Uudforsket terræn forbliver mørkt.</string>
+    <string name="map_layer_fog_faint">Passeret</string>
+    <string name="map_layer_fog_known">Godt udforsket</string>
+    <string name="map_layer_first_contact_title">Første kontakt</string>
+    <string name="map_layer_first_contact_chip">Opdagelse</string>
+    <string name="map_layer_first_contact_description">En tidslinje over dine opdagelser: hvert område er farvet efter, hvor længe siden du først satte fod der. Steder, du fandt for længe siden, falmer til dyb indigo, mens terræn, du åbnede op for i denne uge, lyser klart cyan — læs historien om din udforskning ud til dine nyeste grænser.</string>
+    <string name="map_layer_first_contact_old">For længe siden</string>
+    <string name="map_layer_first_contact_recent">Netop opdaget</string>
+    <string name="map_layer_vehicle_compliance_title">Overholdelse af køretøjshastighed</string>
+    <string name="map_layer_vehicle_compliance_description">Polylinje med kørselsprøver farvelagt efter, hvordan hastigheden sammenlignes med din konfigurerede grundgrænse.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Langt under grænsen</string>
+    <string name="map_layer_vehicle_compliance_slow">Under grænsen</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Nær grænsen</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Lidt over</string>
+    <string name="map_layer_vehicle_compliance_speeding">For høj fart</string>
+    <string name="map_layer_location_polyline_description">Linje, der forbinder dine registrerede placeringer over tid.</string>
+    <string name="map_layer_location_polyline_title">Positionspolylinje</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Polylinje</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-overlap</string>
+    <string name="map_layer_vehicle_compliance_chip">For høj fart</string>
+    <string name="map_layer_none_title">Ingen overlejring</string>
+    <string name="map_date_preset_week">Sidste uge</string>
+    <string name="map_date_preset_month">Sidste måned</string>
+    <string name="map_date_preset_custom">Brugerdefineret…</string>
+    <string name="map_date_today">I dag</string>
+    <string name="map_date_yesterday">I går</string>
+    <string name="map_date_this_week">Denne uge</string>
     <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
+    <string name="map_layer_wifi_count_heatmap_description">Viser, hvor mange forskellige adgangspunkter der overlapper hvert sted. Gentagne scanninger af samme adgangspunkt tæller kun én gang, så varmere områder betyder reelt tættere radiodækning.</string>
+    <string name="map_layer_wifi_heatmap_description">Varmekort baseret på det anslåede antal Wi-Fi-netværk i et område.</string>
     <string name="map_layer_wifi_heatmap_high">high density</string>
     <string name="map_layer_wifi_heatmap_low">low density</string>
     <string name="map_layer_wifi_heatmap_medium">medium density</string>
     <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz rækkevidde</string>
+    <string name="map_layer_wifi_radio_5">5 GHz rækkevidde</string>
+    <string name="map_layer_wifi_radio_6">6 GHz rækkevidde</string>
+    <string name="map_legend_label">Forklaring</string>
+    <string name="map_chip_layers">Lag</string>
+    <string name="map_chip_dates">Datoer</string>
+    <string name="permission_rationale_location_map">Præcis adgang til placering kræves for at vise din placering på kortet.</string>
+    <string name="map_location_permission_denied">Placeringstilladelse kræves for at vise din position</string>
+    <string name="map_open_settings">Åbn Indstillinger</string>
+    <string name="settings_map_basemap_title">Grundkort</string>
+    <string name="settings_map_basemap_custom">Brugerdefineret .pmtiles-fil aktiv (tryk for at fjerne)</string>
+    <string name="settings_map_basemap_default">Indbygget grundkort er aktivt. Tryk for at importere en brugerdefineret .pmtiles-fil.</string>
+    <string name="basemap_import_error_source_open">Kunne ikke åbne filen. Prøv en anden, eller del den med Tracker igen.</string>
+    <string name="basemap_import_error_copy">Kunne ikke kopiere grundkortfilen. Kontrollér, at der er nok ledig plads, og prøv igen.</string>
+    <string name="basemap_import_error_invalid_format">Ikke en gyldig PMTiles-fil: %1$s</string>
+    <string name="settings_map_advanced_section_title">Avancerede indstillinger</string>
+    <string name="settings_map_max_heat_title">Maksimal varme efter besøg</string>
+    <string name="settings_map_quality_title">Varmekortets opløsning</string>
+    <string name="settings_map_visit_threshold_title">Tidsgrænse for placeringsbesøg</string>
+    <string name="settings_map_legacy_heatmap_title">Klassisk varmekort (10 m-fliser)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Påskeæg: tilføjer et "Klassisk varmekort"-lag, der tegner placeringstæthed som separate 10 m-gitterfliser, som det oprindelige servergengivne Signals-varmekort.</string>
+    <string name="settings_map_zoom_buttons_title">Kortets zoomknapper</string>
+    <string name="settings_map_zoom_buttons_subtitle">Vis + og − knapper på skærmen til at zoome kortet, når knib-til-zoom er svær at bruge.</string>
+    <string name="tips_map_date_range_title">Datointerval</string>
+    <string name="tips_map_my_location_title">Min placering</string>
+    <string name="tips_map_sheet_description">Tryk på eller træk denne bjælke op for at åbne flere indstillinger for kortet, herunder lagvalg og forklaring.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Bredde, længde f.eks. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Prøv 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
+    <string name="map_search_clear">Ryd søgning</string>
+    <string name="map_search_paste">Indsæt fra udklipsholder i søgning</string>
+    <string name="map_search_clipboard_empty">Udklipsholderen indeholder endnu ikke koordinater</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Annuller</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Del kort</string>
+    <string name="map_share_sheet_title">Del kort som billede</string>
+    <string name="map_share_sheet_subtitle">Gengiver den aktuelle visning og det aktive lag som et statisk billede. Din liveplacering medtages aldrig.</string>
+    <string name="map_share_resolution_standard">Standard (1080p)</string>
+    <string name="map_share_resolution_high">Høj (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Del</string>
+    <string name="map_share_preparing">Forbereder billede…</string>
+    <string name="map_share_error">Kunne ikke gengive kortbilledet. Prøv igen.</string>
+    <string name="map_date_range_all_time">Hele perioden</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Kortlag</string>
+    <string name="map_layer_load_error">Kunne ikke indlæse dette lag. Prøv at vælge et andet.</string>
+    <string name="map_empty_subtitle_location">Ingen placeringsdata i denne visning eller dette datointerval. Rute- og kortfunktioner kræver placeringer indsamlet under sporing.</string>
+    <string name="map_empty_subtitle_cell">Ingen mobilnetværksdata med placering i denne visning eller dette datointerval. Mobilprøver, der er registreret uden placering, gemmes stadig, men kan ikke vises på kortet.</string>
+    <string name="map_empty_subtitle_wifi">Ingen Wi-Fi-data med placering i denne visning eller dette datointerval. Wi-Fi-observationer, der er registreret uden placering, gemmes stadig, men kan ikke vises på kortet.</string>
+    <string name="map_empty_subtitle_speed">Ingen hastighedsdata i denne visning eller dette datointerval. Hastighedskort kræver brugbare placeringsprøver indsamlet under sporing.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Ingen vejtilpassede kørsler at vise. Importér en OpenStreetMap-region (Indstillinger), og registrér noget kørsel, så vi kan tilpasse din rute til rigtige veje.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Afvis meddelelse om manglende data</string>
+    <string name="map_speed_probe_title">Hastighed her</string>
+    <string name="map_speed_probe_avg_label">Gennemsnit</string>
+    <string name="map_speed_probe_max_label">Maks.</string>
+    <string name="map_speed_probe_empty">Ingen hastighedsdata på dette sted. Tryk et sted med varme for at se hastigheder.</string>
+    <string name="map_speed_probe_hint">Tryk på kortet for at se hastigheder</string>
+    <string name="map_speed_probe_dismiss">Afvis hastighedsdetaljer</string>
+    <string name="map_place_callout_loading">Finder sted…</string>
+    <string name="map_place_callout_empty">Intet sted fundet her</string>
+    <string name="map_place_callout_dismiss">Afvis stedsdetaljer</string>
+    <string name="map_zoom_in">Zoom ind</string>
+    <string name="map_zoom_out">Zoom ud</string>
+    <string name="map_loading">Indlæser kort…</string>
+    <string name="map_basemap_unavailable">Kortets grundkort kunne ikke forberedes. Luk og åbn kortet igen for at prøve igen.</string>
+    <string name="map_a11y_map_overview">Kortoversigt</string>
+    <string name="map_a11y_centered_on_location">Kort centreret på din placering</string>
+    <string name="map_a11y_showing_location">Kort viser din placering</string>
+    <string name="map_a11y_loading_data">Indlæser registrerede kortdata</string>
+    <string name="map_a11y_no_recorded_data">Det valgte lag har ingen data, der kan vises på kortet, i denne visning eller dette datointerval</string>
+    <string name="map_a11y_no_layer_selected">Intet kortlag valgt</string>
+    <string name="map_a11y_search_result_visible">Markør for søgeresultat er synlig</string>
+    <string name="map_a11y_active_recording_visible">Aktiv registreringsrute er synlig</string>
+    <string name="map_a11y_recorded_route_history">Viser registreret rutehistorik</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Viser separate accepterede positionsobservationer</string>
+    <string name="map_a11y_cell_heatmap">Viser mobildækningsfelter og omtrentlige centre for basestationer</string>
+    <string name="map_a11y_wifi_heatmap">Viser Wi-Fi-bånd, dækningsfelter og omtrentlige centre for adgangspunkter</string>
+    <string name="map_a11y_wifi_count_heatmap">Viser overlap mellem forskellige Wi-Fi-adgangspunkter</string>
+    <string name="map_a11y_speed_heatmap">Viser et hastighedsvarmekort</string>
+    <string name="map_a11y_saved_map_data">Viser gemte kortdata</string>
+    <string name="map_location_permission_opening_settings">Adgang til placering kræves. Åbner Indstillinger…</string>
+    <string name="map_permission_banner_dismiss">Afvis meddelelse om placeringstilladelse</string>
+    <string name="map_loading_layer">Indlæser kortlag</string>
+    <string name="map_a11y_world_scale">Verdensskala</string>
+    <string name="map_a11y_regional_scale">Regional skala</string>
+    <string name="map_a11y_city_scale">Byskala</string>
+    <string name="map_a11y_neighborhood_scale">Nabolagsskala</string>
+    <string name="map_a11y_street_scale">Gadeskala</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Multiplikator for gengivelsesdetaljer. Højere værdier viser flere detaljer, men kan gøre indlæsningen af kort langsommere på ældre enheder.</string>
+    <string name="help_max_heat_points">Maksimalt antal placeringspunkter vist i varmekortvisningen. Højere værdier giver flere detaljer, men langsommere gengivelse.</string>
+    <string name="help_visit_threshold">Hvor længe du skal blive ét sted, før det markeres som et besøg på kortet. Øg dette for at reducere rod fra korte stop.</string>
 </resources>

@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Statistik</string>
+    <string name="stats_cell_count">Antal mobilceller</string>
     <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
+    <string name="stats_distance_in_vehicle">Afstand i køretøj</string>
+    <string name="stats_distance_on_foot">Afstand til fods</string>
+    <string name="stats_distance_total">Afstand</string>
     <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_error_generic">Something went wrong</string>
-    <string name="stats_append_error">Load more failed</string>
-    <string name="action_retry">Retry</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <string name="stats_location_count">Antal placeringer</string>
+    <string name="stats_no_tracker_sessions">Ingen sporingssessioner endnu</string>
+    <string name="stats_empty_subtitle">Start sporing for at se din aktivitet her</string>
+    <string name="stats_session_count">Antal sessioner</string>
+    <string name="stats_steps">Antal skridt</string>
+    <string name="stats_metric_not_available_short">N/A</string>
+    <string name="stats_sum_title">Oversigt</string>
+    <string name="stats_time">Tid brugt på sporing</string>
+    <string name="stats_weekly_title">Seneste 7 dage</string>
+    <string name="stats_wifi_count">Antal Wi-Fi-netværk</string>
+    <string name="stats_wifi_chip_label">Wi-Fi-statistik</string>
+    <string name="stats_cell_signal_chip_label">Mobilsignal</string>
+    <string name="stats_filter_dates">Datoer</string>
+    <string name="stats_filter_active_label">Viser %1$s</string>
+    <string name="stats_filter_clear">Ryd filter</string>
+    <string name="stats_date_dialog_title">Datointerval</string>
+    <string name="stats_date_summary_placeholder">Vælg et interval til filtrering af sessioner</string>
+    <string name="stats_date_preset_today">I dag</string>
+    <string name="stats_date_preset_yesterday">I går</string>
+    <string name="stats_date_preset_last_7_days">Seneste 7 dage</string>
+    <string name="stats_date_preset_last_30_days">Seneste 30 dage</string>
+    <string name="stats_date_preset_this_month">Denne måned</string>
+    <string name="stats_date_preset_last_month">Sidste måned</string>
+    <string name="stats_date_preset_this_year">Dette år</string>
+    <string name="stats_date_preset_all_time">Hele perioden</string>
+    <string name="stats_sparse_summary_title">Denne uge med et blik</string>
+    <string name="stats_sparse_summary_active_days">Aktive dage</string>
+    <string name="stats_sparse_summary_week_label">Daglig aktivitet</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Kun %1$d session er synlig, så denne kompakte oversigt udfylder resten af din seneste aktivitet.</item>
+        <item quantity="other">Kun %1$d sessioner er synlige, så denne kompakte oversigt udfylder resten af din seneste aktivitet.</item>
+    </plurals>
+    <string name="stats_error_generic">Noget gik galt</string>
+    <string name="stats_loading">Indlæser sessioner…</string>
+    <string name="stats_append_error">Kunne ikke indlæse flere</string>
+    <string name="action_retry">Prøv igen</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Start sporing</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s skridt</item>
+        <item quantity="other">%1$s skridt</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">I dag</string>
+    <string name="stats_date_yesterday">I går</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Indlæser oversigt…</string>
+    <string name="stats_summary_empty">Ingen oversigtsstatistik tilgængelig</string>
+    <string name="stats_summary_empty_subtitle">Start sporing for at se din aktivitetsoversigt</string>
+    <string name="stats_summary_error">Kunne ikke indlæse oversigten</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Indlæser ugentlig statistik…</string>
+    <string name="stats_week_empty">Ingen ugentlig statistik tilgængelig</string>
+    <string name="stats_week_empty_subtitle">Spor i 7 dage for at se din ugentlige oversigt</string>
+    <string name="stats_week_error">Kunne ikke indlæse ugentlig statistik</string>
+    <string name="stats_wifi_dialog_title">Wi-Fi-statistik</string>
+    <string name="stats_wifi_dialog_loading">Indlæser Wi-Fi-statistik…</string>
+    <string name="stats_wifi_dialog_empty_title">Ingen Wi-Fi-data tilgængelige</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Wi-Fi-statistik vises, når scanninger er indsamlet.</string>
+    <string name="stats_wifi_dialog_error">Kunne ikke indlæse Wi-Fi-statistik</string>
+    <string name="stats_wifi_unique_networks">Unikke netværk set</string>
+    <string name="stats_wifi_total_scans">Scanninger i alt</string>
+    <string name="stats_wifi_average_per_scan">Gennemsnitligt antal netværk pr. scanning</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Rapport om mobilsignal</string>
+    <string name="stats_cell_signal_dialog_loading">Indlæser rapport om mobilsignal…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Ingen mobildata tilgængelige</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">Statistik om mobilsignal vises, når prøver er indsamlet.</string>
+    <string name="stats_cell_signal_dialog_error">Kunne ikke indlæse rapport om mobilsignal</string>
+    <string name="stats_cell_signal_total_samples">Mobilprøver</string>
+    <string name="stats_cell_signal_distinct_towers">Unikke master</string>
+    <string name="stats_cell_signal_section_networks">Efter netværkstype</string>
+    <string name="stats_cell_signal_section_towers">Mest sete master</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s af prøverne · %2$s master</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">Mobil %1$s · %2$s prøver</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Operatør %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Turedetaljer</string>
+    <string name="trip_detail_not_found">Tur ikke fundet</string>
+    <string name="trip_detail_not_found_subtitle">Denne tur kan være slettet</string>
+    <string name="trip_detail_error_title">Kunne ikke indlæse turen</string>
+    <string name="trip_detail_retry">Prøv igen</string>
+    <string name="trip_detail_duration">Varighed</string>
+    <string name="trip_detail_distance">Afstand</string>
+    <string name="trip_detail_date">Dato</string>
+    <string name="trip_detail_steps">Skridt</string>
+    <string name="trip_detail_samples">Prøver</string>
+    <string name="trip_detail_source">Kilde</string>
+    <string name="trip_detail_avg_speed">Gns. hastighed</string>
+    <string name="trip_detail_max_speed">Maks. hastighed</string>
+    <string name="trip_detail_pace">Tempo</string>
+    <string name="trip_detail_activity_type">Aktivitetstype</string>
+    <string name="trip_detail_start_time">Starttid</string>
+    <string name="trip_detail_end_time">Sluttid</string>
+    <string name="trip_detail_elevation_gain">Højdestigning</string>
+    <string name="trip_detail_elevation_loss">Højdetab</string>
+    <string name="trip_detail_max_altitude">Maks. højde</string>
+    <string name="trip_detail_route_map">Rutekort</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Ingen placeringsdata</string>
+    <string name="trip_detail_route_unavailable_legacy">Rutekort er ikke tilgængeligt for klassiske sessioner</string>
+    <string name="trip_detail_route_no_gps_points">Afstand registreret, men ingen GPS-rute tilgængelig</string>
+    <string name="trip_detail_delete">Slet</string>
+    <string name="trip_detail_export_gpx">Eksportér som GPX</string>
+    <string name="trip_detail_delete_confirm_title">Slet tur?</string>
+    <string name="trip_detail_delete_confirm_message">Denne tur slettes permanent.</string>
+    <string name="trip_detail_delete_confirm">Slet</string>
+    <string name="trip_detail_cancel">Annuller</string>
+    <string name="trip_detail_more_options">Flere indstillinger</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Skisession</string>
+    <string name="ski_detail_runs">Nedture</string>
+    <string name="ski_detail_vertical">Højdemeter</string>
+    <string name="ski_detail_max_speed">Maks. hastighed</string>
+    <string name="ski_detail_time_skiing">På ski</string>
+    <string name="ski_detail_time_lifts">På lifter</string>
+    <string name="ski_detail_run_label">Nedfart nr. %1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">Fandt %d Wi-Fi-netværk, der matcher filteret</string>
+    <string name="wifilist_filter_bssid">BSSID (identifikator)</string>
+    <string name="wifilist_filter_capabilities">Egenskaber</string>
+    <string name="wifilist_filter_count">Antal der skal vises</string>
+    <string name="wifilist_filter_frequency">Frekvens</string>
+    <string name="wifilist_filter_ssid">SSID (navn)</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Wi-Fi-liste</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">Egenskaber</string>
+    <string name="wifilist_title_first_seen">Først set</string>
+    <string name="wifilist_title_frequency">Frekvens</string>
+    <string name="wifilist_title_last_seen">Senest set</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Tidslinje</string>
+    <string name="history_tab_trips">Ture</string>
+    <string name="history_tab_calendar">Kalender</string>
+    <string name="history_screen_title">Historik</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d tur</item>
+        <item quantity="other">%d ture</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Ingen aktivitet endnu</string>
+    <string name="history_timeline_empty_desc">Start sporing for at se din bevægelseshistorik her</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Ingen ture registreret</string>
+    <string name="history_trips_empty_desc">Ture vises her, efterhånden som du bevæger dig rundt</string>
+    <string name="trip_gps_anomaly">GPS-afvigelse registreret — afstanden kan være unøjagtig</string>
+    <string name="trip_deleted_snackbar">Tur slettet</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Forrige måned</string>
+    <string name="history_calendar_next_month">Næste måned</string>
+    <string name="history_calendar_distance">Afstand</string>
+    <string name="history_calendar_steps">Skridt</string>
+    <string name="history_calendar_trips">Ture</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Udforskning</string>
+    <string name="history_exploration_cells">Felter</string>
+    <string name="history_exploration_streak">Serie</string>
+    <string name="history_exploration_best">Bedste</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Gå tilbage</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Historik</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Aktivitet</string>
 </resources>

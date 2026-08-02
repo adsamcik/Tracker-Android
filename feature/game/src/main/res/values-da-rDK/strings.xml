@@ -1,4 +1,318 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <resources>
-    <string name="points_earned_today">points earned today</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Spil</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Outrun</string>
+    <string name="minigame_outrun_description">Kapløb mod et spøgelse. Hold dig foran!</string>
+    <string name="minigame_territory_name">Territory</string>
+    <string name="minigame_territory_description">Erobr nye gitterfelter, mens du går</string>
+    <string name="minigame_zenwalk_name">Zen Walk</string>
+    <string name="minigame_zenwalk_description">Hold dit tempo stabilt i zonen</string>
+    <string name="minigame_fuserun_name">Fuse Run</string>
+    <string name="minigame_fuserun_description">Undslip hver virtuel eksplosionsradius, før luntens tid udløber</string>
+    <string name="minigame_switchback_name">Switchback</string>
+    <string name="minigame_switchback_description">Lav skarpe, skiftende sving for at opbygge en flydende kombination</string>
+    <string name="minigame_locked">Låses op på niveau %1$d</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Spil</string>
+    <string name="game_progress_section_title">Fremskridt</string>
+    <string name="minigame_outrun_goal_line">Hold 25–100 m forspring på spøgelset</string>
+    <string name="minigame_territory_goal_line">Erobr 5–20 unikke felter til fods</string>
+    <string name="minigame_zenwalk_goal_line">Hold dit tempo i 5–20 minutter</string>
+    <string name="minigame_fuserun_goal_line">Desarmér 3–8 ladninger, før lunternes tid udløber</string>
+    <string name="minigame_switchback_goal_line">Lav 4–10 skarpe sving til fods</string>
+    <string name="minigame_play_action_play">Spil</string>
+    <string name="minigame_play_personal_best">PB %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Personlig rekord %1$s</string>
+    <string name="minigame_play_locked_summary">Nå niveau %1$d for at låse op</string>
+    <string name="minigame_play_locked_detail">Optjen XP ved at spille oplåste spil og spore din aktivitet for at stige i niveau.</string>
+    <string name="minigame_play_locked_expand_cta">Dobbelttryk for at se, hvordan det låses op</string>
+    <string name="minigame_active_session_running">I gang — tryk på Spil for at vende tilbage</string>
+    <string name="minigame_active_session_paused">Sat på pause — tryk på Spil for at genoptage</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d felt</item>
+        <item quantity="other">%1$d felter</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d ladning</item>
+        <item quantity="other">%1$d ladninger</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d sving</item>
+        <item quantity="other">%1$d sving</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Se tidligere resultater</string>
+    <string name="minigame_session_close">Luk</string>
+    <string name="minigame_session_play_again">Spil igen</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Placering påkrævet</string>
+    <string name="minigame_session_permission_body">Minispil bruger liveplacering til at spore din runde. Intet gemmes ud over det endelige resultat.</string>
+    <string name="minigame_session_permission_grant">Giv adgang</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Opsæt din runde</string>
+    <string name="minigame_setup_goal_title">Mål</string>
+    <string name="minigame_setup_difficulty_title">Sværhedsgrad</string>
+    <string name="minigame_setup_start_cta">Start runde</string>
+    <string name="minigame_setup_remember">Husk denne opsætning</string>
+    <string name="minigame_setup_remember_description">Åbn dette spil igen med samme mål og sværhedsgrad.</string>
+    <string name="minigame_setup_goal_meters">%1$d m forspring</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d felt</item>
+        <item quantity="other">%1$d felter</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min i zonen</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d ladning</item>
+        <item quantity="other">%1$d ladninger</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d sving</item>
+        <item quantity="other">%1$d sving</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Let</string>
+    <string name="minigame_difficulty_normal">Normal</string>
+    <string name="minigame_difficulty_hard">Svær</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Gør klar…</string>
+    <string name="minigame_session_finishing">Gemmer din runde…</string>
+    <string name="minigame_session_paused_title">Sat på pause</string>
+    <string name="minigame_session_pause_cta">Sæt på pause</string>
+    <string name="minigame_session_resume_cta">Genoptag</string>
+    <string name="minigame_session_finish_cta">Afslut</string>
+    <string name="minigame_session_background_note">Din runde fortsætter, hvis du forlader denne skærm. Åbn den igen fra Spil for at fortsætte.</string>
+    <string name="minigame_session_elapsed_label">Aktiv tid</string>
+    <string name="minigame_session_goal_progress">%1$d%% af målet</string>
+    <string name="minigame_session_goal_reached">Mål nået</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Stærk GPS</string>
+    <string name="minigame_signal_fair">Acceptabel GPS</string>
+    <string name="minigame_signal_poor">Svag GPS</string>
+    <string name="minigame_signal_unavailable">Intet GPS-signal</string>
+    <string name="minigame_signal_unknown">Finder placering…</string>
+    <string name="minigame_signal_stale">GPS forsinket</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Bedst i denne runde</string>
+    <string name="minigame_outrun_personal_best">Personlig rekord</string>
+    <string name="minigame_outrun_warning">Spøgelset nærmer sig</string>
+    <string name="minigame_outrun_move_to_start">Bevæg dig for at starte løbet</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Du er %1$d meter foran spøgelset. Bedst i denne runde: %2$d meter.</string>
+    <string name="minigame_outrun_you">Dig</string>
+    <string name="minigame_outrun_ghost">Spøgelse</string>
+    <string name="minigame_outrun_lead_value">%1$d m forspring</string>
+    <string name="minigame_outrun_ghost_lead_value">Spøgelset fører med %1$d m</string>
+    <string name="minigame_outrun_first_run">Første runde</string>
+    <string name="minigame_outrun_keep_moving">Byg dit forspring</string>
+    <string name="minigame_outrun_caught">Indhentet af spøgelset</string>
+    <string name="minigame_outrun_escaped">Du slap væk!</string>
+    <string name="minigame_outrun_escape_goal">Flugtmål</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Flugtmålet er %1$d procent fuldført.</string>
+    <string name="minigame_outrun_description_waiting">Outrun er klar. Bevæg dig mere end to meter for at starte jagten.</string>
+    <string name="minigame_outrun_description_warning">Fare. Spøgelset er kun %1$d meter bag dig. Bedst i denne runde: %2$d meter.</string>
+    <string name="minigame_outrun_description_caught">Indhentet. Spøgelset passerede dig med %1$d meter. Bedst i denne runde: %2$d meter.</string>
+    <string name="minigame_outrun_description_escaped">Mål nået. Du slap væk med et forspring på %1$d meter. Bedst i denne runde: %2$d meter.</string>
+    <string name="minigame_outrun_description_finished">Runden er fuldført. Dit endelige mellemrum var %1$d meter, og dit største forspring var %2$d meter.</string>
+    <string name="minigame_outrun_ahead_of_best">Foran din personlige rekord</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Territoriekort. %1$d nærliggende områder er erobret; %2$d grænseområder er fremhævet. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Aktuelt område fremhævet</string>
+    <string name="minigame_territory_current_waiting">Afventer et aktuelt område</string>
+    <string name="minigame_territory_goal_complete">Mål fuldført</string>
+    <string name="minigame_territory_goal_in_progress">Mål i gang</string>
+    <string name="minigame_territory_legend">Skær markerer dit aktuelle område • Grænsetip: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tempo</string>
+    <string name="minigame_zen_pace_value">%1$s km/t</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Mål %1$s–%2$s km/t</string>
+    <string name="minigame_zen_calibration_title">Find din naturlige rytme</string>
+    <string name="minigame_zen_calibration_hint">Gå naturligt, mens dit tempo blidt stabiliseres</string>
+    <string name="minigame_zen_calibration_settled">%1$d%% stabiliseret</string>
+    <string name="minigame_zen_calibration_description">Tempokalibrering. %1$d procent stabiliseret. Bliv ved med at gå naturligt.</string>
+    <string name="minigame_zen_flow_waiting">Finder din rytme</string>
+    <string name="minigame_zen_flow_settled">Stabil i din rytme</string>
+    <string name="minigame_zen_flow_slower">Glider blidt langsommere</string>
+    <string name="minigame_zen_flow_faster">Glider blidt hurtigere</string>
+    <string name="minigame_zen_flow_time">Rytme %1$s</string>
+    <string name="minigame_zen_flow_description">Zen-tempoets flow. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Spøgelset nærmer sig</string>
+    <string name="minigame_feedback_pb_crossed">Ny personlig rekord</string>
+    <string name="minigame_feedback_territory_claimed">Nyt område erobret</string>
+    <string name="minigame_feedback_fuse_critical">Lunten er kritisk, bevæg dig nu</string>
+    <string name="minigame_feedback_fuse_defused">Ladning desarmeret</string>
+    <string name="minigame_feedback_turn_carved">Sving udført</string>
+    <string name="minigame_feedback_goal_reached">Mål nået</string>
+    <string name="minigame_feedback_zen_entered">Du er i tempozonen</string>
+    <string name="minigame_feedback_zen_exited">Du forlod tempozonen</string>
+    <string name="minigame_feedback_completed">Runden er fuldført</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">Første runde registreret!</string>
+    <string name="minigame_completion_new_best_title">Ny personlig rekord!</string>
+    <string name="minigame_completion_tied_title">Tangerede din rekord</string>
+    <string name="minigame_completion_behind_title">God runde</string>
+    <string name="minigame_completion_no_participation_title">Session afsluttet</string>
+    <string name="minigame_completion_result">Resultat: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s foran din tidligere rekord</string>
+    <string name="minigame_completion_deficit">%1$s fra din rekord</string>
+    <string name="minigame_completion_goal_reached">Mål nået: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Mål ikke nået: %1$s</string>
+    <string name="minigame_completion_points">+%1$d point</string>
+    <string name="minigame_completion_points_zero">Ingen point i denne runde</string>
+    <string name="minigame_completion_change_setup">Skift opsætning</string>
+    <string name="minigame_completion_done">Færdig</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Runden blev ikke fuldført</string>
+    <string name="minigame_failure_permission">Præcis placering kræves for at spille. Giv adgang, og prøv igen.</string>
+    <string name="minigame_failure_location">Vi kunne ikke hente en pålidelig placering. Gå et sted med mere fri himmel, og prøv igen.</string>
+    <string name="minigame_failure_persistence">Vi kunne ikke gemme denne runde. Prøv igen.</string>
+    <string name="minigame_failure_generic">Noget gik galt, og runden stoppede.</string>
+    <string name="minigame_session_try_again">Prøv igen</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktivt spil</string>
+    <string name="game_session_channel_description">Holder et aktivt minispil kørende, når skærmen er slukket</string>
+    <string name="game_session_notification_title">Tracker-spil</string>
+    <string name="game_session_notification_public">Spil i gang</string>
+    <string name="game_session_notification_starting">Starter spil…</string>
+    <string name="game_session_notification_preparing">Forbereder %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s sat på pause</string>
+    <string name="game_session_notification_finishing">Gemmer dit resultat…</string>
+    <string name="game_session_notification_finished">Spil fuldført</string>
+    <string name="game_session_notification_failed">Spil stoppet</string>
+    <string name="game_session_action_pause">Sæt på pause</string>
+    <string name="game_session_action_resume">Genoptag</string>
+    <string name="game_session_action_finish">Afslut</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Tidligere minispilsrunder</string>
+    <string name="minigame_scores_back">Tilbage</string>
+    <string name="minigame_scores_empty_title">Din første runde venter</string>
+    <string name="minigame_scores_empty_body">Gennemfør et minispil for at sætte en personlig rekord — hver runde, du slår, vises her.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Personlig rekord</string>
+    <string name="minigame_scores_unknown_game">Minispil</string>
+    <string name="goals_reached_notification">%1$s! Du nåede dit %2$s mål!</string>
+    <string name="goals_daily_goal">daglige</string>
+    <string name="goals_weekly_goal">ugentlige</string>
+    <string name="goals_monthly_goal">månedlige</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Skridtmål</string>
+    <string name="game_step_sensor_unavailable">Skridtsensor er ikke tilgængelig</string>
+    <string name="game_step_sensor_unavailable_detail">Denne enhed har ikke en skridttællersensor. Skridtmål kan ikke spores.</string>
+    <string name="game_steps_today">I dag</string>
+    <string name="game_steps_week">Uge</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Indlæser…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Gå tilbage</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Åbn Indstillinger</string>
+    <string name="game_close">Luk</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Udforskning</string>
+    <string name="exploration_cells_discovered">Opdagede felter</string>
+    <string name="exploration_current_streak">Nuværende serie</string>
+    <string name="exploration_best_streak">Bedste serie</string>
+    <string name="exploration_seasons_explored">Udforskede årstider</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">dag</item>
+        <item quantity="other">dage</item>
+    </plurals>
+    <string name="exploration_of_four">af 4</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Præstationer</string>
+    <string name="achievements_bronze">Bronze</string>
+    <string name="achievements_silver">Sølv</string>
+    <string name="achievements_gold">Guld</string>
+    <string name="achievements_diamond">Diamant</string>
+    <string name="achievements_none_yet">Ingen præstationer er låst op endnu. Begynd at udforske!</string>
+    <string name="achievement_unlocked_notification_title">Præstation låst op: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Nåede %1$s-niveau</string>
+    <string-array name="goals_encouragement">
+        <item>Godt gået</item>
+        <item>Flot</item>
+        <item>Hurra</item>
+        <item>Sådan</item>
+        <item>Tillykke</item>
+        <item>Fortsæt sådan</item>
+        <item>Du er fantastisk</item>
+        <item>Utroligt</item>
+        <item>Helt utroligt</item>
+        <item>Fantastisk</item>
+        <item>Betagende</item>
+        <item>Pragtfuldt</item>
+    </string-array>
+    <string name="points_earned_today">point optjent i dag</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Ny oplåsning!</string>
+    <string name="game_unlock_message">Du nåede niveau %1$d!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Ugentlig udfordring</string>
+    <string name="leaderboard_metric_distance">Afstand</string>
+    <string name="leaderboard_metric_steps">Skridt</string>
+    <string name="leaderboard_metric_active_time">Aktiv</string>
+    <string name="leaderboard_metric_sessions">Sessioner</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">skridt</string>
+    <string name="leaderboard_unit_hours">t</string>
+    <string name="leaderboard_unit_sessions">ture</string>
+    <string name="leaderboard_ghost_best_week">Bedste uge</string>
+    <string name="leaderboard_ghost_last_4_weeks">Gennemsnit for de seneste 4 uger</string>
+    <string name="leaderboard_ghost_same_week_last_year">Samme uge sidste år</string>
+    <string name="leaderboard_ghost_average_week">Gennemsnitlig uge</string>
+    <string name="leaderboard_rank">#%1$d af %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s af målet på %3$s</string>
+    <string name="leaderboard_progress_description">%1$s af %2$s</string>
+    <string name="leaderboard_week_progress">Ugens fremskridt</string>
+    <string name="leaderboard_monday">Man</string>
+    <string name="leaderboard_sunday">Søn</string>
+    <string name="leaderboard_you">Dig</string>
+    <string name="leaderboard_current_week">Denne uge</string>
+    <string name="leaderboard_empty_title">Ingen historik at konkurrere mod endnu</string>
+    <string name="leaderboard_empty_body">Gennemfør mindst én hel uge for at låse op for spøgelsesmodstandere — de er skabt af dine egne tidligere uger.</string>
+    <string name="leaderboard_error_title">Rangliste er ikke tilgængelig</string>
+    <string name="leaderboard_error_body">Dine data er sikre på denne enhed. Prøv at indlæse den ugentlige udfordring igen.</string>
+    <string name="leaderboard_retry">Prøv igen</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Mytisk</string>
+    <string name="game_view_all_achievements">Se alle</string>
+    <string name="game_recent_achievements">Seneste oplåsninger</string>
+    <string name="game_next_achievements">Næste</string>
+    <string name="achievement_show_locked">Vis låste</string>
+    <string name="achievement_show_locked_summary_off">Slå til for at se kataloget over præstationer, du kan låse op.</string>
+    <string name="achievement_empty_state_title">Ingen præstationer er låst op endnu</string>
+    <string name="achievement_empty_state_body">Start sporing — din første præstation venter. Slå "Vis låste" til for at se hele kataloget.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">%1$s-niveau · +%2$d XP</string>
+    <string name="achievement_hero_title">Dit trofæskab</string>
+    <string name="achievement_hero_points">%1$d XP optjent</string>
+    <string name="achievement_hero_of_total">af %1$d</string>
+    <string name="achievement_category_count_format">%1$d / %2$d</string>
+    <string name="achievement_category_exploration">Udforskning</string>
+    <string name="achievement_category_distance">Afstand</string>
+    <string name="achievement_category_steps">Skridt</string>
+    <string name="achievement_category_streaks">Serier</string>
+    <string name="achievement_category_milestones">Milepæle</string>
+    <string name="achievement_category_modes">Tilstande</string>
+    <string name="achievement_category_time">Tid</string>
+    <string name="achievement_category_calendar">Kalender</string>
+    <string name="achievement_unlocked_content_description">Låst op</string>
+    <string name="achievement_locked_content_description">Låst</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

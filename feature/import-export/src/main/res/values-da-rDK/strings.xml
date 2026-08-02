@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<resources>
+    <string name="export_button">Eksportér</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Ingen placeringer fundet i det valgte interval.</string>
+    <string name="export_error_no_databases">Ingen programdatabaser er tilgængelige for eksport.</string>
+    <string name="export_error_no_uri">Der blev ikke valgt en eksportmappe</string>
+    <string name="export_error_stream_failed">Kunne ikke oprette datastrøm til filen %s</string>
+    <string name="export_error_unknown">Eksporten mislykkedes.</string>
+    <string name="export_error_with_reason">Eksporten mislykkedes: %s</string>
+    <string name="export_file_name">Filnavn</string>
+    <string name="export_file_name_error">Filnavne må ikke indeholde \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Eksport af placeringsdata fra %1$s til %2$s sporet med Advention.</string>
+    <string name="export_gpx_error">GPX-eksporten mislykkedes med fejlen: %s</string>
+    <string name="export_sensitivity_title">Eksportere præcise placeringsdata?</string>
+    <string name="export_sensitivity_message">Denne eksport/deling indeholder placeringsdata med fuld præcision og kan omfatte rå radiometadata i databaseeksporter. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="export_sensitivity_confirm">Fortsæt</string>
+    <string name="export_share_button">Del</string>
+    <string name="export_in_progress">Eksporterer…</string>
+    <string name="export_completed">Eksport fuldført.</string>
+    <string name="import_notification_error_failed_open_database">Kunne ikke åbne databasefilen %s</string>
+    <string name="import_notification_error_file_not_supported">Filen %s understøttes ikke.</string>
+    <string name="import_notification_extracting">Udpakker %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import fuldført. %d post blev importeret korrekt.</item>
+        <item quantity="other">Import fuldført. %d poster blev importeret korrekt.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import fuldført. %1$d poster importeret (%2$d sprunget over).</string>
+    <string name="import_notification_error_records_failed">%d poster kunne ikke importeres på grund af begrænsningsovertrædelser.</string>
+    <string name="import_notification_importing">Importerer %s …</string>
+    <string name="import_notification_progress">Import i gang …</string>
+    <string name="settings_export_dialog_from">Fra</string>
+    <string name="settings_export_dialog_to">Til</string>
+    <string name="settings_export_no_data">Ingen data at eksportere</string>
+    <string name="settings_export_title">Eksportér</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Databasesikkerhedskopi (ZIP)</string>
+    <string name="settings_import_summary">Importér data fra understøttede typer (%1$s) og arkiver (%2$s). Databaseimporter fletter kompatible rækker; de erstatter ikke eksisterende data.</string>
+    <string name="settings_import_title">Importér</string>
+</resources>
