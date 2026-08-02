@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Actividad</string>
     <string name="activity_value">%s</string>
     <string name="altitude_title">Altitud</string>
@@ -49,7 +49,7 @@
     <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_starting_without_location">Iniciando Tracker</string>
     <string name="notification_stop">Detener</string>
-    <string name="notification_stop_for_minutes" ns0:ignore="PluralsCandidate">Detener durante %d minutos</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Detener durante %d minutos</string>
     <string name="notification_stop_til_recharge">Detener hasta cargar</string>
     <string name="stop_tracking_dialog_title">¿Detener el seguimiento?</string>
     <string name="stop_tracking_dialog_message">El seguimiento automático está activo y puede iniciar otra sesión pronto si solo lo detienes.</string>

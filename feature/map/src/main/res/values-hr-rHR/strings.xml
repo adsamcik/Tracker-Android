@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Karta</string>
@@ -11,9 +11,9 @@
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Srednja gustoća</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Različiti posjeti</string>
-    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Posjeti</string>
-    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Relativna gustoća prihvaćenih lokacijskih određivanja. Ovo prikazuje različita opažanja, a ne provedeno vrijeme.</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Različiti posjeti</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Posjeti</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativna gustoća prihvaćenih lokacijskih određivanja. Ovo prikazuje različita opažanja, a ne provedeno vrijeme.</string>
     <string name="map_layer_cell_radio_gsm">GSM pokrivenost</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -25,11 +25,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
-    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora signala</string>
-    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
-    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Signal ćelije prikazan kao sjaj nalik aurori: široki ljubičasti oreol ispod svijetle cijan-zelene jezgre. Sjaj pulsira bez ponovnog učitavanja podataka, a postaje statičan kada su animacije sustava isključene.</string>
-    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Slab signal</string>
-    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Snažan signal</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora signala</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Signal ćelije prikazan kao sjaj nalik aurori: široki ljubičasti oreol ispod svijetle cijan-zelene jezgre. Sjaj pulsira bez ponovnog učitavanja podataka, a postaje statičan kada su animacije sustava isključene.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Slab signal</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Snažan signal</string>
     <string name="map_layer_speed_heatmap_description">Toplinska karta koja prikazuje brzinu kretanja kroz različita područja.</string>
     <string name="map_layer_speed_very_slow">Vrlo sporo</string>
     <string name="map_layer_speed_walking">Tempo hodanja</string>
@@ -63,32 +63,32 @@
     <string name="map_layer_speed_ribbon_title">Traka brzine</string>
     <string name="map_layer_speed_ribbon_chip">Traka</string>
     <string name="map_layer_speed_ribbon_description">Vaša je ruta obojena brzinom kretanja, od sporog ljubičastog hoda do užarenog crvenog sprinta ili vožnje. Za razliku od toplinske karte brzine, traka čuva putanju pa točno vidite gdje ste ubrzali i usporili.</string>
-    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Traka nadmorske visine</string>
-    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Nadmorska visina</string>
-    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Vaša ruta obojena je apsolutnom nadmorskom visinom, od dubokih plavih nizina preko cijan podnožja do toplih planinskih visina. Ljestvica ostaje fiksna pri pomicanju karte, pa ista visina uvijek ima istu boju.</string>
-    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Nizine</string>
-    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Podnožje</string>
-    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Visoke planine</string>
-    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Traka aktivnosti</string>
-    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Aktivnost</string>
-    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Vaša ruta obojena je pouzdanim stanjem kretanja zabilježenim uz svako određivanje lokacije: sivo kada je stanje nepoznato, plavo tijekom mirovanja i zeleno tijekom kretanja.</string>
-    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Nepoznato</string>
-    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Mirovanje</string>
-    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">Kretanje</string>
-    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Rendgen skijanja</string>
-    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Ski X-ray</string>
-    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Dijagnostički prikaz otkrivenih skijaških segmenata. Spustovi, žičare, hodanja i stanke vezani su uz najbližu zabilježenu lokaciju i označeni ključnim mjernim podacima.</string>
-    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Spust</string>
-    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Žičara</string>
-    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Hodanje ili stanka</string>
-    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Zviježđa putovanja</string>
-    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Putovanja</string>
-    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Ponavljana putovanja između čestih mjesta postaju zakrivljena zviježđa. Stabilan luk prikazuje svaku rutu dok komet putuje po njemu; deblji lukovi znače da ste putovanje ostvarili češće.</string>
-    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Hodanje</string>
-    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Bicikliranje</string>
-    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Vožnja</string>
-    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Javni prijevoz</string>
-    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Ostalo</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Traka nadmorske visine</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Nadmorska visina</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Vaša ruta obojena je apsolutnom nadmorskom visinom, od dubokih plavih nizina preko cijan podnožja do toplih planinskih visina. Ljestvica ostaje fiksna pri pomicanju karte, pa ista visina uvijek ima istu boju.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Nizine</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Podnožje</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Visoke planine</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Traka aktivnosti</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktivnost</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Vaša ruta obojena je pouzdanim stanjem kretanja zabilježenim uz svako određivanje lokacije: sivo kada je stanje nepoznato, plavo tijekom mirovanja i zeleno tijekom kretanja.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Nepoznato</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Mirovanje</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Kretanje</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Rendgen skijanja</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ski X-ray</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Dijagnostički prikaz otkrivenih skijaških segmenata. Spustovi, žičare, hodanja i stanke vezani su uz najbližu zabilježenu lokaciju i označeni ključnim mjernim podacima.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Spust</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Žičara</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Hodanje ili stanka</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Zviježđa putovanja</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Putovanja</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Ponavljana putovanja između čestih mjesta postaju zakrivljena zviježđa. Stabilan luk prikazuje svaku rutu dok komet putuje po njemu; deblji lukovi znače da ste putovanje ostvarili češće.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Hodanje</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicikliranje</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vožnja</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Javni prijevoz</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Ostalo</string>
     <string name="map_layer_fog_title">Magla istraživača</string>
     <string name="map_layer_fog_chip">Magla</string>
     <string name="map_layer_fog_description">Svijet izranja iz magle: svako područje koje ste dotaknuli otkriva se i svijetli jače što ste ga bolje upoznali. Mjesta kroz koja ste samo prošli ostaju slaba izmaglica, a duboko istražena mjesta sjaje čvrstim zlatom. Neistraženo tlo ostaje tamno.</string>
@@ -184,7 +184,7 @@
     <string name="map_empty_subtitle_wifi">Nema lociranih Wi-Fi podataka u ovom prikazu ili rasponu datuma. Wi-Fi opažanja zabilježena bez lokacije i dalje su spremljena, ali ne mogu se prikazati na karti.</string>
     <string name="map_empty_subtitle_speed">Nema podataka o brzini u ovom prikazu ili rasponu datuma. Karte brzine zahtijevaju upotrebljive uzorke lokacije prikupljene tijekom praćenja.</string>
     <string name="map_empty_subtitle_vehicle_compliance">Nema vožnji usklađenih s cestama za prikaz. Uvezite OpenStreetMap regiju (Postavke) i zabilježite malo vožnje da bismo mogli usporediti rutu sa stvarnim cestama.</string>
-    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Odbaci poruku o nedostatku podataka</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Odbaci poruku o nedostatku podataka</string>
     <string name="map_speed_probe_title">Brzina ovdje</string>
     <string name="map_speed_probe_avg_label">Prosjek</string>
     <string name="map_speed_probe_max_label">Najviše</string>
@@ -207,7 +207,7 @@
     <string name="map_a11y_search_result_visible">Oznaka rezultata pretraživanja je vidljiva</string>
     <string name="map_a11y_active_recording_visible">Putanja aktivnog bilježenja je vidljiva</string>
     <string name="map_a11y_recorded_route_history">Prikazuje se povijest zabilježene rute</string>
-    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Prikazuju se različita prihvaćena opažanja lokacije</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Prikazuju se različita prihvaćena opažanja lokacije</string>
     <string name="map_a11y_cell_heatmap">Prikazuju se polja mobilne pokrivenosti i približna središta poslužujućih lokacija</string>
     <string name="map_a11y_wifi_heatmap">Prikazuju se Wi-Fi pojasevi, polja pokrivenosti i približna središta pristupnih točaka</string>
     <string name="map_a11y_wifi_count_heatmap">Prikazuje se preklapanje različitih Wi-Fi pristupnih točaka</string>

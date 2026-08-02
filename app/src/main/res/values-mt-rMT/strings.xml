@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Tracker</string>
     <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Logħob</string>
@@ -42,7 +42,7 @@
     <string name="settings_reset_export_watermarks_summary">Il-kopja ta’ riżerva awtomatizzata li jmiss tinkludi d-dejta kollha minflok il-bidliet biss</string>
     <string name="settings_reset_export_watermarks_done">Il-markaturi tal-esportazzjoni ġew irrisettjati — il-kopja ta’ riżerva li jmiss tkun esportazzjoni sħiħa</string>
     <string name="settings_migration_backup_export_title">Esporta kopja ta’ riżerva ta’ sigurtà qabel l-aġġornament</string>
-    <string name="settings_migration_backup_export_summary" ns0:ignore="PluralsCandidate">Kopja sħiħa tal-bażi tad-dejta minn v%1$d, maħluqa qabel il-migrazzjoni għal v%2$d u miżmuma privatament sa 30 jum</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Kopja sħiħa tal-bażi tad-dejta minn v%1$d, maħluqa qabel il-migrazzjoni għal v%2$d u miżmuma privatament sa 30 jum</string>
     <string name="settings_migration_backup_warning_title">Tesporta kopja ta’ riżerva sensittiva tal-bażi tad-dejta?</string>
     <string name="settings_migration_backup_warning_message">Din il-kopja ta’ riżerva tista’ tkun fiha postijiet preċiżi, osservazzjonijiet Wi-Fi u ċellulari, attivitajiet u dejta privata oħra minn qabel l-aġġornament. Salvaha biss f’post li tafda.</string>
     <string name="settings_migration_backup_export_action">Esporta kopja ta’ riżerva</string>

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Attività</string>
     <string name="activity_value">%s</string>
     <string name="altitude_title">Altitudni</string>
@@ -49,7 +49,7 @@
     <string name="notification_starting">Tracker qed jibda — il-post qed jintuża</string>
     <string name="notification_starting_without_location">Tracker qed jibda</string>
     <string name="notification_stop">Waqqaf</string>
-    <string name="notification_stop_for_minutes" ns0:ignore="PluralsCandidate">Waqqaf għal %d minuti</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Waqqaf għal %d minuti</string>
     <string name="notification_stop_til_recharge">Waqqaf sal-iċċarġjar</string>
     <string name="stop_tracking_dialog_title">Twaqqaf it-traċċar?</string>
     <string name="stop_tracking_dialog_message">It-traċċar awtomatiku attiv u jista’ jibda sessjoni ġdida dalwaqt jekk sempliċement twaqqfu.</string>

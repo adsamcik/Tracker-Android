@@ -1,14 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="action_navigate_back">Volver</string>
-    <string name="permission_location_rationale_title" ns0:ignore="MissingTranslation">Acceso a la ubicación</string>
-    <string name="permission_location_rationale_message" ns0:ignore="MissingTranslation">Tracker necesita acceder a la ubicación para registrar tu ruta y mostrarla en el mapa. Los datos de ubicación permanecen en este dispositivo; no se envía nada a un servidor.</string>
-    <string name="permission_activity_rationale_title" ns0:ignore="MissingTranslation">Reconocimiento de actividad</string>
-    <string name="permission_activity_rationale_message" ns0:ignore="MissingTranslation">Tracker usa el reconocimiento de actividad para detectar lo que haces (caminar, ir en bicicleta, conducir, sin actividad) para que el seguimiento automático pueda pausarse cuando no te mueves y ahorrar batería. Los datos de actividad permanecen en este dispositivo; no se envía nada a un servidor.</string>
-    <string name="permission_background_location_rationale_title" ns0:ignore="MissingTranslation">Ubicación en segundo plano</string>
-    <string name="permission_background_location_rationale_message" ns0:ignore="MissingTranslation">Para seguir registrando tu ruta al cambiar de aplicación o apagar la pantalla, Tracker necesita acceder a tu ubicación en segundo plano. La ubicación registrada permanece en este dispositivo; no se envía nada a un servidor. En el próximo aviso del sistema, elige "Permitir siempre"; "Solo mientras se usa la aplicación" hace que Tracker funcione solo cuando su pantalla está abierta.</string>
-    <string name="permission_allow" ns0:ignore="MissingTranslation">Permitir</string>
-    <string name="permission_deny" ns0:ignore="MissingTranslation">Ahora no</string>
-    <string name="permission_denied_tracking_disabled" ns0:ignore="MissingTranslation">Se requiere permiso de ubicación para iniciar el seguimiento</string>
-    <string name="permission_denied_settings_action" ns0:ignore="MissingTranslation">Abrir Ajustes</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Acceso a la ubicación</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker necesita acceder a la ubicación para registrar tu ruta y mostrarla en el mapa. Los datos de ubicación permanecen en este dispositivo; no se envía nada a un servidor.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Reconocimiento de actividad</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker usa el reconocimiento de actividad para detectar lo que haces (caminar, ir en bicicleta, conducir, sin actividad) para que el seguimiento automático pueda pausarse cuando no te mueves y ahorrar batería. Los datos de actividad permanecen en este dispositivo; no se envía nada a un servidor.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Ubicación en segundo plano</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Para seguir registrando tu ruta al cambiar de aplicación o apagar la pantalla, Tracker necesita acceder a tu ubicación en segundo plano. La ubicación registrada permanece en este dispositivo; no se envía nada a un servidor. En el próximo aviso del sistema, elige "Permitir siempre"; "Solo mientras se usa la aplicación" hace que Tracker funcione solo cuando su pantalla está abierta.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Permitir</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Ahora no</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Se requiere permiso de ubicación para iniciar el seguimiento</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Abrir Ajustes</string>
 </resources>

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <string name="module_map_title">Hartă</string>
     <string name="description_map_search">Buton de căutare</string>
@@ -10,9 +10,9 @@
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Densitate medie</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Vizite distincte</string>
-    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Vizite</string>
-    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densitatea relativă a pozițiilor acceptate. Aceasta arată observații distincte, nu timpul petrecut.</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Vizite distincte</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Vizite</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densitatea relativă a pozițiilor acceptate. Aceasta arată observații distincte, nu timpul petrecut.</string>
     <string name="map_layer_cell_radio_gsm">Acoperire GSM</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -24,11 +24,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
-    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora semnalului</string>
-    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Auroră</string>
-    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Semnal celular redat ca o auroră: un halou violet larg sub un nucleu luminos verde-cyan. Strălucirea pulsează fără reîncărcarea datelor și devine statică atunci când animațiile sistemului sunt dezactivate.</string>
-    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Semnal slab</string>
-    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Semnal puternic</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora semnalului</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Auroră</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Semnal celular redat ca o auroră: un halou violet larg sub un nucleu luminos verde-cyan. Strălucirea pulsează fără reîncărcarea datelor și devine statică atunci când animațiile sistemului sunt dezactivate.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Semnal slab</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Semnal puternic</string>
     <string name="map_layer_speed_heatmap_description">Hartă termică ce reprezintă viteza de deplasare în diferite zone.</string>
     <string name="map_layer_speed_very_slow">Foarte lent</string>
     <string name="map_layer_speed_walking">Ritm de mers</string>
@@ -62,32 +62,32 @@
     <string name="map_layer_speed_ribbon_title">Bandă de viteză</string>
     <string name="map_layer_speed_ribbon_chip">Bandă</string>
     <string name="map_layer_speed_ribbon_description">Ruta ta este colorată după viteza de deplasare, de la o plimbare lentă violetă la un sprint sau condus roșu-aprins. Spre deosebire de harta termică a vitezei, banda păstrează traseul intact, pentru a vedea exact unde ai accelerat și ai încetinit.</string>
-    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Bandă de altitudine</string>
-    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitudine</string>
-    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Ruta ta este colorată după altitudinea absolută, de la câmpii albastru-închis prin dealuri cyan până la înălțimi montane calde. Scara rămâne fixă în timp ce deplasezi harta, astfel încât aceeași altitudine păstrează mereu aceeași culoare.</string>
-    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Câmpii</string>
-    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Dealuri</string>
-    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Munți înalți</string>
-    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Bandă de activitate</string>
-    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Activitate</string>
-    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Ruta ta este colorată după starea de mișcare fiabilă înregistrată la fiecare poziție: gri când starea era necunoscută, albastru în repaus și verde în mișcare.</string>
-    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Necunoscută</string>
-    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Staționar</string>
-    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">În mișcare</string>
-    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Radiografie schi</string>
-    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Radiografie schi</string>
-    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">O vizualizare de diagnosticare a segmentelor de schi detectate. Coborârile, instalațiile, mersul pe jos și pauzele sunt ancorate la cea mai apropiată locație înregistrată și etichetate cu indicatorii principali.</string>
-    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Coborâre</string>
-    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Instalație</string>
-    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Mers pe jos sau pauză</string>
-    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Constelații de călătorii</string>
-    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Călătorii</string>
-    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Călătoriile repetate între locurile frecvente devin constelații curbe. Un arc stabil arată fiecare rută, iar o cometă se deplasează de-a lungul lui; arcele mai groase înseamnă că ai făcut acea călătorie mai des.</string>
-    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Mers pe jos</string>
-    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Ciclism</string>
-    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Condus</string>
-    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Transport public</string>
-    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Altele</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Bandă de altitudine</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitudine</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Ruta ta este colorată după altitudinea absolută, de la câmpii albastru-închis prin dealuri cyan până la înălțimi montane calde. Scara rămâne fixă în timp ce deplasezi harta, astfel încât aceeași altitudine păstrează mereu aceeași culoare.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Câmpii</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Dealuri</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Munți înalți</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Bandă de activitate</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Activitate</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Ruta ta este colorată după starea de mișcare fiabilă înregistrată la fiecare poziție: gri când starea era necunoscută, albastru în repaus și verde în mișcare.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Necunoscută</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Staționar</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">În mișcare</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Radiografie schi</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Radiografie schi</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">O vizualizare de diagnosticare a segmentelor de schi detectate. Coborârile, instalațiile, mersul pe jos și pauzele sunt ancorate la cea mai apropiată locație înregistrată și etichetate cu indicatorii principali.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Coborâre</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Instalație</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mers pe jos sau pauză</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Constelații de călătorii</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Călătorii</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Călătoriile repetate între locurile frecvente devin constelații curbe. Un arc stabil arată fiecare rută, iar o cometă se deplasează de-a lungul lui; arcele mai groase înseamnă că ai făcut acea călătorie mai des.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mers pe jos</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ciclism</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Condus</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transport public</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Altele</string>
     <string name="map_layer_fog_title">Ceața exploratorului</string>
     <string name="map_layer_fog_chip">Ceață</string>
     <string name="map_layer_fog_description">Lumea iese din ceață: fiecare zonă atinsă de tine este dezvăluită și strălucește mai intens cu cât ai cunoscut-o mai bine. Locurile prin care doar ai trecut rămân o pâclă slabă; un loc explorat în profunzime strălucește auriu. Terenul neexplorat rămâne întunecat.</string>
@@ -175,7 +175,7 @@
     <string name="map_empty_subtitle_wifi">Nu există date Wi-Fi localizate în această vizualizare sau în acest interval de date. Observațiile Wi-Fi înregistrate fără locație sunt păstrate, dar nu pot apărea pe hartă.</string>
     <string name="map_empty_subtitle_speed">Nu există date de viteză în această vizualizare sau în acest interval de date. Hărțile vitezei necesită eșantioane de locație utilizabile colectate în timpul urmăririi.</string>
     <string name="map_empty_subtitle_vehicle_compliance">Nu există deplasări corelate cu drumurile de afișat. Importă o regiune OpenStreetMap (Setări) și înregistrează câteva deplasări cu mașina pentru a potrivi ruta cu drumurile reale.</string>
-    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Închide mesajul fără date</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Închide mesajul fără date</string>
     <string name="map_speed_probe_title">Viteza aici</string>
     <string name="map_speed_probe_avg_label">Medie</string>
     <string name="map_speed_probe_max_label">Max.</string>
@@ -198,7 +198,7 @@
     <string name="map_a11y_search_result_visible">Marcatorul rezultatului căutării este vizibil</string>
     <string name="map_a11y_active_recording_visible">Traseul înregistrării active este vizibil</string>
     <string name="map_a11y_recorded_route_history">Se afișează istoricul rutelor înregistrate</string>
-    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Se afișează observațiile distincte ale locațiilor acceptate</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Se afișează observațiile distincte ale locațiilor acceptate</string>
     <string name="map_a11y_cell_heatmap">Se afișează câmpurile de acoperire celulară și centrele aproximative ale siturilor deservitoare</string>
     <string name="map_a11y_wifi_heatmap">Se afișează benzile Wi-Fi, câmpurile de acoperire și centrele aproximative ale punctelor de acces</string>
     <string name="map_a11y_wifi_count_heatmap">Se afișează suprapunerea punctelor de acces Wi-Fi distincte</string>

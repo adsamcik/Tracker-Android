@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Mapa</string>
@@ -11,9 +11,9 @@
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Densidad media</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Visitas distintas</string>
-    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Visitas</string>
-    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densidad relativa de correcciones de ubicación aceptadas. Muestra observaciones distintas, no el tiempo transcurrido.</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Visitas distintas</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visitas</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densidad relativa de correcciones de ubicación aceptadas. Muestra observaciones distintas, no el tiempo transcurrido.</string>
     <string name="map_layer_cell_radio_gsm">Cobertura GSM</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -25,11 +25,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
-    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora de señal</string>
-    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
-    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">La señal móvil se muestra como un brillo similar a una aurora: un halo violeta amplio bajo un núcleo brillante cian verdoso. El brillo palpita sin recargar datos y queda estático cuando las animaciones del sistema están desactivadas.</string>
-    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Señal débil</string>
-    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Señal fuerte</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora de señal</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">La señal móvil se muestra como un brillo similar a una aurora: un halo violeta amplio bajo un núcleo brillante cian verdoso. El brillo palpita sin recargar datos y queda estático cuando las animaciones del sistema están desactivadas.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Señal débil</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Señal fuerte</string>
     <string name="map_layer_speed_heatmap_description">Mapa de calor que representa la velocidad de movimiento en distintas zonas.</string>
     <string name="map_layer_speed_very_slow">Muy lento</string>
     <string name="map_layer_speed_walking">Ritmo de caminata</string>
@@ -63,32 +63,32 @@
     <string name="map_layer_speed_ribbon_title">Cinta de velocidad</string>
     <string name="map_layer_speed_ribbon_chip">Cinta</string>
     <string name="map_layer_speed_ribbon_description">Tu ruta se colorea según la velocidad a la que te movías, con un flujo de color desde un paseo violeta lento hasta una carrera o conducción rojo ardiente. A diferencia del mapa de calor de velocidad, la cinta conserva tu recorrido intacto para que veas exactamente dónde aceleraste y redujiste la velocidad.</string>
-    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Cinta de altitud</string>
-    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitud</string>
-    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Tu ruta se colorea según la elevación absoluta, desde las tierras bajas azul oscuro, pasando por las estribaciones cian, hasta las alturas montañosas cálidas. La escala permanece fija al desplazar el mapa, de modo que la misma altitud siempre conserva el mismo color.</string>
-    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Tierras bajas</string>
-    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Estribaciones</string>
-    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Alta montaña</string>
-    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Cinta de actividad</string>
-    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Actividad</string>
-    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Tu ruta se colorea según el estado de movimiento fiable registrado con cada corrección: gris cuando el estado era desconocido, azul mientras estabas inmóvil y verde mientras te movías.</string>
-    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Desconocido</string>
-    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Inmóvil</string>
-    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">En movimiento</string>
-    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Radiografía de esquí</string>
-    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Radiografía de esquí</string>
-    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Una vista de diagnóstico de los segmentos de esquí detectados. Descensos, remontes, caminatas y pausas se anclan a la ubicación registrada más cercana y se etiquetan con sus métricas principales.</string>
-    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Descenso</string>
-    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Remonte</string>
-    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Caminar o pausa</string>
-    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Constelaciones de trayectos</string>
-    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Trayectos</string>
-    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Los viajes repetidos entre tus lugares frecuentes se convierten en constelaciones curvas. Un arco estable muestra cada ruta mientras un cometa lo recorre; los arcos más gruesos indican que realizaste ese trayecto con mayor frecuencia.</string>
-    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Caminando</string>
-    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">En bicicleta</string>
-    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Conduciendo</string>
-    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Transporte público</string>
-    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Otro</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Cinta de altitud</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitud</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Tu ruta se colorea según la elevación absoluta, desde las tierras bajas azul oscuro, pasando por las estribaciones cian, hasta las alturas montañosas cálidas. La escala permanece fija al desplazar el mapa, de modo que la misma altitud siempre conserva el mismo color.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Tierras bajas</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Estribaciones</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Alta montaña</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Cinta de actividad</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Actividad</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Tu ruta se colorea según el estado de movimiento fiable registrado con cada corrección: gris cuando el estado era desconocido, azul mientras estabas inmóvil y verde mientras te movías.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Desconocido</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Inmóvil</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">En movimiento</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Radiografía de esquí</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Radiografía de esquí</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Una vista de diagnóstico de los segmentos de esquí detectados. Descensos, remontes, caminatas y pausas se anclan a la ubicación registrada más cercana y se etiquetan con sus métricas principales.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Descenso</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Remonte</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Caminar o pausa</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Constelaciones de trayectos</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Trayectos</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Los viajes repetidos entre tus lugares frecuentes se convierten en constelaciones curvas. Un arco estable muestra cada ruta mientras un cometa lo recorre; los arcos más gruesos indican que realizaste ese trayecto con mayor frecuencia.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Caminando</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">En bicicleta</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Conduciendo</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transporte público</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Otro</string>
     <string name="map_layer_fog_title">Niebla del explorador</string>
     <string name="map_layer_fog_chip">Niebla</string>
     <string name="map_layer_fog_description">El mundo emerge de la niebla: cada zona que has tocado se revela y brilla más cuanto mejor la conoces. Los lugares por los que solo pasaste quedan como una neblina tenue; donde exploraste a fondo arde en oro sólido. El terreno inexplorado permanece oscuro.</string>
@@ -184,7 +184,7 @@
     <string name="map_empty_subtitle_wifi">No hay datos de Wi-Fi ubicados en esta vista o intervalo de fechas. Las observaciones de Wi-Fi registradas sin ubicación se siguen guardando, pero no pueden aparecer en el mapa.</string>
     <string name="map_empty_subtitle_speed">No hay datos de velocidad en esta vista o intervalo de fechas. Los mapas de velocidad requieren muestras de ubicación utilizables recopiladas durante el seguimiento.</string>
     <string name="map_empty_subtitle_vehicle_compliance">No hay trayectos de conducción ajustados a carreteras que mostrar. Importa una región de OpenStreetMap (Ajustes) y registra conducción para que podamos ajustar tu ruta a carreteras reales.</string>
-    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Descartar mensaje de ausencia de datos</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Descartar mensaje de ausencia de datos</string>
     <string name="map_speed_probe_title">Velocidad aquí</string>
     <string name="map_speed_probe_avg_label">Media</string>
     <string name="map_speed_probe_max_label">Máx.</string>
@@ -207,7 +207,7 @@
     <string name="map_a11y_search_result_visible">Marcador de resultado de búsqueda visible</string>
     <string name="map_a11y_active_recording_visible">Trayectoria de registro activa visible</string>
     <string name="map_a11y_recorded_route_history">Mostrando el historial de rutas registradas</string>
-    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Mostrando observaciones de ubicación aceptadas distintas</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Mostrando observaciones de ubicación aceptadas distintas</string>
     <string name="map_a11y_cell_heatmap">Mostrando campos de cobertura móvil y centros aproximados de sitios de servicio</string>
     <string name="map_a11y_wifi_heatmap">Mostrando bandas Wi-Fi, campos de cobertura y centros aproximados de puntos de acceso</string>
     <string name="map_a11y_wifi_count_heatmap">Mostrando solapamiento de puntos de acceso Wi-Fi distintos</string>

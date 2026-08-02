@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <string name="module_map_title">Mappa</string>
     <string name="description_map_search">Buttuna tat-tiftix</string>
@@ -10,9 +10,9 @@
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Densità medja</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Żjarat distinti</string>
-    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Żjarat</string>
-    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densità relattiva ta’ fissazzjonijiet tal-post aċċettati. Dan juri osservazzjonijiet distinti, mhux ħin imqatta’.</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Żjarat distinti</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Żjarat</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densità relattiva ta’ fissazzjonijiet tal-post aċċettati. Dan juri osservazzjonijiet distinti, mhux ħin imqatta’.</string>
     <string name="map_layer_cell_radio_gsm">Kopertura GSM</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -24,11 +24,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
-    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora tas-sinjal</string>
-    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
-    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Sinjal ċellulari muri bħala dawl bħal aurora: halo vjola wiesa’ taħt qalba qawwija ċjan-ħadra. Id-dawl jiċċaqlaq mingħajr ma jerġa’ jgħabbi d-dejta u jsir wieqaf meta l-animazzjonijiet tas-sistema jkunu diżattivati.</string>
-    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Sinjal dgħajjef</string>
-    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Sinjal qawwi</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora tas-sinjal</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Sinjal ċellulari muri bħala dawl bħal aurora: halo vjola wiesa’ taħt qalba qawwija ċjan-ħadra. Id-dawl jiċċaqlaq mingħajr ma jerġa’ jgħabbi d-dejta u jsir wieqaf meta l-animazzjonijiet tas-sistema jkunu diżattivati.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Sinjal dgħajjef</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Sinjal qawwi</string>
     <string name="map_layer_speed_heatmap_description">Mappa termika li tirrappreżenta l-veloċità tal-moviment f’żoni differenti.</string>
     <string name="map_layer_speed_very_slow">Bil-mod ħafna</string>
     <string name="map_layer_speed_walking">Ritmu tal-mixi</string>
@@ -62,32 +62,32 @@
     <string name="map_layer_speed_ribbon_title">Żigarella tal-veloċità</string>
     <string name="map_layer_speed_ribbon_chip">Żigarella</string>
     <string name="map_layer_speed_ribbon_description">Ir-rotta tiegħek miżbugħa skont kemm kont miexi malajr, b’kulur li jgħaddi minn pass vjola bil-mod għal sprint jew sewqan aħmar jaħraq. B’differenza mill-mappa termika tal-veloċità, iż-żigarella żżomm il-mogħdija tiegħek intatta sabiex tara eżatt fejn aċċellerajt u naqqast.</string>
-    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Żigarella tal-altitudni</string>
-    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitudni</string>
-    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa skont l-elevazzjoni assoluta, minn artijiet baxxi blu skuri sa għoljiet ċjan u għoli ta’ muntanji sħan. L-iskala tibqa’ fissa waqt li tiċċaqlaq fil-mappa, għalhekk l-istess altitudni dejjem iżżomm l-istess kulur.</string>
-    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Artijiet baxxi</string>
-    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Għoljiet</string>
-    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Muntanji għoljin</string>
-    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Żigarella tal-attività</string>
-    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Attività</string>
-    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa bl-istat ta’ moviment affidabbli rreġistrat ma’ kull fissazzjoni: griż fejn l-istat ma kienx magħruf, blu waqt li kont wieqaf, u aħdar waqt li kont miexi.</string>
-    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Mhux magħruf</string>
-    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Wieqaf</string>
-    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">Jiċċaqlaq</string>
-    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">X-ray tal-iskijjar</string>
-    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">X-ray tal-iskijjar</string>
-    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Veduta dijanjostika ta’ segmenti tal-iskijjar misjuba. Ġirjiet għan-niżla, liftijiet, mixjiet u pawżi huma marbuta mal-eqreb post irreġistrat u ttikkettati bil-metriċi ewlenin tagħhom.</string>
-    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Ġirja għan-niżla</string>
-    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Lift tal-iskijjar</string>
-    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Mixja jew pawża</string>
-    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Kostellazzjonijiet ta’ vjaġġi</string>
-    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Vjaġġi</string>
-    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Vjaġġi ripetuti bejn il-postijiet frekwenti tiegħek isiru kostellazzjonijiet mgħawġa. Ark stabbli juri kull rotta waqt li kometa tgħaddi tulha; arkijiet eħxen ifissru li għamilt dak il-vjaġġ aktar spiss.</string>
-    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Mixi</string>
-    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Ċikliżmu</string>
-    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Sewqan</string>
-    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Trasport pubbliku</string>
-    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Oħrajn</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Żigarella tal-altitudni</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitudni</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa skont l-elevazzjoni assoluta, minn artijiet baxxi blu skuri sa għoljiet ċjan u għoli ta’ muntanji sħan. L-iskala tibqa’ fissa waqt li tiċċaqlaq fil-mappa, għalhekk l-istess altitudni dejjem iżżomm l-istess kulur.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Artijiet baxxi</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Għoljiet</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Muntanji għoljin</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Żigarella tal-attività</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Attività</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Ir-rotta tiegħek miżbugħa bl-istat ta’ moviment affidabbli rreġistrat ma’ kull fissazzjoni: griż fejn l-istat ma kienx magħruf, blu waqt li kont wieqaf, u aħdar waqt li kont miexi.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Mhux magħruf</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Wieqaf</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Jiċċaqlaq</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">X-ray tal-iskijjar</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">X-ray tal-iskijjar</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Veduta dijanjostika ta’ segmenti tal-iskijjar misjuba. Ġirjiet għan-niżla, liftijiet, mixjiet u pawżi huma marbuta mal-eqreb post irreġistrat u ttikkettati bil-metriċi ewlenin tagħhom.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Ġirja għan-niżla</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift tal-iskijjar</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mixja jew pawża</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Kostellazzjonijiet ta’ vjaġġi</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Vjaġġi</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Vjaġġi ripetuti bejn il-postijiet frekwenti tiegħek isiru kostellazzjonijiet mgħawġa. Ark stabbli juri kull rotta waqt li kometa tgħaddi tulha; arkijiet eħxen ifissru li għamilt dak il-vjaġġ aktar spiss.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mixi</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ċikliżmu</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Sewqan</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Trasport pubbliku</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Oħrajn</string>
     <string name="map_layer_fog_title">Ċpar tal-esploratur</string>
     <string name="map_layer_fog_chip">Ċpar</string>
     <string name="map_layer_fog_description">Id-dinja li toħroġ miċ-ċpar: kull żona li messet tiġi żvelata u tiddi aktar ma sirtha taf sew. Postijiet li għaddejt biss minnhom jibqgħu ċpar ħafif; imkien li esplorajt fil-fond jaqbad deheb solidu. Art mhux esplorata tibqa’ skura.</string>
@@ -175,7 +175,7 @@
     <string name="map_empty_subtitle_wifi">Ebda dejta Wi-Fi b’post f’din il-veduta jew firxa tad-dati. Osservazzjonijiet Wi-Fi rreġistrati mingħajr post għadhom salvati, imma ma jistgħux jidhru fuq il-mappa.</string>
     <string name="map_empty_subtitle_speed">Ebda dejta tal-veloċità f’din il-veduta jew firxa tad-dati. Il-mapep tal-veloċità jeħtieġu kampjuni ta’ post li jistgħu jintużaw miġbura waqt it-traċċar.</string>
     <string name="map_empty_subtitle_vehicle_compliance">Ebda sewqan imqabbel mat-triq x’turi. Importa reġjun OpenStreetMap (Issettjar) u rreġistra xi sewqan biex nistgħu nqabblu r-rotta tiegħek ma’ toroq reali.</string>
-    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Aħbi l-messaġġ ta’ ebda dejta</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Aħbi l-messaġġ ta’ ebda dejta</string>
     <string name="map_speed_probe_title">Veloċità hawn</string>
     <string name="map_speed_probe_avg_label">Medja</string>
     <string name="map_speed_probe_max_label">Massimu</string>
@@ -198,7 +198,7 @@
     <string name="map_a11y_search_result_visible">Markatur tar-riżultat tat-tiftix viżibbli</string>
     <string name="map_a11y_active_recording_visible">Il-mogħdija tar-reġistrazzjoni attiva viżibbli</string>
     <string name="map_a11y_recorded_route_history">Qed tintwera l-istorja tar-rotot irreġistrati</string>
-    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Qed jintwerew osservazzjonijiet distinti tal-post aċċettati</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Qed jintwerew osservazzjonijiet distinti tal-post aċċettati</string>
     <string name="map_a11y_cell_heatmap">Qed jintwerew oqsma ta’ kopertura ċellulari u ċentri approssimattivi tas-siti tas-servizz</string>
     <string name="map_a11y_wifi_heatmap">Qed jintwerew meded Wi-Fi, oqsma ta’ kopertura u ċentri approssimattivi tal-punti ta’ aċċess</string>
     <string name="map_a11y_wifi_count_heatmap">Qed tintwera s-sovrappożizzjoni ta’ punti ta’ aċċess Wi-Fi distinti</string>

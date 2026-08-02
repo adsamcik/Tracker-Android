@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
     <!-- Module title for distribution manifest -->
     <string name="module_map_title">Mappa</string>
@@ -11,9 +11,9 @@
     <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
     <string name="map_layer_location_heatmap_medium">Densità media</string>
     <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
-    <string name="map_layer_distinct_visits_title" ns0:ignore="MissingTranslation">Visite distinte</string>
-    <string name="map_layer_distinct_visits_chip" ns0:ignore="MissingTranslation">Visite</string>
-    <string name="map_layer_distinct_visits_description" ns0:ignore="MissingTranslation">Densità relativa delle posizioni accettate. Mostra osservazioni distinte, non il tempo trascorso.</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Visite distinte</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Visite</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Densità relativa delle posizioni accettate. Mostra osservazioni distinte, non il tempo trascorso.</string>
     <string name="map_layer_cell_radio_gsm">Copertura GSM</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
@@ -25,11 +25,11 @@
     <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
     <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
     <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
-    <string name="map_layer_signal_aurora_title" ns0:ignore="MissingTranslation">Aurora del segnale</string>
-    <string name="map_layer_signal_aurora_chip" ns0:ignore="MissingTranslation">Aurora</string>
-    <string name="map_layer_signal_aurora_description" ns0:ignore="MissingTranslation">Segnale cellulare reso come un bagliore simile a un\'aurora: un ampio alone viola sotto un nucleo luminoso ciano-verde. Il bagliore pulsa senza ricaricare i dati e diventa statico quando le animazioni di sistema sono disabilitate.</string>
-    <string name="map_layer_signal_aurora_faint" ns0:ignore="MissingTranslation">Segnale debole</string>
-    <string name="map_layer_signal_aurora_strong" ns0:ignore="MissingTranslation">Segnale forte</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Aurora del segnale</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Aurora</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Segnale cellulare reso come un bagliore simile a un\'aurora: un ampio alone viola sotto un nucleo luminoso ciano-verde. Il bagliore pulsa senza ricaricare i dati e diventa statico quando le animazioni di sistema sono disabilitate.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Segnale debole</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Segnale forte</string>
     <string name="map_layer_speed_heatmap_description">Mappa di calore che rappresenta la velocità di movimento nelle diverse aree.</string>
     <string name="map_layer_speed_very_slow">Molto lento</string>
     <string name="map_layer_speed_walking">Passo di camminata</string>
@@ -63,32 +63,32 @@
     <string name="map_layer_speed_ribbon_title">Nastro della velocità</string>
     <string name="map_layer_speed_ribbon_chip">Nastro</string>
     <string name="map_layer_speed_ribbon_description">Il tuo percorso è dipinto in base alla velocità di movimento, con colori che scorrono dal viola di una passeggiata lenta al rosso acceso di uno sprint o di una guida. A differenza della mappa di calore della velocità, il nastro conserva intatto il tracciato, così vedi esattamente dove hai accelerato e rallentato.</string>
-    <string name="map_layer_altitude_ribbon_title" ns0:ignore="MissingTranslation">Nastro dell\'altitudine</string>
-    <string name="map_layer_altitude_ribbon_chip" ns0:ignore="MissingTranslation">Altitudine</string>
-    <string name="map_layer_altitude_ribbon_description" ns0:ignore="MissingTranslation">Il tuo percorso è dipinto in base all\'altitudine assoluta, dalle basse terre blu intenso alle colline ciano fino alle calde altezze montane. La scala resta fissa mentre sposti la mappa, così la stessa altitudine conserva sempre lo stesso colore.</string>
-    <string name="map_layer_altitude_low" ns0:ignore="MissingTranslation">Basse terre</string>
-    <string name="map_layer_altitude_mid" ns0:ignore="MissingTranslation">Colline</string>
-    <string name="map_layer_altitude_high" ns0:ignore="MissingTranslation">Alte montagne</string>
-    <string name="map_layer_activity_ribbon_title" ns0:ignore="MissingTranslation">Nastro dell\'attività</string>
-    <string name="map_layer_activity_ribbon_chip" ns0:ignore="MissingTranslation">Attività</string>
-    <string name="map_layer_activity_ribbon_description" ns0:ignore="MissingTranslation">Il tuo percorso è dipinto in base allo stato di movimento affidabile registrato con ogni posizione: grigio dove lo stato era sconosciuto, blu da fermo e verde in movimento.</string>
-    <string name="map_layer_activity_unknown" ns0:ignore="MissingTranslation">Sconosciuto</string>
-    <string name="map_layer_activity_still" ns0:ignore="MissingTranslation">Fermo</string>
-    <string name="map_layer_activity_moving" ns0:ignore="MissingTranslation">In movimento</string>
-    <string name="map_layer_ski_xray_title" ns0:ignore="MissingTranslation">Radiografia sci</string>
-    <string name="map_layer_ski_xray_chip" ns0:ignore="MissingTranslation">Radiografia sci</string>
-    <string name="map_layer_ski_xray_description" ns0:ignore="MissingTranslation">Una vista diagnostica dei segmenti sciistici rilevati. Discese, impianti, camminate e pause sono ancorati alla posizione registrata più vicina ed etichettati con le metriche principali.</string>
-    <string name="map_layer_ski_downhill" ns0:ignore="MissingTranslation">Discesa</string>
-    <string name="map_layer_ski_lift" ns0:ignore="MissingTranslation">Impianto</string>
-    <string name="map_layer_ski_walk" ns0:ignore="MissingTranslation">Camminata o pausa</string>
-    <string name="map_layer_trip_constellations_title" ns0:ignore="MissingTranslation">Costellazioni di viaggi</string>
-    <string name="map_layer_trip_constellations_chip" ns0:ignore="MissingTranslation">Viaggi</string>
-    <string name="map_layer_trip_constellations_description" ns0:ignore="MissingTranslation">Gli spostamenti ripetuti tra i luoghi frequenti diventano costellazioni curve. Un arco stabile mostra ogni percorso mentre una cometa viaggia lungo di esso; archi più spessi indicano che hai compiuto quel viaggio più spesso.</string>
-    <string name="map_layer_trip_walk" ns0:ignore="MissingTranslation">Camminata</string>
-    <string name="map_layer_trip_bike" ns0:ignore="MissingTranslation">Bicicletta</string>
-    <string name="map_layer_trip_car" ns0:ignore="MissingTranslation">Guida</string>
-    <string name="map_layer_trip_transit" ns0:ignore="MissingTranslation">Trasporto pubblico</string>
-    <string name="map_layer_trip_other" ns0:ignore="MissingTranslation">Altro</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Nastro dell\'altitudine</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Altitudine</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Il tuo percorso è dipinto in base all\'altitudine assoluta, dalle basse terre blu intenso alle colline ciano fino alle calde altezze montane. La scala resta fissa mentre sposti la mappa, così la stessa altitudine conserva sempre lo stesso colore.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Basse terre</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Colline</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Alte montagne</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Nastro dell\'attività</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Attività</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Il tuo percorso è dipinto in base allo stato di movimento affidabile registrato con ogni posizione: grigio dove lo stato era sconosciuto, blu da fermo e verde in movimento.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Sconosciuto</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Fermo</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">In movimento</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Radiografia sci</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Radiografia sci</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Una vista diagnostica dei segmenti sciistici rilevati. Discese, impianti, camminate e pause sono ancorati alla posizione registrata più vicina ed etichettati con le metriche principali.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Discesa</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Impianto</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Camminata o pausa</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Costellazioni di viaggi</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Viaggi</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Gli spostamenti ripetuti tra i luoghi frequenti diventano costellazioni curve. Un arco stabile mostra ogni percorso mentre una cometa viaggia lungo di esso; archi più spessi indicano che hai compiuto quel viaggio più spesso.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Camminata</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicicletta</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Guida</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Trasporto pubblico</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Altro</string>
     <string name="map_layer_fog_title">Nebbia dell\'esploratore</string>
     <string name="map_layer_fog_chip">Nebbia</string>
     <string name="map_layer_fog_description">Il mondo emerge dalla nebbia: ogni area che hai toccato viene rivelata e brilla di più quanto più l\'hai conosciuta. I luoghi attraversati soltanto restano una foschia tenue; un posto esplorato a fondo arde d\'oro. Il terreno inesplorato resta scuro.</string>
@@ -184,7 +184,7 @@
     <string name="map_empty_subtitle_wifi">Nessun dato Wi-Fi localizzato in questa vista o intervallo di date. Le osservazioni Wi-Fi registrate senza posizione vengono comunque salvate, ma non possono apparire sulla mappa.</string>
     <string name="map_empty_subtitle_speed">Nessun dato di velocità in questa vista o intervallo di date. Le mappe della velocità richiedono campioni di posizione utilizzabili raccolti durante il tracciamento.</string>
     <string name="map_empty_subtitle_vehicle_compliance">Nessuna guida associata alle strade da mostrare. Importa una regione OpenStreetMap (Impostazioni) e registra alcuni spostamenti in auto per associare il percorso alle strade reali.</string>
-    <string name="map_empty_dismiss" ns0:ignore="MissingTranslation">Ignora messaggio senza dati</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Ignora messaggio senza dati</string>
     <string name="map_speed_probe_title">Velocità qui</string>
     <string name="map_speed_probe_avg_label">Media</string>
     <string name="map_speed_probe_max_label">Massima</string>
@@ -207,7 +207,7 @@
     <string name="map_a11y_search_result_visible">Indicatore del risultato di ricerca visibile</string>
     <string name="map_a11y_active_recording_visible">Percorso di registrazione attivo visibile</string>
     <string name="map_a11y_recorded_route_history">Visualizzazione della cronologia dei percorsi registrati</string>
-    <string name="map_a11y_distinct_visits" ns0:ignore="MissingTranslation">Visualizzazione delle osservazioni di posizione accettate distinte</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Visualizzazione delle osservazioni di posizione accettate distinte</string>
     <string name="map_a11y_cell_heatmap">Visualizzazione dei campi di copertura cellulare e dei centri approssimativi dei siti serventi</string>
     <string name="map_a11y_wifi_heatmap">Visualizzazione delle bande Wi-Fi, dei campi di copertura e dei centri approssimativi degli access point</string>
     <string name="map_a11y_wifi_count_heatmap">Visualizzazione della sovrapposizione di access point Wi-Fi distinti</string>

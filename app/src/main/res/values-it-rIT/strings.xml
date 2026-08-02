@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Tracker</string>
     <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Giochi</string>
@@ -43,7 +43,7 @@
     <string name="settings_reset_export_watermarks_done">Indicatori di esportazione reimpostati — il prossimo backup sarà un\'esportazione completa</string>
     <string name="settings_migration_backup_export_title">Esporta backup di sicurezza pre-aggiornamento</string>
     <!-- The integer arguments are database version identifiers, not quantities. -->
-    <string name="settings_migration_backup_export_summary" ns0:ignore="PluralsCandidate">Copia completa del database dalla v%1$d, creata prima della migrazione alla v%2$d e conservata privatamente per un massimo di 30 giorni</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Copia completa del database dalla v%1$d, creata prima della migrazione alla v%2$d e conservata privatamente per un massimo di 30 giorni</string>
     <string name="settings_migration_backup_warning_title">Esportare il backup del database sensibile?</string>
     <string name="settings_migration_backup_warning_message">Questo backup può contenere posizioni precise, osservazioni Wi-Fi e cellulari, attività e altri dati privati precedenti all\'aggiornamento. Salvalo solo in un luogo di cui ti fidi.</string>
     <string name="settings_migration_backup_export_action">Esporta backup</string>

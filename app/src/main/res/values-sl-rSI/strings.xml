@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<resources xmlns:ns0="http://schemas.android.com/tools">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Tracker</string>
     <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Igra</string>
@@ -47,7 +47,7 @@
     <string name="settings_reset_export_watermarks_done">Vodne oznake izvoza so ponastavljene — naslednja varnostna kopija bo celoten izvoz.</string>
     <string name="settings_migration_backup_export_title">Izvozi varnostno kopijo pred nadgradnjo</string>
     <!-- The integer arguments are database version identifiers, not quantities. -->
-    <string name="settings_migration_backup_export_summary" ns0:ignore="PluralsCandidate">Celotna kopija zbirke podatkov iz v%1$d, ustvarjena pred selitvijo na v%2$d in zasebno shranjena do 30 dni</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Celotna kopija zbirke podatkov iz v%1$d, ustvarjena pred selitvijo na v%2$d in zasebno shranjena do 30 dni</string>
     <string name="settings_migration_backup_warning_title">Izvoziti občutljivo varnostno kopijo zbirke podatkov?</string>
     <string name="settings_migration_backup_warning_message">Ta varnostna kopija lahko vsebuje natančne lokacije, opažanja omrežij Wi‑Fi in mobilnih celic, dejavnosti ter druge zasebne podatke iz obdobja pred nadgradnjo. Shranite jo le na mesto, ki mu zaupate.</string>
     <string name="settings_migration_backup_export_action">Izvozi varnostno kopijo</string>
